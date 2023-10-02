@@ -1,0 +1,20 @@
+{
+  "name": "easy-accounting",
+  "version": "4.6.0",
+  "description": "A foundation for scalable desktop apps",
+  "license": "MIT",
+  "author": {
+    "name": "Anser Waseem",
+    "email": "hafiz.anser.waseem@gmail.com",
+    "url": "https://github.com/easy-accounting"
+  },
+  "main": "./dist/main/main.js",
+  "scripts": {
+    "rebuild": "node -r ts-node/register ../../.erb/scripts/electron-rebuild.js",
+    "postinstall": "npm run rebuild && npm run link-modules",
+    "link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^8.4.0"
+  }
+}
