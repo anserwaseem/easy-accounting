@@ -2,7 +2,8 @@
   "files.associations": {
     ".eslintrc": "jsonc",
     ".prettierrc": "jsonc",
-    ".eslintignore": "ignore"
+    ".eslintignore": "ignore",
+    "*.css": "tailwindcss"
   },
 
   "eslint.validate": [
