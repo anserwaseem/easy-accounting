@@ -14,6 +14,9 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "outDir": ".erb/dll"
+    // "paths": {
+    //   "@/*": ["./*"]
+    // }
   },
   "exclude": ["test", "release/build", "release/app/dist", ".erb/dll"]
 }

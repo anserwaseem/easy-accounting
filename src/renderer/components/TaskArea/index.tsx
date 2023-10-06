@@ -1,3 +1,4 @@
+import { ModeToggle } from '../ModeToggle';
 import TaskItem from '../TaskItem';
 
 import styles from './TaskArea.module.css';
@@ -22,18 +23,17 @@ export default function TaskArea({
 }) {
   return (
     <div className={styles.container}>
-      <span>
-        <h6 className=" bg-slate-500 text-center text-red-500">
-          Hi Tailwind has been integrated.
-        </h6>
-      </span>
+      <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">
+        Hi Tailwind has been integrated.
+      </h4>
+      <ModeToggle />
       {todos.map((todo) => (
         <TaskItem
           checked={todo.status === 1 ? true : false}
           date={todo.date}
           label={todo.title}
           key={todo.id}
-          id={todo.id}
+          id={todo.id ?? 0}
           onChange={onCheck}
           onDelete={onDelete}
           onEdit={onEdit}
