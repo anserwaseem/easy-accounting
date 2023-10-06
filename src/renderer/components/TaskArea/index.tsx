@@ -22,6 +22,11 @@ export default function TaskArea({
 }) {
   return (
     <div className={styles.container}>
+      <span>
+        <h6 className=" bg-slate-500 text-center text-red-500">
+          Hi Tailwind has been integrated.
+        </h6>
+      </span>
       {todos.map((todo) => (
         <TaskItem
           checked={todo.status === 1 ? true : false}

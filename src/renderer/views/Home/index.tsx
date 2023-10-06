@@ -5,6 +5,7 @@ import Modal from '../../components/Modal';
 
 import styles from './Home.module.css';
 import { useEffect, useState } from 'react';
+import 'tailwindcss/tailwind.css';
 
 export default function Home() {
   const [modal, setModal] = useState(false);
