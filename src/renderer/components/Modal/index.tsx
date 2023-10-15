@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import styles from './Modal.module.css';
 import { TODO } from '../TaskArea';
+import { Button } from 'renderer/shad/ui/button';
 export type Modal = {
   initialData: TODO | undefined;
   onClose: () => void;
@@ -30,17 +31,17 @@ export default function Modal({ onClose, initialData, onSave }: Modal) {
         <span className={styles.close} onClick={onClose}>
           &times;
         </span>
-        <h2>New task</h2>
+        <h2 className="text-2xl">New task</h2>
         <div className={styles.formGroup}>
           <label>Title</label>
           <input value={title} onChange={(el) => setTitle(el.target.value)} />
         </div>
-        <button className="button" onClick={handleOnSave}>
+        <Button variant="default" onClick={handleOnSave} className="mr-2">
           Save
-        </button>
-        <button className="button secondary" onClick={onClose}>
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );
