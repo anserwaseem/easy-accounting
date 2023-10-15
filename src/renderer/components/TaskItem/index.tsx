@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import styles from './TaskItem.module.css';
+import { Button } from 'renderer/shad/ui/button';
 
 export type TaskItem = {
   label: string;
@@ -49,12 +50,12 @@ export default function TaskItem({
           {format(new Date(date), "E., dd 'de' MMM")}
         </p>
         <div>
-          <button className="button" onClick={handleEdit}>
-            Editar
-          </button>
-          <button className="button secondary" onClick={handleDelete}>
-            Deletar
-          </button>
+          <Button variant="default" onClick={handleEdit} className="mr-2">
+            Edit
+          </Button>
+          <Button variant="destructive" onClick={handleDelete}>
+            Delete
+          </Button>
         </div>
       </div>
     </div>
