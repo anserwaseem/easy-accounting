@@ -25,7 +25,7 @@ export default function TaskArea({
     <div className={styles.container}>
       <div className="flex justify-between items-center mb-2">
         <h4 className="text-xl font-semibold tracking-tight">
-          Hi, Tailwind has been integrated.
+          Hi, Tailwind and Shadcn has been integrated.
         </h4>
         <ModeToggle />
       </div>
