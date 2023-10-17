@@ -7,6 +7,7 @@ import { useContext } from 'react';
 import { AuthContext } from './context/Auth';
 import AuthProvider from './providers/Auth';
 import { ThemeProvider } from './hooks';
+import { Toaster } from './shad/ui/toaster';
 
 export default function appRoutes() {
   return (
@@ -25,6 +26,7 @@ export default function appRoutes() {
             <Route path="/login" Component={Login} />
             <Route path="/register" Component={Register} />
           </Routes>
+          <Toaster />
         </MemoryRouter>
       </AuthProvider>
     </ThemeProvider>
@@ -34,7 +36,11 @@ export default function appRoutes() {
 function RequireAuth({ children }: { children: JSX.Element }) {
   let { authed } = useContext(AuthContext);
 
-  if (process.env.NODE_ENV === 'development' || authed) return children;
+  if (
+    // process.env.NODE_ENV === 'development' ||
+    authed
+  )
+    return children;
 
   return <Navigate to="/login" replace />;
 }
