@@ -1,21 +1,29 @@
+import { toString } from 'lodash';
+import { convertFileToJson } from 'renderer/lib/lib';
+import { parseBalanceSheet } from 'renderer/lib/parser';
 import { Button } from 'renderer/shad/ui/button';
 import { Input } from 'renderer/shad/ui/input';
-import { read, utils } from 'xlsx';
+import { useToast } from 'renderer/shad/ui/use-toast';
 
 export const GettingStarted = () => {
+  const { toast } = useToast();
+
   const uploadBalanceSheet = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
 
-    const data = await file.arrayBuffer();
-    // parse
-    const wb = read(data);
-    // get the first worksheet
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    // convert to json
-    const json = utils.sheet_to_json(ws, { header: 1 });
-    console.log(json);
+    try {
+      const json = await convertFileToJson(file);
+      const balanceSheet = parseBalanceSheet(json);
+      console.log(balanceSheet);
+    } catch (error) {
+      console.error(error);
+      toast({
+        description: toString(error),
+        variant: 'destructive',
+      });
+    }
   };
+
   return (
     <div className="grid w-full max-w-sm items-center gap-1.5">
       <Button

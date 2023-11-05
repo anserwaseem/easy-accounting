@@ -2328,6 +2328,11 @@
   dependencies:
     "@types/node" "*"
 
+"@types/lodash@^4.14.200":
+  "integrity" "sha512-YI/M/4HRImtNf3pJgbF+W6FrXovqj+T+/HpENLTooK9PnkacBsDpeP3IpHab40CClUfhNmdM2WTNP2sa2dni5Q=="
+  "resolved" "https://registry.npmjs.org/@types/lodash/-/lodash-4.14.200.tgz"
+  "version" "4.14.200"
+
 "@types/mime@*":
   "integrity" "sha512-Y4XFY5VJAuw0FgAqPNd6NNoV44jbq9Bz2L7Rh/J6jLTiHBSBJa9fxqQIvkIld4GsoDOcCbvzOUAbLPsSKKg+uA=="
   "resolved" "https://registry.npmjs.org/@types/mime/-/mime-3.0.1.tgz"
