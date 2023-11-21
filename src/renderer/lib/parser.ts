@@ -9,6 +9,7 @@ import {
   findIndex,
   forEach,
   forOwn,
+  get,
   head,
   isArray,
   isEmpty,
@@ -51,7 +52,13 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       totalFixed: 0,
       total: 0,
     },
-    equity: {},
+    equity: {
+      current: {},
+      total: 0,
+      totalCurrent: undefined,
+      fixed: undefined,
+      totalFixed: undefined,
+    },
   };
 
   if (!isTwoDimensionalArray(obj)) throw 'Invalid balance sheet format';
@@ -69,81 +76,12 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   const transformedAccounts = transformAccounts(accounts);
   console.log('transformedAccounts', transformedAccounts);
 
-  type section = 'assets' | 'liabilities' | 'equity' | null;
-  type sectionType = 'current' | 'fixed' | null;
-
-  let currentSection: section = null;
-  let currentSectionType: sectionType = null;
-  let accountHead = '';
-
-  map(transformedAccounts, (account, index) => {
-    //TODO: parse accounts
-    if (index === 0) return;
-
-    const name = head(account) as string;
-    const values = tail(account);
-
-    if (toLower(name) === 'assets') {
-      currentSection = 'assets';
-      return;
-    } else if (toLower(name) === 'liabilities') {
-      currentSection = 'liabilities';
-      return;
-    } else if (toLower(name) === 'equity') {
-      currentSection = 'equity';
-      return;
-    }
-
-    if (!currentSection) return;
-
-    const section = sheet[currentSection];
-    const current = section.current as Record<string, ReportAccount[]>;
-    const fixed = section.fixed as Record<string, ReportAccount[]>;
-
-    if (currentSection === 'assets') {
-      if (name.includes('current') || isEmpty(values)) {
-        currentSectionType = 'current';
-        return;
-      } else if (name.includes('fixed')) {
-        currentSectionType = 'fixed';
-        return;
-      }
-
-      // if amount is empty, this is a new account head
-      if (isEmpty(head(values))) {
-        accountHead = name;
-        return;
-      }
-
-      const account: ReportAccount = {
-        name,
-        amount: toNumber(head(values)),
-        // add other properties here
-      };
-
-      if (currentSectionType === 'current') {
-        if (current[accountHead]) current[accountHead]?.push(account);
-        else current[accountHead] = [account];
-      } else if (currentSectionType === 'fixed') {
-        if (fixed[accountHead]) fixed[accountHead]?.push(account);
-        else fixed[accountHead] = [account];
-      }
-
-      // reset
-      if (
-        toLower(toString(head(transformedAccounts?.at(index + 1)))) ===
-        'liabilities'
-      ) {
-        currentSection = null;
-        currentSectionType = null;
-        accountHead = '';
-      }
-    }
-  });
+  parseAccounts(transformedAccounts);
 
   if (!date) throw 'Date not found in Balance Sheet';
 
   sheet.date = date;
+  console.log('sheet', sheet);
   return sheet;
 
   // private functions
@@ -227,5 +165,173 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     }
 
     return removeEmptySubarrays(transformedArray);
+  }
+
+  function parseAccounts(transformedAccounts: unknown[][]): void {
+    type Section = 'assets' | 'liabilities' | 'equity' | null;
+    type SectionType = 'current' | 'fixed' | null;
+    type SectionTotal = 'totalCurrent' | 'totalFixed' | 'total' | null;
+
+    let currentSection: Section = null;
+    let currentSectionType: SectionType = null;
+
+    let sectionTotal: SectionTotal = null;
+    let totalCurrent = 0;
+    let totalFixed = 0;
+    let accountHead = '';
+
+    forEach(transformedAccounts, (account, accIdx) => {
+      if (accIdx === 0) return;
+
+      const name = head(account) as string;
+      const values = tail(account);
+
+      const lowerName = toLower(name);
+
+      console.log('name', name);
+      console.log('values', values);
+
+      if (lowerName === 'assets') {
+        currentSection = 'assets';
+        return;
+      } else if (lowerName === 'liabilities') {
+        currentSection = 'liabilities';
+        return;
+      } else if (lowerName === 'equity') {
+        currentSection = 'equity';
+        currentSectionType = 'current';
+        return;
+      }
+
+      console.log('currentSection', currentSection);
+      if (!currentSection) return;
+
+      const section = sheet[currentSection];
+      const current = section.current as Record<string, ReportAccount[]>;
+      const fixed = section.fixed as Record<string, ReportAccount[]>;
+
+      if (
+        lowerName.includes('total') &&
+        lowerName.includes('current') &&
+        !lowerName.includes('non') &&
+        !lowerName.includes('fixed')
+      ) {
+        console.log('calculate totals: totalCurrent', lowerName, values);
+        sheet[currentSection].totalCurrent = toNumber(head(values));
+        if (sheet[currentSection].totalCurrent !== totalCurrent) {
+          console.log(
+            'totalCurrent',
+            sheet[currentSection].totalCurrent,
+            totalCurrent,
+          );
+          throw `Total Current ${currentSection} do not match`;
+        }
+      } else if (
+        lowerName.includes('total') &&
+        (lowerName.includes('fixed') ||
+          (lowerName.includes('current') && lowerName.includes('non')))
+      ) {
+        console.log('calculate totals: totalFixed', lowerName, values);
+        sheet[currentSection].totalFixed = toNumber(head(values));
+        if (sheet[currentSection].totalFixed !== totalFixed) {
+          console.log(
+            'totalFixed',
+            sheet[currentSection].totalFixed,
+            totalFixed,
+          );
+          throw `Total Fixed ${currentSection} do not match`;
+        }
+      } else if (lowerName.includes('total')) {
+        console.log(
+          'calculate totals: total',
+          currentSection,
+          lowerName,
+          values,
+        );
+        if (lowerName.includes('equity') && sheet[currentSection].total !== 0)
+          // HACK: equity total is already set
+          sheet['liabilities'].total = toNumber(head(values));
+        else sheet[currentSection].total = toNumber(head(values));
+
+        if (sheet[currentSection].total !== totalCurrent + totalFixed) {
+          console.log(
+            'total',
+            sheet[currentSection].total,
+            totalCurrent,
+            totalFixed,
+          );
+          // throw `Total ${currentSection} do not match`;
+        }
+      }
+
+      if (currentSection === 'equity' && lowerName.includes('total')) return; // indicates end of equity section
+
+      if (
+        isEmpty(values) || // HACK: if section type is not specified, it's taken as 'current'
+        (lowerName.includes('current') &&
+          !lowerName.includes('non') &&
+          !lowerName.includes('fixed'))
+      ) {
+        currentSectionType = 'current';
+        return;
+      } else if (
+        lowerName.includes('fixed') ||
+        (lowerName.includes('current') && lowerName.includes('non'))
+      ) {
+        accountHead = '';
+        currentSectionType = 'fixed';
+        return;
+      }
+
+      console.log('currentSectionType', currentSectionType);
+      console.log('sectionTotal', sectionTotal);
+
+      // if amount is empty, this is a new account head
+      if (!head(values)) {
+        accountHead = name;
+        console.log('accountHead inside', accountHead);
+        return;
+      }
+      console.log('accountHead', accountHead);
+
+      const reportAccount: ReportAccount = {
+        name,
+        amount: toNumber(head(values)),
+        // add other properties here
+      };
+      console.log('account', account);
+
+      console.log('currentSectionType', currentSectionType);
+      if (currentSectionType === 'current') {
+        totalCurrent += reportAccount.amount;
+        console.log('current[accountHead]', totalCurrent, current[accountHead]);
+        if (current[accountHead]) current[accountHead]?.push(reportAccount);
+        else current[accountHead] = [reportAccount];
+      } else if (currentSectionType === 'fixed') {
+        totalFixed += reportAccount.amount;
+        console.log('fixed[accountHead]', totalFixed, fixed[accountHead]);
+        if (fixed[accountHead]) fixed[accountHead]?.push(reportAccount);
+        else fixed[accountHead] = [reportAccount];
+      }
+
+      // reset
+      const nextLowerName = toLower(
+        toString(head(transformedAccounts?.at(accIdx + 1))),
+      );
+      console.log('reset: ', nextLowerName);
+      if (nextLowerName === 'liabilities' || nextLowerName === 'equity') {
+        currentSection = null;
+        currentSectionType = null;
+        accountHead = '';
+        totalCurrent = 0;
+        totalFixed = 0;
+      }
+
+      console.log('currentSection', currentSection, current, fixed);
+      if (currentSection) {
+        sheet[currentSection].current = current;
+        sheet[currentSection].fixed = fixed;
+      }
+    });
   }
 };

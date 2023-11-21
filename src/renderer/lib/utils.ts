@@ -2,9 +2,7 @@ import { type ClassValue, clsx } from 'clsx';
 import { every, isArray, isNil, set } from 'lodash';
 import { twMerge } from 'tailwind-merge';
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
 export const isTwoDimensionalArray = (obj: unknown) => {
   if (isArray(obj)) {
@@ -15,9 +13,8 @@ export const isTwoDimensionalArray = (obj: unknown) => {
   return false;
 };
 
-export const removeEmptySubarrays = (list: unknown[][]): unknown[][] => {
-  return list.filter((subarray) => !every(subarray, isNil));
-};
+export const removeEmptySubarrays = (list: unknown[][]): unknown[][] =>
+  list.filter((subarray) => !every(subarray, isNil));
 
 export const firstDuplicateIndex = (list: unknown[]): number => {
   const dict = {};

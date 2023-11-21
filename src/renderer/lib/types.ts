@@ -16,9 +16,15 @@ export interface BalanceSheet {
   liabilities: {
     current: Record<string, ReportAccount[]>; // example object: { "Accounts Payable": [ { name: "John", amount: 1000 } ] }
     totalCurrent: number;
-    fixed: Record<string, ReportAccount[]>; // example object: { "Long Term Debt": [ { name: "Dany", amount: 1000 } ] }
+    fixed: Record<string, ReportAccount[]>; // example object: { "": [ { name: "Long Term Debt", amount: 1000 } ] }
     totalFixed: number;
     total: number;
   };
-  equity: Record<string, ReportAccount[]>; // example object: { "Retained Earnings": [ { name: "John", amount: 1000 } ] }
+  equity: {
+    current: Record<string, ReportAccount[]>; // example object: { "": [ { name: "Retained Earnings", amount: 1000 } ] }
+    total: number;
+    totalCurrent?: number; // not used
+    fixed?: Record<string, ReportAccount[]>; // not used
+    totalFixed?: number; // not used
+  };
 }
