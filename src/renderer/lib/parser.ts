@@ -20,6 +20,12 @@ import {
 } from 'lodash';
 import { isTwoDimensionalArray, removeEmptySubarrays } from './utils';
 
+/**
+ * Parses the balance sheet object and returns a parsed BalanceSheet object.
+ * @param obj - The balance sheet object to parse.
+ * @returns The parsed BalanceSheet object.
+ * @throws {Error} - Throws an error if the balance sheet format is invalid or if the date is not found.
+ */
 export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   let date: Date | null = null;
   const sheet: BalanceSheet = {
@@ -52,7 +58,6 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   const balanceSheet = obj as unknown[][];
 
   const titles = take(balanceSheet, 3);
-
   validateTitles(titles);
 
   const accounts = takeRight(balanceSheet, balanceSheet.length - 3);
@@ -61,7 +66,8 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   validateSectionsExistence(accounts);
 
   const transformedAccounts = transformAccounts(accounts);
-  console.log('transformedAccounts', transformedAccounts);
+  console.log('transformedAccounts');
+  console.table(transformedAccounts);
 
   parseAccounts(transformedAccounts);
 
@@ -75,6 +81,11 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
    * Private functions
    */
 
+  /**
+   * Validates the titles in the given array.
+   * @param titles - The array of titles to validate.
+   * @throws {Error} - Throws an error if the company name is not found, the title "Balance Sheet" is not found, or if the date format in the balance sheet is invalid.
+   */
   function validateTitles(titles: unknown[][]): void {
     map(titles, (title, index) => {
       const titleString = compact(title).join(' ').trim();
@@ -97,10 +108,16 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     });
   }
 
-  function validateAccountHeaders(array: unknown[] | undefined): void {
-    if (!array) throw new Error('The column headers are missing.');
+  /**
+   * Validates the account headers.
+   * @param headers - The column headers to validate.
+   * @throws {Error} If the column headers are missing, if any column is repeated more than twice,
+   * or if any required column is missing.
+   */
+  function validateAccountHeaders(headers: unknown[] | undefined): void {
+    if (!headers) throw new Error('The column headers are missing.');
 
-    const counts = countBy(array);
+    const counts = countBy(headers);
     const repeatedColumns = filter(
       keys(counts),
       (column) => counts[column] > 2,
@@ -124,57 +141,96 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       );
   }
 
-  function validateSectionsExistence(arr: unknown[][]): void {
+  /**
+   * Validates the sections of the array.
+   * @param accounts - The array of accounts data.
+   * @throws {Error} If any of the sections are missing.
+   */
+  function validateSectionsExistence(accounts: unknown[][]): void {
+    /**
+     * Validates the sections of an array based on the provided criteria.
+     * @param sections - An array of sections to validate against.
+     * @param columnnIndex - Optional. The index of the column to check within each subarray.
+     * @param subarrayIndex - Optional. The index of the subarray to check.
+     * @param checkAllSections - Optional. Specifies whether to check all sections or just one.
+     * @returns A boolean indicating whether the sections are valid.
+     */
     const validateSection = (
-      section: string | string[],
-      columnnIndex: number,
+      sections: string[],
+      columnnIndex?: number,
       subarrayIndex?: number,
       checkAllSections: boolean = false,
     ): boolean => {
-      if (subarrayIndex && !arr[subarrayIndex]) {
+      if (subarrayIndex && !accounts[subarrayIndex]) {
         return false;
       }
 
-      const sections = Array.isArray(section)
-        ? section.map(toLower)
-        : [toLower(section)];
+      const lowerSections = sections.map(toLower);
 
-      if (!subarrayIndex && checkAllSections)
-        return arr.every((subarray) =>
-          sections.every((c) =>
-            toLower(toString(subarray[columnnIndex])).includes(c),
+      if (subarrayIndex === undefined && checkAllSections)
+        return accounts.some((subarray) =>
+          lowerSections.every((s) =>
+            columnnIndex !== undefined
+              ? toLower(toString(subarray[columnnIndex])).includes(s)
+              : subarray.some((e) => toLower(toString(e)).includes(s)),
           ),
         );
 
       if (subarrayIndex && !checkAllSections)
-        return sections.some(
-          (c) => c === toLower(toString(arr[subarrayIndex][columnnIndex])),
+        return lowerSections.some((s) =>
+          columnnIndex !== undefined
+            ? toLower(toString(accounts[subarrayIndex][columnnIndex])) === s
+            : accounts[subarrayIndex].some((e) => toLower(toString(e)) === s),
         );
 
-      if (!subarrayIndex && checkAllSections)
-        return arr.some((subarray) =>
-          sections.every((c) =>
-            toLower(toString(subarray[columnnIndex])).includes(c),
+      if (subarrayIndex === undefined && !checkAllSections)
+        return lowerSections.some((s) =>
+          accounts.some((subarray) =>
+            columnnIndex !== undefined
+              ? toLower(toString(subarray[columnnIndex])) === s
+              : subarray.some((e) => toLower(toString(e)) === s),
           ),
         );
 
-      return arr.some((subarray) =>
-        sections.some((c) => c === toLower(toString(subarray[columnnIndex]))),
-      );
+      if (subarrayIndex && checkAllSections)
+        return lowerSections.every((s) =>
+          columnnIndex !== undefined
+            ? toLower(toString(accounts[subarrayIndex][columnnIndex])).includes(
+                s,
+              )
+            : accounts[subarrayIndex].some((e) =>
+                toLower(toString(e)).includes(s),
+              ),
+        );
+
+      return false;
     };
 
+    /**
+     * Checks if the "beforeSection" appears before the "afterSection" in the array.
+     * @param beforeSection - The section to check if it appears before.
+     * @param afterSection - The section to check if it appears after.
+     * @param columnIndex - Optional. The index of the column to compare values in the array.
+     * @returns True if the "beforeSection" appears before the "afterSection", false otherwise.
+     */
     const isAfter = (
       beforeSection: string,
       afterSection: string,
-      columnIndex: number,
+      columnIndex?: number,
     ): boolean => {
-      const beforeIndex = arr.findIndex(
-        (subarray) =>
-          toLower(toString(subarray[columnIndex])) === toLower(beforeSection),
+      const beforeIndex = accounts.findIndex((subarray) =>
+        columnIndex
+          ? toLower(toString(subarray[columnIndex])) === toLower(beforeSection)
+          : subarray.some(
+              (e) => toLower(toString(e)) === toLower(beforeSection),
+            ),
       );
-      const afterIndex = arr.findIndex(
-        (subarray) =>
-          toLower(toString(subarray[columnIndex])) === toLower(afterSection),
+      const afterIndex = accounts.findIndex((subarray) =>
+        columnIndex
+          ? toLower(toString(subarray[columnIndex])) === toLower(afterSection)
+          : subarray.some(
+              (e) => toLower(toString(e)) === toLower(afterSection),
+            ),
       );
 
       return (
@@ -182,55 +238,65 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       );
     };
 
-    if (!validateSection('Assets', 0, 1))
+    if (!validateSection(['Assets'], 0, 1))
       throw new Error('Section of "Assets" not found');
-    if (!validateSection('Liabilities', 2, 1))
+    if (!validateSection(['Liabilities'], undefined, 1))
       throw new Error('Section of "Liabilities" not found');
 
     if (!isAfter('Current Assets', 'Non Current Assets', 0))
       throw new Error(
         '"Non Current Assets" should be after "Current Assets" section',
       );
-    if (!validateSection('Current Assets', 0, 2))
+    if (!validateSection(['Current Assets'], 0, 2))
       throw new Error('Section of "Current Assets" not found');
     if (!validateSection(['Non Current Assets', 'Fixed Assets'], 0))
       throw new Error('Section of "Non Current Assets" not found');
 
-    if (!isAfter('Current Liabilities', 'Non Current Liabilities', 2))
+    if (!isAfter('Current Liabilities', 'Non Current Liabilities'))
       throw new Error(
         '"Non Current Liabilities" should be after "Current Liabilities" section',
       );
-    if (!validateSection('Current Liabilities', 2, 2))
+    if (!validateSection(['Current Liabilities'], undefined, 2))
       throw new Error('Section of "Current Liabilities" not found');
-    if (!validateSection(['Non Current Liabilities', 'Fixed Liabilities'], 2))
+    if (!validateSection(['Non Current Liabilities', 'Fixed Liabilities']))
       throw new Error('Section of "Non Current Liabilities" not found');
 
-    if (!isAfter('Non Current Liabilities', 'Equity', 2))
+    if (!isAfter('Non Current Liabilities', 'Equity'))
       throw new Error(
         '"Equity" should be after "Non Current Liabilities" section',
       );
-    if (!validateSection('Equity', 2))
+    if (!validateSection(['Equity']))
       throw new Error('Section of "Equity" not found');
 
-    if (!validateSection('Total Assets', 0))
+    if (!validateSection(['Total', 'Assets'], 0, undefined, true))
       throw new Error('Section of "Total Assets" not found');
     if (
-      !validateSection(['Total', 'Liabilities', 'Equity'], 2, undefined, true)
+      !validateSection(
+        ['Total', 'Liabilities', 'Equity'],
+        undefined,
+        undefined,
+        true,
+      )
     )
       throw new Error('Section of "Total Liabilities and Equity" not found');
   }
 
-  function transformAccounts(inputArray: unknown[][]): unknown[][] {
-    if (inputArray.length < 2) return inputArray;
+  /**
+   * Transforms the accounts data by rearranging the columns based on unique headers.
+   * @param accounts - The array of accounts data.
+   * @returns The transformed array of accounts data.
+   */
+  function transformAccounts(accounts: unknown[][]): unknown[][] {
+    if (accounts.length < 2) return accounts;
 
-    const headers = head(inputArray);
+    const headers = head(accounts);
     const lowerHeaders = map(headers, (e) => toLower(toString(e)));
     const uniqueHeaders = Array.from(new Set(headers));
     const transformedArray = [uniqueHeaders];
 
     // look for assets
-    for (let i = 1; i < inputArray.length; i++) {
-      const row = inputArray[i];
+    for (let i = 1; i < accounts.length; i++) {
+      const row = accounts[i];
       const newRow = Array.from({ length: uniqueHeaders.length }, (_, j) => {
         const columnIndex = headers?.indexOf(uniqueHeaders[j]);
 
@@ -244,8 +310,8 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     }
 
     // look for liabilities and equity
-    for (let i = 1; i < inputArray.length; i++) {
-      const row = inputArray[i];
+    for (let i = 1; i < accounts.length; i++) {
+      const row = accounts[i];
       const newRow = Array.from({ length: uniqueHeaders.length }, (_, j) => {
         const columnIndex = headers?.lastIndexOf(uniqueHeaders[j]);
         return columnIndex !== undefined &&
@@ -260,6 +326,11 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     return removeEmptySubarrays(transformedArray);
   }
 
+  /**
+   * Parses the transformed accounts and updates the sheet with the parsed data.
+   * @param transformedAccounts - The transformed accounts to be parsed.
+   * @returns void
+   */
   function parseAccounts(transformedAccounts: unknown[][]): void {
     type Section = 'assets' | 'liabilities' | 'equity' | null;
     type SectionType = 'current' | 'fixed' | null;
@@ -273,7 +344,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     let totalFixed = 0;
     let accountHead = '';
 
-    forEach(transformedAccounts, (account, accIdx) => {
+    forEach(transformedAccounts, (account, accIdx, collection) => {
       if (accIdx === 0) return; // skip headers
 
       const name = head(account) as string;
@@ -441,7 +512,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       const reportAccount: ReportAccount = {
         name,
         amount: toNumber(head(values)),
-        // add other properties here
+        ...getOptionalProperties(tail(head(collection)) || [], values),
       };
       console.log('account', account);
 
@@ -477,5 +548,22 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         sheet[currentSection].fixed = fixed;
       }
     });
+
+    function getOptionalProperties(
+      headers: unknown[],
+      values: unknown[],
+    ): Record<string, unknown> {
+      const optionalProperties: Record<string, unknown> = {};
+      forEach(headers, (header, index) => {
+        const lowerHeader = toLower(toString(header));
+        if (
+          lowerHeader !== 'name' &&
+          lowerHeader !== 'amount' &&
+          !isNil(values[index])
+        )
+          optionalProperties[lowerHeader] = values[index];
+      });
+      return optionalProperties;
+    }
   }
 };

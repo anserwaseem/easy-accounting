@@ -1,5 +1,11 @@
 import { read, utils } from 'xlsx';
 
+/**
+ * Converts a File object to JSON format.
+ * @param file - The File object to convert.
+ * @returns A Promise that resolves to an array of unknown values representing the JSON data.
+ * @throws {Error} if no file is provided.
+ */
 export const convertFileToJson = async (
   file: File | undefined,
 ): Promise<unknown[]> => {
@@ -16,6 +22,6 @@ export const convertFileToJson = async (
     blankrows: false,
     defval: null,
   });
-  console.log(json);
+  console.table(json);
   return json;
 };
