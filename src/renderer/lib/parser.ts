@@ -1,38 +1,24 @@
 import { BalanceSheet, ReportAccount } from './types';
 import {
   compact,
-  constant,
   countBy,
-  every,
   filter,
-  find,
-  findIndex,
   forEach,
   forOwn,
-  get,
   head,
-  isArray,
   isEmpty,
   isNil,
-  isTypedArray,
   keys,
   last,
   map,
-  set,
   tail,
   take,
   takeRight,
-  toArray,
-  toLength,
   toLower,
   toNumber,
   toString,
 } from 'lodash';
-import {
-  firstDuplicateIndex,
-  isTwoDimensionalArray,
-  removeEmptySubarrays,
-} from './utils';
+import { isTwoDimensionalArray, removeEmptySubarrays } from './utils';
 
 export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   let date: Date | null = null;
@@ -72,6 +58,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   const accounts = takeRight(balanceSheet, balanceSheet.length - 3);
 
   validateAccountHeaders(head(accounts));
+  validateSectionsExistence(accounts);
 
   const transformedAccounts = transformAccounts(accounts);
   console.log('transformedAccounts', transformedAccounts);
@@ -84,13 +71,16 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   console.log('sheet', sheet);
   return sheet;
 
-  // private functions
+  /*
+   * Private functions
+   */
 
   function validateTitles(titles: unknown[][]): void {
     map(titles, (title, index) => {
       const titleString = compact(title).join(' ').trim();
 
       // if (index === 0 && title !== orgName) throw 'Invalid Company Name';
+      if (index === 0 && isEmpty(titleString)) throw 'Company Name not found';
       if (index === 1 && titleString.toLowerCase() !== 'balance sheet')
         throw 'Title "Balance Sheet" not found';
       if (index === 2) {
@@ -123,8 +113,111 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         )}.`,
       );
 
-    if (firstDuplicateIndex(map(array, (e) => toLower(toString(e)))) !== 0)
-      throw new Error('The first repeating column must be "Name".');
+    const requiredColumns = ['Name', 'Amount'];
+    const missingColumns = requiredColumns.filter(
+      (column) => counts[column] !== 2,
+    );
+
+    if (missingColumns.length > 0)
+      throw new Error(
+        `The following columns are missing: ${missingColumns.join(', ')}`,
+      );
+  }
+
+  function validateSectionsExistence(arr: unknown[][]): void {
+    const validateSection = (
+      section: string | string[],
+      columnnIndex: number,
+      subarrayIndex?: number,
+      checkAllSections: boolean = false,
+    ): boolean => {
+      if (subarrayIndex && !arr[subarrayIndex]) {
+        return false;
+      }
+
+      const sections = Array.isArray(section)
+        ? section.map(toLower)
+        : [toLower(section)];
+
+      if (!subarrayIndex && checkAllSections)
+        return arr.every((subarray) =>
+          sections.every((c) =>
+            toLower(toString(subarray[columnnIndex])).includes(c),
+          ),
+        );
+
+      if (subarrayIndex && !checkAllSections)
+        return sections.some(
+          (c) => c === toLower(toString(arr[subarrayIndex][columnnIndex])),
+        );
+
+      if (!subarrayIndex && checkAllSections)
+        return arr.some((subarray) =>
+          sections.every((c) =>
+            toLower(toString(subarray[columnnIndex])).includes(c),
+          ),
+        );
+
+      return arr.some((subarray) =>
+        sections.some((c) => c === toLower(toString(subarray[columnnIndex]))),
+      );
+    };
+
+    const isAfter = (
+      beforeSection: string,
+      afterSection: string,
+      columnIndex: number,
+    ): boolean => {
+      const beforeIndex = arr.findIndex(
+        (subarray) =>
+          toLower(toString(subarray[columnIndex])) === toLower(beforeSection),
+      );
+      const afterIndex = arr.findIndex(
+        (subarray) =>
+          toLower(toString(subarray[columnIndex])) === toLower(afterSection),
+      );
+
+      return (
+        beforeIndex !== -1 && afterIndex !== -1 && beforeIndex < afterIndex
+      );
+    };
+
+    if (!validateSection('Assets', 0, 1))
+      throw new Error('Section of "Assets" not found');
+    if (!validateSection('Liabilities', 2, 1))
+      throw new Error('Section of "Liabilities" not found');
+
+    if (!isAfter('Current Assets', 'Non Current Assets', 0))
+      throw new Error(
+        '"Non Current Assets" should be after "Current Assets" section',
+      );
+    if (!validateSection('Current Assets', 0, 2))
+      throw new Error('Section of "Current Assets" not found');
+    if (!validateSection(['Non Current Assets', 'Fixed Assets'], 0))
+      throw new Error('Section of "Non Current Assets" not found');
+
+    if (!isAfter('Current Liabilities', 'Non Current Liabilities', 2))
+      throw new Error(
+        '"Non Current Liabilities" should be after "Current Liabilities" section',
+      );
+    if (!validateSection('Current Liabilities', 2, 2))
+      throw new Error('Section of "Current Liabilities" not found');
+    if (!validateSection(['Non Current Liabilities', 'Fixed Liabilities'], 2))
+      throw new Error('Section of "Non Current Liabilities" not found');
+
+    if (!isAfter('Non Current Liabilities', 'Equity', 2))
+      throw new Error(
+        '"Equity" should be after "Non Current Liabilities" section',
+      );
+    if (!validateSection('Equity', 2))
+      throw new Error('Section of "Equity" not found');
+
+    if (!validateSection('Total Assets', 0))
+      throw new Error('Section of "Total Assets" not found');
+    if (
+      !validateSection(['Total', 'Liabilities', 'Equity'], 2, undefined, true)
+    )
+      throw new Error('Section of "Total Liabilities and Equity" not found');
   }
 
   function transformAccounts(inputArray: unknown[][]): unknown[][] {
@@ -181,7 +274,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     let accountHead = '';
 
     forEach(transformedAccounts, (account, accIdx) => {
-      if (accIdx === 0) return;
+      if (accIdx === 0) return; // skip headers
 
       const name = head(account) as string;
       const values = tail(account);
@@ -224,7 +317,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
             sheet[currentSection].totalCurrent,
             totalCurrent,
           );
-          throw `Total Current ${currentSection} do not match`;
+          throw `Total Current ${currentSection} do not match. Should be ${totalCurrent}`;
         }
       } else if (
         lowerName.includes('total') &&
@@ -239,7 +332,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
             sheet[currentSection].totalFixed,
             totalFixed,
           );
-          throw `Total Fixed ${currentSection} do not match`;
+          throw `Total Fixed ${currentSection} do not match. Should be ${totalFixed}`;
         }
       } else if (lowerName.includes('total')) {
         console.log(
@@ -248,19 +341,70 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
           lowerName,
           values,
         );
-        if (lowerName.includes('equity') && sheet[currentSection].total !== 0)
-          // HACK: equity total is already set
-          sheet['liabilities'].total = toNumber(head(values));
+        console.log(
+          'totalll',
+          sheet[currentSection],
+          sheet[currentSection].total,
+          lowerName,
+          toNumber(head(values)),
+          totalCurrent,
+          totalFixed,
+        );
+
+        // indicating Total Liabilities and Equity
+        if (lowerName.includes('equity') && lowerName.includes('liabilities'))
+          // LOGIC: toNumber(head(values)) contains 'total liabilities and equity', but we need 'total liabilities' only so subtracting total equity here
+          sheet['liabilities'].total =
+            toNumber(head(values)) - sheet['equity'].total;
         else sheet[currentSection].total = toNumber(head(values));
 
-        if (sheet[currentSection].total !== totalCurrent + totalFixed) {
+        // indicating Total Liabilities and Equity
+        if (lowerName.includes('equity') && lowerName.includes('liabilities')) {
+          console.log(' if total', toNumber(head(values)), sheet);
+          if (
+            toNumber(head(values)) !== // LOGIC: toNumber(head(values)) contains 'total liabilities and equity' at this moment
+            sheet['liabilities'].totalFixed +
+              sheet['liabilities'].totalCurrent +
+              sheet['equity'].total
+          )
+            throw `Total liabilities and equity do not match. Should be equal to ${
+              sheet['liabilities'].totalFixed +
+              sheet['liabilities'].totalCurrent +
+              sheet['equity'].total
+            }`;
+        }
+        // indicating equity section where totalCurrent and totalFixed are not used
+        else if (
+          isNil(sheet[currentSection].totalCurrent) &&
+          isNil(sheet[currentSection].totalFixed)
+        ) {
+          // calculate total amounts for current section of equity and compare with total
+          let total = 0;
+          forOwn(current, (value) => {
+            for (const account of value) {
+              total += account.amount;
+            }
+          });
+
           console.log(
-            'total',
+            'else if total',
+            sheet[currentSection].total,
+            totalCurrent,
+            totalFixed,
+            total,
+          );
+          if (sheet[currentSection].total !== total)
+            throw `Total ${currentSection} do not match`;
+        } else if (sheet[currentSection].total !== totalCurrent + totalFixed) {
+          console.log(
+            'else total',
             sheet[currentSection].total,
             totalCurrent,
             totalFixed,
           );
-          // throw `Total ${currentSection} do not match`;
+          throw `Total ${currentSection} do not match. Should be equal to ${
+            totalCurrent + totalFixed
+          }`;
         }
       }
 

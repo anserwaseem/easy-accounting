@@ -28,5 +28,14 @@
     "test/**/__snapshots__": true,
     "package-lock.json": true,
     "*.{css,sass,scss}.d.ts": true
+  },
+
+  "todo-tree.highlights.customHighlight": {
+    "LOGIC": {
+      "foreground": "#000",
+      "background": "#2B6DD5",
+      "iconColour": "#2B6DD5",
+      "icon": "squirrel"
+    }
   }
 }

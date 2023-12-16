@@ -15,16 +15,3 @@ export const isTwoDimensionalArray = (obj: unknown) => {
 
 export const removeEmptySubarrays = (list: unknown[][]): unknown[][] =>
   list.filter((subarray) => !every(subarray, isNil));
-
-export const firstDuplicateIndex = (list: unknown[]): number => {
-  const dict = {};
-
-  for (const [index, value] of list.entries()) {
-    if ((value as keyof typeof dict) in dict)
-      return dict[value as keyof typeof dict];
-
-    set(dict, value as keyof typeof dict, index);
-  }
-
-  return -1;
-};
