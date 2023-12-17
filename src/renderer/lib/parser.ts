@@ -18,7 +18,11 @@ import {
   toNumber,
   toString,
 } from 'lodash';
-import { isTwoDimensionalArray, removeEmptySubarrays } from './utils';
+import {
+  isTwoDimensionalArray,
+  removeEmptySubarrays,
+  toLowerString,
+} from './utils';
 
 /**
  * Parses the balance sheet object and returns a parsed BalanceSheet object.
@@ -171,36 +175,32 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         return accounts.some((subarray) =>
           lowerSections.every((s) =>
             columnnIndex !== undefined
-              ? toLower(toString(subarray[columnnIndex])).includes(s)
-              : subarray.some((e) => toLower(toString(e)).includes(s)),
+              ? toLowerString(subarray[columnnIndex]).includes(s)
+              : subarray.some((e) => toLowerString(e).includes(s)),
           ),
         );
 
       if (subarrayIndex && !checkAllSections)
         return lowerSections.some((s) =>
           columnnIndex !== undefined
-            ? toLower(toString(accounts[subarrayIndex][columnnIndex])) === s
-            : accounts[subarrayIndex].some((e) => toLower(toString(e)) === s),
+            ? toLowerString(accounts[subarrayIndex][columnnIndex]) === s
+            : accounts[subarrayIndex].some((e) => toLowerString(e) === s),
         );
 
       if (subarrayIndex === undefined && !checkAllSections)
         return lowerSections.some((s) =>
           accounts.some((subarray) =>
             columnnIndex !== undefined
-              ? toLower(toString(subarray[columnnIndex])) === s
-              : subarray.some((e) => toLower(toString(e)) === s),
+              ? toLowerString(subarray[columnnIndex]) === s
+              : subarray.some((e) => toLowerString(e) === s),
           ),
         );
 
       if (subarrayIndex && checkAllSections)
         return lowerSections.every((s) =>
           columnnIndex !== undefined
-            ? toLower(toString(accounts[subarrayIndex][columnnIndex])).includes(
-                s,
-              )
-            : accounts[subarrayIndex].some((e) =>
-                toLower(toString(e)).includes(s),
-              ),
+            ? toLowerString(accounts[subarrayIndex][columnnIndex]).includes(s)
+            : accounts[subarrayIndex].some((e) => toLowerString(e).includes(s)),
         );
 
       return false;
@@ -220,17 +220,13 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     ): boolean => {
       const beforeIndex = accounts.findIndex((subarray) =>
         columnIndex
-          ? toLower(toString(subarray[columnIndex])) === toLower(beforeSection)
-          : subarray.some(
-              (e) => toLower(toString(e)) === toLower(beforeSection),
-            ),
+          ? toLowerString(subarray[columnIndex]) === toLower(beforeSection)
+          : subarray.some((e) => toLowerString(e) === toLower(beforeSection)),
       );
       const afterIndex = accounts.findIndex((subarray) =>
         columnIndex
-          ? toLower(toString(subarray[columnIndex])) === toLower(afterSection)
-          : subarray.some(
-              (e) => toLower(toString(e)) === toLower(afterSection),
-            ),
+          ? toLowerString(subarray[columnIndex]) === toLower(afterSection)
+          : subarray.some((e) => toLowerString(e) === toLower(afterSection)),
       );
 
       return (
@@ -290,7 +286,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     if (accounts.length < 2) return accounts;
 
     const headers = head(accounts);
-    const lowerHeaders = map(headers, (e) => toLower(toString(e)));
+    const lowerHeaders = map(headers, (e) => toLowerString(e));
     const uniqueHeaders = Array.from(new Set(headers));
     const transformedArray = [uniqueHeaders];
 
@@ -334,26 +330,24 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   function parseAccounts(transformedAccounts: unknown[][]): void {
     type Section = 'assets' | 'liabilities' | 'equity' | null;
     type SectionType = 'current' | 'fixed' | null;
-    type SectionTotal = 'totalCurrent' | 'totalFixed' | 'total' | null;
 
     let currentSection: Section = null;
     let currentSectionType: SectionType = null;
 
-    let sectionTotal: SectionTotal = null;
     let totalCurrent = 0;
     let totalFixed = 0;
     let accountHead = '';
 
     forEach(transformedAccounts, (account, accIdx, collection) => {
-      if (accIdx === 0) return; // skip headers
+      // skip headers
+      if (accIdx === 0) {
+        return;
+      }
 
       const name = head(account) as string;
       const values = tail(account);
 
       const lowerName = toLower(name);
-
-      console.log('name', name);
-      console.log('values', values);
 
       if (lowerName === 'assets') {
         currentSection = 'assets';
@@ -367,61 +361,34 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         return;
       }
 
-      console.log('currentSection', currentSection);
-      if (!currentSection) return;
+      // skip if no section is found
+      if (!currentSection) {
+        return;
+      }
 
       const section = sheet[currentSection];
       const current = section.current as Record<string, ReportAccount[]>;
       const fixed = section.fixed as Record<string, ReportAccount[]>;
 
+      // validate totals
       if (
         lowerName.includes('total') &&
         lowerName.includes('current') &&
         !lowerName.includes('non') &&
         !lowerName.includes('fixed')
       ) {
-        console.log('calculate totals: totalCurrent', lowerName, values);
         sheet[currentSection].totalCurrent = toNumber(head(values));
-        if (sheet[currentSection].totalCurrent !== totalCurrent) {
-          console.log(
-            'totalCurrent',
-            sheet[currentSection].totalCurrent,
-            totalCurrent,
-          );
+        if (sheet[currentSection].totalCurrent !== totalCurrent)
           throw `Total Current ${currentSection} do not match. Should be ${totalCurrent}`;
-        }
       } else if (
         lowerName.includes('total') &&
         (lowerName.includes('fixed') ||
-          (lowerName.includes('current') && lowerName.includes('non')))
+          (lowerName.includes('non') && lowerName.includes('current')))
       ) {
-        console.log('calculate totals: totalFixed', lowerName, values);
         sheet[currentSection].totalFixed = toNumber(head(values));
-        if (sheet[currentSection].totalFixed !== totalFixed) {
-          console.log(
-            'totalFixed',
-            sheet[currentSection].totalFixed,
-            totalFixed,
-          );
+        if (sheet[currentSection].totalFixed !== totalFixed)
           throw `Total Fixed ${currentSection} do not match. Should be ${totalFixed}`;
-        }
       } else if (lowerName.includes('total')) {
-        console.log(
-          'calculate totals: total',
-          currentSection,
-          lowerName,
-          values,
-        );
-        console.log(
-          'totalll',
-          sheet[currentSection],
-          sheet[currentSection].total,
-          lowerName,
-          toNumber(head(values)),
-          totalCurrent,
-          totalFixed,
-        );
-
         // indicating Total Liabilities and Equity
         if (lowerName.includes('equity') && lowerName.includes('liabilities'))
           // LOGIC: toNumber(head(values)) contains 'total liabilities and equity', but we need 'total liabilities' only so subtracting total equity here
@@ -431,7 +398,6 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
 
         // indicating Total Liabilities and Equity
         if (lowerName.includes('equity') && lowerName.includes('liabilities')) {
-          console.log(' if total', toNumber(head(values)), sheet);
           if (
             toNumber(head(values)) !== // LOGIC: toNumber(head(values)) contains 'total liabilities and equity' at this moment
             sheet['liabilities'].totalFixed +
@@ -457,29 +423,18 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
             }
           });
 
-          console.log(
-            'else if total',
-            sheet[currentSection].total,
-            totalCurrent,
-            totalFixed,
-            total,
-          );
           if (sheet[currentSection].total !== total)
             throw `Total ${currentSection} do not match`;
-        } else if (sheet[currentSection].total !== totalCurrent + totalFixed) {
-          console.log(
-            'else total',
-            sheet[currentSection].total,
-            totalCurrent,
-            totalFixed,
-          );
+        } else if (sheet[currentSection].total !== totalCurrent + totalFixed)
           throw `Total ${currentSection} do not match. Should be equal to ${
             totalCurrent + totalFixed
           }`;
-        }
       }
 
-      if (currentSection === 'equity' && lowerName.includes('total')) return; // indicates end of equity section
+      // indicates end of equity section
+      if (currentSection === 'equity' && lowerName.includes('total')) {
+        return;
+      }
 
       if (
         isEmpty(values) || // HACK: if section type is not specified, it's taken as 'current'
@@ -491,40 +446,31 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         return;
       } else if (
         lowerName.includes('fixed') ||
-        (lowerName.includes('current') && lowerName.includes('non'))
+        (lowerName.includes('non') && lowerName.includes('current'))
       ) {
         accountHead = '';
         currentSectionType = 'fixed';
         return;
       }
 
-      console.log('currentSectionType', currentSectionType);
-      console.log('sectionTotal', sectionTotal);
-
       // if amount is empty, this is a new account head
       if (!head(values)) {
         accountHead = name;
-        console.log('accountHead inside', accountHead);
         return;
       }
-      console.log('accountHead', accountHead);
 
       const reportAccount: ReportAccount = {
         name,
         amount: toNumber(head(values)),
         ...getOptionalProperties(tail(head(collection)) || [], values),
       };
-      console.log('account', account);
 
-      console.log('currentSectionType', currentSectionType);
       if (currentSectionType === 'current') {
         totalCurrent += reportAccount.amount;
-        console.log('current[accountHead]', totalCurrent, current[accountHead]);
         if (current[accountHead]) current[accountHead]?.push(reportAccount);
         else current[accountHead] = [reportAccount];
       } else if (currentSectionType === 'fixed') {
         totalFixed += reportAccount.amount;
-        console.log('fixed[accountHead]', totalFixed, fixed[accountHead]);
         if (fixed[accountHead]) fixed[accountHead]?.push(reportAccount);
         else fixed[accountHead] = [reportAccount];
       }
@@ -533,7 +479,6 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       const nextLowerName = toLower(
         toString(head(transformedAccounts?.at(accIdx + 1))),
       );
-      console.log('reset: ', nextLowerName);
       if (nextLowerName === 'liabilities' || nextLowerName === 'equity') {
         currentSection = null;
         currentSectionType = null;
@@ -542,7 +487,6 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         totalFixed = 0;
       }
 
-      console.log('currentSection', currentSection, current, fixed);
       if (currentSection) {
         sheet[currentSection].current = current;
         sheet[currentSection].fixed = fixed;
@@ -555,7 +499,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     ): Record<string, unknown> {
       const optionalProperties: Record<string, unknown> = {};
       forEach(headers, (header, index) => {
-        const lowerHeader = toLower(toString(header));
+        const lowerHeader = toLowerString(header);
         if (
           lowerHeader !== 'name' &&
           lowerHeader !== 'amount' &&

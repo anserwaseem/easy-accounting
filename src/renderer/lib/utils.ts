@@ -1,5 +1,5 @@
 import { type ClassValue, clsx } from 'clsx';
-import { every, isArray, isNil, set } from 'lodash';
+import { every, isArray, isNil, toString, toLower } from 'lodash';
 import { twMerge } from 'tailwind-merge';
 
 /**
@@ -30,3 +30,5 @@ export const isTwoDimensionalArray = (obj: unknown) => {
  */
 export const removeEmptySubarrays = (list: unknown[][]): unknown[][] =>
   list.filter((subarray) => !every(subarray, isNil));
+
+export const toLowerString = (value: unknown) => toLower(toString(value));
