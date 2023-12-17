@@ -36,11 +36,7 @@ export default function appRoutes() {
 function RequireAuth({ children }: { children: JSX.Element }) {
   let { authed } = useContext(AuthContext);
 
-  if (
-    // process.env.NODE_ENV === 'development' ||
-    authed
-  )
-    return children;
+  if (process.env.NODE_ENV === 'development' || authed) return children;
 
   return <Navigate to="/login" replace />;
 }
