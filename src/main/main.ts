@@ -155,10 +155,10 @@ app
       return getAllTODO();
     });
     ipcMain.handle('auth:login', async (_, user: Auth) => {
-      return login(user);
+      return await login(user);
     });
     ipcMain.handle('auth:register', async (_, user: Auth) => {
-      return register(user);
+      return await register(user);
     });
     ipcMain.handle('auth:getUser', async (_, username: string) => {
       return getUser(username);

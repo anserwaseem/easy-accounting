@@ -1,18 +1,14 @@
-import { safeStorage } from 'electron';
+import bcrypt from 'bcryptjs';
 
 /**
  * Encrypts a string using electron's safeStorage API
  * @param text The text to encrypt
- * @returns The encrypted text
+ * @returns The encrypted text or false if an error occurs
  * @example const encrypted = hashText('my secret text');
  */
-export function hashText(text: string) {
+export async function hashText(text: string) {
   try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      return false;
-    }
-
-    return safeStorage.encryptString(text);
+    return await bcrypt.hash(text, 10);
   } catch (err) {
     return false;
   }
@@ -20,17 +16,14 @@ export function hashText(text: string) {
 
 /**
  * Decrypts a string using electron's safeStorage API
- * @param text The text to decrypt
+ * @param plainText The text to decrypt
+ * @param hashed The hashed text
  * @returns The decrypted text
- * @example const decrypted = decriptText('my secret text');
+ * @example const decrypted = decryptText('my secret text');
  */
-export function decriptText(text: Buffer) {
+export async function decryptText(plainText: string, hashed: string) {
   try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      return false;
-    }
-
-    return safeStorage.decryptString(text);
+    return await bcrypt.compare(plainText, hashed);
   } catch (err) {
     return false;
   }
