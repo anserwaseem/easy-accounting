@@ -6,14 +6,6 @@
     "*.css": "tailwindcss"
   },
 
-  "eslint.validate": [
-    "javascript",
-    "javascriptreact",
-    "html",
-    "typescriptreact",
-    "typescript"
-  ],
-
   "javascript.validate.enable": false,
   "javascript.format.enable": false,
   "typescript.format.enable": false,
@@ -36,6 +28,18 @@
       "background": "#2B6DD5",
       "iconColour": "#2B6DD5",
       "icon": "squirrel"
+    },
+    "ASK": {
+      "foreground": "#d6b8b8",
+      "background": "#815400",
+      "iconColour": "#FFA500",
+      "icon": "question"
+    },
+    "FUTURE": {
+      "foreground": "#000",
+      "background": "#322307",
+      "iconColour": "#000",
+      "icon": "clock"
     }
   }
 }

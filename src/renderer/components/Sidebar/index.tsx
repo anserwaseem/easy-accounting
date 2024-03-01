@@ -7,6 +7,11 @@ import { AuthContext } from 'renderer/context/Auth';
 export default function Sidebar() {
   const { logout } = useContext(AuthContext);
 
+  const handleLogout = async () => {
+    localStorage.removeItem('username');
+    await logout();
+  };
+
   return (
     <div className={styles.sidenav}>
       <Logo />
@@ -15,7 +20,7 @@ export default function Sidebar() {
       <a href="#">Planejado</a>
       <a href="#">Trabalho</a>
 
-      <a href="#" onClick={logout}>
+      <a href="#" onClick={handleLogout}>
         Logout
       </a>
     </div>

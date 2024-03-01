@@ -15,6 +15,11 @@ export const GettingStarted = () => {
       const json = await convertFileToJson(file);
       const balanceSheet = parseBalanceSheet(json);
       console.log(balanceSheet);
+      const result = await window.electron.saveBalanceSheet(
+        balanceSheet,
+        localStorage.getItem('username'),
+      );
+      console.log('saveBalanceSheet result', result);
     } catch (error) {
       console.error(error);
       toast({
@@ -33,8 +38,7 @@ export const GettingStarted = () => {
           document.getElementById('uploadBalanceSheetInput')?.click()
         }
       >
-        {' '}
-        Upload Balance Sheet{' '}
+        Upload Balance Sheet
       </Button>
       <Input
         id="uploadBalanceSheetInput"
