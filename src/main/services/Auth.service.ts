@@ -1,4 +1,4 @@
-import { decryptText, hashText } from '../utils/encrypt';
+import { CryptoService } from '../utils/encrypt';
 import { connect } from './Database.service';
 
 export const getUser = (username: string): User | undefined => {
@@ -16,7 +16,10 @@ export const login = async (user: Auth): Promise<false | string> => {
     return false;
   }
 
-  const result = await decryptText(user.password, dbUser.password_hash);
+  const result = CryptoService.getInstance().decryptText(
+    user.password,
+    dbUser.password_hash,
+  );
   if (result === false) {
     return false;
   }
@@ -34,10 +37,9 @@ export const register = async (user: Auth): Promise<boolean> => {
       return false;
     }
 
-    const password_hash = await hashText(user.password);
-    if (password_hash === false) {
-      return false;
-    }
+    const password_hash = CryptoService.getInstance().encryptText(
+      user.password,
+    );
 
     const registerUser = {
       username: user.username,

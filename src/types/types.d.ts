@@ -1,7 +1,7 @@
 declare type User = {
   id?: number;
   username: string;
-  password_hash: string;
+  password_hash: Buffer;
   status: number;
 };
 
