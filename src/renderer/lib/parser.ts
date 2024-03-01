@@ -1,4 +1,3 @@
-import { BalanceSheet, ReportAccount } from './types';
 import {
   compact,
   countBy,
@@ -70,7 +69,6 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   validateSectionsExistence(accounts);
 
   const transformedAccounts = transformAccounts(accounts);
-  console.log('transformedAccounts');
   console.table(transformedAccounts);
 
   parseAccounts(transformedAccounts);
@@ -78,7 +76,6 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   if (!date) throw 'Date not found in Balance Sheet';
 
   sheet.date = date;
-  console.log('sheet', sheet);
   return sheet;
 
   /*
@@ -328,7 +325,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
    * @returns void
    */
   function parseAccounts(transformedAccounts: unknown[][]): void {
-    type Section = 'assets' | 'liabilities' | 'equity' | null;
+    type Section = 'assets' | 'liabilities' | 'equity' | null; // need for reading user written sections text, e.g., "Current Assets", "Fixed Liabilities", "Non Current Liabilities" etc. // FUTURE: need to support both singular and plural forms of these sections
     type SectionType = 'current' | 'fixed' | null;
 
     let currentSection: Section = null;
@@ -349,22 +346,21 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
 
       const lowerName = toLower(name);
 
-      if (lowerName === 'assets') {
-        currentSection = 'assets';
-        return;
-      } else if (lowerName === 'liabilities') {
-        currentSection = 'liabilities';
-        return;
-      } else if (lowerName === 'equity') {
-        currentSection = 'equity';
-        currentSectionType = 'current';
-        return;
+      switch (lowerName) {
+        case 'assets':
+          currentSection = 'assets';
+          return;
+        case 'liabilities':
+          currentSection = 'liabilities';
+          return;
+        case 'equity':
+          currentSection = 'equity';
+          currentSectionType = 'current';
+          return;
       }
 
       // skip if no section is found
-      if (!currentSection) {
-        return;
-      }
+      if (!currentSection) return;
 
       const section = sheet[currentSection];
       const current = section.current as Record<string, ReportAccount[]>;
@@ -431,10 +427,8 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
           }`;
       }
 
-      // indicates end of equity section
-      if (currentSection === 'equity' && lowerName.includes('total')) {
-        return;
-      }
+      // indicates end of equity section i.e., end of balance sheet
+      if (currentSection === 'equity' && lowerName.includes('total')) return;
 
       if (
         isEmpty(values) || // HACK: if section type is not specified, it's taken as 'current'
@@ -465,14 +459,25 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         ...getOptionalProperties(tail(head(collection)) || [], values),
       };
 
-      if (currentSectionType === 'current') {
-        totalCurrent += reportAccount.amount;
-        if (current[accountHead]) current[accountHead]?.push(reportAccount);
-        else current[accountHead] = [reportAccount];
-      } else if (currentSectionType === 'fixed') {
-        totalFixed += reportAccount.amount;
-        if (fixed[accountHead]) fixed[accountHead]?.push(reportAccount);
-        else fixed[accountHead] = [reportAccount];
+      switch (currentSectionType) {
+        case 'current':
+          totalCurrent += reportAccount.amount;
+          if (!lowerName.includes('total')) {
+            // add to existing account head
+            if (current[accountHead]) current[accountHead]?.push(reportAccount);
+            // create new account head
+            else current[accountHead] = [reportAccount];
+          }
+          break;
+        case 'fixed':
+          totalFixed += reportAccount.amount;
+          if (!lowerName.includes('total')) {
+            // add to existing account head
+            if (fixed[accountHead]) fixed[accountHead]?.push(reportAccount);
+            // create new account head
+            else fixed[accountHead] = [reportAccount];
+          }
+          break;
       }
 
       // reset

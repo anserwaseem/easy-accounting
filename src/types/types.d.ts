@@ -1,10 +1,22 @@
-export interface ReportAccount {
+declare type User = {
+  id?: number;
+  username: string;
+  password_hash: Buffer;
+  status: number;
+};
+
+declare type Auth = {
+  username: string;
+  password: string;
+};
+
+declare interface ReportAccount {
   name: string;
   amount: number;
   [key: string]: unknown; // other optional properties are allowed e.g. "type", "reference", "description" etc.
 }
 
-export interface BalanceSheet {
+declare interface BalanceSheet {
   date: Date;
   assets: {
     current: Record<string, ReportAccount[]>; // example object: { "Cash and Bank": [ { name: "Cash", amount: 1000 }, { name: "Bank", amount: 2000 } ] }

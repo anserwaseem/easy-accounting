@@ -24,6 +24,37 @@ export function connect() {
   });
 }
 
+/**
+ * Wrap a function in a transaction
+ * @param func
+ * @returns a function that runs the given function in a transaction
+ * @example const runSecurely = asTransaction((...args) => { ... });
+ * runSecurely(...args);
+ */
+export const asTransaction = (
+  func: (...args: any[]) => void,
+): ((...args: any[]) => void) => {
+  const db = connect();
+  const begin = db.prepare('BEGIN TRANSACTION');
+  const commit = db.prepare('COMMIT');
+  const rollback = db.prepare('ROLLBACK');
+
+  return function (...args) {
+    begin.run();
+    try {
+      func(...args);
+      commit.run();
+    } catch (error) {
+      console.error(error);
+      rollback.run();
+    } finally {
+      if (db.inTransaction) {
+        rollback.run();
+      }
+    }
+  };
+};
+
 export function insertTODO(todo: TODO) {
   const db = connect();
 

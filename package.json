@@ -26,13 +26,6 @@
     "email": "hafiz.anser.waseem@gmail.com",
     "url": "https://anserwaseem.com"
   },
-  "contributors": [
-    {
-      "name": "Amila Welihinda",
-      "email": "hafiz.anser.waseem@gmail.com",
-      "url": "https://github.com/anserwaseem"
-    }
-  ],
   "main": "./src/main/main.ts",
   "scripts": {
     "build": "concurrently \"npm run build:main\" \"npm run build:renderer\"",

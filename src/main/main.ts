@@ -23,6 +23,7 @@ import {
   TODO,
 } from './services/Database.service';
 import { getUser, login, register } from './services/Auth.service';
+import { saveBalanceSheet } from './services/Account.service';
 
 class AppUpdater {
   constructor() {
@@ -31,6 +32,8 @@ class AppUpdater {
     autoUpdater.checkForUpdatesAndNotify();
   }
 }
+
+log.info('Main process started');
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -160,6 +163,16 @@ app
     ipcMain.handle('auth:getUser', async (_, username: string) => {
       return getUser(username);
     });
+    ipcMain.handle(
+      'balanceSheet:save',
+      async (_, balanceSheet: BalanceSheet, token?: string | null) => {
+        try {
+          return saveBalanceSheet(balanceSheet, token);
+        } catch (error) {
+          log.error('Error in saveBalanceSheet', error);
+        }
+      },
+    );
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the

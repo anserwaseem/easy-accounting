@@ -1,18 +1,20 @@
 import { decriptText, hashText } from '../utils/encrypt';
 import { connect } from './Database.service';
 
-export function getUser(username: string) {
+export const getUser = (username: string): User | undefined => {
   const db = connect();
 
   const stm = db.prepare('SELECT * FROM users where username = @username');
 
   return stm.get({ username }) as User | undefined;
-}
+};
 
-export function login(user: Auth) {
+export const login = (user: Auth): false | string => {
   const dbUser = getUser(user.username);
 
-  if (!dbUser) return false;
+  if (!dbUser) {
+    return false;
+  }
 
   const passwordCheck = decriptText(dbUser.password_hash);
 
@@ -20,14 +22,21 @@ export function login(user: Auth) {
     return false;
   }
 
-  return true;
-}
+  const token = hashText(user.username);
+  if (token === false) {
+    return token;
+  }
 
-export function register(user: Auth) {
+  return token.toString('base64');
+};
+
+export const register = (user: Auth): boolean => {
   try {
     const checkUser = getUser(user.username);
 
-    if (checkUser) return false;
+    if (checkUser) {
+      return false;
+    }
 
     const db = connect();
 
@@ -50,4 +59,4 @@ export function register(user: Auth) {
 
     return false;
   }
-}
+};
