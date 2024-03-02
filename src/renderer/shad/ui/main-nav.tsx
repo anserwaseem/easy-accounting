@@ -1,8 +1,14 @@
-import { Bell, History, Settings } from 'lucide-react';
+import { Bell, History, LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from 'renderer/lib/utils';
 import { Search } from './search';
 import { ModeToggle } from 'renderer/components/ModeToggle';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from 'renderer/shad/ui/tooltip';
 
 export function MainNav({
   className,
@@ -21,7 +27,14 @@ export function MainNav({
           to="#"
           className="text-sm font-medium transition-colors hover:text-primary"
         >
-          <Bell className="h-5 w-5" />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Bell className="h-5 w-5" />
+              </TooltipTrigger>
+              <TooltipContent>Notifications</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </Link>
         <Link
           to="#"
@@ -36,13 +49,40 @@ export function MainNav({
           to="#"
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
         >
-          <History className="h-5 w-5" />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <History className="h-5 w-5" />
+              </TooltipTrigger>
+              <TooltipContent>History</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </Link>
         <Link
           to="#"
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
         >
-          <Settings className="h-5 w-5" />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Settings className="h-5 w-5" />
+              </TooltipTrigger>
+              <TooltipContent>Settings</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </Link>
+        <Link
+          to={'/login'}
+          className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+        >
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <LogOut className="h-5 w-5" />
+              </TooltipTrigger>
+              <TooltipContent>Log Out</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </Link>
         <ModeToggle />
       </div>
