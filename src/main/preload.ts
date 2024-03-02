@@ -33,7 +33,7 @@ const electronHandler = {
   /**
    * Login a user
    * @param user The user to login
-   * @returns The token if the user is authenticated, false otherwise
+   * @returns The token (currently username) if the user is authenticated, false otherwise
    * @example const token = login({ username: 'user', password: 'pass' });
    */
   login: (user: Auth) =>

@@ -1,5 +1,4 @@
-import { Database, Statement } from 'better-sqlite3';
-import { decriptText } from '../utils/encrypt';
+import { Statement } from 'better-sqlite3';
 import { connect, asTransaction } from './Database.service';
 import { capitalize, forEach, isEmpty, isNil } from 'lodash';
 
@@ -13,7 +12,7 @@ export function saveBalanceSheet(
   try {
     const db = connect();
 
-    const username = decriptText(Buffer.from(token || '', 'base64'));
+    const username = token;
     console.log('inside saveBalanceSheet Account service', username);
 
     const stmChart = db.prepare(
@@ -99,7 +98,7 @@ const setupLedgers = (
   section: Section,
   sectionType?: SectionType,
 ) => {
-  if (isEmpty(chartsRecord)) {
+  if (isEmpty(chartsRecord) || isNil(section)) {
     return;
   }
 

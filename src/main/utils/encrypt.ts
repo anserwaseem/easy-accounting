@@ -1,5 +1,3 @@
-import { safeStorage } from 'electron';
-
 /**
  * Encrypts a string using electron's safeStorage API
  * @param text The text to encrypt
@@ -8,11 +6,7 @@ import { safeStorage } from 'electron';
  */
 export function hashText(text: string) {
   try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      return false;
-    }
-
-    return safeStorage.encryptString(text);
+    return Buffer.from(text, 'base64');
   } catch (err) {
     return false;
   }
@@ -22,15 +16,11 @@ export function hashText(text: string) {
  * Decrypts a string using electron's safeStorage API
  * @param text The text to decrypt
  * @returns The decrypted text
- * @example const decrypted = decriptText('my secret text');
+ * @example const decrypted = decryptText('my secret text');
  */
-export function decriptText(text: Buffer) {
+export function decryptText(text: Buffer) {
   try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      return false;
-    }
-
-    return safeStorage.decryptString(text);
+    return text.toString('base64');
   } catch (err) {
     return false;
   }

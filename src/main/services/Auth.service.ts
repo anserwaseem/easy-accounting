@@ -1,4 +1,4 @@
-import { decriptText, hashText } from '../utils/encrypt';
+import { decryptText, hashText } from '../utils/encrypt';
 import { connect } from './Database.service';
 
 export const getUser = (username: string): User | undefined => {
@@ -9,54 +9,52 @@ export const getUser = (username: string): User | undefined => {
   return stm.get({ username }) as User | undefined;
 };
 
-export const login = (user: Auth): false | string => {
+export const login = async (user: Auth): Promise<false | string> => {
   const dbUser = getUser(user.username);
 
   if (!dbUser) {
     return false;
   }
 
-  const passwordCheck = decriptText(dbUser.password_hash);
-
-  if (passwordCheck !== user.password) {
+  const result = decryptText(dbUser.password_hash);
+  if (result === false) {
     return false;
   }
 
-  const token = hashText(user.username);
-  if (token === false) {
-    return token;
-  }
-
-  return token.toString('base64');
+  // TODO: Return a token made from the username instead of the username itself
+  const token = user.username;
+  return token;
 };
 
-export const register = (user: Auth): boolean => {
+export const register = async (user: Auth): Promise<boolean> => {
   try {
-    const checkUser = getUser(user.username);
+    const userExists = getUser(user.username);
 
-    if (checkUser) {
+    if (userExists) {
       return false;
     }
 
-    const db = connect();
+    const password_hash = hashText(user.password);
+    if (password_hash === false) {
+      return false;
+    }
 
     const registerUser = {
       username: user.username,
-      password_hash: hashText(user.password),
+      password_hash: password_hash,
       status: 1,
     };
 
+    const db = connect();
     const stm = db.prepare(
       `INSERT INTO users (username, password_hash, status)
     VALUES (@username, @password_hash, @status)`,
     );
-
     stm.run(registerUser);
 
     return true;
   } catch (error) {
     console.error(error);
-
     return false;
   }
 };
