@@ -64,7 +64,16 @@ const RegisterPage = () => {
               placeholder="Confirm Password"
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
-            <Button variant="outline" onClick={register}>
+            <Button
+              variant="outline"
+              onClick={register}
+              disabled={
+                username.length < 4 ||
+                password.length < 4 ||
+                confirmPassword.length < 4 ||
+                password !== confirmPassword
+              }
+            >
               Sign Up
             </Button>
           </form>

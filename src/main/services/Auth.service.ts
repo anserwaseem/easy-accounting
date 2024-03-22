@@ -29,6 +29,10 @@ export const login = (user: Auth): boolean => {
 
 export const register = (user: Auth): boolean => {
   try {
+    if (user.username.length < 4 || user.password.length < 4) {
+      return false;
+    }
+
     const userExists = getUser(user.username);
     if (userExists) {
       return false;
