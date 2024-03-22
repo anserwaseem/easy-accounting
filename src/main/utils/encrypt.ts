@@ -1,5 +1,5 @@
 /**
- * Encrypts a string using electron's safeStorage API
+ * Encrypts a string using base64
  * @param text The text to encrypt
  * @returns The encrypted text
  * @example const encrypted = hashText('my secret text');
@@ -13,7 +13,7 @@ export function hashText(text: string) {
 }
 
 /**
- * Decrypts a string using electron's safeStorage API
+ * Decrypts a string using base64
  * @param text The text to decrypt
  * @returns The decrypted text
  * @example const decrypted = decryptText('my secret text');
