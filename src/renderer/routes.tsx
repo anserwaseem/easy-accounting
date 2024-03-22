@@ -8,7 +8,6 @@ import { AuthContext } from './context/Auth';
 import AuthProvider from './providers/Auth';
 import { ThemeProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
-import Chart from './views/Chart';
 import Nav from './components/Nav';
 import Account from './views/Account';
 
@@ -25,14 +24,6 @@ export default function appRoutes() {
               element={
                 <RequireAuth>
                   <Nav children={<Home />} />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/chart"
-              element={
-                <RequireAuth>
-                  <Nav children={<Chart />} />
                 </RequireAuth>
               }
             />

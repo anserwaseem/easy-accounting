@@ -50,15 +50,10 @@ type BaseEntity = {
   updatedAt: Date;
 };
 
-declare interface Chart extends BaseEntity {
-  name: string;
-  userId: number;
-  type: 'Asset' | 'Liability' | 'Equity';
-  code?: number;
-}
-
 declare interface Account extends BaseEntity {
   name: string;
   chartId: number;
+  headName?: string;
+  type: 'Asset' | 'Liability' | 'Equity';
   code?: number;
 }

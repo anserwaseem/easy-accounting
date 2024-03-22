@@ -15,12 +15,6 @@ const Nav: React.FC<PropsWithChildren> = ({ children }) => {
         titleClassName="bg-background"
         itemsClassName="w-full xs:w-[200px] md:w-[300px]"
         items={[
-          <Link to="/chart">
-            <Button variant="outline" className="w-full">
-              <BarChartBig />
-              <span>Chart of Accounts</span>
-            </Button>
-          </Link>,
           <Link to="/account">
             <Button variant="outline" className="w-full">
               <BarChartBig />

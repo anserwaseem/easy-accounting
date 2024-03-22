@@ -24,7 +24,6 @@ import {
 } from './services/Database.service';
 import { getUser, login, register } from './services/Auth.service';
 import { saveBalanceSheet } from './services/Statement.service';
-import { getCharts } from './services/Chart.service';
 import { getAccounts } from './services/Account.service';
 
 class AppUpdater {
@@ -174,9 +173,6 @@ app
           log.error('Error in saveBalanceSheet', error);
         }
       },
-    );
-    ipcMain.handle('chart:getAll', (_, token?: string | null) =>
-      getCharts(token),
     );
     ipcMain.handle('account:getAll', (_, token?: string | null) =>
       getAccounts(token),
