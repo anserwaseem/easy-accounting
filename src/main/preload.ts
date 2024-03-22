@@ -1,7 +1,6 @@
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import type { TODO } from './services/Database.service';
 
 export type Channels = 'ipc-example';
 
@@ -39,11 +38,6 @@ const electronHandler = {
     // Other method you want to add like has(), reset(), etc.
   },
 
-  insertTODO: (todo: TODO) => ipcRenderer.invoke('todo:insert', todo),
-  deleteTODO: (id: number) => ipcRenderer.invoke('todo:delete', id),
-  getAllTODO: () => ipcRenderer.invoke('todo:getAll'),
-  getOneTODO: (id: number) => ipcRenderer.invoke('todo:getOne', id),
-  updateTODO: (todo: TODO) => ipcRenderer.invoke('todo:update', todo),
   /**
    * Login a user
    * @param user The user to login

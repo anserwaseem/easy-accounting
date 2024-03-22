@@ -2,16 +2,6 @@ BEGIN TRANSACTION;
 
 -- TABLES --
 
--- Drop todos table
-DROP TABLE IF EXISTS "todos";
-CREATE TABLE IF NOT EXISTS "todos" (
-	"id"	INTEGER,
-	"title"	TEXT,
-	"date"	TEXT,
-	"status"	INTEGER,
-	PRIMARY KEY("id" AUTOINCREMENT)
-);
-
 DROP TABLE IF EXISTS "users";
 CREATE TABLE IF NOT EXISTS "users" (
 	"id"	INTEGER,

@@ -14,14 +14,6 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
-import {
-  deleteTODO,
-  getAllTODO,
-  getOneTODO,
-  insertTODO,
-  updateTODO,
-  TODO,
-} from './services/Database.service';
 import { getUser, login, register } from './services/Auth.service';
 import { saveBalanceSheet } from './services/Statement.service';
 import { getAccounts } from './services/Account.service';
@@ -155,21 +147,6 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
-    ipcMain.handle('todo:insert', async (_, todo: TODO) => {
-      insertTODO(todo);
-    });
-    ipcMain.handle('todo:update', async (_, todo: TODO) => {
-      updateTODO(todo);
-    });
-    ipcMain.handle('todo:delete', async (_, id: number) => {
-      deleteTODO(id);
-    });
-    ipcMain.handle('todo:getOne', async (_, id: number) => {
-      return getOneTODO(id);
-    });
-    ipcMain.handle('todo:getAll', async () => {
-      return getAllTODO();
-    });
     ipcMain.handle('auth:login', async (_, user: Auth) => {
       return login(user);
     });
