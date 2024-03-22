@@ -61,6 +61,21 @@ const electronHandler = {
    */
   saveBalanceSheet: (balanceSheet: BalanceSheet, token?: string | null) =>
     ipcRenderer.invoke('balanceSheet:save', balanceSheet, token),
+  /**
+   * Get all charts
+   * @returns All charts
+   * @example const charts = getCharts(token);
+   */
+  getCharts: (token?: string | null) =>
+    ipcRenderer.invoke('chart:getAll', token),
+
+  /**
+   * Get all accounts
+   * @returns All accounts
+   * @example const accounts = getAccounts(token);
+   */
+  getAccounts: (token?: string | null) =>
+    ipcRenderer.invoke('account:getAll', token),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

@@ -40,3 +40,25 @@ declare interface BalanceSheet {
     totalFixed?: number; // not used
   };
 }
+
+// Types made against the database
+
+type BaseEntity = {
+  id: number;
+  date: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+declare interface Chart extends BaseEntity {
+  name: string;
+  userId: number;
+  type: 'Asset' | 'Liability' | 'Equity';
+  code?: number;
+}
+
+declare interface Account extends BaseEntity {
+  name: string;
+  chartId: number;
+  code?: number;
+}

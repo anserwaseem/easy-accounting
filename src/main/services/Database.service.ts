@@ -25,14 +25,14 @@ export function connect() {
 }
 
 /**
- * Wrap a function in a transaction
- * @param func
- * @returns a function that runs the given function in a transaction
+ * Wraps a function in a transaction
+ * @param callback
+ * @returns a function that runs the given callback in a transaction
  * @example const runSecurely = asTransaction((...args) => { ... });
  * runSecurely(...args);
  */
 export const asTransaction = (
-  func: (...args: any[]) => void,
+  callback: (...args: any[]) => void,
 ): ((...args: any[]) => void) => {
   const db = connect();
   const begin = db.prepare('BEGIN TRANSACTION');
@@ -42,7 +42,7 @@ export const asTransaction = (
   return function (...args) {
     begin.run();
     try {
-      func(...args);
+      callback(...args);
       commit.run();
     } catch (error) {
       console.error(error);

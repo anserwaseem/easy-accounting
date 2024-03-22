@@ -8,6 +8,9 @@ import { AuthContext } from './context/Auth';
 import AuthProvider from './providers/Auth';
 import { ThemeProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
+import Chart from './views/Chart';
+import Nav from './components/Nav';
+import Account from './views/Account';
 
 export default function appRoutes() {
   return (
@@ -15,16 +18,32 @@ export default function appRoutes() {
       <AuthProvider>
         <MemoryRouter>
           <Routes>
+            <Route path="/login" Component={Login} />
+            <Route path="/register" Component={Register} />
             <Route
               path="/"
               element={
                 <RequireAuth>
-                  <Home />
+                  <Nav children={<Home />} />
                 </RequireAuth>
               }
             />
-            <Route path="/login" Component={Login} />
-            <Route path="/register" Component={Register} />
+            <Route
+              path="/chart"
+              element={
+                <RequireAuth>
+                  <Nav children={<Chart />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/account"
+              element={
+                <RequireAuth>
+                  <Nav children={<Account />} />
+                </RequireAuth>
+              }
+            />
           </Routes>
           <Toaster />
         </MemoryRouter>
@@ -36,7 +55,7 @@ export default function appRoutes() {
 function RequireAuth({ children }: { children: JSX.Element }) {
   let { authed } = useContext(AuthContext);
 
-  if (authed) return children;
+  if (authed || process.env.NODE_ENV === 'development') return children;
 
   return <Navigate to="/login" replace />;
 }

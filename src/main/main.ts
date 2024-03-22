@@ -23,7 +23,9 @@ import {
   TODO,
 } from './services/Database.service';
 import { getUser, login, register } from './services/Auth.service';
-import { saveBalanceSheet } from './services/Account.service';
+import { saveBalanceSheet } from './services/Statement.service';
+import { getCharts } from './services/Chart.service';
+import { getAccounts } from './services/Account.service';
 
 class AppUpdater {
   constructor() {
@@ -173,6 +175,13 @@ app
         }
       },
     );
+    ipcMain.handle('chart:getAll', (_, token?: string | null) =>
+      getCharts(token),
+    );
+    ipcMain.handle('account:getAll', (_, token?: string | null) =>
+      getAccounts(token),
+    );
+
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the
