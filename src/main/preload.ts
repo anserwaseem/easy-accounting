@@ -25,6 +25,20 @@ const electronHandler = {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
   },
+
+  store: {
+    get(key: string) {
+      return ipcRenderer.sendSync('electron-store-get', key);
+    },
+    set(key: string, val: unknown) {
+      ipcRenderer.send('electron-store-set', key, val);
+    },
+    delete(key: string) {
+      ipcRenderer.send('electron-store-delete', key);
+    },
+    // Other method you want to add like has(), reset(), etc.
+  },
+
   insertTODO: (todo: TODO) => ipcRenderer.invoke('todo:insert', todo),
   deleteTODO: (id: number) => ipcRenderer.invoke('todo:delete', id),
   getAllTODO: () => ipcRenderer.invoke('todo:getAll'),
@@ -33,11 +47,10 @@ const electronHandler = {
   /**
    * Login a user
    * @param user The user to login
-   * @returns The token (currently username) if the user is authenticated, false otherwise
+   * @returns Boolean indicating if the user was logged in
    * @example const token = login({ username: 'user', password: 'pass' });
    */
-  login: (user: Auth) =>
-    ipcRenderer.invoke('auth:login', user) as Promise<false | string>,
+  login: (user: Auth) => ipcRenderer.invoke('auth:login', user),
   /**
    * Register a user
    * @param user The user to register
@@ -45,6 +58,11 @@ const electronHandler = {
    * @example const token = register({ username: 'user', password: 'pass' });
    */
   register: (user: Auth) => ipcRenderer.invoke('auth:register', user),
+  /**
+   * Logout a user
+   * @example logout();
+   */
+  logout: () => ipcRenderer.invoke('auth:logout'),
   /**
    * Get a user
    * @param username The username to get

@@ -1,9 +1,11 @@
+import { Link } from 'react-router-dom';
 import { cn } from 'renderer/lib/utils';
 
 interface SidebarProps {
   title?: React.ReactNode;
   items?: React.ReactNode[];
   position?: 'left' | 'right';
+  titleLink?: string;
   className?: string;
   titleClassName?: string;
   itemsClassName?: string;
@@ -14,6 +16,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   title,
   items,
   position = 'left',
+  titleLink,
   className,
   titleClassName,
   itemsClassName,
@@ -28,16 +31,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     )}
   >
     <div className={itemsClassName}>
-      {title && (
-        <div
-          className={cn(
-            'flex items-center justify-center w-full border-b h-20 mb-2 pt-4',
-            titleClassName,
-          )}
-        >
-          {title}
-        </div>
-      )}
+      <Link to={titleLink || '/'}>
+        {title && (
+          <div
+            className={cn(
+              'flex items-center justify-center w-full border-b h-20 mb-2 pt-4',
+              titleClassName,
+            )}
+          >
+            {title}
+          </div>
+        )}
+      </Link>
       {items?.map((item, idx) => (
         <div
           key={idx}

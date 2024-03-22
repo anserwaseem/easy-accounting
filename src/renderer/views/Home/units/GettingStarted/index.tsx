@@ -17,7 +17,7 @@ export const GettingStarted = () => {
       console.log(balanceSheet);
       const result = await window.electron.saveBalanceSheet(
         balanceSheet,
-        localStorage.getItem('username'),
+        window.electron.store.get('username'),
       );
       console.log('saveBalanceSheet result', result);
     } catch (error) {

@@ -25,6 +25,9 @@ import {
 import { getUser, login, register } from './services/Auth.service';
 import { saveBalanceSheet } from './services/Statement.service';
 import { getAccounts } from './services/Account.service';
+import Store from 'electron-store';
+
+export const store = new Store();
 
 class AppUpdater {
   constructor() {
@@ -42,6 +45,18 @@ ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+ipcMain.on('electron-store-get', async (event, val) => {
+  event.returnValue = store.get(val);
+});
+
+ipcMain.on('electron-store-set', async (_, key, val) => {
+  store.set(key, val);
+});
+
+ipcMain.on('electron-store-delete', async (_, key) => {
+  store.delete(key);
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -156,10 +171,10 @@ app
       return getAllTODO();
     });
     ipcMain.handle('auth:login', async (_, user: Auth) => {
-      return await login(user);
+      return login(user);
     });
     ipcMain.handle('auth:register', async (_, user: Auth) => {
-      return await register(user);
+      return register(user);
     });
     ipcMain.handle('auth:getUser', async (_, username: string) => {
       return getUser(username);
@@ -174,7 +189,7 @@ app
         }
       },
     );
-    ipcMain.handle('account:getAll', (_, token?: string | null) =>
+    ipcMain.handle('account:getAll', async (_, token?: string | null) =>
       getAccounts(token),
     );
 

@@ -6,31 +6,28 @@ export default function AuthProvider({
 }: {
   children: React.ReactNode;
 }) {
-  let [authed, setAuthed] = useState(false);
+  const [authed, setAuthed] = useState(false);
 
-  let signin = async (user: Auth): Promise<boolean> => {
+  const signin = async (user: Auth): Promise<boolean> => {
     const response = await window.electron.login(user);
-    setAuthed(true);
 
     if (response !== false) {
-      console.log('signin response', response);
-      localStorage.setItem('username', response);
+      setAuthed(true);
       return true;
     }
 
-    return response;
+    return false;
   };
 
-  let register = async (user: Auth) => {
-    return await window.electron.register(user);
-  };
+  const register = async (user: Auth): Promise<boolean> =>
+    !!(await window.electron.register(user));
 
-  let logout = async () => {
+  const logout = async (): Promise<void> => {
     setAuthed(false);
-    localStorage.removeItem('username');
+    await window.electron.logout();
   };
 
-  let value = { authed, signin, register, logout };
+  const value = { authed, signin, register, logout };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

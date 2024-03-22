@@ -1,8 +1,15 @@
 import { createContext } from 'react';
 
-export const AuthContext = createContext({
+interface AuthContextValue {
+  authed: boolean;
+  signin: (user: Auth) => Promise<boolean>;
+  register: (user: Auth) => Promise<boolean>;
+  logout: () => Promise<void>;
+}
+
+export const AuthContext = createContext<AuthContextValue>({
   authed: false,
-  signin: async (user: Auth) => true || false,
-  register: async (user: Auth) => true || false,
+  signin: async () => false,
+  register: async () => false,
   logout: async () => {},
 });

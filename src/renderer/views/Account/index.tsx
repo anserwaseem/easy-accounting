@@ -13,7 +13,7 @@ const AccountPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] = useState<
     'All' | 'Asset' | 'Liability' | 'Equity'
-  >('All');
+  >(window.electron.store.get('accountTypeSelected') || 'All');
 
   const columns: ColumnDef<Account>[] = [
     {
@@ -50,10 +50,16 @@ const AccountPage = () => {
     () =>
       void (async () =>
         setAccounts(
-          await window.electron.getAccounts(localStorage.getItem('username')),
+          await window.electron.getAccounts(
+            window.electron.store.get('username'),
+          ),
         ))(),
     [],
   );
+
+  useEffect(() => {
+    window.electron.store.set('accountTypeSelected', typeSelected);
+  }, [typeSelected]);
 
   const getAccounts = () => {
     switch (typeSelected) {
@@ -74,7 +80,6 @@ const AccountPage = () => {
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="lg">
             <span className="mr-2">{typeSelected} Accounts</span>
-            {/* <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" /> */}
             <ChevronDown size={16} />
           </Button>
         </DropdownMenuTrigger>
@@ -94,7 +99,7 @@ const AccountPage = () => {
         </DropdownMenuContent>
       </DropdownMenu>
       <div className="py-10 pr-4">
-        <DataTable columns={columns} data={accounts} />
+        <DataTable columns={columns} data={getAccounts()} />
       </div>
     </div>
   );

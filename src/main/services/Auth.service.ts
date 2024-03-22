@@ -1,3 +1,4 @@
+import { store } from '../main';
 import { decryptText, hashText } from '../utils/encrypt';
 import { connect } from './Database.service';
 
@@ -9,7 +10,7 @@ export const getUser = (username: string): User | undefined => {
   return stm.get({ username }) as User | undefined;
 };
 
-export const login = async (user: Auth): Promise<false | string> => {
+export const login = (user: Auth): boolean => {
   const dbUser = getUser(user.username);
 
   if (!dbUser) {
@@ -17,19 +18,18 @@ export const login = async (user: Auth): Promise<false | string> => {
   }
 
   const result = decryptText(dbUser.password_hash);
-  if (result === false) {
-    return false;
+
+  if (result === user.password) {
+    store.set('username', user.username);
+    return true;
   }
 
-  // TODO: Return a token made from the username instead of the username itself
-  const token = user.username;
-  return token;
+  return false;
 };
 
-export const register = async (user: Auth): Promise<boolean> => {
+export const register = (user: Auth): boolean => {
   try {
     const userExists = getUser(user.username);
-
     if (userExists) {
       return false;
     }
@@ -58,3 +58,5 @@ export const register = async (user: Auth): Promise<boolean> => {
     return false;
   }
 };
+
+export const logout = () => window.electron.store.delete('username');
