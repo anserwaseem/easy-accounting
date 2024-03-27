@@ -67,19 +67,31 @@ const electronHandler = {
   /**
    * Save a balance sheet
    * @param balanceSheet The balance sheet to save
-   * @param token The token to use
    * @returns Boolean indicating if the balance sheet was saved
    * @example const balanceSheet = saveBalanceSheet({ ... });
    */
-  saveBalanceSheet: (balanceSheet: BalanceSheet, token?: string | null) =>
-    ipcRenderer.invoke('balanceSheet:save', balanceSheet, token),
+  saveBalanceSheet: (balanceSheet: BalanceSheet) =>
+    ipcRenderer.invoke('balanceSheet:save', balanceSheet),
   /**
    * Get all accounts
    * @returns All accounts
-   * @example const accounts = getAccounts(token);
+   * @example const accounts = getAccounts();
    */
-  getAccounts: (token?: string | null) =>
-    ipcRenderer.invoke('account:getAll', token),
+  getAccounts: () => ipcRenderer.invoke('account:getAll'),
+  /**
+   * Get all charts
+   * @returns All charts
+   * @example const charts = getCharts();
+   */
+  getCharts: () => ipcRenderer.invoke('chart:getAll'),
+  /**
+   * Insert an account
+   * @param account The account to insert
+   * @returns Boolean indicating if the account was inserted
+   * @example const account = insertAccount({ ... });
+   */
+  insertAccount: (account: Pick<Account, 'headName' | 'name' | 'code'>) =>
+    ipcRenderer.invoke('account:insertAccount', account),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

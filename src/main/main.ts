@@ -16,8 +16,9 @@ import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import { getUser, login, register } from './services/Auth.service';
 import { saveBalanceSheet } from './services/Statement.service';
-import { getAccounts } from './services/Account.service';
+import { getAccounts, insertAccount } from './services/Account.service';
 import Store from 'electron-store';
+import { getCharts } from './services/Chart.service';
 
 export const store = new Store();
 
@@ -158,17 +159,21 @@ app
     });
     ipcMain.handle(
       'balanceSheet:save',
-      async (_, balanceSheet: BalanceSheet, token?: string | null) => {
+      async (_, balanceSheet: BalanceSheet) => {
         try {
-          return saveBalanceSheet(balanceSheet, token);
+          return saveBalanceSheet(balanceSheet);
         } catch (error) {
           log.error('Error in saveBalanceSheet', error);
         }
       },
     );
-    ipcMain.handle('account:getAll', async (_, token?: string | null) =>
-      getAccounts(token),
+    ipcMain.handle('account:getAll', async () => getAccounts());
+    ipcMain.handle(
+      'account:insertAccount',
+      async (_, account: Pick<Account, 'headName' | 'name' | 'code'>) =>
+        insertAccount(account),
     );
+    ipcMain.handle('chart:getAll', async () => getCharts());
 
     createWindow();
     app.on('activate', () => {

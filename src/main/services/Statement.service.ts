@@ -1,18 +1,16 @@
 import { Statement } from 'better-sqlite3';
 import { connect, asTransaction } from './Database.service';
 import { capitalize, forEach, isEmpty, isNil } from 'lodash';
+import { store } from '../main';
 
 type Section = 'asset' | 'liability' | 'equity';
 type SectionType = 'current' | 'fixed' | null;
 
-export function saveBalanceSheet(
-  balanceSheet: BalanceSheet,
-  token?: string | null,
-) {
+export function saveBalanceSheet(balanceSheet: BalanceSheet) {
   try {
     const db = connect();
 
-    const username = token;
+    const username = store.get('username');
     console.log('inside saveBalanceSheet Account service', username);
 
     const stmChart = db.prepare(

@@ -15,10 +15,7 @@ export const GettingStarted = () => {
       const json = await convertFileToJson(file);
       const balanceSheet = parseBalanceSheet(json);
       console.log(balanceSheet);
-      const result = await window.electron.saveBalanceSheet(
-        balanceSheet,
-        window.electron.store.get('username'),
-      );
+      const result = await window.electron.saveBalanceSheet(balanceSheet);
       console.log('saveBalanceSheet result', result);
     } catch (error) {
       console.error(error);

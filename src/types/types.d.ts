@@ -41,7 +41,7 @@ declare interface BalanceSheet {
   };
 }
 
-// Types made against the database
+type CategoryType = 'Asset' | 'Liability' | 'Equity';
 
 type BaseEntity = {
   id: number;
@@ -54,6 +54,11 @@ declare interface Account extends BaseEntity {
   name: string;
   chartId: number;
   headName?: string;
-  type: 'Asset' | 'Liability' | 'Equity';
+  type: CategoryType;
   code?: number;
+}
+
+declare interface Chart extends BaseEntity {
+  name: string;
+  type: CategoryType;
 }
