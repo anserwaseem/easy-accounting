@@ -92,6 +92,14 @@ const electronHandler = {
    */
   insertAccount: (account: Pick<Account, 'headName' | 'name' | 'code'>) =>
     ipcRenderer.invoke('account:insertAccount', account),
+  /**
+   * Update an account
+   * @param account The account to update
+   * @returns Boolean indicating if the account was updated
+   * @example const account = updateAccount({ ... });
+   */
+  updateAccount: (account: Pick<Account, 'id' | 'type' | 'name' | 'code'>) =>
+    ipcRenderer.invoke('account:updateAccount', account),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

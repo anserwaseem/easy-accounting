@@ -17,7 +17,7 @@ export function MainNav({
   return (
     <nav
       className={cn(
-        'flex h-16 items-center justify-between w-full border-b px-4 lg:px-6 mb-2',
+        'flex h-16 items-center justify-between w-full border-b px-4 lg:px-6 mb-2 border-gray-800 dark:border-gray-300',
         className,
       )}
       {...props}

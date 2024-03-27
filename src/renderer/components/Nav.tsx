@@ -9,10 +9,7 @@ const Nav: React.FC<PropsWithChildren> = ({ children }) => {
   return (
     <div className="flex space-x-4 min-h-screen">
       <Sidebar
-        title={
-          <h1 className="text-xl font-semibold text-white">Easy Accounting</h1>
-        }
-        titleClassName="bg-background"
+        title={<h1 className="text-xl font-semibold ">Easy Accounting</h1>}
         itemsClassName="w-full xs:w-[200px] md:w-[300px]"
         items={[
           <Link to="/account">

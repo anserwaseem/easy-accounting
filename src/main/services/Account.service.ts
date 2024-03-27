@@ -5,7 +5,15 @@ export const getAccounts = () => {
   const db = connect();
 
   const stm = db.prepare(
-    'SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt FROM account a JOIN chart c ON c.id = a.chartId WHERE userId = (SELECT id FROM users WHERE username = @username)',
+    ` SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt
+      FROM account a
+      JOIN chart c
+      ON c.id = a.chartId
+      WHERE userId = (
+        SELECT id
+        FROM users
+        WHERE username = @username
+      )`,
   );
 
   return stm.all({
@@ -19,9 +27,27 @@ export const insertAccount = (
   const db = connect();
 
   const stm = db.prepare(
-    `INSERT INTO account (name, chartId, code)
-    VALUES (@name, (SELECT id FROM chart WHERE name = @headName), @code)`,
+    ` INSERT INTO account (name, chartId, code)
+      VALUES (@name, (
+        SELECT id
+        FROM chart
+        WHERE name = @headName
+      ), @code)`,
   );
 
   return Boolean(stm.run(account).lastInsertRowid);
+};
+
+export const updateAccount = (
+  account: Pick<Account, 'id' | 'type' | 'name' | 'code'>,
+): boolean => {
+  const db = connect();
+
+  const stm = db.prepare(
+    ` UPDATE account
+      SET name = @name, code = @code, type = @type
+      WHERE id = @id`,
+  );
+
+  return Boolean(stm.run(account).changes);
 };

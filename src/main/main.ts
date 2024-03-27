@@ -16,7 +16,11 @@ import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import { getUser, login, register } from './services/Auth.service';
 import { saveBalanceSheet } from './services/Statement.service';
-import { getAccounts, insertAccount } from './services/Account.service';
+import {
+  getAccounts,
+  insertAccount,
+  updateAccount,
+} from './services/Account.service';
 import Store from 'electron-store';
 import { getCharts } from './services/Chart.service';
 
@@ -172,6 +176,11 @@ app
       'account:insertAccount',
       async (_, account: Pick<Account, 'headName' | 'name' | 'code'>) =>
         insertAccount(account),
+    );
+    ipcMain.handle(
+      'account:updateAccount',
+      async (_, account: Pick<Account, 'id' | 'type' | 'name' | 'code'>) =>
+        updateAccount(account),
     );
     ipcMain.handle('chart:getAll', async () => getCharts());
 
