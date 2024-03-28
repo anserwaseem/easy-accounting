@@ -2,6 +2,7 @@ import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
 
@@ -13,20 +14,29 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
+import { toString } from 'lodash';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  defaultSortField?: keyof TData;
 }
 
 function DataTable<TData, TValue>({
   columns,
   data,
+  defaultSortField,
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    initialState: {
+      sorting: defaultSortField
+        ? [{ id: defaultSortField.toString(), desc: false }]
+        : [],
+    },
   });
 
   return (
@@ -37,13 +47,25 @@ function DataTable<TData, TValue>({
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
                 return (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                  <TableHead
+                    key={header.id}
+                    className={
+                      header.column.getIsSorted()
+                        ? 'bg-gray-800'
+                        : 'bg-gray-900'
+                    }
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
+                    {
+                      {
+                        asc: ' 🔼',
+                        desc: ' 🔽',
+                      }[toString(header.column.getIsSorted())]
+                    }
                   </TableHead>
                 );
               })}

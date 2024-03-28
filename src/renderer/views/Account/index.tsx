@@ -457,7 +457,11 @@ const AccountPage = () => {
         </Dialog>
       </div>
       <div className="py-10 pr-4">
-        <DataTable columns={columns} data={getAccounts()} />
+        <DataTable
+          columns={columns}
+          data={getAccounts()}
+          defaultSortField="id"
+        />
       </div>
     </div>
   );
