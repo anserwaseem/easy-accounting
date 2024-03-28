@@ -41,7 +41,7 @@ export const updateAccount = (account: UpdateAccount): boolean => {
 
   const stm = db.prepare(
     ` UPDATE account
-      SET name = @name, code = @code, type = @type, chartId = (
+      SET name = @name, code = @code, chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName

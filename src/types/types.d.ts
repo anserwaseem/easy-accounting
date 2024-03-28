@@ -64,7 +64,4 @@ declare interface Chart extends BaseEntity {
 }
 
 declare type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
-declare type UpdateAccount = Pick<
-  Account,
-  'id' | 'headName' | 'type' | 'name' | 'code'
->;
+declare type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
