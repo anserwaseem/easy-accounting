@@ -90,7 +90,7 @@ const electronHandler = {
    * @returns Boolean indicating if the account was inserted
    * @example const account = insertAccount({ ... });
    */
-  insertAccount: (account: Pick<Account, 'headName' | 'name' | 'code'>) =>
+  insertAccount: (account: InsertAccount) =>
     ipcRenderer.invoke('account:insertAccount', account),
   /**
    * Update an account
@@ -98,7 +98,7 @@ const electronHandler = {
    * @returns Boolean indicating if the account was updated
    * @example const account = updateAccount({ ... });
    */
-  updateAccount: (account: Pick<Account, 'id' | 'type' | 'name' | 'code'>) =>
+  updateAccount: (account: UpdateAccount) =>
     ipcRenderer.invoke('account:updateAccount', account),
 };
 

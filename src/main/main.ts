@@ -172,15 +172,11 @@ app
       },
     );
     ipcMain.handle('account:getAll', async () => getAccounts());
-    ipcMain.handle(
-      'account:insertAccount',
-      async (_, account: Pick<Account, 'headName' | 'name' | 'code'>) =>
-        insertAccount(account),
+    ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
+      insertAccount(account),
     );
-    ipcMain.handle(
-      'account:updateAccount',
-      async (_, account: Pick<Account, 'id' | 'type' | 'name' | 'code'>) =>
-        updateAccount(account),
+    ipcMain.handle('account:updateAccount', async (_, account: UpdateAccount) =>
+      updateAccount(account),
     );
     ipcMain.handle('chart:getAll', async () => getCharts());
 

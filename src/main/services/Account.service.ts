@@ -21,9 +21,7 @@ export const getAccounts = () => {
   }) as Account[];
 };
 
-export const insertAccount = (
-  account: Pick<Account, 'headName' | 'name' | 'code'>,
-): boolean => {
+export const insertAccount = (account: InsertAccount): boolean => {
   const db = connect();
 
   const stm = db.prepare(
@@ -38,14 +36,16 @@ export const insertAccount = (
   return Boolean(stm.run(account).lastInsertRowid);
 };
 
-export const updateAccount = (
-  account: Pick<Account, 'id' | 'type' | 'name' | 'code'>,
-): boolean => {
+export const updateAccount = (account: UpdateAccount): boolean => {
   const db = connect();
 
   const stm = db.prepare(
     ` UPDATE account
-      SET name = @name, code = @code, type = @type
+      SET name = @name, code = @code, type = @type, chartId = (
+        SELECT id
+        FROM chart
+        WHERE name = @headName
+      )
       WHERE id = @id`,
   );
 
