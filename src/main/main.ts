@@ -23,6 +23,7 @@ import {
 } from './services/Account.service';
 import Store from 'electron-store';
 import { getCharts } from './services/Chart.service';
+import { getLedger } from './services/Ledger.service';
 
 export const store = new Store();
 
@@ -179,6 +180,9 @@ app
       updateAccount(account),
     );
     ipcMain.handle('chart:getAll', async () => getCharts());
+    ipcMain.handle('ledger:get', async (_, accountId: number) =>
+      getLedger(accountId),
+    );
 
     createWindow();
     app.on('activate', () => {

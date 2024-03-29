@@ -100,6 +100,13 @@ const electronHandler = {
    */
   updateAccount: (account: UpdateAccount) =>
     ipcRenderer.invoke('account:updateAccount', account),
+  /**
+   * Get a ledger
+   * @param accountId The account id to get
+   * @returns The ledger if found, undefined otherwise
+   * @example const ledger = getLedger(1);
+   */
+  getLedger: (accountId: number) => ipcRenderer.invoke('ledger:get', accountId),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

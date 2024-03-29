@@ -42,6 +42,7 @@ declare interface BalanceSheet {
 }
 
 type CategoryType = 'Asset' | 'Liability' | 'Equity';
+type BalanceType = 'Dr' | 'Cr';
 
 type BaseEntity = {
   id: number;
@@ -62,6 +63,17 @@ declare interface Chart extends BaseEntity {
   name: string;
   type: CategoryType;
 }
+
+declare interface Ledger extends BaseEntity {
+  particulars: string;
+  accountId: number;
+  debit: number;
+  credit: number;
+  balance: number;
+  balanceType: BalanceType;
+}
+
+/** DTO **/
 
 declare type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
 declare type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
