@@ -14,16 +14,17 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
-import {
-  deleteTODO,
-  getAllTODO,
-  getOneTODO,
-  insertTODO,
-  updateTODO,
-  TODO,
-} from './services/Database.service';
 import { getUser, login, register } from './services/Auth.service';
-import { saveBalanceSheet } from './services/Account.service';
+import { saveBalanceSheet } from './services/Statement.service';
+import {
+  getAccounts,
+  insertAccount,
+  updateAccount,
+} from './services/Account.service';
+import Store from 'electron-store';
+import { getCharts } from './services/Chart.service';
+
+export const store = new Store();
 
 class AppUpdater {
   constructor() {
@@ -41,6 +42,18 @@ ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+ipcMain.on('electron-store-get', async (event, val) => {
+  event.returnValue = store.get(val);
+});
+
+ipcMain.on('electron-store-set', async (_, key, val) => {
+  store.set(key, val);
+});
+
+ipcMain.on('electron-store-delete', async (_, key) => {
+  store.delete(key);
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -139,40 +152,34 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
-    ipcMain.handle('todo:insert', async (_, todo: TODO) => {
-      insertTODO(todo);
-    });
-    ipcMain.handle('todo:update', async (_, todo: TODO) => {
-      updateTODO(todo);
-    });
-    ipcMain.handle('todo:delete', async (_, id: number) => {
-      deleteTODO(id);
-    });
-    ipcMain.handle('todo:getOne', async (_, id: number) => {
-      return getOneTODO(id);
-    });
-    ipcMain.handle('todo:getAll', async () => {
-      return getAllTODO();
-    });
     ipcMain.handle('auth:login', async (_, user: Auth) => {
-      return await login(user);
+      return login(user);
     });
     ipcMain.handle('auth:register', async (_, user: Auth) => {
-      return await register(user);
+      return register(user);
     });
     ipcMain.handle('auth:getUser', async (_, username: string) => {
       return getUser(username);
     });
     ipcMain.handle(
       'balanceSheet:save',
-      async (_, balanceSheet: BalanceSheet, token?: string | null) => {
+      async (_, balanceSheet: BalanceSheet) => {
         try {
-          return saveBalanceSheet(balanceSheet, token);
+          return saveBalanceSheet(balanceSheet);
         } catch (error) {
           log.error('Error in saveBalanceSheet', error);
         }
       },
     );
+    ipcMain.handle('account:getAll', async () => getAccounts());
+    ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
+      insertAccount(account),
+    );
+    ipcMain.handle('account:updateAccount', async (_, account: UpdateAccount) =>
+      updateAccount(account),
+    );
+    ipcMain.handle('chart:getAll', async () => getCharts());
+
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the

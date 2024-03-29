@@ -1,7 +1,6 @@
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import type { TODO } from './services/Database.service';
 
 export type Channels = 'ipc-example';
 
@@ -25,19 +24,27 @@ const electronHandler = {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
   },
-  insertTODO: (todo: TODO) => ipcRenderer.invoke('todo:insert', todo),
-  deleteTODO: (id: number) => ipcRenderer.invoke('todo:delete', id),
-  getAllTODO: () => ipcRenderer.invoke('todo:getAll'),
-  getOneTODO: (id: number) => ipcRenderer.invoke('todo:getOne', id),
-  updateTODO: (todo: TODO) => ipcRenderer.invoke('todo:update', todo),
+
+  store: {
+    get(key: string) {
+      return ipcRenderer.sendSync('electron-store-get', key);
+    },
+    set(key: string, val: unknown) {
+      ipcRenderer.send('electron-store-set', key, val);
+    },
+    delete(key: string) {
+      ipcRenderer.send('electron-store-delete', key);
+    },
+    // Other method you want to add like has(), reset(), etc.
+  },
+
   /**
    * Login a user
    * @param user The user to login
-   * @returns The token (currently username) if the user is authenticated, false otherwise
+   * @returns Boolean indicating if the user was logged in
    * @example const token = login({ username: 'user', password: 'pass' });
    */
-  login: (user: Auth) =>
-    ipcRenderer.invoke('auth:login', user) as Promise<false | string>,
+  login: (user: Auth) => ipcRenderer.invoke('auth:login', user),
   /**
    * Register a user
    * @param user The user to register
@@ -45,6 +52,11 @@ const electronHandler = {
    * @example const token = register({ username: 'user', password: 'pass' });
    */
   register: (user: Auth) => ipcRenderer.invoke('auth:register', user),
+  /**
+   * Logout a user
+   * @example logout();
+   */
+  logout: () => ipcRenderer.invoke('auth:logout'),
   /**
    * Get a user
    * @param username The username to get
@@ -55,12 +67,39 @@ const electronHandler = {
   /**
    * Save a balance sheet
    * @param balanceSheet The balance sheet to save
-   * @param token The token to use
    * @returns Boolean indicating if the balance sheet was saved
    * @example const balanceSheet = saveBalanceSheet({ ... });
    */
-  saveBalanceSheet: (balanceSheet: BalanceSheet, token?: string | null) =>
-    ipcRenderer.invoke('balanceSheet:save', balanceSheet, token),
+  saveBalanceSheet: (balanceSheet: BalanceSheet) =>
+    ipcRenderer.invoke('balanceSheet:save', balanceSheet),
+  /**
+   * Get all accounts
+   * @returns All accounts
+   * @example const accounts = getAccounts();
+   */
+  getAccounts: () => ipcRenderer.invoke('account:getAll'),
+  /**
+   * Get all charts
+   * @returns All charts
+   * @example const charts = getCharts();
+   */
+  getCharts: () => ipcRenderer.invoke('chart:getAll'),
+  /**
+   * Insert an account
+   * @param account The account to insert
+   * @returns Boolean indicating if the account was inserted
+   * @example const account = insertAccount({ ... });
+   */
+  insertAccount: (account: InsertAccount) =>
+    ipcRenderer.invoke('account:insertAccount', account),
+  /**
+   * Update an account
+   * @param account The account to update
+   * @returns Boolean indicating if the account was updated
+   * @example const account = updateAccount({ ... });
+   */
+  updateAccount: (account: UpdateAccount) =>
+    ipcRenderer.invoke('account:updateAccount', account),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

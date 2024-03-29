@@ -46,7 +46,11 @@ const LoginPage = () => {
             placeholder="Password"
             onChange={(e) => setPassword(e.target.value)}
           />
-          <Button variant="outline" onClick={login}>
+          <Button
+            variant="outline"
+            onClick={login}
+            disabled={username.length < 4 || password.length < 4}
+          >
             Login
           </Button>
         </form>

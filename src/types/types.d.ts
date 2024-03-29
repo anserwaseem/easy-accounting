@@ -40,3 +40,28 @@ declare interface BalanceSheet {
     totalFixed?: number; // not used
   };
 }
+
+type CategoryType = 'Asset' | 'Liability' | 'Equity';
+
+type BaseEntity = {
+  id: number;
+  date: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+declare interface Account extends BaseEntity {
+  name: string;
+  chartId: number;
+  headName?: string;
+  type: CategoryType;
+  code?: number;
+}
+
+declare interface Chart extends BaseEntity {
+  name: string;
+  type: CategoryType;
+}
+
+declare type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
+declare type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
