@@ -193,8 +193,8 @@
     "webpack-merge": "^5.9.0"
   },
   "build": {
-    "productName": "ElectronReact",
-    "appId": "org.erb.ElectronReact",
+    "productName": "Easy Accounting",
+    "appId": "org.easy-accounting",
     "asar": true,
     "asarUnpack": [
       "**\\*.{node,dll}",

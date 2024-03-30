@@ -48,7 +48,13 @@ CREATE TABLE IF NOT EXISTS "journal" (
   "date" DATETIME NOT NULL,
   "description" STRING NOT NULL,
   "isPosted" BOOLEAN NOT NULL DEFAULT 0
+  "debitAccountId" INTEGER NOT NULL,
+  "debitAmount" DECIMAL DEFAULT 0,
+  "creditAccountId" INTEGER NOT NULL,
+  "creditAmount" DECIMAL DEFAULT 0,
 
+  FOREIGN KEY("debitAccountId") REFERENCES "account"("id"),
+  FOREIGN KEY("creditAccountId") REFERENCES "account"("id")
 );
 
 DROP TABLE IF EXISTS "ledger";

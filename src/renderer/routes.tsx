@@ -11,6 +11,8 @@ import { Toaster } from './shad/ui/toaster';
 import Nav from './components/Nav';
 import Account from './views/Account';
 import LedgerPage from './views/Ledger';
+import JournalPage from './views/Journal';
+import NewJournalPage from './views/NewJournal';
 
 export default function appRoutes() {
   return (
@@ -29,7 +31,7 @@ export default function appRoutes() {
               }
             />
             <Route
-              path="/account"
+              path="/accounts"
               element={
                 <RequireAuth>
                   <Nav children={<Account />} />
@@ -37,10 +39,26 @@ export default function appRoutes() {
               }
             />
             <Route
-              path="/account/:id"
+              path="/accounts/:id"
               element={
                 <RequireAuth>
                   <Nav children={<LedgerPage />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/journals"
+              element={
+                <RequireAuth>
+                  <Nav children={<JournalPage />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/journals/new"
+              element={
+                <RequireAuth>
+                  <Nav children={<NewJournalPage />} />
                 </RequireAuth>
               }
             />
