@@ -1,40 +1,48 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { ChevronDown, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toString } from 'lodash';
+import { ChevronDown, Plus } from 'lucide-react';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogTitle,
+  DialogHeader,
+} from 'renderer/shad/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from 'renderer/shad/ui/dropdown-menu';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from 'renderer/shad/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from 'renderer/shad/ui/dialog';
-import {
-  Form,
   FormField,
   FormItem,
   FormLabel,
   FormControl,
   FormMessage,
+  Form,
 } from 'renderer/shad/ui/form';
-import { Input } from 'renderer/shad/ui/input';
 import { useToast } from 'renderer/shad/ui/use-toast';
-import { dateFormatOptions } from 'renderer/lib/constants';
-import { EditDialog } from './editDialog';
+import { Input } from 'renderer/shad/ui/input';
 
-const AccountPage = () => {
-  console.log('AccountPage');
+interface MiniAccountPageProps {
+  accountId: number;
+  setAccountName: (name: string) => void;
+  setHeadName: (name: string) => void;
+}
+
+export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
+  accountId,
+  setAccountName,
+  setHeadName,
+}) => {
+  console.log('MiniAccountPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] = useState<
     'All' | 'Asset' | 'Liability' | 'Equity'
@@ -85,59 +93,18 @@ const AccountPage = () => {
     defaultValues: defaultCreateValues,
   });
 
-  const columns: ColumnDef<Account>[] = useMemo(
+  const columns: ColumnDef<Pick<Account, 'id' | 'name' | 'type'>>[] = useMemo(
     () => [
       {
         accessorKey: 'name',
         header: 'Account Name',
-        onClick: (row) => navigate(`/account/${row.original.id}`),
-      },
-      {
-        accessorKey: 'headName',
-        header: 'Head Name',
-        onClick: (row) => navigate(`/account/${row.original.id}`),
-      },
-      {
-        accessorKey: 'type',
-        header: 'Type',
-        onClick: (row) => navigate(`/account/${row.original.id}`),
-      },
-      {
-        accessorKey: 'code',
-        header: 'Account Code',
-        onClick: (row) => navigate(`/account/${row.original.id}`),
-      },
-      {
-        accessorKey: 'updatedAt',
-        header: 'Updated At',
-        cell: ({ row }) =>
-          new Date(row.original.updatedAt).toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
-        onClick: (row) => navigate(`/account/${row.original.id}`),
-      },
-      {
-        accessorKey: 'createdAt',
-        header: 'Created At',
-        cell: ({ row }) =>
-          new Date(row.original.createdAt).toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
-        onClick: (row) => navigate(`/account/${row.original.id}`),
-      },
-      {
-        header: 'Edit',
         cell: ({ row }) => (
-          <EditDialog
-            row={row}
-            setAccounts={setAccounts}
-            setCharts={setCharts}
-            charts={charts}
-            clearRef={clearRef}
-          />
+          <div>
+            <h2>{row.original.name}</h2>
+            <p className="text-xs text-slate-400">{row.original.type}</p>
+          </div>
         ),
+        onClick: (row) => navigate(`/account/${row.original.id}`),
       },
     ],
     [accounts, charts],
@@ -147,7 +114,13 @@ const AccountPage = () => {
     if (!openCreateForm) {
       (async () => {
         createForm.setValue('headName', accountHead);
-        setAccounts(await window.electron.getAccounts());
+        const accounts = (await window.electron.getAccounts()) as Account[];
+        const selectedAccount = accounts.find(
+          (account) => account.id === accountId,
+        );
+        setAccounts(accounts);
+        setAccountName(selectedAccount?.name || '');
+        setHeadName(selectedAccount?.headName || '');
         setCharts(await window.electron.getCharts());
       })();
     }
@@ -328,5 +301,3 @@ const AccountPage = () => {
     </div>
   );
 };
-
-export default AccountPage;

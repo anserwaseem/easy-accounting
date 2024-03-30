@@ -4,10 +4,10 @@ export const getLedger = (accountId: number) => {
   const db = connect();
 
   const stm = db.prepare(
-    ` SELECT l.id, l.accountId, l.amount, l.description, l.createdAt, l.updatedAt
-      FROM ledger l
-      WHERE l.accountId = @accountId
-      ORDER BY l.createdAt DESC`,
+    ` SELECT id, date, accountId, particulars, debit, credit, balance, balanceType, createdAt, updatedAt
+      FROM ledger
+      WHERE accountId = @accountId
+      ORDER BY createdAt DESC`,
   );
 
   return stm.all({ accountId }) as Ledger[];

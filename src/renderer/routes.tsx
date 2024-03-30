@@ -10,6 +10,7 @@ import { ThemeProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
 import Nav from './components/Nav';
 import Account from './views/Account';
+import LedgerPage from './views/Ledger';
 
 export default function appRoutes() {
   return (
@@ -32,6 +33,14 @@ export default function appRoutes() {
               element={
                 <RequireAuth>
                   <Nav children={<Account />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/account/:id"
+              element={
+                <RequireAuth>
+                  <Nav children={<LedgerPage />} />
                 </RequireAuth>
               }
             />

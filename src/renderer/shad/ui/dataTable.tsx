@@ -1,5 +1,6 @@
 import {
-  ColumnDef,
+  ColumnDef as ColDef,
+  Row,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
@@ -16,8 +17,12 @@ import {
 } from 'renderer/shad/ui/table';
 import { toString } from 'lodash';
 
+export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
+  onClick?: (row: Row<TData>) => void;
+};
+
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+  columns: ColDef<TData, TValue>[];
   data: TData[];
   defaultSortField?: keyof TData;
 }
@@ -51,8 +56,8 @@ function DataTable<TData, TValue>({
                     key={header.id}
                     className={
                       header.column.getIsSorted()
-                        ? 'bg-gray-800'
-                        : 'bg-gray-900'
+                        ? 'bg-gray-300 dark:bg-gray-800'
+                        : 'bg-gray-200 dark:bg-gray-900'
                     }
                     onClick={header.column.getToggleSortingHandler()}
                   >
@@ -80,7 +85,14 @@ function DataTable<TData, TValue>({
                 data-state={row.getIsSelected() && 'selected'}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
+                  <TableCell
+                    key={cell.id}
+                    onClick={() =>
+                      (
+                        cell.column.columnDef as ColumnDef<TData, TValue>
+                      )?.onClick?.(cell.row)
+                    }
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
@@ -100,4 +112,3 @@ function DataTable<TData, TValue>({
 }
 
 export { DataTable };
-export type { ColumnDef } from '@tanstack/react-table';
