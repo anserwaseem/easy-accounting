@@ -111,7 +111,7 @@ const AccountPage = () => {
         accessorKey: 'updatedAt',
         header: 'Updated At',
         cell: ({ row }) =>
-          new Date(row.original.updatedAt).toLocaleString(
+          new Date(row.original.updatedAt || '').toLocaleString(
             'en-US',
             dateFormatOptions,
           ),
@@ -121,7 +121,7 @@ const AccountPage = () => {
         accessorKey: 'createdAt',
         header: 'Created At',
         cell: ({ row }) =>
-          new Date(row.original.createdAt).toLocaleString(
+          new Date(row.original.createdAt || '').toLocaleString(
             'en-US',
             dateFormatOptions,
           ),

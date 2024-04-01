@@ -107,6 +107,20 @@ const electronHandler = {
    * @example const ledger = getLedger(1);
    */
   getLedger: (accountId: number) => ipcRenderer.invoke('ledger:get', accountId),
+  /**
+   * Get the next journal id
+   * @returns The next journal id
+   * @example const journalId = getNextJournalId();
+   */
+  getNextJournalId: () => ipcRenderer.invoke('journal:getNextId'),
+  /**
+   * Insert a journal
+   * @param journal The journal to insert
+   * @returns Boolean indicating if the journal was inserted
+   * @example const journal = insertJournal({ ... });
+   */
+  insertJournal: (journal: Journal) =>
+    ipcRenderer.invoke('journal:insert', journal),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

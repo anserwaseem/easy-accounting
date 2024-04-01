@@ -47,8 +47,8 @@ type BalanceType = 'Dr' | 'Cr';
 type BaseEntity = {
   id: number;
   date: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 
 declare interface Account extends BaseEntity {
@@ -65,12 +65,35 @@ declare interface Chart extends BaseEntity {
 }
 
 declare interface Ledger extends BaseEntity {
-  particulars: string;
+  particulars: string; // TODO: remove it in favor of linkedAccountId
+  /**
+   * Id of account to which this ledger belongs to
+   */
   accountId: number;
   debit: number;
   credit: number;
   balance: number;
   balanceType: BalanceType;
+  /**
+   * Id of account from which empty Cr/Dr amount is coming.
+   */
+  linkedAccountId: number;
+}
+
+declare interface Journal extends BaseEntity {
+  narration: string;
+  isPosted: boolean;
+  JournalEntries: JournalEntry[];
+}
+
+declare interface JournalEntry extends Omit<BaseEntity, 'date'> {
+  journalId: number;
+  debitAmount: number;
+  creditAmount: number;
+  /**
+   * Id of account to which this entry belongs to
+   */
+  accountId: number;
 }
 
 /** DTO **/

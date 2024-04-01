@@ -24,6 +24,7 @@ import {
 import Store from 'electron-store';
 import { getCharts } from './services/Chart.service';
 import { getLedger } from './services/Ledger.service';
+import { getNextJournalId, insertJournal } from './services/Journal.service';
 
 export const store = new Store();
 
@@ -182,6 +183,10 @@ app
     ipcMain.handle('chart:getAll', async () => getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) =>
       getLedger(accountId),
+    );
+    ipcMain.handle('journal:getNextId', async () => getNextJournalId());
+    ipcMain.handle('journal:insert', async (_, journal: Journal) =>
+      insertJournal(journal),
     );
 
     createWindow();

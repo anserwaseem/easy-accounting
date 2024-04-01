@@ -46,15 +46,24 @@ DROP TABLE IF EXISTS "journal";
 CREATE TABLE IF NOT EXISTS "journal" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "date" DATETIME NOT NULL,
-  "description" STRING NOT NULL,
-  "isPosted" BOOLEAN NOT NULL DEFAULT 0
-  "debitAccountId" INTEGER NOT NULL,
-  "debitAmount" DECIMAL DEFAULT 0,
-  "creditAccountId" INTEGER NOT NULL,
-  "creditAmount" DECIMAL DEFAULT 0,
+  "narration" STRING NOT NULL,
+  "isPosted" BOOLEAN NOT NULL DEFAULT 0,
+  "createdAt"	DATETIME,
+  "updatedAt"	DATETIME
+);
 
-  FOREIGN KEY("debitAccountId") REFERENCES "account"("id"),
-  FOREIGN KEY("creditAccountId") REFERENCES "account"("id")
+DROP TABLE IF EXISTS "journalEntry";
+CREATE TABLE IF NOT EXISTS "journalEntry" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "journalId" INTEGER NOT NULL,
+  "debitAmount" DECIMAL DEFAULT 0,
+  "creditAmount" DECIMAL DEFAULT 0,
+  "accountId" INTEGER NOT NULL,
+  "createdAt"	DATETIME,
+  "updatedAt"	DATETIME,
+
+  FOREIGN KEY("journalId") REFERENCES "journal"("id"),
+  FOREIGN KEY("accountId") REFERENCES "account"("id")
 );
 
 DROP TABLE IF EXISTS "ledger";
