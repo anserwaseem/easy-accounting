@@ -80,10 +80,11 @@ declare interface Ledger extends BaseEntity {
   linkedAccountId: number;
 }
 
-declare interface Journal extends BaseEntity {
+declare interface Journal extends Omit<BaseEntity, 'date'> {
+  date: string;
   narration: string;
   isPosted: boolean;
-  JournalEntries: JournalEntry[];
+  journalEntries: JournalEntry[];
 }
 
 declare interface JournalEntry extends Omit<BaseEntity, 'date'> {

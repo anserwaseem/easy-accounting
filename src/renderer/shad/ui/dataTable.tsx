@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
-import { toString } from 'lodash';
+import { get, toString } from 'lodash';
 
 export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
@@ -93,7 +93,13 @@ function DataTable<TData, TValue>({
                       )?.onClick?.(cell.row)
                     }
                   >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
+                    <div key={toString(get(cell.row.original, 'id'))}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </div>
                   </TableCell>
                 ))}
               </TableRow>
