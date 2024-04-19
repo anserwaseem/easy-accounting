@@ -33,7 +33,7 @@ import { useToast } from 'renderer/shad/ui/use-toast';
 import { dateFormatOptions } from 'renderer/lib/constants';
 import { EditDialog } from './editDialog';
 
-const AccountPage = () => {
+const AccountsPage = () => {
   console.log('AccountPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] = useState<
@@ -329,4 +329,4 @@ const AccountPage = () => {
   );
 };
 
-export default AccountPage;
+export default AccountsPage;

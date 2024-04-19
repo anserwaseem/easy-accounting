@@ -8,7 +8,7 @@ const LedgerPage = () => {
   const { id } = useParams();
   const [accountName, setAccountName] = useState('');
   const [headName, setHeadName] = useState('');
-  console.log('Ledger', id);
+  console.log('LedgerPage', id);
 
   return (
     <div className="flex flex-row h-screen">

@@ -1,6 +1,7 @@
-import { get, toNumber } from 'lodash';
+import { compact, get, omit, toNumber } from 'lodash';
 import { connect } from './Database.service';
 import { cast } from '../utils/sqlite';
+import { store } from '../main';
 
 export const getNextJournalId = () => {
   const db = connect();
@@ -80,4 +81,47 @@ export const insertJournal = (journal: Journal) => {
     console.error(error);
     return false;
   }
+};
+
+export const getJournals = (): Journal[] => {
+  const db = connect();
+
+  const stm = db.prepare(
+    ` SELECT j.id, j.date, j.narration, j.isPosted, j.createdAt, j.updatedAt, je.debitAmount
+      FROM journal j
+      JOIN journal_entry je
+      ON j.id = je.journalId
+      JOIN account a
+      ON a.id = je.accountId
+      JOIN chart c
+      ON c.id = a.chartId
+      WHERE userId = (
+        SELECT id
+        FROM users
+        WHERE username = @username
+      )`,
+  );
+
+  const res = stm.all({
+    username: store.get('username'),
+  }) as (Journal & { debitAmount: number })[];
+
+  const journals = compact(
+    res.reduce((acc, journal) => {
+      if (!acc[journal.id]) {
+        acc[journal.id] = {
+          ...omit(journal, 'debitAmount'),
+          journalEntries: [],
+        };
+      }
+
+      acc[journal.id].journalEntries.push({
+        debitAmount: journal.debitAmount,
+      } as JournalEntry);
+
+      return acc;
+    }, [] as Journal[]),
+  );
+
+  return journals;
 };

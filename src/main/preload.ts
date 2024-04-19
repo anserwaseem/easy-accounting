@@ -121,6 +121,12 @@ const electronHandler = {
    */
   insertJournal: (journal: Journal) =>
     ipcRenderer.invoke('journal:insert', journal),
+  /**
+   * Get all journals
+   * @returns All journals
+   * @example const journals = getJournals();
+   */
+  getJournals: () => ipcRenderer.invoke('journal:getAll'),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

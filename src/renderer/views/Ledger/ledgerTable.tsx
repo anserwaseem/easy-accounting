@@ -7,14 +7,15 @@ interface LedgerTableProps {
 }
 
 export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
+  console.log('LedgerTable', accountId);
   const [ledger, setLedger] = useState<Ledger[]>([]);
-  console.log('LedgerTable', accountId, ledger);
 
-  useEffect(() => {
-    (async () => {
-      setLedger(await window.electron.getLedger(accountId));
-    })();
-  }, [accountId]);
+  useEffect(
+    () =>
+      void (async () =>
+        setLedger(await window.electron.getLedger(accountId)))(),
+    [accountId],
+  );
 
   const columns: ColumnDef<Ledger>[] = useMemo(() => {
     return [
@@ -51,7 +52,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
         accessorKey: 'updatedAt',
         header: 'Updated At',
         cell: ({ row }) =>
-          new Date(row.original.updatedAt).toLocaleString(
+          new Date(row.original.updatedAt || '').toLocaleString(
             'en-US',
             dateFormatOptions,
           ),
@@ -60,7 +61,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
         accessorKey: 'createdAt',
         header: 'Created At',
         cell: ({ row }) =>
-          new Date(row.original.createdAt).toLocaleString(
+          new Date(row.original.createdAt || '').toLocaleString(
             'en-US',
             dateFormatOptions,
           ),

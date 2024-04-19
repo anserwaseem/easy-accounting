@@ -97,12 +97,14 @@ const NewJournalPage2 = () => {
   });
 
   // Fetch data for this page
-  useEffect(() => {
-    (async () => {
-      setNextId(await window.electron.getNextJournalId());
-      setAccounts(await window.electron.getAccounts());
-    })();
-  }, []);
+  useEffect(
+    () =>
+      void (async () => {
+        setNextId(await window.electron.getNextJournalId());
+        setAccounts(await window.electron.getAccounts());
+      })(),
+    [],
+  );
 
   // Update the journal id when nextId is received
   useEffect(
