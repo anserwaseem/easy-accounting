@@ -4,14 +4,12 @@ BEGIN TRANSACTION;
 
 DROP TABLE IF EXISTS "users";
 CREATE TABLE IF NOT EXISTS "users" (
-	"id"	INTEGER,
-	"username"	TEXT UNIQUE,
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"username" TEXT UNIQUE,
 	"password_hash"	BLOB,
-	"status"	INTEGER DEFAULT 0,
+	"status" INTEGER DEFAULT 0,
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
-
-	PRIMARY KEY("id" AUTOINCREMENT)
 );
 
 
@@ -52,8 +50,8 @@ CREATE TABLE IF NOT EXISTS "journal" (
   "updatedAt"	DATETIME
 );
 
-DROP TABLE IF EXISTS "journalEntry";
-CREATE TABLE IF NOT EXISTS "journalEntry" (
+DROP TABLE IF EXISTS "journal_entry";
+CREATE TABLE IF NOT EXISTS "journal_entry" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "journalId" INTEGER NOT NULL,
   "debitAmount" DECIMAL DEFAULT 0,
@@ -72,7 +70,6 @@ CREATE TABLE IF NOT EXISTS "ledger" (
   "date" DATETIME NOT NULL,
   "particulars" STRING NOT NULL,
   "accountId" INTEGER,
-  "journalId" INTEGER NULL,
   "debit" DECIMAL DEFAULT 0,
   "credit" DECIMAL DEFAULT 0,
   "balance" DECIMAL NOT NULL DEFAULT 0,
@@ -81,9 +78,16 @@ CREATE TABLE IF NOT EXISTS "ledger" (
   "updatedAt"	DATETIME,
 
   FOREIGN KEY("accountId") REFERENCES "account"("id"),
-  FOREIGN KEY("journalId") REFERENCES "journal"("id"),
 
   CHECK ("balanceType" IN ('Cr', 'Dr'))
+);
+
+CREATE TABLE IF NOT EXISTS "journal_ledger" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "journalId" INTEGER NOT NULL,
+  "ledgerId" INTEGER NOT NULL,
+  FOREIGN KEY("journalId") REFERENCES "journal"("id") ON DELETE CASCADE,
+  FOREIGN KEY("ledgerId") REFERENCES "ledger"("id") ON DELETE CASCADE
 );
 
 
@@ -162,5 +166,40 @@ BEGIN
   WHERE id = NEW.id;
 END;
 
+-- journal
+CREATE TRIGGER IF NOT EXISTS after_insert_journal_add_timestamp
+AFTER INSERT ON journal
+BEGIN
+  UPDATE journal SET
+    createdAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz)),
+    updatedAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz))
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_journal_add_timestamp
+AFTER UPDATE ON journal
+BEGIN
+  UPDATE journal SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz))
+  WHERE id = NEW.id;
+END;
+
+-- journalEntry
+CREATE TRIGGER IF NOT EXISTS after_insert_journalEntry_add_timestamp
+AFTER INSERT ON journalEntry
+BEGIN
+  UPDATE journalEntry SET
+    createdAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz)),
+    updatedAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz))
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_journalEntry_add_timestamp
+AFTER UPDATE ON journalEntry
+BEGIN
+  UPDATE journalEntry SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz))
+  WHERE id = NEW.id;
+END;
 
 COMMIT;

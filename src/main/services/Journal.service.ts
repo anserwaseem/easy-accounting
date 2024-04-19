@@ -1,6 +1,5 @@
-import { get } from 'lodash';
+import { get, toNumber } from 'lodash';
 import { connect } from './Database.service';
-import { asTransaction } from './Database.service';
 import { cast } from '../utils/sqlite';
 
 export const getNextJournalId = () => {
@@ -17,12 +16,29 @@ export const insertJournal = (journal: Journal) => {
 
     const stmJournal = db.prepare(
       ` INSERT INTO journal (date, narration, isPosted)
-      VALUES (@date, @narration, @isPosted)`,
+        VALUES (@date, @narration, @isPosted)`,
     );
 
-    const stm = asTransaction((journal: Journal) => {
-      const { date, narration, isPosted } = journal;
+    const stmJournalEntry = db.prepare(
+      ` INSERT INTO journal_entry (journalId, debitAmount, accountId, creditAmount)
+        VALUES (@journalId, @debitAmount, @accountId, @creditAmount)`,
+    );
 
+    const stmGetBalance = db.prepare(
+      ` SELECT balance
+        FROM ledger
+        WHERE accountId = @accountId
+        ORDER BY createdAt DESC
+        LIMIT 1`,
+    );
+
+    const stmLedger = db.prepare(
+      ` INSERT INTO ledger (date, accountId, debit, credit, balance, balanceType, particulars)
+        VALUES (@date, @accountId, @debit, @credit, @balance, @balanceType, @particulars)`,
+    );
+
+    db.transaction((journal: Journal) => {
+      const { date, narration, isPosted } = journal;
       const journalId = stmJournal.run({
         date,
         narration,
@@ -31,22 +47,34 @@ export const insertJournal = (journal: Journal) => {
 
       for (const entry of journal.journalEntries) {
         const { debitAmount, accountId, creditAmount } = entry;
-
-        const stmJournalEntry = db.prepare(
-          ` INSERT INTO journalEntry (journalId, debitAmount, accountId, creditAmount)
-          VALUES (@journalId, @debitAmount, @accountId, @creditAmount)`,
-        );
-
-        const jer = stmJournalEntry.run({
+        stmJournalEntry.run({
           journalId,
           debitAmount,
           accountId,
           creditAmount,
         });
-      }
-    });
 
-    stm(journal);
+        const { balance } = stmGetBalance.get({ accountId }) as Pick<
+          Ledger,
+          'balance'
+        >;
+
+        const newBalance =
+          balance + toNumber(debitAmount) - toNumber(creditAmount);
+        const newBalanceType = newBalance >= 0 ? 'Dr' : 'Cr';
+
+        stmLedger.run({
+          date,
+          accountId,
+          debit: debitAmount,
+          credit: creditAmount,
+          balance: newBalance,
+          balanceType: newBalanceType,
+          particulars: `Journal #${journalId}`,
+        });
+      }
+    })(journal);
+
     return true;
   } catch (error) {
     console.error(error);

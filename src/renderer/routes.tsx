@@ -39,7 +39,7 @@ export default function appRoutes() {
               }
             />
             <Route
-              path="/accounts/:id"
+              path="/account/:id"
               element={
                 <RequireAuth>
                   <Nav children={<LedgerPage />} />

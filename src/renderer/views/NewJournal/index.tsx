@@ -56,7 +56,7 @@ const NewJournalPage2 = () => {
     id: nextId, // using journal id as journal number as well (uneditable from UI)
     date: new Date().toLocaleString('en-US', dateFormatOptions),
     narration: '',
-    isPosted: false,
+    isPosted: true, // FUTURE: support draft journals
     journalEntries: [{ ...getInitialEntry() }, { ...getInitialEntry() }],
   };
 
@@ -236,7 +236,6 @@ const NewJournalPage2 = () => {
             name={`journalEntries.${row.index}.accountId` as const}
             render={({ field }) => (
               <FormItem>
-                {/* <FormLabel className="text-lg">Narration</FormLabel> */}
                 <FormControl>
                   <DropdownMenu>
                     <DropdownMenuTrigger>
@@ -259,12 +258,6 @@ const NewJournalPage2 = () => {
                               `journalEntries.${row.index}.accountId` as const,
                               account.id,
                             );
-                            // setJournal((prev) => {
-                            //   const newJournal = { ...prev };
-                            //   newJournal.journalEntries[row.index].accountId =
-                            //     account.id;
-                            //   return newJournal;
-                            // });
                           }}
                         >
                           {account.name}
@@ -287,7 +280,6 @@ const NewJournalPage2 = () => {
             name={`journalEntries.${row.index}.debitAmount` as const}
             render={({ field }) => (
               <FormItem>
-                {/* <FormLabel className="text-lg">Journal#</FormLabel> */}
                 <FormControl className="w-1/2">
                   <Input
                     {...field}
@@ -312,7 +304,6 @@ const NewJournalPage2 = () => {
             name={`journalEntries.${row.index}.creditAmount` as const}
             render={({ field }) => (
               <FormItem>
-                {/* <FormLabel className="text-lg">Journal#</FormLabel> */}
                 <FormControl className="w-1/2">
                   <Input
                     {...field}
@@ -512,9 +503,7 @@ const NewJournalPage2 = () => {
               >
                 Save and Publish
               </Button>
-              {/* <Button type="button" variant={'secondary'} onClick={handleSaveDraft}>
-            Save as Draft
-          </Button> */}
+              {/* <Button type="button" variant={'secondary'} onClick={handleSaveDraft}>Save as Draft</Button> */}
               <Button type="reset" variant={'ghost'}>
                 Clear
               </Button>

@@ -49,26 +49,3 @@ export const toLowerString = (value: unknown) => toLower(toString(value));
  */
 export const getFixedNumber = (value: number, fixed = 4) =>
   Number(value.toFixed(fixed));
-
-var MAX_DEPTH = 20;
-
-export var expandedLog = (obj: Record<string, unknown>, depth: number = 0) => {
-  var [[name, item]] = Object.entries(obj);
-  if (depth < MAX_DEPTH && typeof item === 'object' && item) {
-    var typeString = Object.prototype.toString.call(item);
-    var objType = typeString.replace(/\[object (.*)\]/, '$1');
-
-    console.group(`${name}: ${objType}`);
-    Object.entries(item).forEach(([key, value]: any) => {
-      console.log({ [key]: value }, depth + 1);
-    });
-    console.groupEnd();
-  } else {
-    var itemString = `${item}`;
-    if (typeof item === 'string') {
-      itemString = `"${itemString}"`;
-    }
-    console.log(`${name}: ${itemString}`);
-    return;
-  }
-};
