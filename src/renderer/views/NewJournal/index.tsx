@@ -34,7 +34,7 @@ import { useToast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { dateFormatOptions } from 'renderer/lib/constants';
 
-const NewJournalPage2 = () => {
+const NewJournalPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [nextId, setNextId] = useState<number>(-1);
   const [totalCredits, setTotalCredits] = useState<number>(0);
@@ -527,4 +527,4 @@ const NewJournalPage2 = () => {
   );
 };
 
-export default NewJournalPage2;
+export default NewJournalPage;
