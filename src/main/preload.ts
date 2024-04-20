@@ -127,6 +127,14 @@ const electronHandler = {
    * @example const journals = getJournals();
    */
   getJournals: () => ipcRenderer.invoke('journal:getAll'),
+  /**
+   * Get a journal
+   * @param journalId The journal id to get
+   * @returns The journal if found, undefined otherwise
+   * @example const journal = getJournal(1);
+   */
+  getJournal: (journalId: number) =>
+    ipcRenderer.invoke('journal:get', journalId),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

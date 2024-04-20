@@ -42,16 +42,6 @@ const JournalsPage = () => {
         onClick: (row) => navigate(`/journal/${row.original.id}`),
       },
       {
-        accessorKey: 'updatedAt',
-        header: 'Updated At',
-        cell: ({ row }) =>
-          new Date(row.original.updatedAt || '').toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
-      },
-      {
         accessorKey: 'createdAt',
         header: 'Created At',
         cell: ({ row }) =>
@@ -85,7 +75,7 @@ const JournalsPage = () => {
   return (
     <div>
       <div className="flex justify-between items-center py-4 pr-4">
-        <h1>Journals</h1>
+        <h1 className="text-xl">Journals</h1>
 
         <Button
           variant="outline"

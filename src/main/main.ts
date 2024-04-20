@@ -24,7 +24,12 @@ import {
 import Store from 'electron-store';
 import { getCharts } from './services/Chart.service';
 import { getLedger } from './services/Ledger.service';
-import { getJournals, getNextJournalId, insertJournal } from './services/Journal.service';
+import {
+  getJorunal,
+  getJournals,
+  getNextJournalId,
+  insertJournal,
+} from './services/Journal.service';
 
 export const store = new Store();
 
@@ -189,6 +194,9 @@ app
       insertJournal(journal),
     );
     ipcMain.handle('journal:getAll', async () => getJournals());
+    ipcMain.handle('journal:get', async (_, journalId: number) =>
+      getJorunal(journalId),
+    );
 
     createWindow();
     app.on('activate', () => {

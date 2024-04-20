@@ -13,6 +13,7 @@ import AccountsPage from './views/Accounts';
 import LedgerPage from './views/Ledger';
 import JournalsPage from './views/Journals';
 import NewJournalPage from './views/NewJournal';
+import JournalPage from './views/Journal';
 
 export default function appRoutes() {
   return (
@@ -59,6 +60,14 @@ export default function appRoutes() {
               element={
                 <RequireAuth>
                   <Nav children={<NewJournalPage />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/journal/:id"
+              element={
+                <RequireAuth>
+                  <Nav children={<JournalPage />} />
                 </RequireAuth>
               }
             />

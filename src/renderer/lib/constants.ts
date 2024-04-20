@@ -8,3 +8,11 @@ export const dateFormatOptions: Intl.DateTimeFormatOptions = {
   hour: '2-digit',
   minute: '2-digit',
 };
+
+/**
+ * Returns global currency format options being used in the project.
+ */
+export const currencyFormatOptions: Intl.NumberFormatOptions = {
+  style: 'currency',
+  currency: 'PKR',
+};

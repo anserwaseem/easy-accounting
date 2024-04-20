@@ -70,7 +70,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
   }, []);
 
   return (
-    <div className="py-10 pr-4">
+    <div className="py-10">
       <DataTable columns={columns} data={ledger} />
     </div>
   );

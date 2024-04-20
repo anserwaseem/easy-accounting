@@ -125,3 +125,50 @@ export const getJournals = (): Journal[] => {
 
   return journals;
 };
+
+export const getJorunal = (journalId: number): Journal => {
+  const db = connect();
+
+  const stm = db.prepare(
+    ` SELECT j.id, j.date, j.narration, j.isPosted, j.createdAt, j.updatedAt, je.debitAmount, je.creditAmount, je.accountId, a.name as accountName
+      FROM journal j
+      JOIN journal_entry je
+      ON j.id = je.journalId
+      JOIN account a
+      ON a.id = je.accountId
+      JOIN chart c
+      ON c.id = a.chartId
+      WHERE j.id = @journalId
+      AND userId = (
+        SELECT id
+        FROM users
+        WHERE username = @username
+      )`,
+  );
+
+  const res = stm.all({
+    journalId,
+    username: store.get('username'),
+  }) as (Journal & {
+    debitAmount: number;
+    creditAmount: number;
+    accountName: string;
+  })[];
+
+  const journal = res.reduce((acc, entry) => {
+    if (!acc.id) {
+      acc = omit(entry, 'debitAmount', 'creditAmount', 'accountName');
+      acc.journalEntries = [];
+    }
+
+    acc.journalEntries.push({
+      debitAmount: entry.debitAmount,
+      creditAmount: entry.creditAmount,
+      accountName: entry.accountName,
+    } as JournalEntry & { accountName: string });
+
+    return acc;
+  }, {} as Journal);
+
+  return journal;
+};
