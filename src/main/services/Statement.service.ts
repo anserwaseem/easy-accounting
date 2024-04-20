@@ -1,5 +1,5 @@
 import { Statement } from 'better-sqlite3';
-import { connect, asTransaction } from './Database.service';
+import { connect } from './Database.service';
 import { capitalize, forEach, isEmpty, isNil } from 'lodash';
 import { store } from '../main';
 
@@ -14,24 +14,24 @@ export function saveBalanceSheet(balanceSheet: BalanceSheet) {
     console.log('inside saveBalanceSheet Account service', username);
 
     const stmChart = db.prepare(
-      `INSERT INTO chart (date, name, type, userId)
-      VALUES (@date, @name, @type, (SELECT id FROM users WHERE username = '${username}'))`,
+      ` INSERT INTO chart (date, name, type, userId)
+        VALUES (@date, @name, @type, (SELECT id FROM users WHERE username = '${username}'))`,
     );
     const stmAccount = db.prepare(
-      `INSERT INTO account (chartId, date, name)
-      VALUES (@chartId, @date, @name)`,
+      ` INSERT INTO account (chartId, date, name)
+        VALUES (@chartId, @date, @name)`,
     );
 
     const stmDebitLedger = db.prepare(
-      `INSERT INTO ledger (date, particulars, accountId, debit, balance, balanceType)
-      VALUES (@date, @particulars, @accountId, @debit, @balance, 'Dr')`,
+      ` INSERT INTO ledger (date, particulars, accountId, debit, balance, balanceType)
+        VALUES (@date, @particulars, @accountId, @debit, @balance, 'Dr')`, // TODO: update balanceType below based on balance
     );
     const stmCreditLedger = db.prepare(
-      `INSERT INTO ledger (date, particulars, accountId, credit, balance, balanceType)
-      VALUES (@date, @particulars, @accountId, @credit, @balance, 'Cr')`,
+      ` INSERT INTO ledger (date, particulars, accountId, credit, balance, balanceType)
+        VALUES (@date, @particulars, @accountId, @credit, @balance, 'Cr')`, // TODO: update balanceType below based on balance
     );
 
-    const stm = asTransaction((balanceSheet: BalanceSheet) => {
+    const stm = db.transaction((balanceSheet: BalanceSheet) => {
       const assets = balanceSheet.assets;
       const liabilities = balanceSheet.liabilities;
       const equity = balanceSheet.equity;
@@ -137,7 +137,8 @@ const setupLedgers = (
           particulars: 'Opening Balance from B/S',
           accountId,
           debit: chart.amount,
-          balance: chart.amount,
+          balance: chart.amount, // TODO: update balance (ideally by fetching if (last balance from ledger) => update by adding/subtracting the amount based on its balanceType, else => set the amount as balance)
+          // balanceType:
         });
       } else {
         // add entry to credit ledger
@@ -146,7 +147,8 @@ const setupLedgers = (
           particulars: 'Opening Balance from B/S',
           accountId,
           credit: chart.amount,
-          balance: chart.amount,
+          balance: chart.amount, // TODO: update balance (ideally by fetching if (last balance from ledger) => update by adding/subtracting the amount based on its balanceType, else => set the amount as balance)
+          // balanceType:
         });
       }
     });

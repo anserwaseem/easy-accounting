@@ -74,3 +74,25 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .scrollbar::-webkit-scrollbar {
+    @apply w-2 h-full;
+  }
+
+  .scrollbar::-webkit-scrollbar-track {
+    @apply rounded-full;
+    @apply dark:bg-gray-700 bg-gray-200;
+  }
+
+  .scrollbar::-webkit-scrollbar-thumb {
+    border: 1px solid;
+    @apply rounded-full;
+    @apply dark:border-gray-300 border-gray-100;
+    @apply dark:bg-gray-500 bg-gray-300;
+  }
+
+  .scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply dark:bg-gray-300 bg-gray-400;
+  }
+}

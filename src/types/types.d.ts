@@ -42,12 +42,13 @@ declare interface BalanceSheet {
 }
 
 type CategoryType = 'Asset' | 'Liability' | 'Equity';
+type BalanceType = 'Dr' | 'Cr';
 
 type BaseEntity = {
   id: number;
   date: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 
 declare interface Account extends BaseEntity {
@@ -62,6 +63,41 @@ declare interface Chart extends BaseEntity {
   name: string;
   type: CategoryType;
 }
+
+declare interface Ledger extends BaseEntity {
+  particulars: string; // TODO: remove it in favor of linkedAccountId
+  /**
+   * Id of account to which this ledger belongs to
+   */
+  accountId: number;
+  debit: number;
+  credit: number;
+  balance: number;
+  balanceType: BalanceType;
+  /**
+   * Id of account from which empty Cr/Dr amount is coming.
+   */
+  linkedAccountId: number;
+}
+
+declare interface Journal extends Omit<BaseEntity, 'date'> {
+  date: string;
+  narration: string;
+  isPosted: boolean;
+  journalEntries: JournalEntry[];
+}
+
+declare interface JournalEntry extends Omit<BaseEntity, 'date'> {
+  journalId: number;
+  debitAmount: number;
+  creditAmount: number;
+  /**
+   * Id of account to which this entry belongs to
+   */
+  accountId: number;
+}
+
+/** DTO **/
 
 declare type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
 declare type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;

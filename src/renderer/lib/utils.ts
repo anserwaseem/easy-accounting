@@ -31,4 +31,21 @@ export const isTwoDimensionalArray = (obj: unknown) => {
 export const removeEmptySubarrays = (list: unknown[][]): unknown[][] =>
   list.filter((subarray) => !every(subarray, isNil));
 
+/**
+ * Converts a value to a lowercase string.
+ * @param value - The value to be converted.
+ * @returns The lowercase string.
+ * @example toLowerString('Hello World'); // 'hello world'
+ */
 export const toLowerString = (value: unknown) => toLower(toString(value));
+
+/**
+ * Rounds a number to a fixed number of decimal places.
+ * @param value - The number to be rounded.
+ * @param fixed - The number of decimal places to round to.
+ * @returns The rounded number.
+ * @example getFixedNumber(1.23456, 2); // 1.23
+ * @default fixed 4
+ */
+export const getFixedNumber = (value: number, fixed = 4) =>
+  Number(value.toFixed(fixed));

@@ -9,7 +9,11 @@ import AuthProvider from './providers/Auth';
 import { ThemeProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
 import Nav from './components/Nav';
-import Account from './views/Account';
+import AccountsPage from './views/Accounts';
+import LedgerPage from './views/Ledger';
+import JournalsPage from './views/Journals';
+import NewJournalPage from './views/NewJournal';
+import JournalPage from './views/Journal';
 
 export default function appRoutes() {
   return (
@@ -28,10 +32,42 @@ export default function appRoutes() {
               }
             />
             <Route
-              path="/account"
+              path="/accounts"
               element={
                 <RequireAuth>
-                  <Nav children={<Account />} />
+                  <Nav children={<AccountsPage />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/account/:id"
+              element={
+                <RequireAuth>
+                  <Nav children={<LedgerPage />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/journals"
+              element={
+                <RequireAuth>
+                  <Nav children={<JournalsPage />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/journals/new"
+              element={
+                <RequireAuth>
+                  <Nav children={<NewJournalPage />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/journal/:id"
+              element={
+                <RequireAuth>
+                  <Nav children={<JournalPage />} />
                 </RequireAuth>
               }
             />

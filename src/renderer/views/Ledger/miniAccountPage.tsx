@@ -1,37 +1,48 @@
-import { ChevronDown, PenBox, Plus } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { z } from 'zod';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
+import { toString } from 'lodash';
+import { ChevronDown, Plus } from 'lucide-react';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogTitle,
+  DialogHeader,
+} from 'renderer/shad/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from 'renderer/shad/ui/dropdown-menu';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from 'renderer/shad/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from 'renderer/shad/ui/dialog';
-import {
-  Form,
   FormField,
   FormItem,
   FormLabel,
   FormControl,
   FormMessage,
+  Form,
 } from 'renderer/shad/ui/form';
-import { Input } from 'renderer/shad/ui/input';
 import { useToast } from 'renderer/shad/ui/use-toast';
-import { get, keys, toString } from 'lodash';
+import { Input } from 'renderer/shad/ui/input';
 
-const AccountPage = () => {
-  console.log('AccountPage');
+interface MiniAccountPageProps {
+  accountId: number;
+  setAccountName: (name: string) => void;
+  setHeadName: (name: string) => void;
+}
+
+export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
+  accountId,
+  setAccountName,
+  setHeadName,
+}) => {
+  console.log('MiniAccountPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] = useState<
     'All' | 'Asset' | 'Liability' | 'Equity'
@@ -44,6 +55,7 @@ const AccountPage = () => {
   const [openCreateForm, setOpenCreateForm] = useState(false);
   const { toast } = useToast();
   const clearRef = useRef<HTMLButtonElement>(null);
+  const navigate = useNavigate();
 
   const createFormSchema = z.object({
     headName: z.string().min(2).max(50),
@@ -81,47 +93,18 @@ const AccountPage = () => {
     defaultValues: defaultCreateValues,
   });
 
-  const columns: ColumnDef<Account>[] = useMemo(
+  const columns: ColumnDef<Pick<Account, 'id' | 'name' | 'type'>>[] = useMemo(
     () => [
       {
         accessorKey: 'name',
         header: 'Account Name',
-      },
-      {
-        accessorKey: 'headName',
-        header: 'Head Name',
-      },
-      {
-        accessorKey: 'type',
-        header: 'Type',
-      },
-      {
-        accessorKey: 'code',
-        header: 'Account Code',
-      },
-      {
-        accessorKey: 'updatedAt',
-        header: 'Updated At',
-        cell: ({ row }) =>
-          new Date(row.original.updatedAt).toLocaleString('en-US'),
-      },
-      {
-        accessorKey: 'createdAt',
-        header: 'Created At',
-        cell: ({ row }) =>
-          new Date(row.original.createdAt).toLocaleString('en-US'),
-      },
-      {
-        header: 'Edit',
         cell: ({ row }) => (
-          <EditDialog
-            row={row}
-            setAccounts={setAccounts}
-            setCharts={setCharts}
-            charts={charts}
-            clearRef={clearRef}
-          />
+          <div>
+            <h2>{row.original.name}</h2>
+            <p className="text-xs text-slate-400">{row.original.type}</p>
+          </div>
         ),
+        onClick: (row) => navigate(`/account/${row.original.id}`),
       },
     ],
     [accounts, charts],
@@ -131,7 +114,13 @@ const AccountPage = () => {
     if (!openCreateForm) {
       (async () => {
         createForm.setValue('headName', accountHead);
-        setAccounts(await window.electron.getAccounts());
+        const accounts = (await window.electron.getAccounts()) as Account[];
+        const selectedAccount = accounts.find(
+          (account) => account.id === accountId,
+        );
+        setAccounts(accounts);
+        setAccountName(selectedAccount?.name || '');
+        setHeadName(selectedAccount?.headName || '');
         setCharts(await window.electron.getCharts());
       })();
     }
@@ -184,10 +173,10 @@ const AccountPage = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center py-4 px-4">
+      <div className="flex justify-between items-center py-4 pr-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="lg">
+            <Button variant="outline">
               <span className="mr-2">{typeSelected} Accounts</span>
               <ChevronDown size={16} />
             </Button>
@@ -310,194 +299,5 @@ const AccountPage = () => {
         />
       </div>
     </div>
-  );
-};
-
-export default AccountPage;
-
-interface EditDialogProps {
-  row: {
-    original: UpdateAccount;
-  };
-  setAccounts: React.Dispatch<React.SetStateAction<Account[]>>;
-  setCharts: React.Dispatch<React.SetStateAction<Chart[]>>;
-  charts: Chart[];
-  clearRef: React.RefObject<HTMLButtonElement>;
-}
-
-const EditDialog: React.FC<EditDialogProps> = ({
-  row,
-  setAccounts,
-  setCharts,
-  charts,
-  clearRef,
-}) => {
-  const { toast } = useToast();
-
-  const editFormSchema = z.object({
-    id: z.number(),
-    headName: z.string().min(2).max(50),
-    name: z.string().min(2).max(50),
-    code: z
-      .string()
-      .nullable()
-      .refine(
-        (val) => val === null || val === '' || !isNaN(parseFloat(val)), // TODO: it allows parsing of strings like '3s' i.e. string starting with a number. Fix this.
-        'Code must be a number',
-      )
-      .transform((val) =>
-        val !== null && val !== '' ? parseFloat(val) : undefined,
-      )
-      .refine((val) => val === undefined || val >= 0, {
-        message: 'Number must be positive',
-      }),
-  });
-
-  const defaultEditValues = {
-    id: 0,
-    headName: '',
-    name: '',
-    code: undefined,
-  };
-
-  const editForm = useForm<z.infer<typeof editFormSchema>>({
-    resolver: zodResolver(editFormSchema),
-    defaultValues: defaultEditValues,
-  });
-
-  const handleLoadEditForm = (row: UpdateAccount) => {
-    keys(defaultEditValues).forEach((key) =>
-      editForm.setValue(key as keyof UpdateAccount, get(row, key) || ''),
-    );
-  };
-
-  const onEdit = async (values: z.infer<typeof editFormSchema>) => {
-    const res = await window.electron.updateAccount({
-      id: values.id,
-      name: values.name,
-      headName: values.headName,
-      code: values.code,
-    });
-
-    if (res) {
-      setAccounts(await window.electron.getAccounts());
-      setCharts(await window.electron.getCharts());
-      toast({
-        description: 'Account updated successfully',
-        variant: 'default',
-      });
-    } else {
-      toast({
-        description: 'Account not updated',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  return (
-    <Dialog
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          editForm.clearErrors();
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          onClick={() => handleLoadEditForm(row.original)}
-        >
-          <PenBox size={16} />
-          <span className="ml-3 mr-1">Edit Account</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Edit Account</DialogTitle>
-        </DialogHeader>
-
-        <Form {...editForm}>
-          <form
-            onSubmit={editForm.handleSubmit(onEdit)}
-            onReset={() =>
-              editForm.reset({
-                ...defaultEditValues,
-                id: row.original.id,
-                code: '' as any,
-              })
-            }
-          >
-            <FormField
-              control={editForm.control}
-              name="headName"
-              render={({ field }) => (
-                <FormItem labelPosition="start">
-                  <FormLabel>Account Head</FormLabel>
-                  <FormControl>
-                    <DropdownMenu {...field}>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-between"
-                        >
-                          <span className="mr-2">{field.value}</span>
-                          <ChevronDown size={16} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="center" className="px-4">
-                        {charts.map((chart) => (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              editForm.setValue('headName', chart.name)
-                            }
-                          >
-                            {chart.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={editForm.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem labelPosition="start">
-                  <FormLabel>Account Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={editForm.control}
-              name="code"
-              render={({ field }) => (
-                <FormItem labelPosition="start">
-                  <FormLabel>Account Code</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex justify-between">
-              <Button type="submit" className="w-1/2">
-                Submit
-              </Button>
-              <Button type="reset" variant={'ghost'} ref={clearRef}>
-                Clear
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
   );
 };

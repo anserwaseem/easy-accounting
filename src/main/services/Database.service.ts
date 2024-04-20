@@ -16,34 +16,3 @@ export function connect() {
     fileMustExist: true,
   });
 }
-
-/**
- * Wraps a function in a transaction
- * @param callback
- * @returns a function that runs the given callback in a transaction
- * @example const runSecurely = asTransaction((...args) => { ... });
- * runSecurely(...args);
- */
-export const asTransaction = (
-  callback: (...args: any[]) => void,
-): ((...args: any[]) => void) => {
-  const db = connect();
-  const begin = db.prepare('BEGIN TRANSACTION');
-  const commit = db.prepare('COMMIT');
-  const rollback = db.prepare('ROLLBACK');
-
-  return function (...args) {
-    begin.run();
-    try {
-      callback(...args);
-      commit.run();
-    } catch (error) {
-      console.error(error);
-      rollback.run();
-    } finally {
-      if (db.inTransaction) {
-        rollback.run();
-      }
-    }
-  };
-};

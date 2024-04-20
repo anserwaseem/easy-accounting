@@ -13,7 +13,7 @@ import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
+import { resolveHtmlPath } from './utils/general';
 import { getUser, login, register } from './services/Auth.service';
 import { saveBalanceSheet } from './services/Statement.service';
 import {
@@ -23,6 +23,13 @@ import {
 } from './services/Account.service';
 import Store from 'electron-store';
 import { getCharts } from './services/Chart.service';
+import { getLedger } from './services/Ledger.service';
+import {
+  getJorunal,
+  getJournals,
+  getNextJournalId,
+  insertJournal,
+} from './services/Journal.service';
 
 export const store = new Store();
 
@@ -179,6 +186,17 @@ app
       updateAccount(account),
     );
     ipcMain.handle('chart:getAll', async () => getCharts());
+    ipcMain.handle('ledger:get', async (_, accountId: number) =>
+      getLedger(accountId),
+    );
+    ipcMain.handle('journal:getNextId', async () => getNextJournalId());
+    ipcMain.handle('journal:insert', async (_, journal: Journal) =>
+      insertJournal(journal),
+    );
+    ipcMain.handle('journal:getAll', async () => getJournals());
+    ipcMain.handle('journal:get', async (_, journalId: number) =>
+      getJorunal(journalId),
+    );
 
     createWindow();
     app.on('activate', () => {

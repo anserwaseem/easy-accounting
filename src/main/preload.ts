@@ -100,6 +100,41 @@ const electronHandler = {
    */
   updateAccount: (account: UpdateAccount) =>
     ipcRenderer.invoke('account:updateAccount', account),
+  /**
+   * Get a ledger
+   * @param accountId The account id to get
+   * @returns The ledger if found, undefined otherwise
+   * @example const ledger = getLedger(1);
+   */
+  getLedger: (accountId: number) => ipcRenderer.invoke('ledger:get', accountId),
+  /**
+   * Get the next journal id
+   * @returns The next journal id
+   * @example const journalId = getNextJournalId();
+   */
+  getNextJournalId: () => ipcRenderer.invoke('journal:getNextId'),
+  /**
+   * Insert a journal
+   * @param journal The journal to insert
+   * @returns Boolean indicating if the journal was inserted
+   * @example const journal = insertJournal({ ... });
+   */
+  insertJournal: (journal: Journal) =>
+    ipcRenderer.invoke('journal:insert', journal),
+  /**
+   * Get all journals
+   * @returns All journals
+   * @example const journals = getJournals();
+   */
+  getJournals: () => ipcRenderer.invoke('journal:getAll'),
+  /**
+   * Get a journal
+   * @param journalId The journal id to get
+   * @returns The journal if found, undefined otherwise
+   * @example const journal = getJournal(1);
+   */
+  getJournal: (journalId: number) =>
+    ipcRenderer.invoke('journal:get', journalId),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
