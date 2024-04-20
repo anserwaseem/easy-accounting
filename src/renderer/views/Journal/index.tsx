@@ -9,10 +9,10 @@ const JournalPage = () => {
 
   return (
     <div className="flex flex-row h-screen">
-      <div className="w-1/4 overflow-y-auto scrollbar">
+      <div className="w-1/4 overflow-y-scroll scrollbar">
         <JournalsPage isMini={true} />
       </div>
-      <div className="w-3/4 overflow-y-auto scrollbar justify-between items-center p-4">
+      <div className="w-3/4 overflow-y-auto scrollbar justify-between items-center p-4 pl-8">
         <JournalTable journalId={toNumber(id)} />
       </div>
     </div>

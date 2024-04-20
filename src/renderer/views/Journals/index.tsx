@@ -164,8 +164,12 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
       <Separator />
 
       <div className="py-4 pr-4 flex flex-col gap-6">
-        <div className="flex gap-4 items-center">
-          <p className="text-muted-foreground font-bold">VIEW BY:</p>
+        <div
+          className={`flex gap-4 items-center ${
+            isMini ? 'justify-between' : ''
+          }`}
+        >
+          <p className="text-muted-foreground font-bold text-sm">VIEW BY:</p>
           <DateRangePickerWithPresets
             $onSelect={handleFilterDateSelect}
             presets={[{ label: 'All', value: 'all' }]}

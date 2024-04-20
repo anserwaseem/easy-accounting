@@ -1,10 +1,4 @@
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from 'renderer/shad/ui/dropdown-menu';
-import { ChevronDown, Plus, Calendar as CalendarIcon, X } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -33,6 +27,13 @@ import {
 import { useToast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { dateFormatOptions } from 'renderer/lib/constants';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'renderer/shad/ui/select';
 
 const NewJournalPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -79,7 +80,7 @@ const NewJournalPage = () => {
         id: z.number(),
         journalId: z.number(),
         debitAmount: z.number(),
-        accountId: z.number().gt(0, 'Select an account'),
+        accountId: z.coerce.number().gt(0, 'Select an account'),
         creditAmount: z.number(),
       }),
     ),
@@ -238,36 +239,32 @@ const NewJournalPage = () => {
             name={`journalEntries.${row.index}.accountId` as const}
             render={({ field }) => (
               <FormItem>
-                <FormControl>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-between"
+                <Select
+                  defaultValue={field.value.toString()}
+                  onValueChange={field.onChange}
+                >
+                  <FormControl>
+                    <SelectTrigger className="min-w-[150px]">
+                      <SelectValue
+                        placeholder={
+                          accounts.find(
+                            (acc) => acc.id === toNumber(field.value),
+                          )?.name
+                        }
+                      />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent align="center">
+                    {accounts.map((account) => (
+                      <SelectItem
+                        value={account.id.toString()}
+                        className="text-muted-foreground"
                       >
-                        <span className="mr-2 text-left min-w-[150px]">
-                          {accounts.find((acc) => acc.id === field.value)?.name}
-                        </span>
-                        <ChevronDown size={16} />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="center" className="px-4">
-                      {accounts.map((account) => (
-                        <DropdownMenuItem
-                          className="text-muted-foreground"
-                          onClick={() => {
-                            form.setValue(
-                              `journalEntries.${row.index}.accountId` as const,
-                              account.id,
-                            );
-                          }}
-                        >
-                          {account.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </FormControl>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -496,7 +493,7 @@ const NewJournalPage = () => {
             </Table>
           </div>
 
-          <div className="flex justify-between mt-24">
+          <div className="flex justify-between fixed bottom-6">
             <div className="flex gap-4">
               <Button
                 type="submit"
@@ -512,7 +509,8 @@ const NewJournalPage = () => {
             </div>
 
             <Button
-              variant={'ghost'}
+              className="fixed right-9"
+              variant={'secondary'}
               onClick={() => {
                 form.reset(defaultFormValues);
                 navigate(-1);

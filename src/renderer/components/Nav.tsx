@@ -2,7 +2,7 @@ import { MainNav } from 'renderer/shad/ui/main-nav';
 import { Sidebar } from 'renderer/shad/ui/sidebar';
 import { Button } from 'renderer/shad/ui/button';
 import { Link } from 'react-router-dom';
-import { BarChartBig, Plus } from 'lucide-react';
+import { FileCheck2, Plus, Table2 } from 'lucide-react';
 import { PropsWithChildren } from 'react';
 
 const Nav: React.FC<PropsWithChildren> = ({ children }) => {
@@ -13,8 +13,8 @@ const Nav: React.FC<PropsWithChildren> = ({ children }) => {
         itemsClassName="w-full xs:w-[200px] md:w-[300px]"
         items={[
           <Link to="/accounts">
-            <Button variant="outline" className="w-full md:w-[225px]">
-              <BarChartBig />
+            <Button variant="outline" className="w-full md:w-[225px] gap-2">
+              <Table2 />
               <span>Accounts</span>
             </Button>
           </Link>,
@@ -22,10 +22,10 @@ const Nav: React.FC<PropsWithChildren> = ({ children }) => {
             <Button variant="outline" className="w-full md:w-[225px]">
               <Link
                 to="/journals"
-                className="w-5/6 flex items-center justify-center pl-2"
+                className="w-5/6 flex items-center justify-center pl-4 gap-2"
               >
-                <BarChartBig />
-                <span>Journal</span>
+                <FileCheck2 />
+                <span>Journals</span>
               </Link>
               <Link to="/journals/new">
                 <Plus

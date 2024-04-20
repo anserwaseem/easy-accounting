@@ -12,7 +12,7 @@ const LedgerPage = () => {
 
   return (
     <div className="flex flex-row h-screen">
-      <div className="w-1/4 overflow-y-auto scrollbar">
+      <div className="w-1/4 overflow-y-scroll scrollbar">
         <MiniAccountPage
           accountId={toNumber(id)}
           setAccountName={setAccountName}
