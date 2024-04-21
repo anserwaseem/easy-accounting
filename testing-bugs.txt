@@ -1,0 +1,10 @@
+// TODO: handle date sorting (year) on dataTable
+// TODO: clicking on a specific journal on Journal page is not opening that journal
+// TODO: add setting option to set default label for when debit/credit is 0 => 0 / empty / dash (any character of length 1)
+// TODO: make narration optional in newJournal
+// TODO: add debounce effect in debit / credit inputs to enable/disable publish button on journal
+// TODO: onclick of a row in journal details page, move to that account details page
+// TODO: in acount details page, rectify name on top (test by changing account)
+// TODO: make use of linkedAccountId in ledger, show in column of particulars
+// TODO: in journal, deal the single debit/credit as sum of multiple credit ones, (eg. see Journal # 11) and vice versa
+// TODO: in newJournal, allow either one single debit and multiple credits, or one debit and multiple credit
