@@ -30,6 +30,7 @@ import {
 } from 'renderer/shad/ui/form';
 import { useToast } from 'renderer/shad/ui/use-toast';
 import { Input } from 'renderer/shad/ui/input';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
 
 interface MiniAccountPageProps {
   accountId: number;
@@ -296,6 +297,7 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
           columns={columns}
           data={getAccounts()}
           defaultSortField="id"
+          sortingFns={defaultSortingFunctions}
         />
       </div>
     </div>

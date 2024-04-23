@@ -13,6 +13,7 @@ import {
 } from 'renderer/shad/ui/datePicker';
 import { Separator } from 'renderer/shad/ui/separator';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
 
 export type JournalView = Journal & { amount: number };
 
@@ -217,7 +218,11 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
             </TableBody>
           </Table>
         ) : (
-          <DataTable columns={columns} data={filteredJournals} />
+          <DataTable
+            columns={columns}
+            data={filteredJournals}
+            sortingFns={defaultSortingFunctions}
+          />
         )}
       </div>
     </div>

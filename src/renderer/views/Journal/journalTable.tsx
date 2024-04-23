@@ -3,6 +3,7 @@ import {
   currencyFormatOptions,
   dateFormatOptions,
 } from 'renderer/lib/constants';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 
 interface JournalTableProps {
@@ -83,7 +84,11 @@ export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
       </div>
 
       <div className="py-10">
-        <DataTable columns={columns} data={journal?.journalEntries || []} />
+        <DataTable
+          columns={columns}
+          data={journal?.journalEntries || []}
+          sortingFns={defaultSortingFunctions}
+        />
       </div>
     </div>
   );

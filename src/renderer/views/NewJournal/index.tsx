@@ -11,7 +11,11 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 import { format } from 'date-fns';
-import { cn, getFixedNumber } from 'renderer/lib/utils';
+import {
+  cn,
+  defaultSortingFunctions,
+  getFixedNumber,
+} from 'renderer/lib/utils';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -458,7 +462,11 @@ const NewJournalPage = () => {
           </div>
 
           <div className="py-10 pr-4">
-            <DataTable columns={columns} data={fields} />
+            <DataTable
+              columns={columns}
+              data={fields}
+              sortingFns={defaultSortingFunctions}
+            />
           </div>
 
           <div className="flex flex-row justify-between pr-4 gap-10">

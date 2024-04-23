@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { dateFormatOptions } from 'renderer/lib/constants';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 
 interface LedgerTableProps {
@@ -71,7 +72,11 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
 
   return (
     <div className="py-10">
-      <DataTable columns={columns} data={ledger} />
+      <DataTable
+        columns={columns}
+        data={ledger}
+        sortingFns={defaultSortingFunctions}
+      />
     </div>
   );
 };

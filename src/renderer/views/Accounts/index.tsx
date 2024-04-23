@@ -32,6 +32,7 @@ import { Input } from 'renderer/shad/ui/input';
 import { useToast } from 'renderer/shad/ui/use-toast';
 import { dateFormatOptions } from 'renderer/lib/constants';
 import { EditDialog } from './editDialog';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
 
 const AccountsPage = () => {
   console.log('AccountPage');
@@ -323,6 +324,7 @@ const AccountsPage = () => {
           columns={columns}
           data={getAccounts()}
           defaultSortField="id"
+          sortingFns={defaultSortingFunctions}
         />
       </div>
     </div>
