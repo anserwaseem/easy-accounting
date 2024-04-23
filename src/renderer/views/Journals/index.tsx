@@ -183,7 +183,10 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
           <Table>
             <TableBody>
               {filteredJournals.map((journal) => (
-                <TableRow key={journal.id}>
+                <TableRow
+                  key={journal.id}
+                  onClick={() => navigate(`/journal/${journal.id}`)}
+                >
                   <TableCell>
                     <div className="flex justify-between">
                       <div className="flex flex-col">
