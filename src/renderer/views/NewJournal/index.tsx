@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
-import { toNumber } from 'lodash';
+import { toNumber, toString } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import {
   Popover,
@@ -233,6 +233,29 @@ const NewJournalPage = () => {
     }
   }, []);
 
+  const getAmountDefaultLabel = useCallback(
+    (value: number) =>
+      value === 0
+        ? toString(window.electron.store.get('debitCreditDefaultLabel'))
+        : value,
+    [window.electron.store],
+  );
+
+  const removeDefaultLabel = useCallback(
+    (value: string) =>
+      toString(
+        toNumber(
+          value.includes(window.electron.store.get('debitCreditDefaultLabel'))
+            ? value.replace(
+                window.electron.store.get('debitCreditDefaultLabel'),
+                '',
+              )
+            : value,
+        ) || 0,
+      ),
+    [window.electron.store],
+  );
+
   const columns: ColumnDef<JournalEntry>[] = useMemo(
     () => [
       {
@@ -263,6 +286,7 @@ const NewJournalPage = () => {
                       <SelectItem
                         value={account.id.toString()}
                         className="text-muted-foreground"
+                        key={account.id}
                       >
                         {account.name}
                       </SelectItem>
@@ -286,11 +310,20 @@ const NewJournalPage = () => {
                 <FormControl className="w-1/2">
                   <Input
                     {...field}
-                    type="number"
+                    value={getAmountDefaultLabel(field.value)}
+                    type={field.value === 0 ? 'text' : 'number'}
                     onChange={(e) =>
-                      handleDebitChange(e.target.value, row.index)
+                      handleDebitChange(
+                        removeDefaultLabel(e.target.value),
+                        row.index,
+                      )
                     }
-                    onBlur={(e) => handleDebitBlur(e.target.value, row.index)}
+                    onBlur={(e) =>
+                      handleDebitBlur(
+                        removeDefaultLabel(e.target.value),
+                        row.index,
+                      )
+                    }
                   />
                 </FormControl>
                 <FormMessage />
@@ -310,10 +343,19 @@ const NewJournalPage = () => {
                 <FormControl className="w-1/2">
                   <Input
                     {...field}
-                    type="number"
-                    onBlur={(e) => handleCreditBlur(e.target.value, row.index)}
+                    value={getAmountDefaultLabel(field.value)}
+                    type={field.value === 0 ? 'text' : 'number'}
+                    onBlur={(e) =>
+                      handleCreditBlur(
+                        removeDefaultLabel(e.target.value),
+                        row.index,
+                      )
+                    }
                     onChange={(e) =>
-                      handleCreditChange(e.target.value, row.index)
+                      handleCreditChange(
+                        removeDefaultLabel(e.target.value),
+                        row.index,
+                      )
                     }
                   />
                 </FormControl>

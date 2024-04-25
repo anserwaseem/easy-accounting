@@ -59,7 +59,7 @@ export function MainNav({
           </TooltipProvider>
         </Link>
         <Link
-          to="#"
+          to={'/settings'}
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
         >
           <TooltipProvider>

@@ -1,4 +1,3 @@
-// TODO: add setting option to set default label for when debit/credit is 0 => 0 / empty / dash (any character of length 1)
 // TODO: make narration optional in newJournal
 // TODO: add debounce effect in debit / credit inputs to enable/disable publish button on journal
 // TODO: onclick of a row in journal details page, move to that account details page

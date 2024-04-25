@@ -13,6 +13,7 @@ import LedgerPage from './views/Ledger';
 import JournalsPage from './views/Journals';
 import NewJournalPage from './views/NewJournal';
 import JournalPage from './views/Journal';
+import SettingsPage from './views/Settings';
 
 export default function appRoutes() {
   return (
@@ -27,6 +28,14 @@ export default function appRoutes() {
               element={
                 <RequireAuth>
                   <Nav children={<Home />} />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <RequireAuth>
+                  <Nav children={<SettingsPage />} />
                 </RequireAuth>
               }
             />
