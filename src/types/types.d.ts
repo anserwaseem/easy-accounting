@@ -82,7 +82,7 @@ declare interface Ledger extends BaseEntity {
 
 declare interface Journal extends Omit<BaseEntity, 'date'> {
   date: string;
-  narration: string;
+  narration?: string;
   isPosted: boolean;
   journalEntries: JournalEntry[];
 }

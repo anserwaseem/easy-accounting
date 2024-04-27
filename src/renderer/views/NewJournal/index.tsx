@@ -38,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'renderer/shad/ui/select';
+import { Separator } from 'renderer/shad/ui/separator';
 
 const NewJournalPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -60,7 +61,7 @@ const NewJournalPage = () => {
   const defaultFormValues: Journal = {
     id: nextId, // using journal id as journal number as well (uneditable from UI)
     date: new Date().toLocaleString('en-US', dateFormatOptions),
-    narration: '',
+    narration: undefined,
     isPosted: true, // FUTURE: support draft journals
     journalEntries: [{ ...getInitialEntry() }, { ...getInitialEntry() }],
   };
@@ -77,7 +78,7 @@ const NewJournalPage = () => {
       .refine((val) => !isNaN(new Date(val).getTime()), {
         message: 'Invalid date',
       }),
-    narration: z.string().trim().min(1, 'Narration is required'),
+    narration: z.string().optional(),
     isPosted: z.boolean(),
     journalEntries: z.array(
       z.object({
@@ -417,8 +418,9 @@ const NewJournalPage = () => {
   );
 
   return (
-    <div>
-      <h1>New Journal</h1>
+    <div className="py-4 flex flex-col gap-y-4">
+      <h1 className="text-xl py-2">New Journal</h1>
+      <Separator />
 
       <Form {...form}>
         <form
@@ -426,7 +428,7 @@ const NewJournalPage = () => {
           onReset={() => form.reset(defaultFormValues)}
           onKeyDown={checkKeyDown}
         >
-          <div className="flex flex-col gap-y-4">
+          <div>
             <FormField
               control={form.control}
               name="date"
@@ -443,7 +445,7 @@ const NewJournalPage = () => {
                             !field.value && 'text-muted-foreground',
                           )}
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          <CalendarIcon className="mr-2 h-12 w-4" />
                           {field.value ? (
                             format(field.value, 'PPP')
                           ) : (
@@ -511,10 +513,10 @@ const NewJournalPage = () => {
             />
           </div>
 
-          <div className="flex flex-row justify-between pr-4 gap-10">
+          <div className="flex justify-between pr-4 gap-20 pb-20">
             <Button
               type="button"
-              className="dark:bg-gray-200 bg-gray-800 gap-2"
+              className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
               onClick={() => handleAddNewRow()}
             >
               <Plus size={20} />
@@ -523,8 +525,10 @@ const NewJournalPage = () => {
 
             <Table className="dark:bg-gray-900 bg-gray-100 rounded-xl">
               <TableBody>
-                <TableRow className="">
-                  <TableCell className="font-medium text-xl">Total</TableCell>
+                <TableRow>
+                  <TableCell className="font-medium text-xl w-1/3">
+                    Total
+                  </TableCell>
                   <TableCell>{totalDebits}</TableCell>
                   <TableCell>{totalCredits}</TableCell>
                 </TableRow>
