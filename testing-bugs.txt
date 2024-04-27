@@ -1,5 +1,4 @@
 // TODO: add debounce effect in debit / credit inputs to enable/disable publish button on journal
-// TODO: onclick of a row in journal details page, move to that account details page
 // TODO: in acount details page, rectify name on top (test by changing account)
 // TODO: make use of linkedAccountId in ledger, show in column of particulars
 // TODO: in journal, deal the single debit/credit as sum of multiple credit ones, (eg. see Journal # 11) and vice versa

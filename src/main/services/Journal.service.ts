@@ -153,11 +153,18 @@ export const getJorunal = (journalId: number): Journal => {
     debitAmount: number;
     creditAmount: number;
     accountName: string;
+    accountId: number;
   })[];
 
   const journal = res.reduce((acc, entry) => {
     if (!acc.id) {
-      acc = omit(entry, 'debitAmount', 'creditAmount', 'accountName');
+      acc = omit(
+        entry,
+        'debitAmount',
+        'creditAmount',
+        'accountName',
+        'accountId',
+      );
       acc.journalEntries = [];
     }
 
@@ -165,6 +172,7 @@ export const getJorunal = (journalId: number): Journal => {
       debitAmount: entry.debitAmount,
       creditAmount: entry.creditAmount,
       accountName: entry.accountName,
+      accountId: entry.accountId,
     } as JournalEntry & { accountName: string });
 
     return acc;

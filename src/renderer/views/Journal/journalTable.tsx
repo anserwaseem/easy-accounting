@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   currencyFormatOptions,
   dateFormatOptions,
@@ -13,6 +14,7 @@ interface JournalTableProps {
 export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
   console.log('JournalTable', journalId);
   const [journal, setJournal] = useState<Journal>();
+  const navigate = useNavigate();
 
   useEffect(
     () =>
@@ -26,14 +28,17 @@ export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
       {
         accessorKey: 'accountName',
         header: 'Account',
+        onClick: (row) => navigate(`/account/${row.original.accountId}`),
       },
       {
         accessorKey: 'debitAmount',
         header: 'Debit',
+        onClick: (row) => navigate(`/account/${row.original.accountId}`),
       },
       {
         accessorKey: 'creditAmount',
         header: 'Credit',
+        onClick: (row) => navigate(`/account/${row.original.accountId}`),
       },
     ];
   }, []);
