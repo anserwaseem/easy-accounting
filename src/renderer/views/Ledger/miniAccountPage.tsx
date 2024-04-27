@@ -105,7 +105,10 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
             <p className="text-xs text-slate-400">{row.original.type}</p>
           </div>
         ),
-        onClick: (row) => navigate(`/account/${row.original.id}`),
+        onClick: (row) => {
+          setTitle(row.original.id);
+          navigate(`/account/${row.original.id}`);
+        },
       },
     ],
     [accounts, charts],
@@ -116,12 +119,8 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
       (async () => {
         createForm.setValue('headName', accountHead);
         const accounts = (await window.electron.getAccounts()) as Account[];
-        const selectedAccount = accounts.find(
-          (account) => account.id === accountId,
-        );
         setAccounts(accounts);
-        setAccountName(selectedAccount?.name || '');
-        setHeadName(selectedAccount?.headName || '');
+        setTitle(accountId, accounts);
         setCharts(await window.electron.getCharts());
       })();
     }
@@ -135,6 +134,17 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
   useEffect(
     () => window.electron.store.set('createAccountHeadSelected', accountHead),
     [accountHead],
+  );
+
+  const setTitle = useCallback(
+    (id: number, accs?: Account[]) => {
+      const selectedAccount = (accs ?? accounts).find(
+        (account) => account.id === id,
+      );
+      setAccountName(selectedAccount?.name || '');
+      setHeadName(selectedAccount?.headName || '');
+    },
+    [accounts, setAccountName, setHeadName],
   );
 
   const getAccounts = useCallback(() => {
