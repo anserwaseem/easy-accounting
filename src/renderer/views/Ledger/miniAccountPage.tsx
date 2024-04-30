@@ -172,7 +172,7 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
       setOpenCreateForm(false);
       toast({
         description: 'Account created successfully',
-        variant: 'default',
+        variant: 'success',
       });
     } else {
       toast({

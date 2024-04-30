@@ -97,7 +97,7 @@ export const EditDialog: React.FC<EditDialogProps> = ({
       setCharts(await window.electron.getCharts());
       toast({
         description: 'Account updated successfully',
-        variant: 'default',
+        variant: 'success',
       });
     } else {
       toast({

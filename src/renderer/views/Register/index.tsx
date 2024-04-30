@@ -29,7 +29,7 @@ const RegisterPage = () => {
     if (response) {
       toast({
         description: 'User registered successfully',
-        variant: 'default',
+        variant: 'success',
       });
       navigate('/login');
       return;

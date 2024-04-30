@@ -138,7 +138,6 @@ const NewJournalPage = () => {
   const handleDebitBlur = useCallback(
     (value: string, rowIndex: number) => {
       const val = toNumber(value);
-      const fixedVal = getFixedNumber(val);
 
       const latestJournal = form.getValues();
 
@@ -170,7 +169,6 @@ const NewJournalPage = () => {
   const handleCreditBlur = useCallback(
     (value: string, rowIndex: number) => {
       const val = toNumber(value);
-      const fixedVal = getFixedNumber(val);
 
       const latestJournal = form.getValues();
 
@@ -384,7 +382,25 @@ const NewJournalPage = () => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     console.log('onSubmit journal:', values);
+
+    const numberOfCredits = values.journalEntries.filter(
+      (entry) => entry.creditAmount > 0,
+    ).length;
+    const numberOfDebits = values.journalEntries.filter(
+      (entry) => entry.debitAmount > 0,
+    ).length;
+
+    if (numberOfCredits > 1 && numberOfDebits > 1) {
+      toast({
+        description:
+          'Only one debit for corresponding credit amounts is allowed OR vice versa.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const res = await window.electron.insertJournal(values);
+
     if (res) {
       form.reset(defaultFormValues);
       setTotalCredits(0);
@@ -393,7 +409,7 @@ const NewJournalPage = () => {
 
       toast({
         description: 'Journal saved successfully',
-        variant: 'default',
+        variant: 'success',
       });
     } else
       toast({
