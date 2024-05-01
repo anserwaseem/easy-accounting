@@ -117,7 +117,8 @@ const electronHandler = {
    * Insert a journal
    * @param journal The journal to insert
    * @returns Boolean indicating if the journal was inserted
-   * @example const journal = insertJournal({ ... });
+   * @example const isInserted = insertJournal({ ... });
+   * @throws Error if any error occurs while inserting the journal
    */
   insertJournal: (journal: Journal) =>
     ipcRenderer.invoke('journal:insert', journal),

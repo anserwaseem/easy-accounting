@@ -1,4 +1,4 @@
-import { compact, get, omit, toNumber } from 'lodash';
+import { compact, get, head, isEqual, omit, toNumber, toString } from 'lodash';
 import { connect } from './Database.service';
 import { cast } from '../utils/sqlite';
 import { store } from '../main';
@@ -39,14 +39,26 @@ export const insertJournal = (journal: Journal) => {
     );
 
     db.transaction((journal: Journal) => {
-      const { date, narration, isPosted } = journal;
+      const { date, narration, isPosted, journalEntries } = journal;
       const journalId = stmJournal.run({
         date,
         narration,
         isPosted: cast(isPosted),
       }).lastInsertRowid;
 
-      for (const entry of journal.journalEntries) {
+      // Find the dividend entry (the entry whose amount is to be divided)
+      const creditEntries = journalEntries.filter(
+        (entry) => entry.creditAmount > 0,
+      );
+      const debitEntries = journalEntries.filter(
+        (entry) => entry.debitAmount > 0,
+      );
+      const dividendEntry =
+        creditEntries.length > debitEntries.length
+          ? head(debitEntries)
+          : head(creditEntries);
+
+      for (const entry of journalEntries) {
         const { debitAmount, accountId, creditAmount } = entry;
         stmJournalEntry.run({
           journalId,
@@ -55,21 +67,34 @@ export const insertJournal = (journal: Journal) => {
           creditAmount,
         });
 
-        const { balance } = stmGetBalance.get({ accountId }) as Pick<
-          Ledger,
-          'balance'
-        >;
+        // continue if the current entry is the dividend entry
+        if (isEqual(entry, dividendEntry)) {
+          continue;
+        }
+
+        updateLedger(accountId, debitAmount, creditAmount);
+        updateLedger(dividendEntry!.accountId, creditAmount, debitAmount);
+      }
+
+      function updateLedger(
+        $accountId: number,
+        $debitAmount: number,
+        $creditAmount: number,
+      ) {
+        const { balance } = (stmGetBalance.get({
+          accountId: $accountId,
+        }) ?? { balance: 0 }) as Pick<Ledger, 'balance'>;
 
         const newBalance =
-          balance + toNumber(debitAmount) - toNumber(creditAmount);
+          balance + toNumber($debitAmount) - toNumber($creditAmount);
         const newBalanceType = newBalance >= 0 ? 'Dr' : 'Cr';
 
         stmLedger.run({
           date,
-          accountId,
-          debit: debitAmount,
-          credit: creditAmount,
-          balance: newBalance,
+          accountId: $accountId,
+          debit: $debitAmount,
+          credit: $creditAmount,
+          balance: Math.abs(newBalance),
           balanceType: newBalanceType,
           particulars: `Journal #${journalId}`,
         });
@@ -79,7 +104,7 @@ export const insertJournal = (journal: Journal) => {
     return true;
   } catch (error) {
     console.error(error);
-    return false;
+    throw error;
   }
 };
 

@@ -399,23 +399,29 @@ const NewJournalPage = () => {
       return;
     }
 
-    const res = await window.electron.insertJournal(values);
+    try {
+      const isInserted = await window.electron.insertJournal(values);
 
-    if (res) {
-      form.reset(defaultFormValues);
-      setTotalCredits(0);
-      setTotalDebits(0);
-      setNextId((prev) => prev + 1);
+      if (!!isInserted) {
+        form.reset(defaultFormValues);
+        setTotalCredits(0);
+        setTotalDebits(0);
+        setNextId((prev) => prev + 1);
 
+        toast({
+          description: 'Journal saved successfully',
+          variant: 'success',
+        });
+        return;
+      }
+      throw new Error('Failed to save journal');
+    } catch (error) {
+      console.error(error);
       toast({
-        description: 'Journal saved successfully',
-        variant: 'success',
-      });
-    } else
-      toast({
-        description: 'Failed to save Journal',
+        description: toString(error),
         variant: 'destructive',
       });
+    }
   };
 
   const checkKeyDown = useCallback(
