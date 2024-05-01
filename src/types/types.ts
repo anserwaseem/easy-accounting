@@ -78,7 +78,7 @@ export interface Chart extends BaseEntity {
 
 /** Ledger */
 export interface Ledger extends BaseEntity {
-  particulars: string; // TODO: remove it in favor of linkedAccountId
+  particulars: string;
   /**
    * Id of account to which this ledger belongs to
    */
@@ -90,8 +90,9 @@ export interface Ledger extends BaseEntity {
   /**
    * Id of account from which empty Cr/Dr amount is coming.
    */
-  linkedAccountId: number;
+  linkedAccountId?: number;
 }
+export type GetLedger = Ledger & { linkedAccountName?: string };
 
 /** Journal */
 export interface Journal extends Omit<BaseEntity, 'date'> {

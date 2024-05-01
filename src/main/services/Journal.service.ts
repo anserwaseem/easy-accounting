@@ -38,8 +38,8 @@ export const insertJournal = (journal: Journal) => {
     );
 
     const stmLedger = db.prepare(
-      ` INSERT INTO ledger (date, accountId, debit, credit, balance, balanceType, particulars)
-        VALUES (@date, @accountId, @debit, @credit, @balance, @balanceType, @particulars)`,
+      ` INSERT INTO ledger (date, accountId, debit, credit, balance, balanceType, particulars, linkedAccountId)
+        VALUES (@date, @accountId, @debit, @credit, @balance, @balanceType, @particulars, @linkedAccountId)`,
     );
 
     db.transaction((journal: Journal) => {
@@ -76,14 +76,25 @@ export const insertJournal = (journal: Journal) => {
           continue;
         }
 
-        updateLedger(accountId, debitAmount, creditAmount);
-        updateLedger(dividendEntry!.accountId, creditAmount, debitAmount);
+        updateLedger(
+          accountId,
+          debitAmount,
+          creditAmount,
+          dividendEntry!.accountId,
+        );
+        updateLedger(
+          dividendEntry!.accountId,
+          creditAmount,
+          debitAmount,
+          accountId,
+        );
       }
 
       function updateLedger(
         $accountId: number,
         $debitAmount: number,
         $creditAmount: number,
+        linkedAccountId: number,
       ) {
         const { balance } = (stmGetBalance.get({
           accountId: $accountId,
@@ -100,8 +111,9 @@ export const insertJournal = (journal: Journal) => {
           debit: $debitAmount,
           credit: $creditAmount,
           balance: Math.abs(newBalance),
-          balanceType: newBalanceType as BalanceType,
+          balanceType: newBalanceType,
           particulars: `Journal #${journalId}`,
+          linkedAccountId,
         });
       }
     })(journal);

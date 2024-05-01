@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { dateFormatOptions } from 'renderer/lib/constants';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import type { Ledger } from 'types';
+import type { GetLedger } from 'types';
 
 interface LedgerTableProps {
   accountId: number;
@@ -10,7 +10,7 @@ interface LedgerTableProps {
 
 export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
   console.log('LedgerTable', accountId);
-  const [ledger, setLedger] = useState<Ledger[]>([]);
+  const [ledger, setLedger] = useState<GetLedger[]>([]);
 
   useEffect(
     () =>
@@ -19,8 +19,10 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
     [accountId],
   );
 
-  const columns: ColumnDef<Ledger>[] = useMemo(() => {
-    return [
+  console.log('LedgerTable', ledger);
+
+  const columns: ColumnDef<GetLedger>[] = useMemo(
+    () => [
       {
         accessorKey: 'date',
         header: 'Date',
@@ -31,8 +33,9 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
           ),
       },
       {
-        accessorKey: 'particulars',
         header: 'Particulars',
+        cell: ({ row }) =>
+          row.original.linkedAccountName ?? row.original.particulars,
       },
       {
         accessorKey: 'debit',
@@ -68,8 +71,9 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
             dateFormatOptions,
           ),
       },
-    ];
-  }, []);
+    ],
+    [],
+  );
 
   return (
     <div className="py-10">

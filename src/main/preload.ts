@@ -7,6 +7,7 @@ import type {
   InsertAccount,
   UpdateAccount,
   Journal,
+  GetLedger,
 } from 'types';
 
 export type Channels = 'ipc-example';
@@ -107,7 +108,8 @@ const electronHandler = {
    * @returns The ledger if found, undefined otherwise
    * @example const ledger = getLedger(1);
    */
-  getLedger: (accountId: number) => ipcRenderer.invoke('ledger:get', accountId),
+  getLedger: (accountId: number) =>
+    ipcRenderer.invoke('ledger:get', accountId) as Promise<GetLedger[]>,
   /**
    * Get the next journal id
    * @returns The next journal id
