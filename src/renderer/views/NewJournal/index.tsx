@@ -61,7 +61,7 @@ const NewJournalPage = () => {
   const defaultFormValues: Journal = {
     id: nextId, // using journal id as journal number as well (uneditable from UI)
     date: new Date().toLocaleString('en-US', dateFormatOptions),
-    narration: undefined,
+    narration: '',
     isPosted: true, // FUTURE: support draft journals
     journalEntries: [{ ...getInitialEntry() }, { ...getInitialEntry() }],
   };
@@ -505,7 +505,12 @@ const NewJournalPage = () => {
                 <FormItem labelPosition="start" className="w-1/2">
                   <FormLabel className="text-lg">Journal#</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled />
+                    <Input
+                      {...field}
+                      disabled
+                      type={field.value === -1 ? 'text' : 'number'}
+                      value={field.value === -1 ? '' : field.value}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
