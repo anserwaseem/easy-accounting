@@ -52,7 +52,7 @@ const NewJournalPage = () => {
   const navigate = useNavigate();
 
   const getInitialEntry = () => ({
-    id: Date.now(), // Will generate a unique ID for each new entry. Will not be used to insert into db
+    id: Date.now(), // generates a unique ID for each new entry. not used to insert into db
     journalId: nextId,
     debitAmount: 0,
     accountId: 0,
@@ -285,10 +285,14 @@ const NewJournalPage = () => {
                     {accounts.map((account) => (
                       <SelectItem
                         value={account.id.toString()}
-                        className="text-muted-foreground"
                         key={account.id}
                       >
-                        {account.name}
+                        <div>
+                          <h2>{account.name}</h2>
+                          <p className="text-xs text-slate-400">
+                            {account.headName}
+                          </p>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

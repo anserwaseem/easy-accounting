@@ -158,8 +158,8 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
           onClick={() => navigate('/journals/new')}
           className="flex items-center"
         >
-          <Plus />
-          <span>New Journal</span>
+          <Plus size={16} />
+          <span className="ml-3 mr-1">New Journal</span>
         </Button>
       </div>
 
