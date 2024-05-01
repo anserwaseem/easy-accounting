@@ -5,7 +5,9 @@ import { store } from '../main';
 
 export const getNextJournalId = () => {
   const db = connect();
-  const stm = db.prepare(`SELECT MAX(id) as id FROM journal`);
+  const stm = db.prepare(
+    "SELECT seq as id FROM sqlite_sequence WHERE name='journal'",
+  );
   const res = stm.get();
 
   return get(res, 'id', 0) + 1;
