@@ -1,4 +1,5 @@
 import { connect } from './Database.service';
+import type { Ledger } from 'types';
 
 export const getLedger = (accountId: number) => {
   const db = connect();

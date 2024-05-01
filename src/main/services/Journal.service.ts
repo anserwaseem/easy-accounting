@@ -2,6 +2,8 @@ import { compact, get, head, isEqual, omit, toNumber, toString } from 'lodash';
 import { connect } from './Database.service';
 import { cast } from '../utils/sqlite';
 import { store } from '../main';
+import type { Journal, JournalEntry, Ledger } from 'types';
+import { BalanceType } from '../../types'; // FIXME: throws "Error: Cannot find module 'types'" when importing from 'types'
 
 export const getNextJournalId = () => {
   const db = connect();
@@ -89,7 +91,8 @@ export const insertJournal = (journal: Journal) => {
 
         const newBalance =
           balance + toNumber($debitAmount) - toNumber($creditAmount);
-        const newBalanceType = newBalance >= 0 ? 'Dr' : 'Cr';
+        const newBalanceType =
+          newBalance >= 0 ? BalanceType.Dr : BalanceType.Cr;
 
         stmLedger.run({
           date,
@@ -97,7 +100,7 @@ export const insertJournal = (journal: Journal) => {
           debit: $debitAmount,
           credit: $creditAmount,
           balance: Math.abs(newBalance),
-          balanceType: newBalanceType,
+          balanceType: newBalanceType as BalanceType,
           particulars: `Journal #${journalId}`,
         });
       }

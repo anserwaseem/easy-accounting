@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { dateFormatOptions } from 'renderer/lib/constants';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
+import type { Ledger } from 'types';
 
 interface LedgerTableProps {
   accountId: number;

@@ -4,11 +4,12 @@ import {
   useState,
   useContext,
 } from 'react';
+import type { UserCredentials } from 'types';
 
 interface AuthContextState {
   authed: boolean;
-  signin: (user: Auth) => Promise<boolean>;
-  register: (user: Auth) => Promise<boolean>;
+  signin: (user: UserCredentials) => Promise<boolean>;
+  register: (user: UserCredentials) => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
@@ -22,7 +23,7 @@ export const AuthContext = createContext<AuthContextState>({
 export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const [authed, setAuthed] = useState(false);
 
-  const signin = async (user: Auth): Promise<boolean> => {
+  const signin = async (user: UserCredentials): Promise<boolean> => {
     const response = await window.electron.login(user);
 
     if (response !== false) {
@@ -33,7 +34,7 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
     return false;
   };
 
-  const register = async (user: Auth): Promise<boolean> =>
+  const register = async (user: UserCredentials): Promise<boolean> =>
     !!(await window.electron.register(user));
 
   const logout = async (): Promise<void> => {

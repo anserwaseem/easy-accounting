@@ -7,16 +7,17 @@
     "jsx": "react-jsx",
     "strict": true,
     "sourceMap": true,
+    "skipLibCheck": true,
     "baseUrl": "./src",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "outDir": ".erb/dll"
-    // "paths": {
-    //   "@/*": ["./*"]
-    // }
+    "outDir": ".erb/dll",
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
   "exclude": ["test", "release/build", "release/app/dist", ".erb/dll"]
 }

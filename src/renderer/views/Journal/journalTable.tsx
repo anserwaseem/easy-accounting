@@ -6,6 +6,7 @@ import {
 } from 'renderer/lib/constants';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
+import type { Journal, JournalEntry } from 'types';
 
 interface JournalTableProps {
   journalId: number;

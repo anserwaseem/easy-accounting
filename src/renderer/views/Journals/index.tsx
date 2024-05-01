@@ -14,6 +14,7 @@ import {
 import { Separator } from 'renderer/shad/ui/separator';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
+import type { Journal } from 'types';
 
 export type JournalView = Journal & { amount: number };
 

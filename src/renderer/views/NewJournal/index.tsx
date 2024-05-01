@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from 'renderer/shad/ui/select';
 import { Separator } from 'renderer/shad/ui/separator';
+import type { Account, Journal, JournalEntry } from 'types';
 
 const NewJournalPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
