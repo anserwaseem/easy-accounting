@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
-import { toNumber, toString } from 'lodash';
+import { get, toNumber, toString } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import {
   Popover,
@@ -82,13 +82,21 @@ const NewJournalPage = () => {
     narration: z.string().optional(),
     isPosted: z.boolean(),
     journalEntries: z.array(
-      z.object({
-        id: z.number(),
-        journalId: z.number(),
-        debitAmount: z.number(),
-        accountId: z.coerce.number().gt(0, 'Select an account'),
-        creditAmount: z.number(),
-      }),
+      z
+        .object({
+          id: z.number(),
+          journalId: z.number(),
+          debitAmount: z.number(),
+          accountId: z.coerce.number().gt(0, 'Select an account'),
+          creditAmount: z.number(),
+        })
+        .refine(
+          (data) => !(data.debitAmount === 0 && data.creditAmount === 0),
+          {
+            message:
+              'Debit amount and credit amount cannot be zero at the same time',
+          },
+        ),
     ),
   });
 
@@ -224,6 +232,7 @@ const NewJournalPage = () => {
         'journalEntries',
         latestJournal.journalEntries.filter((_, index) => index !== rowIndex),
       );
+      form.clearErrors(`journalEntries.${rowIndex}` as const);
 
       setTotalCredits((prev) => prev - removedRow.creditAmount);
       setTotalDebits((prev) => prev - removedRow.debitAmount);
@@ -273,7 +282,7 @@ const NewJournalPage = () => {
                   <FormControl>
                     <SelectTrigger className="min-w-[150px]">
                       <SelectValue
-                        placeholder={
+                        children={
                           accounts.find(
                             (acc) => acc.id === toNumber(field.value),
                           )?.name
@@ -537,12 +546,20 @@ const NewJournalPage = () => {
             />
           </div>
 
-          <div className="py-10 pr-4">
+          <div className="py-10 pr-4 flex flex-col gap-3">
             <DataTable
               columns={columns}
               data={fields}
               sortingFns={defaultSortingFunctions}
             />
+            {form.formState.errors.journalEntries && (
+              <p className="text-sm font-medium text-destructive">
+                {get(
+                  form.formState.errors.journalEntries?.find?.((je) => !!je),
+                  ['root', 'message'],
+                )}
+              </p>
+            )}
           </div>
 
           <div className="flex justify-between pr-4 gap-20 pb-20">
