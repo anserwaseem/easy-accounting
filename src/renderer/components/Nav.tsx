@@ -1,7 +1,7 @@
 import { MainNav } from 'renderer/shad/ui/main-nav';
 import { Sidebar } from 'renderer/shad/ui/sidebar';
 import { Button } from 'renderer/shad/ui/button';
-import { Link } from 'react-router-dom';
+import { Link, Outlet } from 'react-router-dom';
 import { FileCheck2, Plus, Table2 } from 'lucide-react';
 import { PropsWithChildren } from 'react';
 
@@ -41,6 +41,7 @@ const Nav: React.FC<PropsWithChildren> = ({ children }) => {
       <div className="flex-grow w-full mx-auto p-4">
         <MainNav />
         {children}
+        <Outlet />
       </div>
     </div>
   );

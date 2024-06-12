@@ -29,17 +29,17 @@ export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
       {
         accessorKey: 'accountName',
         header: 'Account',
-        onClick: (row) => navigate(`/account/${row.original.accountId}`),
+        onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
       },
       {
         accessorKey: 'debitAmount',
         header: 'Debit',
-        onClick: (row) => navigate(`/account/${row.original.accountId}`),
+        onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
       },
       {
         accessorKey: 'creditAmount',
         header: 'Credit',
-        onClick: (row) => navigate(`/account/${row.original.accountId}`),
+        onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
       },
     ];
   }, []);

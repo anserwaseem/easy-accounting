@@ -15,6 +15,7 @@ import { Separator } from 'renderer/shad/ui/separator';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import type { Journal } from 'types';
+import { toString } from 'lodash';
 
 export type JournalView = Journal & { amount: number };
 
@@ -42,28 +43,28 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
       {
         accessorKey: 'id',
         header: 'Journal #',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'date',
         header: 'Date',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'narration',
         header: 'Narration',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'isPublished',
         header: 'Status',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
         cell: ({ row }) => (row.original.isPosted ? 'Posted' : 'Draft'),
       },
       {
         accessorKey: 'amount',
         header: 'Amount',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'createdAt',
@@ -73,7 +74,7 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
             'en-US',
             dateFormatOptions,
           ),
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
     ],
     [journals],
@@ -155,7 +156,7 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
 
         <Button
           variant="outline"
-          onClick={() => navigate('/journals/new')}
+          onClick={() => navigate('new')}
           className="flex items-center"
         >
           <Plus size={16} />
@@ -186,7 +187,7 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
               {filteredJournals.map((journal) => (
                 <TableRow
                   key={journal.id}
-                  onClick={() => navigate(`/journal/${journal.id}`)}
+                  onClick={() => navigate(`/journals/${journal.id}`)}
                 >
                   <TableCell>
                     <div className="flex justify-between">

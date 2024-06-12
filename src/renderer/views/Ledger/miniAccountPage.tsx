@@ -108,7 +108,7 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
         ),
         onClick: (row) => {
           setTitle(row.original.id);
-          navigate(`/account/${row.original.id}`);
+          navigate(`/accounts/${row.original.id}`);
         },
       },
     ],

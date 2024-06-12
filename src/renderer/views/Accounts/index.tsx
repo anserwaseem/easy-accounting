@@ -92,22 +92,22 @@ const AccountsPage = () => {
       {
         accessorKey: 'name',
         header: 'Account Name',
-        onClick: (row) => navigate(`/account/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'headName',
         header: 'Head Name',
-        onClick: (row) => navigate(`/account/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'type',
         header: 'Type',
-        onClick: (row) => navigate(`/account/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'code',
         header: 'Account Code',
-        onClick: (row) => navigate(`/account/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'updatedAt',
@@ -117,7 +117,7 @@ const AccountsPage = () => {
             'en-US',
             dateFormatOptions,
           ),
-        onClick: (row) => navigate(`/account/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'createdAt',
@@ -127,7 +127,7 @@ const AccountsPage = () => {
             'en-US',
             dateFormatOptions,
           ),
-        onClick: (row) => navigate(`/account/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         header: 'Edit',

@@ -1,5 +1,11 @@
 import { type PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Routes, Navigate } from 'react-router-dom';
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  Navigate,
+  Outlet,
+} from 'react-router-dom';
 
 import { ThemeProvider, AuthProvider, useAuth } from './hooks';
 import { Toaster } from './shad/ui/toaster';
@@ -17,68 +23,27 @@ import SettingsPage from './views/Settings';
 
 export default function appRoutes() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="ui-theme">
+    <ThemeProvider>
       <AuthProvider>
         <MemoryRouter>
           <Routes>
-            <Route path="/login" Component={Login} />
-            <Route path="/register" Component={Register} />
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <Nav children={<Home />} />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <RequireAuth>
-                  <Nav children={<SettingsPage />} />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/accounts"
-              element={
-                <RequireAuth>
-                  <Nav children={<AccountsPage />} />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/account/:id"
-              element={
-                <RequireAuth>
-                  <Nav children={<LedgerPage />} />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/journals"
-              element={
-                <RequireAuth>
-                  <Nav children={<JournalsPage />} />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/journals/new"
-              element={
-                <RequireAuth>
-                  <Nav children={<NewJournalPage />} />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/journal/:id"
-              element={
-                <RequireAuth>
-                  <Nav children={<JournalPage />} />
-                </RequireAuth>
-              }
-            />
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route element={<RequireAuth />}>
+              <Route element={<Nav />}>
+                <Route path="/" element={<Home />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="accounts">
+                  <Route index element={<AccountsPage />} />
+                  <Route path=":id" element={<LedgerPage />} />
+                </Route>
+                <Route path="journals">
+                  <Route index element={<JournalsPage />} />
+                  <Route path="new" element={<NewJournalPage />} />
+                  <Route path=":id" element={<JournalPage />} />
+                </Route>
+              </Route>
+            </Route>
           </Routes>
           <Toaster />
         </MemoryRouter>
@@ -90,7 +55,15 @@ export default function appRoutes() {
 function RequireAuth({ children }: PropsWithChildren) {
   const { authed } = useAuth();
 
-  if (authed || process.env.NODE_ENV === 'development') return children;
+  // if (authed) {
+  if (authed || process.env.NODE_ENV === 'development') {
+    return (
+      <>
+        {children}
+        <Outlet />
+      </>
+    );
+  }
 
   return <Navigate to="/login" replace />;
 }
