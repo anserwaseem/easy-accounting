@@ -32,13 +32,15 @@ import { Input } from 'renderer/shad/ui/input';
 import { useToast } from 'renderer/shad/ui/use-toast';
 import { dateFormatOptions } from 'renderer/lib/constants';
 import { EditDialog } from './editDialog';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
+import { type Account, type Chart, AccountType } from 'types';
 
 const AccountsPage = () => {
   console.log('AccountPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [typeSelected, setTypeSelected] = useState<
-    'All' | 'Asset' | 'Liability' | 'Equity'
-  >(window.electron.store.get('accountTypeSelected') || 'All');
+  const [typeSelected, setTypeSelected] = useState<'All' | AccountType>(
+    window.electron.store.get('accountTypeSelected') || 'All',
+  );
   const [charts, setCharts] = useState<Chart[]>([]);
   const [accountHead, setAccountHead] = useState(
     toString(window.electron.store.get('createAccountHeadSelected')),
@@ -165,12 +167,16 @@ const AccountsPage = () => {
 
   const getAccounts = useCallback(() => {
     switch (typeSelected) {
-      case 'Asset':
-        return accounts.filter((account) => account.type === 'Asset');
-      case 'Liability':
-        return accounts.filter((account) => account.type === 'Liability');
-      case 'Equity':
-        return accounts.filter((account) => account.type === 'Equity');
+      case AccountType.Asset:
+        return accounts.filter((account) => account.type === AccountType.Asset);
+      case AccountType.Liability:
+        return accounts.filter(
+          (account) => account.type === AccountType.Liability,
+        );
+      case AccountType.Equity:
+        return accounts.filter(
+          (account) => account.type === AccountType.Equity,
+        );
       default:
         return accounts;
     }
@@ -188,7 +194,7 @@ const AccountsPage = () => {
       setOpenCreateForm(false);
       toast({
         description: 'Account created successfully',
-        variant: 'default',
+        variant: 'success',
       });
     } else {
       toast({
@@ -212,13 +218,19 @@ const AccountsPage = () => {
             <DropdownMenuItem onClick={() => setTypeSelected('All')}>
               All Accounts
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTypeSelected('Asset')}>
+            <DropdownMenuItem
+              onClick={() => setTypeSelected(AccountType.Asset)}
+            >
               Asset Accounts
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTypeSelected('Liability')}>
+            <DropdownMenuItem
+              onClick={() => setTypeSelected(AccountType.Liability)}
+            >
               Liability Accounts
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTypeSelected('Equity')}>
+            <DropdownMenuItem
+              onClick={() => setTypeSelected(AccountType.Equity)}
+            >
               Equity Accounts
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -323,6 +335,7 @@ const AccountsPage = () => {
           columns={columns}
           data={getAccounts()}
           defaultSortField="id"
+          sortingFns={defaultSortingFunctions}
         />
       </div>
     </div>

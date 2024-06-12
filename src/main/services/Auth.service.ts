@@ -1,16 +1,17 @@
 import { store } from '../main';
 import { decryptText, hashText } from '../utils/encrypt';
 import { connect } from './Database.service';
+import type { DbUser, UserCredentials } from 'types';
 
-export const getUser = (username: string): User | undefined => {
+const getUser = (username: string): DbUser | undefined => {
   const db = connect();
 
   const stm = db.prepare('SELECT * FROM users where username = @username');
 
-  return stm.get({ username }) as User | undefined;
+  return stm.get({ username }) as DbUser | undefined;
 };
 
-export const login = (user: Auth): boolean => {
+export const login = (user: UserCredentials): boolean => {
   const dbUser = getUser(user.username);
 
   if (!dbUser) {
@@ -27,7 +28,7 @@ export const login = (user: Auth): boolean => {
   return false;
 };
 
-export const register = (user: Auth): boolean => {
+export const register = (user: UserCredentials): boolean => {
   try {
     if (user.username.length < 4 || user.password.length < 4) {
       return false;

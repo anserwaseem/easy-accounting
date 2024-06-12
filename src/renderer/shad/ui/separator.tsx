@@ -3,12 +3,21 @@ import { Root } from '@radix-ui/react-separator';
 
 import { cn } from 'renderer/lib/utils';
 
-const Separator = forwardRef<
-  React.ElementRef<typeof Root>,
-  React.ComponentPropsWithoutRef<typeof Root>
->(
+interface SeparatorProps extends React.ComponentPropsWithoutRef<typeof Root> {
+  height?: number;
+  width?: number;
+}
+
+const Separator = forwardRef<React.ElementRef<typeof Root>, SeparatorProps>(
   (
-    { className, orientation = 'horizontal', decorative = true, ...props },
+    {
+      className,
+      orientation = 'horizontal',
+      decorative = true,
+      height,
+      width,
+      ...props
+    },
     ref,
   ) => (
     <Root
@@ -17,7 +26,9 @@ const Separator = forwardRef<
       orientation={orientation}
       className={cn(
         'shrink-0 bg-border',
-        orientation === 'horizontal' ? 'h-[1px] w-full' : 'h-full w-[1px]',
+        orientation === 'horizontal'
+          ? `h-[${height || 1}px] w-${width ? `[${width}px]` : 'full'}`
+          : `w-[${width || 1}px] h-${height ? `[${height}px]` : 'full'}`,
         className,
       )}
       {...props}

@@ -1,6 +1,0 @@
-Balance Sheet Flow:
-1. Chart of Accounts - Stores information about each account such as account number, account name, account type (asset, liability, equity, revenue, expense), etc. This serves as the central reference for all accounts used.
-2. Accounts - Stores the actual balances for each account. This is where the financial data is stored and updated as transactions occur.
-3. Ledger Entries - Stores the entries containing the debit and credit transactions. Each entry is tied to a specific account.
-
-

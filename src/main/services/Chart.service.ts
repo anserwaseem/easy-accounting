@@ -1,5 +1,6 @@
 import { store } from '../main';
 import { connect } from './Database.service';
+import type { Chart } from 'types';
 
 export const getCharts = () => {
   const db = connect();

@@ -1,6 +1,14 @@
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import type {
+  UserCredentials,
+  BalanceSheet,
+  InsertAccount,
+  UpdateAccount,
+  Journal,
+  GetLedger,
+} from 'types';
 
 export type Channels = 'ipc-example';
 
@@ -44,26 +52,20 @@ const electronHandler = {
    * @returns Boolean indicating if the user was logged in
    * @example const token = login({ username: 'user', password: 'pass' });
    */
-  login: (user: Auth) => ipcRenderer.invoke('auth:login', user),
+  login: (user: UserCredentials) => ipcRenderer.invoke('auth:login', user),
   /**
    * Register a user
    * @param user The user to register
    * @returns Boolean indicating if the user was registered
    * @example const token = register({ username: 'user', password: 'pass' });
    */
-  register: (user: Auth) => ipcRenderer.invoke('auth:register', user),
+  register: (user: UserCredentials) =>
+    ipcRenderer.invoke('auth:register', user),
   /**
    * Logout a user
    * @example logout();
    */
   logout: () => ipcRenderer.invoke('auth:logout'),
-  /**
-   * Get a user
-   * @param username The username to get
-   * @returns The user if found, undefined otherwise
-   * @example const user = getUser('user');
-   */
-  getUser: (username: string) => ipcRenderer.invoke('auth:getUser', username),
   /**
    * Save a balance sheet
    * @param balanceSheet The balance sheet to save
@@ -106,7 +108,8 @@ const electronHandler = {
    * @returns The ledger if found, undefined otherwise
    * @example const ledger = getLedger(1);
    */
-  getLedger: (accountId: number) => ipcRenderer.invoke('ledger:get', accountId),
+  getLedger: (accountId: number) =>
+    ipcRenderer.invoke('ledger:get', accountId) as Promise<GetLedger[]>,
   /**
    * Get the next journal id
    * @returns The next journal id
@@ -117,7 +120,8 @@ const electronHandler = {
    * Insert a journal
    * @param journal The journal to insert
    * @returns Boolean indicating if the journal was inserted
-   * @example const journal = insertJournal({ ... });
+   * @example const isInserted = insertJournal({ ... });
+   * @throws Error if any error occurs while inserting the journal
    */
   insertJournal: (journal: Journal) =>
     ipcRenderer.invoke('journal:insert', journal),

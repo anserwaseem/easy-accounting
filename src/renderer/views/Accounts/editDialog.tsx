@@ -27,6 +27,7 @@ import {
   FormMessage,
 } from 'renderer/shad/ui/form';
 import { useToast } from 'renderer/shad/ui/use-toast';
+import type { UpdateAccount, Account, Chart } from 'types';
 
 interface EditDialogProps {
   row: {
@@ -97,7 +98,7 @@ export const EditDialog: React.FC<EditDialogProps> = ({
       setCharts(await window.electron.getCharts());
       toast({
         description: 'Account updated successfully',
-        variant: 'default',
+        variant: 'success',
       });
     } else {
       toast({

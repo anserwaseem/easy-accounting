@@ -13,6 +13,8 @@ import {
 } from 'renderer/shad/ui/datePicker';
 import { Separator } from 'renderer/shad/ui/separator';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
+import type { Journal } from 'types';
 
 export type JournalView = Journal & { amount: number };
 
@@ -156,8 +158,8 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
           onClick={() => navigate('/journals/new')}
           className="flex items-center"
         >
-          <Plus />
-          <span>New Journal</span>
+          <Plus size={16} />
+          <span className="ml-3 mr-1">New Journal</span>
         </Button>
       </div>
 
@@ -182,7 +184,10 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
           <Table>
             <TableBody>
               {filteredJournals.map((journal) => (
-                <TableRow key={journal.id}>
+                <TableRow
+                  key={journal.id}
+                  onClick={() => navigate(`/journal/${journal.id}`)}
+                >
                   <TableCell>
                     <div className="flex justify-between">
                       <div className="flex flex-col">
@@ -217,7 +222,11 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
             </TableBody>
           </Table>
         ) : (
-          <DataTable columns={columns} data={filteredJournals} />
+          <DataTable
+            columns={columns}
+            data={filteredJournals}
+            sortingFns={defaultSortingFunctions}
+          />
         )}
       </div>
     </div>

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
-import { toNumber } from 'lodash';
+import { get, toNumber, toString } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import {
   Popover,
@@ -11,7 +11,11 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 import { format } from 'date-fns';
-import { cn, getFixedNumber } from 'renderer/lib/utils';
+import {
+  cn,
+  defaultSortingFunctions,
+  getFixedNumber,
+} from 'renderer/lib/utils';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,6 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'renderer/shad/ui/select';
+import { Separator } from 'renderer/shad/ui/separator';
+import type { Account, Journal, JournalEntry } from 'types';
 
 const NewJournalPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -46,7 +52,7 @@ const NewJournalPage = () => {
   const navigate = useNavigate();
 
   const getInitialEntry = () => ({
-    id: Date.now(), // Will generate a unique ID for each new entry. Will not be used to insert into db
+    id: Date.now(), // generates a unique ID for each new entry. not used to insert into db
     journalId: nextId,
     debitAmount: 0,
     accountId: 0,
@@ -73,16 +79,24 @@ const NewJournalPage = () => {
       .refine((val) => !isNaN(new Date(val).getTime()), {
         message: 'Invalid date',
       }),
-    narration: z.string().trim().min(1, 'Narration is required'),
+    narration: z.string().optional(),
     isPosted: z.boolean(),
     journalEntries: z.array(
-      z.object({
-        id: z.number(),
-        journalId: z.number(),
-        debitAmount: z.number(),
-        accountId: z.coerce.number().gt(0, 'Select an account'),
-        creditAmount: z.number(),
-      }),
+      z
+        .object({
+          id: z.number(),
+          journalId: z.number(),
+          debitAmount: z.number(),
+          accountId: z.coerce.number().gt(0, 'Select an account'),
+          creditAmount: z.number(),
+        })
+        .refine(
+          (data) => !(data.debitAmount === 0 && data.creditAmount === 0),
+          {
+            message:
+              'Debit amount and credit amount cannot be zero at the same time',
+          },
+        ),
     ),
   });
 
@@ -133,7 +147,6 @@ const NewJournalPage = () => {
   const handleDebitBlur = useCallback(
     (value: string, rowIndex: number) => {
       const val = toNumber(value);
-      const fixedVal = getFixedNumber(val);
 
       const latestJournal = form.getValues();
 
@@ -165,7 +178,6 @@ const NewJournalPage = () => {
   const handleCreditBlur = useCallback(
     (value: string, rowIndex: number) => {
       const val = toNumber(value);
-      const fixedVal = getFixedNumber(val);
 
       const latestJournal = form.getValues();
 
@@ -220,6 +232,7 @@ const NewJournalPage = () => {
         'journalEntries',
         latestJournal.journalEntries.filter((_, index) => index !== rowIndex),
       );
+      form.clearErrors(`journalEntries.${rowIndex}` as const);
 
       setTotalCredits((prev) => prev - removedRow.creditAmount);
       setTotalDebits((prev) => prev - removedRow.debitAmount);
@@ -228,6 +241,29 @@ const NewJournalPage = () => {
       setTotalDebits(0);
     }
   }, []);
+
+  const getAmountDefaultLabel = useCallback(
+    (value: number) =>
+      value === 0
+        ? toString(window.electron.store.get('debitCreditDefaultLabel'))
+        : value,
+    [window.electron.store],
+  );
+
+  const removeDefaultLabel = useCallback(
+    (value: string) =>
+      toString(
+        toNumber(
+          value.includes(window.electron.store.get('debitCreditDefaultLabel'))
+            ? value.replace(
+                window.electron.store.get('debitCreditDefaultLabel'),
+                '',
+              )
+            : value,
+        ) || 0,
+      ),
+    [window.electron.store],
+  );
 
   const columns: ColumnDef<JournalEntry>[] = useMemo(
     () => [
@@ -246,7 +282,7 @@ const NewJournalPage = () => {
                   <FormControl>
                     <SelectTrigger className="min-w-[150px]">
                       <SelectValue
-                        placeholder={
+                        children={
                           accounts.find(
                             (acc) => acc.id === toNumber(field.value),
                           )?.name
@@ -258,9 +294,14 @@ const NewJournalPage = () => {
                     {accounts.map((account) => (
                       <SelectItem
                         value={account.id.toString()}
-                        className="text-muted-foreground"
+                        key={account.id}
                       >
-                        {account.name}
+                        <div>
+                          <h2>{account.name}</h2>
+                          <p className="text-xs text-slate-400">
+                            {account.headName}
+                          </p>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -282,11 +323,20 @@ const NewJournalPage = () => {
                 <FormControl className="w-1/2">
                   <Input
                     {...field}
-                    type="number"
+                    value={getAmountDefaultLabel(field.value)}
+                    type={field.value === 0 ? 'text' : 'number'}
                     onChange={(e) =>
-                      handleDebitChange(e.target.value, row.index)
+                      handleDebitChange(
+                        removeDefaultLabel(e.target.value),
+                        row.index,
+                      )
                     }
-                    onBlur={(e) => handleDebitBlur(e.target.value, row.index)}
+                    onBlur={(e) =>
+                      handleDebitBlur(
+                        removeDefaultLabel(e.target.value),
+                        row.index,
+                      )
+                    }
                   />
                 </FormControl>
                 <FormMessage />
@@ -306,10 +356,19 @@ const NewJournalPage = () => {
                 <FormControl className="w-1/2">
                   <Input
                     {...field}
-                    type="number"
-                    onBlur={(e) => handleCreditBlur(e.target.value, row.index)}
+                    value={getAmountDefaultLabel(field.value)}
+                    type={field.value === 0 ? 'text' : 'number'}
+                    onBlur={(e) =>
+                      handleCreditBlur(
+                        removeDefaultLabel(e.target.value),
+                        row.index,
+                      )
+                    }
                     onChange={(e) =>
-                      handleCreditChange(e.target.value, row.index)
+                      handleCreditChange(
+                        removeDefaultLabel(e.target.value),
+                        row.index,
+                      )
                     }
                   />
                 </FormControl>
@@ -337,22 +396,46 @@ const NewJournalPage = () => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     console.log('onSubmit journal:', values);
-    const res = await window.electron.insertJournal(values);
-    if (res) {
-      form.reset(defaultFormValues);
-      setTotalCredits(0);
-      setTotalDebits(0);
-      setNextId((prev) => prev + 1);
 
+    const numberOfCredits = values.journalEntries.filter(
+      (entry) => entry.creditAmount > 0,
+    ).length;
+    const numberOfDebits = values.journalEntries.filter(
+      (entry) => entry.debitAmount > 0,
+    ).length;
+
+    if (numberOfCredits > 1 && numberOfDebits > 1) {
       toast({
-        description: 'Journal saved successfully',
-        variant: 'default',
-      });
-    } else
-      toast({
-        description: 'Failed to save Journal',
+        description:
+          'Only one debit for corresponding credit amounts is allowed OR vice versa.',
         variant: 'destructive',
       });
+      return;
+    }
+
+    try {
+      const isInserted = await window.electron.insertJournal(values);
+
+      if (!!isInserted) {
+        form.reset(defaultFormValues);
+        setTotalCredits(0);
+        setTotalDebits(0);
+        setNextId((prev) => prev + 1);
+
+        toast({
+          description: 'Journal saved successfully',
+          variant: 'success',
+        });
+        return;
+      }
+      throw new Error('Failed to save journal');
+    } catch (error) {
+      console.error(error);
+      toast({
+        description: toString(error),
+        variant: 'destructive',
+      });
+    }
   };
 
   const checkKeyDown = useCallback(
@@ -371,8 +454,9 @@ const NewJournalPage = () => {
   );
 
   return (
-    <div>
-      <h1>New Journal</h1>
+    <div className="py-4 flex flex-col gap-y-4">
+      <h1 className="text-xl py-2">New Journal</h1>
+      <Separator />
 
       <Form {...form}>
         <form
@@ -380,7 +464,7 @@ const NewJournalPage = () => {
           onReset={() => form.reset(defaultFormValues)}
           onKeyDown={checkKeyDown}
         >
-          <div className="flex flex-col gap-y-4">
+          <div>
             <FormField
               control={form.control}
               name="date"
@@ -397,7 +481,7 @@ const NewJournalPage = () => {
                             !field.value && 'text-muted-foreground',
                           )}
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          <CalendarIcon className="mr-2 h-12 w-4" />
                           {field.value ? (
                             format(field.value, 'PPP')
                           ) : (
@@ -435,7 +519,12 @@ const NewJournalPage = () => {
                 <FormItem labelPosition="start" className="w-1/2">
                   <FormLabel className="text-lg">Journal#</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled />
+                    <Input
+                      {...field}
+                      disabled
+                      type={field.value === -1 ? 'text' : 'number'}
+                      value={field.value === -1 ? '' : field.value}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -457,14 +546,26 @@ const NewJournalPage = () => {
             />
           </div>
 
-          <div className="py-10 pr-4">
-            <DataTable columns={columns} data={fields} />
+          <div className="py-10 pr-4 flex flex-col gap-3">
+            <DataTable
+              columns={columns}
+              data={fields}
+              sortingFns={defaultSortingFunctions}
+            />
+            {form.formState.errors.journalEntries && (
+              <p className="text-sm font-medium text-destructive">
+                {get(
+                  form.formState.errors.journalEntries?.find?.((je) => !!je),
+                  ['root', 'message'],
+                )}
+              </p>
+            )}
           </div>
 
-          <div className="flex flex-row justify-between pr-4 gap-10">
+          <div className="flex justify-between pr-4 gap-20 pb-20">
             <Button
               type="button"
-              className="dark:bg-gray-200 bg-gray-800 gap-2"
+              className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
               onClick={() => handleAddNewRow()}
             >
               <Plus size={20} />
@@ -473,8 +574,10 @@ const NewJournalPage = () => {
 
             <Table className="dark:bg-gray-900 bg-gray-100 rounded-xl">
               <TableBody>
-                <TableRow className="">
-                  <TableCell className="font-medium text-xl">Total</TableCell>
+                <TableRow>
+                  <TableCell className="font-medium text-xl w-1/3">
+                    Total
+                  </TableCell>
                   <TableCell>{totalDebits}</TableCell>
                   <TableCell>{totalCredits}</TableCell>
                 </TableRow>

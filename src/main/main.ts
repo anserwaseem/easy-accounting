@@ -14,7 +14,7 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/general';
-import { getUser, login, register } from './services/Auth.service';
+import { login, register } from './services/Auth.service';
 import { saveBalanceSheet } from './services/Statement.service';
 import {
   getAccounts,
@@ -30,6 +30,13 @@ import {
   getNextJournalId,
   insertJournal,
 } from './services/Journal.service';
+import type {
+  UserCredentials,
+  BalanceSheet,
+  InsertAccount,
+  UpdateAccount,
+  Journal,
+} from 'types';
 
 export const store = new Store();
 
@@ -159,14 +166,11 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
-    ipcMain.handle('auth:login', async (_, user: Auth) => {
+    ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
       return login(user);
     });
-    ipcMain.handle('auth:register', async (_, user: Auth) => {
+    ipcMain.handle('auth:register', async (_, user: UserCredentials) => {
       return register(user);
-    });
-    ipcMain.handle('auth:getUser', async (_, username: string) => {
-      return getUser(username);
     });
     ipcMain.handle(
       'balanceSheet:save',

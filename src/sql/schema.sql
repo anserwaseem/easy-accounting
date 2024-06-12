@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS "ledger" (
   "credit" DECIMAL DEFAULT 0,
   "balance" DECIMAL NOT NULL DEFAULT 0,
   "balanceType" STRING NOT NULL,
+  "linkedAccountId" INTEGER,
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 

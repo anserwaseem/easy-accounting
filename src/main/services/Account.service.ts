@@ -1,5 +1,6 @@
 import { store } from '../main';
 import { connect } from './Database.service';
+import type { Account, InsertAccount, UpdateAccount } from 'types';
 
 export const getAccounts = () => {
   const db = connect();

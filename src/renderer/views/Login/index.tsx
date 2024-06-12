@@ -1,17 +1,17 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import styles from './Login.module.css';
-import { useContext, useState } from 'react';
-import { AuthContext } from 'renderer/context/Auth';
+import { useAuth } from 'renderer/hooks';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import { useToast } from 'renderer/shad/ui/use-toast';
+import styles from './Login.module.css';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { toast } = useToast();
 
-  const { signin } = useContext(AuthContext);
+  const { toast } = useToast();
+  const { signin } = useAuth();
   const navigate = useNavigate();
 
   async function login(

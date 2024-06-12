@@ -30,6 +30,8 @@ import {
 } from 'renderer/shad/ui/form';
 import { useToast } from 'renderer/shad/ui/use-toast';
 import { Input } from 'renderer/shad/ui/input';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
+import { type Account, type Chart, AccountType } from 'types';
 
 interface MiniAccountPageProps {
   accountId: number;
@@ -44,9 +46,9 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
 }) => {
   console.log('MiniAccountPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [typeSelected, setTypeSelected] = useState<
-    'All' | 'Asset' | 'Liability' | 'Equity'
-  >(window.electron.store.get('accountTypeSelected') || 'All');
+  const [typeSelected, setTypeSelected] = useState<'All' | AccountType>(
+    window.electron.store.get('accountTypeSelected') || 'All',
+  );
   const [charts, setCharts] = useState<Chart[]>([]);
   const [accountHead, setAccountHead] = useState(
     toString(window.electron.store.get('createAccountHeadSelected')),
@@ -104,7 +106,10 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
             <p className="text-xs text-slate-400">{row.original.type}</p>
           </div>
         ),
-        onClick: (row) => navigate(`/account/${row.original.id}`),
+        onClick: (row) => {
+          setTitle(row.original.id);
+          navigate(`/account/${row.original.id}`);
+        },
       },
     ],
     [accounts, charts],
@@ -115,12 +120,8 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
       (async () => {
         createForm.setValue('headName', accountHead);
         const accounts = (await window.electron.getAccounts()) as Account[];
-        const selectedAccount = accounts.find(
-          (account) => account.id === accountId,
-        );
         setAccounts(accounts);
-        setAccountName(selectedAccount?.name || '');
-        setHeadName(selectedAccount?.headName || '');
+        setTitle(accountId, accounts);
         setCharts(await window.electron.getCharts());
       })();
     }
@@ -136,14 +137,29 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
     [accountHead],
   );
 
+  const setTitle = useCallback(
+    (id: number, accs?: Account[]) => {
+      const selectedAccount = (accs ?? accounts).find(
+        (account) => account.id === id,
+      );
+      setAccountName(selectedAccount?.name || '');
+      setHeadName(selectedAccount?.headName || '');
+    },
+    [accounts, setAccountName, setHeadName],
+  );
+
   const getAccounts = useCallback(() => {
     switch (typeSelected) {
-      case 'Asset':
-        return accounts.filter((account) => account.type === 'Asset');
-      case 'Liability':
-        return accounts.filter((account) => account.type === 'Liability');
-      case 'Equity':
-        return accounts.filter((account) => account.type === 'Equity');
+      case AccountType.Asset:
+        return accounts.filter((account) => account.type === AccountType.Asset);
+      case AccountType.Liability:
+        return accounts.filter(
+          (account) => account.type === AccountType.Liability,
+        );
+      case AccountType.Equity:
+        return accounts.filter(
+          (account) => account.type === AccountType.Equity,
+        );
       default:
         return accounts;
     }
@@ -161,7 +177,7 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
       setOpenCreateForm(false);
       toast({
         description: 'Account created successfully',
-        variant: 'default',
+        variant: 'success',
       });
     } else {
       toast({
@@ -185,13 +201,19 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
             <DropdownMenuItem onClick={() => setTypeSelected('All')}>
               All Accounts
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTypeSelected('Asset')}>
+            <DropdownMenuItem
+              onClick={() => setTypeSelected(AccountType.Asset)}
+            >
               Asset Accounts
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTypeSelected('Liability')}>
+            <DropdownMenuItem
+              onClick={() => setTypeSelected(AccountType.Liability)}
+            >
               Liability Accounts
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTypeSelected('Equity')}>
+            <DropdownMenuItem
+              onClick={() => setTypeSelected(AccountType.Equity)}
+            >
               Equity Accounts
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -296,6 +318,7 @@ export const MiniAccountPage: React.FC<MiniAccountPageProps> = ({
           columns={columns}
           data={getAccounts()}
           defaultSortField="id"
+          sortingFns={defaultSortingFunctions}
         />
       </div>
     </div>

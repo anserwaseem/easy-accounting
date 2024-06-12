@@ -22,6 +22,7 @@ import {
   removeEmptySubarrays,
   toLowerString,
 } from './utils';
+import type { BalanceSheet, ReportAccount } from 'types';
 
 /**
  * Parses the balance sheet object and returns a parsed BalanceSheet object.

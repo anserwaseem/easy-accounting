@@ -1,3 +1,4 @@
+import { Row, SortingFn } from '@tanstack/react-table';
 import { type ClassValue, clsx } from 'clsx';
 import { every, isArray, isNil, toString, toLower } from 'lodash';
 import { twMerge } from 'tailwind-merge';
@@ -49,3 +50,25 @@ export const toLowerString = (value: unknown) => toLower(toString(value));
  */
 export const getFixedNumber = (value: number, fixed = 4) =>
   Number(value.toFixed(fixed));
+
+/**
+ * Returns the default sorting functions for the table.
+ * @returns The default sorting functions.
+ * @example <DataTable sortingFns={defaultSortingFunctions} {...otherProps} />
+ */
+export const defaultSortingFunctions: Record<string, SortingFn<any>> = {
+  date: dateComparator,
+  createdAt: dateComparator,
+  updatedAt: dateComparator,
+};
+
+/**
+ * PRIVATE FUNCTIONS
+ */
+
+function dateComparator(rowA: Row<any>, rowB: Row<any>): number {
+  return (
+    new Date(rowA.original.date).getTime() -
+    new Date(rowB.original.date).getTime()
+  );
+}

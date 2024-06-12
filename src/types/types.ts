@@ -1,22 +1,22 @@
-declare type User = {
+export type DbUser = {
   id?: number;
   username: string;
   password_hash: Buffer;
   status: number;
 };
 
-declare type Auth = {
+export type UserCredentials = {
   username: string;
   password: string;
 };
 
-declare interface ReportAccount {
+export interface ReportAccount {
   name: string;
   amount: number;
   [key: string]: unknown; // other optional properties are allowed e.g. "type", "reference", "description" etc.
 }
 
-declare interface BalanceSheet {
+export interface BalanceSheet {
   date: Date;
   assets: {
     current: Record<string, ReportAccount[]>; // example object: { "Cash and Bank": [ { name: "Cash", amount: 1000 }, { name: "Bank", amount: 2000 } ] }
@@ -41,8 +41,16 @@ declare interface BalanceSheet {
   };
 }
 
-type CategoryType = 'Asset' | 'Liability' | 'Equity';
-type BalanceType = 'Dr' | 'Cr';
+export enum AccountType {
+  Asset = 'Asset',
+  Liability = 'Liability',
+  Equity = 'Equity',
+}
+
+export enum BalanceType {
+  Dr = 'Dr',
+  Cr = 'Cr',
+}
 
 type BaseEntity = {
   id: number;
@@ -51,21 +59,26 @@ type BaseEntity = {
   updatedAt?: Date;
 };
 
-declare interface Account extends BaseEntity {
+/** Account */
+export interface Account extends BaseEntity {
   name: string;
   chartId: number;
   headName?: string;
-  type: CategoryType;
+  type: AccountType;
   code?: number;
 }
+export type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
+export type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
 
-declare interface Chart extends BaseEntity {
+/** Chart */
+export interface Chart extends BaseEntity {
   name: string;
-  type: CategoryType;
+  type: AccountType;
 }
 
-declare interface Ledger extends BaseEntity {
-  particulars: string; // TODO: remove it in favor of linkedAccountId
+/** Ledger */
+export interface Ledger extends BaseEntity {
+  particulars: string;
   /**
    * Id of account to which this ledger belongs to
    */
@@ -77,17 +90,20 @@ declare interface Ledger extends BaseEntity {
   /**
    * Id of account from which empty Cr/Dr amount is coming.
    */
-  linkedAccountId: number;
+  linkedAccountId?: number;
 }
+export type GetLedger = Ledger & { linkedAccountName?: string };
 
-declare interface Journal extends Omit<BaseEntity, 'date'> {
+/** Journal */
+export interface Journal extends Omit<BaseEntity, 'date'> {
   date: string;
-  narration: string;
+  narration?: string;
   isPosted: boolean;
   journalEntries: JournalEntry[];
 }
 
-declare interface JournalEntry extends Omit<BaseEntity, 'date'> {
+/** Journal Entry */
+export interface JournalEntry extends Omit<BaseEntity, 'date'> {
   journalId: number;
   debitAmount: number;
   creditAmount: number;
@@ -96,8 +112,3 @@ declare interface JournalEntry extends Omit<BaseEntity, 'date'> {
    */
   accountId: number;
 }
-
-/** DTO **/
-
-declare type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
-declare type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;

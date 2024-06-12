@@ -2,6 +2,7 @@ import { Statement } from 'better-sqlite3';
 import { connect } from './Database.service';
 import { capitalize, forEach, isEmpty, isNil } from 'lodash';
 import { store } from '../main';
+import type { BalanceSheet, ReportAccount } from 'types';
 
 type Section = 'asset' | 'liability' | 'equity';
 type SectionType = 'current' | 'fixed' | null;

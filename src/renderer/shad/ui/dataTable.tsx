@@ -1,6 +1,7 @@
 import {
-  ColumnDef as ColDef,
-  Row,
+  type ColumnDef as ColDef,
+  type Row,
+  type TableOptions,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
@@ -21,7 +22,7 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
 };
 
-interface DataTableProps<TData, TValue> {
+interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   columns: ColDef<TData, TValue>[];
   data: TData[];
   defaultSortField?: keyof TData;
@@ -31,6 +32,7 @@ function DataTable<TData, TValue>({
   columns,
   data,
   defaultSortField,
+  ...props
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -42,6 +44,7 @@ function DataTable<TData, TValue>({
         ? [{ id: defaultSortField.toString(), desc: false }]
         : [],
     },
+    ...props,
   });
 
   return (

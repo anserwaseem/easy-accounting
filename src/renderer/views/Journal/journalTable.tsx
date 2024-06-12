@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   currencyFormatOptions,
   dateFormatOptions,
 } from 'renderer/lib/constants';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
+import type { Journal, JournalEntry } from 'types';
 
 interface JournalTableProps {
   journalId: number;
@@ -12,6 +15,7 @@ interface JournalTableProps {
 export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
   console.log('JournalTable', journalId);
   const [journal, setJournal] = useState<Journal>();
+  const navigate = useNavigate();
 
   useEffect(
     () =>
@@ -25,14 +29,17 @@ export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
       {
         accessorKey: 'accountName',
         header: 'Account',
+        onClick: (row) => navigate(`/account/${row.original.accountId}`),
       },
       {
         accessorKey: 'debitAmount',
         header: 'Debit',
+        onClick: (row) => navigate(`/account/${row.original.accountId}`),
       },
       {
         accessorKey: 'creditAmount',
         header: 'Credit',
+        onClick: (row) => navigate(`/account/${row.original.accountId}`),
       },
     ];
   }, []);
@@ -83,7 +90,11 @@ export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
       </div>
 
       <div className="py-10">
-        <DataTable columns={columns} data={journal?.journalEntries || []} />
+        <DataTable
+          columns={columns}
+          data={journal?.journalEntries || []}
+          sortingFns={defaultSortingFunctions}
+        />
       </div>
     </div>
   );
