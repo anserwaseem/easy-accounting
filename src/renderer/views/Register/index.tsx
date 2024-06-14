@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import styles from './Register.module.css';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import { useToast } from 'renderer/shad/ui/use-toast';
 
-const RegisterPage = () => {
+const RegisterPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -45,8 +44,8 @@ const RegisterPage = () => {
 
   return (
     <>
-      <div className={styles.container}>
-        <div className={styles.signupBox}>
+      <div className="flex justify-center items-center h-screen">
+        <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
           <h1 className="text-xl font-semibold">Sign Up</h1>
           <form onSubmit={register}>
             <Input

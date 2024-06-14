@@ -4,9 +4,8 @@ import { useAuth } from 'renderer/hooks';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import { useToast } from 'renderer/shad/ui/use-toast';
-import styles from './Login.module.css';
 
-const LoginPage = () => {
+const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -32,8 +31,8 @@ const LoginPage = () => {
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.loginBox}>
+    <div className="flex justify-center items-center h-screen">
+      <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
         <h1 className="text-xl font-semibold">Login</h1>
         <form>
           <Input

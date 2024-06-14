@@ -5,7 +5,7 @@ import { Button } from 'renderer/shad/ui/button';
 import { Input } from 'renderer/shad/ui/input';
 import { useToast } from 'renderer/shad/ui/use-toast';
 
-export const GettingStarted = () => {
+export const GettingStarted: React.FC = () => {
   const { toast } = useToast();
 
   const uploadBalanceSheet = async (e: React.ChangeEvent<HTMLInputElement>) => {

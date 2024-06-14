@@ -112,3 +112,7 @@ export interface JournalEntry extends Omit<BaseEntity, 'date'> {
    */
   accountId: number;
 }
+
+export type HasMiniView = {
+  isMini?: boolean;
+};

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { keys, get } from 'lodash';
-import { PenBox, ChevronDown } from 'lucide-react';
+import { toString } from 'lodash';
+import { ChevronDown, Plus } from 'lucide-react';
 import { Form } from 'renderer/shad/ui/form';
 import {
   Dialog,
@@ -27,122 +27,116 @@ import {
   FormMessage,
 } from 'renderer/shad/ui/form';
 import { useToast } from 'renderer/shad/ui/use-toast';
-import type { UpdateAccount, Account, Chart } from 'types';
+import type { Chart } from 'types';
+import { useEffect, useState } from 'react';
 
-interface EditDialogProps {
-  row: {
-    original: UpdateAccount;
-  };
-  setAccounts: React.Dispatch<React.SetStateAction<Account[]>>;
-  setCharts: React.Dispatch<React.SetStateAction<Chart[]>>;
+interface AddAccountProps {
+  refetchAccounts: () => void;
   charts: Chart[];
   clearRef: React.RefObject<HTMLButtonElement>;
 }
 
-export const EditDialog: React.FC<EditDialogProps> = ({
-  row,
-  setAccounts,
-  setCharts,
+export const AddAccount: React.FC<AddAccountProps> = ({
+  refetchAccounts,
   charts,
   clearRef,
 }) => {
   const { toast } = useToast();
 
-  const editFormSchema = z.object({
-    id: z.number(),
+  const [openCreateForm, setOpenCreateForm] = useState(false);
+  const [accountHead, setAccountHead] = useState(
+    toString(window.electron.store.get('createAccountHeadSelected')),
+  );
+
+  const addFormSchema = z.object({
     headName: z.string().min(2).max(50),
-    name: z.string().min(2).max(50),
-    code: z
+    accountName: z.string().min(2).max(50),
+    accountCode: z
       .string()
+      .optional()
       .nullable()
       .refine(
-        (val) => val === null || val === '' || !isNaN(parseFloat(val)), // TODO: it allows parsing of strings like '3s' i.e. string starting with a number. Fix this.
+        (val) =>
+          val === undefined ||
+          val === null ||
+          val === '' ||
+          !isNaN(parseFloat(val)),
         'Code must be a number',
       )
       .transform((val) =>
-        val !== null && val !== '' ? parseFloat(val) : undefined,
+        val !== undefined && val !== null && val !== ''
+          ? parseFloat(val)
+          : undefined,
       )
       .refine((val) => val === undefined || val >= 0, {
         message: 'Number must be positive',
       }),
   });
 
-  const defaultEditValues = {
-    id: 0,
+  const defaultCreateValues = {
     headName: '',
-    name: '',
-    code: undefined,
+    accountName: '',
+    accountCode: undefined,
   };
 
-  const editForm = useForm<z.infer<typeof editFormSchema>>({
-    resolver: zodResolver(editFormSchema),
-    defaultValues: defaultEditValues,
+  const createForm = useForm<z.infer<typeof addFormSchema>>({
+    resolver: zodResolver(addFormSchema),
+    defaultValues: defaultCreateValues,
   });
 
-  const handleLoadEditForm = (row: UpdateAccount) => {
-    keys(defaultEditValues).forEach((key) =>
-      editForm.setValue(key as keyof UpdateAccount, get(row, key) || ''),
-    );
-  };
+  useEffect(() => createForm.setValue('headName', accountHead), [accountHead]);
 
-  const onEdit = async (values: z.infer<typeof editFormSchema>) => {
-    const res = await window.electron.updateAccount({
-      id: values.id,
-      name: values.name,
+  useEffect(
+    () => window.electron.store.set('createAccountHeadSelected', accountHead),
+    [accountHead],
+  );
+
+  const onSubmit = async (values: z.infer<typeof addFormSchema>) => {
+    const res = await window.electron.insertAccount({
+      name: values.accountName,
       headName: values.headName,
-      code: values.code,
+      code: values.accountCode,
     });
 
     if (res) {
-      setAccounts(await window.electron.getAccounts());
-      setCharts(await window.electron.getCharts());
+      clearRef.current?.click();
+      setOpenCreateForm(false);
+      refetchAccounts();
       toast({
-        description: 'Account updated successfully',
+        description: 'Account created successfully',
         variant: 'success',
       });
     } else {
       toast({
-        description: 'Account not updated',
+        description: 'Account not created',
         variant: 'destructive',
       });
     }
   };
 
   return (
-    <Dialog
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          editForm.clearErrors();
-        }
-      }}
-    >
+    <Dialog open={openCreateForm} onOpenChange={setOpenCreateForm}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          onClick={() => handleLoadEditForm(row.original)}
-        >
-          <PenBox size={16} />
-          <span className="ml-3 mr-1">Edit Account</span>
+        <Button variant="outline">
+          <Plus size={16} />
+          <span className="ml-3 mr-1">New Account</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Edit Account</DialogTitle>
+          <DialogTitle>Create Account</DialogTitle>
         </DialogHeader>
 
-        <Form {...editForm}>
+        <Form {...createForm}>
           <form
-            onSubmit={editForm.handleSubmit(onEdit)}
-            onReset={() =>
-              editForm.reset({
-                ...defaultEditValues,
-                id: row.original.id,
-                code: '' as any,
-              })
-            }
+            onSubmit={createForm.handleSubmit(onSubmit)}
+            onReset={() => {
+              createForm.reset(defaultCreateValues);
+              setAccountHead('');
+            }}
           >
             <FormField
-              control={editForm.control}
+              control={createForm.control}
               name="headName"
               render={({ field }) => (
                 <FormItem labelPosition="start">
@@ -161,9 +155,10 @@ export const EditDialog: React.FC<EditDialogProps> = ({
                       <DropdownMenuContent align="center" className="px-4">
                         {charts.map((chart) => (
                           <DropdownMenuItem
-                            onClick={() =>
-                              editForm.setValue('headName', chart.name)
-                            }
+                            onClick={() => {
+                              createForm.setValue('headName', chart.name);
+                              setAccountHead(chart.name);
+                            }}
                           >
                             {chart.name}
                           </DropdownMenuItem>
@@ -176,8 +171,8 @@ export const EditDialog: React.FC<EditDialogProps> = ({
               )}
             />
             <FormField
-              control={editForm.control}
-              name="name"
+              control={createForm.control}
+              name="accountName"
               render={({ field }) => (
                 <FormItem labelPosition="start">
                   <FormLabel>Account Name</FormLabel>
@@ -189,8 +184,8 @@ export const EditDialog: React.FC<EditDialogProps> = ({
               )}
             />
             <FormField
-              control={editForm.control}
-              name="code"
+              control={createForm.control}
+              name="accountCode"
               render={({ field }) => (
                 <FormItem labelPosition="start">
                   <FormLabel>Account Code</FormLabel>

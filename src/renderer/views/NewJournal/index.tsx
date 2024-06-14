@@ -41,7 +41,7 @@ import {
 import { Separator } from 'renderer/shad/ui/separator';
 import type { Account, Journal, JournalEntry } from 'types';
 
-const NewJournalPage = () => {
+const NewJournalPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [nextId, setNextId] = useState<number>(-1);
   const [totalCredits, setTotalCredits] = useState<number>(0);

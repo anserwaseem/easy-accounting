@@ -13,12 +13,9 @@ interface AuthContextState {
   logout: () => Promise<void>;
 }
 
-export const AuthContext = createContext<AuthContextState>({
-  authed: false,
-  signin: async () => false,
-  register: async () => false,
-  logout: async () => {},
-});
+export const AuthContext = createContext<AuthContextState | undefined>(
+  undefined,
+);
 
 export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const [authed, setAuthed] = useState(false);

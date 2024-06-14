@@ -3,7 +3,7 @@ import { toNumber } from 'lodash';
 import { JournalTable } from './journalTable';
 import JournalsPage from '../Journals';
 
-const JournalPage = () => {
+const JournalPage: React.FC = () => {
   const { id } = useParams();
   console.log('JournalPage', id);
 
