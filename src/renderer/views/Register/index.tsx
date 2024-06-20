@@ -11,8 +11,11 @@ const RegisterPage: React.FC = () => {
   const { toast } = useToast();
 
   const navigate = useNavigate();
-
-  async function register(formEvent: any) {
+  async function register(
+    formEvent:
+      | React.FormEvent<HTMLFormElement>
+      | React.MouseEvent<HTMLButtonElement, MouseEvent>,
+  ) {
     formEvent.preventDefault();
 
     if (password !== confirmPassword) {
@@ -39,52 +42,51 @@ const RegisterPage: React.FC = () => {
       variant: 'destructive',
     });
 
+    // eslint-disable-next-line no-console
     console.log(response);
   }
 
   return (
-    <>
-      <div className="flex justify-center items-center h-screen">
-        <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
-          <h1 className="text-xl font-semibold">Sign Up</h1>
-          <form onSubmit={register}>
-            <Input
-              type="text"
-              placeholder="Username"
-              onChange={(e) => setUsername(e.target.value)}
-            />
-            <Input
-              type="password"
-              placeholder="Password"
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Input
-              type="password"
-              placeholder="Confirm Password"
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-            <Button
-              variant="outline"
-              onClick={register}
-              disabled={
-                username.length < 4 ||
-                password.length < 4 ||
-                confirmPassword.length < 4 ||
-                password !== confirmPassword
-              }
-            >
-              Sign Up
-            </Button>
-          </form>
-          <p className={'text-sm tracking-tight text-black'}>
-            Already have an account?
-            <Button asChild variant="link">
-              <Link to="/login">Login</Link>
-            </Button>
-          </p>
-        </div>
+    <div className="flex justify-center items-center h-screen">
+      <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
+        <h1 className="text-xl font-semibold">Sign Up</h1>
+        <form onSubmit={(e) => register(e)}>
+          <Input
+            type="text"
+            placeholder="Username"
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <Input
+            type="password"
+            placeholder="Password"
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <Input
+            type="password"
+            placeholder="Confirm Password"
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+          <Button
+            variant="outline"
+            onClick={(e) => register(e)}
+            disabled={
+              username.length < 4 ||
+              password.length < 4 ||
+              confirmPassword.length < 4 ||
+              password !== confirmPassword
+            }
+          >
+            Sign Up
+          </Button>
+        </form>
+        <p className="text-sm tracking-tight text-black">
+          Already have an account?
+          <Button asChild variant="link">
+            <Link to="/login">Login</Link>
+          </Button>
+        </p>
       </div>
-    </>
+    </div>
   );
 };
 

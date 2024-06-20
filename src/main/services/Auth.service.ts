@@ -1,7 +1,7 @@
-import { store } from '../main';
+import type { DbUser, UserCredentials } from 'types';
+import { store } from '../store';
 import { decryptText, hashText } from '../utils/encrypt';
 import { connect } from './Database.service';
-import type { DbUser, UserCredentials } from 'types';
 
 const getUser = (username: string): DbUser | undefined => {
   const db = connect();
@@ -39,14 +39,14 @@ export const register = (user: UserCredentials): boolean => {
       return false;
     }
 
-    const password_hash = hashText(user.password);
-    if (password_hash === false) {
+    const passwordHash = hashText(user.password);
+    if (passwordHash === false) {
       return false;
     }
 
     const registerUser = {
       username: user.username,
-      password_hash: password_hash,
+      password_hash: passwordHash,
       status: 1,
     };
 
@@ -59,6 +59,7 @@ export const register = (user: UserCredentials): boolean => {
 
     return true;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(error);
     return false;
   }

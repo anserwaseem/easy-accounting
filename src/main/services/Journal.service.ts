@@ -1,8 +1,8 @@
-import { compact, get, head, isEqual, omit, toNumber, toString } from 'lodash';
+import type { Journal, JournalEntry, Ledger } from 'types';
+import { compact, get, head, isEqual, omit, toNumber } from 'lodash';
 import { connect } from './Database.service';
 import { cast } from '../utils/sqlite';
-import { store } from '../main';
-import type { Journal, JournalEntry, Ledger } from 'types';
+import { store } from '../store';
 import { BalanceType } from '../../types'; // FIXME: throws "Error: Cannot find module 'types'" when importing from 'types'
 
 export const getNextJournalId = () => {
@@ -15,7 +15,7 @@ export const getNextJournalId = () => {
   return get(res, 'id', 0) + 1;
 };
 
-export const insertJournal = (journal: Journal) => {
+export const insertJournal = (journalToBeInserted: Journal) => {
   try {
     const db = connect();
 
@@ -71,23 +71,21 @@ export const insertJournal = (journal: Journal) => {
           creditAmount,
         });
 
-        // continue if the current entry is the dividend entry
-        if (isEqual(entry, dividendEntry)) {
-          continue;
+        // update only if the current entry is not the dividend entry
+        if (!isEqual(entry, dividendEntry)) {
+          updateLedger(
+            accountId,
+            debitAmount,
+            creditAmount,
+            dividendEntry!.accountId,
+          );
+          updateLedger(
+            dividendEntry!.accountId,
+            creditAmount,
+            debitAmount,
+            accountId,
+          );
         }
-
-        updateLedger(
-          accountId,
-          debitAmount,
-          creditAmount,
-          dividendEntry!.accountId,
-        );
-        updateLedger(
-          dividendEntry!.accountId,
-          creditAmount,
-          debitAmount,
-          accountId,
-        );
       }
 
       function updateLedger(
@@ -116,10 +114,11 @@ export const insertJournal = (journal: Journal) => {
           linkedAccountId,
         });
       }
-    })(journal);
+    })(journalToBeInserted);
 
     return true;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(error);
     throw error;
   }
@@ -198,7 +197,8 @@ export const getJorunal = (journalId: number): Journal => {
     accountId: number;
   })[];
 
-  const journal = res.reduce((acc, entry) => {
+  const journal = res.reduce((accParam, entry) => {
+    let acc = accParam;
     if (!acc.id) {
       acc = omit(
         entry,

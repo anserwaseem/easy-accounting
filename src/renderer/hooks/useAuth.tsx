@@ -3,6 +3,7 @@ import {
   createContext,
   useState,
   useContext,
+  useMemo,
 } from 'react';
 import type { UserCredentials } from 'types';
 
@@ -17,7 +18,9 @@ export const AuthContext = createContext<AuthContextState | undefined>(
   undefined,
 );
 
-export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
+export const AuthProvider: React.FC<PropsWithChildren> = ({
+  children,
+}: PropsWithChildren) => {
   const [authed, setAuthed] = useState(false);
 
   const signin = async (user: UserCredentials): Promise<boolean> => {
@@ -39,7 +42,7 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
     await window.electron.logout();
   };
 
-  const value = { authed, signin, register, logout };
+  const value = useMemo(() => ({ authed, signin, register, logout }), [authed]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

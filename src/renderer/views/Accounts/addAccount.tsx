@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { toString } from 'lodash';
+import { toString, isNaN } from 'lodash';
 import { ChevronDown, Plus } from 'lucide-react';
-import { Form } from 'renderer/shad/ui/form';
 import {
   Dialog,
   DialogTrigger,
@@ -20,6 +19,7 @@ import {
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import {
+  Form,
   FormField,
   FormItem,
   FormLabel,
@@ -40,7 +40,7 @@ export const AddAccount: React.FC<AddAccountProps> = ({
   refetchAccounts,
   charts,
   clearRef,
-}) => {
+}: AddAccountProps) => {
   const { toast } = useToast();
 
   const [openCreateForm, setOpenCreateForm] = useState(false);
@@ -84,7 +84,10 @@ export const AddAccount: React.FC<AddAccountProps> = ({
     defaultValues: defaultCreateValues,
   });
 
-  useEffect(() => createForm.setValue('headName', accountHead), [accountHead]);
+  useEffect(
+    () => createForm.setValue('headName', accountHead),
+    [accountHead, createForm],
+  );
 
   useEffect(
     () => window.electron.store.set('createAccountHeadSelected', accountHead),
@@ -200,7 +203,7 @@ export const AddAccount: React.FC<AddAccountProps> = ({
               <Button type="submit" className="w-1/2">
                 Submit
               </Button>
-              <Button type="reset" variant={'ghost'} ref={clearRef}>
+              <Button type="reset" variant="ghost" ref={clearRef}>
                 Clear
               </Button>
             </div>

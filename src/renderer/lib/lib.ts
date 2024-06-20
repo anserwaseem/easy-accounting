@@ -22,6 +22,7 @@ export const convertFileToJson = async (
     blankrows: false,
     defval: null,
   });
+  // eslint-disable-next-line no-console
   console.table(json);
   return json;
 };

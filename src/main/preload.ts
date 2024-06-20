@@ -12,6 +12,7 @@ import type {
 
 export type Channels = 'ipc-example';
 
+// eslint-disable-next-line no-console
 console.log('Preload process started');
 
 const electronHandler = {

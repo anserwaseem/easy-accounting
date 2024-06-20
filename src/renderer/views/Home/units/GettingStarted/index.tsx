@@ -14,10 +14,13 @@ export const GettingStarted: React.FC = () => {
     try {
       const json = await convertFileToJson(file);
       const balanceSheet = parseBalanceSheet(json);
+      // eslint-disable-next-line no-console
       console.log(balanceSheet);
       const result = await window.electron.saveBalanceSheet(balanceSheet);
+      // eslint-disable-next-line no-console
       console.log('saveBalanceSheet result', result);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(error);
       toast({
         description: toString(error),

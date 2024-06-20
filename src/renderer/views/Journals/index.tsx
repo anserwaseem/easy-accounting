@@ -19,7 +19,10 @@ import { toString } from 'lodash';
 
 export type JournalView = Journal & { amount: number };
 
-const JournalsPage: React.FC<HasMiniView> = ({ isMini = false }) => {
+const JournalsPage: React.FC<HasMiniView> = ({
+  isMini = false,
+}: HasMiniView) => {
+  // eslint-disable-next-line no-console
   console.log('JournalsPage', isMini);
   const [journals, setJounrals] = useState<JournalView[]>([]);
   const [filteredJournals, setFilteredJournals] = useState<JournalView[]>(
@@ -73,50 +76,7 @@ const JournalsPage: React.FC<HasMiniView> = ({ isMini = false }) => {
         onClick: (row) => navigate(toString(row.original.id)),
       },
     ],
-    [journals],
-  );
-
-  useEffect(() => {
-    const fetchJournals = async () => {
-      const journals = (await window.electron.getJournals()) as Journal[];
-      const updatedJournals = journals.map((journal) => ({
-        ...journal,
-        amount: journal.journalEntries.reduce(
-          (acc, entry) => acc + entry.debitAmount,
-          0,
-        ),
-      }));
-      setJounrals(updatedJournals);
-    };
-
-    fetchJournals();
-  }, []);
-
-  useEffect(
-    () =>
-      journalFilterDate || journalFilterSelectValue
-        ? handleFilterDateSelect(journalFilterDate, journalFilterSelectValue)
-        : setFilteredJournals(journals),
-    [journals],
-  );
-
-  useEffect(
-    () => window.electron.store.set('filteredJournals', filteredJournals),
-    [filteredJournals],
-  );
-
-  useEffect(
-    () => window.electron.store.set('journalFilterDate', journalFilterDate),
-    [journalFilterDate],
-  );
-
-  useEffect(
-    () =>
-      window.electron.store.set(
-        'journalFilterSelectValue',
-        journalFilterSelectValue,
-      ),
-    [journalFilterSelectValue],
+    [navigate],
   );
 
   const handleFilterDateSelect = useCallback(
@@ -141,7 +101,55 @@ const JournalsPage: React.FC<HasMiniView> = ({ isMini = false }) => {
         }),
       );
     },
-    [journals, journalFilterDate, journalFilterSelectValue],
+    [journals],
+  );
+
+  useEffect(() => {
+    const fetchJournals = async () => {
+      const rawJournals = (await window.electron.getJournals()) as Journal[];
+      const updatedJournals = rawJournals.map((journal) => ({
+        ...journal,
+        amount: journal.journalEntries.reduce(
+          (acc, entry) => acc + entry.debitAmount,
+          0,
+        ),
+      }));
+      setJounrals(updatedJournals);
+    };
+
+    fetchJournals();
+  }, []);
+
+  useEffect(
+    () =>
+      journalFilterDate || journalFilterSelectValue
+        ? handleFilterDateSelect(journalFilterDate, journalFilterSelectValue)
+        : setFilteredJournals(journals),
+    [
+      handleFilterDateSelect,
+      journalFilterDate,
+      journalFilterSelectValue,
+      journals,
+    ],
+  );
+
+  useEffect(
+    () => window.electron.store.set('filteredJournals', filteredJournals),
+    [filteredJournals],
+  );
+
+  useEffect(
+    () => window.electron.store.set('journalFilterDate', journalFilterDate),
+    [journalFilterDate],
+  );
+
+  useEffect(
+    () =>
+      window.electron.store.set(
+        'journalFilterSelectValue',
+        journalFilterSelectValue,
+      ),
+    [journalFilterSelectValue],
   );
 
   return (

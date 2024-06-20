@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { addDays, addMonths, addYears, format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
@@ -19,16 +19,16 @@ import {
 } from 'renderer/shad/ui/select';
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
-import { isString, set, toNumber } from 'lodash';
+import { toNumber, isNaN } from 'lodash';
 
-export function DatePickerWithPresets() {
+export const DatePickerWithPresets: React.FC = () => {
   const [date, setDate] = useState<Date | undefined>(undefined);
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant={'outline'}
+          variant="outline"
           className={cn(
             'w-[280px] justify-start text-left font-normal',
             !date && 'text-muted-foreground',
@@ -41,7 +41,7 @@ export function DatePickerWithPresets() {
       <PopoverContent className="flex w-auto flex-col space-y-2 p-2">
         <Select
           onValueChange={(value) =>
-            setDate(addDays(new Date(), parseInt(value)))
+            setDate(addDays(new Date(), parseInt(value, 10)))
           }
         >
           <SelectTrigger>
@@ -60,7 +60,7 @@ export function DatePickerWithPresets() {
       </PopoverContent>
     </Popover>
   );
-}
+};
 
 interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
   $onSelect?: (date?: DateRange, selectValue?: string) => void;
@@ -69,11 +69,21 @@ interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
   initialSelectValue?: string;
 }
 
-export const DateRangePicker: React.FC<DateRangePickerProps> = ({
+export const DateRangePicker: React.FC<Partial<DateRangePickerProps>> = ({
   className,
   initialRange,
-}) => {
+}: Partial<DateRangePickerProps>) => {
   const [date, setDate] = useState<DateRange | undefined>(initialRange);
+
+  const dateDisplay = useMemo(() => {
+    if (!date?.from) return <span>Pick a date</span>;
+    if (!date?.to) return format(date.from, 'LLL dd, y');
+    return (
+      <>
+        {format(date.from, 'LLL dd, y')} - {format(date.to, 'LLL dd, y')}
+      </>
+    );
+  }, [date]);
 
   return (
     <div className={cn('grid gap-2', className)}>
@@ -81,25 +91,14 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant={'outline'}
+            variant="outline"
             className={cn(
               'w-[300px] justify-start text-left font-normal',
               !date && 'text-muted-foreground',
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, 'LLL dd, y')} -{' '}
-                  {format(date.to, 'LLL dd, y')}
-                </>
-              ) : (
-                format(date.from, 'LLL dd, y')
-              )
-            ) : (
-              <span>Pick a date</span>
-            )}
+            {dateDisplay}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
@@ -131,13 +130,16 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   presets = [],
   initialRange,
   initialSelectValue,
-}) => {
+}: DateRangePickerProps) => {
   const [date, setDate] = useState<DateRange | undefined>(initialRange);
   const [selectValue, setSelectValue] = useState<string | undefined>(
     initialSelectValue,
   );
 
-  useEffect(() => $onSelect?.(date, selectValue), [date, selectValue]);
+  useEffect(
+    () => $onSelect?.(date, selectValue),
+    [$onSelect, date, selectValue],
+  );
 
   const getSelectLabel = useCallback(() => {
     if (selectValue && presets.some((preset) => preset.value === selectValue))
@@ -152,7 +154,51 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
     if (date?.from) return format(date.from, 'LLL dd, y');
 
     return 'Pick a date';
-  }, [date, selectValue]);
+  }, [date?.from, date?.to, presets, selectValue]);
+
+  const onValueChange = useCallback((value: string) => {
+    const numberVal = toNumber(value);
+
+    setSelectValue(value);
+
+    if (isNaN(numberVal)) setDate(undefined);
+    else if (numberVal === 0) setDate({ from: new Date(), to: new Date() });
+    else if (numberVal < 0) {
+      let fromDate;
+      switch (numberVal) {
+        case -30:
+          fromDate = addMonths(new Date(), -1);
+          break;
+        case -365:
+          fromDate = addYears(new Date(), -1);
+          break;
+        default:
+          fromDate = addDays(new Date(), numberVal);
+          break;
+      }
+      setDate({
+        from: fromDate,
+        to: new Date(),
+      });
+    } else {
+      let toDate;
+      switch (numberVal) {
+        case 30:
+          toDate = addMonths(new Date(), 1);
+          break;
+        case 365:
+          toDate = addYears(new Date(), 1);
+          break;
+        default:
+          toDate = addDays(new Date(), numberVal);
+          break;
+      }
+      setDate({
+        from: new Date(),
+        to: toDate,
+      });
+    }
+  }, []);
 
   return (
     <div className={cn('grid gap-2', className)}>
@@ -160,7 +206,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant={'outline'}
+            variant="outline"
             className={cn(
               'w-auto justify-start text-left font-normal',
               !date && 'text-muted-foreground',
@@ -171,38 +217,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="flex w-auto flex-col space-y-2 p-2">
-          <Select
-            value={selectValue}
-            onValueChange={(value) => {
-              const numberVal = toNumber(value);
-
-              setSelectValue(value);
-
-              if (isNaN(numberVal)) setDate(undefined);
-              else if (numberVal === 0)
-                setDate({ from: new Date(), to: new Date() });
-              else if (numberVal < 0)
-                setDate({
-                  from:
-                    numberVal === -30
-                      ? addMonths(new Date(), -1)
-                      : numberVal === -365
-                      ? addYears(new Date(), -1)
-                      : addDays(new Date(), numberVal),
-                  to: new Date(),
-                });
-              else
-                setDate({
-                  from: new Date(),
-                  to:
-                    numberVal === 30
-                      ? addMonths(new Date(), 1)
-                      : numberVal === 365
-                      ? addYears(new Date(), 1)
-                      : addDays(new Date(), numberVal),
-                });
-            }}
-          >
+          <Select value={selectValue} onValueChange={onValueChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
@@ -219,8 +234,8 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
               mode="range"
               defaultMonth={date?.from}
               selected={date}
-              onSelect={(date) => {
-                setDate(date);
+              onSelect={(selectedDate) => {
+                setDate(selectedDate);
                 setSelectValue('');
               }}
               numberOfMonths={2}

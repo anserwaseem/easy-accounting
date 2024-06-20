@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Plus } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { toString } from 'lodash';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -11,19 +11,30 @@ import {
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
 import { dateFormatOptions } from 'renderer/lib/constants';
-import { EditAccount } from './editAccount';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { AccountType, type Account, type Chart, type HasMiniView } from 'types';
+import type { CellContext } from '@tanstack/react-table';
+import { defaultSortingFunctions } from 'renderer/lib/utils';
+import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 
 type AccountPageProps = {
   onRowClick?: (id?: number) => void;
 } & HasMiniView;
 
+const AccountCell: React.FC<CellContext<Account, unknown>> = ({
+  row,
+}: CellContext<Account, unknown>) => (
+  <div>
+    <h2>{row.original.name}</h2>
+    <p className="text-xs text-slate-400">{row.original.type}</p>
+  </div>
+);
+
 const AccountsPage: React.FC<AccountPageProps> = ({
   isMini = false,
   onRowClick,
-}) => {
+}: AccountPageProps) => {
+  // eslint-disable-next-line no-console
   console.log('AccountsPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] = useState<'All' | AccountType>(
@@ -33,6 +44,11 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   const clearRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
+  const refetchAccounts = useCallback(async () => {
+    setAccounts(await window.electron.getAccounts());
+    setCharts(await window.electron.getCharts());
+  }, []);
+
   const columns: ColumnDef<Account>[] = useMemo(
     () =>
       isMini
@@ -40,12 +56,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             {
               accessorKey: 'name',
               header: 'Account Name',
-              cell: ({ row }) => (
-                <div>
-                  <h2>{row.original.name}</h2>
-                  <p className="text-xs text-slate-400">{row.original.type}</p>
-                </div>
-              ),
+              cell: AccountCell,
               onClick: (row) => {
                 onRowClick?.(row.original.id);
                 navigate(`/accounts/${row.original.id}`);
@@ -95,6 +106,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             },
             {
               header: 'Edit',
+              // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
                 <EditAccount
                   row={row}
@@ -105,18 +117,13 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               ),
             },
           ],
-    [accounts, charts],
+    [charts, isMini, navigate, onRowClick, refetchAccounts],
   );
-
-  const refetchAccounts = useCallback(async () => {
-    setAccounts(await window.electron.getAccounts());
-    setCharts(await window.electron.getCharts());
-  }, []);
 
   useEffect(() => {
     refetchAccounts();
     onRowClick?.();
-  }, []);
+  }, [onRowClick, refetchAccounts]);
 
   useEffect(
     () => window.electron.store.set('accountTypeSelected', typeSelected),

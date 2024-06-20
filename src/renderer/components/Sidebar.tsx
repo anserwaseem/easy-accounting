@@ -1,14 +1,16 @@
-import { MainNav } from 'renderer/shad/ui/main-nav';
-import { Sidebar } from 'renderer/shad/ui/sidebar';
+import { MainNav } from 'renderer/components/MainNav';
+import { Sidebar as ShadSidebar } from 'renderer/shad/ui/sidebar';
 import { Button } from 'renderer/shad/ui/button';
 import { Link, Outlet } from 'react-router-dom';
 import { FileCheck2, Plus, Table2 } from 'lucide-react';
 import { PropsWithChildren } from 'react';
 
-const Nav: React.FC<PropsWithChildren> = ({ children }) => {
+const Sidebar: React.FC<PropsWithChildren> = ({
+  children,
+}: PropsWithChildren) => {
   return (
     <div className="flex space-x-4 min-h-screen">
-      <Sidebar
+      <ShadSidebar
         title={<h1 className="text-xl font-semibold ">Easy Accounting</h1>}
         itemsClassName="w-full xs:w-[200px] md:w-[300px]"
         items={[
@@ -29,7 +31,7 @@ const Nav: React.FC<PropsWithChildren> = ({ children }) => {
               </Link>
               <Link to="/journals/new">
                 <Plus
-                  size={'20'}
+                  size="20"
                   strokeWidth={4}
                   className="p-1 rounded-full font-black dark:bg-gray-300 dark:text-black bg-gray-500 text-white"
                 />
@@ -47,4 +49,4 @@ const Nav: React.FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
-export default Nav;
+export default Sidebar;

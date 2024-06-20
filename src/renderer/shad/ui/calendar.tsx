@@ -6,12 +6,15 @@ import { buttonVariants } from 'renderer/shad/ui/button';
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
-function Calendar({
+const Calendar: React.FC<CalendarProps> = ({
   className,
   classNames,
   showOutsideDays = true,
   ...props
-}: CalendarProps) {
+}: CalendarProps) => {
+  const iconLeft = () => <ChevronLeft className="h-4 w-4" />;
+  const iconRight = () => <ChevronRight className="h-4 w-4" />;
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -51,13 +54,13 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
+        IconLeft: iconLeft,
+        IconRight: iconRight,
       }}
       {...props}
     />
   );
-}
+};
 Calendar.displayName = 'Calendar';
 
 export { Calendar };

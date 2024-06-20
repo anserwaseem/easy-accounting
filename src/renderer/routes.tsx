@@ -1,16 +1,9 @@
-import { type PropsWithChildren } from 'react';
-import {
-  MemoryRouter,
-  Route,
-  Routes,
-  Navigate,
-  Outlet,
-} from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-import { ThemeProvider, AuthProvider, useAuth } from './hooks';
+import { ThemeProvider, AuthProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
 
-import Nav from './components/Nav';
+import Sidebar from './components/Sidebar';
 import Home from './views/Home';
 import Login from './views/Login';
 import Register from './views/Register';
@@ -20,50 +13,35 @@ import JournalsPage from './views/Journals';
 import NewJournalPage from './views/NewJournal';
 import JournalPage from './views/Journal';
 import SettingsPage from './views/Settings';
+import { AuthCheck } from './components/AuthCheck';
 
-export default function appRoutes() {
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        <MemoryRouter>
-          <Routes>
-            <Route path="login" element={<Login />} />
-            <Route path="register" element={<Register />} />
-            <Route element={<RequireAuth />}>
-              <Route element={<Nav />}>
-                <Route path="/" element={<Home />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="accounts">
-                  <Route index element={<AccountsPage />} />
-                  <Route path=":id" element={<LedgerPage />} />
-                </Route>
-                <Route path="journals">
-                  <Route index element={<JournalsPage />} />
-                  <Route path="new" element={<NewJournalPage />} />
-                  <Route path=":id" element={<JournalPage />} />
-                </Route>
+const AppRoutes: React.FC = () => (
+  <ThemeProvider>
+    <AuthProvider>
+      <MemoryRouter>
+        <Routes>
+          <Route path="login" element={<Login />} />
+          <Route path="register" element={<Register />} />
+          <Route element={<AuthCheck />}>
+            <Route element={<Sidebar />}>
+              <Route path="/" element={<Home />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="accounts">
+                <Route index element={<AccountsPage />} />
+                <Route path=":id" element={<LedgerPage />} />
+              </Route>
+              <Route path="journals">
+                <Route index element={<JournalsPage />} />
+                <Route path="new" element={<NewJournalPage />} />
+                <Route path=":id" element={<JournalPage />} />
               </Route>
             </Route>
-          </Routes>
-          <Toaster />
-        </MemoryRouter>
-      </AuthProvider>
-    </ThemeProvider>
-  );
-}
+          </Route>
+        </Routes>
+        <Toaster />
+      </MemoryRouter>
+    </AuthProvider>
+  </ThemeProvider>
+);
 
-function RequireAuth({ children }: PropsWithChildren) {
-  const { authed } = useAuth();
-
-  if (authed) {
-    // if (authed || process.env.NODE_ENV === 'development') {
-    return (
-      <>
-        {children}
-        <Outlet />
-      </>
-    );
-  }
-
-  return <Navigate to="/login" replace />;
-}
+export default AppRoutes;

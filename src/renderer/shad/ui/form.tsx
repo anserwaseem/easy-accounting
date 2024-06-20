@@ -10,6 +10,7 @@ import {
   Ref,
   isValidElement,
   Children,
+  useMemo,
 } from 'react';
 import {
   Controller,
@@ -42,12 +43,21 @@ const FormField = <
 >({
   ...props
 }: ControllerProps<TFieldValues, TName>) => {
+  const value = useMemo(() => ({ name: props.name }), [props.name]);
   return (
-    <FormFieldContext.Provider value={{ name: props.name }}>
+    <FormFieldContext.Provider value={value}>
       <Controller {...props} />
     </FormFieldContext.Provider>
   );
 };
+
+type FormItemContextValue = {
+  id: string;
+};
+
+const FormItemContext = createContext<FormItemContextValue>(
+  {} as FormItemContextValue,
+);
 
 const useFormField = () => {
   const fieldContext = useContext(FormFieldContext);
@@ -72,14 +82,6 @@ const useFormField = () => {
   };
 };
 
-type FormItemContextValue = {
-  id: string;
-};
-
-const FormItemContext = createContext<FormItemContextValue>(
-  {} as FormItemContextValue,
-);
-
 type FormItemProps = HTMLAttributes<HTMLDivElement> & {
   labelPosition?: 'start' | 'top';
 };
@@ -90,9 +92,10 @@ const FormItem = forwardRef<HTMLDivElement, FormItemProps>(
     const childrenArray = Children.toArray(props.children).filter(
       isValidElement,
     );
+    const value = useMemo(() => ({ id }), [id]);
 
     return (
-      <FormItemContext.Provider value={{ id }}>
+      <FormItemContext.Provider value={value}>
         <div
           ref={ref}
           className={cn(
@@ -105,7 +108,7 @@ const FormItem = forwardRef<HTMLDivElement, FormItemProps>(
         >
           {childrenArray.map((child, index) => (
             <div
-              key={index}
+              key={child.key}
               className={cn(
                 labelPosition === 'start' && index > 1 && 'col-span-full',
               )}

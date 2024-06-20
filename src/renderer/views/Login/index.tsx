@@ -47,13 +47,13 @@ const LoginPage: React.FC = () => {
           />
           <Button
             variant="outline"
-            onClick={login}
+            onClick={(e) => login(e)}
             disabled={username.length < 4 || password.length < 4}
           >
             Login
           </Button>
         </form>
-        <p className={'text-sm tracking-tight text-black'}>
+        <p className="text-sm tracking-tight text-black">
           Already have an account?
           <Button asChild variant="link">
             <Link to="/register">Sign Up</Link>

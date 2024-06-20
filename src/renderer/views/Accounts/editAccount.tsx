@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { keys, get } from 'lodash';
+import { keys, get, isNaN } from 'lodash';
 import { PenBox, ChevronDown } from 'lucide-react';
-import { Form } from 'renderer/shad/ui/form';
 import {
   Dialog,
   DialogTrigger,
@@ -20,6 +19,7 @@ import {
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import {
+  Form,
   FormField,
   FormItem,
   FormLabel,
@@ -43,7 +43,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   refetchAccounts,
   charts,
   clearRef,
-}) => {
+}: EditAccountProps) => {
   const { toast } = useToast();
 
   const editFormSchema = z.object({
@@ -77,9 +77,9 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     defaultValues: defaultEditValues,
   });
 
-  const handleLoadEditForm = (row: UpdateAccount) => {
+  const handleLoadEditForm = (inputRow: UpdateAccount) => {
     keys(defaultEditValues).forEach((key) =>
-      editForm.setValue(key as keyof UpdateAccount, get(row, key) || ''),
+      editForm.setValue(key as keyof UpdateAccount, get(inputRow, key) || ''),
     );
   };
 
@@ -202,7 +202,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
               <Button type="submit" className="w-1/2">
                 Submit
               </Button>
-              <Button type="reset" variant={'ghost'} ref={clearRef}>
+              <Button type="reset" variant="ghost" ref={clearRef}>
                 Clear
               </Button>
             </div>

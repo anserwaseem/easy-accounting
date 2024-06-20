@@ -21,7 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   titleClassName,
   itemsClassName,
   itemClassName,
-}) => (
+}: SidebarProps) => (
   <aside
     className={cn(
       `flex overflow-y-auto bg-gray-200 dark:bg-gray-800 justify-between ${
@@ -43,9 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
       </Link>
-      {items?.map((item, idx) => (
+      {items?.map((item) => (
         <div
-          key={idx}
+          key={window.crypto.randomUUID()}
           className={cn('flex items-center justify-center mb-2', itemClassName)}
         >
           {item}

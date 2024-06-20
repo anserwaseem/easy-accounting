@@ -12,17 +12,17 @@ interface JournalTableProps {
   journalId: number;
 }
 
-export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
+export const JournalTable: React.FC<JournalTableProps> = ({
+  journalId,
+}: JournalTableProps) => {
+  // eslint-disable-next-line no-console
   console.log('JournalTable', journalId);
   const [journal, setJournal] = useState<Journal>();
   const navigate = useNavigate();
 
-  useEffect(
-    () =>
-      void (async () =>
-        setJournal(await window.electron.getJournal(journalId)))(),
-    [journalId],
-  );
+  useEffect(() => {
+    (async () => setJournal(await window.electron.getJournal(journalId)))();
+  }, [journalId]);
 
   const columns: ColumnDef<JournalEntry>[] = useMemo(() => {
     return [
@@ -42,7 +42,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
       },
     ];
-  }, []);
+  }, [navigate]);
 
   return (
     <div>
