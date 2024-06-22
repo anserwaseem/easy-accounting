@@ -1,31 +1,34 @@
 import type { DbUser, UserCredentials } from 'types';
 import { store } from '../store';
-import { decryptText, hashText } from '../utils/encrypt';
+import { hashPassword, verifyPassword } from '../utils/encrypt';
 import { connect } from './Database.service';
 
 const getUser = (username: string): DbUser | undefined => {
   const db = connect();
-
   const stm = db.prepare('SELECT * FROM users where username = @username');
-
   return stm.get({ username }) as DbUser | undefined;
+};
+
+const insertUser = (user: DbUser): void => {
+  const db = connect();
+  const stm = db.prepare(
+    ` INSERT INTO users (username, password_hash, status)
+      VALUES (@username, @password_hash, @status)`,
+  );
+  stm.run(user);
 };
 
 export const login = (user: UserCredentials): boolean => {
   const dbUser = getUser(user.username);
-
   if (!dbUser) {
     return false;
   }
 
-  const result = decryptText(dbUser.password_hash);
+  store.set('username', user.username);
 
-  if (result === user.password) {
-    store.set('username', user.username);
-    return true;
-  }
+  const isValid = verifyPassword(user.password, dbUser.password_hash);
 
-  return false;
+  return isValid;
 };
 
 export const register = (user: UserCredentials): boolean => {
@@ -39,10 +42,7 @@ export const register = (user: UserCredentials): boolean => {
       return false;
     }
 
-    const passwordHash = hashText(user.password);
-    if (passwordHash === false) {
-      return false;
-    }
+    const passwordHash = hashPassword(user.password);
 
     const registerUser = {
       username: user.username,
@@ -50,12 +50,7 @@ export const register = (user: UserCredentials): boolean => {
       status: 1,
     };
 
-    const db = connect();
-    const stm = db.prepare(
-      `INSERT INTO users (username, password_hash, status)
-    VALUES (@username, @password_hash, @status)`,
-    );
-    stm.run(registerUser);
+    insertUser(registerUser);
 
     return true;
   } catch (error) {
@@ -65,4 +60,4 @@ export const register = (user: UserCredentials): boolean => {
   }
 };
 
-export const logout = () => window.electron.store.delete('username');
+export const logout = () => store.delete('username');

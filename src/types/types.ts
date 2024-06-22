@@ -1,7 +1,7 @@
 export type DbUser = {
   id?: number;
   username: string;
-  password_hash: Buffer;
+  password_hash: string;
   status: number;
 };
 
