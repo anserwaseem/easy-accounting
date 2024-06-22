@@ -12,37 +12,37 @@ interface JournalTableProps {
   journalId: number;
 }
 
-export const JournalTable: React.FC<JournalTableProps> = ({ journalId }) => {
+export const JournalTable: React.FC<JournalTableProps> = ({
+  journalId,
+}: JournalTableProps) => {
+  // eslint-disable-next-line no-console
   console.log('JournalTable', journalId);
   const [journal, setJournal] = useState<Journal>();
   const navigate = useNavigate();
 
-  useEffect(
-    () =>
-      void (async () =>
-        setJournal(await window.electron.getJournal(journalId)))(),
-    [journalId],
-  );
+  useEffect(() => {
+    (async () => setJournal(await window.electron.getJournal(journalId)))();
+  }, [journalId]);
 
   const columns: ColumnDef<JournalEntry>[] = useMemo(() => {
     return [
       {
         accessorKey: 'accountName',
         header: 'Account',
-        onClick: (row) => navigate(`/account/${row.original.accountId}`),
+        onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
       },
       {
         accessorKey: 'debitAmount',
         header: 'Debit',
-        onClick: (row) => navigate(`/account/${row.original.accountId}`),
+        onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
       },
       {
         accessorKey: 'creditAmount',
         header: 'Credit',
-        onClick: (row) => navigate(`/account/${row.original.accountId}`),
+        onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
       },
     ];
-  }, []);
+  }, [navigate]);
 
   return (
     <div>

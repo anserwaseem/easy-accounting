@@ -1,7 +1,6 @@
 import { Bell, History, LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from 'renderer/lib/utils';
-import { Search } from './search';
 import { ModeToggle } from 'renderer/components/ModeToggle';
 import {
   Tooltip,
@@ -9,11 +8,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from 'renderer/shad/ui/tooltip';
+import { Search } from '../shad/ui/search';
 
-export function MainNav({
+export const MainNav = ({
   className,
   ...props
-}: React.HTMLAttributes<HTMLElement>) {
+}: React.HTMLAttributes<HTMLElement>) => {
   return (
     <nav
       className={cn(
@@ -22,33 +22,24 @@ export function MainNav({
       )}
       {...props}
     >
-      <div className="flex items-center space-x-4 lg:space-x-6">
-        <Link
-          to="#"
-          className="text-sm font-medium transition-colors hover:text-primary"
-        >
+      <div className="flex items-center justify-center space-x-4 lg:space-x-6">
+        <div className="text-sm font-medium transition-colors hover:text-primary">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
-                <Bell className="h-5 w-5" />
+                <Bell className="h-5 w-5 mt-2" />
               </TooltipTrigger>
               <TooltipContent>Notifications</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </Link>
-        <Link
-          to="#"
-          className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-        >
+        </div>
+        <div className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
           <Search />
-        </Link>
+        </div>
       </div>
 
       <div className="ml-auto flex items-center space-x-4 lg:space-x-6">
-        <Link
-          to="#"
-          className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-        >
+        <div className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
@@ -57,9 +48,9 @@ export function MainNav({
               <TooltipContent>History</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </Link>
+        </div>
         <Link
-          to={'/settings'}
+          to="/settings"
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
         >
           <TooltipProvider>
@@ -72,7 +63,7 @@ export function MainNav({
           </TooltipProvider>
         </Link>
         <Link
-          to={'/login'}
+          to="/login"
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
         >
           <TooltipProvider>
@@ -88,4 +79,4 @@ export function MainNav({
       </div>
     </nav>
   );
-}
+};

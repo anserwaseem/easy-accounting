@@ -1,23 +1,30 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { toNumber } from 'lodash';
-import { MiniAccountPage } from './miniAccountPage';
+import type { Account } from '@/types';
 import { LedgerTable } from './ledgerTable';
+import AccountsPage from '../Accounts';
 
-const LedgerPage = () => {
+const LedgerPage: React.FC = () => {
   const { id } = useParams();
   const [accountName, setAccountName] = useState('');
   const [headName, setHeadName] = useState('');
+  // eslint-disable-next-line no-console
   console.log('LedgerPage', id);
+
+  const onRowClick = async (accountId?: number) => {
+    const accounts = (await window.electron.getAccounts()) as Account[];
+    const selectedAccount = accounts.find(
+      (account) => account.id === toNumber(accountId ?? id),
+    );
+    setAccountName(selectedAccount?.name || '');
+    setHeadName(selectedAccount?.headName || '');
+  };
 
   return (
     <div className="flex flex-row h-screen">
       <div className="w-1/4 overflow-y-scroll scrollbar">
-        <MiniAccountPage
-          accountId={toNumber(id)}
-          setAccountName={setAccountName}
-          setHeadName={setHeadName}
-        />
+        <AccountsPage isMini onRowClick={onRowClick} />
       </div>
       <div className="w-3/4 overflow-y-auto scrollbar justify-between items-center p-4">
         <div>

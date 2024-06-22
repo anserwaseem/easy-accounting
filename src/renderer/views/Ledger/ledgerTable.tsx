@@ -8,18 +8,16 @@ interface LedgerTableProps {
   accountId: number;
 }
 
-export const LedgerTable: React.FC<LedgerTableProps> = ({ accountId }) => {
-  console.log('LedgerTable', accountId);
+export const LedgerTable: React.FC<LedgerTableProps> = ({
+  accountId,
+}: LedgerTableProps) => {
   const [ledger, setLedger] = useState<GetLedger[]>([]);
+  // eslint-disable-next-line no-console
+  console.log('LedgerTable', accountId, ledger);
 
-  useEffect(
-    () =>
-      void (async () =>
-        setLedger(await window.electron.getLedger(accountId)))(),
-    [accountId],
-  );
-
-  console.log('LedgerTable', ledger);
+  useEffect(() => {
+    (async () => setLedger(await window.electron.getLedger(accountId)))();
+  }, [accountId]);
 
   const columns: ColumnDef<GetLedger>[] = useMemo(
     () => [

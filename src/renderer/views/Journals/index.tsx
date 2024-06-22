@@ -14,15 +14,15 @@ import {
 import { Separator } from 'renderer/shad/ui/separator';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
-import type { Journal } from 'types';
+import type { HasMiniView, Journal } from 'types';
+import { toString } from 'lodash';
 
 export type JournalView = Journal & { amount: number };
 
-interface JournalPageProps {
-  isMini?: boolean;
-}
-
-const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
+const JournalsPage: React.FC<HasMiniView> = ({
+  isMini = false,
+}: HasMiniView) => {
+  // eslint-disable-next-line no-console
   console.log('JournalsPage', isMini);
   const [journals, setJounrals] = useState<JournalView[]>([]);
   const [filteredJournals, setFilteredJournals] = useState<JournalView[]>(
@@ -42,28 +42,28 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
       {
         accessorKey: 'id',
         header: 'Journal #',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'date',
         header: 'Date',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'narration',
         header: 'Narration',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'isPublished',
         header: 'Status',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
         cell: ({ row }) => (row.original.isPosted ? 'Posted' : 'Draft'),
       },
       {
         accessorKey: 'amount',
         header: 'Amount',
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
       {
         accessorKey: 'createdAt',
@@ -73,54 +73,10 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
             'en-US',
             dateFormatOptions,
           ),
-        onClick: (row) => navigate(`/journal/${row.original.id}`),
+        onClick: (row) => navigate(toString(row.original.id)),
       },
     ],
-    [journals],
-  );
-
-  useEffect(
-    () =>
-      void (async () =>
-        setJounrals(
-          ((await window.electron.getJournals()) as Journal[]).map(
-            (journal) => ({
-              ...journal,
-              amount: journal.journalEntries.reduce(
-                (acc, entry) => acc + entry.debitAmount,
-                0,
-              ),
-            }),
-          ),
-        ))(),
-    [],
-  );
-
-  useEffect(
-    () =>
-      journalFilterDate || journalFilterSelectValue
-        ? handleFilterDateSelect(journalFilterDate, journalFilterSelectValue)
-        : setFilteredJournals(journals),
-    [journals],
-  );
-
-  useEffect(
-    () => window.electron.store.set('filteredJournals', filteredJournals),
-    [filteredJournals],
-  );
-
-  useEffect(
-    () => window.electron.store.set('journalFilterDate', journalFilterDate),
-    [journalFilterDate],
-  );
-
-  useEffect(
-    () =>
-      window.electron.store.set(
-        'journalFilterSelectValue',
-        journalFilterSelectValue,
-      ),
-    [journalFilterSelectValue],
+    [navigate],
   );
 
   const handleFilterDateSelect = useCallback(
@@ -145,7 +101,55 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
         }),
       );
     },
-    [journals, journalFilterDate, journalFilterSelectValue],
+    [journals],
+  );
+
+  useEffect(() => {
+    const fetchJournals = async () => {
+      const rawJournals = (await window.electron.getJournals()) as Journal[];
+      const updatedJournals = rawJournals.map((journal) => ({
+        ...journal,
+        amount: journal.journalEntries.reduce(
+          (acc, entry) => acc + entry.debitAmount,
+          0,
+        ),
+      }));
+      setJounrals(updatedJournals);
+    };
+
+    fetchJournals();
+  }, []);
+
+  useEffect(
+    () =>
+      journalFilterDate || journalFilterSelectValue
+        ? handleFilterDateSelect(journalFilterDate, journalFilterSelectValue)
+        : setFilteredJournals(journals),
+    [
+      handleFilterDateSelect,
+      journalFilterDate,
+      journalFilterSelectValue,
+      journals,
+    ],
+  );
+
+  useEffect(
+    () => window.electron.store.set('filteredJournals', filteredJournals),
+    [filteredJournals],
+  );
+
+  useEffect(
+    () => window.electron.store.set('journalFilterDate', journalFilterDate),
+    [journalFilterDate],
+  );
+
+  useEffect(
+    () =>
+      window.electron.store.set(
+        'journalFilterSelectValue',
+        journalFilterSelectValue,
+      ),
+    [journalFilterSelectValue],
   );
 
   return (
@@ -155,7 +159,7 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
 
         <Button
           variant="outline"
-          onClick={() => navigate('/journals/new')}
+          onClick={() => navigate('new')}
           className="flex items-center"
         >
           <Plus size={16} />
@@ -186,7 +190,7 @@ const JournalsPage: React.FC<JournalPageProps> = ({ isMini = false }) => {
               {filteredJournals.map((journal) => (
                 <TableRow
                   key={journal.id}
-                  onClick={() => navigate(`/journal/${journal.id}`)}
+                  onClick={() => navigate(`/journals/${journal.id}`)}
                 >
                   <TableCell>
                     <div className="flex justify-between">

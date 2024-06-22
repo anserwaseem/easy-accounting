@@ -1,27 +1,35 @@
+import crypto from 'crypto';
+
 /**
- * Encrypts a string using base64
- * @param text The text to encrypt
- * @returns The encrypted text
- * @example const encrypted = hashText('my secret text');
+ * Hashes a password using pbkdf2 implementation
+ * @param password The password to hash
+ * @returns The hashed password
+ * @example const hashed = hashPassword('password123');
+ * @see verifyPassword
+ * @see https://nodejs.org/api/crypto.html#cryptopbkdf2syncpassword-salt-iterations-keylen-digest
  */
-export function hashText(text: string) {
-  try {
-    return Buffer.from(text, 'base64');
-  } catch (err) {
-    return false;
-  }
+export function hashPassword(password: string) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 1000, 64, 'sha512')
+    .toString('hex');
+  return `${salt}:${hash}`;
 }
 
 /**
- * Decrypts a string using base64
- * @param text The text to decrypt
- * @returns The decrypted text
- * @example const decrypted = decryptText('my secret text');
+ * Verifies a password against a stored password hash using pbkdf2 implementation
+ * @param inputPassword The password to verify
+ * @param storedPassword The stored password
+ * @returns Boolean indicating if the password is valid
+ * @example const isValid = verifyPassword('password123', 'salt:hash');
+ * @see hashPassword
+ * @see https://nodejs.org/api/crypto.html#cryptopbkdf2syncpassword-salt-iterations-keylen-digest
  */
-export function decryptText(text: Buffer) {
-  try {
-    return text.toString('base64');
-  } catch (err) {
-    return false;
-  }
+export function verifyPassword(inputPassword: string, storedPassword: string) {
+  const [salt, hash] = storedPassword.split(':');
+  const inputHash = crypto
+    .pbkdf2Sync(inputPassword, salt, 1000, 64, 'sha512')
+    .toString('hex');
+  console.log('verifyPassword -> inputHash', inputPassword, inputHash, hash);
+  return hash === inputHash;
 }

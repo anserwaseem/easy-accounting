@@ -1,7 +1,7 @@
 export type DbUser = {
   id?: number;
   username: string;
-  password_hash: Buffer;
+  password_hash: string;
   status: number;
 };
 
@@ -94,14 +94,6 @@ export interface Ledger extends BaseEntity {
 }
 export type GetLedger = Ledger & { linkedAccountName?: string };
 
-/** Journal */
-export interface Journal extends Omit<BaseEntity, 'date'> {
-  date: string;
-  narration?: string;
-  isPosted: boolean;
-  journalEntries: JournalEntry[];
-}
-
 /** Journal Entry */
 export interface JournalEntry extends Omit<BaseEntity, 'date'> {
   journalId: number;
@@ -112,3 +104,15 @@ export interface JournalEntry extends Omit<BaseEntity, 'date'> {
    */
   accountId: number;
 }
+
+/** Journal */
+export interface Journal extends Omit<BaseEntity, 'date'> {
+  date: string;
+  narration?: string;
+  isPosted: boolean;
+  journalEntries: JournalEntry[];
+}
+
+export type HasMiniView = {
+  isMini?: boolean;
+};

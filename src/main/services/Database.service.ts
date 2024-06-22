@@ -12,6 +12,7 @@ export function connect() {
         .replace('app.asar', 'app.asar.unpacked');
 
   return Database(path.resolve(databasePath), {
+    // eslint-disable-next-line no-console
     verbose: console.log,
     fileMustExist: true,
   });

@@ -7,6 +7,7 @@ import { Button } from 'renderer/shad/ui/button';
 import { useToast } from 'renderer/shad/ui/use-toast';
 
 const SettingsPage: React.FC = () => {
+  // eslint-disable-next-line no-console
   console.log('Settings page');
   const defaultLabels = [' ', '0', '-', 'X'];
   const [debitCreditDefaultLabel, setDebitCreditDefaultLabel] = useState<
@@ -24,7 +25,7 @@ const SettingsPage: React.FC = () => {
     toast({
       description: 'Settings saved',
     });
-  }, [debitCreditDefaultLabel]);
+  }, [debitCreditDefaultLabel, toast]);
 
   return (
     <div>
@@ -83,7 +84,7 @@ const SettingsPage: React.FC = () => {
       </RadioGroup>
 
       <div className="flex fixed bottom-6">
-        <Button variant={'default'} onClick={() => handleSaveSettings()}>
+        <Button variant="default" onClick={() => handleSaveSettings()}>
           Save
         </Button>
       </div>

@@ -12,6 +12,13 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import type {
+  UserCredentials,
+  BalanceSheet,
+  InsertAccount,
+  UpdateAccount,
+  Journal,
+} from 'types';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/general';
 import { login, register } from './services/Auth.service';
@@ -21,7 +28,6 @@ import {
   insertAccount,
   updateAccount,
 } from './services/Account.service';
-import Store from 'electron-store';
 import { getCharts } from './services/Chart.service';
 import { getLedger } from './services/Ledger.service';
 import {
@@ -30,15 +36,7 @@ import {
   getNextJournalId,
   insertJournal,
 } from './services/Journal.service';
-import type {
-  UserCredentials,
-  BalanceSheet,
-  InsertAccount,
-  UpdateAccount,
-  Journal,
-} from 'types';
-
-export const store = new Store();
+import { store } from './store';
 
 class AppUpdater {
   constructor() {
@@ -110,8 +108,8 @@ const createWindow = async () => {
 
   mainWindow = new BrowserWindow({
     show: false,
-    width: 1024,
-    height: 728,
+    height: 1024,
+    width: 1440,
     icon: getAssetPath('icon.png'),
     webPreferences: {
       preload: app.isPackaged

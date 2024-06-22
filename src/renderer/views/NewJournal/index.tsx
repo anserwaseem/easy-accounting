@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
-import { get, toNumber, toString } from 'lodash';
+import { get, toNumber, toString, isNaN } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import {
   Popover,
@@ -41,7 +41,7 @@ import {
 import { Separator } from 'renderer/shad/ui/separator';
 import type { Account, Journal, JournalEntry } from 'types';
 
-const NewJournalPage = () => {
+const NewJournalPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [nextId, setNextId] = useState<number>(-1);
   const [totalCredits, setTotalCredits] = useState<number>(0);
@@ -51,13 +51,16 @@ const NewJournalPage = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const getInitialEntry = () => ({
-    id: Date.now(), // generates a unique ID for each new entry. not used to insert into db
-    journalId: nextId,
-    debitAmount: 0,
-    accountId: 0,
-    creditAmount: 0,
-  });
+  const getInitialEntry = useCallback(
+    () => ({
+      id: Date.now(), // generates a unique ID for each new entry. not used to insert into db
+      journalId: nextId,
+      debitAmount: 0,
+      accountId: 0,
+      creditAmount: 0,
+    }),
+    [nextId],
+  );
 
   const defaultFormValues: Journal = {
     id: nextId, // using journal id as journal number as well (uneditable from UI)
@@ -112,14 +115,12 @@ const NewJournalPage = () => {
   });
 
   // Fetch data for this page
-  useEffect(
-    () =>
-      void (async () => {
-        setNextId(await window.electron.getNextJournalId());
-        setAccounts(await window.electron.getAccounts());
-      })(),
-    [],
-  );
+  useEffect(() => {
+    (async () => {
+      setNextId(await window.electron.getNextJournalId());
+      setAccounts(await window.electron.getAccounts());
+    })();
+  }, []);
 
   // Update the journal id when nextId is received
   useEffect(
@@ -172,7 +173,7 @@ const NewJournalPage = () => {
         form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, val);
       }
     },
-    [journal],
+    [form],
   );
 
   const handleCreditBlur = useCallback(
@@ -202,7 +203,7 @@ const NewJournalPage = () => {
         form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, val);
       }
     },
-    [journal],
+    [form],
   );
 
   const handleCreditChange = useCallback(
@@ -211,7 +212,7 @@ const NewJournalPage = () => {
         `journalEntries.${rowIndex}.creditAmount` as const,
         toNumber(value),
       ),
-    [],
+    [form],
   );
 
   const handleDebitChange = useCallback(
@@ -220,34 +221,37 @@ const NewJournalPage = () => {
         `journalEntries.${rowIndex}.debitAmount` as const,
         toNumber(value),
       ),
-    [],
+    [form],
   );
 
-  const handleRemoveRow = useCallback((rowIndex: number) => {
-    const latestJournal = form.getValues();
-    const removedRow = latestJournal.journalEntries[rowIndex];
+  const handleRemoveRow = useCallback(
+    (rowIndex: number) => {
+      const latestJournal = form.getValues();
+      const removedRow = latestJournal.journalEntries[rowIndex];
 
-    if (fields.length > 0) {
-      form.setValue(
-        'journalEntries',
-        latestJournal.journalEntries.filter((_, index) => index !== rowIndex),
-      );
-      form.clearErrors(`journalEntries.${rowIndex}` as const);
+      if (fields.length > 0) {
+        form.setValue(
+          'journalEntries',
+          latestJournal.journalEntries.filter((_, index) => index !== rowIndex),
+        );
+        form.clearErrors(`journalEntries.${rowIndex}` as const);
 
-      setTotalCredits((prev) => prev - removedRow.creditAmount);
-      setTotalDebits((prev) => prev - removedRow.debitAmount);
-    } else {
-      setTotalCredits(0);
-      setTotalDebits(0);
-    }
-  }, []);
+        setTotalCredits((prev) => prev - removedRow.creditAmount);
+        setTotalDebits((prev) => prev - removedRow.debitAmount);
+      } else {
+        setTotalCredits(0);
+        setTotalDebits(0);
+      }
+    },
+    [fields.length, form],
+  );
 
   const getAmountDefaultLabel = useCallback(
     (value: number) =>
       value === 0
         ? toString(window.electron.store.get('debitCreditDefaultLabel'))
         : value,
-    [window.electron.store],
+    [],
   );
 
   const removeDefaultLabel = useCallback(
@@ -262,13 +266,14 @@ const NewJournalPage = () => {
             : value,
         ) || 0,
       ),
-    [window.electron.store],
+    [],
   );
 
   const columns: ColumnDef<JournalEntry>[] = useMemo(
     () => [
       {
         header: 'Account',
+        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -281,13 +286,13 @@ const NewJournalPage = () => {
                 >
                   <FormControl>
                     <SelectTrigger className="min-w-[150px]">
-                      <SelectValue
-                        children={
+                      <SelectValue>
+                        {
                           accounts.find(
                             (acc) => acc.id === toNumber(field.value),
                           )?.name
                         }
-                      />
+                      </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent align="center">
@@ -314,6 +319,7 @@ const NewJournalPage = () => {
       },
       {
         header: 'Debit',
+        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -347,6 +353,7 @@ const NewJournalPage = () => {
       },
       {
         header: 'Credit',
+        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -381,20 +388,32 @@ const NewJournalPage = () => {
       {
         id: 'remove',
         header: '',
+        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <X color="red" size={16} onClick={() => handleRemoveRow(row.index)} />
         ),
       },
     ],
-    [accounts, journal],
+    [
+      accounts,
+      form.control,
+      getAmountDefaultLabel,
+      handleCreditBlur,
+      handleCreditChange,
+      handleDebitBlur,
+      handleDebitChange,
+      handleRemoveRow,
+      removeDefaultLabel,
+    ],
   );
 
   const handleAddNewRow = useCallback(
     () => append({ ...getInitialEntry() }),
-    [],
+    [append, getInitialEntry],
   );
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    // eslint-disable-next-line no-console
     console.log('onSubmit journal:', values);
 
     const numberOfCredits = values.journalEntries.filter(
@@ -430,6 +449,7 @@ const NewJournalPage = () => {
       }
       throw new Error('Failed to save journal');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(error);
       toast({
         description: toString(error),
@@ -463,6 +483,7 @@ const NewJournalPage = () => {
           onSubmit={form.handleSubmit(onSubmit)}
           onReset={() => form.reset(defaultFormValues)}
           onKeyDown={checkKeyDown}
+          role="presentation"
         >
           <div>
             <FormField
@@ -475,7 +496,7 @@ const NewJournalPage = () => {
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
-                          variant={'outline'}
+                          variant="outline"
                           className={cn(
                             'w-[280px] justify-start text-left font-normal w-100',
                             !field.value && 'text-muted-foreground',
@@ -600,20 +621,20 @@ const NewJournalPage = () => {
             <div className="flex gap-4">
               <Button
                 type="submit"
-                variant={'default'}
+                variant="default"
                 disabled={isPublishDisabled}
               >
                 Save and Publish
               </Button>
               {/* <Button type="button" variant={'secondary'} onClick={handleSaveDraft}>Save as Draft</Button> */}
-              <Button type="reset" variant={'ghost'}>
+              <Button type="reset" variant="ghost">
                 Clear
               </Button>
             </div>
 
             <Button
               className="fixed right-9"
-              variant={'secondary'}
+              variant="secondary"
               onClick={() => {
                 form.reset(defaultFormValues);
                 navigate(-1);

@@ -28,12 +28,12 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   defaultSortField?: keyof TData;
 }
 
-function DataTable<TData, TValue>({
+const DataTable = <TData, TValue>({
   columns,
   data,
   defaultSortField,
   ...props
-}: DataTableProps<TData, TValue>) {
+}: DataTableProps<TData, TValue>) => {
   const table = useReactTable({
     data,
     columns,
@@ -118,6 +118,6 @@ function DataTable<TData, TValue>({
       </Table>
     </div>
   );
-}
+};
 
 export { DataTable };

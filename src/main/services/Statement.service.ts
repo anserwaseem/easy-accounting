@@ -1,8 +1,8 @@
+import type { BalanceSheet, ReportAccount } from 'types';
+import { capitalize, forEach, isEmpty, isNil } from 'lodash';
 import { Statement } from 'better-sqlite3';
 import { connect } from './Database.service';
-import { capitalize, forEach, isEmpty, isNil } from 'lodash';
-import { store } from '../main';
-import type { BalanceSheet, ReportAccount } from 'types';
+import { store } from '../store';
 
 type Section = 'asset' | 'liability' | 'equity';
 type SectionType = 'current' | 'fixed' | null;
@@ -12,7 +12,6 @@ export function saveBalanceSheet(balanceSheet: BalanceSheet) {
     const db = connect();
 
     const username = store.get('username');
-    console.log('inside saveBalanceSheet Account service', username);
 
     const stmChart = db.prepare(
       ` INSERT INTO chart (date, name, type, userId)
@@ -32,60 +31,59 @@ export function saveBalanceSheet(balanceSheet: BalanceSheet) {
         VALUES (@date, @particulars, @accountId, @credit, @balance, 'Cr')`, // TODO: update balanceType below based on balance
     );
 
-    const stm = db.transaction((balanceSheet: BalanceSheet) => {
-      const assets = balanceSheet.assets;
-      const liabilities = balanceSheet.liabilities;
-      const equity = balanceSheet.equity;
+    const stm = db.transaction(
+      ({ assets, liabilities, equity }: BalanceSheet) => {
+        setupLedgers(
+          { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+          assets.current,
+          balanceSheet.date.toISOString(),
+          'asset',
+          'current',
+        );
 
-      setupLedgers(
-        { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
-        assets.current,
-        balanceSheet.date.toISOString(),
-        'asset',
-        'current',
-      );
+        setupLedgers(
+          { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+          assets.fixed,
+          balanceSheet.date.toISOString(),
+          'asset',
+          'fixed',
+        );
 
-      setupLedgers(
-        { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
-        assets.fixed,
-        balanceSheet.date.toISOString(),
-        'asset',
-        'fixed',
-      );
+        setupLedgers(
+          { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+          liabilities.current,
+          balanceSheet.date.toISOString(),
+          'liability',
+          'current',
+        );
+        setupLedgers(
+          { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+          liabilities.fixed,
+          balanceSheet.date.toISOString(),
+          'liability',
+          'fixed',
+        );
 
-      setupLedgers(
-        { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
-        liabilities.current,
-        balanceSheet.date.toISOString(),
-        'liability',
-        'current',
-      );
-      setupLedgers(
-        { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
-        liabilities.fixed,
-        balanceSheet.date.toISOString(),
-        'liability',
-        'fixed',
-      );
-
-      setupLedgers(
-        { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
-        equity.current,
-        balanceSheet.date.toISOString(),
-        'equity',
-      );
-    });
+        setupLedgers(
+          { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+          equity.current,
+          balanceSheet.date.toISOString(),
+          'equity',
+        );
+      },
+    );
 
     stm(balanceSheet);
 
     return true;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(error);
     return false;
   }
 }
 
-const setupLedgers = (
+function setupLedgers(
   statements: {
     stmChart: Statement;
     stmAccount: Statement;
@@ -96,20 +94,20 @@ const setupLedgers = (
   date: string,
   section: Section,
   sectionType?: SectionType,
-) => {
+) {
   if (isEmpty(chartsRecord) || isNil(section)) {
     return;
   }
 
   const getChartName = (
     name: string,
-    section: Section,
-    sectionType?: SectionType,
+    inputSection: Section,
+    inputSectionType?: SectionType,
   ): string =>
     name ||
-    (isNil(sectionType)
-      ? capitalize(section)
-      : `${capitalize(sectionType)} ${capitalize(section)}`);
+    (isNil(inputSectionType)
+      ? capitalize(inputSection)
+      : `${capitalize(inputSectionType)} ${capitalize(inputSection)}`);
 
   const chartIds: Record<string, number | bigint> = {};
   forEach(chartsRecord, (_, name) => {
@@ -154,4 +152,4 @@ const setupLedgers = (
       }
     });
   });
-};
+}
