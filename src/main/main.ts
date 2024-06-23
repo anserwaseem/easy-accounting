@@ -21,7 +21,7 @@ import type {
 } from 'types';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/general';
-import { login, register } from './services/Auth.service';
+import { login, logout, register } from './services/Auth.service';
 import { saveBalanceSheet } from './services/Statement.service';
 import {
   getAccounts,
@@ -169,6 +169,9 @@ app
     });
     ipcMain.handle('auth:register', async (_, user: UserCredentials) => {
       return register(user);
+    });
+    ipcMain.handle('auth:logout', async () => {
+      return logout();
     });
     ipcMain.handle(
       'balanceSheet:save',

@@ -1,11 +1,14 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 
-const isDevelopment =
-  process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
+export function isDevelopment() {
+  return (
+    process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true'
+  );
+}
 
 export function connect() {
-  const databasePath = isDevelopment
+  const databasePath = isDevelopment()
     ? path.join(__dirname, '../../../', 'release/app', 'database.db')
     : path
         .join(__dirname, '../../database.db')

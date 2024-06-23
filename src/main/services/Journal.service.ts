@@ -50,14 +50,13 @@ export const insertJournal = (journalToBeInserted: Journal) => {
         isPosted: cast(isPosted),
       }).lastInsertRowid;
 
-      // Find the dividend entry (the entry whose amount is to be divided)
       const creditEntries = journalEntries.filter(
         (entry) => entry.creditAmount > 0,
       );
       const debitEntries = journalEntries.filter(
         (entry) => entry.debitAmount > 0,
       );
-      const dividendEntry =
+      const dividendEntry = // entry whose amount is to be divided
         creditEntries.length > debitEntries.length
           ? head(debitEntries)
           : head(creditEntries);
@@ -71,7 +70,7 @@ export const insertJournal = (journalToBeInserted: Journal) => {
           creditAmount,
         });
 
-        // update only if the current entry is not the dividend entry
+        // double entry - update both (credit and debit entries of) ledgers for each journal entry except the dividend one
         if (!isEqual(entry, dividendEntry)) {
           updateLedger(
             accountId,

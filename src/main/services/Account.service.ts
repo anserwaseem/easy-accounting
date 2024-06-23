@@ -2,7 +2,7 @@ import type { Account, InsertAccount, UpdateAccount } from 'types';
 import { store } from '../store';
 import { connect } from './Database.service';
 
-export const getAccounts = () => {
+export const getAccounts = (): Account[] => {
   const db = connect();
 
   const stm = db.prepare(
@@ -34,7 +34,7 @@ export const insertAccount = (account: InsertAccount): boolean => {
       ), @code)`,
   );
 
-  return Boolean(stm.run(account).lastInsertRowid);
+  return Number.isSafeInteger(stm.run(account).lastInsertRowid);
 };
 
 export const updateAccount = (account: UpdateAccount): boolean => {
