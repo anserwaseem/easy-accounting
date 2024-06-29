@@ -19,6 +19,7 @@ import type {
   UpdateAccount,
   Journal,
 } from 'types';
+import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/general';
 import { login, logout, register } from './services/Auth.service';
@@ -81,16 +82,14 @@ if (isDebug) {
 }
 
 const installExtensions = async () => {
-  const installer = require('electron-devtools-installer');
   const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
-  const extensions = ['REACT_DEVELOPER_TOOLS'];
+  const extensions = [REACT_DEVELOPER_TOOLS];
 
-  return installer
-    .default(
-      extensions.map((name) => installer[name]),
-      forceDownload,
-    )
-    .catch(console.log);
+  try {
+    return await installer(extensions, { forceDownload });
+  } catch (error) {
+    console.log(error);
+  }
 };
 
 const createWindow = async () => {
