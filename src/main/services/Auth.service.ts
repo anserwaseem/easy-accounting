@@ -24,9 +24,11 @@ export const login = (user: UserCredentials): boolean => {
     return false;
   }
 
-  store.set('username', user.username);
-
   const isValid = verifyPassword(user.password, dbUser.password_hash);
+
+  if (isValid) {
+    store.set('username', user.username);
+  }
 
   return isValid;
 };

@@ -9,11 +9,14 @@ import {
   TooltipTrigger,
 } from 'renderer/shad/ui/tooltip';
 import { Search } from '../shad/ui/search';
+import { useAuth } from '../hooks';
 
 export const MainNav = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLElement>) => {
+  const { logout } = useAuth();
+
   return (
     <nav
       className={cn(
@@ -62,9 +65,10 @@ export const MainNav = ({
             </Tooltip>
           </TooltipProvider>
         </Link>
-        <Link
-          to="/login"
+        <button
+          onClick={() => logout()}
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          type="button"
         >
           <TooltipProvider>
             <Tooltip>
@@ -74,7 +78,7 @@ export const MainNav = ({
               <TooltipContent>Log Out</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </Link>
+        </button>
         <ModeToggle />
       </div>
     </nav>

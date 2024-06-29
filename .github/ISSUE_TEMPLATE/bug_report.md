@@ -4,7 +4,6 @@ about: Create a report to help us improve
 title: ''
 labels: bug
 assignees: anserwaseem
-
 ---
 
 **Describe the bug**
@@ -12,6 +11,7 @@ A clear and concise description of what the bug is.
 
 **To Reproduce**
 Steps to reproduce the behavior:
+
 1. Go to '...'
 2. Click on '....'
 3. Scroll down to '....'
@@ -24,12 +24,14 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **System information:**
- - OS: [e.g. Windows]
- - Version [e.g. 11]
+
+- OS: [e.g. Windows]
+- Version [e.g. 11]
 
 **Project information:**
- - Node version: [e.g. 18.12.1]
- - React version [e.g. 18.2.0]
+
+- Node version: [e.g. 18.12.1]
+- React version [e.g. 18.2.0]
 
 **Additional context**
 Add any other context about the problem here.

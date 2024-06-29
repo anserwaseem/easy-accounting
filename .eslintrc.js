@@ -36,6 +36,7 @@ module.exports = {
       },
     ],
   },
+  ignorePatterns: ['.eslintrc.js'],
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module',

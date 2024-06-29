@@ -3,19 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import { useToast } from 'renderer/shad/ui/use-toast';
+import { useAuth } from '@/renderer/hooks';
 
 const RegisterPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const { toast } = useToast();
-
+  const { register } = useAuth();
   const navigate = useNavigate();
-  async function register(
-    formEvent:
-      | React.FormEvent<HTMLFormElement>
-      | React.MouseEvent<HTMLButtonElement, MouseEvent>,
-  ) {
+
+  async function handleRegister(formEvent: React.FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
 
     if (password !== confirmPassword) {
@@ -26,7 +24,7 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    const response = await window.electron.register({ username, password });
+    const response = await register({ username, password });
 
     if (response) {
       toast({
@@ -50,7 +48,7 @@ const RegisterPage: React.FC = () => {
     <div className="flex justify-center items-center h-screen">
       <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
         <h1 className="text-xl font-semibold">Sign Up</h1>
-        <form onSubmit={(e) => register(e)}>
+        <form onSubmit={(e) => handleRegister(e)}>
           <Input
             type="text"
             placeholder="Username"
@@ -68,7 +66,7 @@ const RegisterPage: React.FC = () => {
           />
           <Button
             variant="outline"
-            onClick={(e) => register(e)}
+            type="submit"
             disabled={
               username.length < 4 ||
               password.length < 4 ||

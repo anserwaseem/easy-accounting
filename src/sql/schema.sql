@@ -4,7 +4,7 @@ BEGIN TRANSACTION;
 
 DROP TABLE IF EXISTS "users";
 CREATE TABLE IF NOT EXISTS "users" (
-	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT, -- https://github.com/WiseLibs/better-sqlite3/blob/master/docs/tips.md#creating-good-tables
 	"username" TEXT UNIQUE,
 	"password_hash"	BLOB,
 	"status" INTEGER DEFAULT 0,
