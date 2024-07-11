@@ -51,6 +51,8 @@
   },
   "browserslist": [],
   "dependencies": {
+    "@ensembleui/react-framework": "^0.1.45",
+    "@ensembleui/react-runtime": "^0.1.61",
     "@hookform/resolvers": "^3.3.4",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-label": "^2.0.2",
@@ -134,6 +136,7 @@
     "lint-staged": "^15.2.7",
     "lucide-react": "^0.284.0",
     "mini-css-extract-plugin": "^2.7.6",
+    "node-polyfill-webpack-plugin": "^4.0.0",
     "postcss": "^8.4.31",
     "postcss-loader": "^7.3.3",
     "prettier": "3.0.0",
