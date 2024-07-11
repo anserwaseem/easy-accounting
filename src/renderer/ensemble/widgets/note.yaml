@@ -1,0 +1,62 @@
+Widget:
+  inputs:
+    - noteIndex
+    - title
+    - body
+
+  body:
+    Column:
+      styles:
+        padding: 10px
+        gap: 30px
+      children:
+        - Row:
+            styles:
+              mainAxis: spaceBetween
+              crossAxis: center
+            children:
+              - Text:
+                  text: Unleash your ideas here
+                  styles:
+                    fontSize: 20px
+                    fontWeight: bold
+                    color: '#9ca3af'
+              - Icon:
+                  name: Close
+                  color: '#747184'
+                  size: 20
+                  onTap:
+                    closeAllDialogs:
+        - Form:
+            onSubmit:
+              executeCode:
+                body: |
+                  const notes = ensemble.storage.get('myNotes') || [];
+                  if (noteIndex === undefined)
+                    notes.push(vals);
+                  else
+                    notes[noteIndex] = vals
+                  ensemble.storage.set('myNotes', notes);
+                onComplete:
+                  closeAllDialogs:
+            styles:
+              gap: 20px
+              padding: 20px 0
+            children:
+              - TextInput:
+                  label: Title
+                  value: ${title ?? ''}
+                  hintText: write title here
+                  required: true
+              - TextInput:
+                  label: Body
+                  value: ${body ?? ''}
+                  hintText: write body here
+                  multiLine: true
+                  maxLines: 3
+                  required: true
+              - Button:
+                  label: Save
+                  submitForm: true
+                  styles:
+                    marginLeft: auto

@@ -4,6 +4,7 @@
 
 import webpack from 'webpack';
 import path from 'path';
+import NodePolyfillPlugin from 'node-polyfill-webpack-plugin';
 import { merge } from 'webpack-merge';
 import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
@@ -70,6 +71,10 @@ const configuration: webpack.Configuration = {
           path: webpackPaths.dllPath,
         },
       },
+    }),
+
+    new NodePolyfillPlugin({
+      excludeAliases: ['console'],
     }),
   ],
 };

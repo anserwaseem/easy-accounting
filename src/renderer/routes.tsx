@@ -1,5 +1,7 @@
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
+import { EnsembleApp } from '@ensembleui/react-runtime';
+
 import { ThemeProvider, AuthProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
 
@@ -14,6 +16,7 @@ import NewJournalPage from './views/NewJournal';
 import JournalPage from './views/Journal';
 import SettingsPage from './views/Settings';
 import { AuthCheck } from './components/AuthCheck';
+import { notesApp } from './ensemble';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -37,6 +40,16 @@ const AppRoutes: React.FC = () => (
               </Route>
             </Route>
           </Route>
+          <Route
+            path="/notes/index.html"
+            element={
+              <EnsembleApp
+                appId="notesApp"
+                application={notesApp}
+                path="/notes"
+              />
+            }
+          />
         </Routes>
         <Toaster />
       </MemoryRouter>
@@ -45,3 +58,6 @@ const AppRoutes: React.FC = () => (
 );
 
 export default AppRoutes;
+// if (window.location.pathname.includes('index.html')) {
+//   window.location.pathname = '/';
+// }

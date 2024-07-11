@@ -1,0 +1,38 @@
+ViewGroup:
+  SideBar:
+    id: sidebar
+    styles:
+      width: 200px
+      iconWidth: 20px
+      iconHeight: 20px
+      backgroundColor: '#e5e7eb'
+      selectedColor: '#FFFFFF'
+      labelFontSize: 1
+      onSelectStyles:
+        backgroundColor: '#1f2937'
+        fontSize: 1rem
+        fontWeight: bold
+    items:
+      - label: Home
+        icon: HomeOutlined
+        page: home
+        selected: true
+      - label: Github
+        id: github
+        icon: HelpOutline
+        url: https://github.com/anserwaseem
+        openNewTab: true
+    footer:
+      Row:
+        styles:
+          padding: ${spacing['6']}
+          justifyContent: end
+        children:
+          - Icon:
+              styles:
+                transform: "${sidebar.isCollapsed ? 'rotate(180deg)' : 'none'}"
+              name: ArrowBack
+              color: white
+              onTap:
+                executeCode: |
+                  sidebar.setCollapsed(!sidebar.isCollapsed)

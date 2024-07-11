@@ -38,6 +38,12 @@ const Sidebar: React.FC<PropsWithChildren> = ({
               </Link>
             </Button>
           </div>,
+          <Link to="/notes/index.html">
+            <Button variant="outline" className="w-full md:w-[225px] gap-2">
+              <Table2 />
+              <span>Notes</span>
+            </Button>
+          </Link>,
         ]}
       />
       <div className="flex-grow w-full mx-auto p-4">

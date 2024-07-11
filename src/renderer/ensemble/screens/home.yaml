@@ -1,0 +1,111 @@
+View:
+  styles:
+    scrollableView: true
+
+  header:
+    styles:
+      titleBarHeight: 100px
+    title:
+      Conditional:
+        conditions:
+          - if: ${!!ensemble.storage.get('myNotes')?.length}
+            Column:
+              styles:
+                crossAxis: center
+                gap: 12px
+              children:
+                - Text:
+                    text: All Notes
+                    styles:
+                      fontSize: 32px
+                - AddNewNoteBtn:
+
+  body:
+    Column:
+      styles:
+        mainAxis: center
+        height: 100%
+      children:
+        - Conditional:
+            conditions:
+              - if: ${!!ensemble.storage.get('myNotes')?.length}
+                GridView:
+                  styles:
+                    horizontalTileCount: 1
+                    horizontalGap: 1
+                  item-template:
+                    data: ${ensemble.storage.get('myNotes')}
+                    name: note
+                    template:
+                      Card:
+                        styles:
+                          flexDirection: row
+                          justifyContent: space-between
+                          gap: 16px
+                          minWidth: 80%
+                        children:
+                          - Column:
+                              styles:
+                                gap: 8px
+                              children:
+                                - Text:
+                                    text: ${note.Title}
+                                    styles:
+                                      fontSize: 20px
+                                      fontWeight: bold
+                                - Text:
+                                    text: ${note.Body}
+                          - Column:
+                              styles:
+                                gap: 8px
+                              children:
+                                - Icon:
+                                    name: EditNoteOutlined
+                                    size: 24
+                                    onTap:
+                                      showDialog:
+                                        widget:
+                                          Note:
+                                            inputs:
+                                              title: ${note.Title}
+                                              body: ${note.Body}
+                                              noteIndex: ${index}
+                                        options:
+                                          width: 60%
+                                - Icon:
+                                    name: DeleteForeverOutlined
+                                    color: '#CC2900'
+                                    size: 24
+                                    onTap:
+                                      executeCode: |
+                                        const existingNotes = ensemble.storage.get('myNotes');
+                                        const newNotes = existingNotes.filter((_, idx) => idx !== index);
+                                        ensemble.storage.set('myNotes', newNotes);
+              - else:
+                Column:
+                  styles:
+                    crossAxis: center
+                    gap: 12px
+                  children:
+                    - Text:
+                        text: Welcome to Notes app!
+                        styles:
+                          fontSize: 40px
+                    - Text:
+                        text: Save your notes, ideas, todos, general purpose writings here.
+                        styles:
+                          fontSize: 20px
+                    - AddNewNoteBtn:
+
+AddNewNoteBtn:
+  body:
+    Button:
+      label: Add A New Note
+      styles:
+        maxWidth: 200px
+      onTap:
+        showDialog:
+          widget:
+            Note:
+          options:
+            width: 60%
