@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "users" (
 	"password_hash"	BLOB,
 	"status" INTEGER DEFAULT 0,
   "createdAt"	DATETIME,
-  "updatedAt"	DATETIME,
+  "updatedAt"	DATETIME
 );
 
 
@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS "journal_ledger" (
 );
 
 
+-- VIEWS --
+CREATE VIEW tz AS SELECT '+05:00' AS tz;
 
 
 -- TRIGGERS --
@@ -185,20 +187,20 @@ BEGIN
   WHERE id = NEW.id;
 END;
 
--- journalEntry
-CREATE TRIGGER IF NOT EXISTS after_insert_journalEntry_add_timestamp
-AFTER INSERT ON journalEntry
+-- journal_entry
+CREATE TRIGGER IF NOT EXISTS after_insert_journal_entry_add_timestamp
+AFTER INSERT ON journal_entry
 BEGIN
-  UPDATE journalEntry SET
+  UPDATE journal_entry SET
     createdAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz)),
     updatedAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz))
   WHERE id = NEW.id;
 END;
 
-CREATE TRIGGER IF NOT EXISTS after_update_journalEntry_add_timestamp
-AFTER UPDATE ON journalEntry
+CREATE TRIGGER IF NOT EXISTS after_update_journal_entry_add_timestamp
+AFTER UPDATE ON journal_entry
 BEGIN
-  UPDATE journalEntry SET
+  UPDATE journal_entry SET
     updatedAt = datetime(CURRENT_TIMESTAMP, (SELECT tz FROM tz))
   WHERE id = NEW.id;
 END;
