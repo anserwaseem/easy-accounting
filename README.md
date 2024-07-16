@@ -48,3 +48,15 @@ This will compile the application and generate executable according to your OS i
 
 - **Q: Automatic linting and testing not working**
   - Run `npx mrm lint-staged` to setup _husky_ in your system.
+ 
+- **Q: How to check renderer process logs in packaged app**
+  - (Mac) Press `Cmd + Option + I` Or Go to 'View' Menu, and select 'Toggle Developer Tools' option.
+  - (Windows) Press `Ctrl + Alt + I`
+  
+- **Q: How to check main process logs in packaged app** (Mac)
+  - Open up terminal
+  - Run this command to spin up the app, and logs will appear in the terminal window
+  ```shell
+  /Applications/Easy\ Accounting.app/Contents/MacOS/Easy\ Accounting
+  ```
+
