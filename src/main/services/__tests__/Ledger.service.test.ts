@@ -1,4 +1,5 @@
 import { BalanceType, Ledger } from 'types';
+import { cast } from '../../utils/sqlite';
 import { connect } from '../Database.service';
 import { getLedger } from '../Ledger.service';
 
@@ -19,7 +20,7 @@ describe('Chart Service', () => {
         credit: 0,
         balance: 100,
         balanceType: BalanceType.Dr,
-        date: new Date('2024-03-02'),
+        date: cast(new Date('2024-03-02')),
         createdAt: new Date('2024-03-02'),
         updatedAt: new Date('2024-03-02'),
       },

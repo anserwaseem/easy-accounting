@@ -25,12 +25,18 @@ export const getAccounts = (): Account[] => {
 export const insertAccount = (account: InsertAccount): boolean => {
   const db = connect();
 
+  const username = store.get('username');
+
   const stm = db.prepare(
     ` INSERT INTO account (name, chartId, code)
       VALUES (@name, (
         SELECT id
         FROM chart
-        WHERE name = @headName
+        WHERE name = @headName AND userId = (
+          SELECT id
+          FROM users
+          WHERE username = '${username}'
+        )
       ), @code)`,
   );
 
