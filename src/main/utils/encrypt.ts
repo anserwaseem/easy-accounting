@@ -30,6 +30,5 @@ export function verifyPassword(inputPassword: string, storedPassword: string) {
   const inputHash = crypto
     .pbkdf2Sync(inputPassword, salt, 1000, 64, 'sha512')
     .toString('hex');
-  console.log('verifyPassword -> inputHash', inputPassword, inputHash, hash);
   return hash === inputHash;
 }

@@ -54,7 +54,7 @@ export enum BalanceType {
 
 type BaseEntity = {
   id: number;
-  date: Date;
+  date: string;
   createdAt?: Date;
   updatedAt?: Date;
 };
