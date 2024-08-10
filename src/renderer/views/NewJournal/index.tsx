@@ -281,8 +281,8 @@ const NewJournalPage: React.FC = () => {
             render={({ field }) => (
               <FormItem>
                 <Select
-                  defaultValue={field.value.toString()}
                   onValueChange={field.onChange}
+                  value={field.value.toString()}
                 >
                   <FormControl>
                     <SelectTrigger className="min-w-[150px]">
