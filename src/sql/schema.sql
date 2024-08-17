@@ -98,8 +98,8 @@ CREATE TRIGGER IF NOT EXISTS after_insert_ledger_add_timestamp
 AFTER INSERT ON ledger
 BEGIN
   UPDATE ledger SET
-    createdAt = datetime(CURRENT_TIMESTAMP, "localtime"),
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -107,7 +107,7 @@ CREATE TRIGGER IF NOT EXISTS after_update_ledger_add_timestamp
 AFTER UPDATE ON ledger
 BEGIN
   UPDATE ledger SET
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -116,8 +116,8 @@ CREATE TRIGGER IF NOT EXISTS after_insert_account_add_timestamp
 AFTER INSERT ON account
 BEGIN
   UPDATE account SET
-    createdAt = datetime(CURRENT_TIMESTAMP, "localtime"),
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -125,7 +125,7 @@ CREATE TRIGGER IF NOT EXISTS after_update_account_add_timestamp
 AFTER UPDATE ON account
 BEGIN
   UPDATE account SET
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -134,8 +134,8 @@ CREATE TRIGGER IF NOT EXISTS after_insert_chart_add_timestamp
 AFTER INSERT ON chart
 BEGIN
   UPDATE chart SET
-    createdAt = datetime(CURRENT_TIMESTAMP, "localtime"),
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -143,7 +143,7 @@ CREATE TRIGGER IF NOT EXISTS after_update_chart_add_timestamp
 AFTER UPDATE ON chart
 BEGIN
   UPDATE chart SET
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -152,8 +152,8 @@ CREATE TRIGGER IF NOT EXISTS after_insert_users_add_timestamp
 AFTER INSERT ON users
 BEGIN
   UPDATE users SET
-    createdAt = datetime(CURRENT_TIMESTAMP, "localtime"),
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -161,7 +161,7 @@ CREATE TRIGGER IF NOT EXISTS after_update_users_add_timestamp
 AFTER UPDATE ON users
 BEGIN
   UPDATE users SET
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -170,8 +170,8 @@ CREATE TRIGGER IF NOT EXISTS after_insert_journal_add_timestamp
 AFTER INSERT ON journal
 BEGIN
   UPDATE journal SET
-    createdAt = datetime(CURRENT_TIMESTAMP, "localtime"),
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -179,7 +179,7 @@ CREATE TRIGGER IF NOT EXISTS after_update_journal_add_timestamp
 AFTER UPDATE ON journal
 BEGIN
   UPDATE journal SET
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -188,8 +188,8 @@ CREATE TRIGGER IF NOT EXISTS after_insert_journal_entry_add_timestamp
 AFTER INSERT ON journal_entry
 BEGIN
   UPDATE journal_entry SET
-    createdAt = datetime(CURRENT_TIMESTAMP, "localtime"),
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
@@ -197,7 +197,7 @@ CREATE TRIGGER IF NOT EXISTS after_update_journal_entry_add_timestamp
 AFTER UPDATE ON journal_entry
 BEGIN
   UPDATE journal_entry SET
-    updatedAt = datetime(CURRENT_TIMESTAMP, "localtime")
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;
 
