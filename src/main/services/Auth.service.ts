@@ -2,6 +2,8 @@ import type { DbUser, UserCredentials } from 'types';
 import { store } from '../store';
 import { hashPassword, verifyPassword } from '../utils/encrypt';
 import { connect } from './Database.service';
+import { insertCharts } from './Chart.service';
+import { INITIAL_CHARTS } from '../utils/constants';
 
 const getUser = (username: string): DbUser | undefined => {
   const db = connect();
@@ -53,6 +55,7 @@ export const register = (user: UserCredentials): boolean => {
     };
 
     insertUser(registerUser);
+    insertCharts(user.username, INITIAL_CHARTS);
 
     return true;
   } catch (error) {

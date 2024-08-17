@@ -104,9 +104,14 @@ describe('Auth Service', () => {
     it('should return true for successful registration', () => {
       const mockGet = jest.fn().mockReturnValue(undefined);
       const mockRun = jest.fn();
+      const mockPrepareDefaultValue = { get: mockGet, run: mockRun };
       const mockPrepare = jest
         .fn()
-        .mockReturnValue({ get: mockGet, run: mockRun });
+        .mockReturnValueOnce(mockPrepareDefaultValue)
+        .mockReturnValueOnce(mockPrepareDefaultValue)
+        .mockReturnValueOnce({
+          run: jest.fn().mockReturnValue({ changes: 1 }),
+        });
       (connect as jest.Mock).mockReturnValue({ prepare: mockPrepare });
       (hashPassword as jest.Mock).mockReturnValue('hashed_password');
 

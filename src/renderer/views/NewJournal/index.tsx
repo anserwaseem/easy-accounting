@@ -281,8 +281,8 @@ const NewJournalPage: React.FC = () => {
             render={({ field }) => (
               <FormItem>
                 <Select
-                  defaultValue={field.value.toString()}
                   onValueChange={field.onChange}
+                  value={field.value.toString()}
                 >
                   <FormControl>
                     <SelectTrigger className="min-w-[150px]">
@@ -474,178 +474,193 @@ const NewJournalPage: React.FC = () => {
   );
 
   return (
-    <div className="py-4 flex flex-col gap-y-4">
-      <h1 className="text-xl py-2">New Journal</h1>
-      <Separator />
+    <>
+      <div
+        className={
+          accounts.length
+            ? 'hidden'
+            : 'block fixed z-10 bg-green-400 text-center text-xl bg-opacity-60 w-full left-0 top-[50%] py-4 px-8'
+        }
+      >
+        Looks like you&apos;re ready to start journaling! But first, let&apos;s
+        set up an account. Head over to the Accounts section to get started.
+      </div>
+      <div className="py-4 flex flex-col gap-y-4">
+        <h1 className="text-xl py-2">New Journal</h1>
+        <Separator />
 
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          onReset={() => form.reset(defaultFormValues)}
-          onKeyDown={checkKeyDown}
-          role="presentation"
-        >
-          <div>
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem labelPosition="start" className="w-1/2">
-                  <FormLabel className="text-lg">Date</FormLabel>
-                  <FormControl>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            'w-[280px] justify-start text-left font-normal w-100',
-                            !field.value && 'text-muted-foreground',
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-12 w-4" />
-                          {field.value ? (
-                            format(field.value, 'PPP')
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          {...field}
-                          mode="single"
-                          selected={new Date(field.value)}
-                          onSelect={(date) => {
-                            if (date) {
-                              form.setValue(
-                                'date',
-                                date.toLocaleString('en-US', dateFormatOptions),
-                              );
-                            }
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="id"
-              render={({ field }) => (
-                <FormItem labelPosition="start" className="w-1/2">
-                  <FormLabel className="text-lg">Journal#</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      disabled
-                      type={field.value === -1 ? 'text' : 'number'}
-                      value={field.value === -1 ? '' : field.value}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="narration"
-              render={({ field }) => (
-                <FormItem labelPosition="start" className="w-1/2">
-                  <FormLabel className="text-lg">Narration</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="py-10 pr-4 flex flex-col gap-3">
-            <DataTable
-              columns={columns}
-              data={fields}
-              sortingFns={defaultSortingFunctions}
-            />
-            {form.formState.errors.journalEntries && (
-              <p className="text-sm font-medium text-destructive">
-                {get(
-                  form.formState.errors.journalEntries?.find?.((je) => !!je),
-                  ['root', 'message'],
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            onReset={() => form.reset(defaultFormValues)}
+            onKeyDown={checkKeyDown}
+            role="presentation"
+          >
+            <div>
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem labelPosition="start" className="w-1/2">
+                    <FormLabel className="text-lg">Date</FormLabel>
+                    <FormControl>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              'w-[280px] justify-start text-left font-normal w-100',
+                              !field.value && 'text-muted-foreground',
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-12 w-4" />
+                            {field.value ? (
+                              format(field.value, 'PPP')
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            {...field}
+                            mode="single"
+                            selected={new Date(field.value)}
+                            onSelect={(date) => {
+                              if (date) {
+                                form.setValue(
+                                  'date',
+                                  date.toLocaleString(
+                                    'en-US',
+                                    dateFormatOptions,
+                                  ),
+                                );
+                              }
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </p>
-            )}
-          </div>
+              />
 
-          <div className="flex justify-between pr-4 gap-20 pb-20">
-            <Button
-              type="button"
-              className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
-              onClick={() => handleAddNewRow()}
-            >
-              <Plus size={20} />
-              <span className="w-max">Add New Row</span>
-            </Button>
+              <FormField
+                control={form.control}
+                name="id"
+                render={({ field }) => (
+                  <FormItem labelPosition="start" className="w-1/2">
+                    <FormLabel className="text-lg">Journal#</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        disabled
+                        type={field.value === -1 ? 'text' : 'number'}
+                        value={field.value === -1 ? '' : field.value}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <Table className="dark:bg-gray-900 bg-gray-100 rounded-xl">
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium text-xl w-1/3">
-                    Total
-                  </TableCell>
-                  <TableCell>{totalDebits}</TableCell>
-                  <TableCell>{totalCredits}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-medium text-red-500">
-                    Difference
-                  </TableCell>
-                  <TableCell className="text-red-500">
-                    {differenceDebit}
-                  </TableCell>
-                  <TableCell className="text-red-500">
-                    {differenceCredit}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="flex justify-between fixed bottom-6">
-            <div className="flex gap-4">
-              <Button
-                type="submit"
-                variant="default"
-                disabled={isPublishDisabled}
-              >
-                Save and Publish
-              </Button>
-              {/* <Button type="button" variant={'secondary'} onClick={handleSaveDraft}>Save as Draft</Button> */}
-              <Button type="reset" variant="ghost">
-                Clear
-              </Button>
+              <FormField
+                control={form.control}
+                name="narration"
+                render={({ field }) => (
+                  <FormItem labelPosition="start" className="w-1/2">
+                    <FormLabel className="text-lg">Narration</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            <Button
-              className="fixed right-9"
-              variant="secondary"
-              onClick={() => {
-                form.reset(defaultFormValues);
-                navigate(-1);
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
+            <div className="py-10 pr-4 flex flex-col gap-3">
+              <DataTable
+                columns={columns}
+                data={fields}
+                sortingFns={defaultSortingFunctions}
+              />
+              {form.formState.errors.journalEntries && (
+                <p className="text-sm font-medium text-destructive">
+                  {get(
+                    form.formState.errors.journalEntries?.find?.((je) => !!je),
+                    ['root', 'message'],
+                  )}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-between pr-4 gap-20 pb-20">
+              <Button
+                type="button"
+                className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
+                onClick={() => handleAddNewRow()}
+              >
+                <Plus size={20} />
+                <span className="w-max">Add New Row</span>
+              </Button>
+
+              <Table className="dark:bg-gray-900 bg-gray-100 rounded-xl">
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="font-medium text-xl w-1/3">
+                      Total
+                    </TableCell>
+                    <TableCell>{totalDebits}</TableCell>
+                    <TableCell>{totalCredits}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium text-red-500">
+                      Difference
+                    </TableCell>
+                    <TableCell className="text-red-500">
+                      {differenceDebit}
+                    </TableCell>
+                    <TableCell className="text-red-500">
+                      {differenceCredit}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex justify-between fixed bottom-6">
+              <div className="flex gap-4">
+                <Button
+                  type="submit"
+                  variant="default"
+                  disabled={isPublishDisabled}
+                >
+                  Save and Publish
+                </Button>
+                {/* <Button type="button" variant={'secondary'} onClick={handleSaveDraft}>Save as Draft</Button> */}
+                <Button type="reset" variant="ghost">
+                  Clear
+                </Button>
+              </div>
+
+              <Button
+                className="fixed right-9"
+                variant="secondary"
+                onClick={() => {
+                  form.reset(defaultFormValues);
+                  navigate(-1);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </div>
+    </>
   );
 };
 
