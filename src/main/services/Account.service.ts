@@ -1,6 +1,7 @@
 import type { Account, InsertAccount, UpdateAccount } from 'types';
 import { store } from '../store';
 import { connect } from './Database.service';
+import { cast } from '../utils/sqlite';
 
 export const getAccounts = (): Account[] => {
   const db = connect();
@@ -56,5 +57,5 @@ export const updateAccount = (account: UpdateAccount): boolean => {
       WHERE id = @id`,
   );
 
-  return Boolean(stm.run(account).changes);
+  return Boolean(stm.run({ ...account, id: cast(account.id) }).changes);
 };
