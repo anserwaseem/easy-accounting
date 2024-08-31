@@ -1,5 +1,3 @@
-/* eslint global-require: off, no-console: off, promise/always-return: off */
-
 /**
  * This module executes inside of electron's main process. You can start
  * electron renderer process from here and communicate with the other processes
@@ -10,7 +8,6 @@
  */
 import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
-import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import type {
   UserCredentials,
@@ -38,14 +35,7 @@ import {
   insertJournal,
 } from './services/Journal.service';
 import { store } from './store';
-
-class AppUpdater {
-  constructor() {
-    log.transports.file.level = 'info';
-    autoUpdater.logger = log;
-    autoUpdater.checkForUpdatesAndNotify();
-  }
-}
+import { AppUpdater } from './appUpdater';
 
 log.info('Main process started');
 
@@ -143,9 +133,12 @@ const createWindow = async () => {
     return { action: 'deny' };
   });
 
-  // Remove this if your app does not use auto updates
-  // eslint-disable-next-line
-  new AppUpdater();
+  // eslint-disable-next-line no-new
+  new AppUpdater(mainWindow);
+  // Check for updates immediately when the app starts
+  AppUpdater.checkForUpdates();
+  // Check for updates every hour
+  setInterval(() => AppUpdater.checkForUpdates(), 60 * 60 * 1000);
 };
 
 /**

@@ -21,6 +21,7 @@ mac:
   entitlements: assets/entitlements.mac.plist
   entitlementsInherit: assets/entitlements.mac.plist
   gatekeeperAssess: false
+  darkModeSupport: true
 dmg:
   contents:
     - x: 130
@@ -31,7 +32,10 @@ dmg:
       path: /Applications
 win:
   target:
-    - nsis
+    - target: nsis
+      arch:
+        - x64
+        - ia32
 linux:
   target:
     - AppImage
@@ -44,5 +48,5 @@ extraResources:
   - ./assets/**
 publish:
   provider: github
-  owner: easy-accounting
+  owner: anserwaseem
   repo: easy-accounting
