@@ -47,12 +47,18 @@ export const insertAccount = (account: InsertAccount): boolean => {
 export const updateAccount = (account: UpdateAccount): boolean => {
   const db = connect();
 
+  const username = store.get('username');
+
   const stm = db.prepare(
     ` UPDATE account
       SET name = @name, code = @code, chartId = (
         SELECT id
         FROM chart
-        WHERE name = @headName
+        WHERE name = @headName AND userId = (
+          SELECT id
+          FROM users
+          WHERE username = '${username}'
+        )
       )
       WHERE id = @id`,
   );
