@@ -1,5 +1,6 @@
 appId: org.easy-accounting
 productName: Easy Accounting
+artifactName: ${name}-${version}-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
   - '**/*.{node,dll}'
@@ -22,6 +23,7 @@ mac:
   entitlementsInherit: assets/entitlements.mac.plist
   gatekeeperAssess: false
   darkModeSupport: true
+  category: public.app-category.productivity
 dmg:
   contents:
     - x: 130
@@ -36,10 +38,8 @@ win:
       arch:
         - x64
         - ia32
-linux:
-  target:
-    - AppImage
-  category: Development
+nsis:
+  artifactName: ${name}-setup-${version}-win.${ext}
 directories:
   app: release/app
   buildResources: assets

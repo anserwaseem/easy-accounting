@@ -1,16 +1,15 @@
 {
-  "version": "0.0.2",
+  "version": "0.0.1",
   "description": "Easy Accounting is a simple accounting software for SMEs.",
   "keywords": [
-    "electron",
     "easyAccounting",
+    "accounting software",
+    "electron",
     "react",
     "typescript",
     "ts",
     "sass",
-    "webpack",
-    "hot",
-    "reload"
+    "webpack"
   ],
   "homepage": "https://github.com/anserwaseem/easy-accouting#readme",
   "bugs": {
@@ -35,7 +34,7 @@
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
     "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.dev.dll.ts",
     "prepackage": "ts-node .erb/scripts/prepackage-db.ts",
-    "package": "npm run clean && npm run build && electron-builder build --publish never",
+    "package": "npm run clean && npm run build && electron-builder --mac --win -p never",
     "postpackage": "ts-node .erb/scripts/postpackage-db.ts",
     "release": "npm run prepackage && npm run clean && npm run build && electron-builder --mac --win -p always && npm run postpackage",
     "start": "ts-node ./.erb/scripts/check-port-in-use.js && npm run start:renderer",

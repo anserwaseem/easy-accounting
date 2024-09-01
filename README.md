@@ -4,7 +4,7 @@ Easy Accounting is a comprehensive, user-friendly accounting software designed f
 
 ## Features
 
-- **Cross-Platform Support**: Runs on Windows, macOS, and Linux.
+- **Cross-Platform Support**: Runs on Windows, and macOS.
 - **User-Friendly Interface**: Intuitive design for easy navigation and operation.
 - **Data Management**: Utilizes Better-sqlite for secure and efficient data storage.
 - **Seamless Navigation**: Integrated with React Router for fluid transitions between different sections of the application.
