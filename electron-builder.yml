@@ -4,12 +4,10 @@ artifactName: ${name}-${version}-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
   - '**/*.{node,dll}'
-  - database.db
 files:
   - dist
   - node_modules
   - package.json
-  - database.db
 afterSign: .erb/scripts/notarize.js
 mac:
   target:
@@ -46,6 +44,8 @@ directories:
   output: release/build
 extraResources:
   - ./assets/**
+  - from: './release/app/database.db'
+    to: 'database.db'
 publish:
   provider: github
   owner: anserwaseem

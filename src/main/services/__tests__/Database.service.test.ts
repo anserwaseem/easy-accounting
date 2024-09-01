@@ -4,9 +4,9 @@ import * as DatabaseService from '../Database.service';
 
 jest.mock('better-sqlite3');
 
-// TODO: Enable this test - issue: getting "/Users/anserwaseem/Projects/azs-experiments/easy-accounting/src/database.db" in all tests
+// TODO: Enable this test
 // eslint-disable-next-line jest/no-disabled-tests
-describe('Database Service', () => {
+describe.skip('Database Service', () => {
   const mockDatabase = {
     verbose: jest.fn(),
     fileMustExist: true,

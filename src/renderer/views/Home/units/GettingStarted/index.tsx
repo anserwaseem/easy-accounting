@@ -19,6 +19,10 @@ export const GettingStarted: React.FC = () => {
       const result = await window.electron.saveBalanceSheet(balanceSheet);
       // eslint-disable-next-line no-console
       console.log('saveBalanceSheet result', result);
+      toast({
+        description: 'Balance Sheet uploaded successfully.',
+        variant: 'success',
+      });
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error(error);

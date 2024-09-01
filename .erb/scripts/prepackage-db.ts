@@ -36,9 +36,7 @@ if (fs.existsSync(targetDbPath)) {
 const Database = require(betterSqlite3Path);
 
 // Initialize the new database schema
-const db = new Database(targetDbPath, {
-  // verbose: console.log,
-});
+const db = new Database(targetDbPath);
 const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
 db.exec(schemaSql);
 console.log('Database schema initialized.');
