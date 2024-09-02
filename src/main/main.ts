@@ -36,6 +36,7 @@ import {
 } from './services/Journal.service';
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
+import { runMigrations } from './migrations';
 
 log.info('Main process started');
 
@@ -155,7 +156,9 @@ app.on('window-all-closed', () => {
 
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
+    await runMigrations();
+
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
       return login(user);
     });
