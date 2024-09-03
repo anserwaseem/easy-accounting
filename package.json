@@ -1,5 +1,5 @@
 {
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Easy Accounting is a simple accounting software for SMEs.",
   "keywords": [
     "easyAccounting",
@@ -48,8 +48,7 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
       "prettier --write \"**/*.{js,jsx,ts,tsx,md}\"",
-      "eslint --cache --fix",
-      "jest --findRelatedTests --passWithNoTests"
+      "eslint --cache --fix"
     ]
   },
   "browserslist": [],

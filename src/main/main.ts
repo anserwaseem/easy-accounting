@@ -19,24 +19,17 @@ import type {
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/general';
-import { login, logout, register } from './services/Auth.service';
-import { saveBalanceSheet } from './services/Statement.service';
-import {
-  getAccounts,
-  insertAccount,
-  updateAccount,
-} from './services/Account.service';
-import { getCharts } from './services/Chart.service';
-import { getLedger } from './services/Ledger.service';
-import {
-  getJorunal,
-  getJournals,
-  getNextJournalId,
-  insertJournal,
-} from './services/Journal.service';
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
-import { runMigrations } from './migrations';
+import { MigrationRunner } from './migrations/index';
+import {
+  AuthService,
+  AccountService,
+  JournalService,
+  LedgerService,
+  StatementService,
+} from './services';
+import { ChartService } from './services/Chart.service';
 
 log.info('Main process started');
 
@@ -157,45 +150,55 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(async () => {
-    await runMigrations();
+    // eslint-disable-next-line no-new
+    new MigrationRunner();
+
+    const authService = new AuthService();
+    const chartService = new ChartService();
+    const accountService = new AccountService();
+    const journalService = new JournalService();
+    const ledgerService = new LedgerService();
+    const statementService = new StatementService();
 
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
-      return login(user);
+      return authService.login(user);
     });
     ipcMain.handle('auth:register', async (_, user: UserCredentials) => {
-      return register(user);
+      return authService.register(user);
     });
     ipcMain.handle('auth:logout', async () => {
-      return logout();
+      return AuthService.logout();
     });
     ipcMain.handle(
       'balanceSheet:save',
       async (_, balanceSheet: BalanceSheet) => {
         try {
-          return saveBalanceSheet(balanceSheet);
+          return statementService.saveBalanceSheet(balanceSheet);
         } catch (error) {
           log.error('Error in saveBalanceSheet', error);
         }
       },
     );
-    ipcMain.handle('account:getAll', async () => getAccounts());
+    ipcMain.handle('account:getAll', async () => accountService.getAccounts());
     ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
-      insertAccount(account),
+      accountService.insertAccount(account),
     );
     ipcMain.handle('account:updateAccount', async (_, account: UpdateAccount) =>
-      updateAccount(account),
+      accountService.updateAccount(account),
     );
-    ipcMain.handle('chart:getAll', async () => getCharts());
+    ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) =>
-      getLedger(accountId),
+      ledgerService.getLedger(accountId),
     );
-    ipcMain.handle('journal:getNextId', async () => getNextJournalId());
+    ipcMain.handle('journal:getNextId', async () =>
+      journalService.getNextJournalId(),
+    );
     ipcMain.handle('journal:insert', async (_, journal: Journal) =>
-      insertJournal(journal),
+      journalService.insertJournal(journal),
     );
-    ipcMain.handle('journal:getAll', async () => getJournals());
+    ipcMain.handle('journal:getAll', async () => journalService.getJournals());
     ipcMain.handle('journal:get', async (_, journalId: number) =>
-      getJorunal(journalId),
+      journalService.getJorunal(journalId),
     );
 
     createWindow();

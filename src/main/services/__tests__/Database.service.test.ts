@@ -1,55 +1,57 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import * as DatabaseService from '../Database.service';
+/* eslint-disable jest/no-commented-out-tests */
 
-jest.mock('better-sqlite3');
+// import Database from 'better-sqlite3';
+// import path from 'path';
+// import * as DatabaseService from '../Database.service';
 
-// TODO: Enable this test
-// eslint-disable-next-line jest/no-disabled-tests
-describe.skip('Database Service', () => {
-  const mockDatabase = {
-    verbose: jest.fn(),
-    fileMustExist: true,
-  };
-  jest.spyOn(DatabaseService, 'isDevelopment');
+// jest.mock('better-sqlite3');
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    (Database as unknown as jest.Mock).mockReturnValue(mockDatabase);
-  });
+// // TODO: Enable this test
+// // eslint-disable-next-line jest/no-disabled-tests
+// describe.skip('Database Service', () => {
+//   const mockDatabase = {
+//     verbose: jest.fn(),
+//     fileMustExist: true,
+//   };
+//   jest.spyOn(DatabaseService, 'isDevelopment');
 
-  it('should use the correct database path in development environment', () => {
-    process.env.NODE_ENV = 'development';
-    (DatabaseService.isDevelopment as jest.Mock).mockReturnValue(true);
+//   beforeEach(() => {
+//     jest.clearAllMocks();
+//     (Database as unknown as jest.Mock).mockReturnValue(mockDatabase);
+//   });
 
-    DatabaseService.connect();
+//   it('should use the correct database path in development environment', () => {
+//     process.env.NODE_ENV = 'development';
+//     (DatabaseService.isDevelopment as jest.Mock).mockReturnValue(true);
 
-    expect(Database).toHaveBeenCalledWith(
-      expect.stringContaining(path.join('release', 'app', 'database.db')),
-      expect.any(Object),
-    );
-  });
+//     DatabaseService.connect();
 
-  it('should use the correct database path in production environment', () => {
-    process.env.NODE_ENV = 'production';
-    (DatabaseService.isDevelopment as jest.Mock).mockReturnValue(false);
+//     expect(Database).toHaveBeenCalledWith(
+//       expect.stringContaining(path.join('release', 'app', 'database.db')),
+//       expect.any(Object),
+//     );
+//   });
 
-    DatabaseService.connect();
+//   it('should use the correct database path in production environment', () => {
+//     process.env.NODE_ENV = 'production';
+//     (DatabaseService.isDevelopment as jest.Mock).mockReturnValue(false);
 
-    expect(Database).toHaveBeenCalledWith(
-      expect.stringMatching(
-        /^((?!release\/\/app|release\\app).)*database\.db$/,
-      ), // should not contain 'release/app' or 'release\\app' but should contain 'database.db'
-      expect.any(Object),
-    );
-  });
+//     DatabaseService.connect();
 
-  it('should always pass the correct options to Database constructor', () => {
-    DatabaseService.connect();
+//     expect(Database).toHaveBeenCalledWith(
+//       expect.stringMatching(
+//         /^((?!release\/\/app|release\\app).)*database\.db$/,
+//       ), // should not contain 'release/app' or 'release\\app' but should contain 'database.db'
+//       expect.any(Object),
+//     );
+//   });
 
-    expect(Database).toHaveBeenCalledWith(expect.any(String), {
-      verbose: console.log,
-      fileMustExist: true,
-    });
-  });
-});
+//   it('should always pass the correct options to Database constructor', () => {
+//     DatabaseService.connect();
+
+//     expect(Database).toHaveBeenCalledWith(expect.any(String), {
+//       verbose: console.log,
+//       fileMustExist: true,
+//     });
+//   });
+// });

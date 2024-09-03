@@ -1,68 +1,83 @@
 import type { DbUser, UserCredentials } from 'types';
+import type { Database } from 'better-sqlite3';
 import { store } from '../store';
 import { hashPassword, verifyPassword } from '../utils/encrypt';
-import { connect } from './Database.service';
-import { insertCharts } from './Chart.service';
+import { DatabaseService } from './Database.service';
+import { ChartService } from './Chart.service';
 import { INITIAL_CHARTS } from '../utils/constants';
 
-const getUser = (username: string): DbUser | undefined => {
-  const db = connect();
-  const stm = db.prepare('SELECT * FROM users where username = @username');
-  return stm.get({ username }) as DbUser | undefined;
-};
+export class AuthService {
+  private db: Database;
 
-const insertUser = (user: DbUser): void => {
-  const db = connect();
-  const stm = db.prepare(
-    ` INSERT INTO users (username, password_hash, status)
-      VALUES (@username, @password_hash, @status)`,
-  );
-  stm.run(user);
-};
+  private chartService: ChartService;
 
-export const login = (user: UserCredentials): boolean => {
-  const dbUser = getUser(user.username);
-  if (!dbUser) {
-    return false;
+  constructor() {
+    this.db = DatabaseService.getInstance().getDatabase();
+    this.chartService = new ChartService();
   }
 
-  const isValid = verifyPassword(user.password, dbUser.password_hash);
-
-  if (isValid) {
-    store.set('username', user.username);
+  private getUser(username: string): DbUser | undefined {
+    const stm = this.db.prepare(
+      'SELECT * FROM users where username = @username',
+    );
+    return stm.get({ username }) as DbUser | undefined;
   }
 
-  return isValid;
-};
+  private insertUser(user: DbUser): void {
+    const stm = this.db.prepare(
+      `INSERT INTO users (username, password_hash, status)
+       VALUES (@username, @password_hash, @status)`,
+    );
+    stm.run(user);
+  }
 
-export const register = (user: UserCredentials): boolean => {
-  try {
-    if (user.username.length < 4 || user.password.length < 4) {
+  public login(user: UserCredentials): boolean {
+    const dbUser = this.getUser(user.username);
+    if (!dbUser) {
       return false;
     }
 
-    const userExists = getUser(user.username);
-    if (userExists) {
-      return false;
+    const isValid = verifyPassword(user.password, dbUser.password_hash);
+
+    if (isValid) {
+      store.set('username', user.username);
     }
 
-    const passwordHash = hashPassword(user.password);
-
-    const registerUser = {
-      username: user.username,
-      password_hash: passwordHash,
-      status: 1,
-    };
-
-    insertUser(registerUser);
-    insertCharts(user.username, INITIAL_CHARTS);
-
-    return true;
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error(error);
-    return false;
+    return isValid;
   }
-};
 
-export const logout = () => store.delete('username');
+  public register(user: UserCredentials): boolean {
+    try {
+      if (user.username.length < 4 || user.password.length < 4) {
+        return false;
+      }
+
+      const userExists = this.getUser(user.username);
+      if (userExists) {
+        return false;
+      }
+
+      const passwordHash = hashPassword(user.password);
+
+      const registerUser = {
+        username: user.username,
+        password_hash: passwordHash,
+        status: 1,
+      };
+
+      this.insertUser(registerUser);
+
+      // Correctly use the ChartService to insert initial charts
+      this.chartService.insertCharts(user.username, INITIAL_CHARTS);
+
+      return true;
+    } catch (error) {
+      console.error(error);
+      return false;
+    }
+  }
+
+  public static logout(): void {
+    store.delete('username');
+  }
+}
