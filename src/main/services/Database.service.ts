@@ -2,7 +2,9 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { logErrors } from '../errorLogger';
 
+@logErrors
 export class DatabaseService {
   // eslint-disable-next-line no-use-before-define
   private static instance: DatabaseService;

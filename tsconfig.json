@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "incremental": true,
-    "target": "es2021",
+    "experimentalDecorators": true,
+    "downlevelIteration": true,
+    "target": "ES5",
     "module": "commonjs",
     "lib": ["dom", "es2021"],
     "jsx": "react-jsx",

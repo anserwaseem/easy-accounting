@@ -2,19 +2,20 @@ import type { Database } from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { get } from 'lodash';
+import log from 'electron-log';
 import { DatabaseService } from '../services';
+import { logErrors } from '../errorLogger';
 
+/**
+ * Represents a database migration.
+ *
+ * @param name - The name of the migration.
+ * @param up - Function to apply the migration.
+ */
 export interface Migration {
   name: string;
   up: (db: Database) => void;
 }
-
-/**
- * Represents a database migration.
- * @typedef {Object} Migration
- * @property {string} name - The name of the migration.
- * @property {function(Database): void} up - Function to apply the migration.
- */
 
 /**
  * Class to handle database migrations.
@@ -39,9 +40,8 @@ export interface Migration {
  * ```
  *
  * The MigrationRunner will automatically detect and run new migrations in alphabetical order.
- *
- * @class
  */
+@logErrors
 export class MigrationRunner {
   private db: Database;
 
@@ -50,6 +50,8 @@ export class MigrationRunner {
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.migrateUp();
+    log.transports.file.level = 'info';
+    log.transports.console.level = 'info';
   }
 
   private async ensureMigrationTable(): Promise<void> {
@@ -60,15 +62,14 @@ export class MigrationRunner {
       .get();
 
     if (!get(doesTableExist, 1)) {
-      console.log('Creating migrations table...');
+      log.info('Creating migrations table...');
       this.db
         .prepare(
           `CREATE TABLE IF NOT EXISTS migrations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
             applied_at DATETIME DEFAULT (DATETIME(CURRENT_TIMESTAMP, 'localtime'))
-          )
-        `,
+          )`,
         )
         .run();
     }
@@ -108,7 +109,7 @@ export class MigrationRunner {
     for (const file of migrationFiles) {
       const migrationObj = Object.values(file)[0];
       if (!appliedMigrations.includes(migrationObj.name)) {
-        console.log(`Applying migration: ${migrationObj.name}`);
+        log.info(`Applying migration: ${migrationObj.name}`);
 
         this.db.transaction(() => {
           migrationObj.up(this.db);
@@ -117,13 +118,13 @@ export class MigrationRunner {
             .run(migrationObj.name);
         })();
 
-        console.log(`Migration ${migrationObj.name} applied successfully.`);
+        log.info(`Migration ${migrationObj.name} applied successfully.`);
         migrationsApplied = true;
       }
     }
 
     if (!migrationsApplied) {
-      console.log('No migration applied.');
+      log.info('No migration applied.');
     }
   }
 }

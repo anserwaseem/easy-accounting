@@ -3,7 +3,9 @@ import type { Database } from 'better-sqlite3';
 import { store } from '../store';
 import { DatabaseService } from './Database.service';
 import { cast } from '../utils/sqlite';
+import { logErrors } from '../errorLogger';
 
+@logErrors
 export class AccountService {
   private db: Database;
 

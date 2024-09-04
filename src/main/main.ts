@@ -31,6 +31,8 @@ import {
 } from './services';
 import { ChartService } from './services/Chart.service';
 
+log.transports.file.level = 'info';
+log.transports.console.level = 'info';
 log.info('Main process started');
 
 let mainWindow: BrowserWindow | null = null;

@@ -3,10 +3,12 @@ import type { Database, Statement } from 'better-sqlite3';
 import { capitalize, forEach, isEmpty, isNil } from 'lodash';
 import { DatabaseService } from './Database.service';
 import { store } from '../store';
+import { logErrors } from '../errorLogger';
 
 type Section = 'asset' | 'liability' | 'equity';
 type SectionType = 'current' | 'fixed' | null;
 
+@logErrors
 export class StatementService {
   private db: Database;
 

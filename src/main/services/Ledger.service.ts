@@ -1,7 +1,9 @@
 import type { Ledger } from 'types';
 import type { Database } from 'better-sqlite3';
 import { DatabaseService } from './Database.service';
+import { logErrors } from '../errorLogger';
 
+@logErrors
 export class LedgerService {
   private db: Database;
 

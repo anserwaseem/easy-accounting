@@ -5,7 +5,9 @@ import { hashPassword, verifyPassword } from '../utils/encrypt';
 import { DatabaseService } from './Database.service';
 import { ChartService } from './Chart.service';
 import { INITIAL_CHARTS } from '../utils/constants';
+import { logErrors } from '../errorLogger';
 
+@logErrors
 export class AuthService {
   private db: Database;
 

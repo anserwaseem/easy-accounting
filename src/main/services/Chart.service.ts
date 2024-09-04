@@ -3,7 +3,9 @@ import type { Database } from 'better-sqlite3';
 import { isEmpty } from 'lodash';
 import { store } from '../store';
 import { DatabaseService } from './Database.service';
+import { logErrors } from '../errorLogger';
 
+@logErrors
 export class ChartService {
   private db: Database;
 

@@ -5,7 +5,9 @@ import { cast } from '../utils/sqlite';
 import { store } from '../store';
 import { BalanceType } from '../../types'; // FIXME: throws "Error: Cannot find module 'types'" when importing from 'types'
 import { DatabaseService } from './Database.service';
+import { logErrors } from '../errorLogger';
 
+@logErrors
 export class JournalService {
   private db: Database;
 
