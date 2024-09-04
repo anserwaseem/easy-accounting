@@ -5,6 +5,7 @@ import {
   BrowserWindow,
   MenuItemConstructorOptions,
 } from 'electron';
+import log from 'electron-log';
 import { AppUpdater } from './appUpdater';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
@@ -20,52 +21,45 @@ export default class MenuBuilder {
   }
 
   buildMenu(): Menu {
-    if (
-      process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-    ) {
-      this.setupDevelopmentEnvironment();
-    }
-
-    const template =
-      process.platform === 'darwin'
-        ? this.buildDarwinTemplate()
-        : this.buildDefaultTemplate();
-
+    const template = this.getTemplate();
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
-
     return menu;
   }
 
-  setupDevelopmentEnvironment(): void {
-    this.mainWindow.webContents.on('context-menu', (_, props) => {
-      const { x, y } = props;
-
-      Menu.buildFromTemplate([
-        {
-          label: 'Inspect element',
-          click: () => {
-            this.mainWindow.webContents.inspectElement(x, y);
-          },
-        },
-      ]).popup({ window: this.mainWindow });
-    });
+  getTemplate(): MenuItemConstructorOptions[] {
+    if (process.platform === 'darwin') {
+      return this.getDarwinTemplate();
+    }
+    return this.getDefaultTemplate();
   }
 
-  buildDarwinTemplate(): MenuItemConstructorOptions[] {
-    const subMenuAbout: DarwinMenuItemConstructorOptions = {
-      label: 'Electron',
+  getDarwinTemplate(): MenuItemConstructorOptions[] {
+    return [
+      MenuBuilder.getAboutMenu('Easy Accounting'),
+      this.getViewMenu(),
+      MenuBuilder.getWindowMenu(),
+      MenuBuilder.getHelpMenu(),
+    ];
+  }
+
+  getDefaultTemplate(): MenuItemConstructorOptions[] {
+    return [this.getFileMenu(), this.getViewMenu(), MenuBuilder.getHelpMenu()];
+  }
+
+  static getAboutMenu(appName: string): DarwinMenuItemConstructorOptions {
+    return {
+      label: appName,
       submenu: [
         {
-          label: 'About Easy Accounting',
+          label: `About ${appName}`,
           selector: 'orderFrontStandardAboutPanel:',
         },
         { type: 'separator' },
         { label: 'Services', submenu: [] },
         { type: 'separator' },
         {
-          label: 'Hide Easy Accounting',
+          label: `Hide ${appName}`,
           accelerator: 'Command+H',
           selector: 'hide:',
         },
@@ -76,58 +70,13 @@ export default class MenuBuilder {
         },
         { label: 'Show All', selector: 'unhideAllApplications:' },
         { type: 'separator' },
-        {
-          label: 'Quit',
-          accelerator: 'Command+Q',
-          click: () => {
-            app.quit();
-          },
-        },
+        { label: 'Quit', accelerator: 'Command+Q', click: () => app.quit() },
       ],
     };
-    const subMenuEdit: DarwinMenuItemConstructorOptions = {
-      label: 'Edit',
-      submenu: [
-        { label: 'Undo', accelerator: 'Command+Z', selector: 'undo:' },
-        { label: 'Redo', accelerator: 'Shift+Command+Z', selector: 'redo:' },
-        { type: 'separator' },
-        { label: 'Cut', accelerator: 'Command+X', selector: 'cut:' },
-        { label: 'Copy', accelerator: 'Command+C', selector: 'copy:' },
-        { label: 'Paste', accelerator: 'Command+V', selector: 'paste:' },
-        {
-          label: 'Select All',
-          accelerator: 'Command+A',
-          selector: 'selectAll:',
-        },
-      ],
-    };
-    const subMenuViewDev: MenuItemConstructorOptions = {
-      label: 'View',
-      submenu: [
-        {
-          label: 'Reload',
-          accelerator: 'Command+R',
-          click: () => {
-            this.mainWindow.webContents.reload();
-          },
-        },
-        {
-          label: 'Toggle Full Screen',
-          accelerator: 'Ctrl+Command+F',
-          click: () => {
-            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-          },
-        },
-        {
-          label: 'Toggle Developer Tools',
-          accelerator: 'Alt+Command+I',
-          click: () => {
-            this.mainWindow.webContents.toggleDevTools();
-          },
-        },
-      ],
-    };
-    const subMenuWindow: DarwinMenuItemConstructorOptions = {
+  }
+
+  static getWindowMenu(): DarwinMenuItemConstructorOptions {
+    return {
       label: 'Window',
       submenu: [
         {
@@ -140,21 +89,10 @@ export default class MenuBuilder {
         { label: 'Bring All to Front', selector: 'arrangeInFront:' },
       ],
     };
+  }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const subMenuViewProd: MenuItemConstructorOptions = {
-      label: 'View',
-      submenu: [
-        {
-          label: 'Toggle Full Screen',
-          accelerator: 'Ctrl+Command+F',
-          click: () => {
-            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-          },
-        },
-      ],
-    };
-    const subMenuHelp: MenuItemConstructorOptions = {
+  static getHelpMenu(): MenuItemConstructorOptions {
+    return {
       label: 'Help',
       submenu: [
         {
@@ -177,89 +115,52 @@ export default class MenuBuilder {
             AppUpdater.checkForUpdates();
           },
         },
+        {
+          label: 'Show logs',
+          click() {
+            shell.showItemInFolder(log.transports.file.getFile().path);
+          },
+        },
       ],
     };
-
-    const subMenuView =
-      process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-        ? subMenuViewDev
-        : subMenuViewDev;
-
-    return [subMenuAbout, subMenuEdit, subMenuView, subMenuWindow, subMenuHelp];
   }
 
-  buildDefaultTemplate() {
-    const templateDefault = [
-      {
-        label: '&File',
-        submenu: [
-          {
-            label: '&Open',
-            accelerator: 'Ctrl+O',
-          },
-          {
-            label: '&Close',
-            accelerator: 'Ctrl+W',
-            click: () => {
-              this.mainWindow.close();
-            },
-          },
-        ],
-      },
-      {
-        label: '&View',
-        submenu: [
-          {
-            label: '&Reload',
-            accelerator: 'Ctrl+R',
-            click: () => {
-              this.mainWindow.webContents.reload();
-            },
-          },
-          {
-            label: 'Toggle &Full Screen',
-            accelerator: 'F11',
-            click: () => {
-              this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-            },
-          },
-          {
-            label: 'Toggle &Developer Tools',
-            accelerator: 'Alt+Ctrl+I',
-            click: () => {
-              this.mainWindow.webContents.toggleDevTools();
-            },
-          },
-        ],
-      },
-      {
-        label: 'Help',
-        submenu: [
-          {
-            label: 'Contact',
-            click() {
-              shell.openExternal('mailto:hafiz.anser.waseem@gmail.com');
-            },
-          },
-          {
-            label: 'File an Issue',
-            click() {
-              shell.openExternal(
-                'https://github.com/anserwaseem/easy-accounting/issues',
-              );
-            },
-          },
-          {
-            label: 'Check for Updates',
-            click: () => {
-              AppUpdater.checkForUpdates();
-            },
-          },
-        ],
-      },
-    ];
+  getViewMenu(): DarwinMenuItemConstructorOptions {
+    return {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Reload',
+          accelerator: process.platform === 'darwin' ? 'Command+R' : 'Ctrl+R',
+          click: () => this.mainWindow.webContents.reload(),
+        },
+        {
+          label: 'Toggle Full Screen',
+          accelerator: process.platform === 'darwin' ? 'Ctrl+Command+F' : 'F11',
+          click: () =>
+            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen()),
+        },
+        {
+          label: 'Toggle Developer Tools',
+          accelerator:
+            process.platform === 'darwin' ? 'Alt+Command+I' : 'Alt+Ctrl+I',
+          click: () => this.mainWindow.webContents.toggleDevTools(),
+        },
+      ],
+    };
+  }
 
-    return templateDefault;
+  getFileMenu(): MenuItemConstructorOptions {
+    return {
+      label: '&File',
+      submenu: [
+        { label: '&Open', accelerator: 'Ctrl+O' },
+        {
+          label: '&Close',
+          accelerator: 'Ctrl+W',
+          click: () => this.mainWindow.close(),
+        },
+      ],
+    };
   }
 }
