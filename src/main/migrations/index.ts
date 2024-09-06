@@ -22,17 +22,17 @@ export interface Migration {
  * Class to handle database migrations.
  *
  * This class manages the process of applying database migrations. It reads migration
- * files from a specified directory, checks which migrations have already been applied,
+ * files from migrations directory, checks which migrations have already been applied,
  * and runs any pending migrations.
  *
  * To add a new migration:
- * 1. Create a new file in the 'migrations' directory.
+ * 1. Create a new js file in the 'migrations' directory.
  * 2. The file should export an object that implements the {@link Migration} interface.
  * 3. The object should have a unique 'name' property and an 'up' function that performs the migration.
  *
  * Example of a migration file:
  * ```
- * export const migration = {
+ * module.exports = {
  *   name: '001_create_users_table',
  *   up: (db: Database) => {
  *     db.exec(`CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)`);
@@ -52,34 +52,25 @@ export class MigrationRunner {
     this.db = DatabaseService.getInstance().getDatabase();
 
     const devMigrationsPath = __dirname;
-    const prodMigrationsPath = path.join(
-      process.resourcesPath,
-      'migrations',
-      // 'main',
-      // 'migrations',
-    );
+    const prodMigrationsPath = path.join(process.resourcesPath, 'migrations');
     this.migrationsDir = app.isPackaged
       ? prodMigrationsPath
       : devMigrationsPath;
 
-    log.info('App is packaged:', app.isPackaged);
+    log.transports.file.level = 'debug';
+    log.transports.console.level = 'debug';
     log.info('Migrations directory:', this.migrationsDir);
     log.info('Migrations directory exists:', fs.existsSync(this.migrationsDir));
 
     this.migrateUp();
-
-    log.transports.file.level = 'debug';
-    log.transports.console.level = 'debug';
   }
 
   private async ensureMigrationTable(): Promise<void> {
-    log.info('MigrationRunner.ensureMigrationTable called');
     const doesTableExist = this.db
       .prepare(
         `SELECT 1 FROM sqlite_master WHERE type='table' AND name='migrations';`,
       )
       .get();
-    log.info('doesTableExist', doesTableExist);
 
     if (!get(doesTableExist, 1)) {
       log.info('Creating migrations table...');
@@ -96,7 +87,6 @@ export class MigrationRunner {
   }
 
   private async getAppliedMigrations(): Promise<string[]> {
-    log.info('MigrationRunner.getAppliedMigrations called');
     return this.db
       .prepare('SELECT name FROM migrations ORDER BY id')
       .all()
@@ -104,9 +94,6 @@ export class MigrationRunner {
   }
 
   private async getMigrationFiles(): Promise<Migration[]> {
-    log.info('MigrationRunner.getMigrationFiles called');
-    log.info('migrationsDir:', this.migrationsDir);
-
     const fileNames = fs
       .readdirSync(this.migrationsDir)
       .filter((fileName) => fileName.endsWith('.js'))
@@ -116,24 +103,14 @@ export class MigrationRunner {
     const migrations = await Promise.all(
       fileNames.map(async (fileName) => {
         const filePath = path.join(this.migrationsDir, fileName);
-        // const resolvedPath =
-        //   process.platform === 'win32'
-        //     ? filePath.replace(/\\/g, '\\\\')
-        //     : filePath;
-        log.info(`Importing migration file - filePath: ${filePath}`);
+        log.info(`Importing migration file: ${filePath}`);
 
         try {
           let migration;
 
           if (app.isPackaged) {
-            // In production, use a dynamic require
-            // migration = await import(filePath);
-            // eslint-disable-next-line no-eval
-            // migration = eval(`require('${filePath.replace(/\\/g, '\\\\')}')`); // HACK: using eval is bad practice
-
             // In production, read the file content and evaluate it
             let fileContent = fs.readFileSync(filePath, 'utf-8');
-            log.info(0, fileContent);
             // Convert ES module syntax to CommonJS if necessary
             if (fileContent.includes('export default')) {
               fileContent = fileContent.replace(
@@ -141,13 +118,13 @@ export class MigrationRunner {
                 'module.exports =',
               );
             }
-            log.info(1, fileContent);
+
             const wrappedContent = `(function(exports, require, module, __filename, __dirname) { ${fileContent} \n});`;
-            log.info(2, wrappedContent);
             const compiledWrapper = require('vm').runInThisContext(
               wrappedContent,
               { filename: filePath },
             );
+
             const module = { exports: {} };
             compiledWrapper.call(
               module.exports,
@@ -158,7 +135,6 @@ export class MigrationRunner {
               path.dirname(filePath),
             );
 
-            log.info(2, module);
             migration = module.exports;
           } else {
             // In development, use dynamic import
@@ -182,7 +158,7 @@ export class MigrationRunner {
     const migrationFiles = await this.getMigrationFiles();
     let migrationsApplied = false;
 
-    log.info('in migrationUp', migrationFiles);
+    log.info('Total migration files available: ', migrationFiles.length);
     for (const migrationObj of migrationFiles) {
       const migrationName = get(migrationObj, 'name');
 
