@@ -7,8 +7,8 @@ export const AuthCheck: React.FC<PropsWithChildren> = ({
 }: PropsWithChildren) => {
   const { authed } = useAuth();
 
-  // if (authed) {
-  if (authed || process.env.NODE_ENV === 'development') {
+  if (authed) {
+    // if (authed || process.env.NODE_ENV === 'development') {
     return (
       <>
         {children}

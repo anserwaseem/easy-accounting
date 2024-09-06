@@ -8,13 +8,14 @@ export type SqliteBoolean = 0 | 1;
 /**
  * Casts various types to their SQLite-compatible representations.
  *
- * @param value - The value to cast. Can be either a boolean or a Date.
+ * @param value - The value to cast.
  * @returns The SQLite-compatible representation of the input.
- * @throws {Error} If the input type is neither boolean nor Date.
+ * @throws {Error} If input type is neither of the overloads.
  */
 export function cast(value: boolean): SqliteBoolean;
 export function cast(date: Date): string;
-export function cast(value: boolean | Date): SqliteBoolean | string {
+export function cast(value: number): string;
+export function cast(value: boolean | Date | number) {
   if (typeof value === 'boolean') {
     return value ? 1 : 0;
   }
@@ -29,6 +30,9 @@ export function cast(value: boolean | Date): SqliteBoolean | string {
     const seconds = pad(value.getSeconds());
 
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+  if (typeof value === 'number') {
+    return String(value);
   }
 
   throw new Error('Invalid input type for cast function');

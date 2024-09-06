@@ -6,7 +6,11 @@
   "author": {
     "name": "Anser Waseem",
     "email": "hafiz.anser.waseem@gmail.com",
-    "url": "https://github.com/easy-accounting"
+    "url": "https://github.com/anserwaseem"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anserwaseem/easy-accouting.git"
   },
   "main": "./dist/main/main.js",
   "scripts": {

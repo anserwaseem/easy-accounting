@@ -1,14 +1,14 @@
 appId: org.easy-accounting
 productName: Easy Accounting
+artifactName: ${name}-${version}-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
   - '**/*.{node,dll}'
-  - database.db
 files:
   - dist
   - node_modules
   - package.json
-  - database.db
+  - '!**/migrations/*' # Exclude migrations from asar
 afterSign: .erb/scripts/notarize.js
 mac:
   target:
@@ -21,6 +21,8 @@ mac:
   entitlements: assets/entitlements.mac.plist
   entitlementsInherit: assets/entitlements.mac.plist
   gatekeeperAssess: false
+  darkModeSupport: true
+  category: public.app-category.productivity
 dmg:
   contents:
     - x: 130
@@ -31,18 +33,24 @@ dmg:
       path: /Applications
 win:
   target:
-    - nsis
-linux:
-  target:
-    - AppImage
-  category: Development
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+nsis:
+  artifactName: ${name}-setup-${version}-win.${ext}
 directories:
   app: release/app
   buildResources: assets
   output: release/build
-extraResources:
+extraResources: # copy the file or directory with matching names directly into the app’s resources directory (Contents/Resources for MacOS, resources for Linux and Windows)
   - ./assets/**
+  - from: './release/app/database.db'
+    to: 'database.db'
+  - from: './src/main/migrations'
+    to: 'migrations'
+    filter: ['**/*.js', '!**/index.ts'] # include only .js files and explicitly exclude index.ts
 publish:
   provider: github
-  owner: easy-accounting
+  owner: anserwaseem
   repo: easy-accounting

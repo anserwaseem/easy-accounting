@@ -1,40 +1,53 @@
 import type { Chart } from 'types';
+import type { Database } from 'better-sqlite3';
 import { isEmpty } from 'lodash';
 import { store } from '../store';
-import { connect } from './Database.service';
+import { DatabaseService } from './Database.service';
+import { logErrors } from '../errorLogger';
 
-export const getCharts = () => {
-  const db = connect();
+@logErrors
+export class ChartService {
+  private db: Database;
 
-  const stm = db.prepare(
-    'SELECT * FROM chart WHERE userId = (SELECT id FROM users WHERE username = @username)',
-  );
-
-  return stm.all({
-    username: store.get('username'),
-  }) as Chart[];
-};
-
-export const insertCharts = (username: string, charts: Omit<Chart, 'id'>[]) => {
-  if (isEmpty(username) || charts.length === 0) {
-    return false;
+  constructor() {
+    this.db = DatabaseService.getInstance().getDatabase();
   }
 
-  const db = connect();
+  public getCharts(): Chart[] {
+    const stm = this.db.prepare(
+      ` SELECT *
+        FROM chart
+        WHERE userId = (
+          SELECT id
+          FROM users
+          WHERE username = @username
+        )`,
+    );
 
-  const placeholders = charts
-    .map(() => '(?, ?, ?, (SELECT id FROM users WHERE username = ?))')
-    .join(', ');
-  const sql = `INSERT INTO chart (date, name, type, userId) VALUES ${placeholders}`;
+    return stm.all({
+      username: store.get('username'),
+    }) as Chart[];
+  }
 
-  const stmChart = db.prepare(sql);
+  public insertCharts(username: string, charts: Omit<Chart, 'id'>[]): boolean {
+    if (isEmpty(username) || charts.length === 0) {
+      return false;
+    }
 
-  const values = charts.flatMap((chart) => [
-    chart.date,
-    chart.name,
-    chart.type,
-    username,
-  ]);
+    const placeholders = charts
+      .map(() => '(?, ?, ?, (SELECT id FROM users WHERE username = ?))')
+      .join(', ');
+    const sql = `INSERT INTO chart (date, name, type, userId) VALUES ${placeholders}`;
 
-  return Boolean(stmChart.run(values).changes);
-};
+    const stmChart = this.db.prepare(sql);
+
+    const values = charts.flatMap((chart) => [
+      chart.date,
+      chart.name,
+      chart.type,
+      username,
+    ]);
+
+    return Boolean(stmChart.run(values).changes);
+  }
+}

@@ -28,6 +28,8 @@ module.exports = {
     'global-require': 'off',
     'import/no-dynamic-require': 'off',
     'no-console': 'off',
+    'promise/always-return': 'off',
+    'no-useless-constructor': 'off',
     'react/function-component-definition': [
       2,
       {

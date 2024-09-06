@@ -5,6 +5,8 @@ import {
   BrowserWindow,
   MenuItemConstructorOptions,
 } from 'electron';
+import log from 'electron-log';
+import { AppUpdater } from './appUpdater';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -19,52 +21,48 @@ export default class MenuBuilder {
   }
 
   buildMenu(): Menu {
-    if (
-      process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-    ) {
-      this.setupDevelopmentEnvironment();
-    }
-
-    const template =
-      process.platform === 'darwin'
-        ? this.buildDarwinTemplate()
-        : this.buildDefaultTemplate();
-
+    const template = this.getTemplate();
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
-
     return menu;
   }
 
-  setupDevelopmentEnvironment(): void {
-    this.mainWindow.webContents.on('context-menu', (_, props) => {
-      const { x, y } = props;
-
-      Menu.buildFromTemplate([
-        {
-          label: 'Inspect element',
-          click: () => {
-            this.mainWindow.webContents.inspectElement(x, y);
-          },
-        },
-      ]).popup({ window: this.mainWindow });
-    });
+  private getTemplate(): MenuItemConstructorOptions[] {
+    if (process.platform === 'darwin') {
+      return this.getDarwinTemplate();
+    }
+    return this.getDefaultTemplate();
   }
 
-  buildDarwinTemplate(): MenuItemConstructorOptions[] {
-    const subMenuAbout: DarwinMenuItemConstructorOptions = {
-      label: 'Electron',
+  private getDarwinTemplate(): MenuItemConstructorOptions[] {
+    return [
+      MenuBuilder.getAboutMenu('Easy Accounting'),
+      MenuBuilder.getEditMenu(),
+      this.getViewMenu(),
+      MenuBuilder.getWindowMenu(),
+      MenuBuilder.getHelpMenu(),
+    ];
+  }
+
+  private getDefaultTemplate(): MenuItemConstructorOptions[] {
+    return [this.getFileMenu(), this.getViewMenu(), MenuBuilder.getHelpMenu()];
+  }
+
+  private static getAboutMenu(
+    appName: string,
+  ): DarwinMenuItemConstructorOptions {
+    return {
+      label: appName,
       submenu: [
         {
-          label: 'About Easy Accounting',
+          label: `About ${appName}`,
           selector: 'orderFrontStandardAboutPanel:',
         },
         { type: 'separator' },
         { label: 'Services', submenu: [] },
         { type: 'separator' },
         {
-          label: 'Hide Easy Accounting',
+          label: `Hide ${appName}`,
           accelerator: 'Command+H',
           selector: 'hide:',
         },
@@ -75,16 +73,13 @@ export default class MenuBuilder {
         },
         { label: 'Show All', selector: 'unhideAllApplications:' },
         { type: 'separator' },
-        {
-          label: 'Quit',
-          accelerator: 'Command+Q',
-          click: () => {
-            app.quit();
-          },
-        },
+        { label: 'Quit', accelerator: 'Command+Q', click: () => app.quit() },
       ],
     };
-    const subMenuEdit: DarwinMenuItemConstructorOptions = {
+  }
+
+  private static getEditMenu(): DarwinMenuItemConstructorOptions {
+    return {
       label: 'Edit',
       submenu: [
         { label: 'Undo', accelerator: 'Command+Z', selector: 'undo:' },
@@ -100,47 +95,10 @@ export default class MenuBuilder {
         },
       ],
     };
-    const subMenuViewDev: MenuItemConstructorOptions = {
-      label: 'View',
-      submenu: [
-        {
-          label: 'Reload',
-          accelerator: 'Command+R',
-          click: () => {
-            this.mainWindow.webContents.reload();
-          },
-        },
-        {
-          label: 'Toggle Full Screen',
-          accelerator: 'Ctrl+Command+F',
-          click: () => {
-            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-          },
-        },
-        {
-          label: 'Toggle Developer Tools',
-          accelerator: 'Alt+Command+I',
-          click: () => {
-            this.mainWindow.webContents.toggleDevTools();
-          },
-        },
-      ],
-    };
+  }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const subMenuViewProd: MenuItemConstructorOptions = {
-      label: 'View',
-      submenu: [
-        {
-          label: 'Toggle Full Screen',
-          accelerator: 'Ctrl+Command+F',
-          click: () => {
-            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-          },
-        },
-      ],
-    };
-    const subMenuWindow: DarwinMenuItemConstructorOptions = {
+  private static getWindowMenu(): DarwinMenuItemConstructorOptions {
+    return {
       label: 'Window',
       submenu: [
         {
@@ -153,140 +111,78 @@ export default class MenuBuilder {
         { label: 'Bring All to Front', selector: 'arrangeInFront:' },
       ],
     };
-    const subMenuHelp: MenuItemConstructorOptions = {
+  }
+
+  private static getHelpMenu(): MenuItemConstructorOptions {
+    return {
       label: 'Help',
       submenu: [
         {
-          label: 'Learn More',
+          label: 'Contact',
           click() {
-            shell.openExternal('https://electronjs.org');
+            shell.openExternal('mailto:hafiz.anser.waseem@gmail.com');
           },
         },
         {
-          label: 'Documentation',
+          label: 'File an Issue',
           click() {
             shell.openExternal(
-              'https://github.com/electron/electron/tree/main/docs#readme',
+              'https://github.com/anserwaseem/easy-accounting/issues',
             );
           },
         },
         {
-          label: 'Community Discussions',
-          click() {
-            shell.openExternal('https://www.electronjs.org/community');
+          label: 'Check for Updates',
+          click: () => {
+            AppUpdater.checkForUpdates();
           },
         },
         {
-          label: 'Search Issues',
+          label: 'Show logs',
           click() {
-            shell.openExternal('https://github.com/electron/electron/issues');
+            shell.showItemInFolder(log.transports.file.getFile().path);
           },
         },
       ],
     };
-
-    const subMenuView =
-      process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-        ? subMenuViewDev
-        : subMenuViewDev;
-
-    return [subMenuAbout, subMenuEdit, subMenuView, subMenuWindow, subMenuHelp];
   }
 
-  buildDefaultTemplate() {
-    const templateDefault = [
-      {
-        label: '&File',
-        submenu: [
-          {
-            label: '&Open',
-            accelerator: 'Ctrl+O',
-          },
-          {
-            label: '&Close',
-            accelerator: 'Ctrl+W',
-            click: () => {
-              this.mainWindow.close();
-            },
-          },
-        ],
-      },
-      {
-        label: '&View',
-        submenu:
-          process.env.NODE_ENV === 'development' ||
-          process.env.DEBUG_PROD === 'true'
-            ? [
-                {
-                  label: '&Reload',
-                  accelerator: 'Ctrl+R',
-                  click: () => {
-                    this.mainWindow.webContents.reload();
-                  },
-                },
-                {
-                  label: 'Toggle &Full Screen',
-                  accelerator: 'F11',
-                  click: () => {
-                    this.mainWindow.setFullScreen(
-                      !this.mainWindow.isFullScreen(),
-                    );
-                  },
-                },
-                {
-                  label: 'Toggle &Developer Tools',
-                  accelerator: 'Alt+Ctrl+I',
-                  click: () => {
-                    this.mainWindow.webContents.toggleDevTools();
-                  },
-                },
-              ]
-            : [
-                {
-                  label: 'Toggle &Full Screen',
-                  accelerator: 'F11',
-                  click: () => {
-                    this.mainWindow.setFullScreen(
-                      !this.mainWindow.isFullScreen(),
-                    );
-                  },
-                },
-              ],
-      },
-      {
-        label: 'Help',
-        submenu: [
-          {
-            label: 'Learn More',
-            click() {
-              shell.openExternal('https://electronjs.org');
-            },
-          },
-          {
-            label: 'Documentation',
-            click() {
-              shell.openExternal(
-                'https://github.com/electron/electron/tree/main/docs#readme',
-              );
-            },
-          },
-          {
-            label: 'Community Discussions',
-            click() {
-              shell.openExternal('https://www.electronjs.org/community');
-            },
-          },
-          {
-            label: 'Search Issues',
-            click() {
-              shell.openExternal('https://github.com/electron/electron/issues');
-            },
-          },
-        ],
-      },
-    ];
+  private getViewMenu(): DarwinMenuItemConstructorOptions {
+    return {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Reload',
+          accelerator: process.platform === 'darwin' ? 'Command+R' : 'Ctrl+R',
+          click: () => this.mainWindow.webContents.reload(),
+        },
+        {
+          label: 'Toggle Full Screen',
+          accelerator: process.platform === 'darwin' ? 'Ctrl+Command+F' : 'F11',
+          click: () =>
+            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen()),
+        },
+        {
+          label: 'Toggle Developer Tools',
+          accelerator:
+            process.platform === 'darwin' ? 'Alt+Command+I' : 'Alt+Ctrl+I',
+          click: () => this.mainWindow.webContents.toggleDevTools(),
+        },
+      ],
+    };
+  }
 
-    return templateDefault;
+  private getFileMenu(): MenuItemConstructorOptions {
+    return {
+      label: '&File',
+      submenu: [
+        { label: '&Open', accelerator: 'Ctrl+O' },
+        {
+          label: '&Close',
+          accelerator: 'Ctrl+W',
+          click: () => this.mainWindow.close(),
+        },
+      ],
+    };
   }
 }

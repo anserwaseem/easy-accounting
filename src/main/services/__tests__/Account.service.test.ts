@@ -1,6 +1,7 @@
 import { store } from '../../store';
 import { connect } from '../Database.service';
 import { getAccounts, insertAccount, updateAccount } from '../Account.service';
+import { cast } from '../../utils/sqlite';
 
 jest.mock('../Database.service');
 jest.mock('../../store');
@@ -71,7 +72,7 @@ describe('Account Service', () => {
     const result = updateAccount(sampleAccount);
 
     expect(mockRun).toHaveBeenCalledWith(
-      expect.objectContaining({ id: sampleAccount.id }),
+      expect.objectContaining({ id: cast(sampleAccount.id) }),
     ); // Ensure the correct parameters are passed
     expect(result).toBe(true);
   });
