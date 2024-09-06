@@ -1,8 +1,9 @@
 import type { Database } from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
-import { get } from 'lodash';
+import { compact, get, isEmpty, reject } from 'lodash';
 import log from 'electron-log';
+import { app } from 'electron';
 import { DatabaseService } from '../services';
 import { logErrors } from '../errorLogger';
 
@@ -45,21 +46,40 @@ export interface Migration {
 export class MigrationRunner {
   private db: Database;
 
-  private migrationsDir: string = __dirname;
+  private migrationsDir: string;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
+
+    const devMigrationsPath = __dirname;
+    const prodMigrationsPath = path.join(
+      process.resourcesPath,
+      'migrations',
+      // 'main',
+      // 'migrations',
+    );
+    this.migrationsDir = app.isPackaged
+      ? prodMigrationsPath
+      : devMigrationsPath;
+
+    log.info('App is packaged:', app.isPackaged);
+    log.info('Migrations directory:', this.migrationsDir);
+    log.info('Migrations directory exists:', fs.existsSync(this.migrationsDir));
+
     this.migrateUp();
-    log.transports.file.level = 'info';
-    log.transports.console.level = 'info';
+
+    log.transports.file.level = 'debug';
+    log.transports.console.level = 'debug';
   }
 
   private async ensureMigrationTable(): Promise<void> {
+    log.info('MigrationRunner.ensureMigrationTable called');
     const doesTableExist = this.db
       .prepare(
         `SELECT 1 FROM sqlite_master WHERE type='table' AND name='migrations';`,
       )
       .get();
+    log.info('doesTableExist', doesTableExist);
 
     if (!get(doesTableExist, 1)) {
       log.info('Creating migrations table...');
@@ -76,28 +96,84 @@ export class MigrationRunner {
   }
 
   private async getAppliedMigrations(): Promise<string[]> {
+    log.info('MigrationRunner.getAppliedMigrations called');
     return this.db
       .prepare('SELECT name FROM migrations ORDER BY id')
       .all()
       .map((row: any) => String(row.name));
   }
 
-  private async getMigrationFiles(): Promise<Record<string, Migration>[]> {
+  private async getMigrationFiles(): Promise<Migration[]> {
+    log.info('MigrationRunner.getMigrationFiles called');
+    log.info('migrationsDir:', this.migrationsDir);
+
     const fileNames = fs
       .readdirSync(this.migrationsDir)
-      .filter(
-        (fileName) =>
-          !fileName.includes('index') &&
-          (fileName.endsWith('.ts') || fileName.endsWith('.js')),
-      )
+      .filter((fileName) => fileName.endsWith('.js'))
       .sort();
+    log.info('Migration files:', fileNames);
+
     const migrations = await Promise.all(
-      fileNames.map((fileName) => {
+      fileNames.map(async (fileName) => {
         const filePath = path.join(this.migrationsDir, fileName);
-        return import(filePath);
+        // const resolvedPath =
+        //   process.platform === 'win32'
+        //     ? filePath.replace(/\\/g, '\\\\')
+        //     : filePath;
+        log.info(`Importing migration file - filePath: ${filePath}`);
+
+        try {
+          let migration;
+
+          if (app.isPackaged) {
+            // In production, use a dynamic require
+            // migration = await import(filePath);
+            // eslint-disable-next-line no-eval
+            // migration = eval(`require('${filePath.replace(/\\/g, '\\\\')}')`); // HACK: using eval is bad practice
+
+            // In production, read the file content and evaluate it
+            let fileContent = fs.readFileSync(filePath, 'utf-8');
+            log.info(0, fileContent);
+            // Convert ES module syntax to CommonJS if necessary
+            if (fileContent.includes('export default')) {
+              fileContent = fileContent.replace(
+                'export default',
+                'module.exports =',
+              );
+            }
+            log.info(1, fileContent);
+            const wrappedContent = `(function(exports, require, module, __filename, __dirname) { ${fileContent} \n});`;
+            log.info(2, wrappedContent);
+            const compiledWrapper = require('vm').runInThisContext(
+              wrappedContent,
+              { filename: filePath },
+            );
+            const module = { exports: {} };
+            compiledWrapper.call(
+              module.exports,
+              module.exports,
+              require,
+              module,
+              filePath,
+              path.dirname(filePath),
+            );
+
+            log.info(2, module);
+            migration = module.exports;
+          } else {
+            // In development, use dynamic import
+            migration = await import(filePath);
+          }
+
+          log.info(`Successfully imported migration: ${fileName}`);
+          return migration.default || migration;
+        } catch (error) {
+          log.error(`Error importing migration ${fileName}:`, error);
+          return null;
+        }
       }),
     );
-    return migrations as Record<string, Migration>[];
+    return reject(compact(migrations), isEmpty);
   }
 
   private async migrateUp(): Promise<void> {
@@ -106,20 +182,24 @@ export class MigrationRunner {
     const migrationFiles = await this.getMigrationFiles();
     let migrationsApplied = false;
 
-    for (const file of migrationFiles) {
-      const migrationObj = Object.values(file)[0];
-      if (!appliedMigrations.includes(migrationObj.name)) {
-        log.info(`Applying migration: ${migrationObj.name}`);
+    log.info('in migrationUp', migrationFiles);
+    for (const migrationObj of migrationFiles) {
+      const migrationName = get(migrationObj, 'name');
+
+      if (!appliedMigrations.includes(migrationName)) {
+        log.info(`Applying migration: ${migrationName}`);
 
         this.db.transaction(() => {
           migrationObj.up(this.db);
           this.db
             .prepare('INSERT INTO migrations (name) VALUES (?)')
-            .run(migrationObj.name);
+            .run(migrationName);
         })();
 
-        log.info(`Migration ${migrationObj.name} applied successfully.`);
+        log.info(`Migration ${migrationName} applied successfully.`);
         migrationsApplied = true;
+      } else {
+        log.info(`Ignoring migration: ${migrationName}`);
       }
     }
 

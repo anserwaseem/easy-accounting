@@ -27,27 +27,30 @@ export default class MenuBuilder {
     return menu;
   }
 
-  getTemplate(): MenuItemConstructorOptions[] {
+  private getTemplate(): MenuItemConstructorOptions[] {
     if (process.platform === 'darwin') {
       return this.getDarwinTemplate();
     }
     return this.getDefaultTemplate();
   }
 
-  getDarwinTemplate(): MenuItemConstructorOptions[] {
+  private getDarwinTemplate(): MenuItemConstructorOptions[] {
     return [
       MenuBuilder.getAboutMenu('Easy Accounting'),
+      MenuBuilder.getEditMenu(),
       this.getViewMenu(),
       MenuBuilder.getWindowMenu(),
       MenuBuilder.getHelpMenu(),
     ];
   }
 
-  getDefaultTemplate(): MenuItemConstructorOptions[] {
+  private getDefaultTemplate(): MenuItemConstructorOptions[] {
     return [this.getFileMenu(), this.getViewMenu(), MenuBuilder.getHelpMenu()];
   }
 
-  static getAboutMenu(appName: string): DarwinMenuItemConstructorOptions {
+  private static getAboutMenu(
+    appName: string,
+  ): DarwinMenuItemConstructorOptions {
     return {
       label: appName,
       submenu: [
@@ -75,7 +78,26 @@ export default class MenuBuilder {
     };
   }
 
-  static getWindowMenu(): DarwinMenuItemConstructorOptions {
+  private static getEditMenu(): DarwinMenuItemConstructorOptions {
+    return {
+      label: 'Edit',
+      submenu: [
+        { label: 'Undo', accelerator: 'Command+Z', selector: 'undo:' },
+        { label: 'Redo', accelerator: 'Shift+Command+Z', selector: 'redo:' },
+        { type: 'separator' },
+        { label: 'Cut', accelerator: 'Command+X', selector: 'cut:' },
+        { label: 'Copy', accelerator: 'Command+C', selector: 'copy:' },
+        { label: 'Paste', accelerator: 'Command+V', selector: 'paste:' },
+        {
+          label: 'Select All',
+          accelerator: 'Command+A',
+          selector: 'selectAll:',
+        },
+      ],
+    };
+  }
+
+  private static getWindowMenu(): DarwinMenuItemConstructorOptions {
     return {
       label: 'Window',
       submenu: [
@@ -91,7 +113,7 @@ export default class MenuBuilder {
     };
   }
 
-  static getHelpMenu(): MenuItemConstructorOptions {
+  private static getHelpMenu(): MenuItemConstructorOptions {
     return {
       label: 'Help',
       submenu: [
@@ -125,7 +147,7 @@ export default class MenuBuilder {
     };
   }
 
-  getViewMenu(): DarwinMenuItemConstructorOptions {
+  private getViewMenu(): DarwinMenuItemConstructorOptions {
     return {
       label: 'View',
       submenu: [
@@ -150,7 +172,7 @@ export default class MenuBuilder {
     };
   }
 
-  getFileMenu(): MenuItemConstructorOptions {
+  private getFileMenu(): MenuItemConstructorOptions {
     return {
       label: '&File',
       submenu: [

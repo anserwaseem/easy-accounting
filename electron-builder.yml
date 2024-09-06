@@ -8,6 +8,7 @@ files:
   - dist
   - node_modules
   - package.json
+  - '!**/migrations/*' # Exclude migrations from asar
 afterSign: .erb/scripts/notarize.js
 mac:
   target:
@@ -42,10 +43,13 @@ directories:
   app: release/app
   buildResources: assets
   output: release/build
-extraResources:
+extraResources: # copy the file or directory with matching names directly into the app’s resources directory (Contents/Resources for MacOS, resources for Linux and Windows)
   - ./assets/**
   - from: './release/app/database.db'
     to: 'database.db'
+  - from: './src/main/migrations'
+    to: 'migrations'
+    filter: ['**/*.js', '!**/index.ts'] # include only .js files and explicitly exclude index.ts
 publish:
   provider: github
   owner: anserwaseem
