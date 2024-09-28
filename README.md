@@ -90,6 +90,7 @@ For common issues and their solutions, please refer to our Troubleshooting Guide
   3. Select each task one by one and press 'End Task' button on bottom right side.
 
   This will resolve the issue.
+
   >
 
 #### Q: Not able to update the app
@@ -101,6 +102,7 @@ For common issues and their solutions, please refer to our Troubleshooting Guide
   3. Press the 'Retry' button on the setup dialog to continue with the installation.
 
   This will resolve the issue.
+
   >
 
 #### Q: How to check renderer process logs in packaged app

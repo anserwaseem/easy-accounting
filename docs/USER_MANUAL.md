@@ -1,6 +1,7 @@
 # Easy Accounting User Manual
 
 ## Table of Contents
+
 1. [Introduction](#1-introduction)
 2. [Getting Started](#2-getting-started)
    - [Installation](#installation)
@@ -57,7 +58,7 @@ Easy Accounting allows you to import your existing balance sheet to quickly set 
 1. Prepare your balance sheet in an Excel (.xlsx) format. Make sure it follows the required structure (you can download an example balance sheet for reference).
 2. On the dashboard, look for an "Upload Balance Sheet" button.
 3. Click this button and select your prepared file.
-5. The system will create the necessary accounts and enter the opening balances based on your imported data.
+4. The system will create the necessary accounts and enter the opening balances based on your imported data.
 5. Once the import is complete, a confirmation message will appear. You can then navigate to the Accounts section to view your newly created accounts.
 
 ## 4. Accounts
