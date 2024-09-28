@@ -1,57 +1,100 @@
-/* eslint-disable jest/no-commented-out-tests */
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+import { app } from 'electron';
+import { DatabaseService } from '../Database.service';
 
-// import Database from 'better-sqlite3';
-// import path from 'path';
-// import * as DatabaseService from '../Database.service';
+jest.mock('better-sqlite3');
+jest.mock('fs');
+jest.mock('electron', () => ({
+  app: {
+    getPath: jest.fn(),
+    isPackaged: false,
+  },
+}));
+jest.mock('electron-log', () => {
+  const mockLog = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    verbose: jest.fn(),
+    debug: jest.fn(),
+    silly: jest.fn(),
+    transports: {
+      file: { getFile: jest.fn() },
+      console: { level: 'debug' },
+    },
+  };
+  return mockLog;
+});
 
-// jest.mock('better-sqlite3');
+describe('Database Service', () => {
+  let mockDatabase: jest.Mocked<Database.Database>;
 
-// // TODO: Enable this test
-// // eslint-disable-next-line jest/no-disabled-tests
-// describe.skip('Database Service', () => {
-//   const mockDatabase = {
-//     verbose: jest.fn(),
-//     fileMustExist: true,
-//   };
-//   jest.spyOn(DatabaseService, 'isDevelopment');
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockDatabase = {
+      verbose: jest.fn(),
+    } as unknown as jest.Mocked<Database.Database>;
+    (Database as unknown as jest.Mock).mockReturnValue(mockDatabase);
 
-//   beforeEach(() => {
-//     jest.clearAllMocks();
-//     (Database as unknown as jest.Mock).mockReturnValue(mockDatabase);
-//   });
+    // Reset the singleton instance before each test
+    (DatabaseService as any).instance = undefined;
+    (process as any).resourcesPath = '/mock/resources/path';
+  });
 
-//   it('should use the correct database path in development environment', () => {
-//     process.env.NODE_ENV = 'development';
-//     (DatabaseService.isDevelopment as jest.Mock).mockReturnValue(true);
+  it('should use the correct database path in development environment', () => {
+    process.env.NODE_ENV = 'development';
 
-//     DatabaseService.connect();
+    DatabaseService.getInstance();
 
-//     expect(Database).toHaveBeenCalledWith(
-//       expect.stringContaining(path.join('release', 'app', 'database.db')),
-//       expect.any(Object),
-//     );
-//   });
+    expect(Database).toHaveBeenCalledWith(
+      expect.stringContaining(path.join('release', 'app', 'database.db')),
+      expect.any(Object),
+    );
+  });
 
-//   it('should use the correct database path in production environment', () => {
-//     process.env.NODE_ENV = 'production';
-//     (DatabaseService.isDevelopment as jest.Mock).mockReturnValue(false);
+  it('should use the correct database path in production environment', () => {
+    process.env.NODE_ENV = 'production';
+    const mockUserDataPath = '/mock/user/data/path';
+    (app.getPath as jest.Mock).mockReturnValue(mockUserDataPath);
+    (fs.existsSync as jest.Mock).mockReturnValue(false);
+    (fs.copyFileSync as jest.Mock).mockImplementation();
 
-//     DatabaseService.connect();
+    DatabaseService.getInstance();
 
-//     expect(Database).toHaveBeenCalledWith(
-//       expect.stringMatching(
-//         /^((?!release\/\/app|release\\app).)*database\.db$/,
-//       ), // should not contain 'release/app' or 'release\\app' but should contain 'database.db'
-//       expect.any(Object),
-//     );
-//   });
+    expect(Database).toHaveBeenCalledWith(
+      path.join(mockUserDataPath, 'database.db'),
+      expect.any(Object),
+    );
+  });
 
-//   it('should always pass the correct options to Database constructor', () => {
-//     DatabaseService.connect();
+  it("should copy the database file in production if it doesn't exist", () => {
+    process.env.NODE_ENV = 'production';
+    const mockUserDataPath = '/mock/user/data/path';
+    (app.getPath as jest.Mock).mockReturnValue(mockUserDataPath);
+    (fs.existsSync as jest.Mock).mockReturnValue(false);
 
-//     expect(Database).toHaveBeenCalledWith(expect.any(String), {
-//       verbose: console.log,
-//       fileMustExist: true,
-//     });
-//   });
-// });
+    DatabaseService.getInstance();
+
+    expect(fs.copyFileSync).toHaveBeenCalled();
+  });
+
+  it('should not copy the database file in production if it already exists', () => {
+    process.env.NODE_ENV = 'production';
+    const mockUserDataPath = '/mock/user/data/path';
+    (app.getPath as jest.Mock).mockReturnValue(mockUserDataPath);
+    (fs.existsSync as jest.Mock).mockReturnValue(true);
+
+    DatabaseService.getInstance();
+
+    expect(fs.copyFileSync).not.toHaveBeenCalled();
+  });
+
+  it('should return the same instance on multiple calls', () => {
+    const instance1 = DatabaseService.getInstance();
+    const instance2 = DatabaseService.getInstance();
+
+    expect(instance1).toBe(instance2);
+  });
+});

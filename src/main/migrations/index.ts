@@ -23,7 +23,7 @@ export interface Migration {
  *
  * This class manages the process of applying database migrations. It reads migration
  * files from migrations directory, checks which migrations have already been applied,
- * and runs any pending migrations.
+ * and runs any pending migrations without blocking main thread.
  *
  * To add a new migration:
  * 1. Create a new js file in the 'migrations' directory.
@@ -48,24 +48,26 @@ export class MigrationRunner {
 
   private migrationsDir: string;
 
-  constructor() {
+  private migrationPromise: Promise<void>;
+
+  constructor(runSideEffect = true) {
     this.db = DatabaseService.getInstance().getDatabase();
 
-    const devMigrationsPath = __dirname;
-    const prodMigrationsPath = path.join(process.resourcesPath, 'migrations');
     this.migrationsDir = app.isPackaged
-      ? prodMigrationsPath
-      : devMigrationsPath;
+      ? path.join(process.resourcesPath, 'migrations')
+      : __dirname;
 
     log.transports.file.level = 'debug';
     log.transports.console.level = 'debug';
     log.info('Migrations directory:', this.migrationsDir);
     log.info('Migrations directory exists:', fs.existsSync(this.migrationsDir));
 
-    this.migrateUp();
+    this.migrationPromise = runSideEffect
+      ? this.migrateUp()
+      : Promise.resolve();
   }
 
-  private async ensureMigrationTable(): Promise<void> {
+  private initializeMigrationTable(): void {
     const doesTableExist = this.db
       .prepare(
         `SELECT 1 FROM sqlite_master WHERE type='table' AND name='migrations';`,
@@ -86,7 +88,7 @@ export class MigrationRunner {
     }
   }
 
-  private async getAppliedMigrations(): Promise<string[]> {
+  private getAppliedMigrations(): string[] {
     return this.db
       .prepare('SELECT name FROM migrations ORDER BY id')
       .all()
@@ -153,8 +155,8 @@ export class MigrationRunner {
   }
 
   private async migrateUp(): Promise<void> {
-    await this.ensureMigrationTable();
-    const appliedMigrations = await this.getAppliedMigrations();
+    this.initializeMigrationTable();
+    const appliedMigrations = this.getAppliedMigrations();
     const migrationFiles = await this.getMigrationFiles();
     let migrationsApplied = false;
 
@@ -182,5 +184,10 @@ export class MigrationRunner {
     if (!migrationsApplied) {
       log.info('No migration applied.');
     }
+  }
+
+  // A way to wait for migrations to complete when needed (in tests especially)
+  async waitForMigrations(): Promise<void> {
+    await this.migrationPromise;
   }
 }

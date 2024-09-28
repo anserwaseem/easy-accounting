@@ -1,5 +1,5 @@
 import type { DbUser, UserCredentials } from 'types';
-import type { Database } from 'better-sqlite3';
+import type { Database, Statement } from 'better-sqlite3';
 import { store } from '../store';
 import { hashPassword, verifyPassword } from '../utils/encrypt';
 import { DatabaseService } from './Database.service';
@@ -13,27 +13,17 @@ export class AuthService {
 
   private chartService: ChartService;
 
+  private stmGetUser!: Statement;
+
+  private stmInsertUser!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.chartService = new ChartService();
+    this.initPreparedStatements();
   }
 
-  private getUser(username: string): DbUser | undefined {
-    const stm = this.db.prepare(
-      'SELECT * FROM users where username = @username',
-    );
-    return stm.get({ username }) as DbUser | undefined;
-  }
-
-  private insertUser(user: DbUser): void {
-    const stm = this.db.prepare(
-      `INSERT INTO users (username, password_hash, status)
-       VALUES (@username, @password_hash, @status)`,
-    );
-    stm.run(user);
-  }
-
-  public login(user: UserCredentials): boolean {
+  login(user: UserCredentials): boolean {
     const dbUser = this.getUser(user.username);
     if (!dbUser) {
       return false;
@@ -48,7 +38,7 @@ export class AuthService {
     return isValid;
   }
 
-  public register(user: UserCredentials): boolean {
+  register(user: UserCredentials): boolean {
     try {
       if (user.username.length < 4 || user.password.length < 4) {
         return false;
@@ -69,7 +59,6 @@ export class AuthService {
 
       this.insertUser(registerUser);
 
-      // Correctly use the ChartService to insert initial charts
       this.chartService.insertCharts(user.username, INITIAL_CHARTS);
 
       return true;
@@ -79,7 +68,26 @@ export class AuthService {
     }
   }
 
-  public static logout(): void {
+  static logout(): void {
     store.delete('username');
+  }
+
+  private getUser(username: string): DbUser | undefined {
+    const result = this.stmGetUser.get({ username }) as DbUser | undefined;
+    return result;
+  }
+
+  private insertUser(user: DbUser): void {
+    this.stmInsertUser.run(user);
+  }
+
+  private initPreparedStatements() {
+    this.stmGetUser = this.db.prepare(
+      'SELECT * FROM users WHERE username = @username',
+    );
+    this.stmInsertUser = this.db.prepare(
+      `INSERT INTO users (username, password_hash, status)
+       VALUES (@username, @password_hash, @status)`,
+    );
   }
 }

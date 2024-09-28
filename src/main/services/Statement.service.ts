@@ -12,70 +12,92 @@ type SectionType = 'current' | 'fixed' | null;
 export class StatementService {
   private db: Database;
 
+  private stmChart!: Statement;
+
+  private stmAccount!: Statement;
+
+  private stmDebitLedger!: Statement;
+
+  private stmCreditLedger!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
+    this.initPreparedStatements();
   }
 
   saveBalanceSheet(balanceSheet: BalanceSheet) {
     try {
-      const username = store.get('username');
-
-      const stmChart = this.db.prepare(
-        ` INSERT INTO chart (date, name, type, userId)
-        VALUES (@date, @name, @type, (SELECT id FROM users WHERE username = '${username}'))`,
-      );
-      const stmAccount = this.db.prepare(
-        ` INSERT INTO account (chartId, date, name)
-        VALUES (@chartId, @date, @name)`,
-      );
-
-      const stmDebitLedger = this.db.prepare(
-        ` INSERT INTO ledger (date, particulars, accountId, debit, balance, balanceType)
-        VALUES (@date, @particulars, @accountId, @debit, @balance, 'Dr')`, // TODO: update balanceType below based on balance
-      );
-      const stmCreditLedger = this.db.prepare(
-        ` INSERT INTO ledger (date, particulars, accountId, credit, balance, balanceType)
-        VALUES (@date, @particulars, @accountId, @credit, @balance, 'Cr')`, // TODO: update balanceType below based on balance
-      );
+      const username = <string>store.get('username');
 
       const stm = this.db.transaction(
         ({ assets, liabilities, equity }: BalanceSheet) => {
           StatementService.setupLedgers(
-            { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+            {
+              stmChart: this.stmChart,
+              stmAccount: this.stmAccount,
+              stmDebitLedger: this.stmDebitLedger,
+              stmCreditLedger: this.stmCreditLedger,
+            },
             assets.current,
             balanceSheet.date.toISOString(),
             'asset',
             'current',
+            username,
           );
 
           StatementService.setupLedgers(
-            { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+            {
+              stmChart: this.stmChart,
+              stmAccount: this.stmAccount,
+              stmDebitLedger: this.stmDebitLedger,
+              stmCreditLedger: this.stmCreditLedger,
+            },
             assets.fixed,
             balanceSheet.date.toISOString(),
             'asset',
             'fixed',
+            username,
           );
 
           StatementService.setupLedgers(
-            { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+            {
+              stmChart: this.stmChart,
+              stmAccount: this.stmAccount,
+              stmDebitLedger: this.stmDebitLedger,
+              stmCreditLedger: this.stmCreditLedger,
+            },
             liabilities.current,
             balanceSheet.date.toISOString(),
             'liability',
             'current',
+            username,
           );
           StatementService.setupLedgers(
-            { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+            {
+              stmChart: this.stmChart,
+              stmAccount: this.stmAccount,
+              stmDebitLedger: this.stmDebitLedger,
+              stmCreditLedger: this.stmCreditLedger,
+            },
             liabilities.fixed,
             balanceSheet.date.toISOString(),
             'liability',
             'fixed',
+            username,
           );
 
           StatementService.setupLedgers(
-            { stmChart, stmAccount, stmDebitLedger, stmCreditLedger },
+            {
+              stmChart: this.stmChart,
+              stmAccount: this.stmAccount,
+              stmDebitLedger: this.stmDebitLedger,
+              stmCreditLedger: this.stmCreditLedger,
+            },
             equity.current,
             balanceSheet.date.toISOString(),
             'equity',
+            null,
+            username,
           );
         },
       );
@@ -84,7 +106,6 @@ export class StatementService {
 
       return true;
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error(error);
       return false;
     }
@@ -100,7 +121,8 @@ export class StatementService {
     chartsRecord: Record<string, ReportAccount[]>,
     date: string,
     section: Section,
-    sectionType?: SectionType,
+    sectionType: SectionType,
+    username: string,
   ) {
     if (isEmpty(chartsRecord) || isNil(section)) {
       return;
@@ -118,18 +140,17 @@ export class StatementService {
 
     const chartIds: Record<string, number | bigint> = {};
     forEach(chartsRecord, (_, name) => {
-      // create chart againt each header e.g. "Cash and Bank", "Property, Plant and Equipment" OR "Current Assets", "Fixed Assets" if header is not present
       const chartId = statements.stmChart.run({
         date,
         name: getChartName(name, section, sectionType),
         type: capitalize(section),
+        username,
       }).lastInsertRowid;
       chartIds[getChartName(name, section, sectionType)] = chartId;
     });
 
     forEach(chartsRecord, (charts, name) => {
       forEach(charts, (chart) => {
-        // create account for each chart
         const accountId = statements.stmAccount.run({
           chartId: chartIds[getChartName(name, section, sectionType)],
           date,
@@ -137,27 +158,42 @@ export class StatementService {
         }).lastInsertRowid;
 
         if (section === 'asset') {
-          // add entry to debit ledger
           statements.stmDebitLedger.run({
             date,
             particulars: 'Opening Balance from B/S',
             accountId,
             debit: chart.amount,
-            balance: chart.amount, // TODO: update balance (ideally by fetching if (last balance from ledger) => update by adding/subtracting the amount based on its balanceType, else => set the amount as balance)
-            // balanceType:
+            balance: chart.amount,
           });
         } else {
-          // add entry to credit ledger
           statements.stmCreditLedger.run({
             date,
             particulars: 'Opening Balance from B/S',
             accountId,
             credit: chart.amount,
-            balance: chart.amount, // TODO: update balance (ideally by fetching if (last balance from ledger) => update by adding/subtracting the amount based on its balanceType, else => set the amount as balance)
-            // balanceType:
+            balance: chart.amount,
           });
         }
       });
     });
+  }
+
+  private initPreparedStatements() {
+    this.stmChart = this.db.prepare(`
+      INSERT INTO chart (date, name, type, userId)
+      VALUES (@date, @name, @type, (SELECT id FROM users WHERE username = @username))
+    `);
+    this.stmAccount = this.db.prepare(`
+      INSERT INTO account (chartId, date, name)
+      VALUES (@chartId, @date, @name)
+    `);
+    this.stmDebitLedger = this.db.prepare(`
+      INSERT INTO ledger (date, particulars, accountId, debit, balance, balanceType)
+      VALUES (@date, @particulars, @accountId, @debit, @balance, 'Dr')
+    `);
+    this.stmCreditLedger = this.db.prepare(`
+      INSERT INTO ledger (date, particulars, accountId, credit, balance, balanceType)
+      VALUES (@date, @particulars, @accountId, @credit, @balance, 'Cr')
+    `);
   }
 }

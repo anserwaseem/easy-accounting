@@ -27,4 +27,14 @@ export const INITIAL_CHARTS: Omit<Chart, 'id'>[] = [
     type: AccountType.Equity,
     date: cast(new Date()),
   },
+  {
+    name: 'Revenue',
+    type: AccountType.Revenue,
+    date: cast(new Date()),
+  },
+  {
+    name: 'Expense',
+    type: AccountType.Expense,
+    date: cast(new Date()),
+  },
 ];

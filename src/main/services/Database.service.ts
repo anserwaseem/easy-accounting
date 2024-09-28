@@ -15,26 +15,26 @@ export class DatabaseService {
     this.db = DatabaseService.connect();
   }
 
-  public static getInstance(): DatabaseService {
+  static getInstance(): DatabaseService {
     if (!DatabaseService.instance) {
       DatabaseService.instance = new DatabaseService();
     }
     return DatabaseService.instance;
   }
 
-  public getDatabase(): Database.Database {
+  getDatabase(): Database.Database {
     return this.db;
   }
 
   private static isDevelopment(): boolean {
     return (
       process.env.NODE_ENV === 'development' ||
+      process.env.NODE_ENV === 'test' ||
       process.env.DEBUG_PROD === 'true'
     );
   }
 
   private static connect(): Database.Database {
-    const userDataPath = app.getPath('userData');
     const databaseFileName = 'database.db';
     let databasePath: string;
 
@@ -46,6 +46,7 @@ export class DatabaseService {
         databaseFileName,
       );
     } else {
+      const userDataPath = app.getPath('userData');
       databasePath = path.join(userDataPath, databaseFileName);
 
       if (!fs.existsSync(databasePath)) {
