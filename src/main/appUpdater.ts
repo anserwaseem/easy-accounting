@@ -20,7 +20,7 @@ export class AppUpdater {
       this.sendStatusToWindow('Update available.');
       dialog
         .showMessageBox(this.mainWindow, {
-          type: 'info',
+          type: 'question',
           title: 'Update Available',
           message: `Version ${info.version} is available. Would you like to download it now?`,
           buttons: ['Yes', 'No'],
@@ -39,10 +39,32 @@ export class AppUpdater {
 
     autoUpdater.on('error', (err) => {
       this.sendStatusToWindow(`Error in auto-updater. ${err}`);
+      // eslint-disable-next-line promise/no-promise-in-callback
+      dialog
+        .showMessageBox(this.mainWindow, {
+          type: 'error',
+          title: 'Update Error',
+          message: `An error occurred while updating: ${err.message}`,
+          buttons: ['Retry', 'Cancel'],
+        })
+        .then((result) => {
+          if (result.response === 0) {
+            autoUpdater.downloadUpdate();
+          }
+        })
+        .catch((reason) => this.sendStatusToWindow(reason));
     });
 
     autoUpdater.on('download-progress', (progressObj) => {
       const logMessage = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+
+      const progress = Math.floor(progressObj.percent) / 100;
+      if (progress < 1) {
+        this.mainWindow.setProgressBar(progress);
+      } else {
+        this.mainWindow.setProgressBar(-0.15); // reset to a bit less than 0 to show reset state
+      }
+
       this.sendStatusToWindow(logMessage);
     });
 

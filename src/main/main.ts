@@ -17,6 +17,7 @@ import type {
   Journal,
 } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
+import { isNil } from 'lodash';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/general';
 import { store } from './store';
@@ -30,10 +31,13 @@ import {
   StatementService,
 } from './services';
 import { ChartService } from './services/Chart.service';
+import { ErrorManager } from './errorManager';
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'info';
 log.info('Main process started');
+
+new ErrorManager().init();
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -48,6 +52,9 @@ ipcMain.on('electron-store-get', async (event, val) => {
 });
 
 ipcMain.on('electron-store-set', async (_, key, val) => {
+  if (isNil(val)) {
+    return; // so app doesn't throw `TypeError: Use `delete()` to clear values`
+  }
   store.set(key, val);
 });
 
