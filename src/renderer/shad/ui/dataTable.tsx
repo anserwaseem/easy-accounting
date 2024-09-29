@@ -17,6 +17,7 @@ import {
   TableRow,
 } from 'renderer/shad/ui/table';
 import { get, toString } from 'lodash';
+import { cn } from '@/renderer/lib/utils';
 
 export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
@@ -57,11 +58,12 @@ const DataTable = <TData, TValue>({
                 return (
                   <TableHead
                     key={header.id}
-                    className={
+                    className={cn(
                       header.column.getIsSorted()
                         ? 'bg-gray-300 dark:bg-gray-800'
-                        : 'bg-gray-200 dark:bg-gray-900'
-                    }
+                        : 'bg-gray-200 dark:bg-gray-900',
+                      'h-8',
+                    )}
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     {flexRender(
@@ -95,6 +97,7 @@ const DataTable = <TData, TValue>({
                         cell.column.columnDef as ColumnDef<TData, TValue>
                       )?.onClick?.(cell.row)
                     }
+                    className="py-2 px-4"
                   >
                     {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
                     <div key={toString(get(cell.row.original, 'id'))}>

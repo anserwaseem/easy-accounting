@@ -24,7 +24,7 @@ type AccountPageProps = {
 const AccountCell: React.FC<CellContext<Account, unknown>> = ({
   row,
 }: CellContext<Account, unknown>) => (
-  <div>
+  <div className="flex justify-between">
     <h2>{row.original.name}</h2>
     <p className="text-xs text-slate-400">{row.original.type}</p>
   </div>
@@ -131,20 +131,11 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   );
 
   const getAccounts = useCallback(() => {
-    switch (typeSelected) {
-      case AccountType.Asset:
-        return accounts.filter((account) => account.type === AccountType.Asset);
-      case AccountType.Liability:
-        return accounts.filter(
-          (account) => account.type === AccountType.Liability,
-        );
-      case AccountType.Equity:
-        return accounts.filter(
-          (account) => account.type === AccountType.Equity,
-        );
-      default:
-        return accounts;
+    if (!typeSelected || typeSelected === 'All') {
+      return accounts;
     }
+
+    return accounts.filter((account) => account.type === typeSelected);
   }, [accounts, typeSelected]);
 
   return (
@@ -161,23 +152,19 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             <DropdownMenuItem onClick={() => setTypeSelected('All')}>
               All Accounts
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => setTypeSelected(AccountType.Asset)}
-            >
-              Asset Accounts
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => setTypeSelected(AccountType.Liability)}
-            >
-              Liability Accounts
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => setTypeSelected(AccountType.Equity)}
-            >
-              Equity Accounts
-            </DropdownMenuItem>
+            {Object.keys(AccountType).map((type) => (
+              <DropdownMenuItem
+                onClick={() =>
+                  setTypeSelected(AccountType[type as keyof typeof AccountType])
+                }
+              >
+                {type} Accounts
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <h1 className={isMini ? 'hidden' : 'text-2xl'}>Accounts</h1>
 
         <AddAccount
           charts={charts}
@@ -185,7 +172,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           refetchAccounts={refetchAccounts}
         />
       </div>
-      <div className="py-10 pr-4">
+      <div className="py-8 pr-4">
         <DataTable
           columns={columns}
           data={getAccounts()}
