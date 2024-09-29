@@ -547,11 +547,11 @@ const NewJournalPage: React.FC = () => {
                 )}
               />
 
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="id"
                 render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2">
+                  <FormItem labelPosition="start" className="w-1/2" hidden>
                     <FormLabel className="text-lg">Journal#</FormLabel>
                     <FormControl>
                       <Input
@@ -564,7 +564,7 @@ const NewJournalPage: React.FC = () => {
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              /> */}
 
               <FormField
                 control={form.control}
