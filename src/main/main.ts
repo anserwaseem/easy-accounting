@@ -30,10 +30,13 @@ import {
   StatementService,
 } from './services';
 import { ChartService } from './services/Chart.service';
+import { ErrorManager } from './errorManager';
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'info';
 log.info('Main process started');
+
+new ErrorManager().init();
 
 let mainWindow: BrowserWindow | null = null;
 

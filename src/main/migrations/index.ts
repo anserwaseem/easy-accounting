@@ -15,7 +15,7 @@ import { logErrors } from '../errorLogger';
  */
 export interface Migration {
   name: string;
-  up: (db: Database) => void;
+  up: (db: Database) => true | Error;
 }
 
 /**
@@ -167,15 +167,27 @@ export class MigrationRunner {
       if (!appliedMigrations.includes(migrationName)) {
         log.info(`Applying migration: ${migrationName}`);
 
-        this.db.transaction(() => {
-          migrationObj.up(this.db);
-          this.db
-            .prepare('INSERT INTO migrations (name) VALUES (?)')
-            .run(migrationName);
-        })();
+        try {
+          const result = migrationObj.up(this.db);
 
-        log.info(`Migration ${migrationName} applied successfully.`);
-        migrationsApplied = true;
+          if (result === true) {
+            this.db
+              .prepare('INSERT INTO migrations (name) VALUES (?)')
+              .run(migrationName);
+            log.info(`Migration ${migrationName} applied successfully.`);
+            migrationsApplied = true;
+          } else if (result instanceof Error) {
+            // If migration returned an Error, log it
+            log.error(`Migration ${migrationName} failed:`, result);
+          } else {
+            // If migration returned something else, log a warning
+            log.warn(
+              `Migration ${migrationName} did not return true or an Error. It may not have been applied correctly.`,
+            );
+          }
+        } catch (error) {
+          log.error(`Unexpected error in migration ${migrationName}:`, error);
+        }
       } else {
         log.info(`Ignoring migration: ${migrationName}`);
       }
