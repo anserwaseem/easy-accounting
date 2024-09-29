@@ -159,7 +159,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
         <Button
           variant="outline"
-          onClick={() => navigate('new')}
+          onClick={() => navigate('/journals/new')}
           className="flex items-center"
         >
           <Plus size={16} />
