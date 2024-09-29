@@ -38,11 +38,11 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
   const columns: ColumnDef<JournalView>[] = useMemo(
     () => [
-      {
-        accessorKey: 'id',
-        header: 'Journal #',
-        onClick: (row) => navigate(toString(row.original.id)),
-      },
+      // {
+      //   accessorKey: 'id',
+      //   header: 'Journal #',
+      //   onClick: (row) => navigate(toString(row.original.id)),
+      // },
       {
         accessorKey: 'date',
         header: 'Date',
