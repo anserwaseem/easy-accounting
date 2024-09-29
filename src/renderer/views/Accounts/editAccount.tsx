@@ -114,13 +114,12 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       }}
     >
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
+        <PenBox
+          size={16}
           onClick={() => handleLoadEditForm(row.original)}
-        >
-          <PenBox size={16} />
-          <span className="ml-3 mr-1">Edit Account</span>
-        </Button>
+          cursor="pointer"
+          className="py-0"
+        />
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

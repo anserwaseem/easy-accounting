@@ -38,11 +38,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'renderer/shad/ui/select';
-import { Separator } from 'renderer/shad/ui/separator';
 import type { Account, Journal, JournalEntry } from 'types';
 
 const NewJournalPage: React.FC = () => {
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accounts, setAccounts] = useState<Account[] | undefined>(undefined);
   const [nextId, setNextId] = useState<number>(-1);
   const [totalCredits, setTotalCredits] = useState<number>(0);
   const [totalDebits, setTotalDebits] = useState<number>(0);
@@ -279,16 +278,16 @@ const NewJournalPage: React.FC = () => {
             control={form.control}
             name={`journalEntries.${row.index}.accountId` as const}
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="w-auto min-w-[250px] space-y-0">
                 <Select
                   onValueChange={field.onChange}
                   value={field.value.toString()}
                 >
                   <FormControl>
-                    <SelectTrigger className="min-w-[150px]">
+                    <SelectTrigger>
                       <SelectValue>
                         {
-                          accounts.find(
+                          accounts?.find(
                             (acc) => acc.id === toNumber(field.value),
                           )?.name
                         }
@@ -296,7 +295,7 @@ const NewJournalPage: React.FC = () => {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent align="center">
-                    {accounts.map((account) => (
+                    {accounts?.map((account) => (
                       <SelectItem
                         value={account.id.toString()}
                         key={account.id}
@@ -325,8 +324,8 @@ const NewJournalPage: React.FC = () => {
             control={form.control}
             name={`journalEntries.${row.index}.debitAmount` as const}
             render={({ field }) => (
-              <FormItem>
-                <FormControl className="w-1/2">
+              <FormItem className="space-y-0">
+                <FormControl>
                   <Input
                     {...field}
                     value={getAmountDefaultLabel(field.value)}
@@ -359,8 +358,8 @@ const NewJournalPage: React.FC = () => {
             control={form.control}
             name={`journalEntries.${row.index}.creditAmount` as const}
             render={({ field }) => (
-              <FormItem>
-                <FormControl className="w-1/2">
+              <FormItem className="space-y-0">
+                <FormControl>
                   <Input
                     {...field}
                     value={getAmountDefaultLabel(field.value)}
@@ -387,10 +386,15 @@ const NewJournalPage: React.FC = () => {
       },
       {
         id: 'remove',
-        header: '',
+        header: 'Action',
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <X color="red" size={16} onClick={() => handleRemoveRow(row.index)} />
+          <X
+            color="red"
+            size={16}
+            onClick={() => handleRemoveRow(row.index)}
+            cursor="pointer"
+          />
         ),
       },
     ],
@@ -477,7 +481,7 @@ const NewJournalPage: React.FC = () => {
     <>
       <div
         className={
-          accounts.length
+          !accounts || accounts.length
             ? 'hidden'
             : 'block fixed z-10 bg-green-400 text-center text-xl bg-opacity-60 w-full left-0 top-[50%] py-4 px-8'
         }
@@ -485,9 +489,8 @@ const NewJournalPage: React.FC = () => {
         Looks like you&apos;re ready to start journaling! But first, let&apos;s
         set up an account. Head over to the Accounts section to get started.
       </div>
-      <div className="py-4 flex flex-col gap-y-4">
-        <h1 className="text-xl py-2">New Journal</h1>
-        <Separator />
+      <div className="py-1 flex flex-col gap-y-4">
+        <h1 className="text-xl">New Journal</h1>
 
         <Form {...form}>
           <form
@@ -501,8 +504,8 @@ const NewJournalPage: React.FC = () => {
                 control={form.control}
                 name="date"
                 render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2">
-                    <FormLabel className="text-lg">Date</FormLabel>
+                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
+                    <FormLabel className="text-base">Date</FormLabel>
                     <FormControl>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -547,12 +550,12 @@ const NewJournalPage: React.FC = () => {
                 )}
               />
 
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="id"
                 render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2">
-                    <FormLabel className="text-lg">Journal#</FormLabel>
+                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
+                    <FormLabel className="text-base">Journal#</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -564,14 +567,14 @@ const NewJournalPage: React.FC = () => {
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              /> */}
 
               <FormField
                 control={form.control}
                 name="narration"
                 render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2">
-                    <FormLabel className="text-lg">Narration</FormLabel>
+                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
+                    <FormLabel className="text-base">Narration</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -581,7 +584,7 @@ const NewJournalPage: React.FC = () => {
               />
             </div>
 
-            <div className="py-10 pr-4 flex flex-col gap-3">
+            <div className="py-8 pr-4 flex flex-col gap-3">
               <DataTable
                 columns={columns}
                 data={fields}
@@ -609,6 +612,11 @@ const NewJournalPage: React.FC = () => {
 
               <Table className="dark:bg-gray-900 bg-gray-100 rounded-xl">
                 <TableBody>
+                  <TableRow>
+                    <TableCell />
+                    <TableCell className="font-medium w-1/3">Debit</TableCell>
+                    <TableCell className="font-medium w-1/3">Credit</TableCell>
+                  </TableRow>
                   <TableRow>
                     <TableCell className="font-medium text-xl w-1/3">
                       Total

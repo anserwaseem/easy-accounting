@@ -49,7 +49,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({
       <div className="flex">
         <div className="w-3/4">
           <h1 className="text-4xl font-light">JOURNAL</h1>
-          <p className="font-extrabold">#{journal?.id}</p>
+          {/* <p className="font-extrabold">#{journal?.id}</p> */}
 
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-8">

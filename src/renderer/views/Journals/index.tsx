@@ -11,7 +11,6 @@ import {
   type DateRange,
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
-import { Separator } from 'renderer/shad/ui/separator';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import type { HasMiniView, Journal } from 'types';
@@ -39,11 +38,11 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
   const columns: ColumnDef<JournalView>[] = useMemo(
     () => [
-      {
-        accessorKey: 'id',
-        header: 'Journal #',
-        onClick: (row) => navigate(toString(row.original.id)),
-      },
+      // {
+      //   accessorKey: 'id',
+      //   header: 'Journal #',
+      //   onClick: (row) => navigate(toString(row.original.id)),
+      // },
       {
         accessorKey: 'date',
         header: 'Date',
@@ -154,25 +153,16 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
   return (
     <div>
-      <div className="flex justify-between items-center py-4 pr-4">
-        <h1 className="text-xl">Journals</h1>
-
-        <Button
-          variant="outline"
-          onClick={() => navigate('new')}
-          className="flex items-center"
-        >
-          <Plus size={16} />
-          <span className="ml-3 mr-1">New Journal</span>
-        </Button>
-      </div>
-
-      <Separator />
-
-      <div className="py-4 pr-4 flex flex-col gap-6">
+      <div
+        className={`py-4 pr-4 ${
+          isMini
+            ? 'grid grid-cols-2 grid-rows-2 gap-4'
+            : 'flex justify-between items-center'
+        }`}
+      >
         <div
-          className={`flex gap-4 items-center ${
-            isMini ? 'justify-between' : ''
+          className={`flex gap-4 items-center justify-between ${
+            isMini ? 'col-span-2 row-span-1 order-1' : ''
           }`}
         >
           <p className="text-muted-foreground font-bold text-sm">VIEW BY:</p>
@@ -184,6 +174,19 @@ const JournalsPage: React.FC<HasMiniView> = ({
           />
         </div>
 
+        <h1 className="text-2xl col-span-1 row-span-1">Journals</h1>
+
+        <Button
+          variant="outline"
+          onClick={() => navigate('/journals/new')}
+          className="flex items-center col-span-1 row-span-1"
+        >
+          <Plus size={16} />
+          <span className="ml-3 mr-1">New Journal</span>
+        </Button>
+      </div>
+
+      <div className="py-8 pr-4 flex flex-col gap-6">
         {isMini ? (
           <Table>
             <TableBody>
