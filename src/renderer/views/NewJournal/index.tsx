@@ -42,7 +42,7 @@ import { Separator } from 'renderer/shad/ui/separator';
 import type { Account, Journal, JournalEntry } from 'types';
 
 const NewJournalPage: React.FC = () => {
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accounts, setAccounts] = useState<Account[] | undefined>(undefined);
   const [nextId, setNextId] = useState<number>(-1);
   const [totalCredits, setTotalCredits] = useState<number>(0);
   const [totalDebits, setTotalDebits] = useState<number>(0);
@@ -288,7 +288,7 @@ const NewJournalPage: React.FC = () => {
                     <SelectTrigger className="min-w-[150px]">
                       <SelectValue>
                         {
-                          accounts.find(
+                          accounts?.find(
                             (acc) => acc.id === toNumber(field.value),
                           )?.name
                         }
@@ -296,7 +296,7 @@ const NewJournalPage: React.FC = () => {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent align="center">
-                    {accounts.map((account) => (
+                    {accounts?.map((account) => (
                       <SelectItem
                         value={account.id.toString()}
                         key={account.id}
@@ -477,7 +477,7 @@ const NewJournalPage: React.FC = () => {
     <>
       <div
         className={
-          accounts.length
+          !accounts || accounts.length
             ? 'hidden'
             : 'block fixed z-10 bg-green-400 text-center text-xl bg-opacity-60 w-full left-0 top-[50%] py-4 px-8'
         }
