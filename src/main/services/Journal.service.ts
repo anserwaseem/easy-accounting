@@ -1,4 +1,4 @@
-import type { Journal, JournalEntry } from 'types';
+import type { Journal, JournalEntry, Ledger } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { compact, get, omit } from 'lodash';
 import { cast } from '../utils/sqlite';
@@ -29,6 +29,10 @@ export class JournalService {
   private stmGetJournals!: Statement;
 
   private stmGetJournal!: Statement;
+
+  private stmGetLedgerEntriesAfterDate!: Statement;
+
+  private stmUpdateLedgerEntry!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -96,6 +100,8 @@ export class JournalService {
             particulars: `Journal #${journalId}`,
             linkedAccountId: journalId,
           });
+
+          this.recalculateBalances(accountId, date);
         }
       })(journalToBeInserted);
 
@@ -214,6 +220,47 @@ export class JournalService {
     return { balance: Math.abs(newBalance), balanceType: newBalanceType };
   }
 
+  private recalculateBalances(accountId: number, startDate: string) {
+    const entries = this.stmGetLedgerEntriesAfterDate.all({
+      accountId,
+      date: startDate,
+    }) as Ledger[];
+    console.log('recalculateBalances', accountId, startDate, entries);
+
+    let runningBalance: number = 0;
+    let currentBalanceType: BalanceType;
+
+    for (const entry of entries) {
+      const { type: accountType } = this.stmAccountType.get(accountId) as {
+        type: string;
+      };
+
+      switch (accountType) {
+        case AccountType.Asset:
+        case AccountType.Expense:
+          runningBalance += entry.debit - entry.credit;
+          currentBalanceType =
+            runningBalance >= 0 ? BalanceType.Dr : BalanceType.Cr;
+          break;
+        case AccountType.Liability:
+        case AccountType.Equity:
+        case AccountType.Revenue:
+          runningBalance += entry.credit - entry.debit;
+          currentBalanceType =
+            runningBalance >= 0 ? BalanceType.Cr : BalanceType.Dr;
+          break;
+        default:
+          throw new Error(`Unknown account type: ${accountType}`);
+      }
+
+      this.stmUpdateLedgerEntry.run({
+        id: entry.id,
+        balance: Math.abs(runningBalance),
+        balanceType: currentBalanceType,
+      });
+    }
+  }
+
   private initPreparedStatements() {
     this.stmJournal = this.db.prepare(
       `INSERT INTO journal (date, narration, isPosted)
@@ -246,7 +293,8 @@ export class JournalService {
        JOIN journal_entry je ON j.id = je.journalId
        JOIN account a ON a.id = je.accountId
        JOIN chart c ON c.id = a.chartId
-       WHERE userId = (SELECT id FROM users WHERE username = @username)`,
+       WHERE userId = (SELECT id FROM users WHERE username = @username)
+       ORDER BY j.date DESC, j.id DESC`,
     );
     this.stmGetJournal = this.db.prepare(
       `SELECT j.id, j.date, j.narration, j.isPosted, j.createdAt, j.updatedAt,
@@ -258,5 +306,16 @@ export class JournalService {
        WHERE j.id = @journalId
        AND userId = (SELECT id FROM users WHERE username = @username)`,
     );
+    this.stmGetLedgerEntriesAfterDate = this.db.prepare(`
+      SELECT *
+      FROM ledger
+      WHERE accountId = @accountId AND date > @date
+      ORDER BY date, id
+    `);
+    this.stmUpdateLedgerEntry = this.db.prepare(`
+      UPDATE ledger
+      SET balance = @balance, balanceType = @balanceType
+      WHERE id = @id
+    `);
   }
 }

@@ -20,12 +20,15 @@ export class LedgerService {
   }
 
   private initPreparedStatements() {
+    // This query retrieves ledger entries for a specific account, joining with the account table to get the linked account name.
+    // The results are ordered by date in ascending order to ensure past dates are on top.
+    // If multiple entries have the same date, they are further ordered by id in descending order to show the latest entries first.
     this.stmGetLedger = this.db.prepare(`
       SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, l.createdAt, l.updatedAt
       FROM ledger l
       LEFT JOIN account a ON l.linkedAccountId = a.id
       WHERE l.accountId = @accountId
-      ORDER BY l.createdAt DESC
+      ORDER BY datetime(l.date) ASC, l.id DESC
     `);
   }
 }
