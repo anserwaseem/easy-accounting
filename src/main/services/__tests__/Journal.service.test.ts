@@ -62,7 +62,7 @@ describe('Journal Posting', () => {
   let authService: AuthService;
   let db: Database.Database;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     // Use in-memory database for testing
     db = new Database(':memory:');
 
@@ -133,12 +133,10 @@ describe('Journal Posting', () => {
     console.log('AR Ledger after first posting:', arLedger1);
     console.log('Sales Ledger after first posting:', salesLedger1);
 
-    expect(arLedger1[arLedger1.length - 1].balance).toBe(1000);
-    expect(arLedger1[arLedger1.length - 1].balanceType).toBe(BalanceType.Dr);
-    expect(salesLedger1[salesLedger1.length - 1].balance).toBe(1000);
-    expect(salesLedger1[salesLedger1.length - 1].balanceType).toBe(
-      BalanceType.Cr,
-    );
+    expect(arLedger1[0].balance).toBe(1000);
+    expect(arLedger1[0].balanceType).toBe(BalanceType.Dr);
+    expect(salesLedger1[0].balance).toBe(1000);
+    expect(salesLedger1[0].balanceType).toBe(BalanceType.Cr);
 
     // Second journal entry: Multiple debits, one credit
     const journal2: Journal = {
@@ -164,16 +162,12 @@ describe('Journal Posting', () => {
     console.log('Inventory Ledger after second posting:', inventoryLedger2);
     console.log('AP Ledger after second posting:', apLedger2);
 
-    expect(cashLedger2[cashLedger2.length - 1].balance).toBe(200);
-    expect(cashLedger2[cashLedger2.length - 1].balanceType).toBe(
-      BalanceType.Dr,
-    );
-    expect(inventoryLedger2[inventoryLedger2.length - 1].balance).toBe(800);
-    expect(inventoryLedger2[inventoryLedger2.length - 1].balanceType).toBe(
-      BalanceType.Dr,
-    );
-    expect(apLedger2[apLedger2.length - 1].balance).toBe(1000);
-    expect(apLedger2[apLedger2.length - 1].balanceType).toBe(BalanceType.Cr);
+    expect(cashLedger2[0].balance).toBe(200);
+    expect(cashLedger2[0].balanceType).toBe(BalanceType.Dr);
+    expect(inventoryLedger2[0].balance).toBe(800);
+    expect(inventoryLedger2[0].balanceType).toBe(BalanceType.Dr);
+    expect(apLedger2[0].balance).toBe(1000);
+    expect(apLedger2[0].balanceType).toBe(BalanceType.Cr);
 
     // Third journal entry: Payment to creditors
     const journal3: Journal = {
@@ -199,20 +193,18 @@ describe('Journal Posting', () => {
     console.log('AR Ledger after third posting:', arLedger3);
     console.log('AP Ledger after third posting:', apLedger3);
 
-    expect(cashLedger3[cashLedger3.length - 1].balance).toBe(200);
-    expect(cashLedger3[cashLedger3.length - 1].balanceType).toBe(
-      BalanceType.Cr,
-    );
+    expect(cashLedger3[0].balance).toBe(200);
+    expect(cashLedger3[0].balanceType).toBe(BalanceType.Cr);
 
-    expect(arLedger3[arLedger3.length - 1].balance).toBe(800);
-    expect(arLedger3[arLedger3.length - 1].balanceType).toBe(BalanceType.Dr);
+    expect(arLedger3[0].balance).toBe(800);
+    expect(arLedger3[0].balanceType).toBe(BalanceType.Dr);
 
-    expect(apLedger3[apLedger3.length - 1].balance).toBe(400);
-    expect(apLedger3[apLedger3.length - 1].balanceType).toBe(BalanceType.Cr);
+    expect(apLedger3[0].balance).toBe(400);
+    expect(apLedger3[0].balanceType).toBe(BalanceType.Cr);
 
     // Fourth journal entry: Sales return
     const journal4: Journal = {
-      id: 3,
+      id: 4,
       date: new Date().toISOString(),
       narration: 'Product returned by customer',
       isPosted: true,
@@ -234,15 +226,103 @@ describe('Journal Posting', () => {
     console.log('AR Ledger after fourth posting:', arLedger4);
     console.log('Cash Ledger after fourth posting:', cashLedger4);
 
-    expect(salesLedger4[salesLedger4.length - 1].balance).toBe(0);
-    expect(salesLedger4[salesLedger4.length - 1].balanceType).toBe(
-      BalanceType.Cr,
-    );
-    expect(arLedger4[arLedger4.length - 1].balance).toBe(0);
-    expect(arLedger4[arLedger4.length - 1].balanceType).toBe(BalanceType.Dr);
-    expect(cashLedger4[cashLedger4.length - 1].balance).toBe(0);
-    expect(cashLedger4[cashLedger4.length - 1].balanceType).toBe(
-      BalanceType.Dr,
-    );
+    expect(salesLedger4[0].balance).toBe(0);
+    expect(salesLedger4[0].balanceType).toBe(BalanceType.Cr);
+    expect(arLedger4[0].balance).toBe(0);
+    expect(arLedger4[0].balanceType).toBe(BalanceType.Dr);
+    expect(cashLedger4[0].balance).toBe(0);
+    expect(cashLedger4[0].balanceType).toBe(BalanceType.Dr);
+  });
+
+  it('should correctly update ledger balances when inserting a journal with a past date', () => {
+    // Create test accounts
+    const accounts: InsertAccount[] = [
+      { name: 'Cash', headName: 'Current Asset', code: undefined },
+      { name: 'Sales', headName: 'Revenue', code: undefined },
+    ];
+    accounts.forEach((account) => accountService.insertAccount(account));
+
+    // First journal entry: Current date
+    const currentDate = new Date();
+    const journal1: Journal = {
+      id: 1,
+      date: currentDate.toISOString(),
+      narration: 'New day! New sale!',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 1, accountId: 1, debitAmount: 1000, creditAmount: 0 },
+        { journalId: 1, accountId: 2, debitAmount: 0, creditAmount: 1000 },
+      ] as JournalEntry[],
+    };
+
+    console.log('Posting first journal');
+    journalService.insertJournal(journal1);
+
+    // Check balances after first posting
+    const cashLedger1 = ledgerService.getLedger(1);
+    const salesLedger1 = ledgerService.getLedger(2);
+    console.log('Cash Ledger after first posting:', cashLedger1);
+    console.log('Sales Ledger after first posting:', salesLedger1);
+
+    // Verify Cash ledger after first posting
+    expect(cashLedger1).toHaveLength(1);
+    expect(new Date(cashLedger1[0].date)).toEqual(currentDate);
+    expect(cashLedger1[0].debit).toBe(1000);
+    expect(cashLedger1[0].balance).toBe(1000);
+    expect(cashLedger1[0].balanceType).toBe(BalanceType.Dr);
+
+    // Verify Sales ledger after first posting
+    expect(salesLedger1).toHaveLength(1);
+    expect(new Date(salesLedger1[0].date)).toEqual(currentDate);
+    expect(salesLedger1[0].credit).toBe(1000);
+    expect(salesLedger1[0].balance).toBe(1000);
+    expect(salesLedger1[0].balanceType).toBe(BalanceType.Cr);
+
+    // Second journal entry: Past date
+    const pastDate = new Date(currentDate);
+    pastDate.setDate(pastDate.getDate() - 5); // 5 days ago
+    const journal2: Journal = {
+      id: 2,
+      date: pastDate.toISOString(),
+      narration: 'Oops! forgot this sale happened 5 days ago',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 2, accountId: 1, debitAmount: 500, creditAmount: 0 },
+        { journalId: 2, accountId: 2, debitAmount: 0, creditAmount: 500 },
+      ] as JournalEntry[],
+    };
+
+    console.log('Posting second journal');
+    journalService.insertJournal(journal2);
+
+    // Verify ledger entries after second posting
+    const cashLedger2 = ledgerService.getLedger(1);
+    const salesLedger2 = ledgerService.getLedger(2);
+    console.log('Cash Ledger after first posting:', cashLedger2);
+    console.log('Sales Ledger after first posting:', salesLedger2);
+
+    // Check Cash ledger
+    expect(cashLedger2).toHaveLength(2);
+    expect(new Date(cashLedger2[0].date)).toEqual(pastDate);
+    expect(cashLedger2[0].debit).toBe(500);
+    expect(cashLedger2[0].balance).toBe(1500);
+    expect(cashLedger2[0].balanceType).toBe(BalanceType.Dr);
+
+    expect(new Date(cashLedger2[1].date)).toEqual(currentDate);
+    expect(cashLedger2[1].debit).toBe(1000);
+    expect(cashLedger2[1].balance).toBe(1000);
+    expect(cashLedger2[1].balanceType).toBe(BalanceType.Dr);
+
+    // Check Sales ledger
+    expect(salesLedger2).toHaveLength(2);
+    expect(new Date(salesLedger2[0].date)).toEqual(pastDate);
+    expect(salesLedger2[0].credit).toBe(500);
+    expect(salesLedger2[0].balance).toBe(1500);
+    expect(salesLedger2[0].balanceType).toBe(BalanceType.Cr);
+
+    expect(new Date(salesLedger2[1].date)).toEqual(currentDate);
+    expect(salesLedger2[1].credit).toBe(1000);
+    expect(salesLedger2[1].balance).toBe(1000);
+    expect(salesLedger2[1].balanceType).toBe(BalanceType.Cr);
   });
 });
