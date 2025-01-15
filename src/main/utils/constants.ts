@@ -38,3 +38,10 @@ export const INITIAL_CHARTS: Omit<Chart, 'id'>[] = [
     date: cast(new Date()),
   },
 ];
+
+export const DEFAULT_USER = {
+  username: 'default',
+  password: 'default',
+};
+
+export const INVOICE_DISCOUNT_PERCENTAGE = 40;

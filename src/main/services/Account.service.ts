@@ -15,6 +15,8 @@ export class AccountService {
 
   private stmUpdateAccount!: Statement;
 
+  private stmGetAccountByName!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -42,6 +44,15 @@ export class AccountService {
       username,
     });
     return Boolean(result.changes);
+  }
+
+  getAccountByName(name: string): Account | undefined {
+    const username = store.get('username');
+    const result = <Account | undefined>this.stmGetAccountByName.get({
+      name,
+      username,
+    });
+    return result;
   }
 
   private initPreparedStatements() {
@@ -81,6 +92,17 @@ export class AccountService {
         )
       )
       WHERE id = @id
+    `);
+
+    this.stmGetAccountByName = this.db.prepare(`
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      WHERE LOWER(a.name) LIKE LOWER(@name) AND userId = (
+        SELECT id
+        FROM users
+        WHERE username = @username
+      )
     `);
   }
 }

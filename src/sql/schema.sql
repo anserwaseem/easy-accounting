@@ -91,6 +91,44 @@ CREATE TABLE IF NOT EXISTS "journal_ledger" (
   FOREIGN KEY("ledgerId") REFERENCES "ledger"("id") ON DELETE CASCADE
 );
 
+-- new
+CREATE TABLE IF NOT EXISTS "inventory" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "price" DECIMAL(10, 2) NOT NULL,
+    "quantity" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "invoices" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "invoiceNumber" INTEGER NOT NULL,
+    "accountId" INTEGER NOT NULL,
+    "invoiceType" TEXT NOT NULL CHECK ("invoiceType" IN ('Purchase', 'Sale')),
+    "date" DATETIME NOT NULL,
+    "totalAmount" DECIMAL(10, 2) NOT NULL,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE("invoiceNumber", "invoiceType"),
+    FOREIGN KEY ("accountId") REFERENCES "account"("id")
+);
+
+CREATE TABLE IF NOT EXISTS "invoice_items" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "invoiceId" INTEGER NOT NULL,
+    "inventoryId" INTEGER NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "price" DECIMAL(10, 2) NOT NULL,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id"),
+    FOREIGN KEY ("invoiceId") REFERENCES "invoices"("id")
+);
+
 
 -- TRIGGERS --
 -- ledger
@@ -197,6 +235,44 @@ CREATE TRIGGER IF NOT EXISTS after_update_journal_entry_add_timestamp
 AFTER UPDATE ON journal_entry
 BEGIN
   UPDATE journal_entry SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+COMMIT;
+
+-- inventory
+CREATE TRIGGER IF NOT EXISTS after_insert_inventory_add_timestamp
+AFTER INSERT ON inventory
+BEGIN
+  UPDATE inventory SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_inventory_add_timestamp
+AFTER UPDATE ON inventory
+BEGIN
+  UPDATE inventory SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- invoices
+CREATE TRIGGER IF NOT EXISTS after_insert_invoices_add_timestamp
+AFTER INSERT ON invoices
+BEGIN
+  UPDATE invoices SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_invoices_add_timestamp
+AFTER UPDATE ON invoices
+BEGIN
+  UPDATE invoices SET
     updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;

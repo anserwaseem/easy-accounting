@@ -50,7 +50,7 @@ export class MigrationRunner {
 
   private migrationPromise: Promise<void>;
 
-  constructor(runSideEffect = true) {
+  constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
 
     this.migrationsDir = app.isPackaged
@@ -62,9 +62,7 @@ export class MigrationRunner {
     log.info('Migrations directory:', this.migrationsDir);
     log.info('Migrations directory exists:', fs.existsSync(this.migrationsDir));
 
-    this.migrationPromise = runSideEffect
-      ? this.migrateUp()
-      : Promise.resolve();
+    this.migrationPromise = this.migrateUp();
   }
 
   private initializeMigrationTable(): void {
