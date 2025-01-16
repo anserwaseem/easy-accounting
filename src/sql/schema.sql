@@ -239,8 +239,6 @@ BEGIN
   WHERE id = NEW.id;
 END;
 
-COMMIT;
-
 -- inventory
 CREATE TRIGGER IF NOT EXISTS after_insert_inventory_add_timestamp
 AFTER INSERT ON inventory
