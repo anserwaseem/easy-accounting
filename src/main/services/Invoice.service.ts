@@ -1,6 +1,6 @@
 import type { Database, Statement } from 'better-sqlite3';
 import log from 'electron-log';
-import { get, isNil, toNumber } from 'lodash';
+import { get, toNumber } from 'lodash';
 import { write, utils } from 'xlsx';
 import {
   type Invoice,
@@ -30,8 +30,6 @@ export class InvoiceService {
 
   private stmUpdateInventoryItem!: Statement;
 
-  private stmGetPurchaseAccountId!: Statement;
-
   private stmGetInvoices!: Statement;
 
   private stmGetInvoice!: Statement;
@@ -39,6 +37,8 @@ export class InvoiceService {
   private stmDoesInvoiceExist!: Statement;
 
   private stmGetLastInvoiceNumber!: Statement;
+
+  private stmGetSalePurchaseAccounts!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -117,6 +117,7 @@ export class InvoiceService {
 
     const invoiceId = <number>invoiceResult.lastInsertRowid;
 
+    // Process invoice items
     for (const item of invoice.invoiceItems) {
       this.stmInsertInvoiceItems.run({
         invoiceId,
@@ -130,12 +131,11 @@ export class InvoiceService {
       );
     }
 
-    const purchaseAccount = <{ id: number } | undefined>(
-      this.stmGetPurchaseAccountId.get()
+    // Get the appropriate accounts for journal entry
+    const { debitAccountId, creditAccountId } = this.getTransactionAccounts(
+      invoiceType,
+      invoice,
     );
-    if (isNil(purchaseAccount?.id)) {
-      throw new Error('Please create a Purchase account first');
-    }
 
     this.journalService.insertJournal({
       id: -1,
@@ -145,14 +145,14 @@ export class InvoiceService {
       journalEntries: [
         {
           id: -1,
-          accountId: purchaseAccount.id,
+          accountId: debitAccountId,
           creditAmount: 0,
           debitAmount: totalAmount,
           journalId: 0,
         },
         {
           id: -1,
-          accountId: invoice.accountId,
+          accountId: creditAccountId,
           debitAmount: 0,
           creditAmount: totalAmount,
           journalId: 0,
@@ -253,6 +253,37 @@ export class InvoiceService {
     return totalAmount;
   }
 
+  private getTransactionAccounts(
+    invoiceType: InvoiceType,
+    invoice: Invoice,
+  ): {
+    debitAccountId: number;
+    creditAccountId: number;
+  } {
+    const accounts = this.stmGetSalePurchaseAccounts.all() as Array<{
+      id: number;
+      name: string;
+    }>;
+    console.log('getTransactionAccounts', accounts);
+    const purchaseAccount = accounts.find((acc) => acc.name === 'Purchase');
+    const salesAccount = accounts.find((acc) => acc.name === 'Sale');
+
+    if (!purchaseAccount?.id || !salesAccount?.id) {
+      throw new Error('Please create both Purchase and Sales accounts first');
+    }
+
+    if (invoiceType === InvoiceType.Purchase) {
+      return {
+        debitAccountId: purchaseAccount.id, // Debit Purchase
+        creditAccountId: invoice.accountId, // Credit Vendor
+      };
+    }
+    return {
+      debitAccountId: invoice.accountId, // Debit Cash/Customer
+      creditAccountId: salesAccount.id, // Credit Sales
+    };
+  }
+
   private initPreparedStatements() {
     this.stmGetNextInvoiceNumber = this.db.prepare(`
       SELECT (MAX(invoiceNumber) + 1) AS 'invoiceNumber'
@@ -269,12 +300,6 @@ export class InvoiceService {
       UPDATE inventory
       SET quantity = quantity + ?
       WHERE id = ?
-    `);
-
-    this.stmGetPurchaseAccountId = this.db.prepare(`
-      SELECT id
-      FROM account
-      WHERE name LIKE 'Purchase';
     `);
 
     this.stmGetInvoices = this.db.prepare(`
@@ -306,6 +331,12 @@ export class InvoiceService {
       SELECT MAX(invoiceNumber) as lastInvoiceNumber
       FROM invoices
       WHERE invoiceType = ?
+    `);
+
+    this.stmGetSalePurchaseAccounts = this.db.prepare(`
+      SELECT id, name
+      FROM account
+      WHERE name IN ('Purchase', 'Sale')
     `);
   }
 }
