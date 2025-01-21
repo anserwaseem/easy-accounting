@@ -1,26 +1,22 @@
-import type { Journal, JournalEntry, Ledger } from 'types';
+import type { Journal, JournalEntry } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { compact, get, omit } from 'lodash';
 import { cast } from '../utils/sqlite';
 import { store } from '../store';
-import { AccountType, BalanceType } from '../../types'; // FIXME: throws "Error: Cannot find module 'types'" when importing from 'types'
+import { AccountType, BalanceType } from '../../types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
-
-type GetBalance = { balance: number; balanceType: BalanceType };
-const DEFAULT_GET_BALANCE = { balance: 0, balanceType: BalanceType.Dr };
+import { LedgerService } from './Ledger.service';
 
 @logErrors
 export class JournalService {
   private db: Database;
 
+  private ledgerService: LedgerService;
+
   private stmJournal!: Statement;
 
   private stmJournalEntry!: Statement;
-
-  private stmLedger!: Statement;
-
-  private stmGetBalance!: Statement;
 
   private stmAccountType!: Statement;
 
@@ -30,89 +26,17 @@ export class JournalService {
 
   private stmGetJournal!: Statement;
 
-  private stmGetLedgerEntriesAfterDate!: Statement;
-
-  private stmUpdateLedgerEntry!: Statement;
+  private stmLedger!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
+    this.ledgerService = new LedgerService();
     this.initPreparedStatements();
   }
 
   getNextJournalId() {
     const res = this.stmNextJournalId.get();
     return get(res, 'id', 0) + 1;
-  }
-
-  insertJournal(journalToBeInserted: Journal) {
-    try {
-      this.db.transaction((journal: Journal) => {
-        const { date, narration, isPosted, journalEntries } = journal;
-        const result = this.stmJournal.run({
-          date,
-          narration,
-          isPosted: cast(isPosted),
-        });
-        const journalId = result.lastInsertRowid;
-
-        const accountBalances = new Map<number, GetBalance>();
-
-        for (const entry of journalEntries) {
-          const { debitAmount, accountId, creditAmount } = entry;
-          this.stmJournalEntry.run({
-            journalId,
-            debitAmount,
-            accountId,
-            creditAmount,
-          });
-
-          if (!accountBalances.has(accountId)) {
-            const currentBalance = <GetBalance | undefined>(
-              this.stmGetBalance.get({ accountId })
-            );
-            accountBalances.set(
-              accountId,
-              currentBalance || DEFAULT_GET_BALANCE,
-            );
-          }
-
-          const { balance, balanceType } =
-            accountBalances.get(accountId) || DEFAULT_GET_BALANCE;
-          const updatedBalance = this.updateBalance(
-            accountId,
-            balance,
-            balanceType,
-            debitAmount,
-            creditAmount,
-          );
-          accountBalances.set(accountId, updatedBalance);
-        }
-
-        for (const [accountId, { balance, balanceType }] of accountBalances) {
-          const entry = journalEntries.find((e) => e.accountId === accountId)!;
-          this.stmLedger.run({
-            date,
-            accountId,
-            debit: entry.debitAmount,
-            credit: entry.creditAmount,
-            balance: Math.abs(balance),
-            balanceType,
-            particulars: `Journal #${journalId}`,
-            linkedAccountId: journalId,
-          });
-
-          this.recalculateBalances(accountId, date);
-        }
-      })(journalToBeInserted);
-
-      return true;
-    } catch (error) {
-      console.error(
-        `Error in insertJournal ${JSON.stringify(journalToBeInserted)}:`,
-        error,
-      );
-      throw error;
-    }
   }
 
   getJournals(): Journal[] {
@@ -179,85 +103,224 @@ export class JournalService {
     return journal;
   }
 
-  private updateBalance(
-    accountId: number,
-    currentBalance: number,
-    currentBalanceType: BalanceType,
-    debitAmount: number,
-    creditAmount: number,
-  ): GetBalance {
+  insertJournal(journalToBeInserted: Journal) {
+    try {
+      return this.db.transaction((journal: Journal) => {
+        const { date, narration, isPosted, journalEntries } = journal;
+
+        // first check if this is a past dated entry that needs rebuilding
+        const affectedAccounts = new Set(
+          journalEntries.map((e) => e.accountId),
+        );
+        const needsRebuild = new Set<number>();
+
+        for (const accountId of affectedAccounts) {
+          if (this.ledgerService.hasNewerEntries(accountId, date)) {
+            needsRebuild.add(accountId);
+          }
+        }
+
+        // insert the journal
+        const result = this.stmJournal.run({
+          date,
+          narration,
+          isPosted: cast(isPosted),
+        });
+        const journalId = Number(result.lastInsertRowid);
+
+        // insert all journal entries
+        for (const entry of journalEntries) {
+          const { debitAmount, accountId, creditAmount } = entry;
+          this.stmJournalEntry.run({
+            journalId,
+            debitAmount,
+            accountId,
+            creditAmount,
+          });
+        }
+
+        // insert ledger entries
+        this.insertLedgerEntries(journalId, date, journalEntries);
+        if (needsRebuild.size > 0) {
+          // chronologically rebuild ledger only for accounts that need it
+          for (const accountId of needsRebuild) {
+            this.rebuildLedger(accountId);
+          }
+        }
+
+        return true;
+      })(journalToBeInserted);
+    } catch (error) {
+      console.error(
+        `Error in insertJournal ${JSON.stringify(journalToBeInserted)}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private rebuildLedger(accountId: number) {
+    // get account type
     const { type: accountType } = this.stmAccountType.get(accountId) as {
       type: string;
     };
 
-    let newBalance: number;
-    let newBalanceType: BalanceType;
+    // get existing ledger for chronological reordering
+    const entries = this.ledgerService.getLedger(accountId);
 
-    switch (accountType) {
-      case AccountType.Asset:
-      case AccountType.Expense:
-        // Asset and Expense accounts:
-        // - Increase (debit) when assets are acquired or expenses are incurred
-        // - Decrease (credit) when assets are disposed of or expenses are reduced/refunded
-        // - Normal balance is debit (Dr)
-        newBalance = currentBalance + debitAmount - creditAmount;
-        newBalanceType = newBalance >= 0 ? BalanceType.Dr : BalanceType.Cr;
-        break;
-      case AccountType.Liability:
-      case AccountType.Equity:
-      case AccountType.Revenue:
-        // Liability, Equity, and Revenue accounts:
-        // - Increase (credit) when obligations increase, equity is added, or revenue is earned
-        // - Decrease (debit) when obligations are met, equity is reduced, or revenue is decreased
-        // - Normal balance is credit (Cr)
-        newBalance = currentBalance - debitAmount + creditAmount;
-        newBalanceType = newBalance >= 0 ? BalanceType.Cr : BalanceType.Dr;
-        break;
-      default:
-        throw new Error(`Unknown account type: ${accountType}`);
-    }
+    // delete all existing ledger entries for this account
+    this.ledgerService.deleteLedger(accountId);
 
-    return { balance: Math.abs(newBalance), balanceType: newBalanceType };
-  }
+    let balance = 0;
+    let balanceType = JournalService.getDefaultBalanceType(accountType);
 
-  private recalculateBalances(accountId: number, startDate: string) {
-    const entries = this.stmGetLedgerEntriesAfterDate.all({
-      accountId,
-      date: startDate,
-    }) as Ledger[];
-    console.log('recalculateBalances', accountId, startDate, entries);
+    // rebuild ledger entries in chronological order
+    entries.forEach((entry) => {
+      const { date, debit, credit, linkedAccountId, particulars } = entry;
 
-    let runningBalance: number = 0;
-    let currentBalanceType: BalanceType;
-
-    for (const entry of entries) {
-      const { type: accountType } = this.stmAccountType.get(accountId) as {
-        type: string;
-      };
-
+      // calculate new balance based on account type
       switch (accountType) {
         case AccountType.Asset:
         case AccountType.Expense:
-          runningBalance += entry.debit - entry.credit;
-          currentBalanceType =
-            runningBalance >= 0 ? BalanceType.Dr : BalanceType.Cr;
+          balance += debit - credit;
+          balanceType = balance >= 0 ? BalanceType.Dr : BalanceType.Cr;
           break;
         case AccountType.Liability:
         case AccountType.Equity:
         case AccountType.Revenue:
-          runningBalance += entry.credit - entry.debit;
-          currentBalanceType =
-            runningBalance >= 0 ? BalanceType.Cr : BalanceType.Dr;
+          balance += credit - debit;
+          balanceType = balance >= 0 ? BalanceType.Cr : BalanceType.Dr;
           break;
         default:
           throw new Error(`Unknown account type: ${accountType}`);
       }
 
-      this.stmUpdateLedgerEntry.run({
-        id: entry.id,
-        balance: Math.abs(runningBalance),
-        balanceType: currentBalanceType,
+      // insert new ledger entry
+      this.stmLedger.run({
+        date,
+        accountId,
+        debit,
+        credit,
+        balance: Math.abs(balance),
+        balanceType,
+        particulars,
+        linkedAccountId,
       });
+    });
+  }
+
+  private static getDefaultBalanceType(accountType: string): BalanceType {
+    switch (accountType) {
+      case AccountType.Asset:
+      case AccountType.Expense:
+        return BalanceType.Dr;
+      case AccountType.Liability:
+      case AccountType.Equity:
+      case AccountType.Revenue:
+        return BalanceType.Cr;
+      default:
+        throw new Error(`Unknown account type: ${accountType}`);
+    }
+  }
+
+  private insertLedgerEntries(
+    journalId: number,
+    date: string,
+    entries: JournalEntry[],
+  ) {
+    // calculate totals for proportional splitting
+    const totalDebits = entries.reduce(
+      (sum, entry) => sum + entry.debitAmount,
+      0,
+    );
+    const totalCredits = entries.reduce(
+      (sum, entry) => sum + entry.creditAmount,
+      0,
+    );
+
+    for (const entry of entries) {
+      const { accountId } = entry;
+      const { type: accountType } = this.stmAccountType.get(accountId) as {
+        type: string;
+      };
+
+      // get current balance
+      const currentBalance = this.ledgerService.getBalance(accountId);
+
+      let balance = currentBalance?.balance || 0;
+      let balanceType =
+        currentBalance?.balanceType ||
+        JournalService.getDefaultBalanceType(accountType);
+
+      if (entry.debitAmount > 0) {
+        // process each corresponding credit entry
+        const creditEntries = entries.filter((e) => e.creditAmount > 0);
+        for (const creditEntry of creditEntries) {
+          const proportionalDebit =
+            (entry.debitAmount * creditEntry.creditAmount) / totalCredits;
+
+          switch (accountType) {
+            case AccountType.Asset:
+            case AccountType.Expense:
+              balance += proportionalDebit;
+              balanceType = balance >= 0 ? BalanceType.Dr : BalanceType.Cr;
+              break;
+            case AccountType.Liability:
+            case AccountType.Equity:
+            case AccountType.Revenue:
+              balance -= proportionalDebit;
+              balanceType = balance >= 0 ? BalanceType.Cr : BalanceType.Dr;
+              break;
+            default:
+              throw new Error(`Unknown account type: ${accountType}`);
+          }
+
+          this.stmLedger.run({
+            date,
+            accountId,
+            debit: proportionalDebit,
+            credit: 0,
+            balance: Math.abs(balance),
+            balanceType,
+            particulars: `Journal #${journalId}`,
+            linkedAccountId: creditEntry.accountId,
+          });
+        }
+      } else if (entry.creditAmount > 0) {
+        // process each corresponding debit entry
+        const debitEntries = entries.filter((e) => e.debitAmount > 0);
+        for (const debitEntry of debitEntries) {
+          const proportionalCredit =
+            (entry.creditAmount * debitEntry.debitAmount) / totalDebits;
+
+          switch (accountType) {
+            case AccountType.Asset:
+            case AccountType.Expense:
+              balance -= proportionalCredit;
+              balanceType = balance >= 0 ? BalanceType.Dr : BalanceType.Cr;
+              break;
+            case AccountType.Liability:
+            case AccountType.Equity:
+            case AccountType.Revenue:
+              balance += proportionalCredit;
+              balanceType = balance >= 0 ? BalanceType.Cr : BalanceType.Dr;
+              break;
+            default:
+              throw new Error(`Unknown account type: ${accountType}`);
+          }
+
+          this.stmLedger.run({
+            date,
+            accountId,
+            debit: 0,
+            credit: proportionalCredit,
+            balance: Math.abs(balance),
+            balanceType,
+            particulars: `Journal #${journalId}`,
+            linkedAccountId: debitEntry.accountId,
+          });
+        }
+      }
     }
   }
 
@@ -269,17 +332,6 @@ export class JournalService {
     this.stmJournalEntry = this.db.prepare(
       `INSERT INTO journal_entry (journalId, debitAmount, accountId, creditAmount)
        VALUES (@journalId, @debitAmount, @accountId, @creditAmount)`,
-    );
-    this.stmLedger = this.db.prepare(
-      `INSERT INTO ledger (date, accountId, debit, credit, balance, balanceType, particulars, linkedAccountId)
-       VALUES (@date, @accountId, @debit, @credit, @balance, @balanceType, @particulars, @linkedAccountId)`,
-    );
-    this.stmGetBalance = this.db.prepare(
-      `SELECT balance, balanceType
-       FROM ledger
-       WHERE accountId = @accountId
-       ORDER BY id DESC
-       LIMIT 1`,
     );
     this.stmAccountType = this.db.prepare(
       'SELECT c.type FROM account a JOIN chart c ON a.chartId = c.id WHERE a.id = ?',
@@ -306,16 +358,9 @@ export class JournalService {
        WHERE j.id = @journalId
        AND userId = (SELECT id FROM users WHERE username = @username)`,
     );
-    this.stmGetLedgerEntriesAfterDate = this.db.prepare(`
-      SELECT *
-      FROM ledger
-      WHERE accountId = @accountId AND date > @date
-      ORDER BY date, id
-    `);
-    this.stmUpdateLedgerEntry = this.db.prepare(`
-      UPDATE ledger
-      SET balance = @balance, balanceType = @balanceType
-      WHERE id = @id
-    `);
+    this.stmLedger = this.db.prepare(
+      `INSERT INTO ledger (date, accountId, debit, credit, balance, balanceType, particulars, linkedAccountId)
+       VALUES (@date, @accountId, @debit, @credit, @balance, @balanceType, @particulars, @linkedAccountId)`,
+    );
   }
 }

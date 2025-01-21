@@ -156,6 +156,7 @@ const createWindow = async () => {
   setInterval(() => AppUpdater.checkForUpdates(), 60 * 60 * 1000);
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const setupUser = (
   migrationRunner: MigrationRunner,
   authService: AuthService,
@@ -201,7 +202,7 @@ app
     // eslint-disable-next-line no-new
     const printService = new PrintService();
 
-    setupUser(migrationRunner, authService);
+    // setupUser(migrationRunner, authService);
 
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
       return authService.login(user);

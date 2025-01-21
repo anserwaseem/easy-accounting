@@ -83,14 +83,6 @@ CREATE TABLE IF NOT EXISTS "ledger" (
   CHECK ("balanceType" IN ('Cr', 'Dr'))
 );
 
-CREATE TABLE IF NOT EXISTS "journal_ledger" (
-  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-  "journalId" INTEGER NOT NULL,
-  "ledgerId" INTEGER NOT NULL,
-  FOREIGN KEY("journalId") REFERENCES "journal"("id") ON DELETE CASCADE,
-  FOREIGN KEY("ledgerId") REFERENCES "ledger"("id") ON DELETE CASCADE
-);
-
 -- new
 CREATE TABLE IF NOT EXISTS "inventory" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
