@@ -1,25 +1,20 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { dateFormatOptions } from 'renderer/lib/constants';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import type { GetLedger } from 'types';
+import type { LedgerView } from 'types';
 
 interface LedgerTableProps {
-  accountId: number;
+  ledger: LedgerView[];
 }
 
 export const LedgerTable: React.FC<LedgerTableProps> = ({
-  accountId,
+  ledger,
 }: LedgerTableProps) => {
-  const [ledger, setLedger] = useState<GetLedger[]>([]);
   // eslint-disable-next-line no-console
-  console.log('LedgerTable', accountId, ledger);
+  console.log('LedgerTable', ledger);
 
-  useEffect(() => {
-    (async () => setLedger(await window.electron.getLedger(accountId)))();
-  }, [accountId]);
-
-  const columns: ColumnDef<GetLedger>[] = useMemo(
+  const columns: ColumnDef<LedgerView>[] = useMemo(
     () => [
       {
         accessorKey: 'date',
@@ -51,24 +46,24 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
         accessorKey: 'balanceType',
         header: 'Balance Type',
       },
-      {
-        accessorKey: 'updatedAt',
-        header: 'Updated At',
-        cell: ({ row }) =>
-          new Date(row.original.updatedAt || '').toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
-      },
-      {
-        accessorKey: 'createdAt',
-        header: 'Created At',
-        cell: ({ row }) =>
-          new Date(row.original.createdAt || '').toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
-      },
+      // {
+      //   accessorKey: 'updatedAt',
+      //   header: 'Updated At',
+      //   cell: ({ row }) =>
+      //     new Date(row.original.updatedAt || '').toLocaleString(
+      //       'en-US',
+      //       dateFormatOptions,
+      //     ),
+      // },
+      // {
+      //   accessorKey: 'createdAt',
+      //   header: 'Created At',
+      //   cell: ({ row }) =>
+      //     new Date(row.original.createdAt || '').toLocaleString(
+      //       'en-US',
+      //       dateFormatOptions,
+      //     ),
+      // },
     ],
     [],
   );

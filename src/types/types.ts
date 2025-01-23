@@ -1,3 +1,8 @@
+/** Generic */
+type Prettify<T> = {
+  [K in keyof T]: T[K];
+} & {};
+
 export type DbUser = {
   id?: number;
   username: string;
@@ -41,6 +46,7 @@ export interface BalanceSheet {
   };
 }
 
+/** Enums */
 export enum AccountType {
   Asset = 'Asset',
   Liability = 'Liability',
@@ -52,6 +58,11 @@ export enum AccountType {
 export enum BalanceType {
   Dr = 'Dr',
   Cr = 'Cr',
+}
+
+export enum InvoiceType {
+  Purchase = 'Purchase',
+  Sale = 'Sale',
 }
 
 type BaseEntity = {
@@ -94,7 +105,6 @@ export interface Ledger extends BaseEntity {
    */
   linkedAccountId?: number;
 }
-export type GetLedger = Ledger & { linkedAccountName?: string };
 
 /** Journal Entry */
 export interface JournalEntry extends Omit<BaseEntity, 'date'> {
@@ -118,3 +128,92 @@ export interface Journal extends Omit<BaseEntity, 'date'> {
 export type HasMiniView = {
   isMini?: boolean;
 };
+
+/** Inventory */
+export interface InventoryItem extends Omit<BaseEntity, 'date'> {
+  name: string;
+  price: number;
+  quantity: number;
+  description?: string;
+}
+export interface UpdateInventoryItem {
+  id: number;
+  price: number;
+  name?: string;
+  quantity?: number;
+  description?: string;
+}
+export interface InsertInventoryItem {
+  name: string;
+  price: number;
+  description?: string;
+}
+
+/** Invoice */
+export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
+  inventoryId: number;
+  quantity: number;
+  invoiceId?: number; // will be assigned at service layer
+  price?: number; // will be fetched at service layer
+}
+
+export type Invoice = Prettify<
+  BaseEntity & {
+    accountId: number;
+    invoiceItems: Prettify<InvoiceItem>[];
+    totalAmount?: number; // will be calculated at service layer
+    invoiceNumber?: number; // only given from UI for the first time => user input
+    invoiceType?: InvoiceType;
+  }
+>;
+
+/** DTO */
+export type LedgerView = Prettify<Ledger & { linkedAccountName?: string }>;
+export type JournalView = Prettify<Journal & { amount: number }>;
+export type InvoicesView = Prettify<
+  Omit<Invoice, 'invoiceItems'> & { accountName: string }
+>;
+export type InvoiceItemView = {
+  price: number;
+  quantity: number;
+  inventoryItemName: string;
+  inventoryId?: number;
+  inventoryItemDescription?: string;
+};
+export type InvoiceView = Prettify<
+  Omit<Invoice, 'invoiceItems'> & {
+    accountName: string;
+    invoiceItems: Array<InvoiceItemView>;
+  }
+>;
+export type InvoicesExport = Prettify<
+  Pick<Invoice, 'invoiceNumber' | 'date' | 'totalAmount'> & {
+    totalQuantity: number;
+  }
+>;
+
+/** Invoice Generator */
+export interface AmountDistribution {
+  id: number;
+  startPrice: number;
+  endPrice: number;
+  percentage: number;
+}
+
+export type StepNumber = 0 | 1 | 2 | 3;
+export type StepData = [
+  { selectedInventoryIds: number[]; totalAmount: number } | undefined,
+  (
+    | { month: number; year: number; percentages: Record<number, number> }
+    | undefined
+  ),
+  { distributions: Array<AmountDistribution> } | undefined,
+  boolean,
+];
+
+export interface BaseStepProps {
+  handleStepCompletion: (
+    currentStep: StepNumber,
+    currentStepData: StepData[StepNumber],
+  ) => void;
+}

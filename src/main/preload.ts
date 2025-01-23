@@ -7,8 +7,13 @@ import type {
   InsertAccount,
   UpdateAccount,
   Journal,
-  GetLedger,
+  LedgerView,
+  InventoryItem,
+  Invoice,
+  UpdateInventoryItem,
+  InsertInventoryItem,
 } from 'types';
+import { InvoiceType } from 'types';
 
 export type Channels = 'ipc-example';
 
@@ -75,6 +80,46 @@ const electronHandler = {
    */
   saveBalanceSheet: (balanceSheet: BalanceSheet) =>
     ipcRenderer.invoke('balanceSheet:save', balanceSheet),
+
+  saveInventory: (inventory: InventoryItem[]) =>
+    ipcRenderer.invoke('inventory:save', inventory),
+
+  getInventory: () => ipcRenderer.invoke('inventory:get'),
+
+  doesInventoryExist: () => ipcRenderer.invoke('inventory:exist'),
+
+  insertInventoryItem: (item: InsertInventoryItem) =>
+    ipcRenderer.invoke('inventory:insert', item),
+
+  updateInventoryItem: (item: UpdateInventoryItem) =>
+    ipcRenderer.invoke('inventory:update', item),
+
+  getNextInvoiceNumber: (invoiceType: InvoiceType) =>
+    ipcRenderer.invoke('invoice:getId', invoiceType),
+
+  insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) =>
+    ipcRenderer.invoke('invoice:insert', invoiceType, invoice),
+
+  getInvoices: (invoiceType: InvoiceType) =>
+    ipcRenderer.invoke('invoice:getAll', invoiceType),
+
+  getInvoice: (invoiceId: number) =>
+    ipcRenderer.invoke('invoice:get', invoiceId),
+
+  exportInvoices: (startDate?: string, endDate?: string) =>
+    ipcRenderer.invoke('invoice:exportExcel', startDate, endDate),
+
+  doesInvoiceExists: (invoiceId: number, invoiceType: InvoiceType) =>
+    ipcRenderer.invoke('invoice:exist', invoiceId, invoiceType),
+
+  getLastInvoiceNumber: (invoiceType: InvoiceType) =>
+    ipcRenderer.invoke('invoice:getLastNumber', invoiceType),
+
+  printToPdf: (invoiceNumber: number) =>
+    ipcRenderer.invoke('print:toPDF', invoiceNumber),
+
+  getOutputDir: () => ipcRenderer.invoke('print:outputDir'),
+
   /**
    * Get all accounts
    * @returns All accounts
@@ -110,7 +155,7 @@ const electronHandler = {
    * @example const ledger = getLedger(1);
    */
   getLedger: (accountId: number) =>
-    ipcRenderer.invoke('ledger:get', accountId) as Promise<GetLedger[]>,
+    ipcRenderer.invoke('ledger:get', accountId) as Promise<LedgerView[]>,
   /**
    * Get the next journal id
    * @returns The next journal id

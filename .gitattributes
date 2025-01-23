@@ -1,4 +1,7 @@
+# Text files - use LF
 *       text    eol=lf
+
+# Binary files - don't modify
 *.exe   binary
 *.png   binary
 *.jpg   binary
@@ -10,3 +13,4 @@
 *.ttf   binary
 *.woff  binary
 *.woff2 binary
+*.db    binary

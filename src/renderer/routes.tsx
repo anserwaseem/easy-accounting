@@ -1,19 +1,26 @@
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-import { ThemeProvider, AuthProvider } from './hooks';
+import { InvoiceType } from '@/types';
+import { AuthProvider, ThemeProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
 
 import Sidebar from './components/Sidebar';
-import Home from './views/Home';
-import Login from './views/Login';
-import Register from './views/Register';
-import AccountsPage from './views/Accounts';
-import LedgerPage from './views/Ledger';
-import JournalsPage from './views/Journals';
-import NewJournalPage from './views/NewJournal';
-import JournalPage from './views/Journal';
-import SettingsPage from './views/Settings';
 import { AuthCheck } from './components/AuthCheck';
+import Home from './views/Home';
+import AccountsPage from './views/Accounts';
+import InventoryPage from './views/Inventory';
+import JournalPage from './views/Journal';
+import JournalsPage from './views/Journals';
+import LedgerPage from './views/Ledger';
+import Login from './views/Login';
+import NewInvoicePage from './views/NewInvoice/indes';
+import NewJournalPage from './views/NewJournal';
+import Register from './views/Register';
+import SettingsPage from './views/Settings';
+import InvoicesPage from './views/Invoices';
+import InvoicePage from './views/Invoice';
+import { InvalidRoute } from './views/InvalidRoute';
+import PrintableInvoiceScreen from './views/PrintableInvoiceScreen';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -35,8 +42,44 @@ const AppRoutes: React.FC = () => (
                 <Route path="new" element={<NewJournalPage />} />
                 <Route path=":id" element={<JournalPage />} />
               </Route>
+              <Route path="inventory" element={<InventoryPage />} />
+              <Route path="purchase/invoices">
+                <Route
+                  index
+                  element={<InvoicesPage invoiceType={InvoiceType.Purchase} />}
+                />
+                <Route
+                  path="new"
+                  element={
+                    <NewInvoicePage invoiceType={InvoiceType.Purchase} />
+                  }
+                />
+                <Route
+                  path=":id"
+                  element={<InvoicePage invoiceType={InvoiceType.Purchase} />}
+                />
+              </Route>
+              <Route path="sale/invoices">
+                <Route
+                  index
+                  element={<InvoicesPage invoiceType={InvoiceType.Sale} />}
+                />
+                <Route
+                  path="new"
+                  element={<NewInvoicePage invoiceType={InvoiceType.Sale} />}
+                />
+                <Route
+                  path=":id"
+                  element={<InvoicePage invoiceType={InvoiceType.Sale} />}
+                />
+              </Route>
             </Route>
+            <Route
+              path="invoices/:id/print"
+              element={<PrintableInvoiceScreen />}
+            />
           </Route>
+          <Route path="*" element={<InvalidRoute />} />
         </Routes>
         <Toaster />
       </MemoryRouter>

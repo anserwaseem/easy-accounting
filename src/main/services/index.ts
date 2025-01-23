@@ -5,3 +5,6 @@ export * from './Database.service';
 export * from './Journal.service';
 export * from './Ledger.service';
 export * from './Statement.service';
+export * from './Inventory.service';
+export * from './Invoice.service';
+export * from './Print.service';

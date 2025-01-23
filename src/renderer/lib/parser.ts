@@ -17,7 +17,7 @@ import {
   toNumber,
   toString,
 } from 'lodash';
-import type { BalanceSheet, ReportAccount } from 'types';
+import type { BalanceSheet, InventoryItem, ReportAccount } from 'types';
 import {
   isTwoDimensionalArray,
   removeEmptySubarrays,
@@ -532,5 +532,150 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       });
       return optionalProperties;
     }
+  }
+};
+
+export const parseInventory = (obj: unknown): InventoryItem[] => {
+  if (!isTwoDimensionalArray(obj)) {
+    throw new Error('Invalid format for inventory');
+  }
+
+  const inventoryItems = obj as unknown[][];
+
+  // Skip the header row if it exists
+  const startIndex = isHeaderRow(inventoryItems[0]) ? 1 : 0;
+
+  return inventoryItems.slice(startIndex).map((row, index) => {
+    if (!Array.isArray(row) || row.length < 2) {
+      throw new Error(
+        `Invalid row at index ${
+          index + startIndex
+        }: Expected at least 2 columns`,
+      );
+    }
+
+    // eslint-disable-next-line one-var
+    let name, description, price;
+
+    if (row.length === 2) [name, price] = row;
+    if (row.length === 3) [name, description, price] = row;
+
+    if (typeof name === 'number') {
+      name = name.toString();
+    }
+
+    if (typeof name !== 'string' || name.trim() === '') {
+      throw new Error(
+        `Invalid name at row ${
+          index + startIndex + 1
+        }: Name must be a non-empty string`,
+      );
+    }
+
+    if (
+      row.length === 3 &&
+      !isNil(description) &&
+      typeof description !== 'string'
+    ) {
+      throw new Error(
+        `Invalid description at row ${
+          index + startIndex + 1
+        }: Description must be a string or empty`,
+      );
+    }
+
+    const parsedPrice = parseFloat(price as string);
+    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
+      throw new Error(
+        `Invalid price at row ${
+          index + startIndex + 1
+        }: Price must be a non-negative number`,
+      );
+    }
+
+    return {
+      name: name.trim(),
+      // ...(description && { description: description.trim() }),
+      description: 'The Holy Quran',
+      price: parsedPrice,
+      quantity: 0,
+      id: -1,
+    };
+  });
+
+  function isHeaderRow(row: unknown[]): boolean {
+    return row.some(
+      (cell) =>
+        typeof cell === 'string' &&
+        ['name', 'description', 'price'].includes(cell.toLowerCase().trim()),
+    );
+  }
+};
+
+export const parseInvoiceItems = (
+  obj: unknown,
+): Array<{ name: string; quantity: number }> => {
+  if (!isTwoDimensionalArray(obj)) {
+    throw new Error('Invalid format for invoice items');
+  }
+
+  const invoiceItems = obj as unknown[][];
+
+  // Skip the header row if it exists
+  const startIndex = isHeaderRow(invoiceItems[0]) ? 1 : 0;
+
+  return compact(
+    invoiceItems.slice(startIndex).map((row, index) => {
+      if (!Array.isArray(row) || row.length < 1) {
+        throw new Error(
+          `Invalid row at index ${
+            index + startIndex
+          }: Expected at least 1 column`,
+        );
+      }
+
+      // eslint-disable-next-line prefer-const
+      let [name, quantity] = row;
+
+      if (typeof name === 'number') {
+        name = name.toString();
+      }
+      if (isNil(quantity)) {
+        // skip this item if no quantity is specified
+        return;
+      }
+
+      console.log('parsed invoice item', index, row);
+      if (typeof name !== 'string' || name.trim() === '') {
+        throw new Error(
+          `Invalid name at row ${
+            index + startIndex + 1
+          }: Name must be a non-empty string`,
+        );
+      }
+
+      if (typeof quantity !== 'number' || quantity < 0) {
+        throw new Error(
+          `Invalid quantity at row ${
+            index + startIndex + 1
+          }: Quantity must be a positive number`,
+        );
+      }
+
+      return {
+        name: name.trim(),
+        quantity,
+      };
+    }),
+  );
+
+  function isHeaderRow(
+    row: unknown[],
+    cells = ['name', 'description', 'price'],
+  ): boolean {
+    return row.some(
+      (cell) =>
+        typeof cell === 'string' && cells.includes(cell.toLowerCase().trim()),
+    );
   }
 };

@@ -16,3 +16,7 @@ export const currencyFormatOptions: Intl.NumberFormatOptions = {
   style: 'currency',
   currency: 'PKR',
 };
+
+export const DEFAULT_INVOICE_NUMBER = 1;
+
+export const INVOICE_DISCOUNT_PERCENTAGE = 40;
