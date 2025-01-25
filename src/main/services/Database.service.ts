@@ -1,15 +1,19 @@
+/* eslint-disable no-underscore-dangle */
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import log from 'electron-log';
 import { logErrors } from '../errorLogger';
 
 @logErrors
 export class DatabaseService {
   // eslint-disable-next-line no-use-before-define
-  private static instance: DatabaseService;
+  private static instance: DatabaseService | null;
 
   private db: Database.Database;
+
+  private static _path: string;
 
   private constructor() {
     this.db = DatabaseService.connect();
@@ -22,19 +26,23 @@ export class DatabaseService {
     return DatabaseService.instance;
   }
 
+  static resetInstance(): DatabaseService {
+    DatabaseService.instance = null;
+    return DatabaseService.getInstance();
+  }
+
   getDatabase(): Database.Database {
     return this.db;
   }
 
-  private static isDevelopment(): boolean {
-    return (
-      process.env.NODE_ENV === 'development' ||
-      process.env.NODE_ENV === 'test' ||
-      process.env.DEBUG_PROD === 'true'
-    );
+  private static get path(): string {
+    if (!this._path) {
+      this._path = this.getPath();
+    }
+    return this._path;
   }
 
-  private static connect(): Database.Database {
+  static getPath(): string {
     const databaseFileName = 'database.db';
     let databasePath: string;
 
@@ -55,7 +63,20 @@ export class DatabaseService {
       }
     }
 
-    return new Database(databasePath, {
+    return databasePath;
+  }
+
+  private static isDevelopment(): boolean {
+    return (
+      process.env.NODE_ENV === 'development' ||
+      process.env.NODE_ENV === 'test' ||
+      process.env.DEBUG_PROD === 'true'
+    );
+  }
+
+  private static connect(): Database.Database {
+    log.info('Database connected');
+    return new Database(this.path, {
       verbose: console.log,
     });
   }

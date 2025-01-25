@@ -18,6 +18,8 @@ node_modules
 # OSX
 .DS_Store
 
+# Release data
+release/app/database-backup-*
 release/app/dist
 release/build
 .erb/dll

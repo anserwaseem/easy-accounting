@@ -192,28 +192,13 @@ export type InvoicesExport = Prettify<
   }
 >;
 
-/** Invoice Generator */
-export interface AmountDistribution {
-  id: number;
-  startPrice: number;
-  endPrice: number;
-  percentage: number;
-}
+export type BackupReadResult = {
+  success: boolean;
+  error?: string;
+};
 
-export type StepNumber = 0 | 1 | 2 | 3;
-export type StepData = [
-  { selectedInventoryIds: number[]; totalAmount: number } | undefined,
-  (
-    | { month: number; year: number; percentages: Record<number, number> }
-    | undefined
-  ),
-  { distributions: Array<AmountDistribution> } | undefined,
-  boolean,
-];
-
-export interface BaseStepProps {
-  handleStepCompletion: (
-    currentStep: StepNumber,
-    currentStepData: StepData[StepNumber],
-  ) => void;
-}
+export type BackupCreateResult = Prettify<
+  BackupReadResult & {
+    path?: string;
+  }
+>;

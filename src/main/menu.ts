@@ -4,9 +4,12 @@ import {
   shell,
   BrowserWindow,
   MenuItemConstructorOptions,
+  dialog,
 } from 'electron';
 import log from 'electron-log';
+import type { BackupReadResult } from '@/types';
 import { AppUpdater } from './appUpdater';
+import { BackupService } from './services/Backup.service';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -41,11 +44,18 @@ export default class MenuBuilder {
       this.getViewMenu(),
       MenuBuilder.getWindowMenu(),
       MenuBuilder.getHelpMenu(),
+
+      this.getBackupMenu(),
     ];
   }
 
   private getDefaultTemplate(): MenuItemConstructorOptions[] {
-    return [this.getFileMenu(), this.getViewMenu(), MenuBuilder.getHelpMenu()];
+    return [
+      this.getFileMenu(),
+      this.getViewMenu(),
+      MenuBuilder.getHelpMenu(),
+      this.getBackupMenu(),
+    ];
   }
 
   private static getAboutMenu(
@@ -184,5 +194,95 @@ export default class MenuBuilder {
         },
       ],
     };
+  }
+
+  private getBackupMenu(): MenuItemConstructorOptions {
+    const backupService = new BackupService();
+    const backups = backupService.listBackups();
+
+    return {
+      label: 'Backup',
+      submenu: [
+        {
+          label: 'Create Backup',
+          click: () =>
+            this.handleBackupOperation(
+              () => backupService.createBackup(),
+              true,
+            ),
+        },
+        { type: 'separator' },
+        {
+          label: 'Restore Last Backup',
+          enabled: backups.length > 0,
+          click: async () => {
+            const { response } = await dialog.showMessageBox(this.mainWindow, {
+              type: 'warning',
+              buttons: ['Yes', 'No'],
+              title: 'Confirm Restore',
+              message:
+                'Are you sure? This will replace your current database and restart the application.',
+            });
+
+            if (response === 0) {
+              this.handleBackupOperation(() =>
+                backupService.restoreLastBackup(),
+              );
+            }
+          },
+        },
+        {
+          label: 'Available Backups',
+          submenu: backups.map((backup) => ({
+            label: `${new Date(backup.timestamp).toLocaleString()} - ${
+              backup.size / 1024
+            } KB`,
+            click: async () => {
+              const dateString = backup.filename
+                .replace('database-backup-', '')
+                .replace('.db', '');
+              const { response } = await dialog.showMessageBox(
+                this.mainWindow,
+                {
+                  type: 'warning',
+                  buttons: ['Yes', 'No'],
+                  title: 'Confirm Restore',
+                  message: `Restore backup from ${new Date(
+                    backup.timestamp,
+                  ).toLocaleString()}? \nThis will replace your current database and restart the application.`,
+                },
+              );
+
+              if (response === 0) {
+                this.handleBackupOperation(() =>
+                  backupService.restoreFromDate(dateString),
+                );
+              }
+            },
+          })),
+        },
+      ],
+    };
+  }
+
+  private async handleBackupOperation(
+    operation: () => Promise<BackupReadResult>,
+    isCreate = false,
+  ) {
+    const result = await operation();
+    if (!result.success) {
+      dialog.showErrorBox(
+        'Backup operation failed',
+        result.error || 'Unknown error',
+      );
+    } else if (isCreate) {
+      this.mainWindow.webContents.reload();
+      // Rebuild menu to show updated backup list
+      this.buildMenu();
+    } else {
+      app.hide();
+      app.relaunch();
+      app.exit();
+    }
   }
 }
