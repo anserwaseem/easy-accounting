@@ -10,6 +10,7 @@ import log from 'electron-log';
 import type { BackupReadResult } from '@/types';
 import { AppUpdater } from './appUpdater';
 import { BackupService } from './services/Backup.service';
+import { store } from './store';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -21,6 +22,7 @@ export default class MenuBuilder {
 
   constructor(mainWindow: BrowserWindow) {
     this.mainWindow = mainWindow;
+    this.setupMenuRefresh();
   }
 
   async buildMenu(): Promise<Menu> {
@@ -283,5 +285,15 @@ export default class MenuBuilder {
       app.relaunch();
       app.exit();
     }
+  }
+
+  private setupMenuRefresh(): void {
+    // Refresh menu when user auth state changes
+    store.onDidChange('username', async (newValue, oldValue) => {
+      log.info(
+        `Menu: store.onDidChange invoked for "username" key - newValue: ${newValue}, oldValue: ${oldValue}`,
+      );
+      await this.buildMenu();
+    });
   }
 }

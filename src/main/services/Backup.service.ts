@@ -195,9 +195,14 @@ export class BackupService {
         .list();
 
       if (listError) {
-        log.error(`Supabase files listing failed: ${listError.message}`);
+        log.error(
+          `Supabase files listing failed: ${listError.message} from bucket: ${this.bucketName}`,
+        );
         return localBackups;
       }
+      log.info(
+        `Supabase files fetched: ${cloudFiles?.length} from bucket: ${this.bucketName}`,
+      );
 
       cloudBackups = cloudFiles
         .filter((file) => file.name.startsWith(this.BACKUP_PREFIX))
