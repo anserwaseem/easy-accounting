@@ -10,7 +10,9 @@ import type { BackupCreateResult, BackupReadResult } from '@/types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
 import { store } from '../store';
+import { isOnline } from '../utils/general';
 
+// FUTURE sync local backups to cloud when internet is connected or expose a button
 @logErrors
 export class BackupService {
   private db: Database.Database;
@@ -53,6 +55,18 @@ export class BackupService {
       await this.db.backup(backupPath);
       backupDb.close();
 
+      log.info(`Database backup created locally at ${backupPath}`);
+
+      const isonline = isOnline();
+      if (!isonline) {
+        new Notification({
+          title: 'Backup Created',
+          body: `Database backup created locally`,
+          silent: false,
+        }).show();
+        return { success: true, path: backupPath };
+      }
+
       // ensure bucket exists
       const { error: bucketError } = await this.supabase.storage.createBucket(
         this.bucketName,
@@ -83,16 +97,14 @@ export class BackupService {
         return { success: false, error: uploadError.message };
       }
 
-      // show confirmation notification
-      new Notification({
-        title: 'Backup Created',
-        body: `Database backup created locally and uploaded to cloud storage`,
-        silent: false,
-      }).show();
+      if (isonline)
+        new Notification({
+          title: 'Backup Created',
+          body: `Database backup created locally and uploaded to cloud storage`,
+          silent: false,
+        }).show();
 
-      log.info(
-        `Database backup created locally at ${backupPath} and uploaded to Supabase storage at ${this.bucketName}`,
-      );
+      log.info(`Database backup created in cloud at ${this.bucketName}`);
       return { success: true, path: backupPath };
     } catch (error) {
       const errorMessage =
@@ -115,6 +127,12 @@ export class BackupService {
       const localBackup = backups.find((b) => b.filename.includes(dateString));
 
       if (localBackup) return this.restoreFromBackup(localBackup.filename);
+
+      if (!isOnline())
+        return {
+          success: false,
+          error: 'Please turn on internet to restore cloud backup.',
+        };
 
       const { data: files, error: listError } = await this.supabase.storage
         .from(this.bucketName)
@@ -196,7 +214,7 @@ export class BackupService {
       }));
 
     let cloudBackups: Awaited<ReturnType<typeof this.listBackups>> = [];
-    if (this.bucketName) {
+    if (this.bucketName && isOnline()) {
       const { data: cloudFiles, error: listError } = await this.supabase.storage
         .from(this.bucketName)
         .list();
