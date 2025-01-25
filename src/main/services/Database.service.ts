@@ -1,4 +1,3 @@
-/* eslint-disable no-underscore-dangle */
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 import path from 'path';

@@ -226,7 +226,6 @@ export class BackupService {
       const net = nets[name];
       if (!net) continue;
 
-      // eslint-disable-next-line no-underscore-dangle
       for (const interface_ of net) {
         if (interface_.family === 'IPv4' && !interface_.internal) {
           ipAddress = interface_.address;

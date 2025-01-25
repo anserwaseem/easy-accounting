@@ -40,7 +40,6 @@ describe('Database Service', () => {
 
     // Reset the singleton instance before each test
     (DatabaseService as any).instance = undefined;
-    // eslint-disable-next-line no-underscore-dangle
     (DatabaseService as any)._path = undefined;
     (process as any).resourcesPath = '/mock/resources/path';
   });
