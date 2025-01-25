@@ -19,10 +19,11 @@ node_modules
 .DS_Store
 
 # Release data
-release/app/database-backup-*
+release/app/database_backup_*
 release/app/dist
 release/build
 .erb/dll
+.env
 
 .idea
 npm-debug.log.*
