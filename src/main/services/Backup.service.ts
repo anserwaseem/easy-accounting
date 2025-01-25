@@ -163,7 +163,10 @@ export class BackupService {
       return { success: false, error: errorMsg };
     }
 
-    return this.restoreFromBackup(backups[0].filename);
+    const dateString = backups[0].filename
+      .replace('database-backup-', '')
+      .replace('.db', '');
+    return this.restoreFromDate(dateString);
   }
 
   // FIXME: list backups only for logged-in user
@@ -278,7 +281,6 @@ export class BackupService {
       log.info(`Backup bucket set to: ${this.bucketName}`);
 
       const dbPath = DatabaseService.getPath();
-      // this.baseBackupDir = dbPath.slice(0, dbPath.lastIndexOf('/') + 1);
       const baseBackupDir = path.join(
         dbPath.slice(0, dbPath.lastIndexOf('/') + 1),
         'backups',
