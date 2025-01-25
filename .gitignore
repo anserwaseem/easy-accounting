@@ -19,7 +19,7 @@ node_modules
 .DS_Store
 
 # Release data
-release/app/database-backup_*
+release/app/backups/*
 release/app/dist
 release/build
 .erb/dll

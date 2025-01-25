@@ -15,9 +15,9 @@ import { store } from '../store';
 export class BackupService {
   private db: Database.Database;
 
-  private backupDir: string;
-
   private readonly BACKUP_PREFIX = 'database-backup';
+
+  private backupDir!: string;
 
   private supabase: SupabaseClient;
 
@@ -27,10 +27,6 @@ export class BackupService {
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
-    const dbPath = DatabaseService.getPath();
-    this.backupDir = dbPath.slice(0, dbPath.lastIndexOf('/') + 1);
-    this.ensureBackupDirectory();
-    log.info(`Backup directory set to: ${this.backupDir}`);
 
     this.supabase = createClient(
       process.env.SUPABASE_URL || '',
@@ -170,6 +166,7 @@ export class BackupService {
     return this.restoreFromBackup(backups[0].filename);
   }
 
+  // FIXME: list backups only for logged-in user
   public async listBackups(): Promise<
     Array<{
       filename: string;
@@ -178,6 +175,13 @@ export class BackupService {
       type: 'local' | 'cloud';
     }>
   > {
+    if (!this.backupDir || !this.bucketName) {
+      log.info(
+        `No backup directory or bucket available - user is logged out ${this.backupDir} ${this.bucketName}`,
+      );
+      return [];
+    }
+
     const localBackups = fs
       .readdirSync(this.backupDir)
       .filter((file) => file.startsWith(this.BACKUP_PREFIX))
@@ -258,9 +262,9 @@ export class BackupService {
     }
   }
 
-  private ensureBackupDirectory(): void {
-    if (!fs.existsSync(this.backupDir)) {
-      fs.mkdirSync(this.backupDir, { recursive: true });
+  private static ensureBackupDirectory(dir: string): void {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
   }
 
@@ -272,6 +276,16 @@ export class BackupService {
     if (username) {
       this.bucketName = `${this.BACKUP_PREFIX}_${platform}_${hostName}_${username}`;
       log.info(`Backup bucket set to: ${this.bucketName}`);
+
+      const dbPath = DatabaseService.getPath();
+      // this.baseBackupDir = dbPath.slice(0, dbPath.lastIndexOf('/') + 1);
+      const baseBackupDir = path.join(
+        dbPath.slice(0, dbPath.lastIndexOf('/') + 1),
+        'backups',
+      );
+      this.backupDir = path.join(baseBackupDir, this.bucketName);
+      BackupService.ensureBackupDirectory(this.backupDir);
+      log.info(`Backup directory set to: ${this.backupDir}`);
     }
 
     // reset bucket name when new user logs in
@@ -289,16 +303,16 @@ export class BackupService {
     });
   };
 
-  // "database-backup_2025-01-25T13-21-43-748Z.db"
+  // e.g. "database-backup_2025-01-25T13-21-43-748Z.db"
   private static extractTimestamp = (filename: string): Date => {
     const dateStringWithDashes = filename.slice(
       filename.indexOf('_') + 1,
       filename.indexOf('.db'),
-    ); // e,g. gives "2025-01-25T13-21-43-748Z"
+    ); // e.g. gives "2025-01-25T13-21-43-748Z"
     const dateStringWithMiliSeconds = dateStringWithDashes.replace(
       /-(\d{2})-(\d{2})-(\d{3})Z$/,
       ':$1:$2:$3Z',
-    ); // e,g. gives "2025-01-25T13:21:43:748Z"
+    ); // e.g. gives "2025-01-25T13:21:43:748Z"
     const dateString = dateStringWithMiliSeconds.slice(
       0,
       dateStringWithMiliSeconds.lastIndexOf(':'),
