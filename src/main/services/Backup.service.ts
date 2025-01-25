@@ -4,7 +4,8 @@ import { Notification } from 'electron';
 import log from 'electron-log';
 import Database from 'better-sqlite3';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { hostname, networkInterfaces } from 'node:os';
+import { hostname } from 'node:os';
+import { get } from 'lodash';
 import type { BackupCreateResult, BackupReadResult } from '@/types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
@@ -16,11 +17,11 @@ export class BackupService {
 
   private backupDir: string;
 
-  private readonly BACKUP_PREFIX = 'database_backup_';
+  private readonly BACKUP_PREFIX = 'database-backup';
 
   private supabase: SupabaseClient;
 
-  private bucketName: `${typeof this.BACKUP_PREFIX}${string}_${string}`;
+  private readonly bucketName: `${typeof this.BACKUP_PREFIX}_${typeof process.platform}_${string}_${string}`;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -33,10 +34,11 @@ export class BackupService {
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
     );
-
+    const { platform } = process;
+    const hostName = hostname().replace(/[^a-zA-Z0-9]/g, '-');
     const username = store.get('username');
-    const deviceIdentifier = BackupService.setupDeviceIdentifier();
-    this.bucketName = `${this.BACKUP_PREFIX}${deviceIdentifier}_${username}`;
+    this.bucketName = `${this.BACKUP_PREFIX}_${platform}_${hostName}_${username}`;
+    log.info(`Backup bucket set to: ${this.bucketName}`);
   }
 
   public async createBackup(): Promise<BackupCreateResult> {
@@ -44,7 +46,7 @@ export class BackupService {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupPath = path.join(
         this.backupDir,
-        `${this.BACKUP_PREFIX}${timestamp}.db`,
+        `${this.BACKUP_PREFIX}_${timestamp}.db`,
       );
 
       const backupDb = new Database(backupPath);
@@ -103,7 +105,7 @@ export class BackupService {
   public async restoreFromDate(dateString: string): Promise<BackupReadResult> {
     try {
       // try local restore first
-      const backups = this.listBackups();
+      const backups = await this.listBackups();
       const localBackup = backups.find((b) => b.filename.includes(dateString));
 
       if (localBackup) return this.restoreFromBackup(localBackup.filename);
@@ -148,7 +150,7 @@ export class BackupService {
   }
 
   public async restoreLastBackup(): Promise<BackupReadResult> {
-    const backups = this.listBackups();
+    const backups = await this.listBackups();
     if (backups.length === 0) {
       const errorMsg = 'No backups available';
       log.error(errorMsg);
@@ -184,20 +186,45 @@ export class BackupService {
     }
   }
 
-  public listBackups(): Array<{
-    filename: string;
-    timestamp: Date;
-    size: number;
-  }> {
-    return fs
+  public async listBackups(): Promise<
+    Array<{
+      filename: string;
+      timestamp: Date;
+      size: number;
+      type: 'local' | 'cloud';
+    }>
+  > {
+    const localBackups = fs
       .readdirSync(this.backupDir)
       .filter((file) => file.startsWith(this.BACKUP_PREFIX))
       .map((filename) => ({
         filename,
         timestamp: fs.statSync(path.join(this.backupDir, filename)).mtime,
         size: fs.statSync(path.join(this.backupDir, filename)).size,
-      }))
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        type: 'local' as const,
+      }));
+
+    const { data: cloudFiles, error: listError } = await this.supabase.storage
+      .from(this.bucketName)
+      .list();
+
+    if (listError) {
+      log.error(`Supabase files listing failed: ${listError.message}`);
+      return localBackups;
+    }
+
+    const cloudBackups = cloudFiles
+      .filter((file) => file.name.startsWith(this.BACKUP_PREFIX))
+      .map((file) => ({
+        filename: file.name,
+        timestamp: new Date(file.created_at),
+        size: get(file.metadata, 'size', 0),
+        type: 'cloud' as const,
+      }));
+
+    return [...localBackups, ...cloudBackups].sort(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+    );
   }
 
   public setupAutoBackup(intervalHours: number = 24): void {
@@ -215,31 +242,5 @@ export class BackupService {
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
     }
-  }
-
-  private static setupDeviceIdentifier(): string {
-    // get the first available non-internal IPv4 address
-    const nets = networkInterfaces();
-    let ipAddress;
-
-    for (const name of Object.keys(nets)) {
-      const net = nets[name];
-      if (!net) continue;
-
-      for (const interface_ of net) {
-        if (interface_.family === 'IPv4' && !interface_.internal) {
-          ipAddress = interface_.address;
-          break;
-        }
-      }
-      if (ipAddress) break;
-    }
-
-    // fallback to hostname if no IP found
-    if (!ipAddress) {
-      ipAddress = hostname();
-    }
-
-    return ipAddress.replace(/[^a-zA-Z0-9]/g, '_');
   }
 }

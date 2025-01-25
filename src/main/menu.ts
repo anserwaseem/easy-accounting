@@ -23,38 +23,37 @@ export default class MenuBuilder {
     this.mainWindow = mainWindow;
   }
 
-  buildMenu(): Menu {
-    const template = this.getTemplate();
+  async buildMenu(): Promise<Menu> {
+    const template = await this.getTemplate();
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
     return menu;
   }
 
-  private getTemplate(): MenuItemConstructorOptions[] {
+  private async getTemplate(): Promise<MenuItemConstructorOptions[]> {
     if (process.platform === 'darwin') {
       return this.getDarwinTemplate();
     }
     return this.getDefaultTemplate();
   }
 
-  private getDarwinTemplate(): MenuItemConstructorOptions[] {
+  private async getDarwinTemplate(): Promise<MenuItemConstructorOptions[]> {
     return [
       MenuBuilder.getAboutMenu('Easy Accounting'),
       MenuBuilder.getEditMenu(),
       this.getViewMenu(),
       MenuBuilder.getWindowMenu(),
       MenuBuilder.getHelpMenu(),
-
-      this.getBackupMenu(),
+      await this.getBackupMenu(),
     ];
   }
 
-  private getDefaultTemplate(): MenuItemConstructorOptions[] {
+  private async getDefaultTemplate(): Promise<MenuItemConstructorOptions[]> {
     return [
       this.getFileMenu(),
       this.getViewMenu(),
       MenuBuilder.getHelpMenu(),
-      this.getBackupMenu(),
+      await this.getBackupMenu(),
     ];
   }
 
@@ -196,9 +195,9 @@ export default class MenuBuilder {
     };
   }
 
-  private getBackupMenu(): MenuItemConstructorOptions {
+  private async getBackupMenu(): Promise<MenuItemConstructorOptions> {
     const backupService = new BackupService();
-    const backups = backupService.listBackups();
+    const backups = await backupService.listBackups();
 
     return {
       label: 'Backup',
@@ -236,7 +235,7 @@ export default class MenuBuilder {
           submenu: backups.map((backup) => ({
             label: `${new Date(backup.timestamp).toLocaleString()} - ${
               backup.size / 1024
-            } KB`,
+            } KB - ${backup.type}`,
             click: async () => {
               const dateString = backup.filename
                 .replace('database-backup-', '')
