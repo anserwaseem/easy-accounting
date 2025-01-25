@@ -13,8 +13,6 @@ export class BackupService {
 
   private backupDir: string;
 
-  private maxBackups: number = 5;
-
   private readonly backupPrefix = 'database-backup-';
 
   constructor() {
@@ -38,9 +36,7 @@ export class BackupService {
       await this.db.backup(backupPath);
       backupDb.close();
 
-      // this.cleanupOldBackups();
       log.info(`Database backup created at ${backupPath}`);
-
       return { success: true, path: backupPath };
     } catch (error) {
       const errorMessage =
@@ -135,16 +131,6 @@ export class BackupService {
   private ensureBackupDirectory(): void {
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
-    }
-  }
-
-  private cleanupOldBackups(): void {
-    const backups = this.listBackups();
-    if (backups.length > this.maxBackups) {
-      backups.slice(this.maxBackups).forEach((backup) => {
-        fs.unlinkSync(path.join(this.backupDir, backup.filename));
-        log.info(`Removed old backup: ${backup.filename}`);
-      });
     }
   }
 }
