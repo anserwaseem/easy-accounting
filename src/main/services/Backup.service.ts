@@ -196,7 +196,7 @@ export class BackupService {
 
       if (listError) {
         log.error(
-          `Supabase files listing failed: ${listError.message} from bucket: ${this.bucketName}`,
+          `Supabase files listing from bucket: ${this.bucketName} failed: ${listError.message}`,
         );
         return localBackups;
       }
