@@ -5,7 +5,7 @@ import log from 'electron-log';
 import Database from 'better-sqlite3';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { hostname } from 'node:os';
-import { get, orderBy, uniqBy } from 'lodash';
+import { compact, get, orderBy, uniqBy } from 'lodash';
 import type { BackupCreateResult, BackupReadResult } from '@/types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
@@ -97,13 +97,11 @@ export class BackupService {
         return { success: false, error: uploadError.message };
       }
 
-      if (isonline)
-        new Notification({
-          title: 'Backup Created',
-          body: `Database backup created locally and uploaded to cloud storage`,
-          silent: false,
-        }).show();
-
+      new Notification({
+        title: 'Backup Created',
+        body: `Database backup created locally and uploaded to cloud storage`,
+        silent: false,
+      }).show();
       log.info(`Database backup created in cloud at ${this.bucketName}`);
       return { success: true, path: backupPath };
     } catch (error) {
@@ -124,9 +122,16 @@ export class BackupService {
 
       // try local restore first
       const backups = await this.listBackups();
-      const localBackup = backups.find((b) => b.filename.includes(dateString));
+      const backup = backups.find((b) => b.filename.includes(dateString));
 
-      if (localBackup) return this.restoreFromBackup(localBackup.filename);
+      if (!backup) {
+        const error = `No backup found for date ${dateString}`;
+        log.error(error);
+        return { success: false, error };
+      }
+
+      if (backup.type === 'local')
+        return this.restoreFromBackup(backup.filename);
 
       if (!isOnline())
         return {
@@ -134,37 +139,20 @@ export class BackupService {
           error: 'Please turn on internet to restore cloud backup.',
         };
 
-      const { data: files, error: listError } = await this.supabase.storage
+      const { data, error: downloadError } = await this.supabase.storage
         .from(this.bucketName)
-        .list();
+        .download(backup.filename);
 
-      if (listError) {
-        log.error(`Supabase files listing failed: ${listError.message}`);
-        return { success: false, error: listError.message };
-      }
-
-      const cloudBackup = files.find((f) => f.name.includes(dateString));
-      if (!cloudBackup) {
-        const error = `No backup found for date ${dateString}`;
+      if (downloadError) {
+        const error = `Supabase file ${backup.filename} downloading failed: ${downloadError.message}`;
         log.error(error);
         return { success: false, error };
       }
 
-      const { data, error: downloadError } = await this.supabase.storage
-        .from(this.bucketName)
-        .download(cloudBackup.name);
+      const localPath = path.join(this.backupDir, backup.filename);
+      fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer())); // failing here
 
-      if (downloadError) {
-        log.error(
-          `Supabase file ${cloudBackup.name} downloading failed: ${downloadError.message}`,
-        );
-        return { success: false, error: downloadError.message };
-      }
-
-      const localPath = path.join(this.backupDir, cloudBackup.name);
-      fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer()));
-
-      return this.restoreFromBackup(cloudBackup.name);
+      return this.restoreFromBackup(backup.filename);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -240,7 +228,7 @@ export class BackupService {
     }
 
     return orderBy(
-      uniqBy([...localBackups, ...cloudBackups], 'filename'),
+      uniqBy(compact([...localBackups, ...cloudBackups]), 'filename'),
       (b) => b.timestamp.getTime(),
       'desc',
     );

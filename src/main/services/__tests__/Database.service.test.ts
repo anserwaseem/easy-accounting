@@ -6,27 +6,6 @@ import { DatabaseService } from '../Database.service';
 
 jest.mock('better-sqlite3');
 jest.mock('fs');
-jest.mock('electron', () => ({
-  app: {
-    getPath: jest.fn(),
-    isPackaged: false,
-  },
-}));
-jest.mock('electron-log', () => {
-  const mockLog = {
-    error: jest.fn(),
-    warn: jest.fn(),
-    info: jest.fn(),
-    verbose: jest.fn(),
-    debug: jest.fn(),
-    silly: jest.fn(),
-    transports: {
-      file: { getFile: jest.fn() },
-      console: { level: 'debug' },
-    },
-  };
-  return mockLog;
-});
 
 describe('Database Service', () => {
   let mockDatabase: jest.Mocked<Database.Database>;
