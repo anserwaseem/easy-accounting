@@ -1,4 +1,3 @@
-/* eslint-disable no-continue */
 /* eslint-disable no-await-in-loop */
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';

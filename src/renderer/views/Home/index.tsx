@@ -13,7 +13,7 @@ const Home: React.FC = () => (
       <TabsTrigger value="getting-started">Getting Started</TabsTrigger>
     </TabsList>
     <TabsContent value="dashboard">
-      Your dashboard is empty. Add some widgets here.
+      Username: {window.electron.store.get('username')}
     </TabsContent>
     <TabsContent value="getting-started">
       <GettingStarted />

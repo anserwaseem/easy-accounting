@@ -199,7 +199,6 @@ app
     const statementService = new StatementService();
     const inventoryService = new InventoryService();
     const invoiceService = new InvoiceService();
-    // eslint-disable-next-line no-new
     const printService = new PrintService();
 
     // setupUser(migrationRunner, authService);

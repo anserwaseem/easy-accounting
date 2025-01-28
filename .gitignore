@@ -18,9 +18,12 @@ node_modules
 # OSX
 .DS_Store
 
+# Release data
+release/app/backups/*
 release/app/dist
 release/build
 .erb/dll
+.env
 
 .idea
 npm-debug.log.*

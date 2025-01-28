@@ -1,3 +1,4 @@
+import { size } from 'lodash';
 import {
   type PropsWithChildren,
   createContext,
@@ -21,7 +22,9 @@ export const AuthContext = createContext<AuthContextState | undefined>(
 export const AuthProvider: React.FC<PropsWithChildren> = ({
   children,
 }: PropsWithChildren) => {
-  const [authed, setAuthed] = useState(false);
+  const [authed, setAuthed] = useState(
+    size(window.electron.store.get('username')) > 0,
+  );
 
   const signin = async (user: UserCredentials): Promise<boolean> => {
     const response = await window.electron.login(user);

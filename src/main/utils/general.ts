@@ -2,6 +2,8 @@
 import { URL } from 'url';
 import path from 'path';
 import { format, parse } from 'date-fns';
+import { lookup } from 'dns';
+import { get } from 'lodash';
 
 export function resolveHtmlPath(htmlFileName: string) {
   if (process.env.NODE_ENV === 'development') {
@@ -36,4 +38,12 @@ export const convertOrdinalDate = (dateStr: string): string => {
 
   // Format to desired output
   return formatDate(parsedDate);
+};
+
+export const isOnline = (): boolean => {
+  lookup('google.com', (err: unknown) => {
+    if (err && get(err, 'code') === 'ENOTFOUND') return false;
+    return true;
+  });
+  return false;
 };
