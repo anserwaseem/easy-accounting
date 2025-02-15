@@ -19,7 +19,7 @@ import {
   FormControl,
   FormMessage,
 } from 'renderer/shad/ui/form';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 import { useState } from 'react';
 
 interface AddInventoryItemProps {
@@ -31,8 +31,6 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
   refetchInventory,
   clearRef,
 }: AddInventoryItemProps) => {
-  const { toast } = useToast();
-
   const [openCreateForm, setOpenCreateForm] = useState(false);
 
   const addFormSchema = z.object({

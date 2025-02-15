@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'renderer/shad/ui/select';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 import {
   type Account,
   AccountType,
@@ -61,7 +61,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [invoiceTypeAccountExists, setInvoiceTypeAccountExists] =
     useState<Boolean>();
 
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const getInitialEntry = useCallback(

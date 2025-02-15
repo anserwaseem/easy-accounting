@@ -28,7 +28,7 @@ import {
   FormLabel,
   FormMessage,
 } from 'renderer/shad/ui/form';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { dateFormatOptions } from 'renderer/lib/constants';
 import {
@@ -47,7 +47,6 @@ const NewJournalPage: React.FC = () => {
   const [totalDebits, setTotalDebits] = useState<number>(0);
   const [differenceCredit, setDifferenceCredit] = useState<number>(0);
   const [differenceDebit, setDifferenceDebit] = useState<number>(0);
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const getInitialEntry = useCallback(

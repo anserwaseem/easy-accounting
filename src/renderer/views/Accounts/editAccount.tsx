@@ -26,7 +26,7 @@ import {
   FormControl,
   FormMessage,
 } from 'renderer/shad/ui/form';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateAccount, Chart } from 'types';
 
 interface EditAccountProps {
@@ -44,8 +44,6 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   charts,
   clearRef,
 }: EditAccountProps) => {
-  const { toast } = useToast();
-
   const editFormSchema = z.object({
     id: z.number(),
     headName: z.string().min(2).max(50),

@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 import { z } from 'zod';
 
 interface AddInvoiceNumberProps {
@@ -34,7 +34,6 @@ export const AddInvoiceNumber: React.FC<AddInvoiceNumberProps> = ({
   invoiceType,
   onInvoiceNumberSet,
 }: AddInvoiceNumberProps) => {
-  const { toast } = useToast();
   const [openCreateForm, setOpenCreateForm] = useState(false);
 
   const addFormSchema = z.object({

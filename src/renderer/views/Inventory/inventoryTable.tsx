@@ -1,27 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InventoryItem } from 'types';
 import { EditInventoryItem } from './editInventoryItem';
 
 interface InventoryTableProps {
+  refetchInventory: () => void;
   options: { refresh?: boolean; hideZeroQuantity?: boolean };
 }
 export const InventoryTable: React.FC<InventoryTableProps> = ({
   options,
+  refetchInventory,
 }: InventoryTableProps) => {
   // eslint-disable-next-line no-console
-  console.log('InventoryTable');
   const [inventory, setInventory] = useState<InventoryItem[]>();
-
-  const fetchInventory = useCallback(async () => {
-    setInventory(await window.electron.getInventory());
-  }, []);
   console.log('InventoryTable', inventory);
 
   useEffect(() => {
+    const fetchInventory = async () => {
+      const fetchedInventory = await window.electron.getInventory();
+      setInventory(fetchedInventory);
+    };
     fetchInventory();
-  }, [options?.refresh, fetchInventory]);
+  }, [options?.refresh]);
 
   const getInventory = () =>
     (options?.hideZeroQuantity
@@ -49,7 +50,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       header: 'Edit',
       // eslint-disable-next-line react/no-unstable-nested-components
       cell: ({ row }) => (
-        <EditInventoryItem row={row} refetchInventory={fetchInventory} />
+        <EditInventoryItem row={row} refetchInventory={refetchInventory} />
       ),
     },
   ];

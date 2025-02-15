@@ -15,7 +15,7 @@ const InvoicePage: React.FC<InvoiceProps> = ({
   previewId,
 }: InvoiceProps) => {
   const { id } = useParams();
-  // eslint-disable-next-line no-console
+
   const propInvoices = window.electron.store.get('generatedInvoices') as
     | InvoiceView[]
     | undefined;
