@@ -265,11 +265,17 @@ export class InvoiceService {
       name: string;
     }>;
     console.log('getTransactionAccounts', accounts);
-    const purchaseAccount = accounts.find((acc) => acc.name === 'Purchase');
-    const salesAccount = accounts.find((acc) => acc.name === 'Sale');
+    const purchaseAccount = accounts.find(
+      (acc) => acc.name.toLowerCase() === InvoiceType.Purchase.toLowerCase(),
+    );
+    const salesAccount = accounts.find(
+      (acc) => acc.name.toLowerCase() === InvoiceType.Sale.toLowerCase(),
+    );
 
     if (!purchaseAccount?.id || !salesAccount?.id) {
-      throw new Error('Please create both Purchase and Sales accounts first');
+      throw new Error(
+        "Please create both 'Purchase' and 'Sale' accounts first",
+      );
     }
 
     if (invoiceType === InvoiceType.Purchase) {
@@ -333,10 +339,14 @@ export class InvoiceService {
       WHERE invoiceType = ?
     `);
 
-    this.stmGetSalePurchaseAccounts = this.db.prepare(`
-      SELECT id, name
-      FROM account
-      WHERE name IN ('Purchase', 'Sale')
-    `);
+    this.stmGetSalePurchaseAccounts = this.db
+      .prepare(
+        `
+          SELECT id, name
+          FROM account
+          WHERE LOWER(name) IN (?, ?)
+        `,
+      )
+      .bind(InvoiceType.Purchase.toLowerCase(), InvoiceType.Sale.toLowerCase());
   }
 }

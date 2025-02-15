@@ -192,7 +192,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
         </Button>
       </div>
 
-      {invoiceType === InvoiceType.Sale ? (
+      {invoiceType === InvoiceType.Sale && filteredInvoices?.length ? (
         <Dialog>
           <DialogTrigger>
             <Button>Export Sale Invoices</Button>

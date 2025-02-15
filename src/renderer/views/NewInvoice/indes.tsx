@@ -53,6 +53,7 @@ interface NewInvoiceProps {
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
+  console.log('NewInvoicePage', invoiceType);
   const [inventory, setInventory] = useState<InventoryItem[]>();
   const [nextInvoiceNumber, setNextInvoiceNumber] = useState<
     number | undefined
