@@ -2,19 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import {
-  currencyFormatOptions,
-  dateFormatOptions,
-} from 'renderer/lib/constants';
+import { dateFormatOptions } from 'renderer/lib/constants';
 import { Plus } from 'lucide-react';
 import {
   type DateRange,
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
+import {
+  defaultSortingFunctions,
+  getFormattedCurrency,
+} from 'renderer/lib/utils';
 import type { HasMiniView, Journal } from 'types';
-import { toString } from 'lodash';
+import { toNumber, toString } from 'lodash';
 
 export type JournalView = Journal & { amount: number };
 
@@ -62,6 +62,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
       {
         accessorKey: 'amount',
         header: 'Amount',
+        cell: ({ getValue }) => getFormattedCurrency(toNumber(getValue())),
         onClick: (row) => navigate(toString(row.original.id)),
       },
       {
@@ -208,14 +209,11 @@ const JournalsPage: React.FC<HasMiniView> = ({
                       </div>
                       <div className="flex flex-col">
                         <p>
-                          {Intl.NumberFormat(
-                            'en-US',
-                            currencyFormatOptions,
-                          ).format(
+                          {getFormattedCurrency(
                             journal?.journalEntries.reduce(
                               (acc, entry) => acc + entry.debitAmount,
                               0,
-                            ) || 0,
+                            ) ?? 0,
                           )}
                         </p>
                         <p className="text-end text-green-600">

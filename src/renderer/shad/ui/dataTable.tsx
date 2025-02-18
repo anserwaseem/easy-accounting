@@ -27,12 +27,14 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   columns: ColDef<TData, TValue>[];
   data: TData[];
   defaultSortField?: keyof TData;
+  infoData?: React.ReactNode[][]; // Array of arrays containing info rows
 }
 
 const DataTable = <TData, TValue>({
   columns,
   data,
   defaultSortField,
+  infoData,
   ...props
 }: DataTableProps<TData, TValue>) => {
   const table = useReactTable({
@@ -84,32 +86,52 @@ const DataTable = <TData, TValue>({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && 'selected'}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    onClick={() =>
-                      (
-                        cell.column.columnDef as ColumnDef<TData, TValue>
-                      )?.onClick?.(cell.row)
-                    }
-                    className="py-2 px-4"
-                  >
-                    {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
-                    <div key={toString(get(cell.row.original, 'id'))}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </div>
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
+            <>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      onClick={() =>
+                        (
+                          cell.column.columnDef as ColumnDef<TData, TValue>
+                        )?.onClick?.(cell.row)
+                      }
+                      className="py-2 px-4"
+                    >
+                      {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
+                      <div key={toString(get(cell.row.original, 'id'))}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </div>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+              {/* Info Rows */}
+              {infoData?.map((row, rowIndex) => (
+                <TableRow
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={`info-row-${rowIndex}`}
+                  className="bg-gray-50 dark:bg-gray-800 font-medium"
+                >
+                  {row.map((cell, cellIndex) => (
+                    <TableCell
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={`info-cell-${rowIndex}-${cellIndex}`}
+                      className="py-2 px-4"
+                    >
+                      {cell}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </>
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">

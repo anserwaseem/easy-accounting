@@ -152,7 +152,8 @@ export interface InsertInventoryItem {
 /** Invoice */
 export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
   inventoryId: number;
-  quantity: number;
+  quantity: number; // will be provided by UI
+  discount: number; // will be provided by UI
   invoiceId?: number; // will be assigned at service layer
   price?: number; // will be fetched at service layer
 }
@@ -176,9 +177,11 @@ export type InvoicesView = Prettify<
 export type InvoiceItemView = {
   price: number;
   quantity: number;
+  discount: number;
   inventoryItemName: string;
   inventoryId?: number;
   inventoryItemDescription?: string;
+  discountedPrice?: number;
 };
 export type InvoiceView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {

@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS "invoice_items" (
     "invoiceId" INTEGER NOT NULL,
     "inventoryId" INTEGER NOT NULL,
     "quantity" INTEGER NOT NULL,
+    "discount" DECIMAL(10, 2) NOT NULL DEFAULT 0,
     "price" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -263,6 +264,24 @@ CREATE TRIGGER IF NOT EXISTS after_update_invoices_add_timestamp
 AFTER UPDATE ON invoices
 BEGIN
   UPDATE invoices SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- invoice_items
+CREATE TRIGGER IF NOT EXISTS after_insert_invoice_items_add_timestamp
+AFTER INSERT ON invoice_items
+BEGIN
+  UPDATE invoice_items SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_invoice_items_add_timestamp
+AFTER UPDATE ON invoice_items
+BEGIN
+  UPDATE invoice_items SET
     updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;

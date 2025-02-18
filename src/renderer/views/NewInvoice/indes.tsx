@@ -1,12 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { get, isNaN, isNil, set, toNumber, toString } from 'lodash';
+import { get, isNaN, isNil, set, sum, toNumber, toString } from 'lodash';
 import { Calendar as CalendarIcon, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { dateFormatOptions } from 'renderer/lib/constants';
-import { cn, defaultSortingFunctions } from 'renderer/lib/utils';
+import {
+  cn,
+  defaultSortingFunctions,
+  getFormattedCurrency,
+} from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { type ColumnDef, DataTable } from 'renderer/shad/ui/dataTable';
@@ -61,6 +65,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [parties, setParties] = useState<Account[]>();
   const [invoiceTypeAccountExists, setInvoiceTypeAccountExists] =
     useState<Boolean>();
+  const [enableCumulativeDiscount, setEnableCumulativeDiscount] =
+    useState(false);
+  const [cumulativeDiscount, setCumulativeDiscount] = useState<number>();
 
   const navigate = useNavigate();
 
@@ -69,6 +76,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       id: Date.now(), // generates a unique ID for each new entry. not used to insert into db
       inventoryId: 0,
       quantity: 0,
+      discount: 0,
     }),
     [],
   );
@@ -102,16 +110,30 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       .array(
         z.object({
           id: z.number(),
-          inventoryId: z.coerce.number().gt(0, 'Select an item'),
-          quantity: z.coerce.number().gt(0, 'Select quantity greater than 0'),
+          inventoryId: z.coerce.number().positive('Select an item'),
+          quantity: z.coerce
+            .number()
+            .int('Quantity must be a whole number')
+            .positive('Quantity must be greater than 0'),
+          discount: z.coerce
+            .number()
+            .multipleOf(0.01, 'Discount must be at-most 2 decimal places')
+            .nonnegative('Discount must be non-negative'),
+          price: z.number().optional(),
+          discountedPrice: z.number().optional(),
         }),
       )
-      .min(1, 'Add atleast one invoice item'),
+      .min(1, 'Add at-least one invoice item'),
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: defaultFormValues,
+  });
+
+  const watchedInvoiceItems = useWatch({
+    control: form.control,
+    name: 'invoiceItems',
   });
 
   const { fields, append } = useFieldArray({
@@ -179,6 +201,98 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [fields.length, form],
   );
 
+  const getInvoiceItemTotal = (
+    quantity: number,
+    discount: number,
+    price?: number,
+  ) => quantity * (price ?? 0) * (1 - discount / 100);
+
+  const renderTotal = useMemo(() => {
+    if (!watchedInvoiceItems.at(0)?.discountedPrice) return null;
+    const total = sum(
+      watchedInvoiceItems.map((item) =>
+        enableCumulativeDiscount && cumulativeDiscount
+          ? getInvoiceItemTotal(item.quantity, cumulativeDiscount, item.price)
+          : item.discountedPrice,
+      ),
+    );
+    return getFormattedCurrency(total);
+  }, [cumulativeDiscount, enableCumulativeDiscount, watchedInvoiceItems]);
+
+  const getSelectedItem = useCallback(
+    (fieldValue: number) =>
+      inventory?.find((item) => item.id === toNumber(fieldValue)),
+    [inventory],
+  );
+  const onItemSelectionChange = useCallback(
+    (rowIndex: number, val: string, onChange: Function) => {
+      onChange(val);
+      const item = getSelectedItem(toNumber(val));
+      console.log('onValueChange', val, item);
+      form.setValue(`invoiceItems.${rowIndex}.price`, item?.price);
+      form.setValue(
+        `invoiceItems.${rowIndex}.discountedPrice`,
+        getInvoiceItemTotal(
+          form.getValues(`invoiceItems.${rowIndex}.quantity`),
+          form.getValues(`invoiceItems.${rowIndex}.discount`),
+          item?.price,
+        ),
+      );
+    },
+    [form, getSelectedItem],
+  );
+  const getDiscountValue = useCallback(
+    (fieldValue: number) =>
+      enableCumulativeDiscount && cumulativeDiscount
+        ? cumulativeDiscount
+        : fieldValue,
+    [cumulativeDiscount, enableCumulativeDiscount],
+  );
+  const onDiscountChange = useCallback(
+    (rowIndex: number, value: string, onChange: Function) => {
+      onChange(toNumber(value));
+      form.setValue(
+        `invoiceItems.${rowIndex}.discountedPrice`,
+        getInvoiceItemTotal(
+          form.getValues(`invoiceItems.${rowIndex}.quantity`),
+          toNumber(value),
+          form.getValues(`invoiceItems.${rowIndex}.price`),
+        ),
+      );
+    },
+    [form],
+  );
+  const onQuantityChange = useCallback(
+    (rowIndex: number, value: string, onChange: Function) => {
+      onChange(toNumber(value));
+      form.setValue(
+        `invoiceItems.${rowIndex}.discountedPrice`,
+        getInvoiceItemTotal(
+          toNumber(value),
+          form.getValues(`invoiceItems.${rowIndex}.discount`),
+          form.getValues(`invoiceItems.${rowIndex}.price`),
+        ),
+      );
+    },
+    [form],
+  );
+  const renderDiscountedPrice = useCallback(
+    (rowIndex: number, fieldValue?: number) => {
+      if (enableCumulativeDiscount && cumulativeDiscount) {
+        return getFormattedCurrency(
+          getInvoiceItemTotal(
+            form.getValues(`invoiceItems.${rowIndex}.quantity`),
+            cumulativeDiscount,
+            form.getValues(`invoiceItems.${rowIndex}.price`),
+          ),
+        );
+      }
+
+      return fieldValue ? getFormattedCurrency(fieldValue) : null;
+    },
+    [cumulativeDiscount, enableCumulativeDiscount, form],
+  );
+
   const columns: ColumnDef<InvoiceItem>[] = useMemo(
     () => [
       {
@@ -191,7 +305,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             render={({ field }) => (
               <FormItem className="w-auto min-w-[250px] space-y-0">
                 <Select
-                  onValueChange={field.onChange}
+                  onValueChange={(val) =>
+                    onItemSelectionChange(row.index, val, field.onChange)
+                  }
                   value={field.value.toString()}
                 >
                   <FormControl>
@@ -238,9 +354,86 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     {...field}
                     value={field.value}
                     type="number"
-                    onChange={(e) => field.onChange(toNumber(e.target.value))}
                     onBlur={(e) => field.onChange(toNumber(e.target.value))}
+                    onChange={(e) =>
+                      onQuantityChange(
+                        row.index,
+                        e.target.value,
+                        field.onChange,
+                      )
+                    }
                   />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        ),
+      },
+      {
+        header: 'Price',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <FormField
+            control={form.control}
+            name={`invoiceItems.${row.index}.price` as const}
+            render={({ field }) => (
+              <FormItem className="space-y-0">
+                <FormControl>
+                  <p>
+                    {field.value
+                      ? getFormattedCurrency(toNumber(field.value))
+                      : null}
+                  </p>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        ),
+      },
+      {
+        header: 'Discount',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <FormField
+            control={form.control}
+            name={`invoiceItems.${row.index}.discount` as const}
+            render={({ field }) => (
+              <FormItem className="space-y-0">
+                <FormControl>
+                  <Input
+                    {...field}
+                    value={getDiscountValue(field.value)}
+                    type="number"
+                    disabled={enableCumulativeDiscount}
+                    onBlur={(e) => field.onChange(toNumber(e.target.value))}
+                    onChange={(e) =>
+                      onDiscountChange(
+                        row.index,
+                        e.target.value,
+                        field.onChange,
+                      )
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        ),
+      },
+      {
+        header: 'Discounted Price',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <FormField
+            control={form.control}
+            name={`invoiceItems.${row.index}.discountedPrice` as const}
+            render={({ field }) => (
+              <FormItem className="space-y-0">
+                <FormControl>
+                  <p>{renderDiscountedPrice(row.index, field.value)}</p>
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -262,12 +455,43 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         ),
       },
     ],
-    [form.control, handleRemoveRow, inventory],
+    [
+      enableCumulativeDiscount,
+      form.control,
+      getDiscountValue,
+      onDiscountChange,
+      onQuantityChange,
+      handleRemoveRow,
+      onItemSelectionChange,
+      inventory,
+      renderDiscountedPrice,
+    ],
   );
 
   const handleAddNewRow = useCallback(
     () => append({ ...getInitialEntry() }),
     [append, getInitialEntry],
+  );
+  const onCumulativeDiscountChange = useCallback(
+    (value: string) => {
+      const discount = toNumber(value);
+      setCumulativeDiscount(discount);
+
+      const updatedInvoiceItems = form
+        .getValues('invoiceItems')
+        .map((item) => ({
+          ...item,
+          discount,
+          discountedPrice: getInvoiceItemTotal(
+            item.quantity,
+            discount,
+            item.price,
+          ),
+        }));
+
+      form.setValue('invoiceItems', updatedInvoiceItems);
+    },
+    [form],
   );
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -492,6 +716,51 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 columns={columns}
                 data={fields}
                 sortingFns={defaultSortingFunctions}
+                infoData={[
+                  [
+                    <div className="flex flex-row gap-2 items-center">
+                      <h1>Discount</h1>
+                      <Checkbox
+                        checked={enableCumulativeDiscount}
+                        onCheckedChange={(checked) =>
+                          setEnableCumulativeDiscount(checked === true)
+                        }
+                        className="ml-auto"
+                      />
+                      <h2 className="text-xs mr-auto">
+                        Add cumulative discount
+                      </h2>
+                    </div>,
+                    null,
+                    null,
+                    <Input
+                      value={cumulativeDiscount}
+                      type="number"
+                      disabled={!enableCumulativeDiscount}
+                      onChange={(e) =>
+                        onCumulativeDiscountChange(e.target.value)
+                      }
+                    />,
+                    null,
+                    null,
+                  ],
+                  [
+                    <h1 className="text-green-500 text-lg font-bold">Total</h1>,
+                    null,
+                    null,
+                    null,
+                    <p
+                      className={
+                        renderTotal
+                          ? 'border-2 border-green-500 rounded-lg pl-2 ml-[-8px] h-10 pt-[inherit]'
+                          : ''
+                      }
+                    >
+                      {renderTotal}
+                    </p>,
+                    null,
+                  ],
+                ]}
               />
               {form.formState.errors.invoiceItems && (
                 <p className="text-sm font-medium text-destructive">
