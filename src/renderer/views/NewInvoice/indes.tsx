@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { get, isNaN, isNil, set, sum, toNumber, toString } from 'lodash';
@@ -293,11 +294,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [cumulativeDiscount, enableCumulativeDiscount, form],
   );
 
-  const columns: ColumnDef<InvoiceItem>[] = useMemo(
-    () => [
+  const columns: ColumnDef<InvoiceItem>[] = useMemo(() => {
+    const baseColumns: ColumnDef<InvoiceItem>[] = [
       {
         header: 'Item',
-        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -342,7 +342,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       },
       {
         header: 'Quantity',
-        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -371,80 +370,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         ),
       },
       {
-        header: 'Price',
-        // eslint-disable-next-line react/no-unstable-nested-components
-        cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`invoiceItems.${row.index}.price` as const}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <p>
-                    {field.value
-                      ? getFormattedCurrency(toNumber(field.value))
-                      : null}
-                  </p>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ),
-      },
-      {
-        header: 'Discount',
-        // eslint-disable-next-line react/no-unstable-nested-components
-        cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`invoiceItems.${row.index}.discount` as const}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <Input
-                    {...field}
-                    value={getDiscountValue(field.value)}
-                    type="number"
-                    disabled={enableCumulativeDiscount}
-                    onBlur={(e) => field.onChange(toNumber(e.target.value))}
-                    onChange={(e) =>
-                      onDiscountChange(
-                        row.index,
-                        e.target.value,
-                        field.onChange,
-                      )
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ),
-      },
-      {
-        header: 'Discounted Price',
-        // eslint-disable-next-line react/no-unstable-nested-components
-        cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`invoiceItems.${row.index}.discountedPrice` as const}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <p>{renderDiscountedPrice(row.index, field.value)}</p>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ),
-      },
-      {
         id: 'remove',
         header: 'Action',
-        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <X
             color="red"
@@ -454,19 +381,97 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           />
         ),
       },
-    ],
-    [
-      enableCumulativeDiscount,
-      form.control,
-      getDiscountValue,
-      onDiscountChange,
-      onQuantityChange,
-      handleRemoveRow,
-      onItemSelectionChange,
-      inventory,
-      renderDiscountedPrice,
-    ],
-  );
+    ];
+
+    if (invoiceType === InvoiceType.Sale) {
+      const priceColumns: ColumnDef<InvoiceItem>[] = [
+        {
+          header: 'Price',
+          cell: ({ row }) => (
+            <FormField
+              control={form.control}
+              name={`invoiceItems.${row.index}.price` as const}
+              render={({ field }) => (
+                <FormItem className="space-y-0">
+                  <FormControl>
+                    <p>
+                      {field.value
+                        ? getFormattedCurrency(toNumber(field.value))
+                        : null}
+                    </p>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ),
+        },
+        {
+          header: 'Discount',
+          cell: ({ row }) => (
+            <FormField
+              control={form.control}
+              name={`invoiceItems.${row.index}.discount` as const}
+              render={({ field }) => (
+                <FormItem className="space-y-0">
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={getDiscountValue(field.value)}
+                      type="number"
+                      disabled={enableCumulativeDiscount}
+                      onBlur={(e) => field.onChange(toNumber(e.target.value))}
+                      onChange={(e) =>
+                        onDiscountChange(
+                          row.index,
+                          e.target.value,
+                          field.onChange,
+                        )
+                      }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ),
+        },
+        {
+          header: 'Discounted Price',
+          cell: ({ row }) => (
+            <FormField
+              control={form.control}
+              name={`invoiceItems.${row.index}.discountedPrice` as const}
+              render={({ field }) => (
+                <FormItem className="space-y-0">
+                  <FormControl>
+                    <p>{renderDiscountedPrice(row.index, field.value)}</p>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ),
+        },
+      ];
+
+      // insert price columns before the remove action column
+      baseColumns.splice(baseColumns.length - 1, 0, ...priceColumns);
+    }
+
+    return baseColumns;
+  }, [
+    enableCumulativeDiscount,
+    form.control,
+    getDiscountValue,
+    onDiscountChange,
+    onQuantityChange,
+    handleRemoveRow,
+    onItemSelectionChange,
+    inventory,
+    renderDiscountedPrice,
+    invoiceType,
+  ]);
 
   const handleAddNewRow = useCallback(
     () => append({ ...getInitialEntry() }),
@@ -493,6 +498,60 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     },
     [form],
   );
+
+  const tableInfoData = useMemo(() => {
+    if (invoiceType === InvoiceType.Purchase) {
+      return [];
+    }
+
+    return [
+      [
+        <div className="flex flex-row gap-2 items-center">
+          <h1>Discount</h1>
+          <Checkbox
+            checked={enableCumulativeDiscount}
+            onCheckedChange={(checked) =>
+              setEnableCumulativeDiscount(checked === true)
+            }
+            className="ml-auto"
+          />
+          <h2 className="text-xs mr-auto">Add cumulative discount</h2>
+        </div>,
+        null,
+        null,
+        <Input
+          value={cumulativeDiscount}
+          type="number"
+          disabled={!enableCumulativeDiscount}
+          onChange={(e) => onCumulativeDiscountChange(e.target.value)}
+        />,
+        null,
+        null,
+      ],
+      [
+        <h1 className="text-green-500 text-lg font-bold">Total</h1>,
+        null,
+        null,
+        null,
+        <p
+          className={
+            renderTotal
+              ? 'border-2 border-green-500 rounded-lg pl-2 ml-[-8px] h-10 pt-[inherit]'
+              : ''
+          }
+        >
+          {renderTotal}
+        </p>,
+        null,
+      ],
+    ];
+  }, [
+    invoiceType,
+    enableCumulativeDiscount,
+    cumulativeDiscount,
+    onCumulativeDiscountChange,
+    renderTotal,
+  ]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // eslint-disable-next-line no-console
@@ -716,51 +775,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 columns={columns}
                 data={fields}
                 sortingFns={defaultSortingFunctions}
-                infoData={[
-                  [
-                    <div className="flex flex-row gap-2 items-center">
-                      <h1>Discount</h1>
-                      <Checkbox
-                        checked={enableCumulativeDiscount}
-                        onCheckedChange={(checked) =>
-                          setEnableCumulativeDiscount(checked === true)
-                        }
-                        className="ml-auto"
-                      />
-                      <h2 className="text-xs mr-auto">
-                        Add cumulative discount
-                      </h2>
-                    </div>,
-                    null,
-                    null,
-                    <Input
-                      value={cumulativeDiscount}
-                      type="number"
-                      disabled={!enableCumulativeDiscount}
-                      onChange={(e) =>
-                        onCumulativeDiscountChange(e.target.value)
-                      }
-                    />,
-                    null,
-                    null,
-                  ],
-                  [
-                    <h1 className="text-green-500 text-lg font-bold">Total</h1>,
-                    null,
-                    null,
-                    null,
-                    <p
-                      className={
-                        renderTotal
-                          ? 'border-2 border-green-500 rounded-lg pl-2 ml-[-8px] h-10 pt-[inherit]'
-                          : ''
-                      }
-                    >
-                      {renderTotal}
-                    </p>,
-                    null,
-                  ],
-                ]}
+                infoData={tableInfoData}
               />
               {form.formState.errors.invoiceItems && (
                 <p className="text-sm font-medium text-destructive">

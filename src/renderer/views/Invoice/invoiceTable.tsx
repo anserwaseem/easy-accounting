@@ -47,23 +47,29 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
         accessorKey: 'quantity',
         header: 'Quantity',
       },
-      {
-        accessorKey: 'price',
-        header: 'Price',
-        cell: ({ getValue }) => getFormattedCurrency(toNumber(getValue())),
-      },
-      {
-        accessorKey: 'discount',
-        header: 'Discount',
-        cell: ({ getValue }) => `${getValue()}%`,
-      },
-      {
-        accessorKey: 'discountedPrice',
-        header: 'Discounted Price',
-        cell: ({ getValue }) => getFormattedCurrency(toNumber(getValue())),
-      },
+      ...(invoiceType === InvoiceType.Sale
+        ? [
+            {
+              accessorKey: 'price',
+              header: 'Price',
+              cell: ({ getValue }) =>
+                getFormattedCurrency(toNumber(getValue())),
+            },
+            {
+              accessorKey: 'discount',
+              header: 'Discount',
+              cell: ({ getValue }) => `${getValue()}%`,
+            },
+            {
+              accessorKey: 'discountedPrice',
+              header: 'Discounted Price',
+              cell: ({ getValue }) =>
+                getFormattedCurrency(toNumber(getValue())),
+            },
+          ]
+        : []),
     ];
-  }, []);
+  }, [invoiceType]);
 
   const handlePrintClick = () => {
     navigate(`/invoices/${invoice!.id}/print`);
@@ -90,10 +96,12 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
                   : invoice?.date}
               </p>
             </div>
-            <div className="flex gap-8">
-              <p className="font-medium text-md w-[160px]">Amount:</p>
-              <p>{getFormattedCurrency(toNumber(invoice?.totalAmount))}</p>
-            </div>
+            {invoiceType === InvoiceType.Sale ? (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px]">Amount:</p>
+                <p>{getFormattedCurrency(toNumber(invoice?.totalAmount))}</p>
+              </div>
+            ) : null}
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">{`${
                 invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
