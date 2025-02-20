@@ -89,9 +89,10 @@ const Sidebar: React.FC<PropsWithChildren> = ({
             </Button>
           </div>,
         ]}
+        className="print:hidden"
       />
       <div className="flex-grow w-full mx-auto p-4">
-        <MainNav />
+        <MainNav className="print:hidden" />
         {children}
         <Outlet />
       </div>
