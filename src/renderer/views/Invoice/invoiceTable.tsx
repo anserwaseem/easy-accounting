@@ -1,10 +1,10 @@
-import { isNil } from 'lodash';
+import { isNil, toNumber } from 'lodash';
 import { useEffect, useMemo, useState } from 'react';
+import { dateFormatOptions } from 'renderer/lib/constants';
 import {
-  currencyFormatOptions,
-  dateFormatOptions,
-} from 'renderer/lib/constants';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
+  defaultSortingFunctions,
+  getFormattedCurrency,
+} from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InvoiceItemView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
@@ -23,18 +23,18 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
   invoiceId,
   invoice: propInvoice,
 }: InvoiceTableProps) => {
-  // eslint-disable-next-line no-console
-  console.log('InvoiceTable', invoiceId, propInvoice);
   const [invoice, setInvoice] = useState<InvoiceView>();
   const navigate = useNavigate();
-  console.log('InvoiceTable', invoice);
+  // eslint-disable-next-line no-console
+  console.log('InvoiceTable', invoiceId, propInvoice, invoice);
 
   useEffect(() => {
-    (async function fetchInvoice() {
+    const fetchInvoice = async () => {
       if (isNil(propInvoice))
         setInvoice(await window.electron.getInvoice(invoiceId));
       else setInvoice(propInvoice);
-    })();
+    };
+    fetchInvoice();
   }, [invoiceId, propInvoice]);
 
   const columns: ColumnDef<InvoiceItemView>[] = useMemo(() => {
@@ -44,15 +44,32 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
         header: 'Item',
       },
       {
-        accessorKey: 'price',
-        header: 'Price',
-      },
-      {
         accessorKey: 'quantity',
         header: 'Quantity',
       },
+      ...(invoiceType === InvoiceType.Sale
+        ? [
+            {
+              accessorKey: 'price',
+              header: 'Price',
+              cell: ({ getValue }) =>
+                getFormattedCurrency(toNumber(getValue())),
+            },
+            {
+              accessorKey: 'discount',
+              header: 'Discount',
+              cell: ({ getValue }) => `${getValue()}%`,
+            },
+            {
+              accessorKey: 'discountedPrice',
+              header: 'Discounted Price',
+              cell: ({ getValue }) =>
+                getFormattedCurrency(toNumber(getValue())),
+            },
+          ]
+        : []),
     ];
-  }, []);
+  }, [invoiceType]);
 
   const handlePrintClick = () => {
     navigate(`/invoices/${invoice!.id}/print`);
@@ -79,14 +96,12 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
                   : invoice?.date}
               </p>
             </div>
-            <div className="flex gap-8">
-              <p className="font-medium text-md w-[160px]">Amount:</p>
-              <p>
-                {Intl.NumberFormat('en-US', currencyFormatOptions).format(
-                  invoice?.totalAmount || 0,
-                )}
-              </p>
-            </div>
+            {invoiceType === InvoiceType.Sale ? (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px]">Amount:</p>
+                <p>{getFormattedCurrency(toNumber(invoice?.totalAmount))}</p>
+              </div>
+            ) : null}
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">{`${
                 invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'

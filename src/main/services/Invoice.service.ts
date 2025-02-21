@@ -76,6 +76,8 @@ export class InvoiceService {
       prev.invoiceItems.push({
         quantity: cur.quantity,
         price: cur.price,
+        discount: cur.discount,
+        discountedPrice: InvoiceService.getInvoiceItemTotal(cur, cur.price),
         inventoryItemName: cur.inventoryItemName,
         inventoryItemDescription: cur.inventoryItemDescription,
       });
@@ -123,6 +125,7 @@ export class InvoiceService {
         invoiceId,
         inventoryId: item.inventoryId,
         quantity: item.quantity,
+        discount: item.discount,
       });
 
       this.stmUpdateInventoryItem.run(
@@ -243,13 +246,22 @@ export class InvoiceService {
       stmGetInventoryPrices.all()
     );
 
-    let totalAmount = 0;
-    items.forEach((item) => {
-      totalAmount +=
-        item.quantity *
-        (results.find((r) => r.id === item.inventoryId)?.price ?? 0);
-    });
+    // let totalAmount = 0;
+    // items.forEach((item) => {
+    //   const price = results.find((r) => r.id === item.inventoryId)?.price ?? 0;
+    //   const { quantity, discount } = item;
+    //   totalAmount += quantity * price * (1 - discount / 100);
+    // });
 
+    const totalAmount = items.reduce(
+      (total, item) =>
+        total +
+        InvoiceService.getInvoiceItemTotal(
+          item,
+          results.find((r) => r.id === item.inventoryId)?.price ?? 0,
+        ),
+      0,
+    );
     return totalAmount;
   }
 
@@ -265,11 +277,17 @@ export class InvoiceService {
       name: string;
     }>;
     console.log('getTransactionAccounts', accounts);
-    const purchaseAccount = accounts.find((acc) => acc.name === 'Purchase');
-    const salesAccount = accounts.find((acc) => acc.name === 'Sale');
+    const purchaseAccount = accounts.find(
+      (acc) => acc.name.toLowerCase() === InvoiceType.Purchase.toLowerCase(),
+    );
+    const salesAccount = accounts.find(
+      (acc) => acc.name.toLowerCase() === InvoiceType.Sale.toLowerCase(),
+    );
 
     if (!purchaseAccount?.id || !salesAccount?.id) {
-      throw new Error('Please create both Purchase and Sales accounts first');
+      throw new Error(
+        "Please create both 'Purchase' and 'Sale' accounts first",
+      );
     }
 
     if (invoiceType === InvoiceType.Purchase) {
@@ -284,6 +302,14 @@ export class InvoiceService {
     };
   }
 
+  private static getInvoiceItemTotal = (
+    item: { quantity: number; discount: number },
+    price: number,
+  ): number => {
+    const { quantity, discount } = item;
+    return quantity * price * (1 - discount / 100);
+  };
+
   private initPreparedStatements() {
     this.stmGetNextInvoiceNumber = this.db.prepare(`
       SELECT (MAX(invoiceNumber) + 1) AS 'invoiceNumber'
@@ -292,8 +318,8 @@ export class InvoiceService {
     `);
 
     this.stmInsertInvoiceItems = this.db.prepare(`
-      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price)
-      VALUES (@invoiceId, @inventoryId, @quantity, (SELECT price FROM inventory WHERE id = @inventoryId))
+      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount)
+      VALUES (@invoiceId, @inventoryId, @quantity, (SELECT price FROM inventory WHERE id = @inventoryId), @discount)
     `);
 
     this.stmUpdateInventoryItem = this.db.prepare(`
@@ -310,7 +336,7 @@ export class InvoiceService {
     `);
 
     this.stmGetInvoice = this.db.prepare(`
-      SELECT i.id, i.date, i.invoiceNumber, i.invoiceType, i.totalAmount, ii.quantity, ii.price, iii.name as 'inventoryItemName', iii.description AS 'inventoryItemDescription',
+      SELECT i.id, i.date, i.invoiceNumber, i.invoiceType, i.totalAmount, ii.quantity, ii.price, ii.discount, iii.name as 'inventoryItemName', iii.description AS 'inventoryItemDescription',
         (SELECT a.name FROM account a JOIN invoices inv ON a.id = inv.accountId WHERE inv.id = @invoiceId) AS 'accountName'
       FROM invoices i
       JOIN invoice_items ii
@@ -333,10 +359,14 @@ export class InvoiceService {
       WHERE invoiceType = ?
     `);
 
-    this.stmGetSalePurchaseAccounts = this.db.prepare(`
-      SELECT id, name
-      FROM account
-      WHERE name IN ('Purchase', 'Sale')
-    `);
+    this.stmGetSalePurchaseAccounts = this.db
+      .prepare(
+        `
+          SELECT id, name
+          FROM account
+          WHERE LOWER(name) IN (?, ?)
+        `,
+      )
+      .bind(InvoiceType.Purchase.toLowerCase(), InvoiceType.Sale.toLowerCase());
   }
 }

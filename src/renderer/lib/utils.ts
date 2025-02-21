@@ -2,6 +2,7 @@ import { Row, SortingFn } from '@tanstack/react-table';
 import { type ClassValue, clsx } from 'clsx';
 import { every, isArray, isNil, toString, toLower } from 'lodash';
 import { twMerge } from 'tailwind-merge';
+import { currencyFormatOptions } from './constants';
 
 /**
  * Combines multiple class names into a single string.
@@ -46,7 +47,7 @@ export const toLowerString = (value: unknown) => toLower(toString(value));
  * @param fixed - The number of decimal places to round to.
  * @returns The rounded number.
  * @example getFixedNumber(1.23456, 2); // 1.23
- * @default fixed 4
+ * @default fixed = 4
  */
 export const getFixedNumber = (value: number, fixed = 4) =>
   Number(value.toFixed(fixed));
@@ -61,6 +62,16 @@ export const defaultSortingFunctions: Record<string, SortingFn<any>> = {
   createdAt: dateComparator,
   updatedAt: dateComparator,
 };
+
+/**
+ * Returns formatted currency
+ * @param value - The number to format
+ * @returns Formatted currency.
+ * {@link currencyFormatOptions}
+ * @example getFormattedCurrency(12.888); // PKR 12.89
+ */
+export const getFormattedCurrency = (value: number | bigint): string =>
+  Intl.NumberFormat('en-US', currencyFormatOptions).format(value);
 
 /**
  * PRIVATE FUNCTIONS

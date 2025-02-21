@@ -2,7 +2,7 @@ module.exports = {
   name: '001_update_chart_type_constraint',
   up: (db) => {
     try {
-      // Step 0: Enable foreign keys check so existing chart table can be dropped
+      // Step 0: Disable foreign keys check so existing chart table can be dropped
       db.prepare(`PRAGMA foreign_keys = OFF;`).run();
 
       db.transaction(() => {
@@ -62,7 +62,7 @@ module.exports = {
       console.error(error);
       return error;
     } finally {
-      // Step 6: Disable foreign keys check
+      // Step 6: Enable foreign keys check
       db.prepare(`PRAGMA foreign_keys = ON;`).run();
     }
   },

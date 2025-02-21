@@ -2,7 +2,7 @@ import { convertFileToJson } from '@/renderer/lib/lib';
 import { parseInventory } from '@/renderer/lib/parser';
 import { Button } from '@/renderer/shad/ui/button';
 import { Input } from '@/renderer/shad/ui/input';
-import { useToast } from '@/renderer/shad/ui/use-toast';
+import { toast } from '@/renderer/shad/ui/use-toast';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { isNil, toString } from 'lodash';
 import { useEffect, useRef, useState } from 'react';
@@ -15,14 +15,13 @@ const InventoryPage: React.FC = () => {
   const clearRef = useRef<HTMLButtonElement>(null);
   const [refresh, setRefresh] = useState(false);
   const [hideZeroQuantity, setHideZeroQuantity] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     (async () =>
       setDoesInventoryExist(await window.electron.doesInventoryExist()))();
   }, []);
 
-  const refetchInventory = () => setRefresh(true);
+  const refetchInventory = () => setRefresh(!refresh);
 
   const uploadInventory = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,7 +87,10 @@ const InventoryPage: React.FC = () => {
           onCheckedChange={(checked) => setHideZeroQuantity(checked === true)}
         />
       </div>
-      <InventoryTable options={{ refresh, hideZeroQuantity }} />
+      <InventoryTable
+        refetchInventory={refetchInventory}
+        options={{ refresh, hideZeroQuantity }}
+      />
     </div>
   );
 };

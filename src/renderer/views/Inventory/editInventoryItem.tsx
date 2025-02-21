@@ -20,7 +20,7 @@ import {
   FormControl,
   FormMessage,
 } from 'renderer/shad/ui/form';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateInventoryItem } from '@/types';
 
 interface EditInventoryItemProps {
@@ -34,8 +34,6 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   row,
   refetchInventory,
 }: EditInventoryItemProps) => {
-  const { toast } = useToast();
-
   const editFormSchema = z.object({
     id: z.number(),
     name: z.string().optional(),

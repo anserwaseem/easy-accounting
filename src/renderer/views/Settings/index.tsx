@@ -4,7 +4,7 @@ import { Label } from 'renderer/shad/ui/label';
 import { Input } from 'renderer/shad/ui/input';
 import { useCallback, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 
 const SettingsPage: React.FC = () => {
   // eslint-disable-next-line no-console
@@ -13,8 +13,6 @@ const SettingsPage: React.FC = () => {
   const [debitCreditDefaultLabel, setDebitCreditDefaultLabel] = useState<
     (typeof defaultLabels)[number]
   >(window.electron.store.get('debitCreditDefaultLabel') ?? defaultLabels[0]);
-
-  const { toast } = useToast();
 
   const handleSaveSettings = useCallback(() => {
     window.electron.store.set(
@@ -25,7 +23,7 @@ const SettingsPage: React.FC = () => {
     toast({
       description: 'Settings saved',
     });
-  }, [debitCreditDefaultLabel, toast]);
+  }, [debitCreditDefaultLabel]);
 
   return (
     <div>

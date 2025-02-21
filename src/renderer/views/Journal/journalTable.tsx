@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { dateFormatOptions } from 'renderer/lib/constants';
 import {
-  currencyFormatOptions,
-  dateFormatOptions,
-} from 'renderer/lib/constants';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
+  defaultSortingFunctions,
+  getFormattedCurrency,
+} from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { Journal, JournalEntry } from 'types';
 
@@ -64,11 +64,11 @@ export const JournalTable: React.FC<JournalTableProps> = ({
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Amount:</p>
               <p>
-                {Intl.NumberFormat('en-US', currencyFormatOptions).format(
+                {getFormattedCurrency(
                   journal?.journalEntries.reduce(
                     (acc, entry) => acc + entry.debitAmount,
                     0,
-                  ) || 0,
+                  ) ?? 0,
                 )}
               </p>
             </div>

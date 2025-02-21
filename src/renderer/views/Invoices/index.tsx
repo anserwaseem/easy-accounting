@@ -3,15 +3,15 @@ import {
   DialogContent,
   DialogTrigger,
 } from '@/renderer/shad/ui/dialog';
-import { isNil, toString } from 'lodash';
+import { isNil, toNumber, toString } from 'lodash';
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { dateFormatOptions } from 'renderer/lib/constants';
 import {
-  currencyFormatOptions,
-  dateFormatOptions,
-} from 'renderer/lib/constants';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
+  defaultSortingFunctions,
+  getFormattedCurrency,
+} from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import {
@@ -73,10 +73,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
           propInvoices
             ? setPreviewInvoiceId(row.original.invoiceNumber)
             : navigate(toString(row.original.id)),
-        cell: ({ row }) =>
-          Intl.NumberFormat('en-US', currencyFormatOptions).format(
-            row.original.totalAmount || 0,
-          ),
+        cell: ({ getValue }) => getFormattedCurrency(toNumber(getValue())),
       },
       {
         accessorKey: 'accountName',
@@ -192,7 +189,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
         </Button>
       </div>
 
-      {invoiceType === InvoiceType.Sale ? (
+      {invoiceType === InvoiceType.Sale && filteredInvoices?.length ? (
         <Dialog>
           <DialogTrigger>
             <Button>Export Sale Invoices</Button>
@@ -234,10 +231,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                           {invoice.accountName}
                         </p>
                         <p>
-                          {Intl.NumberFormat(
-                            'en-US',
-                            currencyFormatOptions,
-                          ).format(invoice.totalAmount || 0)}
+                          {getFormattedCurrency(toNumber(invoice.totalAmount))}
                         </p>
                       </div>
                     </div>

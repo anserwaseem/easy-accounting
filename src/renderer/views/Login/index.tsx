@@ -3,13 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from 'renderer/hooks';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const { toast } = useToast();
   const { signin } = useAuth();
   const navigate = useNavigate();
 

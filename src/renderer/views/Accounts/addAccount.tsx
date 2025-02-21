@@ -26,7 +26,7 @@ import {
   FormControl,
   FormMessage,
 } from 'renderer/shad/ui/form';
-import { useToast } from 'renderer/shad/ui/use-toast';
+import { toast } from 'renderer/shad/ui/use-toast';
 import type { Chart } from 'types';
 import { useEffect, useState } from 'react';
 
@@ -41,8 +41,6 @@ export const AddAccount: React.FC<AddAccountProps> = ({
   charts,
   clearRef,
 }: AddAccountProps) => {
-  const { toast } = useToast();
-
   const [openCreateForm, setOpenCreateForm] = useState(false);
   const [accountHead, setAccountHead] = useState(
     toString(window.electron.store.get('createAccountHeadSelected')),

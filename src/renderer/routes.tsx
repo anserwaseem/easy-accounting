@@ -56,7 +56,12 @@ const AppRoutes: React.FC = () => (
                 />
                 <Route
                   path=":id"
-                  element={<InvoicePage invoiceType={InvoiceType.Purchase} />}
+                  element={
+                    <InvoicePage
+                      invoiceType={InvoiceType.Purchase}
+                      key={InvoiceType.Purchase}
+                    />
+                  }
                 />
               </Route>
               <Route path="sale/invoices">
@@ -66,7 +71,12 @@ const AppRoutes: React.FC = () => (
                 />
                 <Route
                   path="new"
-                  element={<NewInvoicePage invoiceType={InvoiceType.Sale} />}
+                  element={
+                    <NewInvoicePage
+                      invoiceType={InvoiceType.Sale}
+                      key={InvoiceType.Sale}
+                    />
+                  }
                 />
                 <Route
                   path=":id"
