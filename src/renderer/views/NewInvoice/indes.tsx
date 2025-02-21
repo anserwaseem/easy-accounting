@@ -64,6 +64,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     number | undefined
   >(-1);
   const [parties, setParties] = useState<Account[]>();
+  const [partyLastDateInLedger, setPartyLastDateInLedger] = useState<
+    Date | undefined | null // default state: undefined, null represents customer with no ledger entry hence no date selection restriction
+  >();
   const [invoiceTypeAccountExists, setInvoiceTypeAccountExists] =
     useState<Boolean>();
   const [enableCumulativeDiscount, setEnableCumulativeDiscount] =
@@ -84,7 +87,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const defaultFormValues: Invoice = {
     id: -1,
-    date: new Date().toLocaleString('en-US', dateFormatOptions),
+    date: '',
     invoiceNumber: -1,
     accountId: -1,
     invoiceItems: [],
@@ -632,6 +635,42 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onInvoiceNumberSet = (invoiceNumber: number) =>
     setNextInvoiceNumber(invoiceNumber);
 
+  const onAccountSelection = useCallback(
+    async (accountId: string, onChange: Function) => {
+      onChange(accountId);
+      const partyLedger = await window.electron.getLedger(toNumber(accountId));
+      const latestDate = partyLedger.at(0)?.date;
+      setPartyLastDateInLedger(latestDate ? new Date(latestDate) : null);
+    },
+    [],
+  );
+
+  const isDateDisabled = useMemo(() => {
+    if (partyLastDateInLedger === null) {
+      return false; // null represents customer with no ledger entry hence no date selection restriction
+    }
+
+    if (
+      partyLastDateInLedger === undefined || // last date hasn't been set for the selected party yet
+      form.getValues('accountId') <= 0 // no party selected yet
+    ) {
+      return true;
+    }
+
+    return {
+      before: partyLastDateInLedger,
+    };
+  }, [form, partyLastDateInLedger]);
+
+  const onDateSelection = useCallback(
+    (date?: Date) => {
+      if (date) {
+        form.setValue('date', date.toLocaleString('en-US', dateFormatOptions));
+      }
+    },
+    [form],
+  );
+
   if (isNil(inventory)) {
     return <>Loading...</>;
   }
@@ -679,7 +718,48 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             onKeyDown={checkKeyDown}
             role="presentation"
           >
-            <div>
+            <div className="flex flex-col gap-2">
+              <FormField
+                control={form.control}
+                name="accountId"
+                render={({ field }) => (
+                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
+                    <FormLabel className="text-base">
+                      {invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'}
+                    </FormLabel>
+                    <Select
+                      onValueChange={(val) =>
+                        onAccountSelection(val, field.onChange)
+                      }
+                      value={field.value.toString()}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue>
+                            {
+                              parties?.find(
+                                (p) => p.id === toNumber(field.value),
+                              )?.name
+                            }
+                          </SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent align="center">
+                        {parties?.map((p) => (
+                          <SelectItem value={p.id.toString()} key={p.id}>
+                            <div>
+                              <h2>{p.name}</h2>
+                              <p className="text-xs text-slate-400">{p.code}</p>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="date"
@@ -708,62 +788,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           <Calendar
                             {...field}
                             mode="single"
+                            disabled={isDateDisabled}
                             selected={new Date(field.value)}
-                            onSelect={(date) => {
-                              if (date) {
-                                form.setValue(
-                                  'date',
-                                  date.toLocaleString(
-                                    'en-US',
-                                    dateFormatOptions,
-                                  ),
-                                );
-                              }
-                            }}
+                            onSelect={onDateSelection}
                             initialFocus
                           />
                         </PopoverContent>
                       </Popover>
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="accountId"
-                render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
-                    <FormLabel className="text-base">
-                      {invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'}
-                    </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value.toString()}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue>
-                            {
-                              parties?.find(
-                                (p) => p.id === toNumber(field.value),
-                              )?.name
-                            }
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent align="center">
-                        {parties?.map((p) => (
-                          <SelectItem value={p.id.toString()} key={p.id}>
-                            <div>
-                              <h2>{p.name}</h2>
-                              <p className="text-xs text-slate-400">{p.code}</p>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
