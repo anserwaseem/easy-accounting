@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { get, isNaN, isNil, set, sum, toNumber, toString } from 'lodash';
+import { get, isNaN, isNil, sum, toNumber, toString } from 'lodash';
 import { Calendar as CalendarIcon, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
@@ -695,7 +695,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     }
   };
 
-  // FIXME test and fix
   const uploadInvoiceItems = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
 
@@ -710,17 +709,22 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       if (!areItemsAvailable) {
         toast({
           description:
-            'Some items are not available. Please recheck and try again.',
+            'Some items are not in inventory. Please recheck and try again.',
           variant: 'destructive',
         });
+        return;
       }
 
       parsedItems.forEach((pItem) => {
         const inventoryItem = items.find((i) => i.name === pItem.name);
-        set(pItem, 'inventoryId', inventoryItem?.id);
-        set(pItem, 'id', Date.now());
-
-        append(pItem as unknown as InvoiceItem);
+        append({
+          id: Date.now(),
+          inventoryId: inventoryItem?.id ?? 0,
+          quantity: pItem.quantity,
+          discount: 0,
+          price: inventoryItem?.price ?? 0,
+          discountedPrice: 0,
+        });
       });
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -931,7 +935,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 <Plus size={20} />
                 <span className="w-max">Add New Item</span>
               </Button>
-              <div className="flex flex-row gap-4">
+              <div
+                className={`flex flex-row gap-4 ${
+                  invoiceType === InvoiceType.Sale ? 'hidden' : ''
+                }`}
+              >
                 <Button
                   variant="outline"
                   className="w-full"
@@ -939,7 +947,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     document.getElementById('uploadInvoiceItemsInput')?.click()
                   }
                 >
-                  Upload Items
+                  Upload Invoice Items
                 </Button>
                 <Input
                   id="uploadInvoiceItemsInput"
@@ -948,10 +956,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   className="hidden"
                   onChange={uploadInvoiceItems}
                 />
-                <div>
-                  <p className="text-xs">Select all inventory</p>
-                  <Checkbox checked />
-                </div>
               </div>
             </div>
 
