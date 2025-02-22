@@ -7,7 +7,7 @@ import { Button } from 'renderer/shad/ui/button';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
 import { toNumber, toString } from 'lodash';
-import { INVOICE_DISCOUNT_PERCENTAGE } from '@/renderer/lib/constants';
+import { getFormattedCurrency } from '@/renderer/lib/utils';
 
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
@@ -168,9 +168,6 @@ const PrintableInvoiceScreen = () => {
     (sum, item) => sum + item.quantity,
     0,
   );
-  const totalAmount = invoice.totalAmount || 0;
-  const discountedTotal =
-    totalAmount * ((100 - INVOICE_DISCOUNT_PERCENTAGE) / 100);
 
   return (
     <div className="min-h-screen bg-white p-8 print:p-0">
@@ -236,9 +233,9 @@ const PrintableInvoiceScreen = () => {
               Head Office: Iqra Center, Ghazni Street, Urdu Bazar, Lahore Phone:
               37120115, 37245149
             </p>
-            <p className="text-sm text-center font-mono">
+            {/* <p className="text-sm text-center font-mono">
               Manufacturing Unit: &nbsp;T.No.4, Bund Road, Sanda Kalan, Lahore
-            </p>
+            </p> */}
             <p className="text-sm text-center font-mono">
               NTN No.: 1406678-5&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;STRN:
               3277876185527
@@ -260,10 +257,10 @@ const PrintableInvoiceScreen = () => {
                   : invoice.date}
               </p>
             </div>
-            {/* <div className="flex gap-4">
+            <div className="flex gap-4">
               <p>BILTY&nbsp;</p>
               <p>()&nbsp;CARTONS</p>
-            </div> */}
+            </div>
           </div>
           <div className="flex gap-12">
             <p>BILL TO:</p>
@@ -281,6 +278,7 @@ const PrintableInvoiceScreen = () => {
               <th className="text-left py-2">Item Description</th>
               <th className="text-right py-2">Issue Qty</th>
               <th className="text-right py-2">Price</th>
+              <th className="text-right py-2">Discount</th>
               <th className="text-right py-2 pr-4">Amount</th>
             </tr>
           </thead>
@@ -293,32 +291,43 @@ const PrintableInvoiceScreen = () => {
                 <td>{item.inventoryItemDescription}</td>
                 <td className="text-right">{item.quantity}</td>
                 <td className="text-right">{item.price.toFixed(0)}</td>
+                <td className="text-right">{item.discount.toFixed(2)}</td>
                 <td className="text-right pr-4">
-                  {(item.quantity * item.price).toFixed(0)}
+                  {item.discountedPrice?.toFixed(2)}
                 </td>
               </tr>
             ))}
-            <tr>
+            <tr className="py-2">
               <td />
               <td />
-              <td className="py-2 flex justify-end">
+              <td className="flex justify-end">
                 <p className="underline">Total No. of Quran Sold:</p>
-                &nbsp;&nbsp;
+                &nbsp;&nbsp;&nbsp;
               </td>
-              <td className="py-2">{totalQuantity}</td>
               <td />
-              <td className="py-2 pr-4 text-right">{totalAmount}</td>
+              <td className="relative right-2">{totalQuantity}</td>
+              <td />
             </tr>
             <tr>
               <td />
               <td />
-              <td className="py-2 text-right">
-                Total After {INVOICE_DISCOUNT_PERCENTAGE}% Discount:&nbsp;&nbsp;
+              <td className="text-right">Extra Discount:&nbsp;&nbsp;&nbsp;</td>
+              <td />
+              <td />
+              <td />
+              <td className="pr-4 text-right">
+                {getFormattedCurrency(toNumber(invoice?.extraDiscount))}
               </td>
+            </tr>
+            <tr>
               <td />
               <td />
-              <td className="py-2 pr-4 font-bold text-right">
-                {discountedTotal.toFixed(0)}
+              <td className="text-right">Total Amount:&nbsp;&nbsp;&nbsp;</td>
+              <td />
+              <td />
+              <td />
+              <td className="pr-4 font-bold text-right">
+                {getFormattedCurrency(toNumber(invoice?.totalAmount))}
               </td>
             </tr>
           </tbody>
@@ -328,19 +337,11 @@ const PrintableInvoiceScreen = () => {
           <div className="flex flex-col gap-2">
             <h3>
               Total Rs.{' '}
-              {toWords(discountedTotal)
+              {toWords(invoice.totalAmount || 0)
                 .split(' ')
                 .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                 .join(' ')}
             </h3>
-            {/* <div className="flex border-b-2 border-gray-300">
-              <h2 className="text-lg font-bold border-2 border-gray-300 border-r-0 border-b-0 py-1 px-4">
-                Total:
-              </h2>
-              <h2 className="text-lg font-bold text-center border-2 border-gray-300 border-b-0 py-1 px-12">
-                {discountedTotal.toFixed(0)}
-              </h2>
-            </div> */}
           </div>
         </div>
       </div>

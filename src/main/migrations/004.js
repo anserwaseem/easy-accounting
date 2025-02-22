@@ -10,11 +10,11 @@ module.exports = {
       })();
       return true;
     } catch (error) {
-      console.log('003 migration error!');
+      console.log('004 migration error!');
       console.error(error);
       return error;
     } finally {
-      console.log('003 migration completed!');
+      console.log('004 migration completed!');
     }
   },
 };

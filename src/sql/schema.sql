@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS "invoices" (
     "accountId" INTEGER NOT NULL,
     "invoiceType" TEXT NOT NULL CHECK ("invoiceType" IN ('Purchase', 'Sale')),
     "date" DATETIME NOT NULL,
+    "extraDiscount" DECIMAL(10, 4) NOT NULL DEFAULT 0,
     "totalAmount" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

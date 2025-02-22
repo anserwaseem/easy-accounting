@@ -65,7 +65,7 @@ export class JournalService {
     return journals;
   }
 
-  getJorunal(journalId: number): Journal {
+  getJournal(journalId: number): Journal {
     const username = store.get('username');
     const res = this.stmGetJournal.all({
       journalId,

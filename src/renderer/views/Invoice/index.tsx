@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { InvoiceType, InvoiceView } from 'types';
 // eslint-disable-next-line import/no-cycle
 import InvoicesPage from '../Invoices';
-import { InvoiceTable } from './invoiceTable';
+import { InvoiceDetails } from './invoiceDetails';
 
 interface InvoiceProps {
   invoiceType: InvoiceType;
@@ -32,7 +32,7 @@ const InvoicePage: React.FC<InvoiceProps> = ({
           propInvoices ? 'w-full mb-6' : 'w-3/4'
         } overflow-y-auto scrollbar justify-between items-center p-4 pl-8`}
       >
-        <InvoiceTable
+        <InvoiceDetails
           invoiceType={invoiceType}
           invoiceId={toNumber(id)}
           invoice={

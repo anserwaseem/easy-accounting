@@ -241,7 +241,7 @@ app
     );
     ipcMain.handle('journal:getAll', async () => journalService.getJournals());
     ipcMain.handle('journal:get', async (_, journalId: number) =>
-      journalService.getJorunal(journalId),
+      journalService.getJournal(journalId),
     );
     ipcMain.handle('inventory:save', (_, inventory: InventoryItem[]) =>
       inventoryService.saveInventory(inventory),

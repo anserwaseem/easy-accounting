@@ -12,21 +12,21 @@ import { isValid } from 'date-fns';
 import { Button } from '@/renderer/shad/ui/button';
 import { useNavigate } from 'react-router-dom';
 
-interface InvoiceTableProps {
+interface InvoiceDetailsProps {
   invoiceType: InvoiceType;
   invoiceId: number;
   invoice?: InvoiceView;
 }
 
-export const InvoiceTable: React.FC<InvoiceTableProps> = ({
+export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   invoiceType,
   invoiceId,
   invoice: propInvoice,
-}: InvoiceTableProps) => {
+}: InvoiceDetailsProps) => {
   const [invoice, setInvoice] = useState<InvoiceView>();
   const navigate = useNavigate();
   // eslint-disable-next-line no-console
-  console.log('InvoiceTable', invoiceId, propInvoice, invoice);
+  console.log('InvoiceDetails', invoiceId, propInvoice, invoice);
 
   useEffect(() => {
     const fetchInvoice = async () => {
@@ -86,6 +86,12 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
               <p>{invoice?.invoiceNumber}</p>
             </div>
             <div className="flex gap-8">
+              <p className="font-medium text-md w-[160px]">{`${
+                invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
+              }:`}</p>
+              <p>{invoice?.accountName}</p>
+            </div>
+            <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Date:</p>
               <p>
                 {isValid(invoice?.date)
@@ -97,20 +103,28 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
               </p>
             </div>
             {invoiceType === InvoiceType.Sale ? (
-              <div className="flex gap-8">
-                <p className="font-medium text-md w-[160px]">Amount:</p>
-                <p>{getFormattedCurrency(toNumber(invoice?.totalAmount))}</p>
-              </div>
+              <>
+                <div className="flex gap-8">
+                  <p className="font-medium text-md w-[160px]">
+                    Extra Discount:
+                  </p>
+                  <p>
+                    {getFormattedCurrency(toNumber(invoice?.extraDiscount))}
+                  </p>
+                </div>
+                <div className="flex gap-8">
+                  <p className="font-medium text-md w-[160px] self-center">
+                    Amount:
+                  </p>
+                  <p className="border-2 border-green-500 rounded-lg -ml-2 p-2">
+                    {getFormattedCurrency(toNumber(invoice?.totalAmount))}
+                  </p>
+                </div>
+              </>
             ) : null}
-            <div className="flex gap-8">
-              <p className="font-medium text-md w-[160px]">{`${
-                invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
-              }:`}</p>
-              <p>{invoice?.accountName}</p>
-            </div>
           </div>
 
-          {propInvoice ? null : (
+          {propInvoice || invoiceType === InvoiceType.Purchase ? null : (
             <div className="flex flex-col justify-end gap-4 w-32 ml-auto">
               <Button onClick={handlePrintClick} className="px-4 py-8">
                 View Printable Invoice

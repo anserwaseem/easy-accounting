@@ -156,12 +156,14 @@ export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
   discount: number; // will be provided by UI
   invoiceId?: number; // will be assigned at service layer
   price?: number; // will be fetched at service layer
+  discountedPrice?: number; // will be calculated at service layer
 }
 
 export type Invoice = Prettify<
   BaseEntity & {
     accountId: number;
     invoiceItems: Prettify<InvoiceItem>[];
+    extraDiscount?: number; // will be provided by UI
     totalAmount?: number; // will be calculated at service layer
     invoiceNumber?: number; // only given from UI for the first time => user input
     invoiceType?: InvoiceType;
