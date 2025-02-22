@@ -1,0 +1,55 @@
+name: Release
+on:
+  push:
+    branches:
+      - 60-configure-release-pipeline
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install dependencies
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: npm i
+
+      - name: Bump version
+        if: matrix.os == 'macos-latest'
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          npm run version:bump
+          npm install --package-lock-only
+          cd release/app && npm install --package-lock-only && cd ../..
+          git add package.json package-lock.json release/app/package.json release/app/package-lock.json
+          git commit -m "chore: bump version [skip ci]"
+          git tag "v$(node -p "require('./package.json').version")"
+          git push --follow-tags
+
+      - name: Build and release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          npm run package
+          npm run release

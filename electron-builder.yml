@@ -43,7 +43,7 @@ directories:
   app: release/app
   buildResources: assets
   output: release/build
-extraResources: # copy the file or directory with matching names directly into the app’s resources directory (Contents/Resources for MacOS, resources for Linux and Windows)
+extraResources: # copy the file or directory with matching names directly into the app's resources directory (Contents/Resources for MacOS, resources for Linux and Windows)
   - ./assets/**
   - from: './release/app/database.db'
     to: 'database.db'
@@ -54,3 +54,4 @@ publish:
   provider: github
   owner: anserwaseem
   repo: easy-accounting
+  releaseType: release
