@@ -6,10 +6,14 @@ import { Calendar as CalendarIcon, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { dateFormatOptions } from 'renderer/lib/constants';
+import {
+  currencyFormatOptions,
+  dateFormatOptions,
+} from 'renderer/lib/constants';
 import {
   cn,
   defaultSortingFunctions,
+  getFixedNumber,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
@@ -81,6 +85,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       inventoryId: 0,
       quantity: 0,
       discount: 0,
+      price: 0,
+      discountedPrice: 0,
     }),
     [],
   );
@@ -90,6 +96,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     date: '',
     invoiceNumber: -1,
     accountId: -1,
+    extraDiscount: 0,
+    totalAmount: 0,
     invoiceItems: [],
     invoiceType,
   };
@@ -102,14 +110,19 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         new Date(val).toLocaleString('en-US', dateFormatOptions),
       )
       .refine((val) => !isNaN(new Date(val).getTime()), {
-        message: 'Invalid date',
+        message: 'Select a valid date',
       }),
     accountId: z.coerce
       .number()
-      .gt(
-        0,
+      .positive(
         `Select a ${invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'}`,
       ),
+    extraDiscount: z.coerce
+      .number()
+      .nonnegative('Extra Discount must be non-negative'),
+    totalAmount: z.coerce
+      .number()
+      .positive('Total Amount must be greater than 0'),
     invoiceItems: z
       .array(
         z.object({
@@ -122,9 +135,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           discount: z.coerce
             .number()
             .multipleOf(0.01, 'Discount must be at-most 2 decimal places')
-            .nonnegative('Discount must be non-negative'),
-          price: z.number().optional(),
-          discountedPrice: z.number().optional(),
+            .nonnegative('Discount must be non-negative')
+            .max(100, 'Discount must be less than 100%')
+            .min(0, 'Discount must be greater than 0%'),
+          price: z.number().positive('Price must be greater than 0'),
+          discountedPrice: z
+            .number()
+            .nonnegative('Discounted price must be non-negative'),
         }),
       )
       .min(1, 'Add at-least one invoice item'),
@@ -139,18 +156,26 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     control: form.control,
     name: 'invoiceItems',
   });
+  const watchedExtraDiscount = useWatch({
+    control: form.control,
+    name: 'extraDiscount',
+  });
+  const watchedTotalAmount = useWatch({
+    control: form.control,
+    name: 'totalAmount',
+  });
 
   const { fields, append } = useFieldArray({
     control: form.control,
     name: 'invoiceItems',
   });
 
-  // Clear form errors when invoiceType changes
+  // clear form errors when invoiceType changes
   useEffect(() => {
     form.clearErrors();
   }, [invoiceType, form]);
 
-  // Fetch data for this page
+  // fetch data for this page
   useEffect(() => {
     (async () => {
       if (isNil(inventory)) {
@@ -211,17 +236,37 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     price?: number,
   ) => quantity * (price ?? 0) * (1 - discount / 100);
 
-  const renderTotal = useMemo(() => {
-    if (!watchedInvoiceItems.at(0)?.discountedPrice) return null;
-    const total = sum(
+  /** has item + its quantity selected */
+  const hasActiveInvoiceItem = useMemo(
+    () => !!watchedInvoiceItems.at(0)?.discountedPrice,
+    [watchedInvoiceItems],
+  );
+
+  // calculate and update total amount whenever relevant values change
+  useEffect(() => {
+    if (!hasActiveInvoiceItem) return;
+
+    const grossTotal = sum(
       watchedInvoiceItems.map((item) =>
         enableCumulativeDiscount && cumulativeDiscount
           ? getInvoiceItemTotal(item.quantity, cumulativeDiscount, item.price)
           : item.discountedPrice,
       ),
     );
-    return getFormattedCurrency(total);
-  }, [cumulativeDiscount, enableCumulativeDiscount, watchedInvoiceItems]);
+    const total = grossTotal - watchedExtraDiscount;
+
+    form.setValue('totalAmount', getFixedNumber(total, 2), {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  }, [
+    cumulativeDiscount,
+    enableCumulativeDiscount,
+    form,
+    hasActiveInvoiceItem,
+    watchedExtraDiscount,
+    watchedInvoiceItems,
+  ]);
 
   const getSelectedItem = useCallback(
     (fieldValue: number) =>
@@ -232,8 +277,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     (rowIndex: number, val: string, onChange: Function) => {
       onChange(val);
       const item = getSelectedItem(toNumber(val));
-      console.log('onValueChange', val, item);
-      form.setValue(`invoiceItems.${rowIndex}.price`, item?.price);
+      form.trigger(`invoiceItems.${rowIndex}.quantity`);
+      form.setValue(`invoiceItems.${rowIndex}.price`, item?.price || 0);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
         getInvoiceItemTotal(
@@ -241,6 +286,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           form.getValues(`invoiceItems.${rowIndex}.discount`),
           item?.price,
         ),
+        {
+          shouldValidate: true,
+          shouldDirty: true,
+        },
       );
     },
     [form, getSelectedItem],
@@ -255,6 +304,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onDiscountChange = useCallback(
     (rowIndex: number, value: string, onChange: Function) => {
       onChange(toNumber(value));
+      form.trigger(`invoiceItems.${rowIndex}.discount`);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
         getInvoiceItemTotal(
@@ -262,6 +312,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           toNumber(value),
           form.getValues(`invoiceItems.${rowIndex}.price`),
         ),
+        {
+          shouldValidate: true,
+          shouldDirty: true,
+        },
       );
     },
     [form],
@@ -269,6 +323,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onQuantityChange = useCallback(
     (rowIndex: number, value: string, onChange: Function) => {
       onChange(toNumber(value));
+      form.trigger(`invoiceItems.${rowIndex}.quantity`);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
         getInvoiceItemTotal(
@@ -276,6 +331,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           form.getValues(`invoiceItems.${rowIndex}.discount`),
           form.getValues(`invoiceItems.${rowIndex}.price`),
         ),
+        {
+          shouldValidate: true,
+          shouldDirty: true,
+        },
       );
     },
     [form],
@@ -354,8 +413,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    value={field.value}
                     type="number"
+                    step={1}
                     onBlur={(e) => field.onChange(toNumber(e.target.value))}
                     onChange={(e) =>
                       onQuantityChange(
@@ -422,6 +481,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       {...field}
                       value={getDiscountValue(field.value)}
                       type="number"
+                      step={0.1}
                       disabled={enableCumulativeDiscount}
                       onBlur={(e) => field.onChange(toNumber(e.target.value))}
                       onChange={(e) =>
@@ -497,7 +557,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           ),
         }));
 
-      form.setValue('invoiceItems', updatedInvoiceItems);
+      form.setValue('invoiceItems', updatedInvoiceItems, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
     },
     [form],
   );
@@ -510,7 +573,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     return [
       [
         <div className="flex flex-row gap-2 items-center">
-          <h1>Discount</h1>
+          <h1>Cumulative Discount (%)</h1>
           <Checkbox
             checked={enableCumulativeDiscount}
             onCheckedChange={(checked) =>
@@ -518,13 +581,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             }
             className="ml-auto"
           />
-          <h2 className="text-xs mr-auto">Add cumulative discount</h2>
+          <h2 className="text-xs mr-auto">Enable</h2>
         </div>,
         null,
         null,
         <Input
           value={cumulativeDiscount}
           type="number"
+          step={0.01}
           disabled={!enableCumulativeDiscount}
           onChange={(e) => onCumulativeDiscountChange(e.target.value)}
         />,
@@ -532,19 +596,58 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         null,
       ],
       [
+        <h1>Extra Discount ({currencyFormatOptions.currency})</h1>,
+        null,
+        null,
+        null,
+        <FormField
+          control={form.control}
+          name="extraDiscount"
+          render={({ field }) => (
+            <FormItem className="flex w-1/2 space-y-0">
+              <FormControl>
+                <Input
+                  {...field}
+                  type="number"
+                  step={0.0001}
+                  disabled={!hasActiveInvoiceItem}
+                  onBlur={(e) => field.onChange(toNumber(e.target.value))}
+                  onChange={(e) => field.onChange(toNumber(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />,
+        null,
+      ],
+      [
         <h1 className="text-green-500 text-lg font-bold">Total</h1>,
         null,
         null,
         null,
-        <p
-          className={
-            renderTotal
-              ? 'border-2 border-green-500 rounded-lg pl-2 ml-[-8px] h-10 pt-[inherit]'
-              : ''
-          }
-        >
-          {renderTotal}
-        </p>,
+        <FormField
+          control={form.control}
+          name="totalAmount"
+          render={() => (
+            <FormItem className="w-1/2 space-y-0">
+              <FormControl>
+                <p
+                  className={
+                    watchedTotalAmount
+                      ? 'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2'
+                      : ''
+                  }
+                >
+                  {watchedTotalAmount
+                    ? getFormattedCurrency(watchedTotalAmount)
+                    : null}
+                </p>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />,
         null,
       ],
     ];
@@ -552,8 +655,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     invoiceType,
     enableCumulativeDiscount,
     cumulativeDiscount,
+    form.control,
     onCumulativeDiscountChange,
-    renderTotal,
+    hasActiveInvoiceItem,
+    watchedTotalAmount,
   ]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -590,6 +695,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     }
   };
 
+  // FIXME test and fix
   const uploadInvoiceItems = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
 

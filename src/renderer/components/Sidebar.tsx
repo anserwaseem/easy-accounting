@@ -15,16 +15,19 @@ const Sidebar: React.FC<PropsWithChildren> = ({
         itemsClassName="w-full xs:w-[200px] md:w-[300px]"
         items={[
           <Link to="/accounts">
-            <Button variant="outline" className="w-full md:w-[225px] gap-2">
+            <Button
+              variant="outline"
+              className="w-full md:w-[225px] gap-2 justify-start"
+            >
               <Table2 />
               <span>Accounts</span>
             </Button>
           </Link>,
           <div className="flex flex-row">
-            <Button variant="outline" className="w-full md:w-[225px]">
+            <Button variant="outline" className="w-full md:w-[225px] pl-2">
               <Link
                 to="/journals"
-                className="w-5/6 flex items-center justify-center pl-4 gap-2"
+                className="w-5/6 flex items-center justify-start gap-2"
               >
                 <FileCheck2 />
                 <span>Journals</span>
@@ -39,7 +42,10 @@ const Sidebar: React.FC<PropsWithChildren> = ({
             </Button>
           </div>,
           <Link to="/inventory">
-            <Button variant="outline" className="w-full md:w-[225px] gap-2">
+            <Button
+              variant="outline"
+              className="w-full md:w-[225px] gap-2 justify-start"
+            >
               <Store />
               <span>Inventory</span>
             </Button>
@@ -47,12 +53,12 @@ const Sidebar: React.FC<PropsWithChildren> = ({
           <div className="flex flex-row">
             <Button
               variant="outline"
-              className="w-full md:w-[225px]"
+              className="w-full md:w-[225px] pl-2"
               onClick={() => window.electron.store.delete('generatedInvoices')}
             >
               <Link
                 to="/purchase/invoices"
-                className="w-5/6 flex items-center justify-center pl-4 gap-2"
+                className="w-5/6 flex items-center justify-start gap-2"
               >
                 <FileText />
                 <span>Purchase Invoices</span>
@@ -69,12 +75,12 @@ const Sidebar: React.FC<PropsWithChildren> = ({
           <div className="flex flex-row">
             <Button
               variant="outline"
-              className="w-full md:w-[225px]"
+              className="w-full md:w-[225px] pl-2"
               onClick={() => window.electron.store.delete('generatedInvoices')}
             >
               <Link
                 to="/sale/invoices"
-                className="w-5/6 flex items-center justify-center pl-4 gap-2"
+                className="w-5/6 flex items-center justify-start gap-2"
               >
                 <FileText />
                 <span>Sale Invoices</span>

@@ -13,7 +13,7 @@ import JournalPage from './views/Journal';
 import JournalsPage from './views/Journals';
 import LedgerPage from './views/Ledger';
 import Login from './views/Login';
-import NewInvoicePage from './views/NewInvoice/indes';
+import NewInvoicePage from './views/NewInvoice';
 import NewJournalPage from './views/NewJournal';
 import Register from './views/Register';
 import SettingsPage from './views/Settings';

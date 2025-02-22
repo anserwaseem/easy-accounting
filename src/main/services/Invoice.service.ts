@@ -70,6 +70,7 @@ export class InvoiceService {
         prev.invoiceNumber = cur.invoiceNumber;
         prev.invoiceType = cur.invoiceType;
         prev.totalAmount = cur.totalAmount;
+        prev.extraDiscount = cur.extraDiscount;
         prev.accountName = cur.accountName;
         prev.invoiceItems = [];
       }
@@ -102,10 +103,10 @@ export class InvoiceService {
       return -1;
     }
 
-    const totalAmount = this.getTotalAmount(invoice.invoiceItems);
+    const totalAmount = invoice.totalAmount ?? 0;
     const stmInsertInvoice = `
-      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber)
-      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber)
+      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount)
+      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount)
     `;
     const prpStmInsertInvoice = this.db.prepare(stmInsertInvoice);
 
@@ -115,6 +116,7 @@ export class InvoiceService {
       invoiceType,
       totalAmount,
       invoiceNumber: invoice.invoiceNumber,
+      extraDiscount: invoice.extraDiscount,
     });
 
     const invoiceId = <number>invoiceResult.lastInsertRowid;
@@ -336,7 +338,7 @@ export class InvoiceService {
     `);
 
     this.stmGetInvoice = this.db.prepare(`
-      SELECT i.id, i.date, i.invoiceNumber, i.invoiceType, i.totalAmount, ii.quantity, ii.price, ii.discount, iii.name as 'inventoryItemName', iii.description AS 'inventoryItemDescription',
+      SELECT i.id, i.date, i.invoiceNumber, i.invoiceType, i.totalAmount, i.extraDiscount, ii.quantity, ii.price, ii.discount, iii.name as 'inventoryItemName', iii.description AS 'inventoryItemDescription',
         (SELECT a.name FROM account a JOIN invoices inv ON a.id = inv.accountId WHERE inv.id = @invoiceId) AS 'accountName'
       FROM invoices i
       JOIN invoice_items ii
