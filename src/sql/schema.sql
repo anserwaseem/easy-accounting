@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS "chart" (
   "name" STRING NOT NULL,
   "userId" INTEGER,
   "code" INTEGER,
-  "type" STRING NOT NULL CHECK ("type" IN ('Asset', 'Liability', 'Equity')),
+  "type" STRING NOT NULL CHECK ("type" IN ('Asset', 'Liability', 'Equity', 'Revenue', 'Expense')),
+  "parentId" INTEGER REFERENCES "chart"("id"), -- only used for custom heads e.g. "Agent abc", would be NULL for normal heads e.g. "Current Asset"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 

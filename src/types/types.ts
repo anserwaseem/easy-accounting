@@ -87,7 +87,9 @@ export type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
 export interface Chart extends BaseEntity {
   name: string;
   type: AccountType;
+  parentId?: number;
 }
+export type InsertChart = Pick<Chart, 'name' | 'type' | 'parentId'>;
 
 /** Ledger */
 export interface Ledger extends BaseEntity {

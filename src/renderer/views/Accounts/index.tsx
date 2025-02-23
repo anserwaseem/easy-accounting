@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
-import { toString } from 'lodash';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import {
@@ -16,6 +15,7 @@ import type { CellContext } from '@tanstack/react-table';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
+import { AddCustomHead } from './addCustomHead';
 
 type AccountPageProps = {
   onRowClick?: (id?: number) => void;
@@ -45,8 +45,12 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   const navigate = useNavigate();
 
   const refetchAccounts = useCallback(async () => {
-    setAccounts(await window.electron.getAccounts());
-    setCharts(await window.electron.getCharts());
+    const [fetchedAccounts, fetchedCharts] = await Promise.all([
+      window.electron.getAccounts(),
+      window.electron.getCharts(),
+    ]);
+    setAccounts(fetchedAccounts);
+    setCharts(fetchedCharts);
   }, []);
 
   const columns: ColumnDef<Account>[] = useMemo(
@@ -67,22 +71,22 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             {
               accessorKey: 'name',
               header: 'Account Name',
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               accessorKey: 'headName',
               header: 'Head Name',
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               accessorKey: 'type',
               header: 'Type',
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               accessorKey: 'code',
               header: 'Account Code',
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               accessorKey: 'updatedAt',
@@ -92,7 +96,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   'en-US',
                   dateFormatOptions,
                 ),
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               accessorKey: 'createdAt',
@@ -102,7 +106,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   'en-US',
                   dateFormatOptions,
                 ),
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               header: 'Edit',
@@ -164,13 +168,18 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <h1 className={isMini ? 'hidden' : 'text-2xl'}>Accounts</h1>
+        <h1 className={isMini ? 'hidden' : 'text-2xl font-bold tracking-tight'}>
+          Accounts
+        </h1>
 
-        <AddAccount
-          charts={charts}
-          clearRef={clearRef}
-          refetchAccounts={refetchAccounts}
-        />
+        <div className="flex gap-2">
+          <AddCustomHead charts={charts} onHeadAdded={refetchAccounts} />
+          <AddAccount
+            charts={charts}
+            clearRef={clearRef}
+            refetchAccounts={refetchAccounts}
+          />
+        </div>
       </div>
       <div className="py-8 pr-4">
         <DataTable

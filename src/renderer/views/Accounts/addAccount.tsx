@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { toString, isNaN } from 'lodash';
-import { ChevronDown, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import {
   Dialog,
   DialogTrigger,
@@ -10,12 +10,6 @@ import {
   DialogTitle,
   DialogHeader,
 } from 'renderer/shad/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from 'renderer/shad/ui/dropdown-menu';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import {
@@ -29,6 +23,7 @@ import {
 import { toast } from 'renderer/shad/ui/use-toast';
 import type { Chart } from 'types';
 import { useEffect, useState } from 'react';
+import { ChartSelect } from 'renderer/components/ChartSelect';
 
 interface AddAccountProps {
   refetchAccounts: () => void;
@@ -104,12 +99,12 @@ export const AddAccount: React.FC<AddAccountProps> = ({
       setOpenCreateForm(false);
       refetchAccounts();
       toast({
-        description: 'Account created successfully',
+        description: `"${values.accountName}" account created successfully`,
         variant: 'success',
       });
     } else {
       toast({
-        description: 'Account not created',
+        description: `Failed to create "${values.accountName}" account`,
         variant: 'destructive',
       });
     }
@@ -118,16 +113,16 @@ export const AddAccount: React.FC<AddAccountProps> = ({
   return (
     <Dialog open={openCreateForm} onOpenChange={setOpenCreateForm}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Plus size={16} />
-          <span className="ml-3 mr-1">New Account</span>
+        <Button variant="outline" className="w-full min-w-max">
+          <Plus className="mr-2 h-4 w-4" />
+          New Account
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Account</DialogTitle>
+          <DialogTitle>Create New Account</DialogTitle>
+          <DialogTitle>Create New Account</DialogTitle>
         </DialogHeader>
-
         <Form {...createForm}>
           <form
             onSubmit={createForm.handleSubmit(onSubmit)}
@@ -143,29 +138,22 @@ export const AddAccount: React.FC<AddAccountProps> = ({
                 <FormItem labelPosition="start">
                   <FormLabel>Account Head</FormLabel>
                   <FormControl>
-                    <DropdownMenu {...field}>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-between"
-                        >
-                          <span className="mr-2">{field.value}</span>
-                          <ChevronDown size={16} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="center" className="px-4">
-                        {charts.map((chart) => (
-                          <DropdownMenuItem
-                            onClick={() => {
-                              createForm.setValue('headName', chart.name);
-                              setAccountHead(chart.name);
-                            }}
-                          >
-                            {chart.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <ChartSelect
+                      charts={charts}
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        setAccountHead(value);
+                      }}
+                    />
+                    <ChartSelect
+                      charts={charts}
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        setAccountHead(value);
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -19,6 +19,7 @@ import type {
   Invoice,
   UpdateInventoryItem,
   InsertInventoryItem,
+  InsertChart,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -287,6 +288,9 @@ app
       printService.printPDF(invoiceNumber),
     );
     ipcMain.handle('print:outputDir', () => printService.outputDirectory);
+    ipcMain.handle('chart:insertCustomHead', (_, chart: InsertChart) =>
+      chartService.insertCustomHead(chart),
+    );
 
     createWindow();
     app.on('activate', () => {

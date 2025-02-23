@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { keys, get, isNaN } from 'lodash';
-import { PenBox, ChevronDown } from 'lucide-react';
+import { PenBox } from 'lucide-react';
 import {
   Dialog,
   DialogTrigger,
@@ -10,12 +10,6 @@ import {
   DialogTitle,
   DialogHeader,
 } from 'renderer/shad/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from 'renderer/shad/ui/dropdown-menu';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import {
@@ -28,6 +22,7 @@ import {
 } from 'renderer/shad/ui/form';
 import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateAccount, Chart } from 'types';
+import { ChartSelect } from 'renderer/components/ChartSelect';
 
 interface EditAccountProps {
   row: {
@@ -50,13 +45,20 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     name: z.string().min(2).max(50),
     code: z
       .string()
+      .optional()
       .nullable()
       .refine(
-        (val) => val === null || val === '' || !isNaN(parseFloat(val)), // TODO: it allows parsing of strings like '3s' i.e. string starting with a number. Fix this.
+        (val) =>
+          val === undefined ||
+          val === null ||
+          val === '' ||
+          !isNaN(parseFloat(val)),
         'Code must be a number',
       )
       .transform((val) =>
-        val !== null && val !== '' ? parseFloat(val) : undefined,
+        val !== undefined && val !== null && val !== ''
+          ? parseFloat(val)
+          : undefined,
       )
       .refine((val) => val === undefined || val >= 0, {
         message: 'Number must be positive',
@@ -76,9 +78,13 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   });
 
   const handleLoadEditForm = (inputRow: UpdateAccount) => {
-    keys(defaultEditValues).forEach((key) =>
-      editForm.setValue(key as keyof UpdateAccount, get(inputRow, key) || ''),
-    );
+    keys(defaultEditValues).forEach((key) => {
+      const value = get(inputRow, key);
+      // convert number to string for the code field so that 0 is not displayed as empty string
+      const formValue =
+        key === 'code' && typeof value === 'number' ? value.toString() : value;
+      editForm.setValue(key as keyof UpdateAccount, formValue);
+    });
   };
 
   const onEdit = async (values: z.infer<typeof editFormSchema>) => {
@@ -92,12 +98,12 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     if (res) {
       refetchAccounts();
       toast({
-        description: 'Account updated successfully',
+        description: `"${values.name}" account updated successfully`,
         variant: 'success',
       });
     } else {
       toast({
-        description: 'Account not updated',
+        description: `Failed to update "${values.name}" account`,
         variant: 'destructive',
       });
     }
@@ -142,28 +148,11 @@ export const EditAccount: React.FC<EditAccountProps> = ({
                 <FormItem labelPosition="start">
                   <FormLabel>Account Head</FormLabel>
                   <FormControl>
-                    <DropdownMenu {...field}>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-between"
-                        >
-                          <span className="mr-2">{field.value}</span>
-                          <ChevronDown size={16} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="center" className="px-4">
-                        {charts.map((chart) => (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              editForm.setValue('headName', chart.name)
-                            }
-                          >
-                            {chart.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <ChartSelect
+                      charts={charts}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
