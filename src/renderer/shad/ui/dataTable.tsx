@@ -30,11 +30,10 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   columns: ColDef<TData, TValue>[];
   data: TData[];
   defaultSortField?: keyof TData;
-  infoData?: React.ReactNode[][]; // Array of arrays containing info rows
+  infoData?: React.ReactNode[][];
   virtual?: boolean;
 }
 
-// Add these components for virtualization
 const TableComponent = forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
@@ -70,7 +69,6 @@ const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
     );
   };
 
-// Move SortingIndicator to be reused by both tables
 const SortingIndicator = ({ isSorted }: { isSorted: string | false }) => {
   if (!isSorted) return null;
   return (
@@ -85,7 +83,6 @@ const SortingIndicator = ({ isSorted }: { isSorted: string | false }) => {
   );
 };
 
-// Reusable header cell content component
 const HeaderCellContent = ({ header }: { header: any }) => (
   // eslint-disable-next-line jsx-a11y/click-events-have-key-events
   <div
@@ -105,7 +102,6 @@ const HeaderCellContent = ({ header }: { header: any }) => (
   </div>
 );
 
-// Reusable header row component
 const HeaderRow = ({ headerGroup }: { headerGroup: any }) => (
   <TableRow className="bg-card hover:bg-muted" key={headerGroup.id}>
     {headerGroup.headers.map((header: any) => (
@@ -128,22 +124,12 @@ const HeaderRow = ({ headerGroup }: { headerGroup: any }) => (
   </TableRow>
 );
 
-// Add this new reusable component
-const NoResultsTable = ({ columns, table }: { columns: any[]; table: any }) => (
-  <Table>
-    <TableHeader>
-      {table.getHeaderGroups().map((headerGroup: any) => (
-        <HeaderRow key={headerGroup.id} headerGroup={headerGroup} />
-      ))}
-    </TableHeader>
-    <TableBody>
-      <TableRow>
-        <TableCell colSpan={columns.length} className="h-24 text-center">
-          No results.
-        </TableCell>
-      </TableRow>
-    </TableBody>
-  </Table>
+const NoResultsRow = ({ columns }: { columns: any[] }) => (
+  <TableRow>
+    <TableCell colSpan={columns.length} className="h-24 text-center">
+      No results.
+    </TableCell>
+  </TableRow>
 );
 
 const DataTable = <TData, TValue>({
@@ -222,7 +208,16 @@ const DataTable = <TData, TValue>({
             }
           />
         ) : (
-          <NoResultsTable columns={columns} table={table} />
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <HeaderRow key={headerGroup.id} headerGroup={headerGroup} />
+              ))}
+            </TableHeader>
+            <TableBody>
+              <NoResultsRow columns={columns} />
+            </TableBody>
+          </Table>
         )}
       </div>
     );
@@ -285,7 +280,7 @@ const DataTable = <TData, TValue>({
               ))}
             </>
           ) : (
-            <NoResultsTable columns={columns} table={table} />
+            <NoResultsRow columns={columns} />
           )}
         </TableBody>
       </Table>
