@@ -74,16 +74,6 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
-              accessorKey: 'headName',
-              header: 'Head Name',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
-            },
-            {
-              accessorKey: 'type',
-              header: 'Type',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
-            },
-            {
               accessorKey: 'code',
               header: 'Account Code',
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
@@ -106,6 +96,16 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             {
               accessorKey: 'goodsName',
               header: 'Goods Name',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'headName',
+              header: 'Head Name',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'type',
+              header: 'Type',
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
