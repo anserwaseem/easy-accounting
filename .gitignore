@@ -22,6 +22,7 @@ node_modules
 release/app/backups/*
 release/app/dist
 release/build
+release/app/db-bank
 .erb/dll
 .env
 

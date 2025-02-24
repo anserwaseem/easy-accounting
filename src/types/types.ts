@@ -78,7 +78,11 @@ export interface Account extends BaseEntity {
   chartId: number;
   headName?: string;
   type: AccountType;
-  code?: number;
+  code?: number | string;
+  address?: string;
+  phone1?: string;
+  phone2?: string;
+  goodsName?: string;
 }
 export type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
 export type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
