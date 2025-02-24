@@ -89,6 +89,26 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
+              accessorKey: 'address',
+              header: 'Address',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'phone1',
+              header: 'Phone 1',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'phone2',
+              header: 'Phone 2',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'goodsName',
+              header: 'Goods Name',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
               accessorKey: 'updatedAt',
               header: 'Updated At',
               cell: ({ row }) =>
@@ -187,6 +207,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           data={getAccounts()}
           defaultSortField="id"
           sortingFns={defaultSortingFunctions}
+          virtual
         />
       </div>
     </div>

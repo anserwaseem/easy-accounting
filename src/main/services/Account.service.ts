@@ -57,7 +57,7 @@ export class AccountService {
 
   private initPreparedStatements() {
     this.stmGetAccounts = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.address, a.phone1, a.phone2, a.goodsName
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE userId = (
@@ -68,7 +68,7 @@ export class AccountService {
     `);
 
     this.stmInsertAccount = this.db.prepare(`
-      INSERT INTO account (name, chartId, code)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -77,12 +77,12 @@ export class AccountService {
           FROM users
           WHERE username = @username
         )
-      ), @code)
+      ), @code, @address, @phone1, @phone2, @goodsName)
     `);
 
     this.stmUpdateAccount = this.db.prepare(`
       UPDATE account
-      SET name = @name, code = @code, chartId = (
+      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName AND userId = (

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { keys, get, isNaN } from 'lodash';
+import { keys, get } from 'lodash';
 import { PenBox } from 'lucide-react';
 import {
   Dialog,
@@ -43,26 +43,11 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     id: z.number(),
     headName: z.string().min(2).max(50),
     name: z.string().min(2).max(50),
-    code: z
-      .string()
-      .optional()
-      .nullable()
-      .refine(
-        (val) =>
-          val === undefined ||
-          val === null ||
-          val === '' ||
-          !isNaN(parseFloat(val)),
-        'Code must be a number',
-      )
-      .transform((val) =>
-        val !== undefined && val !== null && val !== ''
-          ? parseFloat(val)
-          : undefined,
-      )
-      .refine((val) => val === undefined || val >= 0, {
-        message: 'Number must be positive',
-      }),
+    code: z.string().optional(),
+    address: z.string().optional(),
+    phone1: z.string().optional(),
+    phone2: z.string().optional(),
+    goodsName: z.string().optional(),
   });
 
   const defaultEditValues = {
@@ -70,6 +55,10 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     headName: '',
     name: '',
     code: undefined,
+    address: undefined,
+    phone1: undefined,
+    phone2: undefined,
+    goodsName: undefined,
   };
 
   const editForm = useForm<z.infer<typeof editFormSchema>>({
@@ -78,13 +67,9 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   });
 
   const handleLoadEditForm = (inputRow: UpdateAccount) => {
-    keys(defaultEditValues).forEach((key) => {
-      const value = get(inputRow, key);
-      // convert number to string for the code field so that 0 is not displayed as empty string
-      const formValue =
-        key === 'code' && typeof value === 'number' ? value.toString() : value;
-      editForm.setValue(key as keyof UpdateAccount, formValue);
-    });
+    keys(defaultEditValues).forEach((key) =>
+      editForm.setValue(key as keyof UpdateAccount, get(inputRow, key) || ''),
+    );
   };
 
   const onEdit = async (values: z.infer<typeof editFormSchema>) => {
@@ -93,6 +78,10 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       name: values.name,
       headName: values.headName,
       code: values.code,
+      address: values.address,
+      phone1: values.phone1,
+      phone2: values.phone2,
+      goodsName: values.goodsName,
     });
 
     if (res) {
@@ -184,6 +173,59 @@ export const EditAccount: React.FC<EditAccountProps> = ({
                 </FormItem>
               )}
             />
+            <FormField
+              control={editForm.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem labelPosition="start">
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={editForm.control}
+              name="phone1"
+              render={({ field }) => (
+                <FormItem labelPosition="start">
+                  <FormLabel>Phone 1</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={editForm.control}
+              name="phone2"
+              render={({ field }) => (
+                <FormItem labelPosition="start">
+                  <FormLabel>Phone 2</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={editForm.control}
+              name="goodsName"
+              render={({ field }) => (
+                <FormItem labelPosition="start">
+                  <FormLabel>Goods Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="flex justify-between">
               <Button type="submit" className="w-1/2">
                 Submit

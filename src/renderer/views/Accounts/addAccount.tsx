@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { toString, isNaN } from 'lodash';
+import { toString } from 'lodash';
 import { Plus } from 'lucide-react';
 import {
   Dialog,
@@ -44,32 +44,21 @@ export const AddAccount: React.FC<AddAccountProps> = ({
   const addFormSchema = z.object({
     headName: z.string().min(2).max(50),
     accountName: z.string().min(2).max(50),
-    accountCode: z
-      .string()
-      .optional()
-      .nullable()
-      .refine(
-        (val) =>
-          val === undefined ||
-          val === null ||
-          val === '' ||
-          !isNaN(parseFloat(val)),
-        'Code must be a number',
-      )
-      .transform((val) =>
-        val !== undefined && val !== null && val !== ''
-          ? parseFloat(val)
-          : undefined,
-      )
-      .refine((val) => val === undefined || val >= 0, {
-        message: 'Number must be positive',
-      }),
+    accountCode: z.string().optional(),
+    address: z.string().optional(),
+    phone1: z.string().optional(),
+    phone2: z.string().optional(),
+    goodsName: z.string().optional(),
   });
 
   const defaultCreateValues = {
     headName: '',
     accountName: '',
     accountCode: undefined,
+    address: undefined,
+    phone1: undefined,
+    phone2: undefined,
+    goodsName: undefined,
   };
 
   const createForm = useForm<z.infer<typeof addFormSchema>>({
@@ -92,6 +81,10 @@ export const AddAccount: React.FC<AddAccountProps> = ({
       name: values.accountName,
       headName: values.headName,
       code: values.accountCode,
+      address: values.address,
+      phone1: values.phone1,
+      phone2: values.phone2,
+      goodsName: values.goodsName,
     });
 
     if (res) {
@@ -121,7 +114,6 @@ export const AddAccount: React.FC<AddAccountProps> = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Account</DialogTitle>
-          <DialogTitle>Create New Account</DialogTitle>
         </DialogHeader>
         <Form {...createForm}>
           <form
@@ -138,14 +130,6 @@ export const AddAccount: React.FC<AddAccountProps> = ({
                 <FormItem labelPosition="start">
                   <FormLabel>Account Head</FormLabel>
                   <FormControl>
-                    <ChartSelect
-                      charts={charts}
-                      value={field.value}
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        setAccountHead(value);
-                      }}
-                    />
                     <ChartSelect
                       charts={charts}
                       value={field.value}
@@ -178,6 +162,58 @@ export const AddAccount: React.FC<AddAccountProps> = ({
               render={({ field }) => (
                 <FormItem labelPosition="start">
                   <FormLabel>Account Code</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={createForm.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem labelPosition="start">
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={createForm.control}
+              name="phone1"
+              render={({ field }) => (
+                <FormItem labelPosition="start">
+                  <FormLabel>Phone 1</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={createForm.control}
+              name="phone2"
+              render={({ field }) => (
+                <FormItem labelPosition="start">
+                  <FormLabel>Phone 2</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={createForm.control}
+              name="goodsName"
+              render={({ field }) => (
+                <FormItem labelPosition="start">
+                  <FormLabel>Goods Name</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>

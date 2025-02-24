@@ -84,8 +84,14 @@ export interface Account extends BaseEntity {
   phone2?: string;
   goodsName?: string;
 }
-export type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
-export type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
+
+export type InsertAccount = Omit<
+  Account,
+  keyof BaseEntity | 'chartId' | 'type'
+>;
+export type UpdateAccount = Prettify<
+  Omit<Account, keyof BaseEntity | 'chartId' | 'type'> & Pick<BaseEntity, 'id'>
+>;
 
 /** Chart */
 export interface Chart extends BaseEntity {
