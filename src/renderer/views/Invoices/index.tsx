@@ -245,6 +245,14 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
             columns={columns}
             data={filteredInvoices || []}
             sortingFns={defaultSortingFunctions}
+            isMini={isMini}
+            searchPlaceholder={`Search ${invoiceType.toLowerCase()} invoices...`}
+            searchFields={[
+              'invoiceNumber',
+              'accountName',
+              'date',
+              'totalAmount',
+            ]}
           />
         )}
       </div>

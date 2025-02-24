@@ -11,18 +11,21 @@ import { toast } from 'renderer/shad/ui/use-toast';
 import type { Chart } from 'types';
 import { useState } from 'react';
 import { toString } from 'lodash';
+import { cn } from '@/renderer/lib/utils';
 import { AccountForm, type AccountFormData } from './accountForm';
 
 interface AddAccountProps {
   refetchAccounts: () => void;
   charts: Chart[];
   clearRef: React.RefObject<HTMLButtonElement>;
+  btnClassName?: string;
 }
 
 export const AddAccount: React.FC<AddAccountProps> = ({
   refetchAccounts,
   charts,
   clearRef,
+  btnClassName,
 }: AddAccountProps) => {
   const [openCreateForm, setOpenCreateForm] = useState(false);
   const [accountHead, setAccountHead] = useState(
@@ -59,7 +62,10 @@ export const AddAccount: React.FC<AddAccountProps> = ({
   return (
     <Dialog open={openCreateForm} onOpenChange={setOpenCreateForm}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full min-w-max">
+        <Button
+          variant="outline"
+          className={cn('w-full min-w-max', btnClassName)}
+        >
           <Plus className="mr-2 h-4 w-4" />
           New Account
         </Button>

@@ -25,8 +25,11 @@ const AccountCell: React.FC<CellContext<Account, unknown>> = ({
   row,
 }: CellContext<Account, unknown>) => (
   <div className="flex justify-between">
-    <h2>{row.original.name}</h2>
-    <p className="text-xs text-slate-400">{row.original.type}</p>
+    <div>
+      <h2 className="font-normal">{row.original.name}</h2>
+      <h6 className="font-extralight">{row.original.code}</h6>
+    </div>
+    <p className="text-xs text-slate-400">&nbsp;&nbsp;{row.original.type}</p>
   </div>
 );
 
@@ -59,7 +62,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         ? [
             {
               accessorKey: 'name',
-              header: 'Account Name',
+              header: 'Account Details',
               cell: AccountCell,
               onClick: (row) => {
                 onRowClick?.(row.original.id);
@@ -167,7 +170,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
       <div className="flex justify-between items-center py-4 pr-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            <Button
+              variant="outline"
+              className={isMini ? 'max-w-min py-6' : ''}
+            >
               <span className="mr-2">{typeSelected} Accounts</span>
               <ChevronDown size={16} />
             </Button>
@@ -192,12 +198,17 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           Accounts
         </h1>
 
-        <div className="flex gap-2">
-          <AddCustomHead charts={charts} onHeadAdded={refetchAccounts} />
+        <div className={`flex ${isMini ? 'gap-0.5' : 'gap-2'}`}>
+          <AddCustomHead
+            charts={charts}
+            onHeadAdded={refetchAccounts}
+            btnClassName={isMini ? 'max-w-min py-6' : 'min-w-max'}
+          />
           <AddAccount
             charts={charts}
             clearRef={clearRef}
             refetchAccounts={refetchAccounts}
+            btnClassName={isMini ? 'min-w-20 max-w-min py-6' : 'min-w-max'}
           />
         </div>
       </div>
@@ -208,6 +219,16 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           defaultSortField="id"
           sortingFns={defaultSortingFunctions}
           virtual
+          isMini={isMini}
+          searchPlaceholder="Search accounts..."
+          searchFields={[
+            'name',
+            'code',
+            'address',
+            'phone1',
+            'phone2',
+            'goodsName',
+          ]}
         />
       </div>
     </div>

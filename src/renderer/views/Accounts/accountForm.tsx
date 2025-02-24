@@ -19,10 +19,26 @@ export const accountFormSchema = z.object({
   headName: z.string().min(2).max(50),
   accountName: z.string().min(2).max(50),
   accountCode: z.union([z.string(), z.number()]).optional(),
-  address: z.string().optional(),
-  phone1: z.string().optional(),
-  phone2: z.string().optional(),
-  goodsName: z.string().optional(),
+  address: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => val ?? undefined),
+  phone1: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => val ?? undefined),
+  phone2: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => val ?? undefined),
+  goodsName: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => val ?? undefined),
 });
 
 export type AccountFormData = z.infer<typeof accountFormSchema>;

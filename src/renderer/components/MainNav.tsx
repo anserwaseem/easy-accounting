@@ -8,7 +8,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from 'renderer/shad/ui/tooltip';
-import { Search } from '../shad/ui/search';
+// import { Search } from '../shad/ui/search';
 import { useAuth } from '../hooks';
 
 export const MainNav = ({
@@ -36,9 +36,9 @@ export const MainNav = ({
             </Tooltip>
           </TooltipProvider>
         </div>
-        <div className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+        {/* <div className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
           <Search />
-        </div>
+        </div> */}
       </div>
 
       <div className="ml-auto flex items-center space-x-4 lg:space-x-6">

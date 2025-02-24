@@ -17,10 +17,18 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
-import { get, toString } from 'lodash';
+import { get, toString, debounce } from 'lodash';
 import { cn } from '@/renderer/lib/utils';
-import { HTMLAttributes, forwardRef, useEffect, useRef, useState } from 'react';
+import {
+  HTMLAttributes,
+  forwardRef,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+} from 'react';
 import { TableVirtuoso } from 'react-virtuoso';
+import { Search } from './search';
 
 export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
@@ -32,6 +40,9 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   defaultSortField?: keyof TData;
   infoData?: React.ReactNode[][];
   virtual?: boolean;
+  searchPlaceholder?: string;
+  searchFields?: string[];
+  isMini?: boolean;
 }
 
 const TableComponent = forwardRef<
@@ -61,7 +72,15 @@ const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
         {...props}
       >
         {row.getVisibleCells().map((cell) => (
-          <TableCell key={cell.id} className="py-2 px-4">
+          <TableCell
+            key={cell.id}
+            className="py-2 px-4"
+            onClick={() =>
+              (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick?.(
+                cell.row,
+              )
+            }
+          >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </TableCell>
         ))}
@@ -124,13 +143,45 @@ const HeaderRow = ({ headerGroup }: { headerGroup: any }) => (
   </TableRow>
 );
 
-const NoResultsRow = ({ columns }: { columns: any[] }) => (
+const NoResultsRow = ({
+  columns,
+  searchFields,
+  searchValue,
+}: {
+  columns: any[];
+  searchFields?: string[];
+  searchValue?: string;
+}) => (
   <TableRow>
     <TableCell colSpan={columns.length} className="h-24 text-center">
-      No results.
+      <div className="flex flex-col items-center justify-center text-muted-foreground">
+        <p>No results found</p>
+        {searchFields?.length && searchValue && (
+          <p className="text-sm mt-1">Try adjusting your search criteria</p>
+        )}
+      </div>
     </TableCell>
   </TableRow>
 );
+
+const RecordCount = ({
+  filtered,
+  total,
+}: {
+  filtered: number;
+  total: number;
+}) => {
+  if (filtered === total) {
+    return (
+      <p className="text-sm text-muted-foreground">Total records: {total}</p>
+    );
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      Showing {filtered} out of {total} records
+    </p>
+  );
+};
 
 const DataTable = <TData, TValue>({
   columns,
@@ -138,37 +189,34 @@ const DataTable = <TData, TValue>({
   defaultSortField,
   infoData,
   virtual = false,
+  searchPlaceholder,
+  searchFields,
+  isMini = false,
   ...props
 }: DataTableProps<TData, TValue>) => {
   const [sorting, setSorting] = useState<SortingState>(
     defaultSortField ? [{ id: defaultSortField.toString(), desc: false }] : [],
   );
-
-  const table = useReactTable({
-    data,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    state: {
-      sorting,
-    },
-    onSortingChange: setSorting,
-    ...props,
-  });
-
+  const [searchValue, setSearchValue] = useState('');
+  const [filteredData, setFilteredData] = useState(data);
   const [height, setHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // calculate height of the table based for virtual table
   useEffect(() => {
     const calculateHeight = () => {
       if (!containerRef.current || !virtual) return;
 
       const container = containerRef.current;
       const rect = container.getBoundingClientRect();
+      const searchBarHeight =
+        container.querySelector('.search-container')?.getBoundingClientRect()
+          .height || 0;
 
       // calculate available space from the container's top to the viewport bottom
-      // subtract some padding to prevent scrollbar from appearing
-      const availableHeight = window.innerHeight - rect.top - 50; // 50px padding
+      // subtract search bar height and some padding to prevent scrollbar from appearing
+      const availableHeight =
+        window.innerHeight - rect.top - searchBarHeight - 50;
 
       // ensure minimum height of 400px and maximum of available space
       const newHeight = Math.max(
@@ -186,11 +234,73 @@ const DataTable = <TData, TValue>({
     return () => window.removeEventListener('resize', calculateHeight);
   }, [virtual]);
 
+  // update filtered data when search value or data changes
+  useEffect(() => {
+    if (!searchValue || !searchFields?.length) {
+      setFilteredData(data);
+      return;
+    }
+
+    const searchTerm = searchValue.toLowerCase();
+    const filtered = data.filter((item) =>
+      searchFields.some((field) => {
+        const value = get(item, field);
+        return toString(value).toLowerCase().includes(searchTerm);
+      }),
+    );
+    setFilteredData(filtered);
+  }, [searchValue, data, searchFields]);
+
+  // debounced search handler
+  const debounceSearch = useMemo(
+    () =>
+      debounce((value: string) => {
+        setSearchValue(value);
+      }, 300),
+    [],
+  );
+
+  const table = useReactTable({
+    data: filteredData,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    state: {
+      sorting,
+    },
+    onSortingChange: setSorting,
+    ...props,
+  });
+
   const { rows } = table.getRowModel();
+
+  const recordCount = {
+    filtered: rows.length,
+    total: data.length,
+  };
+
+  const searchClassName = useMemo(() => {
+    const common = 'w-full transition-all duration-200 text-xs';
+    return isMini
+      ? `max-w-[166px] focus-within:max-w-[220px] ${common}`
+      : `md:w-[300px] focus-within:md:w-[400px] ${common}`;
+  }, [isMini]);
 
   if (virtual) {
     return (
       <div ref={containerRef} className="rounded-md border">
+        {searchFields?.length ? (
+          <div className="search-container border-b">
+            <div className="px-4 py-3 gap-2 flex justify-between items-center">
+              <Search
+                placeholder={searchPlaceholder}
+                onChange={debounceSearch}
+                className={searchClassName}
+              />
+              <RecordCount {...recordCount} />
+            </div>
+          </div>
+        ) : null}
         {rows.length ? (
           <TableVirtuoso
             style={{ height }}
@@ -215,7 +325,11 @@ const DataTable = <TData, TValue>({
               ))}
             </TableHeader>
             <TableBody>
-              <NoResultsRow columns={columns} />
+              <NoResultsRow
+                columns={columns}
+                searchFields={searchFields}
+                searchValue={searchValue}
+              />
             </TableBody>
           </Table>
         )}
@@ -224,7 +338,19 @@ const DataTable = <TData, TValue>({
   }
 
   return (
-    <div className="rounded-md border">
+    <div ref={containerRef} className="rounded-md border">
+      {searchFields?.length ? (
+        <div className="search-container border-b">
+          <div className="px-4 py-3 flex justify-between items-center">
+            <Search
+              placeholder={searchPlaceholder}
+              onChange={debounceSearch}
+              className={searchClassName}
+            />
+            <RecordCount {...recordCount} />
+          </div>
+        </div>
+      ) : null}
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (

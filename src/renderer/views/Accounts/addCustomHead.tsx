@@ -28,11 +28,13 @@ import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import { Plus } from 'lucide-react';
 import { toast } from '@/renderer/shad/ui/use-toast';
-import { Chart } from '../../../types';
+import { cn } from '@/renderer/lib/utils';
+import type { Chart } from '../../../types';
 
 interface AddCustomHeadProps {
   charts: Chart[];
   onHeadAdded: () => void;
+  btnClassName?: string;
 }
 
 const formSchema = z.object({
@@ -43,6 +45,7 @@ const formSchema = z.object({
 export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
   charts,
   onHeadAdded,
+  btnClassName,
 }: AddCustomHeadProps) => {
   const [open, setOpen] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
@@ -84,7 +87,7 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full">
+        <Button variant="outline" className={cn('w-full', btnClassName)}>
           <Plus className="mr-2 h-4 w-4" />
           New Head
         </Button>
