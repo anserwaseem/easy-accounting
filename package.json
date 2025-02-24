@@ -149,6 +149,7 @@
     "react-day-picker": "^8.10.0",
     "react-refresh": "^0.14.0",
     "react-test-renderer": "^18.2.0",
+    "react-virtuoso": "^4.7.2",
     "rimraf": "^5.0.1",
     "sass": "^1.62.1",
     "sass-loader": "^16.0.4",

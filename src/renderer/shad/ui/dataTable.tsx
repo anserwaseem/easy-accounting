@@ -2,6 +2,7 @@ import {
   type ColumnDef as ColDef,
   type Row,
   type TableOptions,
+  type SortingState,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
@@ -18,6 +19,8 @@ import {
 } from 'renderer/shad/ui/table';
 import { get, toString } from 'lodash';
 import { cn } from '@/renderer/lib/utils';
+import { HTMLAttributes, forwardRef, useEffect, useRef, useState } from 'react';
+import { TableVirtuoso } from 'react-virtuoso';
 
 export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
@@ -28,66 +31,215 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   data: TData[];
   defaultSortField?: keyof TData;
   infoData?: React.ReactNode[][]; // Array of arrays containing info rows
+  virtual?: boolean;
 }
+
+// Add these components for virtualization
+const TableComponent = forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement>
+>(({ className, ...props }, ref) => (
+  <table
+    ref={ref}
+    className={cn('w-full caption-bottom text-sm', className)}
+    {...props}
+  />
+));
+TableComponent.displayName = 'TableComponent';
+
+const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
+  function getTableRow(props: HTMLAttributes<HTMLTableRowElement>) {
+    // @ts-expect-error data-index is a valid attribute
+    const index = props['data-index'];
+    const row = rows[index];
+
+    if (!row) return null;
+
+    return (
+      <TableRow
+        key={row.id}
+        data-state={row.getIsSelected() && 'selected'}
+        {...props}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell key={cell.id} className="py-2 px-4">
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+    );
+  };
+
+// Move SortingIndicator to be reused by both tables
+const SortingIndicator = ({ isSorted }: { isSorted: string | false }) => {
+  if (!isSorted) return null;
+  return (
+    <span className="ml-1">
+      {
+        {
+          asc: '↑',
+          desc: '↓',
+        }[isSorted]
+      }
+    </span>
+  );
+};
+
+// Reusable header cell content component
+const HeaderCellContent = ({ header }: { header: any }) => (
+  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+  <div
+    className="flex items-center"
+    {...{
+      style: header.column.getCanSort()
+        ? {
+            cursor: 'pointer',
+            userSelect: 'none',
+          }
+        : {},
+      onClick: header.column.getToggleSortingHandler(),
+    }}
+  >
+    {flexRender(header.column.columnDef.header, header.getContext())}
+    <SortingIndicator isSorted={header.column.getIsSorted()} />
+  </div>
+);
+
+// Reusable header row component
+const HeaderRow = ({ headerGroup }: { headerGroup: any }) => (
+  <TableRow className="bg-card hover:bg-muted" key={headerGroup.id}>
+    {headerGroup.headers.map((header: any) => (
+      <TableHead
+        key={header.id}
+        colSpan={header.colSpan}
+        className={cn(
+          header.column.getIsSorted()
+            ? 'bg-gray-300 dark:bg-gray-800'
+            : 'bg-gray-200 dark:bg-gray-900',
+          'h-8',
+        )}
+        style={{
+          width: header.getSize(),
+        }}
+      >
+        {header.isPlaceholder ? null : <HeaderCellContent header={header} />}
+      </TableHead>
+    ))}
+  </TableRow>
+);
+
+// Add this new reusable component
+const NoResultsTable = ({ columns, table }: { columns: any[]; table: any }) => (
+  <Table>
+    <TableHeader>
+      {table.getHeaderGroups().map((headerGroup: any) => (
+        <HeaderRow key={headerGroup.id} headerGroup={headerGroup} />
+      ))}
+    </TableHeader>
+    <TableBody>
+      <TableRow>
+        <TableCell colSpan={columns.length} className="h-24 text-center">
+          No results.
+        </TableCell>
+      </TableRow>
+    </TableBody>
+  </Table>
+);
 
 const DataTable = <TData, TValue>({
   columns,
   data,
   defaultSortField,
   infoData,
+  virtual = false,
   ...props
 }: DataTableProps<TData, TValue>) => {
+  const [sorting, setSorting] = useState<SortingState>(
+    defaultSortField ? [{ id: defaultSortField.toString(), desc: false }] : [],
+  );
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    initialState: {
-      sorting: defaultSortField
-        ? [{ id: defaultSortField.toString(), desc: false }]
-        : [],
+    state: {
+      sorting,
     },
+    onSortingChange: setSorting,
     ...props,
   });
+
+  const [height, setHeight] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const calculateHeight = () => {
+      if (!containerRef.current || !virtual) return;
+
+      const container = containerRef.current;
+      const rect = container.getBoundingClientRect();
+
+      // calculate available space from the container's top to the viewport bottom
+      // subtract some padding to prevent scrollbar from appearing
+      const availableHeight = window.innerHeight - rect.top - 50; // 50px padding
+
+      // ensure minimum height of 400px and maximum of available space
+      const newHeight = Math.max(
+        400,
+        Math.min(availableHeight, window.innerHeight - 100),
+      );
+
+      setHeight(newHeight);
+    };
+
+    calculateHeight();
+    // recalculate on window resize
+    window.addEventListener('resize', calculateHeight);
+
+    return () => window.removeEventListener('resize', calculateHeight);
+  }, [virtual]);
+
+  const { rows } = table.getRowModel();
+
+  if (virtual) {
+    return (
+      <div ref={containerRef} className="rounded-md border">
+        {rows.length ? (
+          <TableVirtuoso
+            style={{ height }}
+            totalCount={rows.length}
+            components={{
+              Table: TableComponent,
+              TableRow: TableRowComponent(rows),
+            }}
+            fixedHeaderContent={() =>
+              table
+                .getHeaderGroups()
+                .map((headerGroup) => (
+                  <HeaderRow key={headerGroup.id} headerGroup={headerGroup} />
+                ))
+            }
+          />
+        ) : (
+          <NoResultsTable columns={columns} table={table} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                return (
-                  <TableHead
-                    key={header.id}
-                    className={cn(
-                      header.column.getIsSorted()
-                        ? 'bg-gray-300 dark:bg-gray-800'
-                        : 'bg-gray-200 dark:bg-gray-900',
-                      'h-8',
-                    )}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(
-                      header.column.columnDef.header,
-                      header.getContext(),
-                    )}
-                    {
-                      {
-                        asc: ' 🔼',
-                        desc: ' 🔽',
-                      }[toString(header.column.getIsSorted())]
-                    }
-                  </TableHead>
-                );
-              })}
-            </TableRow>
+            <HeaderRow key={headerGroup.id} headerGroup={headerGroup} />
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows?.length ? (
+          {rows?.length ? (
             <>
-              {table.getRowModel().rows.map((row) => (
+              {rows.map((row) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
@@ -133,11 +285,7 @@ const DataTable = <TData, TValue>({
               ))}
             </>
           ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No results.
-              </TableCell>
-            </TableRow>
+            <NoResultsTable columns={columns} table={table} />
           )}
         </TableBody>
       </Table>
