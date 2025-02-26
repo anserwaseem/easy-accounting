@@ -5,20 +5,22 @@ import { Input } from '@/renderer/shad/ui/input';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { isNil, toString } from 'lodash';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
 
 const InventoryPage: React.FC = () => {
   const [doesInventoryExist, setDoesInventoryExist] = useState<Boolean>();
-  const clearRef = useRef<HTMLButtonElement>(null);
   const [refresh, setRefresh] = useState(false);
   const [hideZeroQuantity, setHideZeroQuantity] = useState(false);
 
   useEffect(() => {
-    (async () =>
-      setDoesInventoryExist(await window.electron.doesInventoryExist()))();
+    const checkInventoryExists = async () => {
+      const result = await window.electron.doesInventoryExist();
+      setDoesInventoryExist(result);
+    };
+    checkInventoryExists();
   }, []);
 
   const refetchInventory = () => setRefresh(!refresh);
@@ -75,10 +77,7 @@ const InventoryPage: React.FC = () => {
           />
         </div>
         <h1 className="text-2xl text-center mx-auto">Inventory</h1>
-        <AddInventoryItem
-          refetchInventory={refetchInventory}
-          clearRef={clearRef}
-        />
+        <AddInventoryItem refetchInventory={refetchInventory} />
       </div>
       <div className="flex flex-row gap-2 items-center">
         <h2 className="text-base">Hide zero quantity</h2>

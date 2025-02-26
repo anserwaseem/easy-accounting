@@ -65,7 +65,7 @@ export enum InvoiceType {
   Sale = 'Sale',
 }
 
-type BaseEntity = {
+export type BaseEntity = {
   id: number;
   date: string;
   createdAt?: Date;

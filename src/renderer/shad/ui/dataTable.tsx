@@ -282,8 +282,8 @@ const DataTable = <TData, TValue>({
   const searchClassName = useMemo(() => {
     const common = 'w-full transition-all duration-200 text-xs';
     return isMini
-      ? `max-w-[166px] focus-within:max-w-[220px] ${common}`
-      : `md:w-[300px] focus-within:md:w-[400px] ${common}`;
+      ? `max-w-[166px] ${common}` // focus-within:max-w-[220px]
+      : `md:w-[300px] ${common}`; // focus-within:md:w-[400px]
   }, [isMini]);
 
   if (virtual) {

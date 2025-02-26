@@ -1,3 +1,5 @@
+import { BaseEntity } from '@/types';
+
 /**
  * Returns global date format options being used in the project.
  */
@@ -19,4 +21,11 @@ export const currencyFormatOptions: Intl.NumberFormatOptions = {
 
 export const DEFAULT_INVOICE_NUMBER = 1;
 
-export const INVOICE_DISCOUNT_PERCENTAGE = 40;
+export const INVOICE_DISCOUNT_PERCENTAGE = 40; // TODO: make this configurable
+
+export const baseEntityKeys: (keyof BaseEntity)[] = [
+  'id',
+  'date',
+  'createdAt',
+  'updatedAt',
+];
