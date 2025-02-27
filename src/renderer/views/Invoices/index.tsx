@@ -3,11 +3,10 @@ import {
   DialogContent,
   DialogTrigger,
 } from '@/renderer/shad/ui/dialog';
-import { isNil, toNumber, toString } from 'lodash';
+import { isNil, toNumber } from 'lodash';
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dateFormatOptions } from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
@@ -18,7 +17,6 @@ import {
   DateRangePickerWithPresets,
   type DateRange,
 } from 'renderer/shad/ui/datePicker';
-import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import type { HasMiniView, InvoicesView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
 // eslint-disable-next-line import/no-cycle
@@ -44,47 +42,110 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
   const [invoiceFilterSelectValue, setInvoiceFilterSelectValue] = useState<
     string | undefined
   >(window.electron.store.get('invoiceFilterSelectValue') || undefined);
+  const [previewInvoiceId, setPreviewInvoiceId] = useState<number>();
 
   const navigate = useNavigate();
-  const [previewInvoiceId, setPreviewInvoiceId] = useState<number>();
+
+  const navigateToInvoice = useCallback(
+    (id: number) => navigate(`/${invoiceType.toLowerCase()}/invoices/${id}`),
+    [invoiceType, navigate],
+  );
 
   const columns: ColumnDef<InvoicesView>[] = useMemo(
     () => [
-      {
-        accessorKey: 'invoiceNumber',
-        header: 'Invoice #',
-        onClick: (row) =>
-          propInvoices
-            ? setPreviewInvoiceId(row.original.invoiceNumber)
-            : navigate(toString(row.original.id)),
-      },
-      {
-        accessorKey: 'date',
-        header: 'Date',
-        onClick: (row) =>
-          propInvoices
-            ? setPreviewInvoiceId(row.original.invoiceNumber)
-            : navigate(toString(row.original.id)),
-      },
-      {
-        accessorKey: 'totalAmount',
-        header: 'Total Amount',
-        onClick: (row) =>
-          propInvoices
-            ? setPreviewInvoiceId(row.original.invoiceNumber)
-            : navigate(toString(row.original.id)),
-        cell: ({ getValue }) => getFormattedCurrency(toNumber(getValue())),
-      },
-      {
-        accessorKey: 'accountName',
-        header: invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor',
-        onClick: (row) =>
-          propInvoices
-            ? setPreviewInvoiceId(row.original.invoiceNumber)
-            : navigate(toString(row.original.id)),
-      },
+      ...((isMini
+        ? [
+            {
+              id: 'miniView',
+              header: `${invoiceType} Invoices`,
+              accessorFn: (row) => row,
+              accessorKey: 'invoices',
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ getValue }) => {
+                const invoice = getValue() as InvoicesView;
+                return (
+                  <div className="flex justify-between items-start w-full">
+                    <div className="flex flex-col">
+                      <p>{invoice.date}</p>
+                      <p className="font-extrabold">{invoice.invoiceNumber}</p>
+                    </div>
+                    <div className="flex flex-col text-end">
+                      <p className="text-muted-foreground">
+                        {invoice.accountName}
+                      </p>
+                      {invoiceType === InvoiceType.Sale && (
+                        <p>
+                          {getFormattedCurrency(toNumber(invoice.totalAmount))}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              },
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+            },
+          ]
+        : [
+            {
+              accessorKey: 'invoiceNumber',
+              header: 'Invoice #',
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+            },
+            {
+              accessorKey: 'date',
+              header: 'Date (DD/MM/YYYY)',
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+            },
+            {
+              accessorKey: 'accountName',
+              header: invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor',
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+            },
+            ...(invoiceType === InvoiceType.Sale
+              ? ([
+                  {
+                    accessorKey: 'totalAmount',
+                    header: 'Total Amount',
+                    onClick: (row) =>
+                      propInvoices
+                        ? setPreviewInvoiceId(row.original.invoiceNumber)
+                        : navigateToInvoice(row.original.id),
+                    cell: ({ getValue }) =>
+                      getFormattedCurrency(toNumber(getValue())),
+                  },
+                ] as ColumnDef<InvoicesView>[])
+              : []),
+            {
+              accessorKey: 'biltyNumber',
+              header: 'Bilty #',
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+            },
+            {
+              accessorKey: 'cartons',
+              header: 'Cartons',
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+            },
+          ]) as ColumnDef<InvoicesView>[]),
     ],
-    [invoiceType, navigate, propInvoices],
+    [invoiceType, navigateToInvoice, propInvoices, isMini],
   );
 
   const handleFilterDateSelect = useCallback(
@@ -100,7 +161,14 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
       setInvoiceFilterDate(dateRange);
       setFilteredInvoices(
         invoices?.filter((invoice) => {
-          const invoiceDate = new Date(invoice.date).setHours(0, 0, 0, 0);
+          // parse the DD/MM/YYYY format to a Date object
+          const [day, month, year] = invoice.date.split('/');
+          const invoiceDate = new Date(+year, +month - 1, +day).setHours(
+            0,
+            0,
+            0,
+            0,
+          );
           const fromDate = new Date(from).setHours(0, 0, 0, 0);
           const toDate = new Date(to).setHours(0, 0, 0, 0);
 
@@ -111,17 +179,20 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
     [invoices],
   );
 
+  // fetch invoices
   useEffect(() => {
-    (async function fetchInvoices() {
+    const fetchInvoices = async () => {
       if (isNil(propInvoices)) {
         const rawInvoices = (await window.electron.getInvoices(
           invoiceType,
         )) as InvoicesView[];
         setInvoices(rawInvoices);
       } else setInvoices(propInvoices);
-    })();
+    };
+    fetchInvoices();
   }, [invoiceType, propInvoices]);
 
+  // handle filter invoices
   useEffect(
     () =>
       invoiceFilterDate || invoiceFilterSelectValue
@@ -135,16 +206,19 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
     ],
   );
 
+  // save filtered invoices to store
   useEffect(
     () => window.electron.store.set('filteredInvoices', filteredInvoices),
     [filteredInvoices],
   );
 
+  // save invoice filter date to store
   useEffect(
     () => window.electron.store.set('invoiceFilterDate', invoiceFilterDate),
     [invoiceFilterDate],
   );
 
+  // save invoice filter selected value to store
   useEffect(
     () =>
       window.electron.store.set(
@@ -154,6 +228,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
     [invoiceFilterSelectValue],
   );
 
+  // TODO: fix scrollbar when isMini is true
   return (
     <div>
       <div
@@ -201,60 +276,17 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
       ) : null}
 
       <div className="py-8 pr-4 flex flex-col gap-6">
-        {isMini ? (
-          <Table>
-            <TableBody>
-              {filteredInvoices?.map((invoice) => (
-                <TableRow
-                  key={invoice.id}
-                  onClick={() =>
-                    navigate(
-                      `/${invoiceType.toLowerCase()}/invoices/${invoice.id}`,
-                    )
-                  }
-                >
-                  <TableCell>
-                    <div className="flex justify-between items-center">
-                      <div className="flex flex-col">
-                        <p>
-                          {new Date(invoice.date || '').toLocaleString(
-                            'en-US',
-                            dateFormatOptions,
-                          )}
-                        </p>
-                        <p className="font-extrabold">
-                          {invoice.invoiceNumber}
-                        </p>
-                      </div>
-                      <div className="flex flex-col">
-                        <p className="text-end text-green-600">
-                          {invoice.accountName}
-                        </p>
-                        <p>
-                          {getFormattedCurrency(toNumber(invoice.totalAmount))}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={filteredInvoices || []}
-            sortingFns={defaultSortingFunctions}
-            isMini={isMini}
-            searchPlaceholder={`Search ${invoiceType.toLowerCase()} invoices...`}
-            searchFields={[
-              'invoiceNumber',
-              'accountName',
-              'date',
-              'totalAmount',
-            ]}
-          />
-        )}
+        <DataTable
+          columns={columns}
+          data={filteredInvoices || []}
+          sortingFns={defaultSortingFunctions}
+          defaultSortField="invoiceNumber" // FIXME: for mini view, nested field sorting is not working
+          defaultSortDirection="desc"
+          virtual
+          isMini={isMini}
+          searchPlaceholder={`Search ${invoiceType.toLowerCase()} invoices...`}
+          searchFields={['invoiceNumber', 'accountName', 'date', 'totalAmount']}
+        />
       </div>
       <Dialog
         open={!isNil(previewInvoiceId)}

@@ -62,7 +62,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         ? [
             {
               accessorKey: 'name',
-              header: 'Account Details',
+              header: 'Accounts',
               cell: AccountCell,
               onClick: (row) => {
                 onRowClick?.(row.original.id);

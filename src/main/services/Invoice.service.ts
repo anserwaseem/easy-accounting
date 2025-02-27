@@ -71,6 +71,8 @@ export class InvoiceService {
         prev.invoiceType = cur.invoiceType;
         prev.totalAmount = cur.totalAmount;
         prev.extraDiscount = cur.extraDiscount;
+        prev.biltyNumber = cur.biltyNumber;
+        prev.cartons = cur.cartons;
         prev.accountName = cur.accountName;
         prev.invoiceItems = [];
       }
@@ -173,7 +175,7 @@ export class InvoiceService {
     endDate?: string,
   ): InvoicesExport[] {
     const stmGetInvoicesInDateRange = this.db.prepare(`
-      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName',
+      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName', i.biltyNumber, i.cartons,
              SUM(ii.quantity) AS 'totalQuantity'
       FROM invoices i
       JOIN account a ON i.accountId = a.id
@@ -331,14 +333,17 @@ export class InvoiceService {
     `);
 
     this.stmGetInvoices = this.db.prepare(`
-      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName'
+      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName', i.biltyNumber, i.cartons
       FROM invoices i JOIN account a
       ON i.accountId = a.id
       WHERE i.invoiceType = ?
     `);
 
     this.stmGetInvoice = this.db.prepare(`
-      SELECT i.id, i.date, i.invoiceNumber, i.invoiceType, i.totalAmount, i.extraDiscount, ii.quantity, ii.price, ii.discount, iii.name as 'inventoryItemName', iii.description AS 'inventoryItemDescription',
+      SELECT
+        i.id, i.date, i.invoiceNumber, i.invoiceType, i.totalAmount, i.extraDiscount, i.biltyNumber, i.cartons,
+        ii.quantity, ii.price, ii.discount,
+        iii.name as 'inventoryItemName', iii.description AS 'inventoryItemDescription',
         (SELECT a.name FROM account a JOIN invoices inv ON a.id = inv.accountId WHERE inv.id = @invoiceId) AS 'accountName'
       FROM invoices i
       JOIN invoice_items ii

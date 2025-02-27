@@ -176,6 +176,8 @@ export type Invoice = Prettify<
     accountId: number;
     invoiceItems: Prettify<InvoiceItem>[];
     extraDiscount?: number; // will be provided by UI
+    biltyNumber?: string; // will be provided by UI
+    cartons?: number; // will be provided by UI
     totalAmount?: number; // will be calculated at service layer
     invoiceNumber?: number; // only given from UI for the first time => user input
     invoiceType?: InvoiceType;

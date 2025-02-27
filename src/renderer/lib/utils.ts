@@ -58,7 +58,7 @@ export const getFixedNumber = (value: number, fixed = 4) =>
  * @example <DataTable sortingFns={defaultSortingFunctions} {...otherProps} />
  */
 export const defaultSortingFunctions: Record<string, SortingFn<any>> = {
-  date: dateComparator,
+  date: dateStringComparator,
   createdAt: dateComparator,
   updatedAt: dateComparator,
 };
@@ -72,6 +72,26 @@ export const defaultSortingFunctions: Record<string, SortingFn<any>> = {
  */
 export const getFormattedCurrency = (value: number | bigint): string =>
   Intl.NumberFormat('en-US', currencyFormatOptions).format(value);
+
+/**
+ * Compares two date strings
+ * @param rowA - The first row - date: DD/MM/YYYY e.g. 26/02/2025
+ * @param rowB - The second row - date: DD/MM/YYYY e.g. 26/02/2025
+ * @returns The comparison result
+ * @todo doesn't work // FIXME
+ */
+export function dateStringComparator(rowA: Row<any>, rowB: Row<any>): number {
+  const parseDate = (dateStr?: string): number => {
+    if (!dateStr) return 0; // Handle missing date
+    const [day, month, year] = dateStr.split('/').map(Number);
+    return new Date(year, month - 1, day).getTime();
+  };
+
+  const dateA = parseDate(rowA.original?.date);
+  const dateB = parseDate(rowB.original?.date);
+
+  return dateA - dateB;
+}
 
 /**
  * PRIVATE FUNCTIONS

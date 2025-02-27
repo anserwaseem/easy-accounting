@@ -105,10 +105,12 @@ CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
     "accountId" INTEGER NOT NULL,
     "invoiceType" TEXT NOT NULL CHECK ("invoiceType" IN ('Purchase', 'Sale')),
     "date" DATETIME NOT NULL,
-    -- "extraDiscount" DECIMAL(10, 4) NOT NULL DEFAULT 0, -- "005 migration"
     "totalAmount" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- "extraDiscount" DECIMAL(10, 4) NOT NULL DEFAULT 0, -- "005 migration"
+    -- "biltyNumber" INTEGER, -- "009 migration"
+    -- "cartons" INTEGER, -- "009 migration"
 
     UNIQUE("invoiceNumber", "invoiceType"),
     FOREIGN KEY ("accountId") REFERENCES "account"("id")

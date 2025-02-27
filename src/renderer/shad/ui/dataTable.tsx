@@ -3,6 +3,7 @@ import {
   type Row,
   type TableOptions,
   type SortingState,
+  type SortDirection,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
@@ -34,10 +35,12 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
 };
 
+// TODO: search by field(s)
 interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   columns: ColDef<TData, TValue>[];
   data: TData[];
   defaultSortField?: keyof TData;
+  defaultSortDirection?: SortDirection;
   infoData?: React.ReactNode[][];
   virtual?: boolean;
   searchPlaceholder?: string;
@@ -187,6 +190,7 @@ const DataTable = <TData, TValue>({
   columns,
   data,
   defaultSortField,
+  defaultSortDirection = 'asc',
   infoData,
   virtual = false,
   searchPlaceholder,
@@ -194,9 +198,15 @@ const DataTable = <TData, TValue>({
   isMini = false,
   ...props
 }: DataTableProps<TData, TValue>) => {
-  const [sorting, setSorting] = useState<SortingState>(
-    defaultSortField ? [{ id: defaultSortField.toString(), desc: false }] : [],
-  );
+  const [sorting, setSorting] = useState<SortingState>(() => {
+    if (!defaultSortField) return [];
+    return [
+      {
+        id: defaultSortField.toString(),
+        desc: defaultSortDirection === 'desc',
+      },
+    ];
+  });
   const [searchValue, setSearchValue] = useState('');
   const [filteredData, setFilteredData] = useState(data);
   const [height, setHeight] = useState(0);
