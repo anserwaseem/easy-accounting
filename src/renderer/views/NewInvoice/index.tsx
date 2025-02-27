@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { get, isNaN, isNil, sum, toNumber, toString } from 'lodash';
+import { get, isNaN, isNil, pick, sum, toNumber, toString } from 'lodash';
 import { Calendar as CalendarIcon, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
@@ -59,6 +59,11 @@ interface NewInvoiceProps {
   invoiceType: InvoiceType;
 }
 
+// FIXME: set validation for max quantity of selected inventory item
+// FIXME: do not allow selecting same inventory item multiple times
+// TODO: support adding bilty number and cartons
+// TODO: improve performance, check states: remove unnecessary data
+// TODO: in new sale invoice, date format is not matching with existing invoices: can we keep MM/DD/YYYY format when importing?
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
@@ -67,12 +72,16 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [nextInvoiceNumber, setNextInvoiceNumber] = useState<
     number | undefined
   >(-1);
-  const [parties, setParties] = useState<Account[]>();
+  const [parties, setParties] =
+    useState<Pick<Account, 'id' | 'type' | 'name' | 'code'>[]>();
   const [partyLastDateInLedger, setPartyLastDateInLedger] = useState<
     Date | undefined | null // default state: undefined, null represents customer with no ledger entry hence no date selection restriction
   >();
-  const [invoiceTypeAccountExists, setInvoiceTypeAccountExists] =
-    useState<Boolean>();
+  const [requiredAccountsExist, setRequiredAccountsExist] = useState<{
+    sale: boolean;
+    purchase: boolean;
+    loading: boolean;
+  }>({ sale: false, purchase: false, loading: false });
   const [enableCumulativeDiscount, setEnableCumulativeDiscount] =
     useState(false);
   const [cumulativeDiscount, setCumulativeDiscount] = useState<number>();
@@ -179,7 +188,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   useEffect(() => {
     (async () => {
       if (isNil(inventory)) {
-        setInventory(await window.electron.getInventory());
+        const inv: InventoryItem[] = await window.electron.getInventory();
+        const filteredInv = inv.map((item) =>
+          pick(item, ['id', 'name', 'price', 'quantity', 'description']),
+        );
+        setInventory(filteredInv);
       }
     })();
   }, [inventory]);
@@ -195,13 +208,33 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   useEffect(() => {
     (async () => {
       if (isNil(parties)) {
-        const accounts = (await window.electron.getAccounts()) as Account[];
+        setRequiredAccountsExist({
+          sale: false,
+          purchase: false,
+          loading: true,
+        });
 
-        const invoiceTypeAccount = accounts.find(
-          (account) =>
-            account.name.trim().toLowerCase() === invoiceType.toLowerCase(),
+        const allAccounts: Account[] = await window.electron.getAccounts();
+        const accounts = allAccounts.map((account) =>
+          pick(account, ['id', 'name', 'type', 'code']),
         );
-        setInvoiceTypeAccountExists(!!invoiceTypeAccount);
+
+        // check for both Sale and Purchase accounts
+        const saleAccount = accounts.find(
+          (account) =>
+            account.name.trim().toLowerCase() ===
+            InvoiceType.Sale.toLowerCase(),
+        );
+        const purchaseAccount = accounts.find(
+          (account) =>
+            account.name.trim().toLowerCase() ===
+            InvoiceType.Purchase.toLowerCase(),
+        );
+        setRequiredAccountsExist({
+          sale: !!saleAccount,
+          purchase: !!purchaseAccount,
+          loading: false,
+        });
 
         const partyAccounts = accounts.filter(
           (account) =>
@@ -370,7 +403,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   onValueChange={(val) =>
                     onItemSelectionChange(row.index, val, field.onChange)
                   }
-                  value={field.value.toString()}
+                  value={field.value?.toString()}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -386,12 +419,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   <SelectContent align="center">
                     {inventory?.map((item) => (
                       <SelectItem value={item.id.toString()} key={item.id}>
-                        <div>
-                          <h2>{item.name}</h2>
-                          <p className="text-xs text-slate-400">
-                            {item.description}
-                          </p>
+                        <div className="flex w-52 justify-between gap-2">
+                          <h2 className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere]">
+                            {item.name}
+                          </h2>
+                          <div className="flex gap-2 text-xs font-bold text-slate-400">
+                            <p className="font-bold">{item.quantity}</p>
+                            <span className="font-extralight">items left</span>
+                          </div>
                         </div>
+                        <p className="text-xs text-slate-400">
+                          {item.description}
+                        </p>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -635,7 +674,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 <p
                   className={
                     watchedTotalAmount
-                      ? 'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2'
+                      ? 'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2 w-fit'
                       : ''
                   }
                 >
@@ -793,20 +832,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     );
   }
 
-  if (!parties?.length) {
-    return (
-      <div className="block fixed z-10 bg-green-400 text-center text-xl bg-opacity-60 w-full left-0 top-[50%] py-4 px-8">
-        {`Please add a ${
-          invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-        } before creating a ${invoiceType.toLowerCase()} invoice.`}
-      </div>
-    );
+  if (requiredAccountsExist.loading) {
+    return <>Loading...</>;
   }
 
-  if (invoiceTypeAccountExists !== true) {
+  if (!requiredAccountsExist.sale || !requiredAccountsExist.purchase) {
     return (
       <div className="block fixed z-10 bg-green-400 text-center text-xl bg-opacity-60 w-full left-0 top-[50%] py-4 px-8">
-        {`Please add a ${invoiceType.toLowerCase()} account before creating a ${invoiceType.toLowerCase()} invoice.`}
+        Please add both Sale and Purchase accounts before creating an invoice.
       </div>
     );
   }

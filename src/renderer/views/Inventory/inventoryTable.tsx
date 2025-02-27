@@ -61,6 +61,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         columns={columns}
         data={getInventory()}
         sortingFns={defaultSortingFunctions}
+        virtual
+        searchPlaceholder="Search inventory..."
+        searchFields={['name', 'description', 'price', 'quantity']}
       />
     </div>
   );

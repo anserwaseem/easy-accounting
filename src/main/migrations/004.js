@@ -3,7 +3,6 @@ module.exports = {
   up: (db) => {
     try {
       db.transaction(() => {
-        // Step 1: add new column discount
         db.prepare(
           `ALTER TABLE invoice_items ADD COLUMN discount DECIMAL(10, 2) NOT NULL DEFAULT 0;`,
         ).run();

@@ -65,7 +65,7 @@ export enum InvoiceType {
   Sale = 'Sale',
 }
 
-type BaseEntity = {
+export type BaseEntity = {
   id: number;
   date: string;
   createdAt?: Date;
@@ -78,16 +78,28 @@ export interface Account extends BaseEntity {
   chartId: number;
   headName?: string;
   type: AccountType;
-  code?: number;
+  code?: number | string;
+  address?: string;
+  phone1?: string;
+  phone2?: string;
+  goodsName?: string;
 }
-export type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
-export type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
+
+export type InsertAccount = Omit<
+  Account,
+  keyof BaseEntity | 'chartId' | 'type'
+>;
+export type UpdateAccount = Prettify<
+  Omit<Account, keyof BaseEntity | 'chartId' | 'type'> & Pick<BaseEntity, 'id'>
+>;
 
 /** Chart */
 export interface Chart extends BaseEntity {
   name: string;
   type: AccountType;
+  parentId?: number;
 }
+export type InsertChart = Pick<Chart, 'name' | 'type' | 'parentId'>;
 
 /** Ledger */
 export interface Ledger extends BaseEntity {
@@ -164,6 +176,8 @@ export type Invoice = Prettify<
     accountId: number;
     invoiceItems: Prettify<InvoiceItem>[];
     extraDiscount?: number; // will be provided by UI
+    biltyNumber?: string; // will be provided by UI
+    cartons?: number; // will be provided by UI
     totalAmount?: number; // will be calculated at service layer
     invoiceNumber?: number; // only given from UI for the first time => user input
     invoiceType?: InvoiceType;
