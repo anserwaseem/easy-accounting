@@ -66,8 +66,16 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             },
           ] as ColumnDef<InvoiceItemView>[])
         : []),
+      ...(isNil(invoice?.accountName)
+        ? [
+            {
+              accessorKey: 'accountName',
+              header: 'Customer',
+            },
+          ]
+        : []),
     ];
-  }, [invoiceType]);
+  }, [invoiceType, invoice?.accountName]);
 
   const handlePrintClick = () => {
     navigate(`/invoices/${invoice!.id}/print`);
@@ -83,12 +91,14 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <p className="font-extrabold text-md w-[160px]">Invoice #:</p>
               <p>{invoice?.invoiceNumber}</p>
             </div>
-            <div className="flex gap-8">
-              <p className="font-medium text-md w-[160px]">{`${
-                invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
-              }:`}</p>
-              <p>{invoice?.accountName}</p>
-            </div>
+            {isNil(invoice?.accountName) ? null : (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px]">{`${
+                  invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
+                }:`}</p>
+                <p>{invoice?.accountName}</p>
+              </div>
+            )}
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Date:</p>
               <p>{invoice?.date}</p>

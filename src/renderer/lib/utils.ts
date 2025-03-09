@@ -83,7 +83,7 @@ export const getFormattedCurrency = (value: number | bigint): string =>
 export function dateStringComparator(rowA: Row<any>, rowB: Row<any>): number {
   const parseDate = (dateStr?: string): number => {
     if (!dateStr) return 0; // Handle missing date
-    const [day, month, year] = dateStr.split('/').map(Number);
+    const [month, day, year] = dateStr.split('/').map(Number);
     return new Date(year, month - 1, day).getTime();
   };
 

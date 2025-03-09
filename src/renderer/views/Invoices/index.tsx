@@ -99,7 +99,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
             },
             {
               accessorKey: 'date',
-              header: 'Date (DD/MM/YYYY)',
+              header: 'Date (MM/DD/YYYY)',
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
@@ -125,24 +125,24 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                     cell: ({ getValue }) =>
                       getFormattedCurrency(toNumber(getValue())),
                   },
+                  {
+                    accessorKey: 'biltyNumber',
+                    header: 'Bilty #',
+                    onClick: (row) =>
+                      propInvoices
+                        ? setPreviewInvoiceId(row.original.invoiceNumber)
+                        : navigateToInvoice(row.original.id),
+                  },
+                  {
+                    accessorKey: 'cartons',
+                    header: 'Cartons',
+                    onClick: (row) =>
+                      propInvoices
+                        ? setPreviewInvoiceId(row.original.invoiceNumber)
+                        : navigateToInvoice(row.original.id),
+                  },
                 ] as ColumnDef<InvoicesView>[])
               : []),
-            {
-              accessorKey: 'biltyNumber',
-              header: 'Bilty #',
-              onClick: (row) =>
-                propInvoices
-                  ? setPreviewInvoiceId(row.original.invoiceNumber)
-                  : navigateToInvoice(row.original.id),
-            },
-            {
-              accessorKey: 'cartons',
-              header: 'Cartons',
-              onClick: (row) =>
-                propInvoices
-                  ? setPreviewInvoiceId(row.original.invoiceNumber)
-                  : navigateToInvoice(row.original.id),
-            },
           ]) as ColumnDef<InvoicesView>[]),
     ],
     [invoiceType, navigateToInvoice, propInvoices, isMini],
@@ -162,7 +162,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
       setFilteredInvoices(
         invoices?.filter((invoice) => {
           // parse the DD/MM/YYYY format to a Date object
-          const [day, month, year] = invoice.date.split('/');
+          const [month, day, year] = invoice.date.split('/');
           const invoiceDate = new Date(+year, +month - 1, +day).setHours(
             0,
             0,

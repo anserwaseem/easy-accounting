@@ -84,11 +84,9 @@ CREATE TABLE IF NOT EXISTS "ledger" (
   "updatedAt"	DATETIME,
 
   FOREIGN KEY("accountId") REFERENCES "account"("id"),
-
   CHECK ("balanceType" IN ('Cr', 'Dr'))
 );
 
--- new
 CREATE TABLE IF NOT EXISTS "inventory" ( -- "002 migration"
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
@@ -122,12 +120,14 @@ CREATE TABLE IF NOT EXISTS "invoice_items" ( -- "002 migration"
     "inventoryId" INTEGER NOT NULL,
     "quantity" INTEGER NOT NULL,
     -- "discount" DECIMAL(10, 2) NOT NULL DEFAULT 0, -- "004 migration"
+    -- "accountId" INTEGER DEFAULT NULL, -- "010 migration"
     "price" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id"),
     FOREIGN KEY ("invoiceId") REFERENCES "invoices"("id")
+    --, FOREIGN KEY ("accountId") REFERENCES "account"("id") -- "010 migration"
 );
 
 
