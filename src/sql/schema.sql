@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS "account" (
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 
-  FOREIGN KEY("chartId") REFERENCES "chart"("id")
+  FOREIGN KEY("chartId") REFERENCES "chart"("id"),
+  UNIQUE("chartId", "name", "code") -- meaning: same account name and code can't be used in the same chart - "011 migration"
 );
 
 DROP TABLE IF EXISTS "journal";

@@ -7,11 +7,10 @@ import {
   DialogHeader,
 } from 'renderer/shad/ui/dialog';
 import { Button } from 'renderer/shad/ui/button';
-import { toast } from 'renderer/shad/ui/use-toast';
 import type { Chart } from 'types';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toString } from 'lodash';
-import { cn } from '@/renderer/lib/utils';
+import { cn, handleAsync } from '@/renderer/lib/utils';
 import { AccountForm, type AccountFormData } from './accountForm';
 
 interface AddAccountProps {
@@ -19,6 +18,10 @@ interface AddAccountProps {
   charts: Chart[];
   clearRef: React.RefObject<HTMLButtonElement>;
   btnClassName?: string;
+  initialValues?: Partial<AccountFormData>;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideButton?: boolean;
 }
 
 export const AddAccount: React.FC<AddAccountProps> = ({
@@ -26,50 +29,71 @@ export const AddAccount: React.FC<AddAccountProps> = ({
   charts,
   clearRef,
   btnClassName,
+  initialValues,
+  isOpen,
+  onOpenChange,
+  hideButton = false,
 }: AddAccountProps) => {
-  const [openCreateForm, setOpenCreateForm] = useState(false);
+  const [openCreateForm, setOpenCreateForm] = useState(isOpen || false);
   const [accountHead, setAccountHead] = useState(
-    toString(window.electron.store.get('createAccountHeadSelected')),
+    initialValues?.headName ||
+      toString(window.electron.store.get('createAccountHeadSelected')),
   );
 
-  const onSubmit = async (values: AccountFormData) => {
-    const res = await window.electron.insertAccount({
-      name: values.accountName,
-      headName: values.headName,
-      code: values.accountCode,
-      address: values.address,
-      phone1: values.phone1,
-      phone2: values.phone2,
-      goodsName: values.goodsName,
-    });
-
-    if (res) {
-      clearRef.current?.click();
-      setOpenCreateForm(false);
-      refetchAccounts();
-      toast({
-        description: `"${values.accountName}" account created successfully`,
-        variant: 'success',
-      });
-    } else {
-      toast({
-        description: `Failed to create "${values.accountName}" account`,
-        variant: 'destructive',
-      });
+  // sync external isOpen state with internal state
+  useEffect(() => {
+    if (isOpen !== undefined) {
+      setOpenCreateForm(isOpen);
     }
+  }, [isOpen]);
+
+  const handleOpenChange = (open: boolean) => {
+    setOpenCreateForm(open);
+    onOpenChange?.(open);
   };
 
+  const onSubmit = (values: AccountFormData) =>
+    handleAsync(
+      () =>
+        window.electron.insertAccount({
+          name: values.accountName,
+          headName: values.headName,
+          code: values.accountCode,
+          address: values.address,
+          phone1: values.phone1,
+          phone2: values.phone2,
+          goodsName: values.goodsName,
+        }),
+      {
+        successMessage: `"${values.accountName}" account created successfully`,
+        errorMessage: 'Failed to create account',
+        onSuccess: () => {
+          clearRef.current?.click();
+          setOpenCreateForm(false);
+          refetchAccounts();
+        },
+        getErrorMessage: (error) => {
+          if (error.includes('UNIQUE')) {
+            return 'Account name and code must be unique';
+          }
+          return 'An unexpected error occurred';
+        },
+      },
+    );
+
   return (
-    <Dialog open={openCreateForm} onOpenChange={setOpenCreateForm}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn('w-full min-w-max', btnClassName)}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Account
-        </Button>
-      </DialogTrigger>
+    <Dialog open={openCreateForm} onOpenChange={handleOpenChange}>
+      {!hideButton && (
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn('w-full min-w-max', btnClassName)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Account
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Account</DialogTitle>
@@ -78,7 +102,7 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           onSubmit={onSubmit}
           charts={charts}
           clearRef={clearRef}
-          initialValues={{ headName: accountHead }}
+          initialValues={{ headName: accountHead, ...initialValues }}
           onHeadNameChange={(value) => {
             setAccountHead(value);
             window.electron.store.set('createAccountHeadSelected', value);

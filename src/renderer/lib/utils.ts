@@ -3,6 +3,7 @@ import { type ClassValue, clsx } from 'clsx';
 import { every, isArray, isNil, toString, toLower } from 'lodash';
 import { twMerge } from 'tailwind-merge';
 import { currencyFormatOptions } from './constants';
+import { toast } from '../shad/ui/use-toast';
 
 /**
  * Combines multiple class names into a single string.
@@ -93,9 +94,65 @@ export function dateStringComparator(rowA: Row<any>, rowB: Row<any>): number {
   return dateA - dateB;
 }
 
+type AsyncFunc<T> = () => Promise<T>;
+interface HandleAsyncOptions {
+  successMessage?: string;
+  errorMessage?: string;
+  onSuccess?: (result: any) => void;
+  onError?: (error: any) => void;
+  getErrorMessage?: (error: string) => string;
+}
+
 /**
- * PRIVATE FUNCTIONS
+ * Handles the result of an asynchronous function.
+ * @param asyncFunc - The asynchronous function to handle.
+ * @param options - The options for the function.
+ * @param options.successMessage - The message to display when the function succeeds.
+ * @param options.errorMessage - The message to display when the function fails.
+ * @param options.onSuccess - The function to call when the function succeeds.
+ * @param options.onError - The function to call when the function fails.
+ * @param options.getErrorMessage - The function to call when the function fails.
+ * @returns The result of the asynchronous function.
  */
+export async function handleAsync<T>(
+  asyncFunc: AsyncFunc<T>,
+  options: HandleAsyncOptions = {},
+): Promise<void> {
+  const { successMessage, errorMessage, onSuccess, onError, getErrorMessage } =
+    options;
+
+  try {
+    const result = await asyncFunc();
+
+    if (result) {
+      if (successMessage) {
+        toast({
+          description: successMessage,
+          variant: 'success',
+        });
+      }
+      if (onSuccess) onSuccess(result);
+    } else {
+      throw new Error(errorMessage || 'Operation failed');
+    }
+  } catch (error) {
+    console.error(error);
+
+    const errorMsg = error instanceof Error ? error.message : toString(error);
+    const description = getErrorMessage
+      ? getErrorMessage(errorMsg)
+      : errorMessage || 'Operation failed';
+
+    toast({
+      description,
+      variant: 'destructive',
+    });
+
+    if (onError) onError(error);
+  }
+}
+
+// PRIVATE FUNCTIONS
 
 function dateComparator(rowA: Row<any>, rowB: Row<any>): number {
   return (
