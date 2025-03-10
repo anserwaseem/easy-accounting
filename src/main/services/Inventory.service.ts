@@ -81,7 +81,6 @@ export class InventoryService {
 
     this.stmGetInventory = this.db.prepare(`
       SELECT * FROM inventory
-      WHERE quantity > 0 AND price > 0
       ORDER BY id;
     `);
 

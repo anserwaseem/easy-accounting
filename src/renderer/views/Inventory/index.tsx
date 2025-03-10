@@ -14,7 +14,8 @@ const InventoryPage: React.FC = () => {
   const [doesInventoryExist, setDoesInventoryExist] = useState<Boolean>();
   const [refresh, setRefresh] = useState(false);
   const [hideZeroQuantity, setHideZeroQuantity] = useState(false);
-
+  const [hideZeroPrice, setHideZeroPrice] = useState(false);
+  const [hideNegativeQuantity, setHideNegativeQuantity] = useState(false);
   useEffect(() => {
     const checkInventoryExists = async () => {
       const result = await window.electron.doesInventoryExist();
@@ -80,15 +81,36 @@ const InventoryPage: React.FC = () => {
         <AddInventoryItem refetchInventory={refetchInventory} />
       </div>
       <div className="flex flex-row gap-2 items-center">
+        <h2 className="text-base">Hide negative quantity</h2>
+        <Checkbox
+          checked={hideNegativeQuantity}
+          onCheckedChange={(checked) =>
+            setHideNegativeQuantity(checked === true)
+          }
+        />
+      </div>
+      <div className="flex flex-row gap-2 items-center">
         <h2 className="text-base">Hide zero quantity</h2>
         <Checkbox
           checked={hideZeroQuantity}
           onCheckedChange={(checked) => setHideZeroQuantity(checked === true)}
         />
       </div>
+      <div className="flex flex-row gap-2 items-center">
+        <h2 className="text-base">Hide zero price</h2>
+        <Checkbox
+          checked={hideZeroPrice}
+          onCheckedChange={(checked) => setHideZeroPrice(checked === true)}
+        />
+      </div>
       <InventoryTable
         refetchInventory={refetchInventory}
-        options={{ refresh, hideZeroQuantity }}
+        options={{
+          refresh,
+          hideZeroQuantity,
+          hideZeroPrice,
+          hideNegativeQuantity,
+        }}
       />
     </div>
   );
