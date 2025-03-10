@@ -33,13 +33,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from 'renderer/shad/ui/select';
 import { toast } from 'renderer/shad/ui/use-toast';
 import {
   type Account,
@@ -478,46 +471,38 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             control={form.control}
             name={`invoiceItems.${row.index}.inventoryId` as const}
             render={({ field }) => (
-              <FormItem className="w-auto min-w-[250px] space-y-0">
-                <Select
-                  onValueChange={(val) =>
-                    onItemSelectionChange(row.index, val, field.onChange)
-                  }
+              <FormItem className="w-max min-w-[200px] space-y-0">
+                <VirtualSelect<InventoryItem>
+                  options={inventory || []}
                   value={field.value?.toString()}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue>
-                        {
-                          inventory?.find(
-                            (item) => item.id === toNumber(field.value),
-                          )?.name
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent align="center">
-                    {inventory?.map((item) => (
-                      <SelectItem value={item.id.toString()} key={item.id}>
-                        <div className="flex w-52 justify-between gap-2">
-                          <h2 className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere]">
-                            {item.name}
-                          </h2>
-                          <div className="text-xs text-muted-foreground text-end">
-                            <div className="flex gap-2">
-                              <p className="font-bold">{item.quantity}</p>
-                              <span className="font-extralight">
-                                item
-                                {item.quantity < 2 ? '' : 's'} left
-                              </span>
-                            </div>
-                            <p>{getFormattedCurrency(item.price)}</p>
-                          </div>
+                  onChange={(val) =>
+                    onItemSelectionChange(
+                      row.index,
+                      toString(val),
+                      field.onChange,
+                    )
+                  }
+                  placeholder="Select item"
+                  searchPlaceholder="Search items..."
+                  renderSelectItem={(item) => (
+                    <div className="flex w-40 justify-between gap-2">
+                      <h2 className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere]">
+                        {item.name}
+                      </h2>
+
+                      <div className="text-xs text-muted-foreground text-end">
+                        <div className="flex gap-2">
+                          <p className="font-bold">{item.quantity}</p>
+
+                          <span className="font-extralight">
+                            item{item.quantity < 2 ? '' : 's'} left
+                          </span>
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                        <p>{getFormattedCurrency(item.price)}</p>
+                      </div>
+                    </div>
+                  )}
+                />
                 <FormMessage />
               </FormItem>
             )}

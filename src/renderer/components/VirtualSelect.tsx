@@ -1,5 +1,6 @@
 import { debounce, toString } from 'lodash';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
@@ -9,28 +10,33 @@ import {
   SelectContent,
   SelectItem,
 } from '@/renderer/shad/ui/select';
+import type { Account } from 'types';
 
-type Option = {
-  id: number | string;
-} & Record<string, string | number | undefined>;
+type BaseOption = {
+  id?: unknown;
+  name?: string;
+  code?: string | number;
+};
 
-type VirtualSelectProps = {
-  options: Option[];
+type VirtualSelectProps<T extends BaseOption> = {
+  options: T[];
   value: string | number | null | undefined;
   onChange: (value: string | number) => void;
   placeholder?: string;
-  searchFields?: (keyof Option)[];
+  searchFields?: (keyof T)[];
   searchPlaceholder?: string;
+  renderSelectItem?: (item: T) => ReactNode;
 };
 
-const VirtualSelect = ({
+const VirtualSelect = <T extends BaseOption = Account>({
   options,
   value,
   onChange,
   placeholder = 'Select an option',
-  searchFields = ['name', 'code'],
+  searchFields = ['name', 'code'] as (keyof T)[],
   searchPlaceholder = 'Search...',
-}: VirtualSelectProps) => {
+  renderSelectItem,
+}: VirtualSelectProps<T>) => {
   const [searchValue, setSearchValue] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,9 +51,13 @@ const VirtualSelect = ({
 
     const lowerSearch = searchValue.toLowerCase();
     return options.filter((opt) =>
-      searchFields.some((field) =>
-        toString(opt[field]).toLowerCase().includes(lowerSearch),
-      ),
+      searchFields.some((field) => {
+        const fieldValue = opt[field];
+        return (
+          fieldValue !== undefined &&
+          toString(fieldValue).toLowerCase().includes(lowerSearch)
+        );
+      }),
     );
   }, [searchValue, options, searchFields]);
 
@@ -56,11 +66,21 @@ const VirtualSelect = ({
     [],
   );
 
+  const defaultRenderSelectItem = useCallback(
+    (item: T) => (
+      <div>
+        <h2>{item.name}</h2>
+        {item.code && <p className="text-xs text-slate-400">{item.code}</p>}
+      </div>
+    ),
+    [],
+  );
+
   return (
     <Select value={value?.toString()} onValueChange={(val) => onChange(val)}>
       <SelectTrigger className="w-full">
         <SelectValue placeholder={placeholder}>
-          {options.find((opt) => opt.id.toString() === value?.toString())
+          {options.find((opt) => opt.id?.toString() === value?.toString())
             ?.name || placeholder}
         </SelectValue>
       </SelectTrigger>
@@ -79,13 +99,13 @@ const VirtualSelect = ({
           style={{ height: '300px' }}
           // eslint-disable-next-line react/no-unstable-nested-components
           itemContent={(_, item) => (
-            <SelectItem value={item.id.toString()} key={item.id}>
-              <div>
-                <h2>{item.name}</h2>
-                {item.code && (
-                  <p className="text-xs text-slate-400">{item.code}</p>
-                )}
-              </div>
+            <SelectItem
+              value={item?.id?.toString() || crypto.randomUUID()}
+              key={item?.id?.toString() || crypto.randomUUID()}
+            >
+              {renderSelectItem
+                ? renderSelectItem(item)
+                : defaultRenderSelectItem(item)}
             </SelectItem>
           )}
         />
