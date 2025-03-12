@@ -45,10 +45,10 @@ export class LedgerService {
     return <GetBalance | undefined>this.stmGetBalance.get({ accountId });
   }
 
-  insertLedger(ledger: Omit<Ledger, 'id'>): void {
-    this.stmLedger.run({
+  insertLedger(ledger: Omit<Ledger, 'id'>): RunResult {
+    return this.stmLedger.run({
       date: ledger.date,
-      accountId: ledger.date,
+      accountId: ledger.accountId,
       debit: ledger.debit,
       credit: ledger.credit,
       balance: ledger.balance,

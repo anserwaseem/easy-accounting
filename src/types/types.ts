@@ -46,6 +46,15 @@ export interface BalanceSheet {
   };
 }
 
+export const Sections = ['assets', 'liabilities', 'equity'] as const;
+export type Section = (typeof Sections)[number] | null; // used in parser: need for reading user written sections text, e.g., "Current Assets", "Fixed Liabilities", "Non Current Liabilities" etc. // FUTURE: need to support both singular and plural forms of these sections
+
+export const SectionTypes = ['current', 'fixed'] as const;
+export type SectionType = (typeof SectionTypes)[number] | null;
+
+export const SingularSections = ['asset', 'liability', 'equity'] as const;
+export type SingularSection = (typeof SingularSections)[number]; // used in chart & statement services
+
 /** Enums */
 export enum AccountType {
   Asset = 'Asset',

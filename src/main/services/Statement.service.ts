@@ -1,28 +1,34 @@
-import type { BalanceSheet, ReportAccount } from 'types';
-import type { Database, Statement } from 'better-sqlite3';
-import { capitalize, forEach, isEmpty, isNil } from 'lodash';
+import type {
+  BalanceSheet,
+  ReportAccount,
+  SingularSection,
+  SectionType,
+} from 'types';
+import type { Database } from 'better-sqlite3';
+import { capitalize, forEach, get, isEmpty, isNil } from 'lodash';
+import { BalanceType, SectionTypes, SingularSections } from '../../types';
 import { DatabaseService } from './Database.service';
+import { ChartService } from './Chart.service';
+import { AccountService } from './Account.service';
 import { store } from '../store';
 import { logErrors } from '../errorLogger';
-
-type Section = 'asset' | 'liability' | 'equity';
-type SectionType = 'current' | 'fixed' | null;
+import { LedgerService } from './Ledger.service';
 
 @logErrors
 export class StatementService {
   private db: Database;
 
-  private stmChart!: Statement;
+  private chartService: ChartService;
 
-  private stmAccount!: Statement;
+  private accountService: AccountService;
 
-  private stmDebitLedger!: Statement;
-
-  private stmCreditLedger!: Statement;
+  private ledgerService: LedgerService;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
-    this.initPreparedStatements();
+    this.chartService = new ChartService();
+    this.accountService = new AccountService();
+    this.ledgerService = new LedgerService();
   }
 
   saveBalanceSheet(balanceSheet: BalanceSheet) {
@@ -31,74 +37,30 @@ export class StatementService {
 
       const stm = this.db.transaction(
         ({ assets, liabilities, equity }: BalanceSheet) => {
-          StatementService.setupLedgers(
-            {
-              stmChart: this.stmChart,
-              stmAccount: this.stmAccount,
-              stmDebitLedger: this.stmDebitLedger,
-              stmCreditLedger: this.stmCreditLedger,
-            },
-            assets.current,
-            balanceSheet.date.toISOString(),
-            'asset',
-            'current',
-            username,
-          );
+          const date = balanceSheet.date.toISOString();
+          const [ASSET, LIABILITY, EQUITY] = SingularSections;
+          const [CURRENT, FIXED] = SectionTypes;
 
-          StatementService.setupLedgers(
-            {
-              stmChart: this.stmChart,
-              stmAccount: this.stmAccount,
-              stmDebitLedger: this.stmDebitLedger,
-              stmCreditLedger: this.stmCreditLedger,
-            },
-            assets.fixed,
-            balanceSheet.date.toISOString(),
-            'asset',
-            'fixed',
-            username,
-          );
+          this.setupLedgers(assets.current, date, ASSET, CURRENT, username);
 
-          StatementService.setupLedgers(
-            {
-              stmChart: this.stmChart,
-              stmAccount: this.stmAccount,
-              stmDebitLedger: this.stmDebitLedger,
-              stmCreditLedger: this.stmCreditLedger,
-            },
+          this.setupLedgers(assets.fixed, date, ASSET, FIXED, username);
+
+          this.setupLedgers(
             liabilities.current,
-            balanceSheet.date.toISOString(),
-            'liability',
-            'current',
+            date,
+            LIABILITY,
+            CURRENT,
             username,
           );
-          StatementService.setupLedgers(
-            {
-              stmChart: this.stmChart,
-              stmAccount: this.stmAccount,
-              stmDebitLedger: this.stmDebitLedger,
-              stmCreditLedger: this.stmCreditLedger,
-            },
+          this.setupLedgers(
             liabilities.fixed,
-            balanceSheet.date.toISOString(),
-            'liability',
-            'fixed',
+            date,
+            LIABILITY,
+            FIXED,
             username,
           );
 
-          StatementService.setupLedgers(
-            {
-              stmChart: this.stmChart,
-              stmAccount: this.stmAccount,
-              stmDebitLedger: this.stmDebitLedger,
-              stmCreditLedger: this.stmCreditLedger,
-            },
-            equity.current,
-            balanceSheet.date.toISOString(),
-            'equity',
-            null,
-            username,
-          );
+          this.setupLedgers(equity.current, date, EQUITY, null, username);
         },
       );
 
@@ -111,16 +73,10 @@ export class StatementService {
     }
   }
 
-  private static setupLedgers(
-    statements: {
-      stmChart: Statement;
-      stmAccount: Statement;
-      stmDebitLedger: Statement;
-      stmCreditLedger: Statement;
-    },
+  private setupLedgers(
     chartsRecord: Record<string, ReportAccount[]>,
     date: string,
-    section: Section,
+    section: NonNullable<SingularSection>,
     sectionType: SectionType,
     username: string,
   ) {
@@ -128,72 +84,63 @@ export class StatementService {
       return;
     }
 
-    const getChartName = (
-      name: string,
-      inputSection: Section,
-      inputSectionType?: SectionType,
-    ): string =>
-      name ||
-      (isNil(inputSectionType)
-        ? capitalize(inputSection)
-        : `${capitalize(inputSectionType)} ${capitalize(inputSection)}`);
-
     const chartIds: Record<string, number | bigint> = {};
     forEach(chartsRecord, (_, name) => {
-      const chartId = statements.stmChart.run({
-        date,
-        name: getChartName(name, section, sectionType),
-        type: capitalize(section),
+      const defaultName = ChartService.getChartName('', section, sectionType);
+      const isCustomHead = !isEmpty(name) && name !== defaultName;
+
+      const chartName = isCustomHead ? name : defaultName;
+      const chartType = capitalize(section);
+
+      const chartId = this.chartService.findOrCreateChart(
+        chartName,
+        chartType,
         username,
-      }).lastInsertRowid;
-      chartIds[getChartName(name, section, sectionType)] = chartId;
+        date,
+        sectionType,
+        isCustomHead,
+      );
+      chartIds[chartName] = chartId;
     });
 
     forEach(chartsRecord, (charts, name) => {
+      const defaultName = ChartService.getChartName('', section, sectionType);
+      const chartName =
+        !isEmpty(name) && name !== defaultName ? name : defaultName;
+
       forEach(charts, (chart) => {
-        const accountId = statements.stmAccount.run({
-          chartId: chartIds[getChartName(name, section, sectionType)],
-          date,
+        const { accountId } = this.accountService.insertAccountIfNotExists({
           name: chart.name,
-        }).lastInsertRowid;
+          headName: chartName,
+          code: <string | number | undefined>get(chart, 'code'),
+          address: <string | undefined>get(chart, 'address'),
+          phone1: <string | undefined>get(chart, 'phone1'),
+          phone2: <string | undefined>get(chart, 'phone2'),
+          goodsName: <string | undefined>get(chart, 'goodsName'),
+        });
 
         if (section === 'asset') {
-          statements.stmDebitLedger.run({
+          this.ledgerService.insertLedger({
             date,
             particulars: 'Opening Balance from B/S',
             accountId,
             debit: chart.amount,
             balance: chart.amount,
+            balanceType: BalanceType.Dr,
+            credit: 0,
           });
         } else {
-          statements.stmCreditLedger.run({
+          this.ledgerService.insertLedger({
             date,
             particulars: 'Opening Balance from B/S',
             accountId,
             credit: chart.amount,
             balance: chart.amount,
+            balanceType: BalanceType.Cr,
+            debit: 0,
           });
         }
       });
     });
-  }
-
-  private initPreparedStatements() {
-    this.stmChart = this.db.prepare(`
-      INSERT INTO chart (date, name, type, userId)
-      VALUES (@date, @name, @type, (SELECT id FROM users WHERE username = @username))
-    `);
-    this.stmAccount = this.db.prepare(`
-      INSERT INTO account (chartId, date, name)
-      VALUES (@chartId, @date, @name)
-    `);
-    this.stmDebitLedger = this.db.prepare(`
-      INSERT INTO ledger (date, particulars, accountId, debit, balance, balanceType)
-      VALUES (@date, @particulars, @accountId, @debit, @balance, 'Dr')
-    `);
-    this.stmCreditLedger = this.db.prepare(`
-      INSERT INTO ledger (date, particulars, accountId, credit, balance, balanceType)
-      VALUES (@date, @particulars, @accountId, @credit, @balance, 'Cr')
-    `);
   }
 }

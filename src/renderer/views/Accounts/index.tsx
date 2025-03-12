@@ -224,6 +224,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           searchFields={[
             'name',
             'code',
+            'headName',
             'address',
             'phone1',
             'phone2',

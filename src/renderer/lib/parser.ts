@@ -17,8 +17,17 @@ import {
   toNumber,
   toString,
 } from 'lodash';
-import type { BalanceSheet, InventoryItem, ReportAccount } from 'types';
 import {
+  Sections,
+  SectionTypes,
+  type BalanceSheet,
+  type InventoryItem,
+  type ReportAccount,
+  type Section,
+  type SectionType,
+} from 'types';
+import {
+  getFixedNumber,
   isTwoDimensionalArray,
   removeEmptySubarrays,
   toLowerString,
@@ -332,9 +341,6 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
    * @returns void
    */
   function parseAccounts(accounts: unknown[][]): void {
-    type Section = 'assets' | 'liabilities' | 'equity' | null; // need for reading user written sections text, e.g., "Current Assets", "Fixed Liabilities", "Non Current Liabilities" etc. // FUTURE: need to support both singular and plural forms of these sections
-    type SectionType = 'current' | 'fixed' | null;
-
     let currentSection: Section = null;
     let currentSectionType: SectionType = null;
 
@@ -353,16 +359,19 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
 
       const lowerName = toLower(name);
 
+      const [ASSETS, LIABILITIES, EQUITY] = Sections;
+      const [CURRENT, FIXED] = SectionTypes;
+
       switch (lowerName) {
-        case 'assets':
-          currentSection = 'assets';
+        case ASSETS:
+          currentSection = ASSETS;
           return;
-        case 'liabilities':
-          currentSection = 'liabilities';
+        case LIABILITIES:
+          currentSection = LIABILITIES;
           return;
-        case 'equity':
-          currentSection = 'equity';
-          currentSectionType = 'current';
+        case EQUITY:
+          currentSection = EQUITY;
+          currentSectionType = CURRENT;
           return;
         default:
           break;
@@ -413,7 +422,9 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
               sheet.equity.total
           )
             throw new Error(
-              `Total liabilities and equity do not match. Should be equal to ${
+              `Total liabilities and equity ${toNumber(
+                head(values),
+              )} do not match. Should be equal to ${
                 sheet.liabilities.totalFixed +
                 sheet.liabilities.totalCurrent +
                 sheet.equity.total
@@ -433,18 +444,26 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
             }),
           );
 
-          if (sheet[currentSection].total !== total)
+          if (
+            getFixedNumber(sheet[currentSection].total) !==
+            getFixedNumber(total)
+          )
             throw new Error(`Total ${currentSection} do not match`);
-        } else if (sheet[currentSection].total !== totalCurrent + totalFixed)
+        } else if (
+          getFixedNumber(sheet[currentSection].total) !==
+          getFixedNumber(totalCurrent + totalFixed)
+        )
           throw new Error(
-            `Total ${currentSection} do not match. Should be equal to ${
-              totalCurrent + totalFixed
-            }`,
+            `Total ${currentSection} ${getFixedNumber(
+              sheet[currentSection].total,
+            )} do not match. Should be equal to ${getFixedNumber(
+              totalCurrent + totalFixed,
+            )}`,
           );
       }
 
       // indicates end of equity section i.e., end of balance sheet
-      if (currentSection === 'equity' && lowerName.includes('total')) return;
+      if (currentSection === EQUITY && lowerName.includes('total')) return;
 
       if (
         isEmpty(values) || // HACK: if section type is not specified, it's taken as 'current'
@@ -452,7 +471,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
           !lowerName.includes('non') &&
           !lowerName.includes('fixed'))
       ) {
-        currentSectionType = 'current';
+        currentSectionType = CURRENT;
         return;
       }
 
@@ -461,12 +480,12 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         (lowerName.includes('non') && lowerName.includes('current'))
       ) {
         accountHead = '';
-        currentSectionType = 'fixed';
+        currentSectionType = FIXED;
         return;
       }
 
-      // if amount is empty, this is a new account head
-      if (!head(values)) {
+      // if no amount is specified, treat this as a new account head
+      if (isNil(head(values))) {
         accountHead = name;
         return;
       }
@@ -478,7 +497,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       };
 
       switch (currentSectionType) {
-        case 'current':
+        case CURRENT:
           totalCurrent += reportAccount.amount;
           if (!lowerName.includes('total')) {
             // add to existing account head
@@ -487,7 +506,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
             else current[accountHead] = [reportAccount];
           }
           break;
-        case 'fixed':
+        case FIXED:
           totalFixed += reportAccount.amount;
           if (!lowerName.includes('total')) {
             // add to existing account head
@@ -502,7 +521,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
 
       // reset
       const nextLowerName = toLower(toString(head(accounts?.at(accIdx + 1))));
-      if (nextLowerName === 'liabilities' || nextLowerName === 'equity') {
+      if (nextLowerName === LIABILITIES || nextLowerName === EQUITY) {
         currentSection = null;
         currentSectionType = null;
         accountHead = '';
