@@ -16,7 +16,7 @@ import type {
 } from 'types';
 import { InvoiceType } from 'types';
 
-export type Channels = 'ipc-example';
+export type Channels = 'backup-operation-status' | 'backup-operation-progress';
 
 // eslint-disable-next-line no-console
 console.log('Preload process started');

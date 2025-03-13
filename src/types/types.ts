@@ -251,3 +251,27 @@ export type BackupMetadata = {
   local: boolean;
   cloud: boolean;
 };
+
+// backup operation event types
+export type BackupOperationStatus = 'in-progress' | 'error' | 'success';
+export type BackupOperationType = 'backup' | 'restore';
+
+export type BackupOperationStatusEvent = {
+  status: BackupOperationStatus;
+  type: BackupOperationType;
+  message: string;
+};
+
+export type BackupOperationProgressStatus =
+  | 'started'
+  | 'processing'
+  | 'uploading'
+  | 'completed'
+  | 'failed';
+export type BackupOperationTransferType = 'upload' | 'download';
+
+export type BackupOperationProgressEvent = {
+  status: BackupOperationProgressStatus;
+  type: BackupOperationTransferType;
+  message: string;
+};

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Notification } from 'electron';
+import { Notification, BrowserWindow } from 'electron';
 import log from 'electron-log';
 import Database from 'better-sqlite3';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -11,6 +11,9 @@ import type {
   BackupInfo,
   BackupMetadata,
   BackupType,
+  BackupOperationProgressEvent,
+  BackupOperationProgressStatus,
+  BackupOperationTransferType,
 } from '@/types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
@@ -32,6 +35,8 @@ export class BackupService {
     | `${typeof this.BACKUP_PREFIX}_${typeof process.platform}_${string}_${string}`
     | undefined;
 
+  private readonly logPrefix: string = 'BackupService';
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
 
@@ -41,6 +46,26 @@ export class BackupService {
     );
     this.setupBucketName();
   }
+
+  // emit progress event to all open browser windows
+  private emitProgress = (
+    status: BackupOperationProgressStatus,
+    message: string,
+    type: BackupOperationTransferType = 'upload',
+  ): void => {
+    const progressEvent: BackupOperationProgressEvent = {
+      status,
+      message,
+      type,
+    };
+
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('backup-operation-progress', progressEvent);
+      }
+    });
+    log.info(`${this.logPrefix} progress: ${status} - ${message}`);
+  };
 
   public async createBackup(): Promise<BackupCreateResult> {
     try {
@@ -73,6 +98,9 @@ export class BackupService {
         return { success: true, path: backupPath };
       }
 
+      // emit progress for upload starting
+      this.emitProgress('started', 'Uploading backup to cloud storage...');
+
       // ensure bucket exists
       const { error: bucketError } = await this.supabase.storage.createBucket(
         this.bucketName,
@@ -83,14 +111,25 @@ export class BackupService {
         bucketError &&
         bucketError?.message !== 'The resource already exists'
       ) {
+        this.emitProgress(
+          'failed',
+          `Failed to create cloud bucket: ${bucketError.message}`,
+        );
         log.error(`Supabase bucket creation failed: ${bucketError.message}`);
         return { success: false, error: bucketError.message };
       }
 
       // upload backup db
+      this.emitProgress('processing', 'Reading local backup file...');
       const fileBuffer = fs.readFileSync(backupPath);
       const fileName = path.basename(backupPath);
 
+      this.emitProgress(
+        'uploading',
+        `Uploading ${(fileBuffer.length / (1024 * 1024)).toFixed(
+          2,
+        )} MB to cloud...`,
+      );
       const { error: uploadError } = await this.supabase.storage
         .from(this.bucketName)
         .upload(fileName, fileBuffer, {
@@ -99,10 +138,15 @@ export class BackupService {
         });
 
       if (uploadError) {
+        this.emitProgress('failed', `Upload failed: ${uploadError.message}`);
         log.error(`Supabase file uploading failed: ${uploadError.message}`);
         return { success: false, error: uploadError.message };
       }
 
+      this.emitProgress(
+        'completed',
+        'Backup successfully uploaded to cloud storage',
+      );
       new Notification({
         title: 'Backup Created',
         body: `Database backup created locally and uploaded to cloud storage`,
@@ -113,6 +157,7 @@ export class BackupService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+      this.emitProgress('failed', `Backup failed: ${errorMessage}`);
       log.error('Backup creation failed:', errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -145,23 +190,48 @@ export class BackupService {
           error: 'Please turn on internet to restore cloud backup.',
         };
 
+      this.emitProgress(
+        'started',
+        `Downloading backup from cloud...`,
+        'download',
+      );
       const { data, error: downloadError } = await this.supabase.storage
         .from(this.bucketName)
         .download(backup.filename);
 
       if (downloadError) {
+        this.emitProgress(
+          'failed',
+          `Download failed: ${downloadError.message}`,
+          'download',
+        );
         const error = `Supabase file ${backup.filename} downloading failed: ${downloadError.message}`;
         log.error(error);
         return { success: false, error };
       }
 
+      this.emitProgress(
+        'processing',
+        'Saving downloaded backup to local storage...',
+        'download',
+      );
       const localPath = path.join(this.backupDir, backup.filename);
       fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer())); // failing here
 
+      this.emitProgress(
+        'completed',
+        'Backup successfully downloaded from cloud',
+        'download',
+      );
       return this.restoreFromBackup(backup.filename);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+      this.emitProgress(
+        'failed',
+        `Restore failed: ${errorMessage}`,
+        'download',
+      );
       log.error('Restore failed:', errorMessage);
       return { success: false, error: errorMessage };
     }

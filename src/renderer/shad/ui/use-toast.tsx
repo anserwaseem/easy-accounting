@@ -186,4 +186,6 @@ function useToast() {
   };
 }
 
-export { useToast, toast };
+type ToastVariant = ToastProps['variant'];
+
+export { useToast, toast, type ToastProps, type ToastVariant };
