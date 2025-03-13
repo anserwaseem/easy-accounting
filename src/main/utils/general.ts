@@ -3,7 +3,9 @@ import { URL } from 'url';
 import path from 'path';
 import { format, parse } from 'date-fns';
 import { lookup } from 'dns';
-import { get } from 'lodash';
+import { get, isEmpty } from 'lodash';
+import { hostname } from 'node:os';
+import cp from 'node:child_process';
 
 export function resolveHtmlPath(htmlFileName: string) {
   if (process.env.NODE_ENV === 'development') {
@@ -54,4 +56,41 @@ export const isOnline = (): Promise<boolean> => {
       }
     });
   });
+};
+
+/**
+ * Gets the computer name based on the operating system.
+ * @returns The computer name.
+ * @see https://stackoverflow.com/a/75309339/13183269
+ */
+export const getComputerName = (): string => {
+  const defaultName = hostname();
+
+  try {
+    switch (process.platform) {
+      case 'win32':
+        return isEmpty(process.env.COMPUTERNAME)
+          ? defaultName
+          : process.env.COMPUTERNAME!;
+      case 'darwin': {
+        const name = cp
+          .execSync('scutil --get ComputerName', { timeout: 3000 })
+          .toString()
+          .trim();
+        return isEmpty(name) ? defaultName : name;
+      }
+      case 'linux': {
+        const name = cp
+          .execSync('hostnamectl --pretty', { timeout: 3000 })
+          .toString()
+          .trim();
+        return isEmpty(name) ? defaultName : name;
+      }
+      default:
+        return defaultName;
+    }
+  } catch (error) {
+    console.error('Error getting computer name:', error);
+    return defaultName;
+  }
 };

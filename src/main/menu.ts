@@ -235,9 +235,9 @@ export default class MenuBuilder {
         {
           label: 'Available Backups',
           submenu: backups.map((backup) => ({
-            label: `${new Date(backup.timestamp).toLocaleString()} - ${
+            label: `${new Date(backup.timestamp).toLocaleString()} | ${
               backup.size / 1024
-            } KB - ${backup.type}`,
+            } KB | ${backup.type}`,
             click: async () => {
               const dateString = backup.filename
                 .replace('database-backup-', '')

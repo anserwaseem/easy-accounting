@@ -234,3 +234,20 @@ export type BackupCreateResult = Prettify<
     path?: string;
   }
 >;
+
+export type BackupType = 'local' | 'cloud' | 'local + cloud';
+
+export type BackupInfo = {
+  filename: string;
+  timestamp: Date;
+  size: number;
+  type: BackupType;
+};
+
+export type BackupMetadata = {
+  filename: string;
+  timestamp: Date;
+  size: number;
+  local: boolean;
+  cloud: boolean;
+};

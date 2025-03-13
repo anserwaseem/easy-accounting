@@ -4,13 +4,18 @@ import { Notification } from 'electron';
 import log from 'electron-log';
 import Database from 'better-sqlite3';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { hostname } from 'node:os';
-import { compact, get, orderBy, uniqBy } from 'lodash';
-import type { BackupCreateResult, BackupReadResult } from '@/types';
+import { get, orderBy } from 'lodash';
+import type {
+  BackupCreateResult,
+  BackupReadResult,
+  BackupInfo,
+  BackupMetadata,
+  BackupType,
+} from '@/types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
 import { store } from '../store';
-import { isOnline } from '../utils/general';
+import { getComputerName, isOnline } from '../utils/general';
 
 // FUTURE sync local backups to cloud when internet is connected or expose a button
 @logErrors
@@ -177,14 +182,7 @@ export class BackupService {
   }
 
   // FIXME: list backups only for logged-in user
-  public async listBackups(): Promise<
-    Array<{
-      filename: string;
-      timestamp: Date;
-      size: number;
-      type: 'local' | 'cloud';
-    }>
-  > {
+  public async listBackups(): Promise<BackupInfo[]> {
     if (!this.backupDir || !this.bucketName) {
       log.info(
         `No backup directory or bucket available - user is logged out ${this.backupDir} ${this.bucketName}`,
@@ -192,45 +190,66 @@ export class BackupService {
       return [];
     }
 
-    const localBackups = fs
+    // get local backups
+    const localBackups: BackupMetadata[] = fs
       .readdirSync(this.backupDir)
       .filter((file) => file.startsWith(this.BACKUP_PREFIX))
       .map((filename) => ({
         filename,
         timestamp: BackupService.extractTimestamp(filename),
         size: fs.statSync(path.join(this.backupDir, filename)).size,
-        type: 'local' as const,
+        local: true,
+        cloud: false,
       }));
 
-    let cloudBackups: Awaited<ReturnType<typeof this.listBackups>> = [];
-    const isonline = await isOnline();
-    if (this.bucketName && isonline) {
+    // get cloud backups
+    let cloudBackups: BackupMetadata[] = [];
+    if (this.bucketName && (await isOnline())) {
       const { data: cloudFiles, error: listError } = await this.supabase.storage
         .from(this.bucketName)
         .list();
 
-      if (listError) {
-        log.error(
-          `Supabase files listing from bucket: ${this.bucketName} failed: ${listError.message}`,
+      if (!listError && cloudFiles?.length) {
+        log.info(
+          `Supabase files fetched: ${cloudFiles.length} from bucket: ${this.bucketName}`,
         );
-        return localBackups;
+        cloudBackups = cloudFiles
+          .filter((file) => file.name.startsWith(this.BACKUP_PREFIX))
+          .map((file) => ({
+            filename: file.name,
+            timestamp: BackupService.extractTimestamp(file.name),
+            size: get(file.metadata, 'size', 0),
+            local: false,
+            cloud: true,
+          }));
+      } else if (listError) {
+        log.error(`Supabase files listing failed: ${listError.message}`);
       }
-      log.info(
-        `Supabase files fetched: ${cloudFiles?.length} from bucket: ${this.bucketName}`,
-      );
-
-      cloudBackups = cloudFiles
-        .filter((file) => file.name.startsWith(this.BACKUP_PREFIX))
-        .map((file) => ({
-          filename: file.name, // e.g. "database-backup_2025-01-25T13-21-43-748Z.db"
-          timestamp: BackupService.extractTimestamp(file.name),
-          size: get(file.metadata, 'size', 0),
-          type: 'cloud' as const,
-        }));
     }
 
+    // merge and convert to final format
     return orderBy(
-      uniqBy(compact([...localBackups, ...cloudBackups]), 'filename'),
+      Object.values(
+        [...localBackups, ...cloudBackups].reduce(
+          (acc, backup) => {
+            const existing = acc[backup.filename];
+            if (existing) {
+              existing.local ||= backup.local;
+              existing.cloud ||= backup.cloud;
+              existing.size = Math.max(existing.size, backup.size);
+            } else {
+              acc[backup.filename] = backup;
+            }
+            return acc;
+          },
+          {} as Record<string, BackupMetadata>,
+        ),
+      ).map(({ filename, timestamp, size, local, cloud }) => ({
+        filename,
+        timestamp,
+        size,
+        type: BackupService.determineBackupType(local, cloud),
+      })),
       (b) => b.timestamp.getTime(),
       'desc',
     );
@@ -281,7 +300,8 @@ export class BackupService {
 
   private setupBucketName = () => {
     const { platform } = process;
-    const hostName = hostname().replace(/[^a-zA-Z0-9]/g, '-');
+    const cn = getComputerName();
+    const hostName = cn.replace(/[^a-zA-Z0-9]/g, '-');
     const username = store.get('username');
 
     if (username) {
@@ -329,4 +349,13 @@ export class BackupService {
     );
     return new Date(`${dateString}Z`);
   };
+
+  private static determineBackupType(
+    isLocal: boolean,
+    isCloud: boolean,
+  ): BackupType {
+    if (isLocal && isCloud) return 'local + cloud';
+    if (isLocal) return 'local';
+    return 'cloud';
+  }
 }
