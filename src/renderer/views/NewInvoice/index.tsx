@@ -1124,7 +1124,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-between fixed bottom-6">
+            <div className="flex justify-between">
               <div className="flex gap-4">
                 <Button type="submit" variant="default">
                   Save
@@ -1135,7 +1135,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
 
               <Button
-                className="fixed right-9"
                 variant="secondary"
                 onClick={() => {
                   form.reset(defaultFormValues);

@@ -1,7 +1,7 @@
 import { debounce, toString } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { TableVirtuoso } from 'react-virtuoso';
+import { Virtuoso } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
   Select,
@@ -38,13 +38,18 @@ const VirtualSelect = <T extends BaseOption = Account>({
   renderSelectItem,
 }: VirtualSelectProps<T>) => {
   const [searchValue, setSearchValue] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // auto focus the search input when the select dropdown is opened
   useEffect(() => {
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
+    if (isOpen && searchInputRef.current) {
+      // use a small timeout to ensure the input is in the DOM
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
     }
-  }, [searchValue, options]);
+  }, [isOpen]);
 
   const filteredOptions = useMemo(() => {
     if (!searchValue) return options;
@@ -62,7 +67,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   }, [searchValue, options, searchFields]);
 
   const debounceSearch = useMemo(
-    () => debounce((search: string) => setSearchValue(search), 100),
+    () => debounce((search: string) => setSearchValue(search), 50),
     [],
   );
 
@@ -76,27 +81,36 @@ const VirtualSelect = <T extends BaseOption = Account>({
     [],
   );
 
+  const handleOpenChange = useCallback((open: boolean) => {
+    setIsOpen(open);
+    if (!open) setSearchValue(''); // reset search value when dropdown is closed
+  }, []);
+
   return (
-    <Select value={value?.toString()} onValueChange={(val) => onChange(val)}>
-      <SelectTrigger className="w-full">
+    <Select
+      value={value?.toString()}
+      onValueChange={(val) => onChange(val)}
+      onOpenChange={handleOpenChange}
+      open={isOpen}
+    >
+      <SelectTrigger>
         <SelectValue placeholder={placeholder}>
           {options.find((opt) => opt.id?.toString() === value?.toString())
             ?.name || placeholder}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent align="center" className="max-h-[300px] w-full">
+      <SelectContent>
         <div className="p-2">
           <Input
             ref={searchInputRef}
             value={searchValue}
             onChange={(e) => debounceSearch(e.target.value)}
             placeholder={searchPlaceholder || 'Search...'}
-            className="w-full"
           />
         </div>
-        <TableVirtuoso
+        <Virtuoso
           data={filteredOptions}
-          style={{ height: '300px' }}
+          style={{ height: 600 }}
           // eslint-disable-next-line react/no-unstable-nested-components
           itemContent={(_, item) => (
             <SelectItem
