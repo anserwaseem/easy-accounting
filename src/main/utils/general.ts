@@ -40,10 +40,18 @@ export const convertOrdinalDate = (dateStr: string): string => {
   return formatDate(parsedDate);
 };
 
-export const isOnline = (): boolean => {
-  lookup('google.com', (err: unknown) => {
-    if (err && get(err, 'code') === 'ENOTFOUND') return false;
-    return true;
+/**
+ * checks if the system is connected to the internet
+ * @returns a promise that resolves to true if online, false otherwise
+ */
+export const isOnline = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    lookup('google.com', (err) => {
+      if (err && get(err, 'code') === 'ENOTFOUND') {
+        resolve(false);
+      } else {
+        resolve(true);
+      }
+    });
   });
-  return false;
 };

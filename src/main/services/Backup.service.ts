@@ -57,7 +57,8 @@ export class BackupService {
 
       log.info(`Database backup created locally at ${backupPath}`);
 
-      const isonline = isOnline();
+      const isonline = await isOnline();
+      log.info(`isOnline: ${isonline}`);
       if (!isonline) {
         new Notification({
           title: 'Backup Created',
@@ -202,7 +203,8 @@ export class BackupService {
       }));
 
     let cloudBackups: Awaited<ReturnType<typeof this.listBackups>> = [];
-    if (this.bucketName && isOnline()) {
+    const isonline = await isOnline();
+    if (this.bucketName && isonline) {
       const { data: cloudFiles, error: listError } = await this.supabase.storage
         .from(this.bucketName)
         .list();
