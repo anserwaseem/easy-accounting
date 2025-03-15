@@ -37,24 +37,68 @@ const VirtualSelect = <T extends BaseOption = Account>({
   searchPlaceholder = 'Search...',
   renderSelectItem,
 }: VirtualSelectProps<T>) => {
-  const [searchValue, setSearchValue] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
+  const [filteredSearchValue, setFilteredSearchValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isTypingRef = useRef(false);
 
   // auto focus the search input when the select dropdown is opened
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
       // use a small timeout to ensure the input is in the DOM
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         searchInputRef.current?.focus();
-      }, 0);
+      }, 10);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
-  const filteredOptions = useMemo(() => {
-    if (!searchValue) return options;
+  // maintain focus on input while typing
+  useEffect(() => {
+    if (!isOpen) return undefined;
 
-    const lowerSearch = searchValue.toLowerCase();
+    // function to refocus the input if it loses focus while typing
+    const handleFocusOut = () => {
+      if (isTypingRef.current) {
+        if (document.activeElement !== searchInputRef.current) {
+          setTimeout(() => {
+            searchInputRef.current?.focus();
+          }, 0);
+        }
+      }
+    };
+
+    document.addEventListener('focusin', handleFocusOut);
+    return () => {
+      document.removeEventListener('focusin', handleFocusOut);
+    };
+  }, [isOpen]);
+
+  // debounced search handler with timeout
+  const debouncedSetFilteredValue = useMemo(
+    () =>
+      debounce((search: string) => {
+        setFilteredSearchValue(search);
+        isTypingRef.current = false;
+      }, 300),
+    [],
+  );
+
+  // handle input changes without debounce for immediate input feedback
+  const handleSearchInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      isTypingRef.current = true;
+      setSearchInputValue(e.target.value);
+      debouncedSetFilteredValue(e.target.value);
+    },
+    [debouncedSetFilteredValue],
+  );
+
+  const filteredOptions = useMemo(() => {
+    if (!filteredSearchValue) return options;
+
+    const lowerSearch = filteredSearchValue.toLowerCase();
     return options.filter((opt) =>
       searchFields.some((field) => {
         const fieldValue = opt[field];
@@ -64,12 +108,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
         );
       }),
     );
-  }, [searchValue, options, searchFields]);
-
-  const debounceSearch = useMemo(
-    () => debounce((search: string) => setSearchValue(search), 50),
-    [],
-  );
+  }, [filteredSearchValue, options, searchFields]);
 
   const defaultRenderSelectItem = useCallback(
     (item: T) => (
@@ -83,8 +122,46 @@ const VirtualSelect = <T extends BaseOption = Account>({
 
   const handleOpenChange = useCallback((open: boolean) => {
     setIsOpen(open);
-    if (!open) setSearchValue(''); // reset search value when dropdown is closed
+    if (!open) {
+      // reset search values when dropdown is closed
+      setSearchInputValue('');
+      setFilteredSearchValue('');
+      isTypingRef.current = false;
+    }
   }, []);
+
+  // handle key down events in the input to prevent focus loss on arrow keys
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        // prevent default behavior which might cause focus loss
+        e.preventDefault();
+      }
+    },
+    [],
+  );
+
+  // memoize item renderer to prevent re-renders
+  const itemRenderer = useCallback(
+    (_: number, item: T) => (
+      <SelectItem
+        value={item?.id?.toString() || crypto.randomUUID()}
+        key={item?.id?.toString() || crypto.randomUUID()}
+        onMouseDown={(e) => {
+          // prevent mousedown from stealing focus from input
+          if (isTypingRef.current) {
+            e.preventDefault();
+          }
+        }}
+        className="transition-colors duration-150 ease-in-out"
+      >
+        {renderSelectItem
+          ? renderSelectItem(item)
+          : defaultRenderSelectItem(item)}
+      </SelectItem>
+    ),
+    [renderSelectItem, defaultRenderSelectItem],
+  );
 
   return (
     <Select
@@ -99,30 +176,24 @@ const VirtualSelect = <T extends BaseOption = Account>({
             ?.name || placeholder}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="overflow-hidden">
         <div className="p-2">
           <Input
             ref={searchInputRef}
-            value={searchValue}
-            onChange={(e) => debounceSearch(e.target.value)}
+            value={searchInputValue}
+            onChange={handleSearchInputChange}
+            onKeyDown={handleKeyDown}
             placeholder={searchPlaceholder || 'Search...'}
+            className="w-full"
           />
         </div>
-        <Virtuoso
-          data={filteredOptions}
-          style={{ height: 600 }}
-          // eslint-disable-next-line react/no-unstable-nested-components
-          itemContent={(_, item) => (
-            <SelectItem
-              value={item?.id?.toString() || crypto.randomUUID()}
-              key={item?.id?.toString() || crypto.randomUUID()}
-            >
-              {renderSelectItem
-                ? renderSelectItem(item)
-                : defaultRenderSelectItem(item)}
-            </SelectItem>
-          )}
-        />
+        <div className="transition-opacity duration-150 ease-in-out">
+          <Virtuoso
+            data={filteredOptions}
+            style={{ height: 600 }}
+            itemContent={itemRenderer}
+          />
+        </div>
       </SelectContent>
     </Select>
   );
