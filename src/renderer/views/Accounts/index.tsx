@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
-import { toString } from 'lodash';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import {
@@ -16,6 +15,7 @@ import type { CellContext } from '@tanstack/react-table';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
+import { AddCustomHead } from './addCustomHead';
 
 type AccountPageProps = {
   onRowClick?: (id?: number) => void;
@@ -25,8 +25,11 @@ const AccountCell: React.FC<CellContext<Account, unknown>> = ({
   row,
 }: CellContext<Account, unknown>) => (
   <div className="flex justify-between">
-    <h2>{row.original.name}</h2>
-    <p className="text-xs text-slate-400">{row.original.type}</p>
+    <div>
+      <h2 className="font-normal">{row.original.name}</h2>
+      <h6 className="font-extralight">{row.original.code}</h6>
+    </div>
+    <p className="text-xs text-slate-400">&nbsp;&nbsp;{row.original.type}</p>
   </div>
 );
 
@@ -45,8 +48,12 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   const navigate = useNavigate();
 
   const refetchAccounts = useCallback(async () => {
-    setAccounts(await window.electron.getAccounts());
-    setCharts(await window.electron.getCharts());
+    const [fetchedAccounts, fetchedCharts] = await Promise.all([
+      window.electron.getAccounts(),
+      window.electron.getCharts(),
+    ]);
+    setAccounts(fetchedAccounts);
+    setCharts(fetchedCharts);
   }, []);
 
   const columns: ColumnDef<Account>[] = useMemo(
@@ -55,7 +62,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         ? [
             {
               accessorKey: 'name',
-              header: 'Account Name',
+              header: 'Accounts',
               cell: AccountCell,
               onClick: (row) => {
                 onRowClick?.(row.original.id);
@@ -67,22 +74,42 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             {
               accessorKey: 'name',
               header: 'Account Name',
-              onClick: (row) => navigate(toString(row.original.id)),
-            },
-            {
-              accessorKey: 'headName',
-              header: 'Head Name',
-              onClick: (row) => navigate(toString(row.original.id)),
-            },
-            {
-              accessorKey: 'type',
-              header: 'Type',
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               accessorKey: 'code',
               header: 'Account Code',
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'address',
+              header: 'Address',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'phone1',
+              header: 'Phone 1',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'phone2',
+              header: 'Phone 2',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'goodsName',
+              header: 'Goods Name',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'headName',
+              header: 'Head Name',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+            },
+            {
+              accessorKey: 'type',
+              header: 'Type',
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               accessorKey: 'updatedAt',
@@ -92,7 +119,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   'en-US',
                   dateFormatOptions,
                 ),
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               accessorKey: 'createdAt',
@@ -102,7 +129,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   'en-US',
                   dateFormatOptions,
                 ),
-              onClick: (row) => navigate(toString(row.original.id)),
+              onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
               header: 'Edit',
@@ -143,7 +170,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
       <div className="flex justify-between items-center py-4 pr-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            <Button
+              variant="outline"
+              className={isMini ? 'max-w-min py-6' : ''}
+            >
               <span className="mr-2">{typeSelected} Accounts</span>
               <ChevronDown size={16} />
             </Button>
@@ -164,13 +194,23 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <h1 className={isMini ? 'hidden' : 'text-2xl'}>Accounts</h1>
+        <h1 className={isMini ? 'hidden' : 'text-2xl font-bold tracking-tight'}>
+          Accounts
+        </h1>
 
-        <AddAccount
-          charts={charts}
-          clearRef={clearRef}
-          refetchAccounts={refetchAccounts}
-        />
+        <div className={`flex ${isMini ? 'gap-0.5' : 'gap-2'}`}>
+          <AddCustomHead
+            charts={charts}
+            onHeadAdded={refetchAccounts}
+            btnClassName={isMini ? 'max-w-min py-6' : 'min-w-max'}
+          />
+          <AddAccount
+            charts={charts}
+            clearRef={clearRef}
+            refetchAccounts={refetchAccounts}
+            btnClassName={isMini ? 'min-w-20 max-w-min py-6' : 'min-w-max'}
+          />
+        </div>
       </div>
       <div className="py-8 pr-4">
         <DataTable
@@ -178,6 +218,18 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           data={getAccounts()}
           defaultSortField="id"
           sortingFns={defaultSortingFunctions}
+          virtual
+          isMini={isMini}
+          searchPlaceholder="Search accounts..."
+          searchFields={[
+            'name',
+            'code',
+            'headName',
+            'address',
+            'phone1',
+            'phone2',
+            'goodsName',
+          ]}
         />
       </div>
     </div>

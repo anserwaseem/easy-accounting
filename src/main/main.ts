@@ -19,6 +19,7 @@ import type {
   Invoice,
   UpdateInventoryItem,
   InsertInventoryItem,
+  InsertChart,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -49,12 +50,6 @@ log.info('Main process started');
 new ErrorManager().init();
 
 let mainWindow: BrowserWindow | null = null;
-
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
-});
 
 ipcMain.on('electron-store-get', async (event, val) => {
   event.returnValue = store.get(val);
@@ -287,6 +282,9 @@ app
       printService.printPDF(invoiceNumber),
     );
     ipcMain.handle('print:outputDir', () => printService.outputDirectory);
+    ipcMain.handle('chart:insertCustomHead', (_, chart: InsertChart) =>
+      chartService.insertCustomHead(chart),
+    );
 
     createWindow();
     app.on('activate', () => {

@@ -7,6 +7,7 @@ import type {
 } from 'types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
+import { cast } from '../utils/sqlite';
 
 @logErrors
 export class InventoryService {
@@ -66,7 +67,10 @@ export class InventoryService {
   }
 
   updateItem(item: UpdateInventoryItem): boolean {
-    const result = this.stmUpdateItem.run({ ...item });
+    const result = this.stmUpdateItem.run({
+      ...item,
+      id: cast(item.id),
+    });
     return Boolean(result.changes);
   }
 
@@ -76,7 +80,8 @@ export class InventoryService {
     `);
 
     this.stmGetInventory = this.db.prepare(`
-      SELECT * FROM inventory;
+      SELECT * FROM inventory
+      ORDER BY id;
     `);
 
     this.stmInsertItem = this.db.prepare(`

@@ -1,16 +1,24 @@
 import fs from 'fs';
 import path from 'path';
-import { Notification } from 'electron';
+import { Notification, BrowserWindow } from 'electron';
 import log from 'electron-log';
 import Database from 'better-sqlite3';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { hostname } from 'node:os';
-import { compact, get, orderBy, uniqBy } from 'lodash';
-import type { BackupCreateResult, BackupReadResult } from '@/types';
+import { get, orderBy } from 'lodash';
+import type {
+  BackupCreateResult,
+  BackupReadResult,
+  BackupInfo,
+  BackupMetadata,
+  BackupType,
+  BackupOperationProgressEvent,
+  BackupOperationProgressStatus,
+  BackupOperationTransferType,
+} from '@/types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
 import { store } from '../store';
-import { isOnline } from '../utils/general';
+import { getComputerName, isOnline } from '../utils/general';
 
 // FUTURE sync local backups to cloud when internet is connected or expose a button
 @logErrors
@@ -27,6 +35,8 @@ export class BackupService {
     | `${typeof this.BACKUP_PREFIX}_${typeof process.platform}_${string}_${string}`
     | undefined;
 
+  private readonly logPrefix: string = 'BackupService';
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
 
@@ -36,6 +46,26 @@ export class BackupService {
     );
     this.setupBucketName();
   }
+
+  // emit progress event to all open browser windows
+  private emitProgress = (
+    status: BackupOperationProgressStatus,
+    message: string,
+    type: BackupOperationTransferType = 'upload',
+  ): void => {
+    const progressEvent: BackupOperationProgressEvent = {
+      status,
+      message,
+      type,
+    };
+
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('backup-operation-progress', progressEvent);
+      }
+    });
+    log.info(`${this.logPrefix} progress: ${status} - ${message}`);
+  };
 
   public async createBackup(): Promise<BackupCreateResult> {
     try {
@@ -57,7 +87,8 @@ export class BackupService {
 
       log.info(`Database backup created locally at ${backupPath}`);
 
-      const isonline = isOnline();
+      const isonline = await isOnline();
+      log.info(`isOnline: ${isonline}`);
       if (!isonline) {
         new Notification({
           title: 'Backup Created',
@@ -66,6 +97,9 @@ export class BackupService {
         }).show();
         return { success: true, path: backupPath };
       }
+
+      // emit progress for upload starting
+      this.emitProgress('started', 'Uploading backup to cloud storage...');
 
       // ensure bucket exists
       const { error: bucketError } = await this.supabase.storage.createBucket(
@@ -77,14 +111,25 @@ export class BackupService {
         bucketError &&
         bucketError?.message !== 'The resource already exists'
       ) {
+        this.emitProgress(
+          'failed',
+          `Failed to create cloud bucket: ${bucketError.message}`,
+        );
         log.error(`Supabase bucket creation failed: ${bucketError.message}`);
         return { success: false, error: bucketError.message };
       }
 
       // upload backup db
+      this.emitProgress('processing', 'Reading local backup file...');
       const fileBuffer = fs.readFileSync(backupPath);
       const fileName = path.basename(backupPath);
 
+      this.emitProgress(
+        'uploading',
+        `Uploading ${(fileBuffer.length / (1024 * 1024)).toFixed(
+          2,
+        )} MB to cloud...`,
+      );
       const { error: uploadError } = await this.supabase.storage
         .from(this.bucketName)
         .upload(fileName, fileBuffer, {
@@ -93,10 +138,15 @@ export class BackupService {
         });
 
       if (uploadError) {
+        this.emitProgress('failed', `Upload failed: ${uploadError.message}`);
         log.error(`Supabase file uploading failed: ${uploadError.message}`);
         return { success: false, error: uploadError.message };
       }
 
+      this.emitProgress(
+        'completed',
+        'Backup successfully uploaded to cloud storage',
+      );
       new Notification({
         title: 'Backup Created',
         body: `Database backup created locally and uploaded to cloud storage`,
@@ -107,6 +157,7 @@ export class BackupService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+      this.emitProgress('failed', `Backup failed: ${errorMessage}`);
       log.error('Backup creation failed:', errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -139,23 +190,48 @@ export class BackupService {
           error: 'Please turn on internet to restore cloud backup.',
         };
 
+      this.emitProgress(
+        'started',
+        `Downloading backup from cloud...`,
+        'download',
+      );
       const { data, error: downloadError } = await this.supabase.storage
         .from(this.bucketName)
         .download(backup.filename);
 
       if (downloadError) {
+        this.emitProgress(
+          'failed',
+          `Download failed: ${downloadError.message}`,
+          'download',
+        );
         const error = `Supabase file ${backup.filename} downloading failed: ${downloadError.message}`;
         log.error(error);
         return { success: false, error };
       }
 
+      this.emitProgress(
+        'processing',
+        'Saving downloaded backup to local storage...',
+        'download',
+      );
       const localPath = path.join(this.backupDir, backup.filename);
       fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer())); // failing here
 
+      this.emitProgress(
+        'completed',
+        'Backup successfully downloaded from cloud',
+        'download',
+      );
       return this.restoreFromBackup(backup.filename);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+      this.emitProgress(
+        'failed',
+        `Restore failed: ${errorMessage}`,
+        'download',
+      );
       log.error('Restore failed:', errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -176,14 +252,7 @@ export class BackupService {
   }
 
   // FIXME: list backups only for logged-in user
-  public async listBackups(): Promise<
-    Array<{
-      filename: string;
-      timestamp: Date;
-      size: number;
-      type: 'local' | 'cloud';
-    }>
-  > {
+  public async listBackups(): Promise<BackupInfo[]> {
     if (!this.backupDir || !this.bucketName) {
       log.info(
         `No backup directory or bucket available - user is logged out ${this.backupDir} ${this.bucketName}`,
@@ -191,44 +260,66 @@ export class BackupService {
       return [];
     }
 
-    const localBackups = fs
+    // get local backups
+    const localBackups: BackupMetadata[] = fs
       .readdirSync(this.backupDir)
       .filter((file) => file.startsWith(this.BACKUP_PREFIX))
       .map((filename) => ({
         filename,
         timestamp: BackupService.extractTimestamp(filename),
         size: fs.statSync(path.join(this.backupDir, filename)).size,
-        type: 'local' as const,
+        local: true,
+        cloud: false,
       }));
 
-    let cloudBackups: Awaited<ReturnType<typeof this.listBackups>> = [];
-    if (this.bucketName && isOnline()) {
+    // get cloud backups
+    let cloudBackups: BackupMetadata[] = [];
+    if (this.bucketName && (await isOnline())) {
       const { data: cloudFiles, error: listError } = await this.supabase.storage
         .from(this.bucketName)
         .list();
 
-      if (listError) {
-        log.error(
-          `Supabase files listing from bucket: ${this.bucketName} failed: ${listError.message}`,
+      if (!listError && cloudFiles?.length) {
+        log.info(
+          `Supabase files fetched: ${cloudFiles.length} from bucket: ${this.bucketName}`,
         );
-        return localBackups;
+        cloudBackups = cloudFiles
+          .filter((file) => file.name.startsWith(this.BACKUP_PREFIX))
+          .map((file) => ({
+            filename: file.name,
+            timestamp: BackupService.extractTimestamp(file.name),
+            size: get(file.metadata, 'size', 0),
+            local: false,
+            cloud: true,
+          }));
+      } else if (listError) {
+        log.error(`Supabase files listing failed: ${listError.message}`);
       }
-      log.info(
-        `Supabase files fetched: ${cloudFiles?.length} from bucket: ${this.bucketName}`,
-      );
-
-      cloudBackups = cloudFiles
-        .filter((file) => file.name.startsWith(this.BACKUP_PREFIX))
-        .map((file) => ({
-          filename: file.name, // e.g. "database-backup_2025-01-25T13-21-43-748Z.db"
-          timestamp: BackupService.extractTimestamp(file.name),
-          size: get(file.metadata, 'size', 0),
-          type: 'cloud' as const,
-        }));
     }
 
+    // merge and convert to final format
     return orderBy(
-      uniqBy(compact([...localBackups, ...cloudBackups]), 'filename'),
+      Object.values(
+        [...localBackups, ...cloudBackups].reduce(
+          (acc, backup) => {
+            const existing = acc[backup.filename];
+            if (existing) {
+              existing.local ||= backup.local;
+              existing.cloud ||= backup.cloud;
+              existing.size = Math.max(existing.size, backup.size);
+            } else {
+              acc[backup.filename] = backup;
+            }
+            return acc;
+          },
+          {} as Record<string, BackupMetadata>,
+        ),
+      ).map(({ filename, timestamp, size, local, cloud }) => ({
+        filename,
+        timestamp,
+        size,
+        type: BackupService.determineBackupType(local, cloud),
+      })),
       (b) => b.timestamp.getTime(),
       'desc',
     );
@@ -279,7 +370,8 @@ export class BackupService {
 
   private setupBucketName = () => {
     const { platform } = process;
-    const hostName = hostname().replace(/[^a-zA-Z0-9]/g, '-');
+    const cn = getComputerName();
+    const hostName = cn.replace(/[^a-zA-Z0-9]/g, '-');
     const username = store.get('username');
 
     if (username) {
@@ -327,4 +419,13 @@ export class BackupService {
     );
     return new Date(`${dateString}Z`);
   };
+
+  private static determineBackupType(
+    isLocal: boolean,
+    isCloud: boolean,
+  ): BackupType {
+    if (isLocal && isCloud) return 'local + cloud';
+    if (isLocal) return 'local';
+    return 'cloud';
+  }
 }

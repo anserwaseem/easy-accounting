@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { get, isNaN, isNil, sum, toNumber, toString } from 'lodash';
+import { get, isNaN, isNil, pick, sum, toNumber, toString } from 'lodash';
 import { Calendar as CalendarIcon, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
@@ -33,13 +33,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from 'renderer/shad/ui/select';
 import { toast } from 'renderer/shad/ui/use-toast';
 import {
   type Account,
@@ -53,12 +46,18 @@ import { z } from 'zod';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import { parseInvoiceItems } from '@/renderer/lib/parser';
+import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { AddInvoiceNumber } from './addInvoiceNumber';
 
 interface NewInvoiceProps {
   invoiceType: InvoiceType;
 }
 
+// FIXME: set validation for max quantity of selected inventory item
+// FIXME: do not allow selecting same inventory item multiple times
+// TODO: support adding bilty number and cartons
+// TODO: improve performance, check states: remove unnecessary data
+// TODO: in new sale invoice, date format is not matching with existing invoices: can we keep MM/DD/YYYY format when importing?
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
@@ -67,15 +66,20 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [nextInvoiceNumber, setNextInvoiceNumber] = useState<
     number | undefined
   >(-1);
-  const [parties, setParties] = useState<Account[]>();
+  const [parties, setParties] =
+    useState<Pick<Account, 'id' | 'type' | 'name' | 'code'>[]>();
   const [partyLastDateInLedger, setPartyLastDateInLedger] = useState<
     Date | undefined | null // default state: undefined, null represents customer with no ledger entry hence no date selection restriction
   >();
-  const [invoiceTypeAccountExists, setInvoiceTypeAccountExists] =
-    useState<Boolean>();
+  const [requiredAccountsExist, setRequiredAccountsExist] = useState<{
+    sale: boolean;
+    purchase: boolean;
+    loading: boolean;
+  }>({ sale: false, purchase: false, loading: false });
   const [enableCumulativeDiscount, setEnableCumulativeDiscount] =
     useState(false);
   const [cumulativeDiscount, setCumulativeDiscount] = useState<number>();
+  const [useSingleAccount, setUseSingleAccount] = useState(true);
 
   const navigate = useNavigate();
 
@@ -95,11 +99,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     id: -1,
     date: '',
     invoiceNumber: -1,
-    accountId: -1,
     extraDiscount: 0,
     totalAmount: 0,
     invoiceItems: [],
     invoiceType,
+    accountMapping: {
+      singleAccountId: -1,
+      multipleAccountIds: [],
+    },
   };
 
   const formSchema = z.object({
@@ -112,11 +119,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       .refine((val) => !isNaN(new Date(val).getTime()), {
         message: 'Select a valid date',
       }),
-    accountId: z.coerce
-      .number()
-      .positive(
-        `Select a ${invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'}`,
-      ),
     extraDiscount: z.coerce
       .number()
       .nonnegative('Extra Discount must be non-negative'),
@@ -145,6 +147,27 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         }),
       )
       .min(1, 'Add at-least one invoice item'),
+    accountMapping: z.object({
+      singleAccountId: z.coerce
+        .number()
+        .positive(
+          `Select a ${
+            invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+          }`,
+        )
+        .optional(),
+      multipleAccountIds: z
+        .array(
+          z.coerce
+            .number()
+            .positive(
+              `Select a ${
+                invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+              }`,
+            ),
+        )
+        .optional(),
+    }),
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -156,6 +179,47 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     control: form.control,
     name: 'invoiceItems',
   });
+
+  // Add validation for accountMapping based on useSingleAccount
+  useEffect(() => {
+    const subscription = form.watch(() => {
+      // Validate that the appropriate account mapping is provided
+      if (useSingleAccount) {
+        const singleAccountId = form.getValues(
+          'accountMapping.singleAccountId',
+        );
+        if (!singleAccountId) {
+          form.setError('accountMapping.singleAccountId', {
+            type: 'manual',
+            message: `Select a ${
+              invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+            }`,
+          });
+        } else {
+          form.clearErrors('accountMapping.singleAccountId');
+        }
+      } else {
+        const multipleAccountIds =
+          form.getValues('accountMapping.multipleAccountIds') || [];
+        if (
+          !multipleAccountIds.length ||
+          multipleAccountIds.length !== watchedInvoiceItems.length
+        ) {
+          form.setError('accountMapping.multipleAccountIds', {
+            type: 'manual',
+            message: `Select a ${
+              invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+            } for each invoice item`,
+          });
+        } else {
+          form.clearErrors('accountMapping.multipleAccountIds');
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form, invoiceType, useSingleAccount, watchedInvoiceItems]);
+
   const watchedExtraDiscount = useWatch({
     control: form.control,
     name: 'extraDiscount',
@@ -179,7 +243,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   useEffect(() => {
     (async () => {
       if (isNil(inventory)) {
-        setInventory(await window.electron.getInventory());
+        const inv: InventoryItem[] = await window.electron.getInventory();
+        const filteredInv = inv.map((item) =>
+          pick(item, ['id', 'name', 'price', 'quantity', 'description']),
+        );
+        setInventory(filteredInv);
       }
     })();
   }, [inventory]);
@@ -195,13 +263,33 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   useEffect(() => {
     (async () => {
       if (isNil(parties)) {
-        const accounts = (await window.electron.getAccounts()) as Account[];
+        setRequiredAccountsExist({
+          sale: false,
+          purchase: false,
+          loading: true,
+        });
 
-        const invoiceTypeAccount = accounts.find(
-          (account) =>
-            account.name.trim().toLowerCase() === invoiceType.toLowerCase(),
+        const allAccounts: Account[] = await window.electron.getAccounts();
+        const accounts = allAccounts.map((account) =>
+          pick(account, ['id', 'name', 'type', 'code']),
         );
-        setInvoiceTypeAccountExists(!!invoiceTypeAccount);
+
+        // check for both Sale and Purchase accounts
+        const saleAccount = accounts.find(
+          (account) =>
+            account.name.trim().toLowerCase() ===
+            InvoiceType.Sale.toLowerCase(),
+        );
+        const purchaseAccount = accounts.find(
+          (account) =>
+            account.name.trim().toLowerCase() ===
+            InvoiceType.Purchase.toLowerCase(),
+        );
+        setRequiredAccountsExist({
+          sale: !!saleAccount,
+          purchase: !!purchaseAccount,
+          loading: false,
+        });
 
         const partyAccounts = accounts.filter(
           (account) =>
@@ -356,6 +444,24 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [cumulativeDiscount, enableCumulativeDiscount, form],
   );
 
+  const onAccountSelection = useCallback(
+    async (accountId: string, onChange: Function) => {
+      onChange(accountId);
+      const partyLedger = await window.electron.getLedger(toNumber(accountId));
+      const latestDate = partyLedger.at(0)?.date;
+      // check if partyLastDateInLedger defined and is before latestDate, only then update
+      if (
+        latestDate &&
+        (!partyLastDateInLedger || partyLastDateInLedger < new Date(latestDate))
+      ) {
+        setPartyLastDateInLedger(new Date(latestDate));
+      } else {
+        setPartyLastDateInLedger(null);
+      }
+    },
+    [partyLastDateInLedger],
+  );
+
   const columns: ColumnDef<InvoiceItem>[] = useMemo(() => {
     const baseColumns: ColumnDef<InvoiceItem>[] = [
       {
@@ -365,37 +471,38 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             control={form.control}
             name={`invoiceItems.${row.index}.inventoryId` as const}
             render={({ field }) => (
-              <FormItem className="w-auto min-w-[250px] space-y-0">
-                <Select
-                  onValueChange={(val) =>
-                    onItemSelectionChange(row.index, val, field.onChange)
+              <FormItem className="w-max min-w-[200px] space-y-0">
+                <VirtualSelect<InventoryItem>
+                  options={inventory || []}
+                  value={field.value?.toString()}
+                  onChange={(val) =>
+                    onItemSelectionChange(
+                      row.index,
+                      toString(val),
+                      field.onChange,
+                    )
                   }
-                  value={field.value.toString()}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue>
-                        {
-                          inventory?.find(
-                            (item) => item.id === toNumber(field.value),
-                          )?.name
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent align="center">
-                    {inventory?.map((item) => (
-                      <SelectItem value={item.id.toString()} key={item.id}>
-                        <div>
-                          <h2>{item.name}</h2>
-                          <p className="text-xs text-slate-400">
-                            {item.description}
-                          </p>
+                  placeholder="Select item"
+                  searchPlaceholder="Search items..."
+                  renderSelectItem={(item) => (
+                    <div className="flex w-40 justify-between gap-2">
+                      <h2 className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere]">
+                        {item.name}
+                      </h2>
+
+                      <div className="text-xs text-muted-foreground text-end">
+                        <div className="flex gap-2">
+                          <p className="font-bold">{item.quantity}</p>
+
+                          <span className="font-extralight">
+                            item{item.quantity < 2 ? '' : 's'} left
+                          </span>
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                        <p>{getFormattedCurrency(item.price)}</p>
+                      </div>
+                    </div>
+                  )}
+                />
                 <FormMessage />
               </FormItem>
             )}
@@ -518,22 +625,60 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         },
       ];
 
-      // insert price columns before the remove action column
+      const accountColumn: ColumnDef<InvoiceItem>[] = useSingleAccount
+        ? []
+        : [
+            {
+              header: 'Customer',
+              cell: ({ row }) => (
+                <FormField
+                  control={form.control}
+                  name={
+                    `accountMapping.multipleAccountIds.${row.index}` as const
+                  }
+                  render={({ field }) => (
+                    <FormItem className="w-auto min-w-[200px] space-y-0">
+                      <VirtualSelect
+                        options={parties || []}
+                        value={field.value}
+                        onChange={(val) =>
+                          onAccountSelection(toString(val), field.onChange)
+                        }
+                        placeholder={`Select ${
+                          invoiceType === InvoiceType.Sale
+                            ? 'customer'
+                            : 'vendor'
+                        }`}
+                        searchPlaceholder="Search parties..."
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ),
+            },
+          ];
+
+      // insert additional columns before the remove action (last) column
       baseColumns.splice(baseColumns.length - 1, 0, ...priceColumns);
+      baseColumns.splice(baseColumns.length - 1, 0, ...accountColumn);
     }
 
     return baseColumns;
   }, [
-    enableCumulativeDiscount,
+    invoiceType,
     form.control,
-    getDiscountValue,
-    onDiscountChange,
+    inventory,
+    onItemSelectionChange,
     onQuantityChange,
     handleRemoveRow,
-    onItemSelectionChange,
-    inventory,
+    useSingleAccount,
+    getDiscountValue,
+    enableCumulativeDiscount,
+    onDiscountChange,
     renderDiscountedPrice,
-    invoiceType,
+    parties,
+    onAccountSelection,
   ]);
 
   const handleAddNewRow = useCallback(
@@ -604,13 +749,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           control={form.control}
           name="extraDiscount"
           render={({ field }) => (
-            <FormItem className="flex w-1/2 space-y-0">
+            <FormItem>
               <FormControl>
                 <Input
                   {...field}
                   type="number"
                   step={0.0001}
-                  disabled={!hasActiveInvoiceItem}
+                  disabled={!hasActiveInvoiceItem || !useSingleAccount}
                   onBlur={(e) => field.onChange(toNumber(e.target.value))}
                   onChange={(e) => field.onChange(toNumber(e.target.value))}
                 />
@@ -635,7 +780,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 <p
                   className={
                     watchedTotalAmount
-                      ? 'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2'
+                      ? 'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2 w-fit'
                       : ''
                   }
                 >
@@ -650,7 +795,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         />,
         null,
       ],
-    ];
+    ].map((row) => (useSingleAccount ? row : [...row, null]));
   }, [
     invoiceType,
     enableCumulativeDiscount,
@@ -659,6 +804,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     onCumulativeDiscountChange,
     hasActiveInvoiceItem,
     watchedTotalAmount,
+    useSingleAccount,
   ]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -745,14 +891,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onInvoiceNumberSet = (invoiceNumber: number) =>
     setNextInvoiceNumber(invoiceNumber);
 
-  const onAccountSelection = useCallback(
-    async (accountId: string, onChange: Function) => {
-      onChange(accountId);
-      const partyLedger = await window.electron.getLedger(toNumber(accountId));
-      const latestDate = partyLedger.at(0)?.date;
-      setPartyLastDateInLedger(latestDate ? new Date(latestDate) : null);
+  const onDateSelection = useCallback(
+    (date?: Date) => {
+      if (date) {
+        form.setValue('date', date.toLocaleString('en-US', dateFormatOptions));
+      }
     },
-    [],
+    [form],
   );
 
   const isDateDisabled = useMemo(() => {
@@ -760,9 +905,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       return false; // null represents customer with no ledger entry hence no date selection restriction
     }
 
+    const accountMapping = form.getValues('accountMapping'); // need watch
+    const accountId =
+      accountMapping.singleAccountId ?? accountMapping.multipleAccountIds?.[0];
+    console.log('isDateDisabled', accountId, partyLastDateInLedger);
     if (
       partyLastDateInLedger === undefined || // last date hasn't been set for the selected party yet
-      form.getValues('accountId') <= 0 // no party selected yet
+      accountId === undefined || // no party selected yet
+      accountId <= 0 // no party selected yet
     ) {
       return true;
     }
@@ -772,10 +922,19 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     };
   }, [form, partyLastDateInLedger]);
 
-  const onDateSelection = useCallback(
-    (date?: Date) => {
-      if (date) {
-        form.setValue('date', date.toLocaleString('en-US', dateFormatOptions));
+  const onSingleAccountToggle = useCallback(
+    (isChecked: boolean) => {
+      setUseSingleAccount(isChecked);
+      // clear the appropriate account mapping fields based on the toggle
+      if (isChecked) {
+        form.setValue('accountMapping.multipleAccountIds', [], {
+          shouldValidate: true,
+        });
+      } else {
+        form.setValue('accountMapping.singleAccountId', undefined, {
+          shouldValidate: true,
+        });
+        form.setValue('extraDiscount', 0);
       }
     },
     [form],
@@ -793,20 +952,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     );
   }
 
-  if (!parties?.length) {
-    return (
-      <div className="block fixed z-10 bg-green-400 text-center text-xl bg-opacity-60 w-full left-0 top-[50%] py-4 px-8">
-        {`Please add a ${
-          invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-        } before creating a ${invoiceType.toLowerCase()} invoice.`}
-      </div>
-    );
+  if (requiredAccountsExist.loading) {
+    return <>Loading...</>;
   }
 
-  if (invoiceTypeAccountExists !== true) {
+  if (!requiredAccountsExist.sale || !requiredAccountsExist.purchase) {
     return (
       <div className="block fixed z-10 bg-green-400 text-center text-xl bg-opacity-60 w-full left-0 top-[50%] py-4 px-8">
-        {`Please add a ${invoiceType.toLowerCase()} account before creating a ${invoiceType.toLowerCase()} invoice.`}
+        Please add both Sale and Purchase accounts before creating an invoice.
       </div>
     );
   }
@@ -829,46 +982,53 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             role="presentation"
           >
             <div className="flex flex-col gap-2">
-              <FormField
-                control={form.control}
-                name="accountId"
-                render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
-                    <FormLabel className="text-base">
-                      {invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'}
-                    </FormLabel>
-                    <Select
-                      onValueChange={(val) =>
-                        onAccountSelection(val, field.onChange)
-                      }
-                      value={field.value.toString()}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue>
-                            {
-                              parties?.find(
-                                (p) => p.id === toNumber(field.value),
-                              )?.name
-                            }
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent align="center">
-                        {parties?.map((p) => (
-                          <SelectItem value={p.id.toString()} key={p.id}>
-                            <div>
-                              <h2>{p.name}</h2>
-                              <p className="text-xs text-slate-400">{p.code}</p>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {invoiceType === InvoiceType.Sale && (
+                <div className="flex items-center gap-2 mb-2">
+                  <Checkbox
+                    id="useSingleAccount"
+                    checked={useSingleAccount}
+                    onCheckedChange={onSingleAccountToggle}
+                  />
+                  <label
+                    htmlFor="useSingleAccount"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Use single customer for entire invoice{' '}
+                  </label>
+                </div>
+              )}
+
+              {useSingleAccount || invoiceType === InvoiceType.Purchase ? (
+                <FormField
+                  control={form.control}
+                  name="accountMapping.singleAccountId"
+                  render={({ field }) => (
+                    <FormItem labelPosition="start" className="w-1/2 space-y-0">
+                      <FormLabel className="text-base">
+                        {invoiceType === InvoiceType.Sale
+                          ? 'Customer'
+                          : 'Vendor'}
+                      </FormLabel>
+                      <VirtualSelect
+                        options={parties || []}
+                        value={field.value}
+                        onChange={(val) =>
+                          onAccountSelection(toString(val), field.onChange)
+                        }
+                        placeholder="Select a party"
+                        searchPlaceholder="Search parties..."
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="flex items-center">
+                  <p className="text-sm text-muted-foreground">
+                    Select a customer for each invoice item individually.
+                  </p>
+                </div>
+              )}
 
               <FormField
                 control={form.control}
@@ -924,6 +1084,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   {get(form.formState.errors.invoiceItems, 'message', null)}
                 </p>
               )}
+              {form.formState.errors && (
+                <p className="text-xs text-muted-foreground">
+                  Form Errors: {JSON.stringify(form.formState.errors)}
+                </p>
+              )}
             </div>
 
             <div className="flex justify-between pr-4 gap-20 pb-20">
@@ -959,7 +1124,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-between fixed bottom-6">
+            <div className="flex justify-between">
               <div className="flex gap-4">
                 <Button type="submit" variant="default">
                   Save
@@ -970,7 +1135,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
 
               <Button
-                className="fixed right-9"
                 variant="secondary"
                 onClick={() => {
                   form.reset(defaultFormValues);

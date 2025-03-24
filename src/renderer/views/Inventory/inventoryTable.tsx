@@ -6,7 +6,12 @@ import { EditInventoryItem } from './editInventoryItem';
 
 interface InventoryTableProps {
   refetchInventory: () => void;
-  options: { refresh?: boolean; hideZeroQuantity?: boolean };
+  options: {
+    refresh?: boolean;
+    hideZeroQuantity?: boolean;
+    hideZeroPrice?: boolean;
+    hideNegativeQuantity?: boolean;
+  };
 }
 export const InventoryTable: React.FC<InventoryTableProps> = ({
   options,
@@ -24,10 +29,24 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     fetchInventory();
   }, [options?.refresh]);
 
-  const getInventory = () =>
-    (options?.hideZeroQuantity
-      ? inventory?.filter((i) => i.quantity > 0)
-      : inventory) || [];
+  const getInventory = () => {
+    const filteredInventory = inventory?.filter((i) => {
+      if (options?.hideZeroQuantity && options?.hideZeroPrice) {
+        return i.quantity > 0 && i.price > 0;
+      }
+      if (options?.hideZeroQuantity) {
+        return i.quantity > 0;
+      }
+      if (options?.hideZeroPrice) {
+        return i.price > 0;
+      }
+      if (options?.hideNegativeQuantity) {
+        return i.quantity >= 0;
+      }
+      return true;
+    });
+    return filteredInventory || [];
+  };
 
   const columns: ColumnDef<InventoryItem>[] = [
     {
@@ -61,6 +80,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         columns={columns}
         data={getInventory()}
         sortingFns={defaultSortingFunctions}
+        virtual
+        searchPlaceholder="Search inventory..."
+        searchFields={['name', 'description', 'price', 'quantity']}
       />
     </div>
   );

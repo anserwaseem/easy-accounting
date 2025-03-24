@@ -3,7 +3,6 @@ module.exports = {
   up: (db) => {
     try {
       db.transaction(() => {
-        // Step 1: add new column
         db.prepare(
           `
             CREATE TRIGGER IF NOT EXISTS after_insert_invoice_items_add_timestamp
@@ -17,7 +16,6 @@ module.exports = {
           `,
         ).run();
 
-        // Step 2: create new after_update_invoice_items_add_timestamp trigger
         db.prepare(
           `
             CREATE TRIGGER IF NOT EXISTS after_update_invoice_items_add_timestamp

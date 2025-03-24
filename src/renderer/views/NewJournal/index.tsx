@@ -31,14 +31,8 @@ import {
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { dateFormatOptions } from 'renderer/lib/constants';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from 'renderer/shad/ui/select';
 import type { Account, Journal, JournalEntry } from 'types';
+import VirtualSelect from '@/renderer/components/VirtualSelect';
 
 const NewJournalPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[] | undefined>(undefined);
@@ -277,38 +271,14 @@ const NewJournalPage: React.FC = () => {
             control={form.control}
             name={`journalEntries.${row.index}.accountId` as const}
             render={({ field }) => (
-              <FormItem className="w-auto min-w-[250px] space-y-0">
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value.toString()}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue>
-                        {
-                          accounts?.find(
-                            (acc) => acc.id === toNumber(field.value),
-                          )?.name
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent align="center">
-                    {accounts?.map((account) => (
-                      <SelectItem
-                        value={account.id.toString()}
-                        key={account.id}
-                      >
-                        <div>
-                          <h2>{account.name}</h2>
-                          <p className="text-xs text-slate-400">
-                            {account.headName}
-                          </p>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <FormItem className="w-max min-w-[200px] space-y-0">
+                <VirtualSelect
+                  options={accounts || []}
+                  value={field.value?.toString()}
+                  onChange={(val) => field.onChange(toString(val))}
+                  placeholder="Select account"
+                  searchPlaceholder="Search accounts..."
+                />
                 <FormMessage />
               </FormItem>
             )}

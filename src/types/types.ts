@@ -46,6 +46,15 @@ export interface BalanceSheet {
   };
 }
 
+export const Sections = ['assets', 'liabilities', 'equity'] as const;
+export type Section = (typeof Sections)[number] | null; // used in parser: need for reading user written sections text, e.g., "Current Assets", "Fixed Liabilities", "Non Current Liabilities" etc. // FUTURE: need to support both singular and plural forms of these sections
+
+export const SectionTypes = ['current', 'fixed'] as const;
+export type SectionType = (typeof SectionTypes)[number] | null;
+
+export const SingularSections = ['asset', 'liability', 'equity'] as const;
+export type SingularSection = (typeof SingularSections)[number]; // used in chart & statement services
+
 /** Enums */
 export enum AccountType {
   Asset = 'Asset',
@@ -65,7 +74,7 @@ export enum InvoiceType {
   Sale = 'Sale',
 }
 
-type BaseEntity = {
+export type BaseEntity = {
   id: number;
   date: string;
   createdAt?: Date;
@@ -78,16 +87,28 @@ export interface Account extends BaseEntity {
   chartId: number;
   headName?: string;
   type: AccountType;
-  code?: number;
+  code?: number | string;
+  address?: string;
+  phone1?: string;
+  phone2?: string;
+  goodsName?: string;
 }
-export type InsertAccount = Pick<Account, 'headName' | 'name' | 'code'>;
-export type UpdateAccount = Pick<Account, 'id' | 'headName' | 'name' | 'code'>;
+
+export type InsertAccount = Omit<
+  Account,
+  keyof BaseEntity | 'chartId' | 'type'
+>;
+export type UpdateAccount = Prettify<
+  Omit<Account, keyof BaseEntity | 'chartId' | 'type'> & Pick<BaseEntity, 'id'>
+>;
 
 /** Chart */
 export interface Chart extends BaseEntity {
   name: string;
   type: AccountType;
+  parentId?: number;
 }
+export type InsertChart = Pick<Chart, 'name' | 'type' | 'parentId'>;
 
 /** Ledger */
 export interface Ledger extends BaseEntity {
@@ -161,12 +182,17 @@ export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
 
 export type Invoice = Prettify<
   BaseEntity & {
-    accountId: number;
     invoiceItems: Prettify<InvoiceItem>[];
     extraDiscount?: number; // will be provided by UI
+    biltyNumber?: string; // will be provided by UI
+    cartons?: number; // will be provided by UI
     totalAmount?: number; // will be calculated at service layer
     invoiceNumber?: number; // only given from UI for the first time => user input
     invoiceType?: InvoiceType;
+    accountMapping: {
+      singleAccountId?: number;
+      multipleAccountIds?: number[];
+    };
   }
 >;
 
@@ -184,10 +210,11 @@ export type InvoiceItemView = {
   inventoryId?: number;
   inventoryItemDescription?: string;
   discountedPrice?: number;
+  accountName?: string;
 };
 export type InvoiceView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {
-    accountName: string;
+    accountName?: string;
     invoiceItems: Array<InvoiceItemView>;
   }
 >;
@@ -207,3 +234,44 @@ export type BackupCreateResult = Prettify<
     path?: string;
   }
 >;
+
+export type BackupType = 'local' | 'cloud' | 'local + cloud';
+
+export type BackupInfo = {
+  filename: string;
+  timestamp: Date;
+  size: number;
+  type: BackupType;
+};
+
+export type BackupMetadata = {
+  filename: string;
+  timestamp: Date;
+  size: number;
+  local: boolean;
+  cloud: boolean;
+};
+
+// backup operation event types
+export type BackupOperationStatus = 'in-progress' | 'error' | 'success';
+export type BackupOperationType = 'backup' | 'restore';
+
+export type BackupOperationStatusEvent = {
+  status: BackupOperationStatus;
+  type: BackupOperationType;
+  message: string;
+};
+
+export type BackupOperationProgressStatus =
+  | 'started'
+  | 'processing'
+  | 'uploading'
+  | 'completed'
+  | 'failed';
+export type BackupOperationTransferType = 'upload' | 'download';
+
+export type BackupOperationProgressEvent = {
+  status: BackupOperationProgressStatus;
+  type: BackupOperationTransferType;
+  message: string;
+};

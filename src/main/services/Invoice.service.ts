@@ -1,6 +1,6 @@
 import type { Database, Statement } from 'better-sqlite3';
 import log from 'electron-log';
-import { get, toNumber } from 'lodash';
+import { forEach, get, groupBy, toNumber, uniq } from 'lodash';
 import { write, utils } from 'xlsx';
 import {
   type Invoice,
@@ -63,6 +63,9 @@ export class InvoiceService {
       Omit<InvoiceView, 'invoiceItems'> & InvoiceItemView
     >;
 
+    const isSingleAccount =
+      uniq(result.map((item) => item.accountName)).length === 1;
+
     const res = result.reduce((prev, cur) => {
       if (!prev.id) {
         prev.id = cur.id;
@@ -71,7 +74,9 @@ export class InvoiceService {
         prev.invoiceType = cur.invoiceType;
         prev.totalAmount = cur.totalAmount;
         prev.extraDiscount = cur.extraDiscount;
-        prev.accountName = cur.accountName;
+        prev.biltyNumber = cur.biltyNumber;
+        prev.cartons = cur.cartons;
+        prev.accountName = isSingleAccount ? cur.accountName : undefined;
         prev.invoiceItems = [];
       }
       prev.invoiceItems.push({
@@ -81,6 +86,7 @@ export class InvoiceService {
         discountedPrice: InvoiceService.getInvoiceItemTotal(cur, cur.price),
         inventoryItemName: cur.inventoryItemName,
         inventoryItemDescription: cur.inventoryItemDescription,
+        accountName: isSingleAccount ? undefined : cur.accountName,
       });
       return prev;
     }, {} as InvoiceView);
@@ -104,66 +110,95 @@ export class InvoiceService {
     }
 
     const totalAmount = invoice.totalAmount ?? 0;
+
     const stmInsertInvoice = `
-      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount)
-      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount)
-    `;
+        INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount)
+        VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount)
+      `;
     const prpStmInsertInvoice = this.db.prepare(stmInsertInvoice);
 
-    const invoiceResult = prpStmInsertInvoice.run({
-      date: invoice.date,
-      accountId: invoice.accountId,
-      invoiceType,
-      totalAmount,
-      invoiceNumber: invoice.invoiceNumber,
-      extraDiscount: invoice.extraDiscount,
-    });
+    // all items use the same account - single journal
+    if (invoice.accountMapping.singleAccountId) {
+      const accountId = invoice.accountMapping.singleAccountId;
 
-    const invoiceId = <number>invoiceResult.lastInsertRowid;
+      const invoiceResult = prpStmInsertInvoice.run({
+        date: invoice.date,
+        accountId,
+        invoiceType,
+        totalAmount,
+        invoiceNumber: invoice.invoiceNumber,
+        extraDiscount: invoice.extraDiscount,
+      });
+      const invoiceId = <number>invoiceResult.lastInsertRowid;
 
-    // Process invoice items
-    for (const item of invoice.invoiceItems) {
-      this.stmInsertInvoiceItems.run({
-        invoiceId,
-        inventoryId: item.inventoryId,
-        quantity: item.quantity,
-        discount: item.discount,
+      for (const item of invoice.invoiceItems) {
+        this.stmInsertInvoiceItems.run({
+          invoiceId,
+          inventoryId: item.inventoryId,
+          quantity: item.quantity,
+          discount: item.discount,
+          accountId,
+        });
+
+        this.stmUpdateInventoryItem.run(
+          invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
+          item.inventoryId,
+        );
+      }
+
+      this.createJournalEntry(invoiceType, invoice, accountId, totalAmount);
+    }
+    // multiple accounts - multiple journals
+    else if (invoice.accountMapping.multipleAccountIds) {
+      const invoiceResult = prpStmInsertInvoice.run({
+        date: invoice.date,
+        accountId: invoice.accountMapping.multipleAccountIds[0], // workaround for multiple accounts - first account will be used
+        invoiceType,
+        totalAmount,
+        invoiceNumber: invoice.invoiceNumber,
+        extraDiscount: invoice.extraDiscount,
+      });
+      const invoiceId = <number>invoiceResult.lastInsertRowid;
+
+      // group items by accountId
+      const itemsByAccount = groupBy(invoice.invoiceItems, (item) => {
+        return invoice.accountMapping.multipleAccountIds?.[
+          invoice.invoiceItems.indexOf(item)
+        ];
       });
 
-      this.stmUpdateInventoryItem.run(
-        invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
-        item.inventoryId,
-      );
+      // create journal for each account group
+      forEach(itemsByAccount, (groupItems, accountId) => {
+        // calculate total amount for this account group
+        const groupTotalAmount = groupItems.reduce((sum, item) => {
+          return (
+            sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
+          );
+        }, 0);
+
+        for (const item of groupItems) {
+          this.stmInsertInvoiceItems.run({
+            invoiceId,
+            inventoryId: item.inventoryId,
+            quantity: item.quantity,
+            discount: item.discount,
+            accountId: toNumber(accountId),
+          });
+
+          this.stmUpdateInventoryItem.run(
+            invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
+            item.inventoryId,
+          );
+        }
+
+        this.createJournalEntry(
+          invoiceType,
+          invoice,
+          toNumber(accountId),
+          groupTotalAmount,
+        );
+      });
     }
-
-    // Get the appropriate accounts for journal entry
-    const { debitAccountId, creditAccountId } = this.getTransactionAccounts(
-      invoiceType,
-      invoice,
-    );
-
-    this.journalService.insertJournal({
-      id: -1,
-      date: invoice.date,
-      isPosted: true,
-      narration: `${invoiceType} Invoice #${invoice.invoiceNumber}`,
-      journalEntries: [
-        {
-          id: -1,
-          accountId: debitAccountId,
-          creditAmount: 0,
-          debitAmount: totalAmount,
-          journalId: 0,
-        },
-        {
-          id: -1,
-          accountId: creditAccountId,
-          debitAmount: 0,
-          creditAmount: totalAmount,
-          journalId: 0,
-        },
-      ],
-    });
 
     return invoice.invoiceNumber + 1;
   }
@@ -173,7 +208,7 @@ export class InvoiceService {
     endDate?: string,
   ): InvoicesExport[] {
     const stmGetInvoicesInDateRange = this.db.prepare(`
-      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName',
+      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName', i.biltyNumber, i.cartons,
              SUM(ii.quantity) AS 'totalQuantity'
       FROM invoices i
       JOIN account a ON i.accountId = a.id
@@ -237,6 +272,41 @@ export class InvoiceService {
     return result?.lastInvoiceNumber ?? 0;
   }
 
+  private createJournalEntry(
+    invoiceType: InvoiceType,
+    invoice: Invoice,
+    accountId: number,
+    amount: number,
+  ): boolean {
+    const { debitAccountId, creditAccountId } = this.getTransactionAccounts(
+      invoiceType,
+      accountId,
+    );
+
+    return this.journalService.insertJournal({
+      id: -1,
+      date: invoice.date,
+      isPosted: true,
+      narration: `${invoiceType} Invoice #${invoice.invoiceNumber}`,
+      journalEntries: [
+        {
+          id: -1,
+          accountId: debitAccountId,
+          creditAmount: 0,
+          debitAmount: amount,
+          journalId: 0,
+        },
+        {
+          id: -1,
+          accountId: creditAccountId,
+          debitAmount: 0,
+          creditAmount: amount,
+          journalId: 0,
+        },
+      ],
+    });
+  }
+
   private getTotalAmount(items: InvoiceItem[]): number {
     const stmGetInventoryPrices = this.db.prepare(`
       SELECT id, price
@@ -269,7 +339,7 @@ export class InvoiceService {
 
   private getTransactionAccounts(
     invoiceType: InvoiceType,
-    invoice: Invoice,
+    accountId: number,
   ): {
     debitAccountId: number;
     creditAccountId: number;
@@ -295,11 +365,11 @@ export class InvoiceService {
     if (invoiceType === InvoiceType.Purchase) {
       return {
         debitAccountId: purchaseAccount.id, // Debit Purchase
-        creditAccountId: invoice.accountId, // Credit Vendor
+        creditAccountId: accountId, // Credit Vendor
       };
     }
     return {
-      debitAccountId: invoice.accountId, // Debit Cash/Customer
+      debitAccountId: accountId, // Debit Cash/Customer
       creditAccountId: salesAccount.id, // Credit Sales
     };
   }
@@ -320,8 +390,8 @@ export class InvoiceService {
     `);
 
     this.stmInsertInvoiceItems = this.db.prepare(`
-      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount)
-      VALUES (@invoiceId, @inventoryId, @quantity, (SELECT price FROM inventory WHERE id = @inventoryId), @discount)
+      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId)
+      VALUES (@invoiceId, @inventoryId, @quantity, (SELECT price FROM inventory WHERE id = @inventoryId), @discount, @accountId)
     `);
 
     this.stmUpdateInventoryItem = this.db.prepare(`
@@ -330,21 +400,57 @@ export class InvoiceService {
       WHERE id = ?
     `);
 
+    // query detailed explanation:
+    // 1. inner join invoices with account table to get the primary account name for each invoice
+    // 2. left join invoice_items with account table to to include all invoices, even if they don't have invoice_items with an accountId
+    // 3. left join account table with invoice_items to link the accountId to the account name
+    // 4. combines all unique account names for an invoice into a single comma-separated string if multiple accounts are present for an invoice otherwise use the account name of the invoice.
+    // 5. groups results by all non-aggregated columns, necessary because we're using GROUP_CONCAT, ensures we get one row per invoice with potentially multiple account names combined.
     this.stmGetInvoices = this.db.prepare(`
-      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName'
-      FROM invoices i JOIN account a
-      ON i.accountId = a.id
+      SELECT
+        i.id,
+        i.invoiceNumber,
+        i.invoiceType,
+        i.date,
+        i.totalAmount,
+        COALESCE(
+          NULLIF(GROUP_CONCAT(DISTINCT a2.name), ''),
+          a.name
+        ) AS 'accountName',
+        i.biltyNumber,
+        i.cartons
+      FROM invoices i
+      JOIN account a ON i.accountId = a.id
+      LEFT JOIN invoice_items ii ON i.id = ii.invoiceId AND ii.accountId IS NOT NULL
+      LEFT JOIN account a2 ON ii.accountId = a2.id
       WHERE i.invoiceType = ?
+      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name, i.biltyNumber, i.cartons
     `);
 
     this.stmGetInvoice = this.db.prepare(`
-      SELECT i.id, i.date, i.invoiceNumber, i.invoiceType, i.totalAmount, i.extraDiscount, ii.quantity, ii.price, ii.discount, iii.name as 'inventoryItemName', iii.description AS 'inventoryItemDescription',
-        (SELECT a.name FROM account a JOIN invoices inv ON a.id = inv.accountId WHERE inv.id = @invoiceId) AS 'accountName'
+      SELECT
+        i.id,
+        i.date,
+        i.invoiceNumber,
+        i.invoiceType,
+        i.totalAmount,
+        i.extraDiscount,
+        i.biltyNumber,
+        i.cartons,
+        ii.quantity,
+        ii.price,
+        ii.discount,
+        iii.name as 'inventoryItemName',
+        iii.description AS 'inventoryItemDescription',
+        COALESCE(
+          CASE WHEN ii.accountId IS NOT NULL THEN a2.name ELSE NULL END,
+          a.name
+        ) AS 'accountName'
       FROM invoices i
-      JOIN invoice_items ii
-      ON i.id = ii.invoiceId
-      JOIN inventory iii
-      ON iii.id = ii.inventoryId
+      JOIN account a ON i.accountId = a.id
+      JOIN invoice_items ii ON i.id = ii.invoiceId
+      JOIN inventory iii ON iii.id = ii.inventoryId
+      LEFT JOIN account a2 ON ii.accountId = a2.id AND ii.accountId IS NOT NULL
       WHERE i.id = @invoiceId
     `);
 

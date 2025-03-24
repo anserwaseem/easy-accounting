@@ -12,10 +12,11 @@ import type {
   Invoice,
   UpdateInventoryItem,
   InsertInventoryItem,
+  InsertChart,
 } from 'types';
 import { InvoiceType } from 'types';
 
-export type Channels = 'ipc-example';
+export type Channels = 'backup-operation-status' | 'backup-operation-progress';
 
 // eslint-disable-next-line no-console
 console.log('Preload process started');
@@ -132,6 +133,14 @@ const electronHandler = {
    * @example const charts = getCharts();
    */
   getCharts: () => ipcRenderer.invoke('chart:getAll'),
+  /**
+   * Insert a custom head
+   * @param chart The chart to insert
+   * @returns Boolean indicating if the chart was inserted
+   * @example const isInserted = insertCustomHead({ ... });
+   */
+  insertCustomHead: (chart: InsertChart) =>
+    ipcRenderer.invoke('chart:insertCustomHead', chart),
   /**
    * Insert an account
    * @param account The account to insert

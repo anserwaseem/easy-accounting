@@ -7,7 +7,11 @@ import {
   dialog,
 } from 'electron';
 import log from 'electron-log';
-import type { BackupReadResult } from '@/types';
+import type {
+  BackupReadResult,
+  BackupOperationStatusEvent,
+  BackupOperationType,
+} from '@/types';
 import { AppUpdater } from './appUpdater';
 import { BackupService } from './services/Backup.service';
 import { store } from './store';
@@ -235,9 +239,9 @@ export default class MenuBuilder {
         {
           label: 'Available Backups',
           submenu: backups.map((backup) => ({
-            label: `${new Date(backup.timestamp).toLocaleString()} - ${
+            label: `${new Date(backup.timestamp).toLocaleString()} | ${
               backup.size / 1024
-            } KB - ${backup.type}`,
+            } KB | ${backup.type}`,
             click: async () => {
               const dateString = backup.filename
                 .replace('database-backup-', '')
@@ -270,20 +274,66 @@ export default class MenuBuilder {
     operation: () => Promise<BackupReadResult>,
     isCreate = false,
   ) {
-    const result = await operation();
-    if (!result.success) {
-      dialog.showErrorBox(
-        'Backup operation failed',
-        result.error || 'Unknown error',
-      );
-    } else if (isCreate) {
-      this.mainWindow.webContents.reload();
-      // Rebuild menu to show updated backup list
-      this.buildMenu();
-    } else {
-      app.hide();
-      app.relaunch();
-      app.exit();
+    try {
+      // send message to renderer that operation is starting
+      const operationType: BackupOperationType = isCreate
+        ? 'backup'
+        : 'restore';
+      const startEvent: BackupOperationStatusEvent = {
+        status: 'in-progress',
+        type: operationType,
+        message: `${isCreate ? 'Creating backup' : 'Restoring backup'}...`,
+      };
+      this.mainWindow.webContents.send('backup-operation-status', startEvent);
+
+      const result = await operation();
+
+      if (!result.success) {
+        const errorEvent: BackupOperationStatusEvent = {
+          status: 'error',
+          type: operationType,
+          message: result.error || 'Unknown error',
+        };
+        this.mainWindow.webContents.send('backup-operation-status', errorEvent);
+
+        dialog.showErrorBox(
+          'Backup operation failed',
+          result.error || 'Unknown error',
+        );
+      } else {
+        const successEvent: BackupOperationStatusEvent = {
+          status: 'success',
+          type: operationType,
+          message: `${
+            isCreate ? 'Backup created' : 'Backup restored'
+          } successfully`,
+        };
+        this.mainWindow.webContents.send(
+          'backup-operation-status',
+          successEvent,
+        );
+
+        if (isCreate) {
+          this.mainWindow.webContents.reload();
+          // Rebuild menu to show updated backup list
+          this.buildMenu();
+        } else {
+          app.hide();
+          app.relaunch();
+          app.exit();
+        }
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorEvent: BackupOperationStatusEvent = {
+        status: 'error',
+        type: isCreate ? 'backup' : 'restore',
+        message: errorMessage,
+      };
+      this.mainWindow.webContents.send('backup-operation-status', errorEvent);
+
+      dialog.showErrorBox('Backup operation failed', errorMessage);
     }
   }
 

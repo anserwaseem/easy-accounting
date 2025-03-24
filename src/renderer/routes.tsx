@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { InvoiceType } from '@/types';
 import { AuthProvider, ThemeProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
+import BackupToastListener from './components/BackupToastListener';
 
 import Sidebar from './components/Sidebar';
 import { AuthCheck } from './components/AuthCheck';
@@ -92,6 +93,7 @@ const AppRoutes: React.FC = () => (
           <Route path="*" element={<InvalidRoute />} />
         </Routes>
         <Toaster />
+        <BackupToastListener />
       </MemoryRouter>
     </AuthProvider>
   </ThemeProvider>

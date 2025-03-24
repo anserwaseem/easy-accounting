@@ -1,6 +1,3 @@
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
 import { Plus } from 'lucide-react';
 import {
   Dialog,
@@ -9,52 +6,32 @@ import {
   DialogTitle,
   DialogHeader,
 } from 'renderer/shad/ui/dialog';
-import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from 'renderer/shad/ui/form';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useState } from 'react';
+import type { InsertInventoryItem } from '@/types';
+import { addInventorySchema } from './inventorySchemas';
+import { InventoryForm } from './InventoryForm';
 
 interface AddInventoryItemProps {
   refetchInventory: () => void;
-  clearRef: React.RefObject<HTMLButtonElement>;
 }
 
 export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
   refetchInventory,
-  clearRef,
 }: AddInventoryItemProps) => {
   const [openCreateForm, setOpenCreateForm] = useState(false);
 
-  const addFormSchema = z.object({
-    name: z.string().min(1),
-    price: z.coerce.number().positive(),
-    description: z.string().optional(),
-  });
-
-  const defaultCreateValues = {
+  const defaultValues = {
     name: '',
-    description: '',
+    description: undefined,
     price: 0,
   };
 
-  const createForm = useForm<z.infer<typeof addFormSchema>>({
-    resolver: zodResolver(addFormSchema),
-    defaultValues: defaultCreateValues,
-  });
-
-  const onSubmit = async (values: z.infer<typeof addFormSchema>) => {
+  const onSubmit = async (values: InsertInventoryItem) => {
     const res = await window.electron.insertInventoryItem({ ...values });
 
     if (res) {
-      clearRef.current?.click();
       setOpenCreateForm(false);
       refetchInventory();
       toast({
@@ -81,61 +58,11 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
         <DialogHeader>
           <DialogTitle>Create Inventory Item</DialogTitle>
         </DialogHeader>
-
-        <Form {...createForm}>
-          <form
-            onSubmit={createForm.handleSubmit(onSubmit)}
-            onReset={() => createForm.reset(defaultCreateValues)}
-          >
-            <FormField
-              control={createForm.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem labelPosition="start">
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={createForm.control}
-              name="price"
-              render={({ field }) => (
-                <FormItem labelPosition="start">
-                  <FormLabel>Price</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="number" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={createForm.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem labelPosition="start">
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex justify-between">
-              <Button type="submit" className="w-1/2">
-                Submit
-              </Button>
-              <Button type="reset" variant="ghost" ref={clearRef}>
-                Clear
-              </Button>
-            </div>
-          </form>
-        </Form>
+        <InventoryForm
+          schema={addInventorySchema}
+          defaultValues={defaultValues}
+          onSubmit={onSubmit}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS "chart" (
   "name" STRING NOT NULL,
   "userId" INTEGER,
   "code" INTEGER,
-  "type" STRING NOT NULL CHECK ("type" IN ('Asset', 'Liability', 'Equity')),
+  "type" STRING NOT NULL CHECK ("type" IN ('Asset', 'Liability', 'Equity')), -- 'Revenue', 'Expense' -- "001 migration"
+  -- "parentId" INTEGER REFERENCES "chart"("id"), -- only used for custom heads e.g. "Agent abc", would be NULL for normal heads e.g. "Current Asset" -- "006 migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 
@@ -33,11 +34,16 @@ CREATE TABLE IF NOT EXISTS "account" (
   "chartId" INTEGER NOT NULL,
   "date" DATETIME,
   "name" STRING NOT NULL,
-  "code" INTEGER,
+  "code" INTEGER, -- VARCHAR(40) -- "008 migration"
+  -- "address" TEXT, -- "007 migration"
+  -- "phone1" VARCHAR(20), -- "007 migration"
+  -- "phone2" VARCHAR(20), -- "007 migration"
+  -- "goodsName" TEXT, -- "007 migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 
-  FOREIGN KEY("chartId") REFERENCES "chart"("id")
+  FOREIGN KEY("chartId") REFERENCES "chart"("id"),
+  UNIQUE("chartId", "name", "code") -- meaning: same account name and code can't be used in the same chart - "011 migration"
 );
 
 DROP TABLE IF EXISTS "journal";
@@ -79,12 +85,10 @@ CREATE TABLE IF NOT EXISTS "ledger" (
   "updatedAt"	DATETIME,
 
   FOREIGN KEY("accountId") REFERENCES "account"("id"),
-
   CHECK ("balanceType" IN ('Cr', 'Dr'))
 );
 
--- new
-CREATE TABLE IF NOT EXISTS "inventory" (
+CREATE TABLE IF NOT EXISTS "inventory" ( -- "002 migration"
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -94,33 +98,37 @@ CREATE TABLE IF NOT EXISTS "inventory" (
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS "invoices" (
+CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
     "invoiceNumber" INTEGER NOT NULL,
     "accountId" INTEGER NOT NULL,
     "invoiceType" TEXT NOT NULL CHECK ("invoiceType" IN ('Purchase', 'Sale')),
     "date" DATETIME NOT NULL,
-    "extraDiscount" DECIMAL(10, 4) NOT NULL DEFAULT 0,
     "totalAmount" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- "extraDiscount" DECIMAL(10, 4) NOT NULL DEFAULT 0, -- "005 migration"
+    -- "biltyNumber" INTEGER, -- "009 migration"
+    -- "cartons" INTEGER, -- "009 migration"
 
     UNIQUE("invoiceNumber", "invoiceType"),
     FOREIGN KEY ("accountId") REFERENCES "account"("id")
 );
 
-CREATE TABLE IF NOT EXISTS "invoice_items" (
+CREATE TABLE IF NOT EXISTS "invoice_items" ( -- "002 migration"
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
     "invoiceId" INTEGER NOT NULL,
     "inventoryId" INTEGER NOT NULL,
     "quantity" INTEGER NOT NULL,
-    "discount" DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    -- "discount" DECIMAL(10, 2) NOT NULL DEFAULT 0, -- "004 migration"
+    -- "accountId" INTEGER DEFAULT NULL, -- "010 migration"
     "price" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id"),
     FOREIGN KEY ("invoiceId") REFERENCES "invoices"("id")
+    --, FOREIGN KEY ("accountId") REFERENCES "account"("id") -- "010 migration"
 );
 
 
@@ -233,7 +241,7 @@ BEGIN
   WHERE id = NEW.id;
 END;
 
--- inventory
+-- inventory -- "002 migration"
 CREATE TRIGGER IF NOT EXISTS after_insert_inventory_add_timestamp
 AFTER INSERT ON inventory
 BEGIN
@@ -251,7 +259,7 @@ BEGIN
   WHERE id = NEW.id;
 END;
 
--- invoices
+-- invoices -- "002 migration"
 CREATE TRIGGER IF NOT EXISTS after_insert_invoices_add_timestamp
 AFTER INSERT ON invoices
 BEGIN
@@ -269,7 +277,7 @@ BEGIN
   WHERE id = NEW.id;
 END;
 
--- invoice_items
+-- invoice_items -- "003 migration"
 CREATE TRIGGER IF NOT EXISTS after_insert_invoice_items_add_timestamp
 AFTER INSERT ON invoice_items
 BEGIN

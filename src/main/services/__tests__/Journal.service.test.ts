@@ -55,6 +55,14 @@ jest.mock('electron', () => ({
   },
 }));
 
+const defaultAccountFields = {
+  code: undefined,
+  address: undefined,
+  phone1: undefined,
+  phone2: undefined,
+  goodsName: undefined,
+};
+
 describe('Journal Posting', () => {
   let journalService: JournalService;
   let ledgerService: LedgerService;
@@ -96,21 +104,22 @@ describe('Journal Posting', () => {
   it('should correctly update ledger balances for multiple debit/credit entries', () => {
     // Create test accounts
     const accounts: InsertAccount[] = [
-      { name: 'Cash', headName: 'Current Asset', code: undefined },
+      { name: 'Cash', headName: 'Current Asset' },
       {
         name: 'Accounts Receivable',
         headName: 'Current Asset',
-        code: undefined,
       },
       { name: 'Sale', headName: 'Revenue', code: 10 },
-      { name: 'Inventory', headName: 'Current Asset', code: undefined },
+      { name: 'Inventory', headName: 'Current Asset' },
       {
         name: 'Accounts Payable',
         headName: 'Current Liability',
-        code: undefined,
       },
-      { name: 'Bank', headName: 'Current Asset', code: undefined },
-    ];
+      { name: 'Bank', headName: 'Current Asset' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
     accounts.forEach((account) => accountService.insertAccount(account));
 
     // First journal entry: Sale on credit (one debit, one credit)
@@ -297,9 +306,12 @@ describe('Journal Posting', () => {
   it('should correctly update ledger balances when inserting a journal with a past date', () => {
     // Create test accounts
     const accounts: InsertAccount[] = [
-      { name: 'Cash', headName: 'Current Asset', code: undefined },
-      { name: 'Sale', headName: 'Revenue', code: undefined },
-    ];
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
     accounts.forEach((account) => accountService.insertAccount(account));
 
     // First journal entry: Current date
@@ -389,10 +401,13 @@ describe('Journal Posting', () => {
   it('should correctly update ledger entries when journal with past date is posted', () => {
     // Create test accounts
     const accounts: InsertAccount[] = [
-      { name: 'Cash', headName: 'Current Asset', code: undefined },
-      { name: 'Sale', headName: 'Revenue', code: undefined },
-      { name: 'Bank', headName: 'Current Asset', code: undefined },
-    ];
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+      { name: 'Bank', headName: 'Current Asset' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
     accounts.forEach((account) => accountService.insertAccount(account));
 
     // First journal entry
@@ -654,10 +669,13 @@ describe('Journal Posting', () => {
   it('should correctly update ledger when journal with current & past date is posted', () => {
     // Create test accounts
     const accounts: InsertAccount[] = [
-      { name: 'Cash', headName: 'Current Asset', code: undefined },
-      { name: 'Sale', headName: 'Revenue', code: undefined },
-      { name: 'Bank', headName: 'Current Asset', code: undefined },
-    ];
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+      { name: 'Bank', headName: 'Current Asset' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
     accounts.forEach((account) => accountService.insertAccount(account));
 
     // First journal entry
