@@ -459,7 +459,7 @@ const NewJournalPage: React.FC = () => {
         set up an account. Head over to the Accounts section to get started.
       </div>
       <div className="py-1 flex flex-col gap-y-4">
-        <h1 className="text-xl">New Journal</h1>
+        <h1 className="title-new">New Journal</h1>
 
         <Form {...form}>
           <form

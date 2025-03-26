@@ -57,7 +57,7 @@ const InventoryPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center py-4 pr-4">
+      <div className="grid grid-cols-3 justify-between items-center py-4">
         <div className="flex max-w-sm items-center">
           <Button
             variant="outline"
@@ -66,8 +66,8 @@ const InventoryPage: React.FC = () => {
               document.getElementById('uploadInventoryInput')?.click()
             }
           >
-            <Upload size={16} />
-            <span className="ml-3 mr-1">Upload Inventory</span>
+            <Upload size={16} className="mr-2" />
+            Upload Inventory
           </Button>
           <Input
             id="uploadInventoryInput"
@@ -77,7 +77,7 @@ const InventoryPage: React.FC = () => {
             onChange={uploadInventory}
           />
         </div>
-        <h1 className="text-2xl text-center mx-auto">Inventory</h1>
+        <h1 className="title mx-auto">Inventory</h1>
         <AddInventoryItem refetchInventory={refetchInventory} />
       </div>
       <div className="flex flex-row gap-2 items-center">

@@ -2,7 +2,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { get, isNaN, isNil, pick, sum, toNumber, toString } from 'lodash';
-import { Calendar as CalendarIcon, Plus, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -971,7 +971,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   return (
     <div className="py-1 flex flex-col gap-y-4">
-      <h1 className="text-xl">{`New ${invoiceType} Invoice`}</h1>
+      <h1 className="title-new">{`New ${invoiceType} Invoice`}</h1>
 
       {isNil(nextInvoiceNumber) ? (
         <AddInvoiceNumber
@@ -1167,6 +1167,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     document.getElementById('uploadInvoiceItemsInput')?.click()
                   }
                 >
+                  <Upload size={16} className="mr-2" />
                   Upload Invoice Items
                 </Button>
                 <Input

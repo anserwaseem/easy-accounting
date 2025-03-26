@@ -95,4 +95,12 @@
   .scrollbar::-webkit-scrollbar-thumb:hover {
     @apply dark:bg-gray-300 bg-gray-400;
   }
+
+  .title {
+    @apply text-2xl text-center tracking-tight col-span-1 row-span-1;
+  }
+
+  .title-new {
+    @apply text-xl tracking-tight;
+  }
 }
