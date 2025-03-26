@@ -10,6 +10,7 @@ import {
 } from 'renderer/shad/ui/datePicker';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import {
+  cn,
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
@@ -155,16 +156,16 @@ const JournalsPage: React.FC<HasMiniView> = ({
   return (
     <div>
       <div
-        className={`py-4 pr-4 ${
-          isMini
-            ? 'grid grid-cols-2 grid-rows-2 gap-4'
-            : 'flex justify-between items-center'
-        }`}
+        className={cn(
+          'grid py-4',
+          isMini ? 'grid-cols-2 grid-rows-2 gap-4' : 'grid-cols-3 items-center',
+        )}
       >
         <div
-          className={`flex gap-4 items-center justify-between ${
-            isMini ? 'col-span-2 row-span-1 order-1' : ''
-          }`}
+          className={cn(
+            'flex gap-4 items-center',
+            isMini && 'col-span-2 row-span-1 order-1',
+          )}
         >
           <p className="text-muted-foreground font-bold text-sm">VIEW BY:</p>
           <DateRangePickerWithPresets
@@ -175,19 +176,19 @@ const JournalsPage: React.FC<HasMiniView> = ({
           />
         </div>
 
-        <h1 className="text-2xl col-span-1 row-span-1">Journals</h1>
+        <h1 className="title">Journals</h1>
 
         <Button
           variant="outline"
           onClick={() => navigate('/journals/new')}
-          className="flex items-center col-span-1 row-span-1"
+          className="col-span-1 row-span-1 w-fit ml-auto"
         >
-          <Plus size={16} />
-          <span className="ml-3 mr-1">New Journal</span>
+          <Plus size={16} className="mr-2" />
+          New Journal
         </Button>
       </div>
 
-      <div className="py-8 pr-4 flex flex-col gap-6">
+      <div className="py-8 flex flex-col gap-6">
         {isMini ? (
           <Table>
             <TableBody>

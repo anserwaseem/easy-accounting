@@ -1,4 +1,4 @@
-import { Bell, History, LogOut, Settings } from 'lucide-react';
+import { History, LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from 'renderer/lib/utils';
 import { ModeToggle } from 'renderer/components/ModeToggle';
@@ -20,28 +20,12 @@ export const MainNav = ({
   return (
     <nav
       className={cn(
-        'flex h-16 items-center justify-between w-full border-b px-4 lg:px-6 mb-2 border-gray-800 dark:border-gray-300',
+        'flex h-16 items-center justify-between w-full border-b mb-2 border-gray-800 dark:border-gray-300',
         className,
       )}
       {...props}
     >
       <div className="flex items-center justify-center space-x-4 lg:space-x-6">
-        <div className="text-sm font-medium transition-colors hover:text-primary">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <Bell className="h-5 w-5 mt-2" />
-              </TooltipTrigger>
-              <TooltipContent>Notifications</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        {/* <div className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
-          <Search />
-        </div> */}
-      </div>
-
-      <div className="ml-auto flex items-center space-x-4 lg:space-x-6">
         <div className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
           <TooltipProvider>
             <Tooltip>
@@ -52,6 +36,12 @@ export const MainNav = ({
             </Tooltip>
           </TooltipProvider>
         </div>
+        {/* <div className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+          <Search />
+        </div> */}
+      </div>
+
+      <div className="ml-auto flex items-center space-x-4 lg:space-x-6">
         <Link
           to="/settings"
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"

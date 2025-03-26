@@ -12,7 +12,7 @@ import {
 import { dateFormatOptions } from 'renderer/lib/constants';
 import { AccountType, type Account, type Chart, type HasMiniView } from 'types';
 import type { CellContext } from '@tanstack/react-table';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
+import { cn, defaultSortingFunctions } from 'renderer/lib/utils';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
@@ -167,12 +167,12 @@ const AccountsPage: React.FC<AccountPageProps> = ({
 
   return (
     <div>
-      <div className="flex justify-between items-center py-4 pr-4">
+      <div className="grid grid-cols-3 justify-between items-center py-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              className={isMini ? 'max-w-min py-6' : ''}
+              className={isMini ? 'max-w-min py-6' : 'w-fit'}
             >
               <span className="mr-2">{typeSelected} Accounts</span>
               <ChevronDown size={16} />
@@ -194,11 +194,9 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <h1 className={isMini ? 'hidden' : 'text-2xl font-bold tracking-tight'}>
-          Accounts
-        </h1>
+        <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
 
-        <div className={`flex ${isMini ? 'gap-0.5' : 'gap-2'}`}>
+        <div className={cn('flex w-fit ml-auto', isMini ? 'gap-0.5' : 'gap-2')}>
           <AddCustomHead
             charts={charts}
             onHeadAdded={refetchAccounts}
@@ -212,7 +210,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           />
         </div>
       </div>
-      <div className="py-8 pr-4">
+      <div className="py-8">
         <DataTable
           columns={columns}
           data={getAccounts()}
