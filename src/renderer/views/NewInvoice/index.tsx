@@ -88,7 +88,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       inventoryId: 0,
       quantity: 0,
       discount: 0,
-      price: 0,
+      price: -1,
       discountedPrice: 0,
     }),
     [],
@@ -99,7 +99,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     date: '',
     invoiceNumber: -1,
     extraDiscount: 0,
-    totalAmount: 0,
+    totalAmount: -1,
     invoiceItems: [],
     invoiceType,
     biltyNumber: '',
@@ -128,9 +128,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     extraDiscount: z.coerce
       .number()
       .nonnegative('Extra Discount must be non-negative'),
-    totalAmount: z.coerce
-      .number()
-      .positive('Total Amount must be greater than 0'),
+    totalAmount:
+      invoiceType === InvoiceType.Sale
+        ? z.coerce.number().positive('Total Amount must be greater than 0')
+        : z.coerce.number(),
     invoiceItems: z
       .array(
         z.object({
@@ -146,7 +147,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             .nonnegative('Discount must be non-negative')
             .max(100, 'Discount must be less than 100%')
             .min(0, 'Discount must be greater than 0%'),
-          price: z.number().positive('Price must be greater than 0'),
+          price:
+            invoiceType === InvoiceType.Sale
+              ? z.number().positive('Price must be greater than 0')
+              : z.number(),
           discountedPrice: z
             .number()
             .nonnegative('Discounted price must be non-negative'),
