@@ -55,7 +55,6 @@ interface NewInvoiceProps {
 
 // FIXME: set validation for max quantity of selected inventory item
 // FIXME: do not allow selecting same inventory item multiple times
-// TODO: support adding bilty number and cartons
 // TODO: improve performance, check states: remove unnecessary data
 // TODO: in new sale invoice, date format is not matching with existing invoices: can we keep MM/DD/YYYY format when importing?
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
@@ -103,6 +102,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     totalAmount: 0,
     invoiceItems: [],
     invoiceType,
+    biltyNumber: '',
+    cartons: 0,
     accountMapping: {
       singleAccountId: -1,
       multipleAccountIds: [],
@@ -119,6 +120,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       .refine((val) => !isNaN(new Date(val).getTime()), {
         message: 'Select a valid date',
       }),
+    biltyNumber: z.string().optional(),
+    cartons: z.coerce
+      .number()
+      .nonnegative('Cartons must be non-negative')
+      .optional(),
     extraDiscount: z.coerce
       .number()
       .nonnegative('Extra Discount must be non-negative'),
@@ -778,11 +784,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             <FormItem className="w-1/2 space-y-0">
               <FormControl>
                 <p
-                  className={
-                    watchedTotalAmount
-                      ? 'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2 w-fit'
-                      : ''
-                  }
+                  className={cn(
+                    watchedTotalAmount &&
+                      'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2 w-fit',
+                  )}
                 >
                   {watchedTotalAmount
                     ? getFormattedCurrency(watchedTotalAmount)
@@ -998,81 +1003,131 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 </div>
               )}
 
-              {useSingleAccount || invoiceType === InvoiceType.Purchase ? (
+              <div className="grid grid-cols-2 row-gap-4">
+                {useSingleAccount || invoiceType === InvoiceType.Purchase ? (
+                  <FormField
+                    control={form.control}
+                    name="accountMapping.singleAccountId"
+                    render={({ field }) => (
+                      <FormItem labelPosition="start" className="pr-16">
+                        <FormLabel className="text-base">
+                          {invoiceType === InvoiceType.Sale
+                            ? 'Customer'
+                            : 'Vendor'}
+                        </FormLabel>
+                        <VirtualSelect
+                          options={parties || []}
+                          value={field.value}
+                          onChange={(val) =>
+                            onAccountSelection(toString(val), field.onChange)
+                          }
+                          placeholder="Select a party"
+                          searchPlaceholder="Search parties..."
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <div className="flex items-center">
+                    <p className="text-sm text-muted-foreground">
+                      Select a customer for each invoice item individually.
+                    </p>
+                  </div>
+                )}
+
+                {invoiceType === InvoiceType.Sale && (
+                  <FormField
+                    control={form.control}
+                    name="biltyNumber"
+                    render={({ field }) => (
+                      <FormItem labelPosition="start" className="pl-16">
+                        <FormLabel className="text-base">
+                          Bilty Number
+                        </FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Enter bilty number" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 <FormField
                   control={form.control}
-                  name="accountMapping.singleAccountId"
+                  name="date"
                   render={({ field }) => (
-                    <FormItem labelPosition="start" className="w-1/2 space-y-0">
-                      <FormLabel className="text-base">
-                        {invoiceType === InvoiceType.Sale
-                          ? 'Customer'
-                          : 'Vendor'}
-                      </FormLabel>
-                      <VirtualSelect
-                        options={parties || []}
-                        value={field.value}
-                        onChange={(val) =>
-                          onAccountSelection(toString(val), field.onChange)
-                        }
-                        placeholder="Select a party"
-                        searchPlaceholder="Search parties..."
-                      />
+                    <FormItem
+                      labelPosition="start"
+                      className="pr-16 row-start-2"
+                    >
+                      <FormLabel className="text-base">Date</FormLabel>
+                      <FormControl>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                'w-full justify-start text-left font-normal',
+                                !field.value && 'text-muted-foreground',
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-12 w-4" />
+                              {field.value ? (
+                                format(field.value, 'PPP')
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              {...field}
+                              mode="single"
+                              disabled={isDateDisabled}
+                              selected={new Date(field.value)}
+                              onSelect={onDateSelection}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              ) : (
-                <div className="flex items-center">
-                  <p className="text-sm text-muted-foreground">
-                    Select a customer for each invoice item individually.
-                  </p>
-                </div>
-              )}
 
-              <FormField
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
-                    <FormLabel className="text-base">Date</FormLabel>
-                    <FormControl>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-[280px] justify-start text-left font-normal w-100',
-                              !field.value && 'text-muted-foreground',
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-12 w-4" />
-                            {field.value ? (
-                              format(field.value, 'PPP')
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
+                {invoiceType === InvoiceType.Sale && (
+                  <FormField
+                    control={form.control}
+                    name="cartons"
+                    render={({ field }) => (
+                      <FormItem labelPosition="start" className="pl-16">
+                        <FormLabel className="text-base">Cartons</FormLabel>
+                        <FormControl>
+                          <Input
                             {...field}
-                            mode="single"
-                            disabled={isDateDisabled}
-                            selected={new Date(field.value)}
-                            onSelect={onDateSelection}
-                            initialFocus
+                            type="number"
+                            step={1}
+                            placeholder="Number of cartons"
+                            onBlur={(e) =>
+                              field.onChange(toNumber(e.target.value))
+                            }
+                            onChange={(e) =>
+                              field.onChange(toNumber(e.target.value))
+                            }
                           />
-                        </PopoverContent>
-                      </Popover>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
-              />
+              </div>
             </div>
 
-            <div className="py-8 pr-4 flex flex-col gap-3">
+            <div className="py-8 flex flex-col gap-3">
               <DataTable
                 columns={columns}
                 data={fields}
@@ -1091,7 +1146,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               )}
             </div>
 
-            <div className="flex justify-between pr-4 gap-20 pb-20">
+            <div className="flex justify-between gap-20 pb-20">
               <Button
                 type="button"
                 className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"

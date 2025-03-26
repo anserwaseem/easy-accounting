@@ -26,6 +26,8 @@ export class InvoiceService {
 
   private stmGetNextInvoiceNumber!: Statement;
 
+  private stmInsertInvoice!: Statement;
+
   private stmInsertInvoiceItems!: Statement;
 
   private stmUpdateInventoryItem!: Statement;
@@ -100,7 +102,7 @@ export class InvoiceService {
     })();
   }
 
-  insertInvoiceWithoutTransaction(
+  private insertInvoiceWithoutTransaction(
     invoiceType: InvoiceType,
     invoice: Invoice,
   ): number {
@@ -111,23 +113,19 @@ export class InvoiceService {
 
     const totalAmount = invoice.totalAmount ?? 0;
 
-    const stmInsertInvoice = `
-        INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount)
-        VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount)
-      `;
-    const prpStmInsertInvoice = this.db.prepare(stmInsertInvoice);
-
     // all items use the same account - single journal
     if (invoice.accountMapping.singleAccountId) {
       const accountId = invoice.accountMapping.singleAccountId;
 
-      const invoiceResult = prpStmInsertInvoice.run({
+      const invoiceResult = this.stmInsertInvoice.run({
         date: invoice.date,
         accountId,
         invoiceType,
         totalAmount,
         invoiceNumber: invoice.invoiceNumber,
         extraDiscount: invoice.extraDiscount,
+        biltyNumber: invoice.biltyNumber,
+        cartons: invoice.cartons,
       });
       const invoiceId = <number>invoiceResult.lastInsertRowid;
 
@@ -150,13 +148,15 @@ export class InvoiceService {
     }
     // multiple accounts - multiple journals
     else if (invoice.accountMapping.multipleAccountIds) {
-      const invoiceResult = prpStmInsertInvoice.run({
+      const invoiceResult = this.stmInsertInvoice.run({
         date: invoice.date,
         accountId: invoice.accountMapping.multipleAccountIds[0], // workaround for multiple accounts - first account will be used
         invoiceType,
         totalAmount,
         invoiceNumber: invoice.invoiceNumber,
         extraDiscount: invoice.extraDiscount,
+        biltyNumber: invoice.biltyNumber,
+        cartons: invoice.cartons,
       });
       const invoiceId = <number>invoiceResult.lastInsertRowid;
 
@@ -387,6 +387,11 @@ export class InvoiceService {
       SELECT (MAX(invoiceNumber) + 1) AS 'invoiceNumber'
       FROM invoices
       WHERE invoiceType = ?
+    `);
+
+    this.stmInsertInvoice = this.db.prepare(`
+      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount, biltyNumber, cartons)
+      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount, @biltyNumber, @cartons)
     `);
 
     this.stmInsertInvoiceItems = this.db.prepare(`
