@@ -32,6 +32,14 @@ import { toast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import type { Account, Journal, JournalEntry } from 'types';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'renderer/shad/ui/dialog';
 
 const NewJournalPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[] | undefined>(undefined);
@@ -40,6 +48,10 @@ const NewJournalPage: React.FC = () => {
   const [totalDebits, setTotalDebits] = useState<number>(0);
   const [differenceCredit, setDifferenceCredit] = useState<number>(0);
   const [differenceDebit, setDifferenceDebit] = useState<number>(0);
+  const [isDateExplicitlySet, setIsDateExplicitlySet] =
+    useState<boolean>(false);
+  const [showDateConfirmation, setShowDateConfirmation] =
+    useState<boolean>(false);
   const navigate = useNavigate();
 
   const getInitialEntry = useCallback(
@@ -377,6 +389,34 @@ const NewJournalPage: React.FC = () => {
     [append, getInitialEntry],
   );
 
+  const submitJournal = async (values: z.infer<typeof formSchema>) => {
+    try {
+      const isInserted = await window.electron.insertJournal(values);
+
+      if (!!isInserted) {
+        form.reset(defaultFormValues);
+        setTotalCredits(0);
+        setTotalDebits(0);
+        setNextId((prev) => prev + 1);
+        setIsDateExplicitlySet(false);
+
+        toast({
+          description: 'Journal saved successfully',
+          variant: 'success',
+        });
+        return;
+      }
+      throw new Error('Failed to save journal');
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(error);
+      toast({
+        description: toString(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // eslint-disable-next-line no-console
     console.log('onSubmit journal:', values);
@@ -397,30 +437,13 @@ const NewJournalPage: React.FC = () => {
       return;
     }
 
-    try {
-      const isInserted = await window.electron.insertJournal(values);
-
-      if (!!isInserted) {
-        form.reset(defaultFormValues);
-        setTotalCredits(0);
-        setTotalDebits(0);
-        setNextId((prev) => prev + 1);
-
-        toast({
-          description: 'Journal saved successfully',
-          variant: 'success',
-        });
-        return;
-      }
-      throw new Error('Failed to save journal');
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error(error);
-      toast({
-        description: toString(error),
-        variant: 'destructive',
-      });
+    // check if date was explicitly set by user
+    if (!isDateExplicitlySet) {
+      setShowDateConfirmation(true);
+      return;
     }
+
+    await submitJournal(values);
   };
 
   const checkKeyDown = useCallback(
@@ -440,6 +463,37 @@ const NewJournalPage: React.FC = () => {
 
   return (
     <>
+      <Dialog
+        open={showDateConfirmation}
+        onOpenChange={setShowDateConfirmation}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Date</DialogTitle>
+            <DialogDescription>
+              You are using today&apos;s date ({format(new Date(), 'PPP')}).
+              Would you like to proceed with this date or set a different one?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-between">
+            <Button
+              variant="secondary"
+              onClick={() => setShowDateConfirmation(false)}
+            >
+              Change Date
+            </Button>
+            <Button
+              onClick={async () => {
+                setShowDateConfirmation(false);
+                await submitJournal(form.getValues());
+              }}
+            >
+              Use Current Date
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div
         className={
           !accounts || accounts.length
@@ -456,7 +510,10 @@ const NewJournalPage: React.FC = () => {
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            onReset={() => form.reset(defaultFormValues)}
+            onReset={() => {
+              form.reset(defaultFormValues);
+              setIsDateExplicitlySet(false);
+            }}
             onKeyDown={checkKeyDown}
             role="presentation"
           >
@@ -493,6 +550,7 @@ const NewJournalPage: React.FC = () => {
                             onSelect={(date) => {
                               if (!date) return;
                               form.setValue('date', date.toISOString());
+                              setIsDateExplicitlySet(true);
                             }}
                             initialFocus
                           />

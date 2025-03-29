@@ -15,6 +15,48 @@ export type UserCredentials = {
   password: string;
 };
 
+export type BaseEntity = {
+  id: number;
+  date: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export enum AccountType {
+  Asset = 'Asset',
+  Liability = 'Liability',
+  Equity = 'Equity',
+  Revenue = 'Revenue',
+  Expense = 'Expense',
+}
+
+export enum BalanceType {
+  Dr = 'Dr',
+  Cr = 'Cr',
+}
+
+export enum InvoiceType {
+  Purchase = 'Purchase',
+  Sale = 'Sale',
+}
+
+export interface TrialBalanceItem {
+  id: number;
+  name: string;
+  code?: number | string;
+  debit: number;
+  credit: number;
+  type: AccountType;
+}
+
+export interface TrialBalance {
+  date: Date;
+  accounts: TrialBalanceItem[];
+  totalDebit: number;
+  totalCredit: number;
+  isBalanced: boolean;
+}
+
 export interface ReportAccount {
   name: string;
   amount: number;
@@ -54,32 +96,6 @@ export type SectionType = (typeof SectionTypes)[number] | null;
 
 export const SingularSections = ['asset', 'liability', 'equity'] as const;
 export type SingularSection = (typeof SingularSections)[number]; // used in chart & statement services
-
-/** Enums */
-export enum AccountType {
-  Asset = 'Asset',
-  Liability = 'Liability',
-  Equity = 'Equity',
-  Revenue = 'Revenue',
-  Expense = 'Expense',
-}
-
-export enum BalanceType {
-  Dr = 'Dr',
-  Cr = 'Cr',
-}
-
-export enum InvoiceType {
-  Purchase = 'Purchase',
-  Sale = 'Sale',
-}
-
-export type BaseEntity = {
-  id: number;
-  date: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-};
 
 /** Account */
 export interface Account extends BaseEntity {
