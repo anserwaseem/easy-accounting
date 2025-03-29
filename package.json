@@ -1,5 +1,5 @@
 {
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Easy Accounting is a simple accounting software for SMEs.",
   "keywords": [
     "easyAccounting",
@@ -34,11 +34,11 @@
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
     "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.dev.dll.ts",
     "prepackage": "ts-node .erb/scripts/prepackage-db.ts",
-    "package": "npm run clean && npm run build && electron-builder --mac --win",
+    "package": "npm run clean && npm run build && electron-builder",
     "postpackage": "ts-node .erb/scripts/postpackage-db.ts",
     "package:win": "npm run package -- --win",
     "package:mac": "npm run package -- --mac",
-    "release": "npm run package -- -p always",
+    "release": "npm run package -- --mac --win -p always",
     "start": "ts-node ./.erb/scripts/check-port-in-use.js && npm run start:renderer",
     "start:main": "cross-env NODE_ENV=development electronmon -r ts-node/register/transpile-only .",
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
