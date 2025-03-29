@@ -2,7 +2,14 @@ import { MainNav } from 'renderer/components/MainNav';
 import { Sidebar as ShadSidebar } from 'renderer/shad/ui/sidebar';
 import { Button } from 'renderer/shad/ui/button';
 import { Link, Outlet } from 'react-router-dom';
-import { FileCheck2, Plus, Table2, FileText, Store } from 'lucide-react';
+import {
+  FileCheck2,
+  Plus,
+  Table2,
+  FileText,
+  Store,
+  BarChart3,
+} from 'lucide-react';
 import { PropsWithChildren } from 'react';
 
 const Sidebar: React.FC<PropsWithChildren> = ({
@@ -48,6 +55,15 @@ const Sidebar: React.FC<PropsWithChildren> = ({
             >
               <Store />
               <span>Inventory</span>
+            </Button>
+          </Link>,
+          <Link to="/reports">
+            <Button
+              variant="outline"
+              className="w-full md:w-[225px] gap-2 justify-start"
+            >
+              <BarChart3 />
+              <span>Reports</span>
             </Button>
           </Link>,
           <div className="flex flex-row">
