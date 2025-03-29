@@ -77,7 +77,11 @@ const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
         {row.getVisibleCells().map((cell) => (
           <TableCell
             key={cell.id}
-            className="py-2 px-4"
+            className={cn(
+              'py-2 px-4',
+              (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick &&
+                'cursor-pointer',
+            )}
             onClick={() =>
               (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick?.(
                 cell.row,
@@ -383,7 +387,11 @@ const DataTable = <TData, TValue>({
                           cell.column.columnDef as ColumnDef<TData, TValue>
                         )?.onClick?.(cell.row)
                       }
-                      className="py-2 px-4"
+                      className={cn(
+                        'py-2 px-4',
+                        (cell.column.columnDef as ColumnDef<TData, TValue>)
+                          ?.onClick && 'cursor-pointer',
+                      )}
                     >
                       {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
                       <div key={toString(get(cell.row.original, 'id'))}>
