@@ -18,7 +18,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
     () => [
       {
         accessorKey: 'date',
-        header: 'Date',
+        header: 'Date (MM/DD/YYYY)',
         cell: ({ row }) =>
           new Date(row.original.date).toLocaleString(
             'en-US',

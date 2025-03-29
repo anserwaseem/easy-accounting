@@ -4,11 +4,9 @@ import { BaseEntity } from '@/types';
  * Returns global date format options being used in the project.
  */
 export const dateFormatOptions: Intl.DateTimeFormatOptions = {
-  year: '2-digit',
+  year: 'numeric',
   month: '2-digit',
   day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
 };
 
 /**

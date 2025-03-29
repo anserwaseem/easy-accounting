@@ -46,8 +46,13 @@ const JournalsPage: React.FC<HasMiniView> = ({
       // },
       {
         accessorKey: 'date',
-        header: 'Date',
+        header: 'Date (MM/DD/YYYY)',
         onClick: (row) => navigate(toString(row.original.id)),
+        cell: ({ row }) =>
+          new Date(row.original.date).toLocaleString(
+            'en-US',
+            dateFormatOptions,
+          ),
       },
       {
         accessorKey: 'narration',

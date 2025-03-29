@@ -318,7 +318,9 @@ export default class MenuBuilder {
           // Rebuild menu to show updated backup list
           this.buildMenu();
         } else {
-          app.hide();
+          if (process.platform === 'darwin') {
+            app.hide();
+          }
           app.relaunch();
           app.exit();
         }

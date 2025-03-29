@@ -219,15 +219,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           virtual
           isMini={isMini}
           searchPlaceholder="Search accounts..."
-          searchFields={[
-            'name',
-            'code',
-            'headName',
-            'address',
-            'phone1',
-            'phone2',
-            'goodsName',
-          ]}
+          searchFields={['name', 'code', 'headName']}
         />
       </div>
     </div>
