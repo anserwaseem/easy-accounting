@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { toNumber } from 'lodash';
 import type { Account, LedgerView } from '@/types';
+import { getFormattedCurrency } from '@/renderer/lib/utils';
 import { LedgerTable } from './ledgerTable';
 import AccountsPage from '../Accounts';
 
@@ -40,7 +41,9 @@ const LedgerPage: React.FC = () => {
             <div className="flex gap-2 row-span-2 items-center justify-self-end">
               <h3 className="text-center mb-auto">Balance:</h3>
               <h3>
-                {ledger[ledger.length - 1].balance}{' '}
+                <span className="font-bold">
+                  {getFormattedCurrency(ledger[ledger.length - 1].balance)}{' '}
+                </span>
                 {ledger[ledger.length - 1].balanceType}
               </h3>
             </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dateFormatOptions } from 'renderer/lib/constants';
+import { currency, dateFormatOptions } from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
@@ -35,11 +35,19 @@ export const JournalTable: React.FC<JournalTableProps> = ({
         accessorKey: 'debitAmount',
         header: 'Debit',
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
+        cell: ({ row }) =>
+          getFormattedCurrency(row.original.debitAmount)
+            .replace(currency, '')
+            .trim(),
       },
       {
         accessorKey: 'creditAmount',
         header: 'Credit',
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
+        cell: ({ row }) =>
+          getFormattedCurrency(row.original.creditAmount)
+            .replace(currency, '')
+            .trim(),
       },
     ];
   }, [navigate]);

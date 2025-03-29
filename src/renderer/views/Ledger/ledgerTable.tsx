@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
-import { dateFormatOptions } from 'renderer/lib/constants';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
+import { currency, dateFormatOptions } from 'renderer/lib/constants';
+import {
+  defaultSortingFunctions,
+  getFormattedCurrency,
+} from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { LedgerView } from 'types';
 
@@ -33,14 +36,24 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
       {
         accessorKey: 'debit',
         header: 'Debit',
+        cell: ({ row }) =>
+          getFormattedCurrency(row.original.debit).replace(currency, '').trim(),
       },
       {
         accessorKey: 'credit',
         header: 'Credit',
+        cell: ({ row }) =>
+          getFormattedCurrency(row.original.credit)
+            .replace(currency, '')
+            .trim(),
       },
       {
         accessorKey: 'balance',
         header: 'Balance',
+        cell: ({ row }) =>
+          getFormattedCurrency(row.original.balance)
+            .replace(currency, '')
+            .trim(),
       },
       {
         accessorKey: 'balanceType',

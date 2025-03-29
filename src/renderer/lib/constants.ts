@@ -9,12 +9,14 @@ export const dateFormatOptions: Intl.DateTimeFormatOptions = {
   day: '2-digit',
 };
 
+export const currency = 'PKR';
+
 /**
  * Returns global currency format options being used in the project.
  */
 export const currencyFormatOptions: Intl.NumberFormatOptions = {
   style: 'currency',
-  currency: 'PKR',
+  currency,
 };
 
 export const DEFAULT_INVOICE_NUMBER = 1;
