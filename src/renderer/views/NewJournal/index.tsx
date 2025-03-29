@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
-import { get, toNumber, toString, isNaN } from 'lodash';
+import { get, toNumber, toString } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import {
   Popover,
@@ -30,7 +30,6 @@ import {
 } from 'renderer/shad/ui/form';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { dateFormatOptions } from 'renderer/lib/constants';
 import type { Account, Journal, JournalEntry } from 'types';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 
@@ -56,7 +55,7 @@ const NewJournalPage: React.FC = () => {
 
   const defaultFormValues: Journal = {
     id: nextId, // using journal id as journal number as well (uneditable from UI)
-    date: new Date().toLocaleString('en-US', dateFormatOptions),
+    date: new Date().toISOString(),
     narration: '',
     isPosted: true, // FUTURE: support draft journals
     journalEntries: [{ ...getInitialEntry() }, { ...getInitialEntry() }],
@@ -66,14 +65,7 @@ const NewJournalPage: React.FC = () => {
 
   const formSchema = z.object({
     id: z.number(),
-    date: z
-      .string()
-      .transform((val) =>
-        new Date(val).toLocaleString('en-US', dateFormatOptions),
-      )
-      .refine((val) => !isNaN(new Date(val).getTime()), {
-        message: 'Invalid date',
-      }),
+    date: z.string().datetime({ local: true, message: 'Select a valid date' }),
     narration: z.string().optional(),
     isPosted: z.boolean(),
     journalEntries: z.array(
@@ -499,15 +491,8 @@ const NewJournalPage: React.FC = () => {
                             mode="single"
                             selected={new Date(field.value)}
                             onSelect={(date) => {
-                              if (date) {
-                                form.setValue(
-                                  'date',
-                                  date.toLocaleString(
-                                    'en-US',
-                                    dateFormatOptions,
-                                  ),
-                                );
-                              }
+                              if (!date) return;
+                              form.setValue('date', date.toISOString());
                             }}
                             initialFocus
                           />

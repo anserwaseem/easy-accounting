@@ -1,15 +1,12 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { get, isNaN, isNil, pick, sum, toNumber, toString } from 'lodash';
+import { get, isNil, pick, sum, toNumber, toString } from 'lodash';
 import { Calendar as CalendarIcon, Plus, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import {
-  currencyFormatOptions,
-  dateFormatOptions,
-} from 'renderer/lib/constants';
+import { currencyFormatOptions } from 'renderer/lib/constants';
 import {
   cn,
   defaultSortingFunctions,
@@ -112,14 +109,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const formSchema = z.object({
     id: z.number(),
-    date: z
-      .string()
-      .transform((val) =>
-        new Date(val).toLocaleString('en-US', dateFormatOptions),
-      )
-      .refine((val) => !isNaN(new Date(val).getTime()), {
-        message: 'Select a valid date',
-      }),
+    date: z.string().datetime({ local: true, message: 'Select a valid date' }),
     biltyNumber: z.string().optional(),
     cartons: z.coerce
       .number()
@@ -902,9 +892,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const onDateSelection = useCallback(
     (date?: Date) => {
-      if (date) {
-        form.setValue('date', date.toLocaleString('en-US', dateFormatOptions));
-      }
+      if (!date) return;
+      form.setValue('date', date.toISOString());
     },
     [form],
   );
