@@ -38,7 +38,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     id: inputRow.id,
     headName: inputRow.headName || '',
     accountName: inputRow.name || '',
-    accountCode: inputRow.code,
+    accountCode: inputRow.code === null ? undefined : inputRow.code,
     address: inputRow.address,
     phone1: inputRow.phone1,
     phone2: inputRow.phone2,
