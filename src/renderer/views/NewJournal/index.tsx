@@ -596,7 +596,7 @@ const NewJournalPage: React.FC = () => {
               />
             </div>
 
-            <div className="py-8 pr-4 flex flex-col gap-3">
+            <div className="pt-4 pb-8 pr-4 flex flex-col gap-3">
               <DataTable
                 columns={columns}
                 data={fields}
