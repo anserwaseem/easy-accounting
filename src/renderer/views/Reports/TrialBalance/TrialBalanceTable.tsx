@@ -10,34 +10,41 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
-import type { TrialBalanceTableProps } from './types';
+import type { TrialBalanceTableProps, TrialBalanceItem } from './types';
+import {
+  EmptyState,
+  LoadingState,
+  SortableHeader,
+  useSorting,
+} from '../components';
+
+type SortField = 'code' | 'name' | 'debit' | 'credit';
 
 export const TrialBalanceTable = ({
   trialBalance,
   isLoading,
 }: TrialBalanceTableProps) => {
+  const { sortField, sortDirection, handleSort, sortItems } = useSorting<
+    TrialBalanceItem,
+    SortField
+  >({
+    initialSortField: 'code',
+  });
+
   if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64 print-loading-state">
-        <p className="text-muted-foreground animate-pulse">
-          Loading trial balance data...
-        </p>
-      </div>
-    );
+    return <LoadingState message="Loading trial balance data..." />;
   }
 
   if (trialBalance.accounts.length === 0) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <p className="text-muted-foreground">
-          No trial balance data available.
-        </p>
-      </div>
-    );
+    return <EmptyState message="No trial balance data available." />;
   }
 
-  const debitAccounts = trialBalance.accounts.filter((a) => a.debit > 0);
-  const creditAccounts = trialBalance.accounts.filter((a) => a.credit > 0);
+  // Sort accounts based on current sort settings
+  const sortedAccounts = sortItems(trialBalance.accounts);
+
+  // Split into debit and credit accounts after sorting
+  const debitAccounts = sortedAccounts.filter((a) => a.debit > 0);
+  const creditAccounts = sortedAccounts.filter((a) => a.credit > 0);
   const maxRows = Math.max(debitAccounts.length, creditAccounts.length);
 
   return (
@@ -51,24 +58,48 @@ export const TrialBalanceTable = ({
         </TableCaption>
         <TableHeader>
           <TableRow className="border-b border-primary bg-muted/50">
-            <TableHead className="text-left py-2 font-bold text-sm">
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="code"
+              sortDirection={sortDirection}
+              onSort={() => handleSort('code')}
+              className="text-left py-2 font-bold text-sm"
+            >
               Code
-            </TableHead>
-            <TableHead className="text-left py-2 font-bold text-sm">
+            </SortableHeader>
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="name"
+              sortDirection={sortDirection}
+              onSort={() => handleSort('name')}
+              className="text-left py-2 font-bold text-sm"
+            >
               Debit Account
-            </TableHead>
-            <TableHead className="w-24 text-right py-2 font-bold pr-6 print-spacing-right text-sm">
+            </SortableHeader>
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="debit"
+              sortDirection={sortDirection}
+              onSort={() => handleSort('debit')}
+              className="w-24 text-right py-2 font-bold pr-6 print-spacing-right text-sm"
+            >
               Amount
-            </TableHead>
+            </SortableHeader>
             <TableHead className="text-left py-2 font-bold border-l border-primary pl-6 print-spacing-left text-sm">
               Code
             </TableHead>
             <TableHead className="text-left py-2 font-bold text-sm">
               Credit Account
             </TableHead>
-            <TableHead className="w-24 text-right py-2 font-bold text-sm">
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="credit"
+              sortDirection={sortDirection}
+              onSort={() => handleSort('credit')}
+              className="w-24 text-right py-2 font-bold text-sm"
+            >
               Amount
-            </TableHead>
+            </SortableHeader>
           </TableRow>
         </TableHeader>
         <TableBody>

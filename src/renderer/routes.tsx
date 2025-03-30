@@ -24,6 +24,7 @@ import { InvalidRoute } from './views/InvalidRoute';
 import PrintableInvoiceScreen from './views/PrintableInvoiceScreen';
 import ReportsPage from './views/Reports';
 import TrialBalancePage from './views/Reports/TrialBalance';
+import AccountBalancesPage from './views/Reports/AccountBalances';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -49,6 +50,10 @@ const AppRoutes: React.FC = () => (
               <Route path="reports">
                 <Route index element={<ReportsPage />} />
                 <Route path="trial-balance" element={<TrialBalancePage />} />
+                <Route
+                  path="account-balances"
+                  element={<AccountBalancesPage />}
+                />
               </Route>
               <Route path="purchase/invoices">
                 <Route

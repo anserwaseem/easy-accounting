@@ -1,4 +1,4 @@
-// print-specific styles for compact trial balance display
+/** compact print-specific styles for reports */
 export const printStyles = `
   @media print {
     html, body {

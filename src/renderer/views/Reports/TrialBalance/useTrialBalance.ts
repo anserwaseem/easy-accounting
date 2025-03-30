@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { isEmpty, sum } from 'lodash';
+import { isEmpty, sum, orderBy } from 'lodash';
 import type { Account, LedgerView } from '@/types';
 import type { TrialBalance, TrialBalanceItem } from './types';
 
@@ -84,9 +84,16 @@ export const useTrialBalance = () => {
       const totalDebit = sum(trialBalanceItems.map((item) => item.debit));
       const totalCredit = sum(trialBalanceItems.map((item) => item.credit));
 
+      // Sort trial balance items by account code
+      const sortedTrialBalanceItems = orderBy(
+        trialBalanceItems,
+        ['code'],
+        ['asc'],
+      );
+
       setTrialBalance({
         date,
-        accounts: trialBalanceItems,
+        accounts: sortedTrialBalanceItems,
         totalDebit,
         totalCredit,
         isBalanced: totalDebit === totalCredit,
