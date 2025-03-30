@@ -1,15 +1,62 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { currency, dateFormatOptions } from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import type { LedgerView } from 'types';
+import type { LedgerView, Journal } from '@/types';
+import { Link } from 'react-router-dom';
 
 interface LedgerTableProps {
   ledger: LedgerView[];
 }
+
+const extractJournalId = (particulars: string): number | null => {
+  const match = particulars.match(/Journal #(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
+};
+
+const NarrationCell = ({ particulars }: { particulars: string }) => {
+  const [journal, setJournal] = useState<Journal | null>(null);
+  const [loading, setLoading] = useState(false);
+  const journalId = extractJournalId(particulars);
+
+  useEffect(() => {
+    const fetchJournal = async () => {
+      if (!journalId) return;
+
+      setLoading(true);
+      try {
+        const journalData = await window.electron.getJournal(journalId);
+        setJournal(journalData);
+      } catch (error) {
+        console.error('Error fetching journal:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJournal();
+  }, [journalId]);
+
+  if (!journalId) return null;
+
+  if (loading) return <span>Loading...</span>;
+
+  return (
+    <Link
+      to={`/journals/${journalId}`}
+      className="text-blue-600 hover:underline"
+    >
+      {journal?.narration ? journal.narration : `View Journal #${journalId}`}
+    </Link>
+  );
+};
+
+const renderJournalCell = (info: { row: { original: LedgerView } }) => (
+  <NarrationCell particulars={info.row.original.particulars} />
+);
 
 export const LedgerTable: React.FC<LedgerTableProps> = ({
   ledger,
@@ -32,6 +79,10 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
         header: 'Particulars',
         cell: ({ row }) =>
           row.original.linkedAccountName ?? row.original.particulars,
+      },
+      {
+        header: 'Narration',
+        cell: renderJournalCell,
       },
       {
         accessorKey: 'debit',

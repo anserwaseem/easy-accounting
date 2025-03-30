@@ -9,9 +9,9 @@ import {
 } from 'renderer/shad/ui/popover';
 import { cn } from 'renderer/lib/utils';
 import { Card } from 'renderer/shad/ui/card';
-import { printStyles } from './PrintStyles';
 import { TrialBalanceTable } from './TrialBalanceTable';
 import { useTrialBalance } from './useTrialBalance';
+import { printStyles } from '../PrintStyles';
 
 const TrialBalancePage = () => {
   const { selectedDate, trialBalance, isLoading, handleDateChange } =

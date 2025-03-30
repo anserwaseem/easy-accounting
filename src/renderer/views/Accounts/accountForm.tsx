@@ -18,7 +18,11 @@ export const accountFormSchema = z.object({
   id: z.number().optional(),
   headName: z.string().min(2).max(50),
   accountName: z.string().min(2).max(50),
-  accountCode: z.union([z.string(), z.number()]).optional(),
+  accountCode: z
+    .union([z.string(), z.number(), z.null()])
+    .optional()
+    .nullable()
+    .transform((val) => val ?? undefined),
   address: z
     .string()
     .optional()

@@ -119,27 +119,36 @@ export class StatementService {
           goodsName: <string | undefined>get(chart, 'goodsName'),
         });
 
-        if (section === 'asset') {
-          this.ledgerService.insertLedger({
-            date,
-            particulars: 'Opening Balance from B/S',
-            accountId,
-            debit: chart.amount,
-            balance: chart.amount,
-            balanceType: BalanceType.Dr,
-            credit: 0,
-          });
+        const amount = Math.abs(chart.amount);
+        const isNegative = chart.amount < 0;
+
+        let debit = 0;
+        let credit = 0;
+        let balanceType: BalanceType;
+
+        if (section === 'asset' && !isNegative) {
+          debit = amount;
+          balanceType = BalanceType.Dr;
+        } else if (section === 'asset' && isNegative) {
+          credit = amount;
+          balanceType = BalanceType.Cr;
+        } else if (section !== 'asset' && !isNegative) {
+          credit = amount;
+          balanceType = BalanceType.Cr;
         } else {
-          this.ledgerService.insertLedger({
-            date,
-            particulars: 'Opening Balance from B/S',
-            accountId,
-            credit: chart.amount,
-            balance: chart.amount,
-            balanceType: BalanceType.Cr,
-            debit: 0,
-          });
+          debit = amount;
+          balanceType = BalanceType.Dr;
         }
+
+        this.ledgerService.insertLedger({
+          date,
+          particulars: 'Opening Balance from B/S',
+          accountId,
+          debit,
+          credit,
+          balance: amount,
+          balanceType,
+        });
       });
     });
   }

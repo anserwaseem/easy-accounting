@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, DollarSign } from 'lucide-react';
 import { Card } from 'renderer/shad/ui/card';
 
 const ReportsPage: React.FC = () => {
@@ -10,6 +10,12 @@ const ReportsPage: React.FC = () => {
         'View the trial balance to ensure your accounts are balanced.',
       path: '/reports/trial-balance',
       icon: <BarChart3 className="h-6 w-6" />,
+    },
+    {
+      title: 'Account Balances',
+      description: 'View latest balances of accounts grouped by head name.',
+      path: '/reports/account-balances',
+      icon: <DollarSign className="h-6 w-6" />,
     },
     // Add more report types here in the future
   ];
