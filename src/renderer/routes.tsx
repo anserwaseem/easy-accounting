@@ -22,6 +22,7 @@ import InvoicesPage from './views/Invoices';
 import InvoicePage from './views/Invoice';
 import { InvalidRoute } from './views/InvalidRoute';
 import PrintableInvoiceScreen from './views/PrintableInvoiceScreen';
+import ReportsPage from './views/Reports';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -84,6 +85,7 @@ const AppRoutes: React.FC = () => (
                   element={<InvoicePage invoiceType={InvoiceType.Sale} />}
                 />
               </Route>
+              <Route path="reports" element={<ReportsPage />} />
             </Route>
             <Route
               path="invoices/:id/print"
