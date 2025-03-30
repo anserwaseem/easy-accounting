@@ -90,6 +90,7 @@ const AppRoutes: React.FC = () => (
                   element={<InvoicePage invoiceType={InvoiceType.Sale} />}
                 />
               </Route>
+              <Route path="reports" element={<ReportsPage />} />
             </Route>
             <Route
               path="invoices/:id/print"
