@@ -428,4 +428,8 @@ export class BackupService {
     if (isLocal) return 'local';
     return 'cloud';
   }
+
+  public getBackupDir(): string {
+    return this.backupDir;
+  }
 }

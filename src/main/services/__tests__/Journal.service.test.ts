@@ -948,4 +948,373 @@ describe('Journal Posting', () => {
     expect(salesLedger5.at(1)!.balance).toBe(300);
     expect(salesLedger5.at(1)!.balanceType).toBe(BalanceType.Cr);
   });
+
+  it('should correctly handle balance type changes when adding debit entries to credit balance', () => {
+    // Create test accounts
+    const accounts: InsertAccount[] = [
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
+    accounts.forEach((account) => accountService.insertAccount(account));
+
+    // First journal entry: Create initial credit balance
+    const date1 = new Date('01/01/2024');
+    const journal1: Journal = {
+      id: 1,
+      date: date1.toISOString(),
+      narration: 'Initial credit entry',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 1, accountId: 1, debitAmount: 0, creditAmount: 1000 },
+        { journalId: 1, accountId: 2, debitAmount: 1000, creditAmount: 0 },
+      ] as JournalEntry[],
+    };
+
+    console.log('Posting first journal - initial credit');
+    journalService.insertJournal(journal1);
+
+    // Verify initial credit balance
+    const cashLedger1 = ledgerService.getLedger(1);
+    expect(cashLedger1).toHaveLength(1);
+    expect(new Date(cashLedger1.at(-1)!.date)).toEqual(date1);
+    expect(cashLedger1.at(-1)!.credit).toBe(1000);
+    expect(cashLedger1.at(-1)!.balance).toBe(1000);
+    expect(cashLedger1.at(-1)!.balanceType).toBe(BalanceType.Cr);
+
+    // Second journal entry: Add smaller debit amount
+    const date2 = new Date('01/02/2024');
+    const journal2: Journal = {
+      id: 2,
+      date: date2.toISOString(),
+      narration: 'Smaller debit entry',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 2, accountId: 1, debitAmount: 600, creditAmount: 0 },
+        { journalId: 2, accountId: 2, debitAmount: 0, creditAmount: 600 },
+      ] as JournalEntry[],
+    };
+
+    console.log('Posting second journal - smaller debit');
+    journalService.insertJournal(journal2);
+
+    // Verify balance after smaller debit
+    const cashLedger2 = ledgerService.getLedger(1);
+    expect(cashLedger2).toHaveLength(2);
+    expect(new Date(cashLedger2.at(-1)!.date)).toEqual(date2);
+    expect(cashLedger2.at(-1)!.debit).toBe(600);
+    expect(cashLedger2.at(-1)!.balance).toBe(400);
+    expect(cashLedger2.at(-1)!.balanceType).toBe(BalanceType.Cr); // Should still be Cr
+
+    // Third journal entry: Add larger debit amount
+    const date3 = new Date('01/03/2024');
+    const journal3: Journal = {
+      id: 3,
+      date: date3.toISOString(),
+      narration: 'Larger debit entry',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 3, accountId: 1, debitAmount: 800, creditAmount: 0 },
+        { journalId: 3, accountId: 2, debitAmount: 0, creditAmount: 800 },
+      ] as JournalEntry[],
+    };
+
+    console.log('Posting third journal - larger debit');
+    journalService.insertJournal(journal3);
+
+    // Verify balance after larger debit
+    const cashLedger3 = ledgerService.getLedger(1);
+    expect(cashLedger3).toHaveLength(3);
+    expect(new Date(cashLedger3.at(-1)!.date)).toEqual(date3);
+    expect(cashLedger3.at(-1)!.debit).toBe(800);
+    expect(cashLedger3.at(-1)!.balance).toBe(400);
+    expect(cashLedger3.at(-1)!.balanceType).toBe(BalanceType.Dr); // Should switch to Dr
+  });
+
+  it('should correctly handle balance type changes and calculations when adding credit entries to debit balance', () => {
+    // Create test accounts
+    const accounts: InsertAccount[] = [
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
+    accounts.forEach((account) => accountService.insertAccount(account));
+
+    // First journal entry: Create initial debit balance
+    const date1 = new Date('01/01/2024');
+    const journal1: Journal = {
+      id: 1,
+      date: date1.toISOString(),
+      narration: 'Initial debit entry',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 1, accountId: 1, debitAmount: 1000, creditAmount: 0 },
+        { journalId: 1, accountId: 2, debitAmount: 0, creditAmount: 1000 },
+      ] as JournalEntry[],
+    };
+
+    console.log('Posting first journal - initial debit');
+    journalService.insertJournal(journal1);
+
+    // Verify initial debit balance
+    const cashLedger1 = ledgerService.getLedger(1);
+    expect(cashLedger1).toHaveLength(1);
+    expect(new Date(cashLedger1.at(-1)!.date)).toEqual(date1);
+    expect(cashLedger1.at(-1)!.debit).toBe(1000);
+    expect(cashLedger1.at(-1)!.balance).toBe(1000);
+    expect(cashLedger1.at(-1)!.balanceType).toBe(BalanceType.Dr);
+
+    // Second journal entry: Add smaller credit amount
+    const date2 = new Date('01/02/2024');
+    const journal2: Journal = {
+      id: 2,
+      date: date2.toISOString(),
+      narration: 'Smaller credit entry',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 2, accountId: 1, debitAmount: 0, creditAmount: 600 },
+        { journalId: 2, accountId: 2, debitAmount: 600, creditAmount: 0 },
+      ] as JournalEntry[],
+    };
+
+    console.log('Posting second journal - smaller credit');
+    journalService.insertJournal(journal2);
+
+    // Verify balance after smaller credit
+    const cashLedger2 = ledgerService.getLedger(1);
+    expect(cashLedger2).toHaveLength(2);
+    expect(new Date(cashLedger2.at(-1)!.date)).toEqual(date2);
+    expect(cashLedger2.at(-1)!.credit).toBe(600);
+    expect(cashLedger2.at(-1)!.balance).toBe(400);
+    expect(cashLedger2.at(-1)!.balanceType).toBe(BalanceType.Dr); // Should still be Dr
+
+    // Third journal entry: Add larger credit amount
+    const date3 = new Date('01/03/2024');
+    const journal3: Journal = {
+      id: 3,
+      date: date3.toISOString(),
+      narration: 'Larger credit entry',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 3, accountId: 1, debitAmount: 0, creditAmount: 800 },
+        { journalId: 3, accountId: 2, debitAmount: 800, creditAmount: 0 },
+      ] as JournalEntry[],
+    };
+
+    console.log('Posting third journal - larger credit');
+    journalService.insertJournal(journal3);
+
+    // Verify balance after larger credit
+    const cashLedger3 = ledgerService.getLedger(1);
+    expect(cashLedger3).toHaveLength(3);
+    expect(new Date(cashLedger3.at(-1)!.date)).toEqual(date3);
+    expect(cashLedger3.at(-1)!.credit).toBe(800);
+    expect(cashLedger3.at(-1)!.balance).toBe(400);
+    expect(cashLedger3.at(-1)!.balanceType).toBe(BalanceType.Cr); // Should switch to Cr
+  });
+
+  it('should throw error when journal has multiple debits and multiple credits', () => {
+    // Create test accounts
+    const accounts: InsertAccount[] = [
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Bank', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+      { name: 'Service', headName: 'Revenue' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
+    accounts.forEach((account) => accountService.insertAccount(account));
+
+    // Try to create invalid journal with multiple debits and credits
+    const invalidJournal: Journal = {
+      id: 1,
+      date: new Date().toISOString(),
+      narration: 'Invalid journal with multiple debits and credits',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 1, accountId: 1, debitAmount: 100, creditAmount: 0 }, // Cash debit
+        { journalId: 1, accountId: 2, debitAmount: 100, creditAmount: 0 }, // Bank debit
+        { journalId: 1, accountId: 3, debitAmount: 0, creditAmount: 100 }, // Sale credit
+        { journalId: 1, accountId: 4, debitAmount: 0, creditAmount: 100 }, // Service credit
+      ] as JournalEntry[],
+    };
+
+    expect(() => journalService.insertJournal(invalidJournal)).toThrow();
+  });
+
+  it('should correctly handle proportional splitting in multiple debit entries', () => {
+    // Create test accounts
+    const accounts: InsertAccount[] = [
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Bank', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
+    accounts.forEach((account) => accountService.insertAccount(account));
+
+    // Create journal with multiple debits against single credit
+    const journal: Journal = {
+      id: 1,
+      date: new Date().toISOString(),
+      narration: 'Multiple debits against single credit',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 1, accountId: 1, debitAmount: 600, creditAmount: 0 }, // Cash debit
+        { journalId: 1, accountId: 2, debitAmount: 400, creditAmount: 0 }, // Bank debit
+        { journalId: 1, accountId: 3, debitAmount: 0, creditAmount: 1000 }, // Sale credit
+      ] as JournalEntry[],
+    };
+
+    journalService.insertJournal(journal);
+
+    // Verify ledger entries
+    const cashLedger = ledgerService.getLedger(1);
+    const bankLedger = ledgerService.getLedger(2);
+    const salesLedger = ledgerService.getLedger(3);
+
+    // Check Cash ledger (60% of credit)
+    expect(cashLedger).toHaveLength(1);
+    expect(cashLedger.at(-1)!.debit).toBe(600);
+    expect(cashLedger.at(-1)!.balance).toBe(600);
+    expect(cashLedger.at(-1)!.balanceType).toBe(BalanceType.Dr);
+
+    // Check Bank ledger (40% of credit)
+    expect(bankLedger).toHaveLength(1);
+    expect(bankLedger.at(-1)!.debit).toBe(400);
+    expect(bankLedger.at(-1)!.balance).toBe(400);
+    expect(bankLedger.at(-1)!.balanceType).toBe(BalanceType.Dr);
+
+    // Check Sales ledger
+    expect(salesLedger).toHaveLength(2);
+    expect(salesLedger.at(-1)!.balance).toBe(1000);
+    expect(salesLedger.at(-1)!.balanceType).toBe(BalanceType.Cr);
+  });
+
+  it('should correctly handle proportional splitting in multiple credit entries', () => {
+    // Create test accounts
+    const accounts: InsertAccount[] = [
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+      { name: 'Service', headName: 'Revenue' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
+    accounts.forEach((account) => accountService.insertAccount(account));
+
+    // Create journal with single debit against multiple credits
+    const journal: Journal = {
+      id: 1,
+      date: new Date().toISOString(),
+      narration: 'Single debit against multiple credits',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 1, accountId: 1, debitAmount: 1000, creditAmount: 0 }, // Cash debit
+        { journalId: 1, accountId: 2, debitAmount: 0, creditAmount: 600 }, // Sale credit
+        { journalId: 1, accountId: 3, debitAmount: 0, creditAmount: 400 }, // Service credit
+      ] as JournalEntry[],
+    };
+
+    journalService.insertJournal(journal);
+
+    // Verify ledger entries
+    const cashLedger = ledgerService.getLedger(1);
+    const salesLedger = ledgerService.getLedger(2);
+    const serviceLedger = ledgerService.getLedger(3);
+
+    // Check Cash ledger
+    expect(cashLedger).toHaveLength(2);
+    expect(cashLedger.at(-1)!.balance).toBe(1000);
+    expect(cashLedger.at(-1)!.balanceType).toBe(BalanceType.Dr);
+
+    // Check Sales ledger (60% of debit)
+    expect(salesLedger).toHaveLength(1);
+    expect(salesLedger.at(-1)!.credit).toBe(600);
+    expect(salesLedger.at(-1)!.balance).toBe(600);
+    expect(salesLedger.at(-1)!.balanceType).toBe(BalanceType.Cr);
+
+    // Check Service ledger (40% of debit)
+    expect(serviceLedger).toHaveLength(1);
+    expect(serviceLedger.at(-1)!.credit).toBe(400);
+    expect(serviceLedger.at(-1)!.balance).toBe(400);
+    expect(serviceLedger.at(-1)!.balanceType).toBe(BalanceType.Cr);
+  });
+
+  it('should correctly rebuild ledger when past entries are added', () => {
+    // Create test accounts
+    const accounts: InsertAccount[] = [
+      { name: 'Cash', headName: 'Current Asset' },
+      { name: 'Sale', headName: 'Revenue' },
+    ].map((account) => ({
+      ...account,
+      ...defaultAccountFields,
+    }));
+    accounts.forEach((account) => accountService.insertAccount(account));
+
+    // First journal entry - current date
+    const currentDate = new Date();
+    const journal1: Journal = {
+      id: 1,
+      date: currentDate.toISOString(),
+      narration: 'Current date entry',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 1, accountId: 1, debitAmount: 1000, creditAmount: 0 },
+        { journalId: 1, accountId: 2, debitAmount: 0, creditAmount: 1000 },
+      ] as JournalEntry[],
+    };
+
+    journalService.insertJournal(journal1);
+
+    // Second journal entry - past date
+    const pastDate = new Date(currentDate);
+    pastDate.setDate(pastDate.getDate() - 5);
+    const journal2: Journal = {
+      id: 2,
+      date: pastDate.toISOString(),
+      narration: 'Past date entry',
+      isPosted: true,
+      journalEntries: [
+        { journalId: 2, accountId: 1, debitAmount: 500, creditAmount: 0 },
+        { journalId: 2, accountId: 2, debitAmount: 0, creditAmount: 500 },
+      ] as JournalEntry[],
+    };
+
+    journalService.insertJournal(journal2);
+
+    // Verify ledger entries are in correct order and balances are correct
+    const cashLedger = ledgerService.getLedger(1);
+    const salesLedger = ledgerService.getLedger(2);
+
+    // Check Cash ledger
+    expect(cashLedger).toHaveLength(2);
+    expect(new Date(cashLedger.at(-1)!.date)).toEqual(currentDate);
+    expect(cashLedger.at(-1)!.debit).toBe(1000);
+    expect(cashLedger.at(-1)!.balance).toBe(1500);
+    expect(cashLedger.at(-1)!.balanceType).toBe(BalanceType.Dr);
+
+    expect(new Date(cashLedger.at(-2)!.date)).toEqual(pastDate);
+    expect(cashLedger.at(-2)!.debit).toBe(500);
+    expect(cashLedger.at(-2)!.balance).toBe(500);
+    expect(cashLedger.at(-2)!.balanceType).toBe(BalanceType.Dr);
+
+    // Check Sales ledger
+    expect(salesLedger).toHaveLength(2);
+    expect(new Date(salesLedger.at(-1)!.date)).toEqual(currentDate);
+    expect(salesLedger.at(-1)!.credit).toBe(1000);
+    expect(salesLedger.at(-1)!.balance).toBe(1500);
+    expect(salesLedger.at(-1)!.balanceType).toBe(BalanceType.Cr);
+
+    expect(new Date(salesLedger.at(-2)!.date)).toEqual(pastDate);
+    expect(salesLedger.at(-2)!.credit).toBe(500);
+    expect(salesLedger.at(-2)!.balance).toBe(500);
+    expect(salesLedger.at(-2)!.balanceType).toBe(BalanceType.Cr);
+  });
 });

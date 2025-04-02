@@ -15,6 +15,7 @@ import type {
 import { AppUpdater } from './appUpdater';
 import { BackupService } from './services/Backup.service';
 import { store } from './store';
+import { DatabaseService } from './services';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -156,6 +157,18 @@ export default class MenuBuilder {
           label: 'Show logs',
           click() {
             shell.showItemInFolder(log.transports.file.getFile().path);
+          },
+        },
+        {
+          label: 'Show Database',
+          click() {
+            shell.showItemInFolder(DatabaseService.getPath());
+          },
+        },
+        {
+          label: 'Show Backup Folder',
+          click() {
+            shell.showItemInFolder(new BackupService().getBackupDir());
           },
         },
       ],
