@@ -1,6 +1,14 @@
+import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Card } from 'renderer/shad/ui/card';
-import { Printer } from 'lucide-react';
+import { Calendar as CalendarIcon, Printer } from 'lucide-react';
+import { Calendar } from 'renderer/shad/ui/calendar';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from 'renderer/shad/ui/popover';
+import { cn } from 'renderer/lib/utils';
 import {
   Select,
   SelectContent,
@@ -13,8 +21,15 @@ import { AccountBalancesTable } from './AccountBalancesTable';
 import { printStyles } from '../PrintStyles';
 
 const AccountBalancesPage = () => {
-  const { selectedHead, charts, accountBalances, isLoading, handleHeadChange } =
-    useAccountBalances();
+  const {
+    selectedHead,
+    selectedDate,
+    charts,
+    accountBalances,
+    isLoading,
+    handleHeadChange,
+    handleDateChange,
+  } = useAccountBalances();
 
   const handlePrint = () => {
     window.print();
@@ -44,6 +59,32 @@ const AccountBalancesPage = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">As of:</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      'w-[200px] justify-start text-left font-normal',
+                      isLoading && 'opacity-70 cursor-not-allowed',
+                    )}
+                    disabled={isLoading}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(selectedDate, 'PPP')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={handleDateChange}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
             <Button
               variant="outline"
               size="icon"
@@ -58,8 +99,9 @@ const AccountBalancesPage = () => {
 
         {/* Title that shows when printing */}
         <div className="hidden print:block text-center mb-4 print-header">
-          <h1 className="text-xl font-bold">
-            Account Balances Report for {selectedHead}
+          <h1 className="text-lg font-medium text-center mb-1">
+            Account Balances Report for {selectedHead} as of{' '}
+            {format(selectedDate, 'PPP')}
           </h1>
         </div>
 
