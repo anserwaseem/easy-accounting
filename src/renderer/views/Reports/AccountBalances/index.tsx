@@ -18,7 +18,7 @@ import {
 } from 'renderer/shad/ui/select';
 import { useAccountBalances } from './useAccountBalances';
 import { AccountBalancesTable } from './AccountBalancesTable';
-import { printStyles } from '../PrintStyles';
+import { printStyles } from '../components';
 
 const AccountBalancesPage = () => {
   const {
