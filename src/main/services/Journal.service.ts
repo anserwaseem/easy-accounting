@@ -106,7 +106,14 @@ export class JournalService {
   insertJournal(journalToBeInserted: Journal) {
     try {
       return this.db.transaction((journal: Journal) => {
-        const { date, narration, isPosted, journalEntries } = journal;
+        const { journalEntries } = journal;
+        const debitEntries = journalEntries.filter((e) => e.debitAmount > 0);
+        const creditEntries = journalEntries.filter((e) => e.creditAmount > 0);
+        if (debitEntries.length > 1 && creditEntries.length > 1) {
+          throw new Error('Journal has multiple debits and multiple credits');
+        }
+
+        const { date, narration, isPosted } = journal;
 
         // first check if this is a past dated entry that needs rebuilding
         const affectedAccounts = new Set(
@@ -262,14 +269,32 @@ export class JournalService {
           switch (accountType) {
             case AccountType.Asset:
             case AccountType.Expense:
-              balance += proportionalDebit;
-              balanceType = balance >= 0 ? BalanceType.Dr : BalanceType.Cr;
+              balance +=
+                proportionalDebit * (balanceType === BalanceType.Dr ? 1 : -1);
+              // if balance is negative, switch balance type
+              if (balance < 0) {
+                // if current balance is credit and new debit makes it negative, switch to Dr
+                // if current balance is debit and new credit makes it negative, switch to Cr
+                balanceType =
+                  balanceType === BalanceType.Cr
+                    ? BalanceType.Dr
+                    : BalanceType.Cr;
+              }
               break;
             case AccountType.Liability:
             case AccountType.Equity:
             case AccountType.Revenue:
-              balance -= proportionalDebit;
-              balanceType = balance >= 0 ? BalanceType.Cr : BalanceType.Dr;
+              balance -=
+                proportionalDebit * (balanceType === BalanceType.Cr ? 1 : -1);
+              // if balance is negative, switch balance type
+              if (balance < 0) {
+                // if current balance is credit and new debit makes it negative, switch to Dr
+                // if current balance is debit and new credit makes it negative, switch to Cr
+                balanceType =
+                  balanceType === BalanceType.Cr
+                    ? BalanceType.Dr
+                    : BalanceType.Cr;
+              }
               break;
             default:
               throw new Error(`Unknown account type: ${accountType}`);
