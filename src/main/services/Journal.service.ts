@@ -1,3 +1,4 @@
+/* eslint-disable no-lonely-if */
 import type { Journal, JournalEntry } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { compact, get, omit } from 'lodash';
@@ -247,17 +248,12 @@ export class JournalService {
 
     for (const entry of entries) {
       const { accountId } = entry;
-      const { type: accountType } = this.stmAccountType.get(accountId) as {
-        type: string;
-      };
 
       // get current balance
       const currentBalance = this.ledgerService.getBalance(accountId);
 
       let balance = currentBalance?.balance || 0;
-      let balanceType =
-        currentBalance?.balanceType ||
-        JournalService.getDefaultBalanceType(accountType);
+      let balanceType = currentBalance?.balanceType || BalanceType.Dr;
 
       if (entry.debitAmount > 0) {
         // process each corresponding credit entry
@@ -266,38 +262,19 @@ export class JournalService {
           const proportionalDebit =
             (entry.debitAmount * creditEntry.creditAmount) / totalCredits;
 
-          switch (accountType) {
-            case AccountType.Asset:
-            case AccountType.Expense:
-              balance +=
-                proportionalDebit * (balanceType === BalanceType.Dr ? 1 : -1);
-              // if balance is negative, switch balance type
-              if (balance < 0) {
-                // if current balance is credit and new debit makes it negative, switch to Dr
-                // if current balance is debit and new credit makes it negative, switch to Cr
-                balanceType =
-                  balanceType === BalanceType.Cr
-                    ? BalanceType.Dr
-                    : BalanceType.Cr;
-              }
-              break;
-            case AccountType.Liability:
-            case AccountType.Equity:
-            case AccountType.Revenue:
-              balance -=
-                proportionalDebit * (balanceType === BalanceType.Cr ? 1 : -1);
-              // if balance is negative, switch balance type
-              if (balance < 0) {
-                // if current balance is credit and new debit makes it negative, switch to Dr
-                // if current balance is debit and new credit makes it negative, switch to Cr
-                balanceType =
-                  balanceType === BalanceType.Cr
-                    ? BalanceType.Dr
-                    : BalanceType.Cr;
-              }
-              break;
-            default:
-              throw new Error(`Unknown account type: ${accountType}`);
+          // if current balance type is Dr
+          if (balanceType === BalanceType.Dr) {
+            balance += proportionalDebit; // add debit to debit balance
+          } else {
+            // current balance type is Cr
+            if (proportionalDebit > balance) {
+              // if new debit is bigger, result will be Dr
+              balance = proportionalDebit - balance;
+              balanceType = BalanceType.Dr;
+            } else {
+              // if existing credit is bigger, result will be Cr
+              balance -= proportionalDebit;
+            }
           }
 
           this.stmLedger.run({
@@ -318,20 +295,19 @@ export class JournalService {
           const proportionalCredit =
             (entry.creditAmount * debitEntry.debitAmount) / totalDebits;
 
-          switch (accountType) {
-            case AccountType.Asset:
-            case AccountType.Expense:
+          // if current balance type is Cr
+          if (balanceType === BalanceType.Cr) {
+            balance += proportionalCredit; // add credit to credit balance
+          } else {
+            // current balance type is Dr
+            if (proportionalCredit > balance) {
+              // if new credit is bigger, result will be Cr
+              balance = proportionalCredit - balance;
+              balanceType = BalanceType.Cr;
+            } else {
+              // if existing debit is bigger, result will be Dr
               balance -= proportionalCredit;
-              balanceType = balance >= 0 ? BalanceType.Dr : BalanceType.Cr;
-              break;
-            case AccountType.Liability:
-            case AccountType.Equity:
-            case AccountType.Revenue:
-              balance += proportionalCredit;
-              balanceType = balance >= 0 ? BalanceType.Cr : BalanceType.Dr;
-              break;
-            default:
-              throw new Error(`Unknown account type: ${accountType}`);
+            }
           }
 
           this.stmLedger.run({

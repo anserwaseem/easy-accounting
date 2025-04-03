@@ -240,8 +240,8 @@ describe('Journal Posting', () => {
     expect(salesLedger4.at(-1)!.balanceType).toBe(BalanceType.Cr);
     expect(arLedger4.at(-1)!.balance).toBe(0);
     expect(arLedger4.at(-1)!.balanceType).toBe(BalanceType.Dr);
-    expect(cashLedger4.at(-1)!.balance).toBe(0);
-    expect(cashLedger4.at(-1)!.balanceType).toBe(BalanceType.Dr);
+    expect(cashLedger4.at(-1)!.balance).toBe(400);
+    expect(cashLedger4.at(-1)!.balanceType).toBe(BalanceType.Cr);
 
     // Second journal entry (b): Sale via cash and bank
     const journal2b: Journal = {
@@ -267,8 +267,8 @@ describe('Journal Posting', () => {
     console.log('Bank Ledger after 2b:', bankLedger2b);
     console.log('Sales Ledger after 2b:', salesLedger2b);
 
-    expect(cashLedger2b.at(-1)!.balance).toBe(400);
-    expect(cashLedger2b.at(-1)!.balanceType).toBe(BalanceType.Dr);
+    expect(cashLedger2b.at(-1)!.balance).toBe(0);
+    expect(cashLedger2b.at(-1)!.balanceType).toBe(BalanceType.Cr);
     expect(bankLedger2b.at(-1)!.balance).toBe(600);
     expect(bankLedger2b.at(-1)!.balanceType).toBe(BalanceType.Dr);
     expect(salesLedger2b.at(-1)!.balance).toBe(1000);
@@ -298,9 +298,12 @@ describe('Journal Posting', () => {
     console.log('Bank Ledger after 2c:', bankLedger2c);
     console.log('Sales Ledger after 2c:', salesLedger2c);
 
-    expect(cashLedger2c.at(-1)!.balance).toBe(0);
+    expect(cashLedger2c.at(-1)!.balance).toBe(400);
+    expect(cashLedger2c.at(-1)!.balanceType).toBe(BalanceType.Cr);
     expect(bankLedger2c.at(-1)!.balance).toBe(0);
+    expect(bankLedger2c.at(-1)!.balanceType).toBe(BalanceType.Dr);
     expect(salesLedger2c.at(-1)!.balance).toBe(0);
+    expect(salesLedger2c.at(-1)!.balanceType).toBe(BalanceType.Cr);
   });
 
   it('should correctly update ledger balances when inserting a journal with a past date', () => {

@@ -2,8 +2,8 @@
 name: Enhancement issue template
 about: Provide an enhancement for this project
 title: ''
-labels: ''
-assignees: ''
+labels: enhancement
+assignees: anserwaseem
 ---
 
 **Useful material while implementation:**
