@@ -6,13 +6,15 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
-import type { AccountBalances, AccountBalanceItem } from './types';
+import { getFormattedCurrency } from 'renderer/lib/utils';
+import { currency } from 'renderer/lib/constants';
 import {
   EmptyState,
   LoadingState,
   SortableHeader,
   useSorting,
 } from '../components';
+import type { AccountBalances, AccountBalanceItem } from './types';
 
 interface AccountBalancesTableProps {
   accountBalances: AccountBalances;
@@ -124,10 +126,18 @@ export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
             <TableCell className="font-medium">{account.code}</TableCell>
             <TableCell>{account.name}</TableCell>
             <TableCell className="text-right print-spacing-right">
-              {account.balanceType === 'Dr' ? account.balance.toFixed(2) : '-'}
+              {account.balanceType === 'Dr'
+                ? getFormattedCurrency(account.balance)
+                    .replace(currency, '')
+                    .trim()
+                : '-'}
             </TableCell>
             <TableCell className="text-right">
-              {account.balanceType === 'Cr' ? account.balance.toFixed(2) : '-'}
+              {account.balanceType === 'Cr'
+                ? getFormattedCurrency(account.balance)
+                    .replace(currency, '')
+                    .trim()
+                : '-'}
             </TableCell>
           </TableRow>
         ))}
@@ -136,9 +146,11 @@ export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
             Total
           </TableCell>
           <TableCell className="text-right print-spacing-right">
-            {totalDebit.toFixed(2)}
+            {getFormattedCurrency(totalDebit).replace(currency, '').trim()}
           </TableCell>
-          <TableCell className="text-right">{totalCredit.toFixed(2)}</TableCell>
+          <TableCell className="text-right">
+            {getFormattedCurrency(totalCredit).replace(currency, '').trim()}
+          </TableCell>
         </TableRow>
       </TableBody>
     </Table>

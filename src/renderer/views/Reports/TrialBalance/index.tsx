@@ -11,7 +11,7 @@ import { cn } from 'renderer/lib/utils';
 import { Card } from 'renderer/shad/ui/card';
 import { TrialBalanceTable } from './TrialBalanceTable';
 import { useTrialBalance } from './useTrialBalance';
-import { printStyles } from '../PrintStyles';
+import { printStyles } from '../components';
 
 const TrialBalancePage = () => {
   const { selectedDate, trialBalance, isLoading, handleDateChange } =

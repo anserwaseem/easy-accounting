@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
-import { cn } from 'renderer/lib/utils';
+import { cn, getFormattedCurrency } from 'renderer/lib/utils';
+import { currency } from 'renderer/lib/constants';
 import {
   Table,
   TableBody,
@@ -128,7 +129,11 @@ export const TrialBalanceTable = ({
                   {debitAccount ? debitAccount.name : ''}
                 </TableCell>
                 <TableCell className="text-right py-1.5 print:py-0.5 font-mono pr-6 print-spacing-right">
-                  {debitAccount ? debitAccount.debit.toFixed(2) : ''}
+                  {debitAccount
+                    ? getFormattedCurrency(debitAccount.debit)
+                        .replace(currency, '')
+                        .trim()
+                    : ''}
                 </TableCell>
 
                 {/* Credit side */}
@@ -139,7 +144,11 @@ export const TrialBalanceTable = ({
                   {creditAccount ? creditAccount.name : ''}
                 </TableCell>
                 <TableCell className="text-right py-1.5 print:py-0.5 font-mono">
-                  {creditAccount ? creditAccount.credit.toFixed(2) : ''}
+                  {creditAccount
+                    ? getFormattedCurrency(creditAccount.credit)
+                        .replace(currency, '')
+                        .trim()
+                    : ''}
                 </TableCell>
               </TableRow>
             );
@@ -151,7 +160,9 @@ export const TrialBalanceTable = ({
               Total
             </TableCell>
             <TableCell className="text-right py-1.5 print:py-1 font-mono pr-6 print-spacing-right">
-              {trialBalance.totalDebit.toFixed(2)}
+              {getFormattedCurrency(trialBalance.totalDebit)
+                .replace(currency, '')
+                .trim()}
             </TableCell>
             <TableCell
               className="border-l border-primary pl-6 print-spacing-left"
@@ -160,7 +171,9 @@ export const TrialBalanceTable = ({
               Total
             </TableCell>
             <TableCell className="text-right py-1.5 print:py-1 font-mono">
-              {trialBalance.totalCredit.toFixed(2)}
+              {getFormattedCurrency(trialBalance.totalCredit)
+                .replace(currency, '')
+                .trim()}
             </TableCell>
           </TableRow>
         </TableFooter>
