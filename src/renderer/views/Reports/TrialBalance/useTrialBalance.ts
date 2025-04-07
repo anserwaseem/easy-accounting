@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isEmpty, sum, orderBy } from 'lodash';
 import type { Account, LedgerView } from '@/types';
+import { getFixedNumber } from '@/renderer/lib/utils';
 import type { TrialBalance, TrialBalanceItem } from './types';
 
 export const useTrialBalance = () => {
@@ -96,7 +97,7 @@ export const useTrialBalance = () => {
         accounts: sortedTrialBalanceItems,
         totalDebit,
         totalCredit,
-        isBalanced: totalDebit === totalCredit,
+        isBalanced: getFixedNumber(totalDebit) === getFixedNumber(totalCredit),
       });
     } catch (error) {
       console.error('Error fetching trial balance:', error);
