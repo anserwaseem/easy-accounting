@@ -29,6 +29,8 @@ export class JournalService {
 
   private stmLedger!: Statement;
 
+  private stmUpdateJournalNarration!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.ledgerService = new LedgerService();
@@ -325,6 +327,23 @@ export class JournalService {
     }
   }
 
+  updateJournalNarration(journalId: number, narration: string): void {
+    try {
+      const journal = this.getJournal(journalId);
+      if (!journal) {
+        throw new Error(`Journal with Id ${journalId} not found`);
+      }
+
+      this.stmUpdateJournalNarration.run({
+        journalId,
+        narration,
+      });
+    } catch (error) {
+      console.error(`Error in updateJournalNarration ${journalId}:`, error);
+      throw error;
+    }
+  }
+
   private initPreparedStatements() {
     this.stmJournal = this.db.prepare(
       `INSERT INTO journal (date, narration, isPosted)
@@ -362,6 +381,9 @@ export class JournalService {
     this.stmLedger = this.db.prepare(
       `INSERT INTO ledger (date, accountId, debit, credit, balance, balanceType, particulars, linkedAccountId)
        VALUES (@date, @accountId, @debit, @credit, @balance, @balanceType, @particulars, @linkedAccountId)`,
+    );
+    this.stmUpdateJournalNarration = this.db.prepare(
+      `UPDATE journal SET narration = @narration WHERE id = @journalId`,
     );
   }
 }

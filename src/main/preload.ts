@@ -194,6 +194,16 @@ const electronHandler = {
    */
   getJournal: (journalId: number) =>
     ipcRenderer.invoke('journal:get', journalId),
+  /**
+   * Update a journal narration
+   * @param journalId The journal id to update
+   * @param narration The new narration
+   * @returns Promise that resolves when the update is complete
+   * @example await updateJournalNarration(1, 'New narration');
+   * @throws Error if the journal is posted or not found
+   */
+  updateJournalNarration: (journalId: number, narration: string) =>
+    ipcRenderer.invoke('journal:updateNarration', journalId, narration),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

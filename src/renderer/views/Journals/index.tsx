@@ -14,8 +14,10 @@ import {
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
-import type { HasMiniView, Journal } from 'types';
+import type { HasMiniView, Journal, JournalEntry } from 'types';
 import { toNumber, toString } from 'lodash';
+import { EditNarrationDialog } from 'renderer/components/EditNarrationDialog';
+import { toast } from '@/renderer/shad/ui/use-toast';
 
 export type JournalView = Journal & { amount: number };
 
@@ -36,6 +38,33 @@ const JournalsPage: React.FC<HasMiniView> = ({
   >(window.electron.store.get('journalFilterSelectValue') || undefined);
 
   const navigate = useNavigate();
+
+  const handleUpdateNarration = useCallback(
+    async (id: number, newNarration: string) => {
+      try {
+        await window.electron.updateJournalNarration(id, newNarration);
+        // Refresh journals data
+        const updatedJournals = await window.electron.getJournals();
+        // Calculate amounts for each journal
+        const journalsWithAmounts = mapToJournalView(updatedJournals);
+        setJounrals(journalsWithAmounts);
+        setFilteredJournals(journalsWithAmounts);
+        toast({
+          title: 'Success',
+          description: 'Journal narration updated successfully',
+        });
+      } catch (error) {
+        console.error('Error updating journal narration:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to update journal narration',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+    [],
+  );
 
   const columns: ColumnDef<JournalView>[] = useMemo(
     () => [
@@ -81,8 +110,21 @@ const JournalsPage: React.FC<HasMiniView> = ({
           ),
         onClick: (row) => navigate(toString(row.original.id)),
       },
+      {
+        header: 'Edit',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <EditNarrationDialog
+              journalId={row.original.id}
+              narration={row.original.narration || ''}
+              onSave={handleUpdateNarration}
+            />
+          </div>
+        ),
+      },
     ],
-    [navigate],
+    [navigate, handleUpdateNarration],
   );
 
   const handleFilterDateSelect = useCallback(
@@ -98,12 +140,8 @@ const JournalsPage: React.FC<HasMiniView> = ({
       setJournalFilterDate(dateRange);
       setFilteredJournals(
         journals.filter((journal) => {
-          // only compare the date part
-          const journalDate = new Date(journal.date).setHours(0, 0, 0, 0);
-          const fromDate = new Date(from).setHours(0, 0, 0, 0);
-          const toDate = new Date(to).setHours(0, 0, 0, 0);
-
-          return journalDate >= fromDate && journalDate <= toDate;
+          const journalDate = new Date(journal.date);
+          return journalDate >= from && journalDate <= to;
         }),
       );
     },
@@ -113,13 +151,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
   useEffect(() => {
     const fetchJournals = async () => {
       const rawJournals = (await window.electron.getJournals()) as Journal[];
-      const updatedJournals = rawJournals.map((journal) => ({
-        ...journal,
-        amount: journal.journalEntries.reduce(
-          (acc, entry) => acc + entry.debitAmount,
-          0,
-        ),
-      }));
+      const updatedJournals = mapToJournalView(rawJournals);
       setJounrals(updatedJournals);
     };
 
@@ -216,10 +248,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                       <div className="flex flex-col">
                         <p>
                           {getFormattedCurrency(
-                            journal?.journalEntries.reduce(
-                              (acc, entry) => acc + entry.debitAmount,
-                              0,
-                            ) ?? 0,
+                            calculateJournalAmount(journal),
                           )}
                         </p>
                         <p className="text-end text-green-600">
@@ -237,11 +266,30 @@ const JournalsPage: React.FC<HasMiniView> = ({
             columns={columns}
             data={filteredJournals}
             sortingFns={defaultSortingFunctions}
+            defaultSortField="date"
+            defaultSortDirection="desc"
+            virtual
+            searchPlaceholder="Search journals..."
+            searchFields={['narration', 'date', 'amount']}
           />
         )}
       </div>
     </div>
   );
 };
+
+function mapToJournalView(journals: Journal[]): JournalView[] {
+  return journals.map((journal: Journal) => ({
+    ...journal,
+    amount: calculateJournalAmount(journal),
+  }));
+}
+
+function calculateJournalAmount(journal: Journal): number {
+  return journal.journalEntries.reduce(
+    (sum: number, entry: JournalEntry) => sum + (entry.debitAmount || 0),
+    0,
+  );
+}
 
 export default JournalsPage;

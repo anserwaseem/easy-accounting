@@ -9,6 +9,16 @@ export const dateFormatOptions: Intl.DateTimeFormatOptions = {
   day: '2-digit',
 };
 
+/**
+ * Returns global datetime format options being used in the project.
+ */
+export const datetimeFormatOptions: Intl.DateTimeFormatOptions = {
+  ...dateFormatOptions,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+};
+
 export const currency = 'PKR';
 
 /**
