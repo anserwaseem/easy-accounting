@@ -266,6 +266,11 @@ const JournalsPage: React.FC<HasMiniView> = ({
             columns={columns}
             data={filteredJournals}
             sortingFns={defaultSortingFunctions}
+            defaultSortField="date"
+            defaultSortDirection="desc"
+            virtual
+            searchPlaceholder="Search journals..."
+            searchFields={['narration', 'date', 'amount']}
           />
         )}
       </div>
