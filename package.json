@@ -1,5 +1,5 @@
 {
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Easy Accounting is a simple accounting software for SMEs.",
   "keywords": [
     "easyAccounting",
@@ -46,7 +46,8 @@
     "test": "ELECTRON_RUN_AS_NODE=true ./node_modules/.bin/electron ./node_modules/.bin/jest --watchAll=false",
     "lint": "eslint .",
     "prepare": "husky",
-    "patch": "npm version patch --no-git-tag-version"
+    "patch": "npm version patch --no-git-tag-version",
+    "patch:release": "npm run patch && cd release/app && npm run patch && cd ../.."
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
