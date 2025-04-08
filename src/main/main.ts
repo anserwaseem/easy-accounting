@@ -238,6 +238,11 @@ app
     ipcMain.handle('journal:get', async (_, journalId: number) =>
       journalService.getJournal(journalId),
     );
+    ipcMain.handle(
+      'journal:updateNarration',
+      async (_, journalId: number, narration: string) =>
+        journalService.updateJournalNarration(journalId, narration),
+    );
     ipcMain.handle('inventory:save', (_, inventory: InventoryItem[]) =>
       inventoryService.saveInventory(inventory),
     );

@@ -1,12 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { currency, dateFormatOptions } from 'renderer/lib/constants';
+import {
+  currency,
+  dateFormatOptions,
+  datetimeFormatOptions,
+} from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { Journal, JournalEntry } from 'types';
+import { EditNarrationDialog } from 'renderer/components/EditNarrationDialog';
 
 interface JournalTableProps {
   journalId: number;
@@ -23,6 +28,15 @@ export const JournalTable: React.FC<JournalTableProps> = ({
   useEffect(() => {
     (async () => setJournal(await window.electron.getJournal(journalId)))();
   }, [journalId]);
+
+  const handleUpdateNarration = async (id: number, newNarration: string) => {
+    try {
+      await window.electron.updateJournalNarration(id, newNarration);
+      setJournal(await window.electron.getJournal(journalId));
+    } catch (error) {
+      console.error('Error updating journal narration:', error);
+    }
+  };
 
   const columns: ColumnDef<JournalEntry>[] = useMemo(() => {
     return [
@@ -83,7 +97,27 @@ export const JournalTable: React.FC<JournalTableProps> = ({
 
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Narration:</p>
-              <p>{journal?.narration}</p>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <p>{journal?.narration}</p>
+                  {journal && (
+                    <EditNarrationDialog
+                      journalId={journal.id}
+                      narration={journal.narration || ''}
+                      onSave={handleUpdateNarration}
+                    />
+                  )}
+                </div>
+                {journal?.createdAt !== journal?.updatedAt && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Updated: At{' '}
+                    {new Date(journal?.updatedAt || '').toLocaleString(
+                      'en-US',
+                      datetimeFormatOptions,
+                    )}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
