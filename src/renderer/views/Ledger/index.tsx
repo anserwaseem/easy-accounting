@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { toNumber } from 'lodash';
+import { Printer } from 'lucide-react';
 import type { Account, LedgerView } from '@/types';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
+import { Button } from 'renderer/shad/ui/button';
+import { printStyles } from '../Reports/components';
 import { LedgerTable } from './ledgerTable';
 import AccountsPage from '../Accounts';
 
@@ -27,31 +30,60 @@ const LedgerPage: React.FC = () => {
     setHeadName(selectedAccount?.headName || '');
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
-    <div className="flex flex-row h-screen">
-      <div className="w-1/4 overflow-y-scroll scrollbar">
-        <AccountsPage isMini onRowClick={onRowClick} />
-      </div>
-      <div className="w-3/4 overflow-y-auto scrollbar justify-between items-center px-4 py-5">
-        <div className="grid grid-cols-3 items-center">
-          <p className="text-sm text-slate-400">{headName}</p>
-          <h1 className="text-2xl font-semibold row-start-2">{accountName}</h1>
-          <h1 className="text-2xl text-center mb-auto row-span-2">Ledger</h1>
-          {ledger.length ? (
-            <div className="flex gap-2 row-span-2 items-center justify-self-end">
-              <h3 className="text-center mb-auto">Balance:</h3>
-              <h3>
-                <span className="font-bold">
-                  {getFormattedCurrency(ledger[ledger.length - 1].balance)}{' '}
-                </span>
-                {ledger[ledger.length - 1].balanceType}
-              </h3>
-            </div>
-          ) : null}
+    <>
+      <style>{printStyles}</style>
+      <div className="flex flex-row h-screen print-container">
+        <div className="w-1/4 overflow-y-scroll scrollbar print:hidden">
+          <AccountsPage isMini onRowClick={onRowClick} />
         </div>
-        <LedgerTable ledger={ledger} />
+        <div className="w-3/4 overflow-y-auto scrollbar justify-between items-center px-4 py-5">
+          {/* Header Section */}
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground">{headName}</p>
+              <h1 className="text-2xl font-semibold">{accountName}</h1>
+            </div>
+            <div className="flex-1 text-center">
+              <h1 className="text-2xl font-semibold">Ledger</h1>
+            </div>
+            <div className="flex-1 flex items-center justify-end gap-4">
+              {ledger.length ? (
+                <>
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm text-muted-foreground">
+                      Balance:
+                    </span>
+                    <span className="font-semibold">
+                      {getFormattedCurrency(ledger[ledger.length - 1].balance)}{' '}
+                      {ledger[ledger.length - 1].balanceType}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handlePrint}
+                    title="Print Ledger"
+                    className="print:hidden"
+                  >
+                    <Printer className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Table Section */}
+          <div className="print-card">
+            <LedgerTable ledger={ledger} />
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

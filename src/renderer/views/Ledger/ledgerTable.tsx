@@ -47,7 +47,7 @@ const NarrationCell = ({ particulars }: { particulars: string }) => {
   return (
     <Link
       to={`/journals/${journalId}`}
-      className="text-blue-600 hover:underline"
+      className="text-blue-600 hover:underline print:text-black print:no-underline"
     >
       {journal?.narration ? journal.narration : `View Journal #${journalId}`}
     </Link>
@@ -133,7 +133,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
   );
 
   return (
-    <div className="py-8">
+    <div className="py-8 print-table">
       <DataTable
         columns={columns}
         data={ledger}
