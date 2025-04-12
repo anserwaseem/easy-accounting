@@ -25,6 +25,7 @@ import PrintableInvoiceScreen from './views/PrintableInvoiceScreen';
 import ReportsPage from './views/Reports';
 import TrialBalancePage from './views/Reports/TrialBalance';
 import AccountBalancesPage from './views/Reports/AccountBalances';
+import LedgerReportPage from './views/Reports/LedgerReport';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -54,6 +55,7 @@ const AppRoutes: React.FC = () => (
                   path="account-balances"
                   element={<AccountBalancesPage />}
                 />
+                <Route path="ledger-report" element={<LedgerReportPage />} />
               </Route>
               <Route path="purchase/invoices">
                 <Route
