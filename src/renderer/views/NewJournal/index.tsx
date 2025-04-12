@@ -1,4 +1,4 @@
-import { Plus, Calendar as CalendarIcon, X } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, X, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -52,6 +52,7 @@ const NewJournalPage: React.FC = () => {
     useState<boolean>(false);
   const [showDateConfirmation, setShowDateConfirmation] =
     useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const navigate = useNavigate();
 
   const getInitialEntry = useCallback(
@@ -116,6 +117,27 @@ const NewJournalPage: React.FC = () => {
       setNextId(await window.electron.getNextJournalId());
       setAccounts(await window.electron.getAccounts());
     })();
+  }, []);
+
+  // Refresh accounts
+  const refreshAccounts = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const freshAccounts = await window.electron.getAccounts();
+      setAccounts(freshAccounts);
+      toast({
+        description: 'Accounts refreshed successfully',
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        description: 'Failed to refresh accounts',
+        variant: 'destructive',
+      });
+      console.error('Error refreshing accounts:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   }, []);
 
   // Update the journal id when nextId is received
@@ -505,7 +527,20 @@ const NewJournalPage: React.FC = () => {
         set up an account. Head over to the Accounts section to get started.
       </div>
       <div className="py-1 flex flex-col gap-y-4">
-        <h1 className="title-new">New Journal</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="title-new">New Journal</h1>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={refreshAccounts}
+            title="Refresh Accounts"
+            disabled={isRefreshing}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+            />
+          </Button>
+        </div>
 
         <Form {...form}>
           <form
