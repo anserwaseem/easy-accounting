@@ -94,6 +94,10 @@ export class BackupService {
           title: 'Backup Created',
           body: `Database backup created locally`,
           silent: false,
+          icon:
+            process.platform === 'win32'
+              ? path.join(process.resourcesPath, 'assets/icon.png')
+              : undefined,
         }).show();
         return { success: true, path: backupPath };
       }
@@ -151,6 +155,10 @@ export class BackupService {
         title: 'Backup Created',
         body: `Database backup created locally and uploaded to cloud storage`,
         silent: false,
+        icon:
+          process.platform === 'win32'
+            ? path.join(process.resourcesPath, 'assets/icon.png')
+            : undefined,
       }).show();
       log.info(`Database backup created in cloud at ${this.bucketName}`);
       return { success: true, path: backupPath };
@@ -379,10 +387,8 @@ export class BackupService {
       log.info(`Backup bucket set to: ${this.bucketName}`);
 
       const dbPath = DatabaseService.getPath();
-      const baseBackupDir = path.join(
-        dbPath.slice(0, dbPath.lastIndexOf('/') + 1),
-        'backups',
-      );
+      const dbDir = path.dirname(dbPath);
+      const baseBackupDir = path.join(dbDir, 'backups');
       this.backupDir = path.join(baseBackupDir, this.bucketName);
       BackupService.ensureBackupDirectory(this.backupDir);
       log.info(`Backup directory set to: ${this.backupDir}`);
@@ -430,6 +436,6 @@ export class BackupService {
   }
 
   public getBackupDir(): string {
-    return this.backupDir;
+    return this.backupDir || '';
   }
 }

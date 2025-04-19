@@ -1,19 +1,20 @@
 import {
   app,
   Menu,
-  shell,
   BrowserWindow,
   MenuItemConstructorOptions,
+  shell,
   dialog,
 } from 'electron';
+import { existsSync } from 'fs';
 import log from 'electron-log';
 import type {
   BackupReadResult,
   BackupOperationStatusEvent,
   BackupOperationType,
 } from '@/types';
-import { AppUpdater } from './appUpdater';
 import { BackupService } from './services/Backup.service';
+import { AppUpdater } from './appUpdater';
 import { store } from './store';
 import { DatabaseService } from './services';
 
@@ -168,7 +169,18 @@ export default class MenuBuilder {
         {
           label: 'Show Backup Folder',
           click() {
-            shell.showItemInFolder(new BackupService().getBackupDir());
+            const backupService = new BackupService();
+            const backupDir = backupService.getBackupDir();
+            if (backupDir && existsSync(backupDir)) {
+              shell.showItemInFolder(backupDir);
+            } else {
+              dialog.showMessageBox({
+                type: 'info',
+                title: 'Backup Folder',
+                message:
+                  'Backup folder not found or not yet created. It will be created when you make your first backup.',
+              });
+            }
           },
         },
       ],

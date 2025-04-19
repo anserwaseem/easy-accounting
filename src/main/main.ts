@@ -25,7 +25,7 @@ import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
 import { isNil } from 'lodash';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './utils/general';
+import { formatString, resolveHtmlPath } from './utils/general';
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
 import { MigrationRunner } from './migrations/index';
@@ -42,6 +42,11 @@ import {
 } from './services';
 import { ErrorManager } from './errorManager';
 import { DEFAULT_USER } from './utils/constants';
+
+// set proper app name for Windows notifications
+if (process.platform === 'win32') {
+  app.setAppUserModelId(formatString(app.name));
+}
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'info';
