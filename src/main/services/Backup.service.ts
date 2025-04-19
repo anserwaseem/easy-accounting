@@ -387,10 +387,8 @@ export class BackupService {
       log.info(`Backup bucket set to: ${this.bucketName}`);
 
       const dbPath = DatabaseService.getPath();
-      const baseBackupDir = path.join(
-        dbPath.slice(0, dbPath.lastIndexOf('/') + 1),
-        'backups',
-      );
+      const dbDir = path.dirname(dbPath);
+      const baseBackupDir = path.join(dbDir, 'backups');
       this.backupDir = path.join(baseBackupDir, this.bucketName);
       BackupService.ensureBackupDirectory(this.backupDir);
       log.info(`Backup directory set to: ${this.backupDir}`);
@@ -438,6 +436,6 @@ export class BackupService {
   }
 
   public getBackupDir(): string {
-    return this.backupDir;
+    return this.backupDir || '';
   }
 }

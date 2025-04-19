@@ -50,6 +50,9 @@ extraResources: # copy the file or directory with matching names directly into t
   - from: './src/main/migrations'
     to: 'migrations'
     filter: ['**/*.js', '!**/index.ts'] # include only .js files and explicitly exclude index.ts
+  - from: './assets'
+    to: 'backups'
+    filter: ['!**/*'] # create an empty directory for backups to ensure it exists
 publish:
   provider: github
   owner: anserwaseem
