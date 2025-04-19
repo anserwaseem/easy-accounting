@@ -94,3 +94,19 @@ export const getComputerName = (): string => {
     return defaultName;
   }
 };
+
+/**
+ * Formats a string by capitalizing the first letter of each word
+ * @param input - The input string to format
+ * @param separator - The separator to use to split the string (default is '-')
+ * @returns The formatted string with capitalized words
+ */
+export const formatString = (input = '', separator = '-') => {
+  const words = input.split(separator);
+
+  const capitalizedWords = words.map(
+    (word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`,
+  );
+
+  return capitalizedWords.join(' ');
+};

@@ -94,6 +94,10 @@ export class BackupService {
           title: 'Backup Created',
           body: `Database backup created locally`,
           silent: false,
+          icon:
+            process.platform === 'win32'
+              ? path.join(process.resourcesPath, 'assets/icon.png')
+              : undefined,
         }).show();
         return { success: true, path: backupPath };
       }
@@ -151,6 +155,10 @@ export class BackupService {
         title: 'Backup Created',
         body: `Database backup created locally and uploaded to cloud storage`,
         silent: false,
+        icon:
+          process.platform === 'win32'
+            ? path.join(process.resourcesPath, 'assets/icon.png')
+            : undefined,
       }).show();
       log.info(`Database backup created in cloud at ${this.bucketName}`);
       return { success: true, path: backupPath };
