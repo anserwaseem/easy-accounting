@@ -149,13 +149,13 @@ export class ChartService {
     }
 
     // determine the parent chart type based on the section type. for example, if chartType is 'Asset' and sectionType is 'current', we want to find the 'Current Asset' parent chart
-    const parentChartName = ChartService.getParentChartName(
+    const parentHeadName = ChartService.getParentChartName(
       chartType,
       sectionType,
     );
 
     const parentChart = <{ id: number } | undefined>(
-      this.stmFindParentChart.get(parentChartName, chartType, username)
+      this.stmFindParentChart.get(parentHeadName, chartType, username)
     );
 
     let parentId: number;
@@ -166,7 +166,7 @@ export class ChartService {
       // if parent chart doesn't exist, create it first
       const result = this.stmInsertChartWithDate.run({
         date,
-        name: parentChartName,
+        name: parentHeadName,
         type: chartType,
         username,
       });
