@@ -4,19 +4,25 @@ import {
   TabsList,
   TabsTrigger,
 } from 'renderer/shad/ui/tabs';
-import { GettingStarted } from './units/GettingStarted';
+import { GettingStarted } from './GettingStarted';
+import { Dashboard } from './Dashboard';
 
 const Home: React.FC = () => (
-  <Tabs defaultValue="getting-started" className="w-[400px]">
+  <Tabs defaultValue="dashboard">
     <TabsList>
       <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
       <TabsTrigger value="getting-started">Getting Started</TabsTrigger>
     </TabsList>
     <TabsContent value="dashboard">
-      Username: {window.electron.store.get('username')}
+      <Dashboard />
     </TabsContent>
     <TabsContent value="getting-started">
-      <GettingStarted />
+      <div className="flex flex-col gap-4">
+        <div>
+          Username: <strong>{window.electron.store.get('username')}</strong>
+        </div>
+        <GettingStarted />
+      </div>
     </TabsContent>
   </Tabs>
 );

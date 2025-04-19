@@ -98,10 +98,11 @@ export class AccountService {
 
   private initPreparedStatements() {
     this.stmGetAccounts = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.address, a.phone1, a.phone2, a.goodsName
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.address, a.phone1, a.phone2, a.goodsName, p.name as parentHeadName
       FROM account a
       JOIN chart c ON c.id = a.chartId
-      WHERE userId = (
+      LEFT JOIN chart p ON p.id = c.parentId
+      WHERE c.userId = (
         SELECT id
         FROM users
         WHERE username = @username
