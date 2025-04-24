@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { Button } from 'renderer/shad/ui/button';
+import { Checkbox } from 'renderer/shad/ui/checkbox';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import {
   DropdownMenu,
@@ -24,12 +25,37 @@ type AccountPageProps = {
 const AccountCell: React.FC<CellContext<Account, unknown>> = ({
   row,
 }: CellContext<Account, unknown>) => (
-  <div className="flex justify-between">
+  <div
+    className={cn(
+      'flex justify-between',
+      !row.original.isActive && 'opacity-50',
+    )}
+  >
     <div>
       <h2 className="font-normal">{row.original.name}</h2>
       <h6 className="font-extralight">{row.original.code}</h6>
     </div>
-    <p className="text-xs text-slate-400">&nbsp;&nbsp;{row.original.type}</p>
+    <div className="flex items-center">
+      <p className="text-xs text-slate-400">&nbsp;&nbsp;{row.original.type}</p>
+      {!row.original.isActive && (
+        <span className="ml-2 text-xs px-2 py-0.5 bg-red-100 text-red-800 rounded">
+          Inactive
+        </span>
+      )}
+    </div>
+  </div>
+);
+
+const AccountNameCell: React.FC<CellContext<Account, unknown>> = ({
+  row,
+}: CellContext<Account, unknown>) => (
+  <div className={cn(!row.original.isActive && 'opacity-60')}>
+    {row.original.name}
+    {!row.original.isActive && (
+      <span className="ml-2 text-xs px-2 py-0.5 bg-red-100 text-red-800 rounded">
+        Inactive
+      </span>
+    )}
   </div>
 );
 
@@ -42,6 +68,9 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] = useState<'All' | AccountType>(
     window.electron.store.get('accountTypeSelected') || 'All',
+  );
+  const [showInactive, setShowInactive] = useState<boolean>(
+    window.electron.store.get('showInactiveAccounts') || false,
   );
   const [charts, setCharts] = useState<Chart[]>([]);
   const clearRef = useRef<HTMLButtonElement>(null);
@@ -75,6 +104,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'name',
               header: 'Account Name',
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              cell: AccountNameCell,
             },
             {
               accessorKey: 'code',
@@ -157,13 +187,23 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     [typeSelected],
   );
 
+  useEffect(
+    () => window.electron.store.set('showInactiveAccounts', showInactive),
+    [showInactive],
+  );
+
   const getAccounts = useCallback(() => {
+    let filteredAccounts = accounts;
+
+    if (!showInactive) {
+      filteredAccounts = filteredAccounts.filter((account) => account.isActive);
+    }
     if (!typeSelected || typeSelected === 'All') {
-      return accounts;
+      return filteredAccounts;
     }
 
-    return accounts.filter((account) => account.type === typeSelected);
-  }, [accounts, typeSelected]);
+    return filteredAccounts.filter((account) => account.type === typeSelected);
+  }, [accounts, typeSelected, showInactive]);
 
   return (
     <div>
@@ -197,6 +237,19 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
 
         <div className={cn('flex w-fit ml-auto', isMini ? 'gap-0.5' : 'gap-2')}>
+          {!isMini && (
+            <div className="flex items-center mr-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  checked={showInactive}
+                  onCheckedChange={() => setShowInactive(!showInactive)}
+                />
+                <h2 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                  Show inactive accounts
+                </h2>
+              </div>
+            </div>
+          )}
           <AddCustomHead
             charts={charts}
             onHeadAdded={refetchAccounts}

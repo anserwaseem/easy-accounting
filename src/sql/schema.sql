@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS "account" (
   -- "phone1" VARCHAR(20), -- "007 migration"
   -- "phone2" VARCHAR(20), -- "007 migration"
   -- "goodsName" TEXT, -- "007 migration"
+  -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "012 migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 

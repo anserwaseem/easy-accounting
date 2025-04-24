@@ -229,6 +229,17 @@ app
     ipcMain.handle('account:updateAccount', async (_, account: UpdateAccount) =>
       accountService.updateAccount(account),
     );
+    ipcMain.handle('account:hasJournalEntries', (_, accountId: number) =>
+      accountService.hasJournalEntries(accountId),
+    );
+    ipcMain.handle('account:deleteAccount', (_, accountId: number) =>
+      accountService.deleteAccount(accountId),
+    );
+    ipcMain.handle(
+      'account:toggleActive',
+      (_, accountId: number, isActive: boolean) =>
+        accountService.toggleAccountActive(accountId, isActive),
+    );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) =>
       ledgerService.getLedger(accountId),
