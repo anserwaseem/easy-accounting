@@ -43,6 +43,7 @@ export const accountFormSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => val ?? undefined),
+  isActive: z.boolean().default(true),
 });
 
 export type AccountFormData = z.infer<typeof accountFormSchema>;
@@ -55,6 +56,7 @@ export const defaultValues: AccountFormData = {
   phone1: undefined,
   phone2: undefined,
   goodsName: undefined,
+  isActive: true,
 };
 
 interface AccountFormProps {

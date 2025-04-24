@@ -158,6 +158,31 @@ const electronHandler = {
   updateAccount: (account: UpdateAccount) =>
     ipcRenderer.invoke('account:updateAccount', account),
   /**
+   * Check if an account has any journal entries
+   * @param accountId The account ID to check
+   * @returns Boolean indicating if the account has journal entries
+   * @example const hasJournals = hasJournalEntries(1);
+   */
+  hasJournalEntries: (accountId: number) =>
+    ipcRenderer.invoke('account:hasJournalEntries', accountId),
+  /**
+   * Delete an account if it has no journal entries
+   * @param accountId The account ID to delete
+   * @returns Boolean indicating if the account was deleted
+   * @example const isDeleted = deleteAccount(1);
+   */
+  deleteAccount: (accountId: number) =>
+    ipcRenderer.invoke('account:deleteAccount', accountId),
+  /**
+   * Toggle the active status of an account
+   * @param accountId The account ID to toggle
+   * @param isActive The new active status
+   * @returns Boolean indicating if the account status was updated
+   * @example const isUpdated = toggleAccountActive(1, false);
+   */
+  toggleAccountActive: (accountId: number, isActive: boolean) =>
+    ipcRenderer.invoke('account:toggleActive', accountId, isActive),
+  /**
    * Get a ledger
    * @param accountId The account id to get
    * @returns The ledger if found, undefined otherwise

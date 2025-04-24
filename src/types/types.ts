@@ -108,6 +108,7 @@ export interface Account extends BaseEntity {
   phone1?: string;
   phone2?: string;
   goodsName?: string;
+  isActive: boolean;
 }
 
 export type InsertAccount = Omit<

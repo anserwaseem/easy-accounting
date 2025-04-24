@@ -115,7 +115,8 @@ const NewJournalPage: React.FC = () => {
   useEffect(() => {
     (async () => {
       setNextId(await window.electron.getNextJournalId());
-      setAccounts(await window.electron.getAccounts());
+      const allAccounts = await window.electron.getAccounts();
+      setAccounts(allAccounts.filter((account: Account) => account.isActive));
     })();
   }, []);
 

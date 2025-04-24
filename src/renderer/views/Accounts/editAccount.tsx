@@ -1,14 +1,20 @@
 import { PenBox, Copy } from 'lucide-react';
 import {
   Dialog,
-  DialogTrigger,
   DialogContent,
   DialogTitle,
   DialogHeader,
   DialogFooter,
+  DialogDescription,
 } from 'renderer/shad/ui/dialog';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from 'renderer/shad/ui/dropdown-menu';
 import type { UpdateAccount, Chart } from 'types';
 import { useState } from 'react';
 import { AccountForm, AccountFormData } from './accountForm';
@@ -30,6 +36,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   clearRef,
 }: EditAccountProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [accountToCopy, setAccountToCopy] = useState<AccountFormData | null>(
     null,
   );
@@ -43,10 +50,11 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     phone1: inputRow.phone1,
     phone2: inputRow.phone2,
     goodsName: inputRow.goodsName,
+    isActive: !!inputRow.isActive, // included for type safety, but not used in the form
   });
 
   const onSubmit = async (values: AccountFormData) => {
-    const res = await window.electron.updateAccount({
+    const isUpdated: boolean = await window.electron.updateAccount({
       id: values.id!,
       name: values.accountName,
       headName: values.headName,
@@ -55,20 +63,19 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       phone1: values.phone1,
       phone2: values.phone2,
       goodsName: values.goodsName,
+      isActive: row.original.isActive,
     });
 
-    if (res) {
+    toast({
+      description: isUpdated
+        ? `"${values.accountName}" account updated successfully`
+        : `Failed to update "${values.accountName}" account`,
+      variant: isUpdated ? 'success' : 'destructive',
+    });
+
+    if (isUpdated) {
       refetchAccounts();
-      toast({
-        description: `"${values.accountName}" account updated successfully`,
-        variant: 'success',
-      });
       setIsOpen(false);
-    } else {
-      toast({
-        description: `Failed to update "${values.accountName}" account`,
-        variant: 'destructive',
-      });
     }
   };
 
@@ -79,12 +86,95 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     setIsOpen(false);
   };
 
+  const handleToggleActive = async () => {
+    const hasJournals: boolean = await window.electron.hasJournalEntries(
+      row.original.id,
+    );
+
+    // can toggle if: account is active and has journals (deactivate), or account is inactive (activate)
+    const canToggle =
+      (hasJournals && row.original.isActive) ||
+      !row.original.isActive ||
+      !hasJournals;
+
+    if (!canToggle) return;
+
+    const newActiveState = !row.original.isActive;
+    const isUpdated: boolean = await window.electron.toggleAccountActive(
+      row.original.id,
+      newActiveState,
+    );
+
+    toast({
+      description: isUpdated
+        ? `Account "${row.original.name}" has been ${
+            newActiveState ? 'activated' : 'deactivated'
+          }`
+        : `Failed to ${newActiveState ? 'activate' : 'deactivate'} account`,
+      variant: isUpdated ? 'success' : 'destructive',
+    });
+
+    if (isUpdated) refetchAccounts();
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      const hasJournals: boolean = await window.electron.hasJournalEntries(
+        row.original.id,
+      );
+
+      if (hasJournals) {
+        toast({
+          description: `Cannot delete an account that has journal entries. ${
+            row.original.isActive ? 'Please deactivate it instead.' : ''
+          }`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const isDeleted: boolean = await window.electron.deleteAccount(
+        row.original.id,
+      );
+
+      toast({
+        description: isDeleted
+          ? `Account "${row.original.name}" has been deleted`
+          : 'Failed to delete account',
+        variant: isDeleted ? 'success' : 'destructive',
+      });
+
+      if (isDeleted) refetchAccounts();
+    } catch (error) {
+      toast({
+        description: `Error deleting account: ${error}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <PenBox size={16} cursor="pointer" className="py-0" />
-        </DialogTrigger>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setIsOpen(true)}>
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleToggleActive}>
+            {row.original.isActive ? 'Deactivate' : 'Activate'}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)}>
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Account</DialogTitle>
@@ -103,6 +193,29 @@ export const EditAccount: React.FC<EditAccountProps> = ({
             >
               <Copy className="mr-2 h-4 w-4" />
               Create a Copy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Account</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{row.original.name}&quot;
+              account? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAccount}>
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

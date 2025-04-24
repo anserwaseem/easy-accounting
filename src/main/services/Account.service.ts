@@ -19,6 +19,12 @@ export class AccountService {
 
   private stmUpdateAccountChart!: Statement;
 
+  private stmHasJournals!: Statement;
+
+  private stmDeleteAccount!: Statement;
+
+  private stmToggleAccountActive!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -83,6 +89,28 @@ export class AccountService {
     return Boolean(result.changes);
   }
 
+  hasJournalEntries(accountId: number): boolean {
+    const result = this.stmHasJournals.get({ accountId }) as { count: number };
+    return result && result.count > 0;
+  }
+
+  deleteAccount(accountId: number): boolean {
+    if (this.hasJournalEntries(accountId)) {
+      return false;
+    }
+
+    const result = this.stmDeleteAccount.run({ accountId });
+    return Boolean(result.changes);
+  }
+
+  toggleAccountActive(accountId: number, isActive: boolean): boolean {
+    const result = this.stmToggleAccountActive.run({
+      accountId,
+      isActive: cast(isActive),
+    });
+    return Boolean(result.changes);
+  }
+
   getAccountByNameAndCode(
     name: Account['name'],
     code?: Account['code'],
@@ -98,11 +126,10 @@ export class AccountService {
 
   private initPreparedStatements() {
     this.stmGetAccounts = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.address, a.phone1, a.phone2, a.goodsName, p.name as parentHeadName
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.address, a.phone1, a.phone2, a.goodsName, a.isActive
       FROM account a
       JOIN chart c ON c.id = a.chartId
-      LEFT JOIN chart p ON p.id = c.parentId
-      WHERE c.userId = (
+      WHERE userId = (
         SELECT id
         FROM users
         WHERE username = @username
@@ -110,7 +137,7 @@ export class AccountService {
     `);
 
     this.stmInsertAccount = this.db.prepare(`
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -119,7 +146,7 @@ export class AccountService {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName)
+      ), @code, @address, @phone1, @phone2, @goodsName, 1)
     `);
 
     this.stmUpdateAccount = this.db.prepare(`
@@ -151,7 +178,7 @@ export class AccountService {
     `);
 
     this.stmGetAccountByName = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE LOWER(a.name) LIKE LOWER(@name) AND userId = (
@@ -160,6 +187,23 @@ export class AccountService {
         WHERE username = @username
       )
         AND (@code IS NULL OR LOWER(a.code) LIKE LOWER(@code))
+    `);
+
+    this.stmHasJournals = this.db.prepare(`
+      SELECT COUNT(*) as count
+      FROM journal_entry
+      WHERE accountId = @accountId
+    `);
+
+    this.stmDeleteAccount = this.db.prepare(`
+      DELETE FROM account
+      WHERE id = @accountId
+    `);
+
+    this.stmToggleAccountActive = this.db.prepare(`
+      UPDATE account
+      SET isActive = @isActive
+      WHERE id = @accountId
     `);
   }
 }
