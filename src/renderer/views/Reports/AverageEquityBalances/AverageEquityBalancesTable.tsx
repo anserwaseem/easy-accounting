@@ -96,7 +96,7 @@ export const AverageEquityBalancesTable: FC<Props> = ({ data, isLoading }) => {
           </TableRow>
         ))}
       </TableBody>
-      {totalAverage ? (
+      {totalAverage != null ? (
         <TableFooter>
           <TableRow className="font-bold print-row">
             <TableCell colSpan={2}>Net Average</TableCell>
