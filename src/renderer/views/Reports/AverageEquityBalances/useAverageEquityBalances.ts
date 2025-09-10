@@ -79,7 +79,10 @@ const computeTimeWeightedAverage = (
       i + 1 < changePoints.length ? changePoints[i + 1].time : end;
     const t0 = Math.max(cur.time, start);
     const t1 = Math.min(nextTime, end);
-    if (t1 <= t0) continue;
+    if (t1 <= t0) {
+      // skip intervals with zero or negative duration (no time passes in this interval)
+      continue;
+    }
     const durationDays = (t1 - t0) / DAY_MS;
     weightedSum += cur.balance * durationDays;
   }
