@@ -5,6 +5,7 @@ import {
   TableCell,
   TableHeader,
   TableRow,
+  TableFooter,
 } from 'renderer/shad/ui/table';
 import { getFormattedCurrency } from 'renderer/lib/utils';
 import { currency } from 'renderer/lib/constants';
@@ -141,10 +142,10 @@ export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
             </TableCell>
           </TableRow>
         ))}
-        <TableRow className="font-bold border-t-2 print-row">
-          <TableCell colSpan={2} className="text-right">
-            Total
-          </TableCell>
+      </TableBody>
+      <TableFooter>
+        <TableRow className="font-bold print-row">
+          <TableCell colSpan={2}>Total</TableCell>
           <TableCell className="text-right print-spacing-right">
             {getFormattedCurrency(totalDebit).replace(currency, '').trim()}
           </TableCell>
@@ -152,7 +153,7 @@ export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
             {getFormattedCurrency(totalCredit).replace(currency, '').trim()}
           </TableCell>
         </TableRow>
-      </TableBody>
+      </TableFooter>
     </Table>
   );
 };

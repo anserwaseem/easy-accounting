@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BarChart3, DollarSign, Book } from 'lucide-react';
+import { BarChart3, DollarSign, Book, Scale } from 'lucide-react';
 import { Card } from 'renderer/shad/ui/card';
 
 const ReportsPage: React.FC = () => {
@@ -24,7 +24,12 @@ const ReportsPage: React.FC = () => {
       path: '/reports/ledger-report',
       icon: <Book className="h-6 w-6" />,
     },
-    // Add more report types here in the future
+    {
+      title: 'Average Equity Balances',
+      description: 'View average balances of equity accounts by date range.',
+      path: '/reports/average-equity-balances',
+      icon: <Scale className="h-6 w-6" />,
+    },
   ];
 
   return (
