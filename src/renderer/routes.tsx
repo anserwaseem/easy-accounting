@@ -26,6 +26,7 @@ import ReportsPage from './views/Reports';
 import TrialBalancePage from './views/Reports/TrialBalance';
 import AccountBalancesPage from './views/Reports/AccountBalances';
 import LedgerReportPage from './views/Reports/LedgerReport';
+import AverageEquityBalancesPage from './views/Reports/AverageEquityBalances';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -56,6 +57,10 @@ const AppRoutes: React.FC = () => (
                   element={<AccountBalancesPage />}
                 />
                 <Route path="ledger-report" element={<LedgerReportPage />} />
+                <Route
+                  path="average-equity-balances"
+                  element={<AverageEquityBalancesPage />}
+                />
               </Route>
               <Route path="purchase/invoices">
                 <Route
