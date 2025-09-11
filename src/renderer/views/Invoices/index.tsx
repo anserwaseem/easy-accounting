@@ -18,6 +18,7 @@ import {
   DateRangePickerWithPresets,
   type DateRange,
 } from 'renderer/shad/ui/datePicker';
+import { DateHeader } from 'renderer/components/common/DateHeader';
 import type { HasMiniView, InvoicesView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
 // eslint-disable-next-line import/no-cycle
@@ -101,7 +102,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
             },
             {
               accessorKey: 'date',
-              header: 'Date (MM/DD/YYYY)',
+              header: DateHeader,
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)

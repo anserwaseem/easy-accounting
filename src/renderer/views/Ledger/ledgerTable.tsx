@@ -7,6 +7,7 @@ import {
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { LedgerView } from '@/types';
 import { renderJournalCell } from '@/renderer/components/journal/NarrationCell';
+import { DateHeader } from '@/renderer/components/common/DateHeader';
 
 interface LedgerTableProps {
   ledger: LedgerView[];
@@ -22,7 +23,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
     () => [
       {
         accessorKey: 'date',
-        header: 'Date (MM/DD/YYYY)',
+        header: DateHeader,
         cell: ({ row }) =>
           new Date(row.original.date).toLocaleString(
             'en-US',

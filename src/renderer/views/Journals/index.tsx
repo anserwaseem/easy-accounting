@@ -18,6 +18,7 @@ import type { HasMiniView, Journal, JournalEntry } from 'types';
 import { toNumber, toString } from 'lodash';
 import { EditNarrationDialog } from 'renderer/components/EditNarrationDialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { DateHeader } from '@/renderer/components/common/DateHeader';
 
 export type JournalView = Journal & { amount: number };
 
@@ -75,7 +76,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
       // },
       {
         accessorKey: 'date',
-        header: 'Date (MM/DD/YYYY)',
+        header: DateHeader,
         onClick: (row) => navigate(toString(row.original.id)),
         cell: ({ row }) =>
           new Date(row.original.date).toLocaleString(
