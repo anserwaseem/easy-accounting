@@ -105,22 +105,20 @@ const LedgerReportPage = () => {
           </div>
         </div>
 
-        <Card className="p-6 shadow-md print-card">
-          <div className="data-table-wrapper">
-            {selectedAccount ? (
-              <LedgerReportTable
-                ledger={ledgerEntries}
-                isLoading={isLoading}
-                selectedDate={selectedDate}
-                accountName={selectedAccountName}
-              />
-            ) : (
-              <div className="p-4 text-center text-muted-foreground">
-                Please select an account to view its ledger
-              </div>
-            )}
-          </div>
-        </Card>
+        <div className="data-table-wrapper">
+          {selectedAccount && !isLoading ? (
+            <LedgerReportTable
+              ledger={ledgerEntries}
+              isLoading={isLoading}
+              selectedDate={selectedDate}
+              accountName={selectedAccountName}
+            />
+          ) : (
+            <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
+              Please select an account to view its ledger
+            </Card>
+          )}
+        </div>
       </div>
     </>
   );

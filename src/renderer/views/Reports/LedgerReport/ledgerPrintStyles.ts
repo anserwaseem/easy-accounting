@@ -11,13 +11,25 @@ export const ledgerPrintStyles = `
     .data-table-wrapper td {
       padding: 1px 3px !important;
       font-size: 8px !important;
-      border-bottom: 1px solid #ddd !important;
+      border-bottom: 1px solid #e5e7eb !important; /* very light grey */
       line-height: 1.2 !important;
     }
 
     .data-table-wrapper th {
       font-weight: bold !important;
       text-align: left !important;
+    }
+
+    /* Hide info icon in print mode since tooltips don't work */
+    .data-table-wrapper th svg {
+      display: none !important;
+    }
+
+    /* Preserve original border colors and styles in print mode */
+    .data-table-wrapper * {
+      -webkit-print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
 
     /* Ensure the text doesn't wrap and stays on one line */

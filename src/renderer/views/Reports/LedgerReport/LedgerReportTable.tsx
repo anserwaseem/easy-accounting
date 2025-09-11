@@ -8,6 +8,8 @@ import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { LedgerView } from '@/types';
 import { format } from 'date-fns';
 import { renderJournalCell } from '@/renderer/components/journal/NarrationCell';
+import { DateHeader } from '@/renderer/components/common/DateHeader';
+import { Card } from '@/renderer/shad/ui/card';
 import { EmptyState, LoadingState } from '../components';
 
 interface LedgerReportTableProps {
@@ -22,32 +24,36 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
   isLoading,
   selectedDate,
   accountName,
-}) => {
+}: LedgerReportTableProps) => {
   const columns: ColumnDef<LedgerView>[] = useMemo(
     () => [
       {
         accessorKey: 'date',
-        header: 'Date (MM/DD/YYYY)',
+        header: DateHeader,
         cell: ({ row }) =>
           new Date(row.original.date).toLocaleString(
             'en-US',
             dateFormatOptions,
           ),
+        size: 40,
       },
       {
         header: 'Particulars',
         cell: ({ row }) =>
           row.original.linkedAccountName ?? row.original.particulars,
+        size: 400,
       },
       {
         header: 'Narration',
         cell: (info) => renderJournalCell(info, true), // Pass true for printMode
+        size: 1100,
       },
       {
         accessorKey: 'debit',
         header: 'Debit',
         cell: ({ row }) =>
           getFormattedCurrency(row.original.debit).replace(currency, '').trim(),
+        size: 60,
       },
       {
         accessorKey: 'credit',
@@ -56,6 +62,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
           getFormattedCurrency(row.original.credit)
             .replace(currency, '')
             .trim(),
+        size: 60,
       },
       {
         accessorKey: 'balance',
@@ -64,30 +71,32 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
           getFormattedCurrency(row.original.balance)
             .replace(currency, '')
             .trim(),
+        size: 70,
       },
       {
         accessorKey: 'balanceType',
-        header: 'Balance Type',
+        header: 'Type',
+        size: 10,
       },
     ],
     [],
   );
 
-  // Display loading state
   if (isLoading) {
     return <LoadingState message="Loading ledger entries..." />;
   }
 
-  // Display empty state
   if (ledger.length === 0) {
     return (
-      <EmptyState message="No ledger entries found for the selected account and date." />
+      <Card className="p-6 text-center text-muted-foreground">
+        <EmptyState message="No ledger entries found for the selected account and date." />
+      </Card>
     );
   }
 
   const latestBalance =
     ledger.length > 0
-      ? `PKR ${getFormattedCurrency(
+      ? `${getFormattedCurrency(
           ledger.at(-1)?.balance ?? 0,
         ).trim()} ${ledger.at(-1)?.balanceType}`
       : '';
@@ -102,20 +111,10 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
         </h1>
       </div>
 
-      {/* Account and balance info - screen only */}
-      <div className="flex justify-between items-center mb-4 print:hidden">
+      {/* Account and balance info */}
+      <div className="flex justify-between items-center mb-4 print:mb-2">
         {ledger.length > 0 && (
-          <p className="text-sm font-medium mt-1">
-            Latest Balance:{' '}
-            <span className="font-semibold">{latestBalance}</span>
-          </p>
-        )}
-      </div>
-
-      {/* Account and balance info - print only */}
-      <div className="hidden print:flex print:flex-col print:mb-2">
-        {ledger.length > 0 && (
-          <p className="text-xs">
+          <p className="text-sm">
             Latest Balance:{' '}
             <span className="font-semibold">{latestBalance}</span>
           </p>
