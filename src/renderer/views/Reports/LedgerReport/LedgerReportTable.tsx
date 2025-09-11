@@ -114,7 +114,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
       {/* Account and balance info */}
       <div className="flex justify-between items-center mb-4 print:mb-2">
         {ledger.length > 0 && (
-          <p className="text-sm">
+          <p>
             Latest Balance:{' '}
             <span className="font-semibold">{latestBalance}</span>
           </p>

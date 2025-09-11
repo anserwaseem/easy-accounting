@@ -2,7 +2,7 @@
 export const printStyles = `
   @media print {
     html, body {
-      font-size: 9px !important;
+      font-size: 10px !important;
       margin: 0 !important;
       padding: 0 !important;
       color: #000 !important;
@@ -94,9 +94,9 @@ export const printStyles = `
       background-color: transparent !important;
     }
 
-    /* Set proper margins for portrait mode */
+    /* Set optimized margins for better space utilization */
     @page {
-      margin: 0.5cm;
+      margin: 0.3cm;
     }
 
     /* Hide loading states in print */
@@ -141,6 +141,19 @@ export const printStyles = `
     .print-table td,
     .print-table th {
       white-space: nowrap !important;
+    }
+
+    /* Optimize print container for maximum space usage */
+    .print-container {
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    /* Make tables use full width in print */
+    .print-table {
+      width: 100% !important;
+      max-width: none !important;
     }
   }
 `;
