@@ -112,5 +112,35 @@ export const printStyles = `
     h1, h2, h3, h4, h5, h6 {
       color: #000 !important;
     }
+
+    /* Preserve original border colors and styles in print mode */
+    .print-table * {
+      -webkit-print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* Hide interactive elements in print mode since they don't work */
+    .print-table th svg,
+    .print-table button,
+    .print-table [role="button"] {
+      display: none !important;
+    }
+
+    /* Ensure consistent border styling for all tables */
+    .print-table table {
+      border-collapse: collapse !important;
+    }
+
+    .print-table th,
+    .print-table td {
+      border-bottom: 1px solid #e5e7eb !important; /* very light grey */
+    }
+
+    /* Ensure text doesn't wrap in print mode for better layout */
+    .print-table td,
+    .print-table th {
+      white-space: nowrap !important;
+    }
   }
 `;
