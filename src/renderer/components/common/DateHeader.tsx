@@ -12,8 +12,8 @@ export const DateHeader = () => (
     <span className="hidden print:block text-[6px] text-muted-foreground mb-auto">
       (MM/DD/YYYY)
     </span>
-    <TooltipProvider>
-      <Tooltip>
+    <TooltipProvider delayDuration={100}>
+      <Tooltip delayDuration={100}>
         <TooltipTrigger asChild>
           <Info className="h-3 w-3 text-muted-foreground" />
         </TooltipTrigger>

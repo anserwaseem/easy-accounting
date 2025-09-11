@@ -24,4 +24,25 @@ const TooltipContent = forwardRef<
 ));
 TooltipContent.displayName = Content.displayName;
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+const TooltipWrapper = ({
+  delayDuration = 200,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Tooltip>) => (
+  <Tooltip delayDuration={delayDuration} {...props} />
+);
+TooltipWrapper.displayName = 'Tooltip';
+
+const TooltipProviderWrapper = ({
+  delayDuration = 200,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TooltipProvider>) => (
+  <TooltipProvider delayDuration={delayDuration} {...props} />
+);
+TooltipProviderWrapper.displayName = 'TooltipProvider';
+
+export {
+  TooltipWrapper as Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProviderWrapper as TooltipProvider,
+};
