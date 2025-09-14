@@ -69,11 +69,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
   const columns: ColumnDef<JournalView>[] = useMemo(
     () => [
-      // {
-      //   accessorKey: 'id',
-      //   header: 'Journal #',
-      //   onClick: (row) => navigate(toString(row.original.id)),
-      // },
       {
         accessorKey: 'date',
         header: DateHeader,
@@ -83,23 +78,20 @@ const JournalsPage: React.FC<HasMiniView> = ({
             'en-US',
             dateFormatOptions,
           ),
+        size: 40,
       },
       {
         accessorKey: 'narration',
         header: 'Narration',
         onClick: (row) => navigate(toString(row.original.id)),
-      },
-      {
-        accessorKey: 'isPublished',
-        header: 'Status',
-        onClick: (row) => navigate(toString(row.original.id)),
-        cell: ({ row }) => (row.original.isPosted ? 'Posted' : 'Draft'),
+        size: 1100,
       },
       {
         accessorKey: 'amount',
         header: 'Amount',
         cell: ({ getValue }) => getFormattedCurrency(toNumber(getValue())),
         onClick: (row) => navigate(toString(row.original.id)),
+        size: 150,
       },
       {
         accessorKey: 'createdAt',
@@ -110,6 +102,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
             dateFormatOptions,
           ),
         onClick: (row) => navigate(toString(row.original.id)),
+        size: 40,
       },
       {
         header: 'Edit',
@@ -123,6 +116,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
             />
           </div>
         ),
+        size: 10,
       },
     ],
     [navigate, handleUpdateNarration],

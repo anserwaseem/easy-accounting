@@ -102,13 +102,13 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         : [
             {
               accessorKey: 'name',
-              header: 'Account Name',
+              header: 'Account',
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
               cell: AccountNameCell,
             },
             {
               accessorKey: 'code',
-              header: 'Account Code',
+              header: 'Code',
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
             {
@@ -133,13 +133,15 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             },
             {
               accessorKey: 'headName',
-              header: 'Head Name',
+              header: 'Head',
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              size: 1,
             },
             {
               accessorKey: 'type',
               header: 'Type',
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              size: 1,
             },
             {
               accessorKey: 'updatedAt',
@@ -150,6 +152,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   dateFormatOptions,
                 ),
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              size: 1,
             },
             {
               accessorKey: 'createdAt',
@@ -160,6 +163,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   dateFormatOptions,
                 ),
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              size: 1,
             },
             {
               header: 'Edit',
@@ -172,6 +176,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   clearRef={clearRef}
                 />
               ),
+              size: 1,
             },
           ],
     [charts, isMini, navigate, onRowClick, refetchAccounts],

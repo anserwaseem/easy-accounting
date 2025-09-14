@@ -99,6 +99,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
+              size: 100,
             },
             {
               accessorKey: 'date',
@@ -107,6 +108,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
+              size: 40,
             },
             {
               accessorKey: 'accountName',
@@ -115,6 +117,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
+              size: 500,
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -127,6 +130,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                         : navigateToInvoice(row.original.id),
                     cell: ({ getValue }) =>
                       getFormattedCurrency(toNumber(getValue())),
+                    size: 150,
                   },
                   {
                     accessorKey: 'biltyNumber',
@@ -135,6 +139,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                       propInvoices
                         ? setPreviewInvoiceId(row.original.invoiceNumber)
                         : navigateToInvoice(row.original.id),
+                    size: 80,
                   },
                   {
                     accessorKey: 'cartons',
@@ -143,6 +148,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                       propInvoices
                         ? setPreviewInvoiceId(row.original.invoiceNumber)
                         : navigateToInvoice(row.original.id),
+                    size: 40,
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),
