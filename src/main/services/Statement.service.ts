@@ -117,6 +117,7 @@ export class StatementService {
           phone1: <string | undefined>get(chart, 'phone1'),
           phone2: <string | undefined>get(chart, 'phone2'),
           goodsName: <string | undefined>get(chart, 'goodsName'),
+          isActive: true,
         });
 
         const amount = Math.abs(chart.amount);

@@ -20,6 +20,7 @@ jest.mock('node:os', () => ({
 }));
 jest.mock('../../utils/general', () => ({
   isOnline: jest.fn(),
+  getComputerName: jest.fn(() => 'test-computer'),
 }));
 jest.mock('../../store', () => ({
   store: {
@@ -100,7 +101,7 @@ describe('BackupService', () => {
     expect(backupService).toHaveProperty('backupDir');
     // eslint-disable-next-line dot-notation
     expect(backupService['backupDir']).toBe(
-      '/mocked/path/to/backups/database-backup_darwin_mocked-hostname_test-user',
+      '/mocked/path/to/backups/database-backup_darwin_test-computer_test-user',
     );
   });
 

@@ -61,6 +61,7 @@ const defaultAccountFields = {
   phone1: undefined,
   phone2: undefined,
   goodsName: undefined,
+  isActive: true,
 };
 
 describe('Journal Posting', () => {

@@ -11,7 +11,7 @@ module.exports = {
   testEnvironmentOptions: {
     url: 'http://localhost/',
   },
-  testPathIgnorePatterns: ['release/app/dist', '.erb/dll'],
+  testPathIgnorePatterns: ['release/app/dist', '.erb/dll', '__mocks__'],
   transform: {
     '\\.(ts|tsx|js|jsx)$': 'ts-jest',
   },
