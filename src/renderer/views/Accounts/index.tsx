@@ -215,10 +215,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
       <div className="grid grid-cols-3 justify-between items-center py-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className={isMini ? 'max-w-min py-6' : 'w-fit'}
-            >
+            <Button variant="outline" className={isMini ? 'w-max' : 'w-fit'}>
               <span className="mr-2">{typeSelected} Accounts</span>
               <ChevronDown size={16} />
             </Button>
@@ -241,8 +238,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
 
         <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
 
-        <div className={cn('flex w-fit ml-auto', isMini ? 'gap-0.5' : 'gap-2')}>
-          {!isMini && (
+        {isMini ? null : (
+          <div className={cn('flex w-fit ml-auto gap-2')}>
             <div className="flex items-center mr-4">
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -254,19 +251,19 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 </h2>
               </div>
             </div>
-          )}
-          <AddCustomHead
-            charts={charts}
-            onHeadAdded={refetchAccounts}
-            btnClassName={isMini ? 'max-w-min py-6' : 'min-w-max'}
-          />
-          <AddAccount
-            charts={charts}
-            clearRef={clearRef}
-            refetchAccounts={refetchAccounts}
-            btnClassName={isMini ? 'min-w-20 max-w-min py-6' : 'min-w-max'}
-          />
-        </div>
+            <AddCustomHead
+              charts={charts}
+              onHeadAdded={refetchAccounts}
+              btnClassName="min-w-max"
+            />
+            <AddAccount
+              charts={charts}
+              clearRef={clearRef}
+              refetchAccounts={refetchAccounts}
+              btnClassName="min-w-max"
+            />
+          </div>
+        )}
       </div>
       <div className="py-8">
         <DataTable
