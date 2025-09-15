@@ -174,17 +174,31 @@ const NoResultsRow = ({
 const RecordCount = ({
   filtered,
   total,
+  isMini,
 }: {
   filtered: number;
   total: number;
+  isMini?: boolean;
 }) => {
   if (filtered === total) {
     return (
-      <p className="text-sm text-muted-foreground">Total records: {total}</p>
+      <p
+        className={cn(
+          'text-sm text-muted-foreground',
+          isMini ? 'text-xs -mr-3.5 -ml-1 whitespace-pre' : '',
+        )}
+      >
+        Total records: {total}
+      </p>
     );
   }
   return (
-    <p className="text-sm text-muted-foreground">
+    <p
+      className={cn(
+        'text-sm text-muted-foreground',
+        isMini ? 'text-xs -mr-3.5 whitespace-break-spaces' : '',
+      )}
+    >
       Showing {filtered} out of {total} records
     </p>
   );
@@ -311,7 +325,7 @@ const DataTable = <TData, TValue>({
                 onChange={debounceSearch}
                 className={searchClassName}
               />
-              <RecordCount {...recordCount} />
+              <RecordCount {...recordCount} isMini={isMini} />
             </div>
           </div>
         ) : null}
@@ -361,7 +375,7 @@ const DataTable = <TData, TValue>({
               onChange={debounceSearch}
               className={searchClassName}
             />
-            <RecordCount {...recordCount} />
+            <RecordCount {...recordCount} isMini={isMini} />
           </div>
         </div>
       ) : null}

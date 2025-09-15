@@ -1,17 +1,40 @@
 // Additional print styles specific to the ledger report
 export const ledgerPrintStyles = `
   @media print {
-    /* Make the table more compact for print */
-    .data-table-wrapper table {
-      border-collapse: collapse !important;
-      width: 100% !important;
+    /* Optimize column widths for print - use more space */
+    .data-table-wrapper th:nth-child(1),
+    .data-table-wrapper td:nth-child(1) {
+      width: 10% !important; /* Date column */
+    }
+
+    .data-table-wrapper th:nth-child(2),
+    .data-table-wrapper td:nth-child(2) {
+      width: 20% !important; /* Particulars column */
+    }
+
+    .data-table-wrapper th:nth-child(3),
+    .data-table-wrapper td:nth-child(3) {
+      width: 35% !important; /* Narration column - largest */
+    }
+
+    .data-table-wrapper th:nth-child(4),
+    .data-table-wrapper td:nth-child(4) {
+      width: 10% !important; /* Debit column */
+    }
+
+    .data-table-wrapper th:nth-child(5),
+    .data-table-wrapper td:nth-child(5) {
+      width: 10% !important; /* Credit column */
+    }
+
+    .data-table-wrapper th:nth-child(6),
+    .data-table-wrapper td:nth-child(6) {
+      width: 10% !important; /* Balance column */
     }
 
     .data-table-wrapper th,
     .data-table-wrapper td {
       padding: 1px 3px !important;
-      font-size: 8px !important;
-      border-bottom: 1px solid #ddd !important;
       line-height: 1.2 !important;
     }
 
@@ -20,16 +43,21 @@ export const ledgerPrintStyles = `
       text-align: left !important;
     }
 
-    /* Ensure the text doesn't wrap and stays on one line */
-    .data-table-wrapper td,
-    .data-table-wrapper th {
-      white-space: nowrap !important;
+    /* Allow text wrapping for Particulars and Narration in print */
+    .data-table-wrapper td:nth-child(2),
+    .data-table-wrapper td:nth-child(3) {
+      white-space: normal !important;
+      word-wrap: break-word !important;
+      vertical-align: top !important;
     }
 
-    /* Add adequate spacing between cells */
-    .data-table-wrapper td:not(:last-child),
-    .data-table-wrapper th:not(:last-child) {
-      padding-right: 6px !important;
+    /* Keep other columns on single line */
+    .data-table-wrapper td:nth-child(1),
+    .data-table-wrapper td:nth-child(4),
+    .data-table-wrapper td:nth-child(5),
+    .data-table-wrapper td:nth-child(6),
+    .data-table-wrapper td:nth-child(7) {
+      white-space: nowrap !important;
     }
   }
 `;
