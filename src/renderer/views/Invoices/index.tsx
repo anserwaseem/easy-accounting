@@ -18,6 +18,7 @@ import {
   DateRangePickerWithPresets,
   type DateRange,
 } from 'renderer/shad/ui/datePicker';
+import { DateHeader } from 'renderer/components/common/DateHeader';
 import type { HasMiniView, InvoicesView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
 // eslint-disable-next-line import/no-cycle
@@ -98,14 +99,16 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
+              size: 100,
             },
             {
               accessorKey: 'date',
-              header: 'Date (MM/DD/YYYY)',
+              header: DateHeader,
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
+              size: 40,
             },
             {
               accessorKey: 'accountName',
@@ -114,6 +117,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
+              size: 500,
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -126,6 +130,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                         : navigateToInvoice(row.original.id),
                     cell: ({ getValue }) =>
                       getFormattedCurrency(toNumber(getValue())),
+                    size: 150,
                   },
                   {
                     accessorKey: 'biltyNumber',
@@ -134,6 +139,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                       propInvoices
                         ? setPreviewInvoiceId(row.original.invoiceNumber)
                         : navigateToInvoice(row.original.id),
+                    size: 80,
                   },
                   {
                     accessorKey: 'cartons',
@@ -142,6 +148,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                       propInvoices
                         ? setPreviewInvoiceId(row.original.invoiceNumber)
                         : navigateToInvoice(row.original.id),
+                    size: 40,
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),

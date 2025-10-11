@@ -71,6 +71,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       cell: ({ row }) => (
         <EditInventoryItem row={row} refetchInventory={refetchInventory} />
       ),
+      size: 1,
     },
   ];
 

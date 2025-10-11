@@ -1,13 +1,8 @@
-import { useMemo } from 'react';
-import { currency, dateFormatOptions } from 'renderer/lib/constants';
-import {
-  defaultSortingFunctions,
-  getFormattedCurrency,
-} from 'renderer/lib/utils';
-import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
+import { getFormattedCurrency } from 'renderer/lib/utils';
 import type { LedgerView } from '@/types';
 import { format } from 'date-fns';
-import { renderJournalCell } from '@/renderer/components/journal/NarrationCell';
+import { Card } from '@/renderer/shad/ui/card';
+import { LedgerTableBase } from '@/renderer/components/ledger/LedgerTableBase';
 import { EmptyState, LoadingState } from '../components';
 
 interface LedgerReportTableProps {
@@ -22,72 +17,22 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
   isLoading,
   selectedDate,
   accountName,
-}) => {
-  const columns: ColumnDef<LedgerView>[] = useMemo(
-    () => [
-      {
-        accessorKey: 'date',
-        header: 'Date (MM/DD/YYYY)',
-        cell: ({ row }) =>
-          new Date(row.original.date).toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
-      },
-      {
-        header: 'Particulars',
-        cell: ({ row }) =>
-          row.original.linkedAccountName ?? row.original.particulars,
-      },
-      {
-        header: 'Narration',
-        cell: (info) => renderJournalCell(info, true), // Pass true for printMode
-      },
-      {
-        accessorKey: 'debit',
-        header: 'Debit',
-        cell: ({ row }) =>
-          getFormattedCurrency(row.original.debit).replace(currency, '').trim(),
-      },
-      {
-        accessorKey: 'credit',
-        header: 'Credit',
-        cell: ({ row }) =>
-          getFormattedCurrency(row.original.credit)
-            .replace(currency, '')
-            .trim(),
-      },
-      {
-        accessorKey: 'balance',
-        header: 'Balance',
-        cell: ({ row }) =>
-          getFormattedCurrency(row.original.balance)
-            .replace(currency, '')
-            .trim(),
-      },
-      {
-        accessorKey: 'balanceType',
-        header: 'Balance Type',
-      },
-    ],
-    [],
-  );
-
-  // Display loading state
+}: LedgerReportTableProps) => {
   if (isLoading) {
     return <LoadingState message="Loading ledger entries..." />;
   }
 
-  // Display empty state
   if (ledger.length === 0) {
     return (
-      <EmptyState message="No ledger entries found for the selected account and date." />
+      <Card className="p-6 text-center text-muted-foreground">
+        <EmptyState message="No ledger entries found for the selected account and date." />
+      </Card>
     );
   }
 
   const latestBalance =
     ledger.length > 0
-      ? `PKR ${getFormattedCurrency(
+      ? `${getFormattedCurrency(
           ledger.at(-1)?.balance ?? 0,
         ).trim()} ${ledger.at(-1)?.balanceType}`
       : '';
@@ -102,20 +47,10 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
         </h1>
       </div>
 
-      {/* Account and balance info - screen only */}
-      <div className="flex justify-between items-center mb-4 print:hidden">
+      {/* Account and balance info */}
+      <div className="flex justify-between items-center mb-4 print:mb-2">
         {ledger.length > 0 && (
-          <p className="text-sm font-medium mt-1">
-            Latest Balance:{' '}
-            <span className="font-semibold">{latestBalance}</span>
-          </p>
-        )}
-      </div>
-
-      {/* Account and balance info - print only */}
-      <div className="hidden print:flex print:flex-col print:mb-2">
-        {ledger.length > 0 && (
-          <p className="text-xs">
+          <p>
             Latest Balance:{' '}
             <span className="font-semibold">{latestBalance}</span>
           </p>
@@ -123,13 +58,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
       </div>
 
       {/* Table - styled for both screen and print */}
-      <div className="print-table">
-        <DataTable
-          columns={columns}
-          data={ledger}
-          sortingFns={defaultSortingFunctions}
-        />
-      </div>
+      <LedgerTableBase ledger={ledger} printMode className="print-table" />
     </>
   );
 };

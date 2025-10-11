@@ -7,42 +7,48 @@ import {
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { LedgerView } from '@/types';
 import { renderJournalCell } from '@/renderer/components/journal/NarrationCell';
+import { DateHeader } from '@/renderer/components/common/DateHeader';
 
-interface LedgerTableProps {
+interface LedgerTableBaseProps {
   ledger: LedgerView[];
+  printMode?: boolean;
+  className?: string;
 }
 
-export const LedgerTable: React.FC<LedgerTableProps> = ({
+export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
   ledger,
-}: LedgerTableProps) => {
-  // eslint-disable-next-line no-console
-  console.log('LedgerTable', ledger);
-
+  printMode = false,
+  className = '',
+}: LedgerTableBaseProps) => {
   const columns: ColumnDef<LedgerView>[] = useMemo(
     () => [
       {
         accessorKey: 'date',
-        header: 'Date (MM/DD/YYYY)',
+        header: DateHeader,
         cell: ({ row }) =>
           new Date(row.original.date).toLocaleString(
             'en-US',
             dateFormatOptions,
           ),
+        size: 40,
       },
       {
         header: 'Particulars',
         cell: ({ row }) =>
           row.original.linkedAccountName ?? row.original.particulars,
+        size: 400,
       },
       {
         header: 'Narration',
-        cell: renderJournalCell,
+        cell: (info) => renderJournalCell(info, printMode),
+        size: 1100,
       },
       {
         accessorKey: 'debit',
         header: 'Debit',
         cell: ({ row }) =>
           getFormattedCurrency(row.original.debit).replace(currency, '').trim(),
+        size: 60,
       },
       {
         accessorKey: 'credit',
@@ -51,6 +57,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
           getFormattedCurrency(row.original.credit)
             .replace(currency, '')
             .trim(),
+        size: 60,
       },
       {
         accessorKey: 'balance',
@@ -59,35 +66,19 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
           getFormattedCurrency(row.original.balance)
             .replace(currency, '')
             .trim(),
+        size: 70,
       },
       {
         accessorKey: 'balanceType',
-        header: 'Balance Type',
+        header: 'Type',
+        size: 10,
       },
-      // {
-      //   accessorKey: 'updatedAt',
-      //   header: 'Updated At',
-      //   cell: ({ row }) =>
-      //     new Date(row.original.updatedAt || '').toLocaleString(
-      //       'en-US',
-      //       dateFormatOptions,
-      //     ),
-      // },
-      // {
-      //   accessorKey: 'createdAt',
-      //   header: 'Created At',
-      //   cell: ({ row }) =>
-      //     new Date(row.original.createdAt || '').toLocaleString(
-      //       'en-US',
-      //       dateFormatOptions,
-      //     ),
-      // },
     ],
-    [],
+    [printMode],
   );
 
   return (
-    <div className="py-8">
+    <div className={className}>
       <DataTable
         columns={columns}
         data={ledger}

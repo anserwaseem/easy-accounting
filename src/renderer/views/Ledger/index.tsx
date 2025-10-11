@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { toNumber } from 'lodash';
 import type { Account, LedgerView } from '@/types';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
-import { LedgerTable } from './ledgerTable';
+import { LedgerTableBase } from '@/renderer/components/ledger/LedgerTableBase';
 import AccountsPage from '../Accounts';
 
 const LedgerPage: React.FC = () => {
@@ -49,7 +49,7 @@ const LedgerPage: React.FC = () => {
             </div>
           ) : null}
         </div>
-        <LedgerTable ledger={ledger} />
+        <LedgerTableBase ledger={ledger} printMode={false} className="py-8" />
       </div>
     </div>
   );
