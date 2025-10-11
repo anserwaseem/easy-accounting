@@ -297,11 +297,11 @@ const NewJournalPage: React.FC = () => {
     });
   }, []);
 
-  // Parse formatted number string (with commas) to a number
-  const parseFormattedNumber = useCallback((value: string): number => {
-    // Remove commas and parse to number
+  // Parse formatted number string (with commas) to a string number
+  const parseFormattedNumber = useCallback((value: string): string => {
+    // Remove commas and return as string (handlers will convert to number)
     const cleanedValue = value.replace(/,/g, '');
-    return toNumber(cleanedValue) || 0;
+    return cleanedValue || '0';
   }, []);
 
   const columns: ColumnDef<JournalEntry>[] = useMemo(
@@ -349,12 +349,12 @@ const NewJournalPage: React.FC = () => {
                     onChange={(e) => {
                       const rawValue = removeDefaultLabel(e.target.value);
                       const parsedValue = parseFormattedNumber(rawValue);
-                      handleDebitChange(toString(parsedValue), row.index);
+                      handleDebitChange(parsedValue, row.index);
                     }}
                     onBlur={(e) => {
                       const rawValue = removeDefaultLabel(e.target.value);
                       const parsedValue = parseFormattedNumber(rawValue);
-                      handleDebitBlur(toString(parsedValue), row.index);
+                      handleDebitBlur(parsedValue, row.index);
                     }}
                   />
                 </FormControl>
@@ -385,12 +385,12 @@ const NewJournalPage: React.FC = () => {
                     onChange={(e) => {
                       const rawValue = removeDefaultLabel(e.target.value);
                       const parsedValue = parseFormattedNumber(rawValue);
-                      handleCreditChange(toString(parsedValue), row.index);
+                      handleCreditChange(parsedValue, row.index);
                     }}
                     onBlur={(e) => {
                       const rawValue = removeDefaultLabel(e.target.value);
                       const parsedValue = parseFormattedNumber(rawValue);
-                      handleCreditBlur(toString(parsedValue), row.index);
+                      handleCreditBlur(parsedValue, row.index);
                     }}
                   />
                 </FormControl>
