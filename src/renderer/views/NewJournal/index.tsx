@@ -335,32 +335,45 @@ const NewJournalPage: React.FC = () => {
           <FormField
             control={form.control}
             name={`journalEntries.${row.index}.debitAmount` as const}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <Input
-                    {...field}
-                    value={
-                      field.value === 0
-                        ? getAmountDefaultLabel(field.value)
-                        : formatNumberWithCommas(field.value)
-                    }
-                    type="text"
-                    onChange={(e) => {
-                      const rawValue = removeDefaultLabel(e.target.value);
-                      const parsedValue = parseFormattedNumber(rawValue);
-                      handleDebitChange(parsedValue, row.index);
-                    }}
-                    onBlur={(e) => {
-                      const rawValue = removeDefaultLabel(e.target.value);
-                      const parsedValue = parseFormattedNumber(rawValue);
-                      handleDebitBlur(parsedValue, row.index);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            render={({ field }) => {
+              const [localValue, setLocalValue] = useState<string | null>(null);
+              const displayValue =
+                localValue !== null
+                  ? localValue
+                  : field.value === 0
+                    ? getAmountDefaultLabel(field.value)
+                    : formatNumberWithCommas(field.value);
+
+              return (
+                <FormItem className="space-y-0">
+                  <FormControl>
+                    <Input
+                      value={displayValue}
+                      type="text"
+                      onChange={(e) => {
+                        setLocalValue(e.target.value);
+                        const rawValue = removeDefaultLabel(e.target.value);
+                        const parsedValue = parseFormattedNumber(rawValue);
+                        handleDebitChange(parsedValue, row.index);
+                      }}
+                      onFocus={() => {
+                        // Set local value to unformatted on focus for easier editing
+                        if (field.value !== 0) {
+                          setLocalValue(field.value.toString());
+                        }
+                      }}
+                      onBlur={(e) => {
+                        setLocalValue(null);
+                        const rawValue = removeDefaultLabel(e.target.value);
+                        const parsedValue = parseFormattedNumber(rawValue);
+                        handleDebitBlur(parsedValue, row.index);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
           />
         ),
       },
@@ -371,32 +384,45 @@ const NewJournalPage: React.FC = () => {
           <FormField
             control={form.control}
             name={`journalEntries.${row.index}.creditAmount` as const}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <Input
-                    {...field}
-                    value={
-                      field.value === 0
-                        ? getAmountDefaultLabel(field.value)
-                        : formatNumberWithCommas(field.value)
-                    }
-                    type="text"
-                    onChange={(e) => {
-                      const rawValue = removeDefaultLabel(e.target.value);
-                      const parsedValue = parseFormattedNumber(rawValue);
-                      handleCreditChange(parsedValue, row.index);
-                    }}
-                    onBlur={(e) => {
-                      const rawValue = removeDefaultLabel(e.target.value);
-                      const parsedValue = parseFormattedNumber(rawValue);
-                      handleCreditBlur(parsedValue, row.index);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            render={({ field }) => {
+              const [localValue, setLocalValue] = useState<string | null>(null);
+              const displayValue =
+                localValue !== null
+                  ? localValue
+                  : field.value === 0
+                    ? getAmountDefaultLabel(field.value)
+                    : formatNumberWithCommas(field.value);
+
+              return (
+                <FormItem className="space-y-0">
+                  <FormControl>
+                    <Input
+                      value={displayValue}
+                      type="text"
+                      onChange={(e) => {
+                        setLocalValue(e.target.value);
+                        const rawValue = removeDefaultLabel(e.target.value);
+                        const parsedValue = parseFormattedNumber(rawValue);
+                        handleCreditChange(parsedValue, row.index);
+                      }}
+                      onFocus={() => {
+                        // Set local value to unformatted on focus for easier editing
+                        if (field.value !== 0) {
+                          setLocalValue(field.value.toString());
+                        }
+                      }}
+                      onBlur={(e) => {
+                        setLocalValue(null);
+                        const rawValue = removeDefaultLabel(e.target.value);
+                        const parsedValue = parseFormattedNumber(rawValue);
+                        handleCreditBlur(parsedValue, row.index);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
           />
         ),
       },
