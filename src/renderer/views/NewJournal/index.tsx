@@ -288,6 +288,22 @@ const NewJournalPage: React.FC = () => {
     [],
   );
 
+  // Format number with commas for better readability
+  const formatNumberWithCommas = useCallback((value: number): string => {
+    if (value === 0) return '';
+    return value.toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 4,
+    });
+  }, []);
+
+  // Parse formatted number string (with commas) to a number
+  const parseFormattedNumber = useCallback((value: string): number => {
+    // Remove commas and parse to number
+    const cleanedValue = value.replace(/,/g, '');
+    return toNumber(cleanedValue) || 0;
+  }, []);
+
   const columns: ColumnDef<JournalEntry>[] = useMemo(
     () => [
       {
@@ -324,20 +340,22 @@ const NewJournalPage: React.FC = () => {
                 <FormControl>
                   <Input
                     {...field}
-                    value={getAmountDefaultLabel(field.value)}
-                    type={field.value === 0 ? 'text' : 'number'}
-                    onChange={(e) =>
-                      handleDebitChange(
-                        removeDefaultLabel(e.target.value),
-                        row.index,
-                      )
+                    value={
+                      field.value === 0
+                        ? getAmountDefaultLabel(field.value)
+                        : formatNumberWithCommas(field.value)
                     }
-                    onBlur={(e) =>
-                      handleDebitBlur(
-                        removeDefaultLabel(e.target.value),
-                        row.index,
-                      )
-                    }
+                    type="text"
+                    onChange={(e) => {
+                      const rawValue = removeDefaultLabel(e.target.value);
+                      const parsedValue = parseFormattedNumber(rawValue);
+                      handleDebitChange(toString(parsedValue), row.index);
+                    }}
+                    onBlur={(e) => {
+                      const rawValue = removeDefaultLabel(e.target.value);
+                      const parsedValue = parseFormattedNumber(rawValue);
+                      handleDebitBlur(toString(parsedValue), row.index);
+                    }}
                   />
                 </FormControl>
                 <FormMessage />
@@ -358,20 +376,22 @@ const NewJournalPage: React.FC = () => {
                 <FormControl>
                   <Input
                     {...field}
-                    value={getAmountDefaultLabel(field.value)}
-                    type={field.value === 0 ? 'text' : 'number'}
-                    onBlur={(e) =>
-                      handleCreditBlur(
-                        removeDefaultLabel(e.target.value),
-                        row.index,
-                      )
+                    value={
+                      field.value === 0
+                        ? getAmountDefaultLabel(field.value)
+                        : formatNumberWithCommas(field.value)
                     }
-                    onChange={(e) =>
-                      handleCreditChange(
-                        removeDefaultLabel(e.target.value),
-                        row.index,
-                      )
-                    }
+                    type="text"
+                    onChange={(e) => {
+                      const rawValue = removeDefaultLabel(e.target.value);
+                      const parsedValue = parseFormattedNumber(rawValue);
+                      handleCreditChange(toString(parsedValue), row.index);
+                    }}
+                    onBlur={(e) => {
+                      const rawValue = removeDefaultLabel(e.target.value);
+                      const parsedValue = parseFormattedNumber(rawValue);
+                      handleCreditBlur(toString(parsedValue), row.index);
+                    }}
                   />
                 </FormControl>
                 <FormMessage />
@@ -397,12 +417,14 @@ const NewJournalPage: React.FC = () => {
     [
       accounts,
       form.control,
+      formatNumberWithCommas,
       getAmountDefaultLabel,
       handleCreditBlur,
       handleCreditChange,
       handleDebitBlur,
       handleDebitChange,
       handleRemoveRow,
+      parseFormattedNumber,
       removeDefaultLabel,
     ],
   );
