@@ -1,5 +1,5 @@
 import { Plus, Calendar as CalendarIcon, X, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
@@ -61,35 +61,74 @@ const CurrencyInput: React.FC<CurrencyInputProps> = ({
   parseFormattedNumber,
   formatNumberWithCommas,
 }) => {
-  const [localValue, setLocalValue] = useState<string | null>(null);
-  const [isFocused, setIsFocused] = useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
-  const displayValue =
-    isFocused && localValue !== null
-      ? localValue
-      : value === 0
-        ? getAmountDefaultLabel(value)
-        : formatNumberWithCommas(value);
+  // Format the display value in real-time
+  const getDisplayValue = () => {
+    if (value === 0) {
+      return getAmountDefaultLabel(value);
+    }
+    return formatNumberWithCommas(value);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const currentValue = input.value;
+    const currentCursorPos = input.selectionStart || 0;
+
+    // Remove formatting to get raw number
+    const rawValue = removeDefaultLabel(currentValue);
+    const parsedValue = parseFormattedNumber(rawValue);
+    const numericValue = toNumber(parsedValue);
+
+    // Update the form value
+    onChange(parsedValue);
+
+    // Calculate cursor position adjustment for next render
+    // We need to account for commas that will be added/removed
+    if (!isNaN(numericValue) && numericValue !== 0) {
+      // Use setTimeout to allow React to update the DOM first
+      setTimeout(() => {
+        if (inputRef.current) {
+          const newValue = inputRef.current.value;
+          
+          // Count digits before cursor in old value
+          const digitsBeforeCursor = currentValue
+            .substring(0, currentCursorPos)
+            .replace(/[^\d.]/g, '').length;
+          
+          // Find position in new formatted value with same number of digits
+          let digitCount = 0;
+          let newCursorPos = 0;
+          
+          for (let i = 0; i < newValue.length; i++) {
+            if (/[\d.]/.test(newValue[i])) {
+              digitCount++;
+              if (digitCount === digitsBeforeCursor) {
+                newCursorPos = i + 1;
+                break;
+              }
+            }
+          }
+          
+          // If we didn't find enough digits, place cursor at end
+          if (digitCount < digitsBeforeCursor) {
+            newCursorPos = newValue.length;
+          }
+          
+          inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 0);
+    }
+  };
 
   return (
     <Input
-      value={displayValue}
+      ref={inputRef}
+      value={getDisplayValue()}
       type="text"
-      onChange={(e) => {
-        setLocalValue(e.target.value);
-        const rawValue = removeDefaultLabel(e.target.value);
-        const parsedValue = parseFormattedNumber(rawValue);
-        onChange(parsedValue);
-      }}
-      onFocus={() => {
-        setIsFocused(true);
-        if (value !== 0) {
-          setLocalValue(value.toString());
-        }
-      }}
+      onChange={handleChange}
       onBlur={(e) => {
-        setIsFocused(false);
-        setLocalValue(null);
         const rawValue = removeDefaultLabel(e.target.value);
         const parsedValue = parseFormattedNumber(rawValue);
         onBlur(parsedValue);
