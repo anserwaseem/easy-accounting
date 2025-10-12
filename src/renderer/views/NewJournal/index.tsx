@@ -41,6 +41,63 @@ import {
   DialogTitle,
 } from 'renderer/shad/ui/dialog';
 
+// Component for currency input with formatting
+interface CurrencyInputProps {
+  value: number;
+  onChange: (value: string) => void;
+  onBlur: (value: string) => void;
+  getAmountDefaultLabel: (value: number) => string | number;
+  removeDefaultLabel: (value: string) => string;
+  parseFormattedNumber: (value: string) => string;
+  formatNumberWithCommas: (value: number) => string;
+}
+
+const CurrencyInput: React.FC<CurrencyInputProps> = ({
+  value,
+  onChange,
+  onBlur,
+  getAmountDefaultLabel,
+  removeDefaultLabel,
+  parseFormattedNumber,
+  formatNumberWithCommas,
+}) => {
+  const [localValue, setLocalValue] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const displayValue =
+    isFocused && localValue !== null
+      ? localValue
+      : value === 0
+        ? getAmountDefaultLabel(value)
+        : formatNumberWithCommas(value);
+
+  return (
+    <Input
+      value={displayValue}
+      type="text"
+      onChange={(e) => {
+        setLocalValue(e.target.value);
+        const rawValue = removeDefaultLabel(e.target.value);
+        const parsedValue = parseFormattedNumber(rawValue);
+        onChange(parsedValue);
+      }}
+      onFocus={() => {
+        setIsFocused(true);
+        if (value !== 0) {
+          setLocalValue(value.toString());
+        }
+      }}
+      onBlur={(e) => {
+        setIsFocused(false);
+        setLocalValue(null);
+        const rawValue = removeDefaultLabel(e.target.value);
+        const parsedValue = parseFormattedNumber(rawValue);
+        onBlur(parsedValue);
+      }}
+    />
+  );
+};
+
 const NewJournalPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[] | undefined>(undefined);
   const [nextId, setNextId] = useState<number>(-1);
@@ -335,45 +392,26 @@ const NewJournalPage: React.FC = () => {
           <FormField
             control={form.control}
             name={`journalEntries.${row.index}.debitAmount` as const}
-            render={({ field }) => {
-              const [localValue, setLocalValue] = useState<string | null>(null);
-              const displayValue =
-                localValue !== null
-                  ? localValue
-                  : field.value === 0
-                    ? getAmountDefaultLabel(field.value)
-                    : formatNumberWithCommas(field.value);
-
-              return (
-                <FormItem className="space-y-0">
-                  <FormControl>
-                    <Input
-                      value={displayValue}
-                      type="text"
-                      onChange={(e) => {
-                        setLocalValue(e.target.value);
-                        const rawValue = removeDefaultLabel(e.target.value);
-                        const parsedValue = parseFormattedNumber(rawValue);
-                        handleDebitChange(parsedValue, row.index);
-                      }}
-                      onFocus={() => {
-                        // Set local value to unformatted on focus for easier editing
-                        if (field.value !== 0) {
-                          setLocalValue(field.value.toString());
-                        }
-                      }}
-                      onBlur={(e) => {
-                        setLocalValue(null);
-                        const rawValue = removeDefaultLabel(e.target.value);
-                        const parsedValue = parseFormattedNumber(rawValue);
-                        handleDebitBlur(parsedValue, row.index);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              );
-            }}
+            render={({ field }) => (
+              <FormItem className="space-y-0">
+                <FormControl>
+                  <CurrencyInput
+                    value={field.value}
+                    onChange={(parsedValue) =>
+                      handleDebitChange(parsedValue, row.index)
+                    }
+                    onBlur={(parsedValue) =>
+                      handleDebitBlur(parsedValue, row.index)
+                    }
+                    getAmountDefaultLabel={getAmountDefaultLabel}
+                    removeDefaultLabel={removeDefaultLabel}
+                    parseFormattedNumber={parseFormattedNumber}
+                    formatNumberWithCommas={formatNumberWithCommas}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
         ),
       },
@@ -384,45 +422,26 @@ const NewJournalPage: React.FC = () => {
           <FormField
             control={form.control}
             name={`journalEntries.${row.index}.creditAmount` as const}
-            render={({ field }) => {
-              const [localValue, setLocalValue] = useState<string | null>(null);
-              const displayValue =
-                localValue !== null
-                  ? localValue
-                  : field.value === 0
-                    ? getAmountDefaultLabel(field.value)
-                    : formatNumberWithCommas(field.value);
-
-              return (
-                <FormItem className="space-y-0">
-                  <FormControl>
-                    <Input
-                      value={displayValue}
-                      type="text"
-                      onChange={(e) => {
-                        setLocalValue(e.target.value);
-                        const rawValue = removeDefaultLabel(e.target.value);
-                        const parsedValue = parseFormattedNumber(rawValue);
-                        handleCreditChange(parsedValue, row.index);
-                      }}
-                      onFocus={() => {
-                        // Set local value to unformatted on focus for easier editing
-                        if (field.value !== 0) {
-                          setLocalValue(field.value.toString());
-                        }
-                      }}
-                      onBlur={(e) => {
-                        setLocalValue(null);
-                        const rawValue = removeDefaultLabel(e.target.value);
-                        const parsedValue = parseFormattedNumber(rawValue);
-                        handleCreditBlur(parsedValue, row.index);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              );
-            }}
+            render={({ field }) => (
+              <FormItem className="space-y-0">
+                <FormControl>
+                  <CurrencyInput
+                    value={field.value}
+                    onChange={(parsedValue) =>
+                      handleCreditChange(parsedValue, row.index)
+                    }
+                    onBlur={(parsedValue) =>
+                      handleCreditBlur(parsedValue, row.index)
+                    }
+                    getAmountDefaultLabel={getAmountDefaultLabel}
+                    removeDefaultLabel={removeDefaultLabel}
+                    parseFormattedNumber={parseFormattedNumber}
+                    formatNumberWithCommas={formatNumberWithCommas}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
         ),
       },
