@@ -81,6 +81,8 @@ const NewJournalPage: React.FC = () => {
     date: z.string().datetime({ local: true, message: 'Select a valid date' }),
     narration: z.string().optional(),
     isPosted: z.boolean(),
+    billNumber: z.number().optional(),
+    discountPercentage: z.number().optional(),
     journalEntries: z.array(
       z
         .object({
@@ -617,19 +619,78 @@ const NewJournalPage: React.FC = () => {
                 )}
               /> */}
 
-              <FormField
-                control={form.control}
-                name="narration"
-                render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
-                    <FormLabel className="text-base">Narration</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="gap-8 grid grid-cols-[50%_auto_auto] pr-4">
+                <FormField
+                  control={form.control}
+                  name="narration"
+                  render={({ field }) => (
+                    <FormItem labelPosition="start" className="space-y-0">
+                      <FormLabel className="text-base">Narration</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="billNumber"
+                  render={({ field }) => (
+                    <FormItem
+                      labelPosition="start"
+                      className="space-y-0 grid-cols-[auto_1fr] gap-x-3"
+                    >
+                      <FormLabel className="text-base">Bill#</FormLabel>
+                      <FormControl className="w-full">
+                        <Input
+                          {...field}
+                          type="number"
+                          value={field.value || ''}
+                          onChange={(e) => {
+                            const { value } = e.target;
+                            field.onChange(
+                              value ? parseInt(value, 10) : undefined,
+                            );
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="discountPercentage"
+                  render={({ field }) => (
+                    <FormItem
+                      labelPosition="start"
+                      className="space-y-0 grid-cols-[auto_1fr] gap-x-3"
+                    >
+                      <FormLabel className="text-base">Discount%</FormLabel>
+                      <FormControl className="w-full">
+                        <Input
+                          {...field}
+                          type="number"
+                          step={1}
+                          min={0}
+                          max={100}
+                          value={field.value || ''}
+                          onChange={(e) => {
+                            const { value } = e.target;
+                            field.onChange(
+                              value ? parseFloat(value) : undefined,
+                            );
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             <div className="pt-4 pb-8 pr-4 flex flex-col gap-3">

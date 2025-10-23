@@ -119,6 +119,20 @@ export const JournalTable: React.FC<JournalTableProps> = ({
                 )}
               </div>
             </div>
+
+            {journal?.billNumber && (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px]">Bill#:</p>
+                <p>{journal.billNumber}</p>
+              </div>
+            )}
+
+            {journal?.discountPercentage && (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px]">Discount%:</p>
+                <p>{journal.discountPercentage}%</p>
+              </div>
+            )}
           </div>
         </div>
 

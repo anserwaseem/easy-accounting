@@ -77,7 +77,6 @@ export const useFinancialOverview = () => {
         switch (account.type) {
           case AccountType.Asset:
             totalAssets += amount;
-            console.log('totalAssets account', account);
             if (heads.includes('Current Asset')) {
               currentAssets += amount;
               const isCashOrBank = some(['cash', 'bank'], (term) =>

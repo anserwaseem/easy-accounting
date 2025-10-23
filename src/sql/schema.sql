@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS "journal" (
   "date" DATETIME NOT NULL,
   "narration" STRING NOT NULL,
   "isPosted" BOOLEAN NOT NULL DEFAULT 0,
+  -- "billNumber" INTEGER, -- "013 migration"
+  -- "discountPercentage" DECIMAL(5, 2), -- "013 migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME
 );

@@ -160,6 +160,8 @@ export interface Journal extends Omit<BaseEntity, 'date'> {
   date: string;
   narration?: string;
   isPosted: boolean;
+  billNumber?: number;
+  discountPercentage?: number;
   journalEntries: JournalEntry[];
 }
 

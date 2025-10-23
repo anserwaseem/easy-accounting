@@ -7,7 +7,7 @@ import BackupToastListener from './components/BackupToastListener';
 
 import Sidebar from './components/Sidebar';
 import { AuthCheck } from './components/AuthCheck';
-import Home from './views/Home';
+// import Home from './views/Home';
 import AccountsPage from './views/Accounts';
 import InventoryPage from './views/Inventory';
 import JournalPage from './views/Journal';
@@ -37,7 +37,7 @@ const AppRoutes: React.FC = () => (
           <Route path="register" element={<Register />} />
           <Route element={<AuthCheck />}>
             <Route element={<Sidebar />}>
-              <Route path="/" element={<Home />} />
+              <Route path="/" element={<NewJournalPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="accounts">
                 <Route index element={<AccountsPage />} />

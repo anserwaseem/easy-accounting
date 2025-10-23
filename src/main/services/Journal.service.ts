@@ -116,7 +116,8 @@ export class JournalService {
           throw new Error('Journal has multiple debits and multiple credits');
         }
 
-        const { date, narration, isPosted } = journal;
+        const { date, narration, isPosted, billNumber, discountPercentage } =
+          journal;
 
         // first check if this is a past dated entry that needs rebuilding
         const affectedAccounts = new Set(
@@ -135,6 +136,8 @@ export class JournalService {
           date,
           narration,
           isPosted: cast(isPosted),
+          billNumber,
+          discountPercentage,
         });
         const journalId = Number(result.lastInsertRowid);
 
@@ -346,8 +349,8 @@ export class JournalService {
 
   private initPreparedStatements() {
     this.stmJournal = this.db.prepare(
-      `INSERT INTO journal (date, narration, isPosted)
-       VALUES (@date, @narration, @isPosted)`,
+      `INSERT INTO journal (date, narration, isPosted, billNumber, discountPercentage)
+       VALUES (@date, @narration, @isPosted, @billNumber, @discountPercentage)`,
     );
     this.stmJournalEntry = this.db.prepare(
       `INSERT INTO journal_entry (journalId, debitAmount, accountId, creditAmount)
@@ -360,7 +363,7 @@ export class JournalService {
       "SELECT seq as id FROM sqlite_sequence WHERE name='journal'",
     );
     this.stmGetJournals = this.db.prepare(
-      `SELECT j.id, j.date, j.narration, j.isPosted, j.createdAt, j.updatedAt, je.debitAmount
+      `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.createdAt, j.updatedAt, je.debitAmount
        FROM journal j
        JOIN journal_entry je ON j.id = je.journalId
        JOIN account a ON a.id = je.accountId
@@ -369,7 +372,7 @@ export class JournalService {
        ORDER BY j.date DESC, j.id DESC`,
     );
     this.stmGetJournal = this.db.prepare(
-      `SELECT j.id, j.date, j.narration, j.isPosted, j.createdAt, j.updatedAt,
+      `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.createdAt, j.updatedAt,
               je.debitAmount, je.creditAmount, je.accountId, a.name as accountName
        FROM journal j
        JOIN journal_entry je ON j.id = je.journalId

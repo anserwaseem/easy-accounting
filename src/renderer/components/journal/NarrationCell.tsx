@@ -49,14 +49,24 @@ export const NarrationCell = ({
   if (loading) return <span>Loading...</span>;
 
   return (
-    <Link
-      to={`/journals/${journalId}`}
-      className={`text-blue-600 hover:underline ${
-        printMode ? 'print:text-black print:no-underline' : ''
-      }`}
-    >
-      {journal?.narration ? journal.narration : `View Journal #${journalId}`}
-    </Link>
+    <div className="space-y-1">
+      <Link
+        to={`/journals/${journalId}`}
+        className={`text-blue-600 hover:underline block ${
+          printMode ? 'print:text-black print:no-underline' : ''
+        }`}
+      >
+        {journal?.narration ? journal.narration : `View Journal #${journalId}`}
+      </Link>
+      {(journal?.billNumber || journal?.discountPercentage) && (
+        <div className="text-xs text-muted-foreground space-y-1">
+          {journal.billNumber && <div>Bill#: {journal.billNumber}</div>}
+          {journal.discountPercentage && (
+            <div>Discount: {journal.discountPercentage}%</div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 

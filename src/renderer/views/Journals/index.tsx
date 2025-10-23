@@ -84,7 +84,24 @@ const JournalsPage: React.FC<HasMiniView> = ({
         accessorKey: 'narration',
         header: 'Narration',
         onClick: (row) => navigate(toString(row.original.id)),
-        size: 1100,
+        size: 800,
+      },
+      {
+        accessorKey: 'billNumber',
+        header: 'Bill#',
+        cell: ({ row }) => row.original.billNumber || '-',
+        onClick: (row) => navigate(toString(row.original.id)),
+        size: 80,
+      },
+      {
+        accessorKey: 'discountPercentage',
+        header: 'Discount%',
+        cell: ({ row }) =>
+          row.original.discountPercentage
+            ? `${row.original.discountPercentage}%`
+            : '-',
+        onClick: (row) => navigate(toString(row.original.id)),
+        size: 100,
       },
       {
         accessorKey: 'amount',
