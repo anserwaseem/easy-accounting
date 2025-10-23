@@ -10,8 +10,8 @@ import {
   getFormattedCurrency,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import type { Journal, JournalEntry } from 'types';
-import { EditNarrationDialog } from 'renderer/components/EditNarrationDialog';
+import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
+import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 
 interface JournalTableProps {
   journalId: number;
@@ -29,12 +29,15 @@ export const JournalTable: React.FC<JournalTableProps> = ({
     (async () => setJournal(await window.electron.getJournal(journalId)))();
   }, [journalId]);
 
-  const handleUpdateNarration = async (id: number, newNarration: string) => {
+  const handleUpdateJournal = async (
+    id: number,
+    fields: UpdateJournalFields,
+  ) => {
     try {
-      await window.electron.updateJournalNarration(id, newNarration);
+      await window.electron.updateJournalInfo(id, fields);
       setJournal(await window.electron.getJournal(journalId));
     } catch (error) {
-      console.error('Error updating journal narration:', error);
+      console.error('Error updating journal:', error);
     }
   };
 
@@ -101,10 +104,12 @@ export const JournalTable: React.FC<JournalTableProps> = ({
                 <div className="flex items-center gap-2">
                   <p>{journal?.narration}</p>
                   {journal && (
-                    <EditNarrationDialog
+                    <EditJournalFieldsDialog
                       journalId={journal.id}
                       narration={journal.narration || ''}
-                      onSave={handleUpdateNarration}
+                      billNumber={journal.billNumber}
+                      discountPercentage={journal.discountPercentage}
+                      onSave={handleUpdateJournal}
                     />
                   )}
                 </div>

@@ -1,7 +1,7 @@
 /* eslint-disable no-lonely-if */
-import type { Journal, JournalEntry } from 'types';
+import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
-import { compact, get, omit } from 'lodash';
+import { compact, get, has, omit } from 'lodash';
 import { cast } from '../utils/sqlite';
 import { store } from '../store';
 import { AccountType, BalanceType } from '../../types';
@@ -343,6 +343,41 @@ export class JournalService {
       });
     } catch (error) {
       console.error(`Error in updateJournalNarration ${journalId}:`, error);
+      throw error;
+    }
+  }
+
+  updateJournalInfo(journalId: number, fields: UpdateJournalFields): void {
+    try {
+      const journal = this.getJournal(journalId);
+      if (!journal) {
+        throw new Error(`Journal with Id ${journalId} not found`);
+      }
+
+      const setClauses: string[] = [];
+      const params: Record<string, unknown> = { journalId };
+
+      if (has(fields, 'narration')) {
+        setClauses.push('narration = @narration');
+        params.narration = fields.narration ?? null;
+      }
+      if (has(fields, 'billNumber')) {
+        setClauses.push('billNumber = @billNumber');
+        params.billNumber = fields.billNumber ?? null;
+      }
+      if (has(fields, 'discountPercentage')) {
+        setClauses.push('discountPercentage = @discountPercentage');
+        params.discountPercentage = fields.discountPercentage ?? null;
+      }
+
+      if (setClauses.length === 0) return;
+
+      const sql = `UPDATE journal SET ${setClauses.join(
+        ', ',
+      )} WHERE id = @journalId`;
+      this.db.prepare(sql).run(params);
+    } catch (error) {
+      console.error(`Error in updateJournalInfo ${journalId}:`, error);
       throw error;
     }
   }

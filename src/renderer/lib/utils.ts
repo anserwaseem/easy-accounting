@@ -100,7 +100,9 @@ interface HandleAsyncOptions {
   errorMessage?: string;
   onSuccess?: (result: any) => void;
   onError?: (error: any) => void;
+  onFinally?: () => void;
   getErrorMessage?: (error: string) => string;
+  shouldExpectResult?: boolean;
 }
 
 /**
@@ -118,21 +120,28 @@ export async function handleAsync<T>(
   asyncFunc: AsyncFunc<T>,
   options: HandleAsyncOptions = {},
 ): Promise<void> {
-  const { successMessage, errorMessage, onSuccess, onError, getErrorMessage } =
-    options;
+  const {
+    successMessage,
+    errorMessage,
+    onSuccess,
+    onError,
+    onFinally,
+    getErrorMessage,
+    shouldExpectResult = true,
+  } = options;
 
   try {
     const result = await asyncFunc();
 
-    if (result) {
+    if (!shouldExpectResult || !!result) {
       if (successMessage) {
         toast({
           description: successMessage,
           variant: 'success',
         });
       }
-      if (onSuccess) onSuccess(result);
-    } else {
+      onSuccess?.(result);
+    } else if (shouldExpectResult) {
       throw new Error(errorMessage || 'Operation failed');
     }
   } catch (error) {
@@ -148,7 +157,9 @@ export async function handleAsync<T>(
       variant: 'destructive',
     });
 
-    if (onError) onError(error);
+    onError?.(error);
+  } finally {
+    onFinally?.();
   }
 }
 

@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { get, isNil, pick, sum, toNumber, toString } from 'lodash';
+import { get, isNil, pick, sum, toNumber, toString, trim } from 'lodash';
 import { Calendar as CalendarIcon, Plus, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
@@ -277,12 +277,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         // check for both Sale and Purchase accounts
         const saleAccount = accounts.find(
           (account) =>
-            account.name.trim().toLowerCase() ===
-            InvoiceType.Sale.toLowerCase(),
+            trim(account.name).toLowerCase() === InvoiceType.Sale.toLowerCase(),
         );
         const purchaseAccount = accounts.find(
           (account) =>
-            account.name.trim().toLowerCase() ===
+            trim(account.name).toLowerCase() ===
             InvoiceType.Purchase.toLowerCase(),
         );
         setRequiredAccountsExist({

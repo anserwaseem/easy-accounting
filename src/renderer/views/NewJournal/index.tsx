@@ -674,7 +674,7 @@ const NewJournalPage: React.FC = () => {
                         <Input
                           {...field}
                           type="number"
-                          step={1}
+                          step={0.1}
                           min={0}
                           max={100}
                           value={field.value || ''}
