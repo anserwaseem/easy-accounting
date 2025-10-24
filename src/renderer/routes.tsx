@@ -27,6 +27,7 @@ import TrialBalancePage from './views/Reports/TrialBalance';
 import AccountBalancesPage from './views/Reports/AccountBalances';
 import LedgerReportPage from './views/Reports/LedgerReport';
 import AverageEquityBalancesPage from './views/Reports/AverageEquityBalances';
+import BillsAgingPage from './views/Reports/BillsAging';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -37,7 +38,7 @@ const AppRoutes: React.FC = () => (
           <Route path="register" element={<Register />} />
           <Route element={<AuthCheck />}>
             <Route element={<Sidebar />}>
-              <Route path="/" element={<NewJournalPage />} />
+              <Route path="/" element={<BillsAgingPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="accounts">
                 <Route index element={<AccountsPage />} />
@@ -61,6 +62,7 @@ const AppRoutes: React.FC = () => (
                   path="average-equity-balances"
                   element={<AverageEquityBalancesPage />}
                 />
+                <Route path="bills-aging" element={<BillsAgingPage />} />
               </Route>
               <Route path="purchase/invoices">
                 <Route

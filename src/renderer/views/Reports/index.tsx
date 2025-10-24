@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BarChart3, DollarSign, Book, Scale } from 'lucide-react';
+import { BarChart3, DollarSign, Book, Scale, Clock } from 'lucide-react';
 import { Card } from 'renderer/shad/ui/card';
 
 const reportOptions = [
@@ -26,6 +26,12 @@ const reportOptions = [
     description: 'View average balances of equity accounts by date range.',
     path: '/reports/average-equity-balances',
     icon: <Scale className="h-6 w-6" />,
+  },
+  {
+    title: 'Bills Aging',
+    description: 'Track bill payments and outstanding amounts by account.',
+    path: '/reports/bills-aging',
+    icon: <Clock className="h-6 w-6" />,
   },
 ];
 
