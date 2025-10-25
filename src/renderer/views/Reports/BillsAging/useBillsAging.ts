@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isEmpty, sumBy } from 'lodash';
+import { format } from 'date-fns';
 import type { Account, Chart, LedgerView, Journal } from '@/types';
 import type {
   BillsAging,
@@ -12,6 +13,12 @@ import type {
 export const useBillsAging = () => {
   const [selectedHead, setSelectedHead] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [startDate, setStartDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setMonth(0, 1); // default to start of year
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [charts, setCharts] = useState<Chart[]>([]);
   const [billsAging, setBillsAging] = useState<BillsAging>({
     headName: '',
@@ -19,16 +26,20 @@ export const useBillsAging = () => {
     accounts: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [infoMessage, setInfoMessage] = useState<string>('');
 
   // fetch available charts (heads)
   const fetchCharts = useCallback(async () => {
     try {
       const fetchedCharts = await window.electron.getCharts();
-      setCharts(fetchedCharts);
+      const filteredCharts = fetchedCharts.filter(
+        (chart: Chart) => !!chart.parentId,
+      );
+      setCharts(filteredCharts);
 
       // If there's no selected head yet but we have charts, select the last one
-      if (!selectedHead && fetchedCharts.length > 0) {
-        setSelectedHead(fetchedCharts?.at(-1)?.name || '');
+      if (!selectedHead && filteredCharts.length > 0) {
+        setSelectedHead(filteredCharts?.at(0)?.name || '');
       }
     } catch (error) {
       console.error('Error fetching charts:', error);
@@ -36,84 +47,105 @@ export const useBillsAging = () => {
   }, [selectedHead]);
 
   // process bills aging for a specific head
-  const fetchBillsAging = useCallback(async (headName: string, date: Date) => {
-    if (!headName) return;
+  const fetchBillsAging = useCallback(
+    async (headName: string, start: Date, end: Date) => {
+      if (!headName) return;
 
-    setIsLoading(true);
-    try {
-      // fetch all accounts for the selected head
-      const rawAccounts = await window.electron.getAccounts();
-      const filteredAccounts = rawAccounts.filter(
-        (account: Account) => account.headName === headName,
-      );
-
-      if (isEmpty(filteredAccounts)) {
-        setBillsAging({
-          headName,
-          asOfDate: date.toISOString(),
-          accounts: [],
-        });
-        return;
-      }
-
-      // get all account IDs
-      const accountIds = filteredAccounts.map((account: Account) => account.id);
-
-      // fetch all ledgers in a single batch operation
-      const ledgersPromises = accountIds.map((id: number) =>
-        window.electron.getLedger(id),
-      );
-      const ledgersResults = await Promise.all(ledgersPromises);
-
-      // map accounts to ledgers
-      const accountLedgers = filteredAccounts.reduce(
-        (
-          acc: Record<number, LedgerView[]>,
-          account: Account,
-          index: number,
-        ) => {
-          acc[account.id] = ledgersResults[index];
-          return acc;
-        },
-        {} as Record<number, LedgerView[]>,
-      );
-
-      const selectedDateEnd = new Date(date);
-      selectedDateEnd.setHours(23, 59, 59, 999);
-
-      // collect all journal IDs from all accounts first
-      const allJournalIds = new Set<number>();
-      const accountLedgersMap: Record<number, LedgerView[]> = {};
-
-      for (const account of filteredAccounts) {
-        const ledger = accountLedgers[account.id];
-        if (isEmpty(ledger)) continue;
-
-        // filter ledger entries up to the selected date
-        const entriesUpToSelectedDate = ledger.filter(
-          (entry: LedgerView) => new Date(entry.date) <= selectedDateEnd,
+      setIsLoading(true);
+      try {
+        // fetch all accounts for the selected head
+        const rawAccounts: Account[] = await window.electron.getAccounts();
+        const filteredAccounts = rawAccounts.filter(
+          (account: Account) => account.headName === headName,
         );
 
-        if (isEmpty(entriesUpToSelectedDate)) continue;
+        if (isEmpty(filteredAccounts)) {
+          setBillsAging({
+            headName,
+            asOfDate: end.toISOString(),
+            accounts: [],
+          });
+          return;
+        }
 
-        accountLedgersMap[account.id] = entriesUpToSelectedDate;
-
-        // collect journal IDs from debit entries
-        const debitEntries = entriesUpToSelectedDate.filter(
-          (entry: LedgerView) => entry.debit > 0,
+        // get all account IDs
+        const accountIds = filteredAccounts.map(
+          (account: Account) => account.id,
         );
 
-        debitEntries.forEach((entry: LedgerView) => {
-          const match = entry.particulars.match(/Journal #(\d+)/);
-          if (match) {
-            allJournalIds.add(parseInt(match[1], 10));
-          }
-        });
-      }
+        // fetch all ledgers in a single batch operation
+        const ledgersPromises = accountIds.map((id: number) =>
+          window.electron.getLedger(id),
+        );
+        const ledgersResults = await Promise.all(ledgersPromises);
 
-      // fetch all journals at once
-      const journals: Record<number, Journal> = {};
-      if (allJournalIds.size > 0) {
+        // map accounts to ledgers
+        const accountLedgers = filteredAccounts.reduce(
+          (
+            acc: Record<number, LedgerView[]>,
+            account: Account,
+            index: number,
+          ) => {
+            acc[account.id] = ledgersResults[index];
+            return acc;
+          },
+          {} as Record<number, LedgerView[]>,
+        );
+
+        const selectedDateEnd = new Date(end);
+        selectedDateEnd.setHours(23, 59, 59, 999);
+        const selectedDateStart = new Date(start);
+        selectedDateStart.setHours(0, 0, 0, 0);
+
+        // collect all journal IDs from all accounts first
+        const allJournalIds = new Set<number>();
+        const accountLedgersMap: Record<number, LedgerView[]> = {};
+
+        for (const account of filteredAccounts) {
+          const ledger = accountLedgers[account.id];
+          if (isEmpty(ledger)) continue;
+
+          // filter ledger entries within the selected date range
+          const entriesInRange = ledger.filter((entry: LedgerView) => {
+            const t = new Date(entry.date).getTime();
+            return (
+              t >= selectedDateStart.getTime() && t <= selectedDateEnd.getTime()
+            );
+          });
+
+          if (isEmpty(entriesInRange)) continue;
+
+          accountLedgersMap[account.id] = entriesInRange;
+
+          // collect journal IDs from debit entries in range
+          const debitEntries = entriesInRange.filter(
+            (entry: LedgerView) => entry.debit > 0,
+          );
+
+          debitEntries.forEach((entry: LedgerView) => {
+            const match = entry.particulars.match(/Journal #(\d+)/);
+            if (match) {
+              allJournalIds.add(parseInt(match[1], 10));
+            }
+          });
+        }
+
+        // fetch all journals at once
+        const journals: Record<number, Journal> = {};
+        if (allJournalIds.size === 0) {
+          setInfoMessage(
+            `No journals found for ${headName} during period: ${format(
+              selectedDateStart,
+              'dd/MM/yyyy',
+            )} to ${format(selectedDateEnd, 'dd/MM/yyyy')}`,
+          );
+          setBillsAging({
+            headName,
+            asOfDate: end.toISOString(),
+            accounts: [],
+          });
+          return;
+        }
         const journalPromises = Array.from(allJournalIds).map(
           async (journalId) => {
             try {
@@ -131,180 +163,216 @@ export const useBillsAging = () => {
             journals[journalId] = journal;
           }
         });
-      }
 
-      const accounts: BillsAgingAccount[] = [];
+        const accounts: BillsAgingAccount[] = [];
 
-      for (const account of filteredAccounts) {
-        const entriesUpToSelectedDate = accountLedgersMap[account.id];
-        if (!entriesUpToSelectedDate) continue;
+        for (const account of filteredAccounts) {
+          const entriesInRange = accountLedgersMap[account.id];
+          if (!entriesInRange) continue;
 
-        // skip first entry (opening balance) and find first debit entry
-        const entriesWithoutOpening = entriesUpToSelectedDate.slice(1);
-        const firstDebitIndex = entriesWithoutOpening.findIndex(
-          (entry: LedgerView) => entry.debit > 0,
-        );
+          // treat opening balance as first bill (carry-forward) if start-date balance is Dr
+          const fullLedger = accountLedgers[account.id] || [];
+          const lastBeforeStart = fullLedger
+            .filter(
+              (l) => new Date(l.date).getTime() < selectedDateStart.getTime(),
+            )
+            .at(-1);
 
-        if (firstDebitIndex === -1) {
-          // no debit entries found, skip this account
-          continue;
-        }
+          // separate debit and credit entries
+          const debitEntries = entriesInRange.filter(
+            (entry: LedgerView) => entry.debit > 0,
+          );
+          const creditEntries = entriesInRange.filter(
+            (entry: LedgerView) => entry.credit > 0,
+          );
 
-        // separate entries: before first debit vs after first debit
-        const entriesBeforeFirstDebit = entriesWithoutOpening.slice(
-          0,
-          firstDebitIndex,
-        );
-        const entriesFromFirstDebit =
-          entriesWithoutOpening.slice(firstDebitIndex);
+          // process bills (debit entries)
+          const bills: BillItem[] = [];
+          const unallocatedReceipts: UnallocatedReceipt[] = [];
 
-        // separate debit and credit entries from the remaining entries
-        const debitEntries = entriesFromFirstDebit.filter(
-          (entry: LedgerView) => entry.debit > 0,
-        );
-        const creditEntries = entriesFromFirstDebit.filter(
-          (entry: LedgerView) => entry.credit > 0,
-        );
-
-        // process bills (debit entries)
-        const bills: BillItem[] = [];
-        const unallocatedReceipts: UnallocatedReceipt[] = [];
-
-        // add credits before first debit to unallocated receipts
-        const creditsBeforeFirstDebit = entriesBeforeFirstDebit.filter(
-          (entry: LedgerView) => entry.credit > 0,
-        );
-        creditsBeforeFirstDebit.forEach((entry: LedgerView) => {
-          unallocatedReceipts.push({
-            receivedDate: entry.date,
-            receivedAmount: entry.credit,
-          });
-        });
-
-        // group debit entries by journal
-        const debitByJournal = debitEntries.reduce(
-          (acc: Record<number, LedgerView[]>, entry: LedgerView) => {
-            const match = entry.particulars.match(/Journal #(\d+)/);
-            if (match) {
-              const journalId = parseInt(match[1], 10);
-              if (!acc[journalId]) acc[journalId] = [];
-              acc[journalId].push(entry);
-            }
-            return acc;
-          },
-          {} as Record<number, LedgerView[]>,
-        );
-
-        // create bills from debit entries
-        for (const [journalId, entries] of Object.entries(debitByJournal)) {
-          const journal = journals[parseInt(journalId, 10)];
-          const billNumber = journal?.billNumber
-            ? journal.billNumber.toString()
-            : '-';
-          const billPercentage = journal?.discountPercentage ?? '-';
-          const billDate = (entries as LedgerView[])[0].date; // use first entry date
-          const billAmount = sumBy(entries as LedgerView[], 'debit');
-
-          bills.push({
-            billNumber,
-            billPercentage,
-            billDate,
-            billAmount,
-            receipts: [],
-            finalBalance: billAmount,
-          });
-        }
-
-        // sort bills by date
-        bills.sort(
-          (a, b) =>
-            new Date(a.billDate).getTime() - new Date(b.billDate).getTime(),
-        );
-
-        // allocate credit entries to bills using FIFO
-        const remainingCredits = [...creditEntries];
-        let creditIndex = 0;
-
-        for (const bill of bills) {
-          let billBalance = bill.billAmount;
-          const receipts: BillReceipt[] = [];
-
-          // process credits until this bill is fully paid or we run out of credits
-          while (billBalance > 0 && creditIndex < remainingCredits.length) {
-            const credit = remainingCredits[creditIndex];
-
-            if (credit.credit <= billBalance) {
-              // full credit can be applied to this bill
-              billBalance -= credit.credit;
-              receipts.push({
-                receivedDate: credit.date,
-                receivedAmount: credit.credit,
-                balance: billBalance,
-              });
-              creditIndex++; // move to next credit
-            } else {
-              // partial credit application
-              const appliedAmount = billBalance;
-              billBalance = 0;
-              receipts.push({
-                receivedDate: credit.date,
-                receivedAmount: appliedAmount,
-                balance: 0,
-              });
-
-              // reduce the credit amount and continue with same credit for next bill
-              remainingCredits[creditIndex] = {
-                ...credit,
-                credit: credit.credit - appliedAmount,
-              };
-            }
-          }
-
-          bill.receipts = receipts;
-          bill.finalBalance = billBalance;
-        }
-
-        // add any remaining credits to unallocated
-        for (let i = creditIndex; i < remainingCredits.length; i++) {
-          const credit = remainingCredits[i];
-          if (credit.credit > 0) {
-            unallocatedReceipts.push({
-              receivedDate: credit.date,
-              receivedAmount: credit.credit,
+          // create opening balance bill from last balance before start (if Dr)
+          if (
+            lastBeforeStart &&
+            lastBeforeStart.balanceType === 'Dr' &&
+            lastBeforeStart.balance > 0
+          ) {
+            const openingAmount = lastBeforeStart.balance;
+            bills.push({
+              billNumber: 'Opening Balance',
+              billPercentage: '-',
+              billDate: selectedDateStart.toISOString(),
+              billAmount: openingAmount,
+              receipts: [],
+              finalBalance: openingAmount,
+              daysStatus: {
+                isFullyPaid: false,
+                days: 0,
+              },
             });
           }
+
+          // group debit entries by journal
+          const debitByJournal = debitEntries.reduce(
+            (acc: Record<number, LedgerView[]>, entry: LedgerView) => {
+              const match = entry.particulars.match(/Journal #(\d+)/);
+              if (match) {
+                const journalId = parseInt(match[1], 10);
+                if (!acc[journalId]) acc[journalId] = [];
+                acc[journalId].push(entry);
+              }
+              return acc;
+            },
+            {} as Record<number, LedgerView[]>,
+          );
+
+          // create bills from debit entries
+          for (const [journalId, entries] of Object.entries(debitByJournal)) {
+            const journal = journals[parseInt(journalId, 10)];
+            const billNumber = journal?.billNumber
+              ? journal.billNumber.toString()
+              : '-';
+            const billPercentage = journal?.discountPercentage ?? '-';
+            const billDate = (entries as LedgerView[])[0].date; // use first entry date
+            const billAmount = sumBy(entries as LedgerView[], 'debit');
+
+            bills.push({
+              billNumber,
+              billPercentage,
+              billDate,
+              billAmount,
+              receipts: [],
+              finalBalance: billAmount,
+              daysStatus: {
+                isFullyPaid: false,
+                days: 0,
+              },
+            });
+          }
+
+          // sort bills by date
+          bills.sort(
+            (a, b) =>
+              new Date(a.billDate).getTime() - new Date(b.billDate).getTime(),
+          );
+
+          // allocate credit entries to bills using FIFO
+          const remainingCredits = [...creditEntries];
+          let creditIndex = 0;
+
+          for (const bill of bills) {
+            let billBalance = bill.billAmount;
+            const receipts: BillReceipt[] = [];
+
+            // process credits until this bill is fully paid or we run out of credits
+            while (billBalance > 0 && creditIndex < remainingCredits.length) {
+              const credit = remainingCredits[creditIndex];
+
+              if (credit.credit <= billBalance) {
+                // full credit can be applied to this bill
+                billBalance -= credit.credit;
+                receipts.push({
+                  receivedDate: credit.date,
+                  receivedAmount: credit.credit,
+                  balance: billBalance,
+                });
+                creditIndex++; // move to next credit
+              } else {
+                // partial credit application
+                const appliedAmount = billBalance;
+                billBalance = 0;
+                receipts.push({
+                  receivedDate: credit.date,
+                  receivedAmount: appliedAmount,
+                  balance: 0,
+                });
+
+                // reduce the credit amount and continue with same credit for next bill
+                remainingCredits[creditIndex] = {
+                  ...credit,
+                  credit: credit.credit - appliedAmount,
+                };
+              }
+            }
+
+            bill.receipts = receipts;
+            bill.finalBalance = billBalance;
+          }
+
+          // add any remaining credits to unallocated
+          for (let i = creditIndex; i < remainingCredits.length; i++) {
+            const credit = remainingCredits[i];
+            if (credit.credit > 0) {
+              unallocatedReceipts.push({
+                receivedDate: credit.date,
+                receivedAmount: credit.credit,
+              });
+            }
+          }
+
+          // calculate days status for each bill
+          bills.forEach((bill) => {
+            const billDate = new Date(bill.billDate);
+            const isFullyPaid = bill.finalBalance === 0;
+
+            let days: number;
+            if (isFullyPaid && bill.receipts.length > 0) {
+              // calculate days from bill date to last payment date
+              const lastPaymentDate = new Date(
+                bill.receipts[bill.receipts.length - 1].receivedDate,
+              );
+              days = Math.ceil(
+                (lastPaymentDate.getTime() - billDate.getTime()) /
+                  (1000 * 60 * 60 * 24),
+              );
+            } else {
+              // calculate days from bill date to selected date (pending days)
+              const reportDate = new Date(end);
+              days = Math.ceil(
+                (reportDate.getTime() - billDate.getTime()) /
+                  (1000 * 60 * 60 * 24),
+              );
+            }
+
+            bill.daysStatus = {
+              isFullyPaid,
+              days: Math.max(0, days), // ensure non-negative
+            };
+          });
+
+          // calculate totals
+          const totalBillAmount = sumBy(bills, 'billAmount');
+          const totalReceived = sumBy(bills, (bill) =>
+            sumBy(bill.receipts, 'receivedAmount'),
+          );
+          const totalOutstanding = sumBy(bills, 'finalBalance');
+          const totalUnallocated = sumBy(unallocatedReceipts, 'receivedAmount');
+
+          accounts.push({
+            accountId: account.id,
+            accountName: account.name,
+            accountCode: account.code,
+            bills,
+            unallocatedReceipts,
+            totalBillAmount,
+            totalReceived,
+            totalOutstanding,
+            totalUnallocated,
+          });
         }
 
-        // calculate totals
-        const totalBillAmount = sumBy(bills, 'billAmount');
-        const totalReceived = sumBy(bills, (bill) =>
-          sumBy(bill.receipts, 'receivedAmount'),
-        );
-        const totalOutstanding = sumBy(bills, 'finalBalance');
-
-        accounts.push({
-          accountId: account.id,
-          accountName: account.name,
-          accountCode: account.code,
-          bills,
-          unallocatedReceipts,
-          totalBillAmount,
-          totalReceived,
-          totalOutstanding,
+        setBillsAging({
+          headName,
+          asOfDate: end.toISOString(),
+          accounts,
         });
+      } catch (error) {
+        console.error('Error fetching bills aging:', error);
+      } finally {
+        setIsLoading(false);
       }
-
-      setBillsAging({
-        headName,
-        asOfDate: date.toISOString(),
-        accounts,
-      });
-    } catch (error) {
-      console.error('Error fetching bills aging:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     fetchCharts();
@@ -312,9 +380,9 @@ export const useBillsAging = () => {
 
   useEffect(() => {
     if (selectedHead) {
-      fetchBillsAging(selectedHead, selectedDate);
+      fetchBillsAging(selectedHead, startDate, selectedDate);
     }
-  }, [selectedHead, selectedDate, fetchBillsAging]);
+  }, [selectedHead, startDate, selectedDate, fetchBillsAging]);
 
   const handleHeadChange = (headName: string) => {
     setSelectedHead(headName);
@@ -325,13 +393,29 @@ export const useBillsAging = () => {
     setSelectedDate(date);
   };
 
+  const handleStartDateChange = (date: Date | undefined) => {
+    if (!date) return;
+    setStartDate(date);
+  };
+
+  const refreshData = useCallback(() => {
+    fetchCharts();
+    if (selectedHead) {
+      fetchBillsAging(selectedHead, startDate, selectedDate);
+    }
+  }, [fetchCharts, selectedHead, startDate, selectedDate, fetchBillsAging]);
+
   return {
     selectedHead,
+    startDate,
     selectedDate,
     charts,
     billsAging,
     isLoading,
     handleHeadChange,
+    handleStartDateChange,
     handleDateChange,
+    refreshData,
+    infoMessage,
   };
 };

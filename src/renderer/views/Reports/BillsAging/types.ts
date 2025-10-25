@@ -1,5 +1,3 @@
-// Types for Bills Aging report
-
 export interface BillReceipt {
   receivedDate: string;
   receivedAmount: number;
@@ -13,6 +11,10 @@ export interface BillItem {
   billAmount: number;
   receipts: BillReceipt[];
   finalBalance: number;
+  daysStatus: {
+    isFullyPaid: boolean;
+    days: number;
+  };
 }
 
 export interface UnallocatedReceipt {
@@ -29,6 +31,7 @@ export interface BillsAgingAccount {
   totalBillAmount: number;
   totalReceived: number;
   totalOutstanding: number;
+  totalUnallocated: number;
 }
 
 export interface BillsAging {

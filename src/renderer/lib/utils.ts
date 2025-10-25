@@ -75,6 +75,26 @@ export const getFormattedCurrency = (value: number | bigint): string =>
   Intl.NumberFormat('en-US', currencyFormatOptions).format(value);
 
 /**
+ * Formats currency without decimal places.
+ * @param value - The number to be formatted.
+ * @returns Formatted currency string without decimals.
+ * @param withoutCurrency - Whether to remove the currency symbol.
+ * @example getFormattedCurrencyInt(1234.56); // PKR 1,235
+ * @example getFormattedCurrencyInt(1234.56, { withoutCurrency: true }); // 1,235
+ */
+export const getFormattedCurrencyInt = (
+  value: number,
+  { withoutCurrency = false } = {},
+): string =>
+  Intl.NumberFormat('en-US', {
+    ...currencyFormatOptions,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+    .format(getFixedNumber(value, 0))
+    .replace(withoutCurrency ? currencyFormatOptions.currency! : '', '');
+
+/**
  * Compares two date strings
  * @param rowA - The first row - date: DD/MM/YYYY e.g. 26/02/2025
  * @param rowB - The second row - date: DD/MM/YYYY e.g. 26/02/2025
