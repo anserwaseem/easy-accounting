@@ -13,6 +13,7 @@ import type {
   UpdateInventoryItem,
   InsertInventoryItem,
   InsertChart,
+  UpdateJournalFields,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -229,6 +230,11 @@ const electronHandler = {
    */
   updateJournalNarration: (journalId: number, narration: string) =>
     ipcRenderer.invoke('journal:updateNarration', journalId, narration),
+  /**
+   * Update journal info (narration, bill number, discount percentage)
+   */
+  updateJournalInfo: (journalId: number, fields: UpdateJournalFields) =>
+    ipcRenderer.invoke('journal:updateInfo', journalId, fields),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

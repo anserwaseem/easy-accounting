@@ -160,8 +160,15 @@ export interface Journal extends Omit<BaseEntity, 'date'> {
   date: string;
   narration?: string;
   isPosted: boolean;
+  billNumber?: number;
+  discountPercentage?: number;
   journalEntries: JournalEntry[];
 }
+
+export type UpdateJournalFields = Pick<
+  Journal,
+  'narration' | 'billNumber' | 'discountPercentage'
+>;
 
 export type HasMiniView = {
   isMini?: boolean;

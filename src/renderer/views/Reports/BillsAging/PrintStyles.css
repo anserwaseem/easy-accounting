@@ -1,0 +1,31 @@
+.bills-aging-print-table th,
+.bills-aging-print-table td {
+  font-size: 14px !important;
+  padding: 0.5px 4px 0.5px 1px;
+  line-height: 1 !important;
+  border: 1px solid #000 !important;
+  white-space: nowrap !important;
+  vertical-align: bottom;
+  width: auto !important; /* let content decide */
+}
+.bills-aging-print-table th {
+  font-weight: 900 !important;
+  background-color: #f0f0f0 !important;
+  white-space: nowrap !important;
+}
+.bills-aging-print-table td {
+  font-weight: 500 !important;
+}
+.bills-aging-print-table tfoot td {
+  background-color: #f0f0f0 !important;
+  border: 1px solid #000 !important;
+  white-space: nowrap !important;
+}
+.bills-aging-print-table .extra-col {
+  width: 100px !important;
+}
+.bills-aging-print-table {
+  table-layout: auto !important; /* allow intrinsic sizing */
+  width: auto !important;
+  max-width: 100% !important;
+}

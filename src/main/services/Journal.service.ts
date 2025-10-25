@@ -1,7 +1,7 @@
 /* eslint-disable no-lonely-if */
-import type { Journal, JournalEntry } from 'types';
+import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
-import { compact, get, omit } from 'lodash';
+import { compact, get, has, omit } from 'lodash';
 import { cast } from '../utils/sqlite';
 import { store } from '../store';
 import { AccountType, BalanceType } from '../../types';
@@ -116,7 +116,8 @@ export class JournalService {
           throw new Error('Journal has multiple debits and multiple credits');
         }
 
-        const { date, narration, isPosted } = journal;
+        const { date, narration, isPosted, billNumber, discountPercentage } =
+          journal;
 
         // first check if this is a past dated entry that needs rebuilding
         const affectedAccounts = new Set(
@@ -135,6 +136,8 @@ export class JournalService {
           date,
           narration,
           isPosted: cast(isPosted),
+          billNumber,
+          discountPercentage,
         });
         const journalId = Number(result.lastInsertRowid);
 
@@ -344,10 +347,45 @@ export class JournalService {
     }
   }
 
+  updateJournalInfo(journalId: number, fields: UpdateJournalFields): void {
+    try {
+      const journal = this.getJournal(journalId);
+      if (!journal) {
+        throw new Error(`Journal with Id ${journalId} not found`);
+      }
+
+      const setClauses: string[] = [];
+      const params: Record<string, unknown> = { journalId };
+
+      if (has(fields, 'narration')) {
+        setClauses.push('narration = @narration');
+        params.narration = fields.narration ?? null;
+      }
+      if (has(fields, 'billNumber')) {
+        setClauses.push('billNumber = @billNumber');
+        params.billNumber = fields.billNumber ?? null;
+      }
+      if (has(fields, 'discountPercentage')) {
+        setClauses.push('discountPercentage = @discountPercentage');
+        params.discountPercentage = fields.discountPercentage ?? null;
+      }
+
+      if (setClauses.length === 0) return;
+
+      const sql = `UPDATE journal SET ${setClauses.join(
+        ', ',
+      )} WHERE id = @journalId`;
+      this.db.prepare(sql).run(params);
+    } catch (error) {
+      console.error(`Error in updateJournalInfo ${journalId}:`, error);
+      throw error;
+    }
+  }
+
   private initPreparedStatements() {
     this.stmJournal = this.db.prepare(
-      `INSERT INTO journal (date, narration, isPosted)
-       VALUES (@date, @narration, @isPosted)`,
+      `INSERT INTO journal (date, narration, isPosted, billNumber, discountPercentage)
+       VALUES (@date, @narration, @isPosted, @billNumber, @discountPercentage)`,
     );
     this.stmJournalEntry = this.db.prepare(
       `INSERT INTO journal_entry (journalId, debitAmount, accountId, creditAmount)
@@ -360,7 +398,7 @@ export class JournalService {
       "SELECT seq as id FROM sqlite_sequence WHERE name='journal'",
     );
     this.stmGetJournals = this.db.prepare(
-      `SELECT j.id, j.date, j.narration, j.isPosted, j.createdAt, j.updatedAt, je.debitAmount
+      `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.createdAt, j.updatedAt, je.debitAmount
        FROM journal j
        JOIN journal_entry je ON j.id = je.journalId
        JOIN account a ON a.id = je.accountId
@@ -369,7 +407,7 @@ export class JournalService {
        ORDER BY j.date DESC, j.id DESC`,
     );
     this.stmGetJournal = this.db.prepare(
-      `SELECT j.id, j.date, j.narration, j.isPosted, j.createdAt, j.updatedAt,
+      `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.createdAt, j.updatedAt,
               je.debitAmount, je.creditAmount, je.accountId, a.name as accountName
        FROM journal j
        JOIN journal_entry je ON j.id = je.journalId

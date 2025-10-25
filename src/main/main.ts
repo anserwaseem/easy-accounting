@@ -20,6 +20,7 @@ import type {
   UpdateInventoryItem,
   InsertInventoryItem,
   InsertChart,
+  UpdateJournalFields,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -258,6 +259,11 @@ app
       'journal:updateNarration',
       async (_, journalId: number, narration: string) =>
         journalService.updateJournalNarration(journalId, narration),
+    );
+    ipcMain.handle(
+      'journal:updateInfo',
+      async (_, journalId: number, fields: UpdateJournalFields) =>
+        journalService.updateJournalInfo(journalId, fields),
     );
     ipcMain.handle('inventory:save', (_, inventory: InventoryItem[]) =>
       inventoryService.saveInventory(inventory),

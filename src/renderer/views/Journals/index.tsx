@@ -14,9 +14,14 @@ import {
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
-import type { HasMiniView, Journal, JournalEntry } from 'types';
+import type {
+  HasMiniView,
+  Journal,
+  JournalEntry,
+  UpdateJournalFields,
+} from 'types';
 import { toNumber, toString } from 'lodash';
-import { EditNarrationDialog } from 'renderer/components/EditNarrationDialog';
+import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
 
@@ -40,10 +45,10 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
   const navigate = useNavigate();
 
-  const handleUpdateNarration = useCallback(
-    async (id: number, newNarration: string) => {
+  const handleUpdateJournal = useCallback(
+    async (id: number, fields: UpdateJournalFields) => {
       try {
-        await window.electron.updateJournalNarration(id, newNarration);
+        await window.electron.updateJournalInfo(id, fields);
         // Refresh journals data
         const updatedJournals = await window.electron.getJournals();
         // Calculate amounts for each journal
@@ -52,13 +57,13 @@ const JournalsPage: React.FC<HasMiniView> = ({
         setFilteredJournals(journalsWithAmounts);
         toast({
           title: 'Success',
-          description: 'Journal narration updated successfully',
+          description: 'Journal updated successfully',
         });
       } catch (error) {
-        console.error('Error updating journal narration:', error);
+        console.error('Error updating journal:', error);
         toast({
           title: 'Error',
-          description: 'Failed to update journal narration',
+          description: 'Failed to update journal',
           variant: 'destructive',
         });
         throw error;
@@ -84,7 +89,24 @@ const JournalsPage: React.FC<HasMiniView> = ({
         accessorKey: 'narration',
         header: 'Narration',
         onClick: (row) => navigate(toString(row.original.id)),
-        size: 1100,
+        size: 800,
+      },
+      {
+        accessorKey: 'billNumber',
+        header: 'Bill#',
+        cell: ({ row }) => row.original.billNumber || '-',
+        onClick: (row) => navigate(toString(row.original.id)),
+        size: 80,
+      },
+      {
+        accessorKey: 'discountPercentage',
+        header: 'Discount%',
+        cell: ({ row }) =>
+          row.original.discountPercentage
+            ? `${row.original.discountPercentage}%`
+            : '-',
+        onClick: (row) => navigate(toString(row.original.id)),
+        size: 100,
       },
       {
         accessorKey: 'amount',
@@ -109,17 +131,19 @@ const JournalsPage: React.FC<HasMiniView> = ({
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <EditNarrationDialog
+            <EditJournalFieldsDialog
               journalId={row.original.id}
               narration={row.original.narration || ''}
-              onSave={handleUpdateNarration}
+              billNumber={row.original.billNumber}
+              discountPercentage={row.original.discountPercentage}
+              onSave={handleUpdateJournal}
             />
           </div>
         ),
         size: 10,
       },
     ],
-    [navigate, handleUpdateNarration],
+    [navigate, handleUpdateJournal],
   );
 
   const handleFilterDateSelect = useCallback(

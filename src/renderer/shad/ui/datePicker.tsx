@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { addDays, addMonths, addYears, format } from 'date-fns';
+import {
+  addDays,
+  addMonths,
+  addYears,
+  format,
+  startOfMonth,
+  startOfYear,
+} from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 
@@ -148,9 +155,11 @@ export const DateRangePicker: React.FC<Partial<DateRangePickerProps>> = ({
 const DEFAULT_PRESETS = [
   { label: 'Today', value: '0' },
   { label: 'Yesterday', value: '-1' },
-  { label: 'This Week', value: '-7' },
-  { label: 'This Month', value: '-30' },
-  { label: 'This Year', value: '-365' },
+  { label: 'Last 7 Days', value: '-7' },
+  { label: 'Last 30 Days', value: '-30' },
+  { label: 'Last 365 Days', value: '-365' },
+  { label: 'Current Month', value: 'current-month' },
+  { label: 'Current Year', value: 'current-year' },
 ];
 
 export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
@@ -186,46 +195,58 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   }, [date?.from, date?.to, presets, selectValue]);
 
   const onValueChange = useCallback((value: string) => {
-    const numberVal = toNumber(value);
-
     setSelectValue(value);
 
-    if (isNaN(numberVal)) setDate(undefined);
-    else if (numberVal === 0) setDate({ from: new Date(), to: new Date() });
-    else if (numberVal < 0) {
-      let fromDate;
-      switch (numberVal) {
-        case -30:
-          fromDate = addMonths(new Date(), -1);
-          break;
-        case -365:
-          fromDate = addYears(new Date(), -1);
-          break;
-        default:
-          fromDate = addDays(new Date(), numberVal);
-          break;
-      }
+    if (value === 'current-month') {
       setDate({
-        from: fromDate,
+        from: startOfMonth(new Date()),
+        to: new Date(),
+      });
+    } else if (value === 'current-year') {
+      setDate({
+        from: startOfYear(new Date()),
         to: new Date(),
       });
     } else {
-      let toDate;
-      switch (numberVal) {
-        case 30:
-          toDate = addMonths(new Date(), 1);
-          break;
-        case 365:
-          toDate = addYears(new Date(), 1);
-          break;
-        default:
-          toDate = addDays(new Date(), numberVal);
-          break;
+      const numberVal = toNumber(value);
+
+      if (isNaN(numberVal)) setDate(undefined);
+      else if (numberVal === 0) setDate({ from: new Date(), to: new Date() });
+      else if (numberVal < 0) {
+        let fromDate;
+        switch (numberVal) {
+          case -30:
+            fromDate = addMonths(new Date(), -1);
+            break;
+          case -365:
+            fromDate = addYears(new Date(), -1);
+            break;
+          default:
+            fromDate = addDays(new Date(), numberVal);
+            break;
+        }
+        setDate({
+          from: fromDate,
+          to: new Date(),
+        });
+      } else {
+        let toDate;
+        switch (numberVal) {
+          case 30:
+            toDate = addMonths(new Date(), 1);
+            break;
+          case 365:
+            toDate = addYears(new Date(), 1);
+            break;
+          default:
+            toDate = addDays(new Date(), numberVal);
+            break;
+        }
+        setDate({
+          from: new Date(),
+          to: toDate,
+        });
       }
-      setDate({
-        from: new Date(),
-        to: toDate,
-      });
     }
   }, []);
 
