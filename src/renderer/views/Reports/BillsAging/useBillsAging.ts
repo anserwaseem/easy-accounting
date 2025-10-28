@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isEmpty, sumBy } from 'lodash';
 import { format } from 'date-fns';
+import { getFixedNumber } from 'renderer/lib/utils';
 import type { Account, Chart, LedgerView, Journal } from '@/types';
 import type {
   BillsAging,
@@ -92,10 +93,27 @@ export const useBillsAging = () => {
           {} as Record<number, LedgerView[]>,
         );
 
+        // normalize dates to start/end of day for consistent comparison
         const selectedDateEnd = new Date(end);
         selectedDateEnd.setHours(23, 59, 59, 999);
         const selectedDateStart = new Date(start);
         selectedDateStart.setHours(0, 0, 0, 0);
+
+        // helper function to extract date components and compare by calendar date
+        const isDateInRange = (dateStr: string): boolean => {
+          const entryDate = new Date(dateStr);
+          // normalize entry date to midnight for day-based comparison
+          const normalizedEntry = new Date(entryDate);
+          normalizedEntry.setHours(0, 0, 0, 0);
+          const normalizedStart = new Date(selectedDateStart);
+          const normalizedEnd = new Date(selectedDateEnd);
+          normalizedEnd.setHours(0, 0, 0, 0); // compare at day level
+
+          return (
+            normalizedEntry.getTime() >= normalizedStart.getTime() &&
+            normalizedEntry.getTime() <= normalizedEnd.getTime()
+          );
+        };
 
         // collect all journal IDs from all accounts first
         const allJournalIds = new Set<number>();
@@ -106,12 +124,9 @@ export const useBillsAging = () => {
           if (isEmpty(ledger)) continue;
 
           // filter ledger entries within the selected date range
-          const entriesInRange = ledger.filter((entry: LedgerView) => {
-            const t = new Date(entry.date).getTime();
-            return (
-              t >= selectedDateStart.getTime() && t <= selectedDateEnd.getTime()
-            );
-          });
+          const entriesInRange = ledger.filter((entry: LedgerView) =>
+            isDateInRange(entry.date),
+          );
 
           if (isEmpty(entriesInRange)) continue;
 
@@ -130,11 +145,10 @@ export const useBillsAging = () => {
           });
         }
 
-        // fetch all journals at once
-        const journals: Record<number, Journal> = {};
-        if (allJournalIds.size === 0) {
+        // check if there are any entries to process at all
+        if (Object.keys(accountLedgersMap).length === 0) {
           setInfoMessage(
-            `No journals found for ${headName} during period: ${format(
+            `No entries found for ${headName} during period: ${format(
               selectedDateStart,
               'dd/MM/yyyy',
             )} to ${format(selectedDateEnd, 'dd/MM/yyyy')}`,
@@ -146,6 +160,9 @@ export const useBillsAging = () => {
           });
           return;
         }
+
+        // fetch all journals at once (only if there are journal-referenced entries)
+        const journals: Record<number, Journal> = {};
         const journalPromises = Array.from(allJournalIds).map(
           async (journalId) => {
             try {
@@ -211,21 +228,23 @@ export const useBillsAging = () => {
             });
           }
 
-          // group debit entries by journal
-          const debitByJournal = debitEntries.reduce(
-            (acc: Record<number, LedgerView[]>, entry: LedgerView) => {
-              const match = entry.particulars.match(/Journal #(\d+)/);
-              if (match) {
-                const journalId = parseInt(match[1], 10);
-                if (!acc[journalId]) acc[journalId] = [];
-                acc[journalId].push(entry);
-              }
-              return acc;
-            },
-            {} as Record<number, LedgerView[]>,
-          );
+          // separate debit entries with and without journal references
+          const debitByJournal: Record<number, LedgerView[]> = {};
+          const debitWithoutJournal: LedgerView[] = [];
 
-          // create bills from debit entries
+          debitEntries.forEach((entry: LedgerView) => {
+            const match = entry.particulars.match(/Journal #(\d+)/);
+            if (match) {
+              const journalId = parseInt(match[1], 10);
+              if (!debitByJournal[journalId]) debitByJournal[journalId] = [];
+              debitByJournal[journalId].push(entry);
+            } else {
+              // entries without journal reference (opening balance, manual adjustments, etc.)
+              debitWithoutJournal.push(entry);
+            }
+          });
+
+          // create bills from debit entries with journal references
           for (const [journalId, entries] of Object.entries(debitByJournal)) {
             const journal = journals[parseInt(journalId, 10)];
             const billNumber = journal?.billNumber
@@ -248,6 +267,22 @@ export const useBillsAging = () => {
               },
             });
           }
+
+          // create bills from debit entries without journal references
+          debitWithoutJournal.forEach((entry: LedgerView) => {
+            bills.push({
+              billNumber: entry.particulars, // use particulars as bill identifier
+              billPercentage: '-',
+              billDate: entry.date,
+              billAmount: entry.debit,
+              receipts: [],
+              finalBalance: entry.debit,
+              daysStatus: {
+                isFullyPaid: false,
+                days: 0,
+              },
+            });
+          });
 
           // sort bills by date
           bills.sort(
@@ -273,7 +308,7 @@ export const useBillsAging = () => {
                 receipts.push({
                   receivedDate: credit.date,
                   receivedAmount: credit.credit,
-                  balance: billBalance,
+                  balance: getFixedNumber(billBalance, 2),
                 });
                 creditIndex++; // move to next credit
               } else {
@@ -295,7 +330,7 @@ export const useBillsAging = () => {
             }
 
             bill.receipts = receipts;
-            bill.finalBalance = billBalance;
+            bill.finalBalance = getFixedNumber(billBalance, 2);
           }
 
           // add any remaining credits to unallocated

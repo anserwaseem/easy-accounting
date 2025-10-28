@@ -16,7 +16,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({
   children,
 }: PropsWithChildren) => {
   return (
-    <div className="flex space-x-4 min-h-screen">
+    <div className="flex space-x-4 h-screen overflow-hidden">
       <ShadSidebar
         title={<h1 className="text-xl font-semibold ">Easy Accounting</h1>}
         itemsClassName="w-full xs:w-[200px] md:w-[300px]"
@@ -111,12 +111,14 @@ const Sidebar: React.FC<PropsWithChildren> = ({
             </Button>
           </div>,
         ]}
-        className="print:hidden"
+        className="print:hidden h-full overflow-y-auto"
       />
-      <div className="flex-grow min-w-0 w-full mx-auto p-4">
-        <MainNav className="print:hidden" />
-        {children}
-        <Outlet />
+      <div className="flex flex-col flex-grow min-w-0 w-full mx-auto">
+        <MainNav className="print:hidden flex-shrink-0" />
+        <div className="flex-grow overflow-y-auto p-4">
+          {children}
+          <Outlet />
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,3 @@
-import { getFormattedCurrency } from 'renderer/lib/utils';
 import type { LedgerView } from '@/types';
 import { format } from 'date-fns';
 import { Card } from '@/renderer/shad/ui/card';
@@ -30,13 +29,6 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
     );
   }
 
-  const latestBalance =
-    ledger.length > 0
-      ? `${getFormattedCurrency(
-          ledger.at(-1)?.balance ?? 0,
-        ).trim()} ${ledger.at(-1)?.balanceType}`
-      : '';
-
   return (
     <>
       {/* Print-only report header */}
@@ -45,16 +37,6 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
           Ledger Report for {accountName} as of{' '}
           {format(selectedDate, 'MMMM do, yyyy')}
         </h1>
-      </div>
-
-      {/* Account and balance info */}
-      <div className="flex justify-between items-center mb-4 print:mb-2">
-        {ledger.length > 0 && (
-          <p>
-            Latest Balance:{' '}
-            <span className="font-semibold">{latestBalance}</span>
-          </p>
-        )}
       </div>
 
       {/* Table - styled for both screen and print */}

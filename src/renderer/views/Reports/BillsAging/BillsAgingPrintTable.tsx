@@ -41,8 +41,8 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
 
   // sort accounts by code (handle both number and string codes)
   const sortedAccounts = [...accounts].sort((a, b) => {
-    const codeA = a.accountCode?.toString() || '';
-    const codeB = b.accountCode?.toString() || '';
+    const codeA = a.accountCode?.toString()?.trim() || '';
+    const codeB = b.accountCode?.toString()?.trim() || '';
     return codeA.localeCompare(codeB, undefined, {
       numeric: true,
       sensitivity: 'base',
@@ -54,7 +54,7 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
 
   sortedAccounts.forEach((account) => {
     const visibleBills = hideZeroRows
-      ? account.bills.filter((b) => b.finalBalance !== 0)
+      ? account.bills.filter((b) => getFixedNumber(b.finalBalance, 0) !== 0)
       : account.bills;
 
     // add bill rows
@@ -66,9 +66,9 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
         billPercentage: bill.billPercentage,
         balance: bill.finalBalance,
         daysStatus: bill.daysStatus,
-        sortKey: `${account.accountCode || ''}-${bill.billDate}-${
-          bill.billNumber
-        }`,
+        sortKey: `${account.accountCode?.toString()?.trim() || ''}-${
+          bill.billDate
+        }-${bill.billNumber}`,
       });
     });
 
@@ -80,9 +80,9 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
         billDate: receipt.receivedDate,
         billPercentage: '-',
         balance: -receipt.receivedAmount, // negative because it's a receipt
-        sortKey: `${account.accountCode || ''}-unallocated-${
-          receipt.receivedDate
-        }`,
+        sortKey: `${
+          account.accountCode?.toString()?.trim() || ''
+        }-unallocated-${receipt.receivedDate}`,
       });
     });
   });
@@ -90,7 +90,10 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
   // sort rows by account code, then by date, then by bill number
   allRows.sort((a, b) => {
     if (a.sortKey && b.sortKey) {
-      return a.sortKey.localeCompare(b.sortKey);
+      return a.sortKey.localeCompare(b.sortKey, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
     }
     return 0;
   });

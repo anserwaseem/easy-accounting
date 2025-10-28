@@ -9,9 +9,10 @@ import {
 } from 'renderer/shad/ui/popover';
 import { cn } from 'renderer/lib/utils';
 import { Card } from 'renderer/shad/ui/card';
+import { ReportLayout } from 'renderer/components/ReportLayout';
+import { printStyles } from '../components';
 import { TrialBalanceTable } from './TrialBalanceTable';
 import { useTrialBalance } from './useTrialBalance';
-import { printStyles } from '../components';
 
 const TrialBalancePage = () => {
   const { selectedDate, trialBalance, isLoading, handleDateChange } =
@@ -22,24 +23,20 @@ const TrialBalancePage = () => {
   };
 
   return (
-    <>
-      <style>{printStyles}</style>
-      <div className="w-full mx-auto print-container">
-        <div className="flex justify-between items-center mb-6 print-header">
-          <h1 className="text-2xl font-semibold text-primary print:hidden">
-            Trial Balance
-          </h1>
+    <ReportLayout
+      printStyles={printStyles}
+      header={
+        <div className="flex justify-between items-center pb-2 print-header">
+          <h1 className="text-2xl font-semibold text-primary">Trial Balance</h1>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground print:hidden">
-                As of:
-              </span>
+              <span className="text-sm text-muted-foreground">As of:</span>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      'w-[200px] justify-start text-left font-normal print:hidden',
+                      'w-[200px] justify-start text-left font-normal',
                       isLoading && 'opacity-70 cursor-not-allowed',
                     )}
                     disabled={isLoading}
@@ -63,30 +60,26 @@ const TrialBalancePage = () => {
               size="icon"
               onClick={handlePrint}
               title="Print Trial Balance"
-              className="print:hidden"
             >
               <Printer className="h-4 w-4" />
             </Button>
           </div>
         </div>
+      }
+    >
+      <Card className="p-6 shadow-md print-card">
+        {!trialBalance.isBalanced && (
+          <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md text-sm text-destructive print:hidden">
+            Trial balance is not balanced! Difference:{' '}
+            {Math.abs(
+              trialBalance.totalDebit - trialBalance.totalCredit,
+            ).toFixed(2)}
+          </div>
+        )}
 
-        <Card className="p-6 shadow-md print-card">
-          {!trialBalance.isBalanced && (
-            <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md text-sm text-destructive print:hidden">
-              Trial balance is not balanced! Difference:{' '}
-              {Math.abs(
-                trialBalance.totalDebit - trialBalance.totalCredit,
-              ).toFixed(2)}
-            </div>
-          )}
-
-          <TrialBalanceTable
-            trialBalance={trialBalance}
-            isLoading={isLoading}
-          />
-        </Card>
-      </div>
-    </>
+        <TrialBalanceTable trialBalance={trialBalance} isLoading={isLoading} />
+      </Card>
+    </ReportLayout>
   );
 };
 
