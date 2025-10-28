@@ -8,5 +8,6 @@ Closes #
 
 ## Checklist before requesting a review
 
+- [ ] I have bumped version in package.json files.
 - [ ] I have confirmed that it works on Mac and Windows.
 - [ ] I have added tests.
