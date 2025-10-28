@@ -16,9 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'renderer/shad/ui/select';
+import { ReportLayout } from 'renderer/components/ReportLayout';
+import { printStyles } from '../components';
 import { useAccountBalances } from './useAccountBalances';
 import { AccountBalancesTable } from './AccountBalancesTable';
-import { printStyles } from '../components';
 
 const AccountBalancesPage = () => {
   const {
@@ -36,14 +37,14 @@ const AccountBalancesPage = () => {
   };
 
   return (
-    <>
-      <style>{printStyles}</style>
-      <div className="w-full mx-auto print-container">
-        <div className="flex justify-between items-center mb-6 print-header">
-          <h1 className="text-2xl font-semibold text-primary print:hidden">
+    <ReportLayout
+      printStyles={printStyles}
+      header={
+        <div className="flex justify-between items-center pb-2 print-header">
+          <h1 className="text-2xl font-semibold text-primary">
             Account Balances
           </h1>
-          <div className="print:hidden flex items-center gap-4">
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Head:</span>
               <Select value={selectedHead} onValueChange={handleHeadChange}>
@@ -90,29 +91,28 @@ const AccountBalancesPage = () => {
               size="icon"
               onClick={handlePrint}
               title="Print Account Balances"
-              className="print:hidden"
             >
               <Printer className="h-4 w-4" />
             </Button>
           </div>
         </div>
-
-        {/* Title that shows when printing */}
-        <div className="hidden print:block text-center mb-4 print-header">
-          <h1 className="text-lg font-medium text-center mb-1">
-            Account Balances Report for {selectedHead} as of{' '}
-            {format(selectedDate, 'PPP')}
-          </h1>
-        </div>
-
-        <Card className="p-6 shadow-md print-card">
-          <AccountBalancesTable
-            accountBalances={accountBalances}
-            isLoading={isLoading}
-          />
-        </Card>
+      }
+    >
+      {/* Title that shows when printing */}
+      <div className="hidden print:block text-center mb-4 print-header">
+        <h1 className="text-lg font-medium text-center mb-1">
+          Account Balances Report for {selectedHead} as of{' '}
+          {format(selectedDate, 'PPP')}
+        </h1>
       </div>
-    </>
+
+      <Card className="p-6 shadow-md print-card">
+        <AccountBalancesTable
+          accountBalances={accountBalances}
+          isLoading={isLoading}
+        />
+      </Card>
+    </ReportLayout>
   );
 };
 
