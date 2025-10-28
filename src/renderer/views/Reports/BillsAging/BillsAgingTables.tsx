@@ -30,8 +30,8 @@ export const BillsAgingTables: FC<BillsAgingTablesProps> = ({
 
   // sort accounts by code (handle both number and string codes)
   const sortedAccounts = [...accounts].sort((a, b) => {
-    const codeA = a.accountCode?.toString() || '';
-    const codeB = b.accountCode?.toString() || '';
+    const codeA = a.accountCode?.toString()?.trim() || '';
+    const codeB = b.accountCode?.toString()?.trim() || '';
     return codeA.localeCompare(codeB, undefined, {
       numeric: true,
       sensitivity: 'base',
@@ -42,7 +42,7 @@ export const BillsAgingTables: FC<BillsAgingTablesProps> = ({
     <div className="space-y-8 max-w-full">
       {sortedAccounts.map((account) => {
         const visibleBills = hideZeroRows
-          ? account.bills.filter((b) => b.finalBalance !== 0)
+          ? account.bills.filter((b) => getFixedNumber(b.finalBalance, 0) !== 0)
           : account.bills;
 
         // when filters are applied, only show receipt/balance columns that have data

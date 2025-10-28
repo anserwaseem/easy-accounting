@@ -58,7 +58,9 @@ const BillsAgingPage = () => {
     () =>
       hideNonPositiveOutstanding
         ? billsAging.accounts.filter(
-            (acc) => acc.totalOutstanding - acc.totalUnallocated > 0,
+            (acc) =>
+              getFixedNumber(acc.totalOutstanding - acc.totalUnallocated, 0) >
+              0,
           )
         : billsAging.accounts,
     [billsAging.accounts, hideNonPositiveOutstanding],
