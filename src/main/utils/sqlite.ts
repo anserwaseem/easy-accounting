@@ -1,5 +1,5 @@
 /* eslint-disable no-redeclare */
-
+import { raise } from './general';
 /**
  * Represents a boolean value in SQLite, where 0 is false and 1 is true.
  */
@@ -35,5 +35,5 @@ export function cast(value: boolean | Date | number) {
     return String(value);
   }
 
-  throw new Error('Invalid input type for cast function');
+  raise('Invalid input type for cast function');
 }

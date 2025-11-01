@@ -6,6 +6,16 @@ import { currencyFormatOptions } from './constants';
 import { toast } from '../shad/ui/use-toast';
 
 /**
+ * Throws an error with the given message. Useful for nullish coalescing with ?? operator.
+ * @param err - The error message to throw.
+ * @throws {Error} Always throws an error.
+ * @example const id = props.params.id ?? raise("no id provided");
+ */
+export const raise = (err: string): never => {
+  throw new Error(err);
+};
+
+/**
  * Combines multiple class names into a single string.
  * @param inputs - The class names to be combined.
  * @returns The combined class names as a string.
@@ -162,7 +172,7 @@ export async function handleAsync<T>(
       }
       onSuccess?.(result);
     } else if (shouldExpectResult) {
-      throw new Error(errorMessage || 'Operation failed');
+      raise(errorMessage || 'Operation failed');
     }
   } catch (error) {
     console.error(error);

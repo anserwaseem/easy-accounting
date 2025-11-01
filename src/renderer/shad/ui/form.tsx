@@ -21,7 +21,7 @@ import {
   useFormContext,
 } from 'react-hook-form';
 
-import { cn } from 'renderer/lib/utils';
+import { cn, raise } from 'renderer/lib/utils';
 import { Label } from 'renderer/shad/ui/label';
 
 const Form = FormProvider;
@@ -64,17 +64,15 @@ const useFormField = () => {
   const itemContext = useContext(FormItemContext);
   const { getFieldState, formState } = useFormContext();
 
-  const fieldState = getFieldState(fieldContext.name, formState);
-
-  if (!fieldContext) {
-    throw new Error('useFormField should be used within <FormField>');
-  }
+  const validFieldContext =
+    fieldContext ?? raise('useFormField should be used within <FormField>');
+  const fieldState = getFieldState(validFieldContext.name, formState);
 
   const { id } = itemContext;
 
   return {
     id,
-    name: fieldContext.name,
+    name: validFieldContext.name,
     formItemId: `${id}-form-item`,
     formDescriptionId: `${id}-form-item-description`,
     formMessageId: `${id}-form-item-message`,

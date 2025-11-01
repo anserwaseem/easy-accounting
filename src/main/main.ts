@@ -26,7 +26,7 @@ import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
 import { isNil } from 'lodash';
 import MenuBuilder from './menu';
-import { formatString, resolveHtmlPath } from './utils/general';
+import { formatString, resolveHtmlPath, raise } from './utils/general';
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
 import { MigrationRunner } from './migrations/index';
@@ -126,13 +126,11 @@ const createWindow = async () => {
   mainWindow.loadURL(resolveHtmlPath('index.html'));
 
   mainWindow.on('ready-to-show', () => {
-    if (!mainWindow) {
-      throw new Error('"mainWindow" is not defined');
-    }
+    const validMainWindow = mainWindow ?? raise('"mainWindow" is not defined');
     if (process.env.START_MINIMIZED) {
-      mainWindow.minimize();
+      validMainWindow.minimize();
     } else {
-      mainWindow.show();
+      validMainWindow.show();
     }
   });
 

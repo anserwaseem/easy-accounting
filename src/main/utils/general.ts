@@ -7,6 +7,16 @@ import { get, isEmpty } from 'lodash';
 import { hostname } from 'node:os';
 import cp from 'node:child_process';
 
+/**
+ * Throws an error with the given message. Useful for nullish coalescing with ?? operator.
+ * @param err - The error message to throw.
+ * @throws {Error} Always throws an error.
+ * @example const id = props.params.id ?? raise("no id provided");
+ */
+export const raise = (err: string): never => {
+  throw new Error(err);
+};
+
 export function resolveHtmlPath(htmlFileName: string) {
   if (process.env.NODE_ENV === 'development') {
     const port = process.env.PORT || 1212;

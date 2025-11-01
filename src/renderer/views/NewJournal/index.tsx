@@ -15,6 +15,7 @@ import {
   cn,
   defaultSortingFunctions,
   getFixedNumber,
+  raise,
 } from 'renderer/lib/utils';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { z } from 'zod';
@@ -431,7 +432,7 @@ const NewJournalPage: React.FC = () => {
         });
         return;
       }
-      throw new Error('Failed to save journal');
+      raise('Failed to save journal');
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error(error);

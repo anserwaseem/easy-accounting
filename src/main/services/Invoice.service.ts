@@ -13,9 +13,9 @@ import {
 } from '../../types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
+import { raise, convertOrdinalDate } from '../utils/general';
 import { JournalService } from './Journal.service';
 import { cast } from '../utils/sqlite';
-import { convertOrdinalDate } from '../utils/general';
 import { INVOICE_DISCOUNT_PERCENTAGE } from '../utils/constants';
 
 @logErrors
@@ -356,21 +356,20 @@ export class InvoiceService {
       (acc) => acc.name.toLowerCase() === InvoiceType.Sale.toLowerCase(),
     );
 
-    if (!purchaseAccount?.id || !salesAccount?.id) {
-      throw new Error(
-        "Please create both 'Purchase' and 'Sale' accounts first",
-      );
-    }
+    const validPurchaseAccount =
+      purchaseAccount ?? raise("Please create 'Purchase' account first");
+    const validSalesAccount =
+      salesAccount ?? raise("Please create 'Sale' account first");
 
     if (invoiceType === InvoiceType.Purchase) {
       return {
-        debitAccountId: purchaseAccount.id, // Debit Purchase
+        debitAccountId: validPurchaseAccount.id, // Debit Purchase
         creditAccountId: accountId, // Credit Vendor
       };
     }
     return {
       debitAccountId: accountId, // Debit Cash/Customer
-      creditAccountId: salesAccount.id, // Credit Sales
+      creditAccountId: validSalesAccount.id, // Credit Sales
     };
   }
 
