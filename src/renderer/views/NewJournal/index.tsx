@@ -17,11 +17,12 @@ import {
   getFixedNumber,
   raise,
   getFormattedCurrency,
+  getFormattedCurrencyInt,
 } from 'renderer/lib/utils';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import {
   Form,
   FormControl,
@@ -174,7 +175,7 @@ const NewJournalPage: React.FC = () => {
 
   const handleDebitBlur = useCallback(
     (value: string, rowIndex: number) => {
-      const val = toNumber(value);
+      const val = getFixedNumber(toNumber(value), 2);
 
       const latestJournal = form.getValues();
 
@@ -205,7 +206,7 @@ const NewJournalPage: React.FC = () => {
 
   const handleCreditBlur = useCallback(
     (value: string, rowIndex: number) => {
-      const val = toNumber(value);
+      const val = getFixedNumber(toNumber(value), 2);
 
       const latestJournal = form.getValues();
 
@@ -297,7 +298,7 @@ const NewJournalPage: React.FC = () => {
       new Intl.NumberFormat('en-US', {
         useGrouping: true,
         minimumFractionDigits: 0,
-        maximumFractionDigits: 4,
+        maximumFractionDigits: 2,
       }),
     [],
   );
@@ -505,6 +506,19 @@ const NewJournalPage: React.FC = () => {
       getCellKey,
       getDisplayAmountValue,
     ],
+  );
+
+  const journalEntriesForTotals = useWatch({
+    control: form.control,
+    name: 'journalEntries',
+  });
+  const shouldShowFractions = useMemo(
+    () =>
+      journalEntriesForTotals.some(
+        (e) =>
+          !Number.isInteger(e.debitAmount) || !Number.isInteger(e.creditAmount),
+      ),
+    [journalEntriesForTotals],
   );
 
   const handleAddNewRow = useCallback(
@@ -828,18 +842,30 @@ const NewJournalPage: React.FC = () => {
                     <TableCell className="font-medium text-xl w-1/3">
                       Total
                     </TableCell>
-                    <TableCell>{getFormattedCurrency(totalDebits)}</TableCell>
-                    <TableCell>{getFormattedCurrency(totalCredits)}</TableCell>
+                    <TableCell>
+                      {shouldShowFractions
+                        ? getFormattedCurrency(totalDebits)
+                        : getFormattedCurrencyInt(totalDebits)}
+                    </TableCell>
+                    <TableCell>
+                      {shouldShowFractions
+                        ? getFormattedCurrency(totalCredits)
+                        : getFormattedCurrencyInt(totalCredits)}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium text-red-500">
                       Difference
                     </TableCell>
                     <TableCell className="text-red-500">
-                      {getFormattedCurrency(differenceDebit)}
+                      {shouldShowFractions
+                        ? getFormattedCurrency(differenceDebit)
+                        : getFormattedCurrencyInt(differenceDebit)}
                     </TableCell>
                     <TableCell className="text-red-500">
-                      {getFormattedCurrency(differenceCredit)}
+                      {shouldShowFractions
+                        ? getFormattedCurrency(differenceCredit)
+                        : getFormattedCurrencyInt(differenceCredit)}
                     </TableCell>
                   </TableRow>
                 </TableBody>
