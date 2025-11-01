@@ -282,32 +282,50 @@ const NewJournalPage: React.FC = () => {
     return normalized || '0';
   }, []);
 
-  const formatAmountForDisplay = useCallback((value: number | string) => {
-    const numericValue = toNumber(value);
-    if (!Number.isFinite(numericValue) || numericValue === 0)
-      return toString(value);
-    return new Intl.NumberFormat('en-US', {
-      useGrouping: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 4,
-    }).format(numericValue);
-  }, []);
+  const intFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat('en-US', {
+        useGrouping: true,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }),
+    [],
+  );
 
-  const formatStringWithGrouping = useCallback((value: string) => {
-    if (!value) return '';
-    const hasDot = value.includes('.');
-    const [intPartRaw, decimalPartRaw = ''] = value.split('.');
-    const intPartNumber = toNumber(intPartRaw);
-    const groupedInt = Number.isFinite(intPartNumber)
-      ? new Intl.NumberFormat('en-US', {
-          useGrouping: true,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        }).format(intPartNumber)
-      : intPartRaw;
-    if (hasDot) return `${groupedInt}.${decimalPartRaw}`;
-    return groupedInt;
-  }, []);
+  const floatFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat('en-US', {
+        useGrouping: true,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4,
+      }),
+    [],
+  );
+
+  const formatAmountForDisplay = useCallback(
+    (value: number | string) => {
+      const numericValue = toNumber(value);
+      if (!Number.isFinite(numericValue) || numericValue === 0)
+        return toString(value);
+      return floatFormatter.format(numericValue);
+    },
+    [floatFormatter],
+  );
+
+  const formatStringWithGrouping = useCallback(
+    (value: string) => {
+      if (!value) return '';
+      const hasDot = value.includes('.');
+      const [intPartRaw, decimalPartRaw = ''] = value.split('.');
+      const intPartNumber = toNumber(intPartRaw);
+      const groupedInt = Number.isFinite(intPartNumber)
+        ? intFormatter.format(intPartNumber)
+        : intPartRaw;
+      if (hasDot) return `${groupedInt}.${decimalPartRaw}`;
+      return groupedInt;
+    },
+    [intFormatter],
+  );
 
   const getCellKey = useCallback(
     (rowId: number, type: 'debit' | 'credit') => `${rowId}-${type}`,
@@ -379,6 +397,7 @@ const NewJournalPage: React.FC = () => {
                       field.value,
                     )}
                     type="text"
+                    inputMode="decimal"
                     onChange={(e) => {
                       const key = getCellKey(row.original.id, 'debit');
                       const sanitized = removeDefaultLabel(e.target.value);
@@ -429,6 +448,7 @@ const NewJournalPage: React.FC = () => {
                       field.value,
                     )}
                     type="text"
+                    inputMode="decimal"
                     onChange={(e) => {
                       const key = getCellKey(row.original.id, 'credit');
                       const sanitized = removeDefaultLabel(e.target.value);
