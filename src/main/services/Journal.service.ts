@@ -8,6 +8,7 @@ import { AccountType, BalanceType } from '../../types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
 import { LedgerService } from './Ledger.service';
+import { raise } from '../utils/general';
 
 @logErrors
 export class JournalService {
@@ -113,7 +114,7 @@ export class JournalService {
         const debitEntries = journalEntries.filter((e) => e.debitAmount > 0);
         const creditEntries = journalEntries.filter((e) => e.creditAmount > 0);
         if (debitEntries.length > 1 && creditEntries.length > 1) {
-          throw new Error('Journal has multiple debits and multiple credits');
+          raise('Journal has multiple debits and multiple credits');
         }
 
         const { date, narration, isPosted, billNumber, discountPercentage } =
@@ -205,7 +206,7 @@ export class JournalService {
           balanceType = balance >= 0 ? BalanceType.Cr : BalanceType.Dr;
           break;
         default:
-          throw new Error(`Unknown account type: ${accountType}`);
+          raise(`Unknown account type: ${accountType}`);
       }
 
       // insert new ledger entry
@@ -232,7 +233,7 @@ export class JournalService {
       case AccountType.Revenue:
         return BalanceType.Cr;
       default:
-        throw new Error(`Unknown account type: ${accountType}`);
+        return raise(`Unknown account type: ${accountType}`);
     }
   }
 
@@ -332,13 +333,12 @@ export class JournalService {
 
   updateJournalNarration(journalId: number, narration: string): void {
     try {
-      const journal = this.getJournal(journalId);
-      if (!journal) {
-        throw new Error(`Journal with Id ${journalId} not found`);
-      }
+      const { id } =
+        this.getJournal(journalId) ??
+        raise(`Journal with Id ${journalId} not found`);
 
       this.stmUpdateJournalNarration.run({
-        journalId,
+        journalId: id,
         narration,
       });
     } catch (error) {
@@ -350,8 +350,8 @@ export class JournalService {
   updateJournalInfo(journalId: number, fields: UpdateJournalFields): void {
     try {
       const journal = this.getJournal(journalId);
-      if (!journal) {
-        throw new Error(`Journal with Id ${journalId} not found`);
+      if (!journal || !journal.id) {
+        raise(`Journal with Id ${journalId} not found`);
       }
 
       const setClauses: string[] = [];

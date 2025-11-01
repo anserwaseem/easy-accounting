@@ -7,6 +7,7 @@ import {
   useMemo,
 } from 'react';
 import type { UserCredentials } from 'types';
+import { raise } from '../lib/utils';
 
 interface AuthContextState {
   authed: boolean;
@@ -53,8 +54,5 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({
 export const useAuth = () => {
   const context = useContext(AuthContext);
 
-  if (context === undefined)
-    throw new Error('useAuth must be used within a AuthProvider');
-
-  return context;
+  return context ?? raise('useAuth must be used within a AuthProvider');
 };

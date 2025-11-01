@@ -1,4 +1,5 @@
 import { read, utils } from 'xlsx';
+import { raise } from './utils';
 
 /**
  * Converts a File object to JSON format.
@@ -9,9 +10,9 @@ import { read, utils } from 'xlsx';
 export const convertFileToJson = async (
   file: File | undefined,
 ): Promise<unknown[]> => {
-  if (!file) throw new Error('No file provided');
+  const validFile = file ?? raise('No file provided');
 
-  const data = await file.arrayBuffer();
+  const data = await validFile.arrayBuffer();
   // parse
   const wb = read(data);
   // get the first worksheet

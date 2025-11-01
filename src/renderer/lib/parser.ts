@@ -31,6 +31,7 @@ import {
   isTwoDimensionalArray,
   removeEmptySubarrays,
   toLowerString,
+  raise,
 } from './utils';
 
 /**
@@ -40,7 +41,7 @@ import {
  * @throws {Error} - Throws an error if the balance sheet format is invalid or if the date is not found.
  */
 export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
-  let date: Date | null = null;
+  let date: Date | null = null; // set in validateTitles function
   const sheet: BalanceSheet = {
     date: new Date(),
     assets: {
@@ -66,8 +67,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     },
   };
 
-  if (!isTwoDimensionalArray(obj))
-    throw new Error('Invalid balance sheet format');
+  if (!isTwoDimensionalArray(obj)) raise('Invalid balance sheet format');
 
   const balanceSheet = obj as unknown[][];
 
@@ -85,9 +85,9 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
 
   parseAccounts(transformedAccounts);
 
-  if (!date) throw new Error('Date not found in Balance Sheet');
+  const validDate = date ?? raise('Date not found in Balance Sheet');
 
-  sheet.date = date;
+  sheet.date = validDate;
   return sheet;
 
   /*
@@ -104,18 +104,16 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       const titleString = compact(title).join(' ').trim();
 
       // if (index === 0 && title !== orgName) throw 'Invalid Company Name';
-      if (index === 0 && isEmpty(titleString))
-        throw new Error('Company Name not found');
+      if (index === 0 && isEmpty(titleString)) raise('Company Name not found');
       if (index === 1 && titleString.toLowerCase() !== 'balance sheet')
-        throw new Error('Title "Balance Sheet" not found');
+        raise('Title "Balance Sheet" not found');
       if (index === 2) {
-        const dateMatch = last(titleString.split(' '))?.match(
-          // eslint-disable-next-line no-useless-escape
-          /^(0[1-9]|1[0-2]|3[0-1]|[1-9])[-\/.](0[1-9]|1[0-2]|[1-9])[-\/.](\d{4})$/,
-        );
-
-        if (!dateMatch)
-          throw new Error(
+        const dateMatch =
+          last(titleString.split(' '))?.match(
+            // eslint-disable-next-line no-useless-escape
+            /^(0[1-9]|1[0-2]|3[0-1]|[1-9])[-\/.](0[1-9]|1[0-2]|[1-9])[-\/.](\d{4})$/,
+          ) ??
+          raise(
             'Invalid Date Format in Balance Sheet, supported formats: mm/dd/yyyy, mm-dd-yyyy, mm.dd.yyyy',
           );
 
@@ -132,16 +130,16 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
    * or if any required column is missing.
    */
   function validateAccountHeaders(headers: unknown[] | undefined): void {
-    if (!headers) throw new Error('The column headers are missing.');
+    const validHeaders = headers ?? raise('The column headers are missing.');
 
-    const counts = countBy(headers);
+    const counts = countBy(validHeaders);
     const repeatedColumns = filter(
       keys(counts),
       (column) => counts[column] > 2,
     );
 
     if (!isEmpty(repeatedColumns))
-      throw new Error(
+      raise(
         `The following columns are repeated more than twice: ${repeatedColumns.join(
           ', ',
         )}.`,
@@ -153,9 +151,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     );
 
     if (missingColumns.length > 0)
-      throw new Error(
-        `The following columns are missing: ${missingColumns.join(', ')}`,
-      );
+      raise(`The following columns are missing: ${missingColumns.join(', ')}`);
   }
 
   /**
@@ -248,37 +244,32 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
     };
 
     if (!validateSection(['Assets'], 0, 1))
-      throw new Error('Section of "Assets" not found');
+      raise('Section of "Assets" not found');
     if (!validateSection(['Liabilities'], undefined, 1))
-      throw new Error('Section of "Liabilities" not found');
+      raise('Section of "Liabilities" not found');
 
     if (!isAfter('Current Assets', 'Non Current Assets', 0))
-      throw new Error(
-        '"Non Current Assets" should be after "Current Assets" section',
-      );
+      raise('"Non Current Assets" should be after "Current Assets" section');
     if (!validateSection(['Current Assets'], 0, 2))
-      throw new Error('Section of "Current Assets" not found');
+      raise('Section of "Current Assets" not found');
     if (!validateSection(['Non Current Assets', 'Fixed Assets'], 0))
-      throw new Error('Section of "Non Current Assets" not found');
+      raise('Section of "Non Current Assets" not found');
 
     if (!isAfter('Current Liabilities', 'Non Current Liabilities'))
-      throw new Error(
+      raise(
         '"Non Current Liabilities" should be after "Current Liabilities" section',
       );
     if (!validateSection(['Current Liabilities'], undefined, 2))
-      throw new Error('Section of "Current Liabilities" not found');
+      raise('Section of "Current Liabilities" not found');
     if (!validateSection(['Non Current Liabilities', 'Fixed Liabilities']))
-      throw new Error('Section of "Non Current Liabilities" not found');
+      raise('Section of "Non Current Liabilities" not found');
 
     if (!isAfter('Non Current Liabilities', 'Equity'))
-      throw new Error(
-        '"Equity" should be after "Non Current Liabilities" section',
-      );
-    if (!validateSection(['Equity']))
-      throw new Error('Section of "Equity" not found');
+      raise('"Equity" should be after "Non Current Liabilities" section');
+    if (!validateSection(['Equity'])) raise('Section of "Equity" not found');
 
     if (!validateSection(['Total', 'Assets'], 0, undefined, true))
-      throw new Error('Section of "Total Assets" not found');
+      raise('Section of "Total Assets" not found');
     if (
       !validateSection(
         ['Total', 'Liabilities', 'Equity'],
@@ -287,7 +278,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
         true,
       )
     )
-      throw new Error('Section of "Total Liabilities and Equity" not found');
+      raise('Section of "Total Liabilities and Equity" not found');
   }
 
   /**
@@ -393,7 +384,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       ) {
         sheet[currentSection].totalCurrent = toNumber(head(values));
         if (sheet[currentSection].totalCurrent !== totalCurrent)
-          throw new Error(
+          raise(
             `Total Current ${currentSection} do not match. Should be ${totalCurrent}`,
           );
       } else if (
@@ -403,7 +394,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       ) {
         sheet[currentSection].totalFixed = toNumber(head(values));
         if (sheet[currentSection].totalFixed !== totalFixed)
-          throw new Error(
+          raise(
             `Total Fixed ${currentSection} do not match. Should be ${totalFixed}`,
           );
       } else if (lowerName.includes('total')) {
@@ -421,7 +412,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
               sheet.liabilities.totalCurrent +
               sheet.equity.total
           )
-            throw new Error(
+            raise(
               `Total liabilities and equity ${toNumber(
                 head(values),
               )} do not match. Should be equal to ${
@@ -448,12 +439,12 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
             getFixedNumber(sheet[currentSection].total) !==
             getFixedNumber(total)
           )
-            throw new Error(`Total ${currentSection} do not match`);
+            raise(`Total ${currentSection} do not match`);
         } else if (
           getFixedNumber(sheet[currentSection].total) !==
           getFixedNumber(totalCurrent + totalFixed)
         )
-          throw new Error(
+          raise(
             `Total ${currentSection} ${getFixedNumber(
               sheet[currentSection].total,
             )} do not match. Should be equal to ${getFixedNumber(
@@ -555,9 +546,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
 };
 
 export const parseInventory = (obj: unknown): InventoryItem[] => {
-  if (!isTwoDimensionalArray(obj)) {
-    throw new Error('Invalid format for inventory');
-  }
+  if (!isTwoDimensionalArray(obj)) raise('Invalid format for inventory');
 
   const inventoryItems = obj as unknown[][];
 
@@ -566,7 +555,7 @@ export const parseInventory = (obj: unknown): InventoryItem[] => {
 
   return inventoryItems.slice(startIndex).map((row, index) => {
     if (!Array.isArray(row) || row.length < 2) {
-      throw new Error(
+      raise(
         `Invalid row at index ${
           index + startIndex
         }: Expected at least 2 columns`,
@@ -584,7 +573,7 @@ export const parseInventory = (obj: unknown): InventoryItem[] => {
     }
 
     if (typeof name !== 'string' || name.trim() === '') {
-      throw new Error(
+      raise(
         `Invalid name at row ${
           index + startIndex + 1
         }: Name must be a non-empty string`,
@@ -596,7 +585,7 @@ export const parseInventory = (obj: unknown): InventoryItem[] => {
       !isNil(description) &&
       typeof description !== 'string'
     ) {
-      throw new Error(
+      raise(
         `Invalid description at row ${
           index + startIndex + 1
         }: Description must be a string or empty`,
@@ -605,7 +594,7 @@ export const parseInventory = (obj: unknown): InventoryItem[] => {
 
     const parsedPrice = parseFloat(price as string);
     if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
-      throw new Error(
+      raise(
         `Invalid price at row ${
           index + startIndex + 1
         }: Price must be a non-negative number`,
@@ -613,7 +602,7 @@ export const parseInventory = (obj: unknown): InventoryItem[] => {
     }
 
     return {
-      name: name.trim(),
+      name: (name as string).trim(),
       // ...(description && { description: description.trim() }),
       description: 'The Holy Quran',
       price: parsedPrice,
@@ -635,7 +624,7 @@ export const parseInvoiceItems = (
   obj: unknown,
 ): Array<{ name: string; quantity: number }> => {
   if (!isTwoDimensionalArray(obj)) {
-    throw new Error('Invalid format for invoice items');
+    raise('Invalid format for invoice items');
   }
 
   const invoiceItems = obj as unknown[][];
@@ -646,7 +635,7 @@ export const parseInvoiceItems = (
   return compact(
     invoiceItems.slice(startIndex).map((row, index) => {
       if (!Array.isArray(row) || row.length < 1) {
-        throw new Error(
+        raise(
           `Invalid row at index ${
             index + startIndex
           }: Expected at least 1 column`,
@@ -666,7 +655,7 @@ export const parseInvoiceItems = (
 
       console.log('parsed invoice item', index, row);
       if (typeof name !== 'string' || name.trim() === '') {
-        throw new Error(
+        raise(
           `Invalid name at row ${
             index + startIndex + 1
           }: Name must be a non-empty string`,
@@ -674,7 +663,7 @@ export const parseInvoiceItems = (
       }
 
       if (typeof quantity !== 'number' || quantity < 0) {
-        throw new Error(
+        raise(
           `Invalid quantity at row ${
             index + startIndex + 1
           }: Quantity must be a positive number`,
@@ -682,8 +671,8 @@ export const parseInvoiceItems = (
       }
 
       return {
-        name: name.trim(),
-        quantity,
+        name: (name as string).trim(),
+        quantity: quantity as number,
       };
     }),
   );

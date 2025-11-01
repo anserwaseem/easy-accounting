@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { logErrors } from '../errorLogger';
+import { raise } from '../utils/general';
 
 @logErrors
 export class PrintService {
@@ -25,8 +26,7 @@ export class PrintService {
   async printPDF(invoiceNumber: number) {
     this.setOutputDir();
     try {
-      const win = BrowserWindow.getFocusedWindow();
-      if (!win) throw new Error('No active window');
+      const win = BrowserWindow.getFocusedWindow() ?? raise('No active window');
 
       const outputPath = path.join(this.outputDir, `${invoiceNumber}.pdf`);
 

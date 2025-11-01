@@ -12,6 +12,7 @@ import {
   defaultSortingFunctions,
   getFixedNumber,
   getFormattedCurrency,
+  raise,
 } from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
@@ -828,7 +829,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         });
         return;
       }
-      throw new Error(`Failed to save ${invoiceType} invoice`);
+      raise(`Failed to save ${invoiceType} invoice`);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error(error);

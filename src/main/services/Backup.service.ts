@@ -17,8 +17,8 @@ import type {
 } from '@/types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
+import { raise, getComputerName, isOnline } from '../utils/general';
 import { store } from '../store';
-import { getComputerName, isOnline } from '../utils/general';
 
 // FUTURE sync local backups to cloud when internet is connected or expose a button
 @logErrors
@@ -350,7 +350,7 @@ export class BackupService {
       if (!fs.existsSync(backupPath)) {
         const errorMsg = `Backup file ${backupPath} not found`;
         log.error(errorMsg);
-        throw new Error(errorMsg);
+        raise(errorMsg);
       }
 
       // Copy backup to main database location

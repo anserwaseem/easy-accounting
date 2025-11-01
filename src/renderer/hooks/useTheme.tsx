@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { raise } from '../lib/utils';
 
 type Theme = 'dark' | 'light' | 'system';
 
@@ -67,8 +68,5 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
 export const useTheme = () => {
   const context = useContext(ThemeContext);
 
-  if (context === undefined)
-    throw new Error('useTheme must be used within a ThemeProvider');
-
-  return context;
+  return context ?? raise('useTheme must be used within a ThemeProvider');
 };
