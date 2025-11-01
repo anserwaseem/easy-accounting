@@ -1,5 +1,5 @@
 import { Plus, Calendar as CalendarIcon, X, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
@@ -16,11 +16,13 @@ import {
   defaultSortingFunctions,
   getFixedNumber,
   raise,
+  getFormattedCurrency,
+  getFormattedCurrencyInt,
 } from 'renderer/lib/utils';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import {
   Form,
   FormControl,
@@ -55,6 +57,10 @@ const NewJournalPage: React.FC = () => {
     useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const navigate = useNavigate();
+  const [entryInputValues, setEntryInputValues] = useState<
+    Record<string, string>
+  >({});
+  const entryInputValuesRef = useRef<Record<string, string>>({});
 
   const getInitialEntry = useCallback(
     () => ({
@@ -169,7 +175,7 @@ const NewJournalPage: React.FC = () => {
 
   const handleDebitBlur = useCallback(
     (value: string, rowIndex: number) => {
-      const val = toNumber(value);
+      const val = getFixedNumber(toNumber(value), 2);
 
       const latestJournal = form.getValues();
 
@@ -200,7 +206,7 @@ const NewJournalPage: React.FC = () => {
 
   const handleCreditBlur = useCallback(
     (value: string, rowIndex: number) => {
-      const val = toNumber(value);
+      const val = getFixedNumber(toNumber(value), 2);
 
       const latestJournal = form.getValues();
 
@@ -228,23 +234,7 @@ const NewJournalPage: React.FC = () => {
     [form],
   );
 
-  const handleCreditChange = useCallback(
-    (value: string, rowIndex: number) =>
-      form.setValue(
-        `journalEntries.${rowIndex}.creditAmount` as const,
-        toNumber(value),
-      ),
-    [form],
-  );
-
-  const handleDebitChange = useCallback(
-    (value: string, rowIndex: number) =>
-      form.setValue(
-        `journalEntries.${rowIndex}.debitAmount` as const,
-        toNumber(value),
-      ),
-    [form],
-  );
+  // note: we only commit numeric values on blur to avoid focus loss during typing
 
   const handleRemoveRow = useCallback(
     (rowIndex: number) => {
@@ -276,20 +266,95 @@ const NewJournalPage: React.FC = () => {
     [],
   );
 
-  const removeDefaultLabel = useCallback(
-    (value: string) =>
-      toString(
-        toNumber(
-          value.includes(window.electron.store.get('debitCreditDefaultLabel'))
-            ? value.replace(
-                window.electron.store.get('debitCreditDefaultLabel'),
-                '',
-              )
-            : value,
-        ) || 0,
-      ),
+  const removeDefaultLabel = useCallback((value: string) => {
+    const defaultLabel = toString(
+      window.electron.store.get('debitCreditDefaultLabel'),
+    );
+    const withoutLabel = value.includes(defaultLabel)
+      ? value.replace(defaultLabel, '')
+      : value;
+    // keep only digits and a single dot for decimal values
+    const cleaned = toString(withoutLabel).replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    const normalized =
+      parts.length > 1
+        ? `${parts[0]}.${parts.slice(1).join('').replace(/\./g, '')}`
+        : cleaned;
+    return normalized || '0';
+  }, []);
+
+  const intFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat('en-US', {
+        useGrouping: true,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }),
     [],
   );
+
+  const floatFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat('en-US', {
+        useGrouping: true,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }),
+    [],
+  );
+
+  const formatAmountForDisplay = useCallback(
+    (value: number | string) => {
+      const numericValue = toNumber(value);
+      if (!Number.isFinite(numericValue) || numericValue === 0)
+        return toString(value);
+      return floatFormatter.format(numericValue);
+    },
+    [floatFormatter],
+  );
+
+  const formatStringWithGrouping = useCallback(
+    (value: string) => {
+      if (!value) return '';
+      const hasDot = value.includes('.');
+      const [intPartRaw, decimalPartRaw = ''] = value.split('.');
+      const intPartNumber = toNumber(intPartRaw);
+      const groupedInt = Number.isFinite(intPartNumber)
+        ? intFormatter.format(intPartNumber)
+        : intPartRaw;
+      if (hasDot) return `${groupedInt}.${decimalPartRaw}`;
+      return groupedInt;
+    },
+    [intFormatter],
+  );
+
+  const getCellKey = useCallback(
+    (rowId: number, type: 'debit' | 'credit') => `${rowId}-${type}`,
+    [],
+  );
+
+  const getDisplayAmountValue = useCallback(
+    (rowId: number, type: 'debit' | 'credit', numericValue: number) => {
+      const key = getCellKey(rowId, type);
+      const typed = entryInputValuesRef.current[key];
+      if (typed !== undefined) {
+        return typed === '' ? '' : formatStringWithGrouping(typed);
+      }
+      return numericValue === 0
+        ? getAmountDefaultLabel(numericValue)
+        : formatAmountForDisplay(numericValue);
+    },
+    [
+      getCellKey,
+      formatStringWithGrouping,
+      getAmountDefaultLabel,
+      formatAmountForDisplay,
+    ],
+  );
+
+  useEffect(() => {
+    entryInputValuesRef.current = entryInputValues;
+  }, [entryInputValues]);
 
   const columns: ColumnDef<JournalEntry>[] = useMemo(
     () => [
@@ -327,20 +392,37 @@ const NewJournalPage: React.FC = () => {
                 <FormControl>
                   <Input
                     {...field}
-                    value={getAmountDefaultLabel(field.value)}
-                    type={field.value === 0 ? 'text' : 'number'}
-                    onChange={(e) =>
-                      handleDebitChange(
-                        removeDefaultLabel(e.target.value),
-                        row.index,
-                      )
-                    }
-                    onBlur={(e) =>
-                      handleDebitBlur(
-                        removeDefaultLabel(e.target.value),
-                        row.index,
-                      )
-                    }
+                    value={getDisplayAmountValue(
+                      row.original.id,
+                      'debit',
+                      field.value,
+                    )}
+                    type="text"
+                    inputMode="decimal"
+                    onChange={(e) => {
+                      const key = getCellKey(row.original.id, 'debit');
+                      const sanitized = removeDefaultLabel(e.target.value);
+                      entryInputValuesRef.current[key] = sanitized;
+                      setEntryInputValues((prev) => ({
+                        ...prev,
+                        [key]: sanitized,
+                      }));
+                      form.setValue(
+                        `journalEntries.${row.index}.debitAmount` as const,
+                        toNumber(sanitized),
+                      );
+                    }}
+                    onBlur={(e) => {
+                      const key = getCellKey(row.original.id, 'debit');
+                      const sanitized = removeDefaultLabel(e.target.value);
+                      handleDebitBlur(sanitized, row.index);
+                      setEntryInputValues((prev) => {
+                        const next = { ...prev };
+                        delete next[key];
+                        return next;
+                      });
+                      delete entryInputValuesRef.current[key];
+                    }}
                   />
                 </FormControl>
                 <FormMessage />
@@ -361,20 +443,37 @@ const NewJournalPage: React.FC = () => {
                 <FormControl>
                   <Input
                     {...field}
-                    value={getAmountDefaultLabel(field.value)}
-                    type={field.value === 0 ? 'text' : 'number'}
-                    onBlur={(e) =>
-                      handleCreditBlur(
-                        removeDefaultLabel(e.target.value),
-                        row.index,
-                      )
-                    }
-                    onChange={(e) =>
-                      handleCreditChange(
-                        removeDefaultLabel(e.target.value),
-                        row.index,
-                      )
-                    }
+                    value={getDisplayAmountValue(
+                      row.original.id,
+                      'credit',
+                      field.value,
+                    )}
+                    type="text"
+                    inputMode="decimal"
+                    onChange={(e) => {
+                      const key = getCellKey(row.original.id, 'credit');
+                      const sanitized = removeDefaultLabel(e.target.value);
+                      entryInputValuesRef.current[key] = sanitized;
+                      setEntryInputValues((prev) => ({
+                        ...prev,
+                        [key]: sanitized,
+                      }));
+                      form.setValue(
+                        `journalEntries.${row.index}.creditAmount` as const,
+                        toNumber(sanitized),
+                      );
+                    }}
+                    onBlur={(e) => {
+                      const key = getCellKey(row.original.id, 'credit');
+                      const sanitized = removeDefaultLabel(e.target.value);
+                      handleCreditBlur(sanitized, row.index);
+                      setEntryInputValues((prev) => {
+                        const next = { ...prev };
+                        delete next[key];
+                        return next;
+                      });
+                      delete entryInputValuesRef.current[key];
+                    }}
                   />
                 </FormControl>
                 <FormMessage />
@@ -399,15 +498,27 @@ const NewJournalPage: React.FC = () => {
     ],
     [
       accounts,
-      form.control,
-      getAmountDefaultLabel,
+      form,
       handleCreditBlur,
-      handleCreditChange,
       handleDebitBlur,
-      handleDebitChange,
       handleRemoveRow,
       removeDefaultLabel,
+      getCellKey,
+      getDisplayAmountValue,
     ],
+  );
+
+  const journalEntriesForTotals = useWatch({
+    control: form.control,
+    name: 'journalEntries',
+  });
+  const shouldShowFractions = useMemo(
+    () =>
+      journalEntriesForTotals.some(
+        (e) =>
+          !Number.isInteger(e.debitAmount) || !Number.isInteger(e.creditAmount),
+      ),
+    [journalEntriesForTotals],
   );
 
   const handleAddNewRow = useCallback(
@@ -731,18 +842,30 @@ const NewJournalPage: React.FC = () => {
                     <TableCell className="font-medium text-xl w-1/3">
                       Total
                     </TableCell>
-                    <TableCell>{totalDebits}</TableCell>
-                    <TableCell>{totalCredits}</TableCell>
+                    <TableCell>
+                      {shouldShowFractions
+                        ? getFormattedCurrency(totalDebits)
+                        : getFormattedCurrencyInt(totalDebits)}
+                    </TableCell>
+                    <TableCell>
+                      {shouldShowFractions
+                        ? getFormattedCurrency(totalCredits)
+                        : getFormattedCurrencyInt(totalCredits)}
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium text-red-500">
                       Difference
                     </TableCell>
                     <TableCell className="text-red-500">
-                      {differenceDebit}
+                      {shouldShowFractions
+                        ? getFormattedCurrency(differenceDebit)
+                        : getFormattedCurrencyInt(differenceDebit)}
                     </TableCell>
                     <TableCell className="text-red-500">
-                      {differenceCredit}
+                      {shouldShowFractions
+                        ? getFormattedCurrency(differenceCredit)
+                        : getFormattedCurrencyInt(differenceCredit)}
                     </TableCell>
                   </TableRow>
                 </TableBody>

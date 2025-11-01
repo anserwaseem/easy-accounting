@@ -2,7 +2,11 @@ import { Row, SortingFn } from '@tanstack/react-table';
 import { type ClassValue, clsx } from 'clsx';
 import { every, isArray, isNil, toString, toLower } from 'lodash';
 import { twMerge } from 'tailwind-merge';
-import { currencyFormatOptions } from './constants';
+import {
+  currencyFormatOptions,
+  currencyFormatter,
+  currencyIntFormatter,
+} from './constants';
 import { toast } from '../shad/ui/use-toast';
 
 /**
@@ -82,7 +86,7 @@ export const defaultSortingFunctions: Record<string, SortingFn<any>> = {
  * @example getFormattedCurrency(12.888); // PKR 12.89
  */
 export const getFormattedCurrency = (value: number | bigint): string =>
-  Intl.NumberFormat('en-US', currencyFormatOptions).format(value);
+  currencyFormatter.format(value);
 
 /**
  * Formats currency without decimal places.
@@ -96,11 +100,7 @@ export const getFormattedCurrencyInt = (
   value: number,
   { withoutCurrency = false } = {},
 ): string =>
-  Intl.NumberFormat('en-US', {
-    ...currencyFormatOptions,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
+  currencyIntFormatter
     .format(getFixedNumber(value, 0))
     .replace(withoutCurrency ? currencyFormatOptions.currency! : '', '');
 
