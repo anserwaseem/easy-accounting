@@ -29,7 +29,7 @@ export const ReportLayout: React.FC<ReportLayoutProps> = ({
       {printStyles && <style>{printStyles}</style>}
       <div
         className={cn(
-          'w-full mx-auto print-container h-full flex flex-col',
+          'w-full mx-auto print-container h-full flex flex-col print:h-auto print:block',
           className,
         )}
       >
@@ -46,7 +46,7 @@ export const ReportLayout: React.FC<ReportLayoutProps> = ({
         {/* Scrollable Content */}
         <div
           className={cn(
-            'flex-grow overflow-y-auto print:overflow-visible',
+            'flex-grow overflow-y-auto print:overflow-visible print:h-auto print:block',
             bodyClassName,
           )}
         >
