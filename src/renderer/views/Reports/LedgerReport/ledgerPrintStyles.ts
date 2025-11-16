@@ -1,6 +1,28 @@
 // Additional print styles specific to the ledger report
 export const ledgerPrintStyles = `
   @media print {
+    /* allow table to break across pages */
+    .data-table-wrapper {
+      page-break-inside: auto !important;
+    }
+
+    /* repeat table header on each page */
+    .data-table-wrapper thead {
+      display: table-header-group !important;
+    }
+
+    /* allow rows to break across pages, but try to keep them together */
+    .data-table-wrapper tr {
+      page-break-inside: avoid !important;
+      page-break-after: auto !important;
+    }
+
+    /* prevent table cells from breaking */
+    .data-table-wrapper th,
+    .data-table-wrapper td {
+      page-break-inside: avoid !important;
+    }
+
     /* Optimize column widths for print - use more space */
     .data-table-wrapper th:nth-child(1),
     .data-table-wrapper td:nth-child(1) {
