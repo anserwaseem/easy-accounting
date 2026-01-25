@@ -6,6 +6,10 @@ import {
   format,
   startOfMonth,
   startOfYear,
+  endOfYear,
+  endOfMonth,
+  subYears,
+  subMonths,
 } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
@@ -160,6 +164,8 @@ const DEFAULT_PRESETS = [
   { label: 'Last 365 Days', value: '-365' },
   { label: 'Current Month', value: 'current-month' },
   { label: 'Current Year', value: 'current-year' },
+  { label: 'Last Month', value: 'last-month' },
+  { label: 'Last Year', value: 'last-year' },
 ];
 
 export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
@@ -206,6 +212,18 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
       setDate({
         from: startOfYear(new Date()),
         to: new Date(),
+      });
+    } else if (value === 'last-year') {
+      const lastYear = subYears(new Date(), 1);
+      setDate({
+        from: startOfYear(lastYear),
+        to: endOfYear(lastYear),
+      });
+    } else if (value === 'last-month') {
+      const lastMonth = subMonths(new Date(), 1);
+      setDate({
+        from: startOfMonth(lastMonth),
+        to: endOfMonth(lastMonth),
       });
     } else {
       const numberVal = toNumber(value);
@@ -272,7 +290,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent position="popper">
-              {presets.concat(DEFAULT_PRESETS).map((preset) => (
+              {DEFAULT_PRESETS.concat(presets).map((preset) => (
                 <SelectItem key={preset.value} value={preset.value}>
                   {preset.label}
                 </SelectItem>
