@@ -21,6 +21,7 @@ import {
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
 import { ReportLayout } from 'renderer/components/ReportLayout';
+import VirtualMultiSelect from 'renderer/components/VirtualMultiSelect';
 import { useBillsAging } from './useBillsAging';
 import { EmptyState, LoadingState, printStyles } from '../components';
 import { BillsAgingTables } from './BillsAgingTables';
@@ -39,6 +40,8 @@ const BillsAgingPage = () => {
     handleDateChange,
     refreshData,
     infoMessage,
+    selectedCustomerIds,
+    handleCustomerFilterChange,
   } = useBillsAging();
 
   const [hideZeroRows, setHideZeroRows] = useState(false);
@@ -47,25 +50,48 @@ const BillsAgingPage = () => {
     useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // get available customers from billsAging accounts
+  const customerOptions = useMemo(
+    () =>
+      billsAging.accounts.map((acc) => ({
+        id: acc.accountId,
+        name: acc.accountName,
+        code: acc.accountCode,
+      })),
+    [billsAging.accounts],
+  );
+
   // Check if any filter is applied
   const hasActiveFilters =
-    hideZeroRows || hideStatus || hideNonPositiveOutstanding;
+    hideZeroRows ||
+    hideStatus ||
+    hideNonPositiveOutstanding ||
+    selectedCustomerIds.length > 0;
 
   const handlePrint = () => {
     window.print();
   };
 
-  const visibleAccounts = useMemo(
-    () =>
-      hideNonPositiveOutstanding
-        ? billsAging.accounts.filter(
-            (acc) =>
-              getFixedNumber(acc.totalOutstanding - acc.totalUnallocated, 0) >
-              0,
-          )
-        : billsAging.accounts,
-    [billsAging.accounts, hideNonPositiveOutstanding],
-  );
+  const visibleAccounts = useMemo(() => {
+    let filtered = billsAging.accounts;
+
+    // filter by selected customers
+    if (selectedCustomerIds.length > 0) {
+      filtered = filtered.filter((acc) =>
+        selectedCustomerIds.includes(acc.accountId),
+      );
+    }
+
+    // filter by non-positive outstanding
+    if (hideNonPositiveOutstanding) {
+      filtered = filtered.filter(
+        (acc) =>
+          getFixedNumber(acc.totalOutstanding - acc.totalUnallocated, 0) > 0,
+      );
+    }
+
+    return filtered;
+  }, [billsAging.accounts, selectedCustomerIds, hideNonPositiveOutstanding]);
 
   const tableProps = useMemo(
     () => ({
@@ -78,6 +104,7 @@ const BillsAgingPage = () => {
     }),
     [billsAging, visibleAccounts, hideZeroRows, hideStatus],
   );
+  console.log('tableProps', visibleAccounts, tableProps);
 
   // Calculate total for header display
   const totalOutstanding = visibleAccounts.reduce(
@@ -105,13 +132,12 @@ const BillsAgingPage = () => {
             {/* Title */}
             <h1 className="text-2xl font-semibold text-primary">Bills Aging</h1>
             {/* Filters Section */}
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Head */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Head:</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Primary Filters - Compact without labels */}
+              <div className="flex items-center gap-3">
                 <Select value={selectedHead} onValueChange={handleHeadChange}>
-                  <SelectTrigger className="w-[260px]">
-                    <SelectValue placeholder="Select a head" />
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select head" />
                   </SelectTrigger>
                   <SelectContent>
                     {charts.map((chart) => (
@@ -121,10 +147,6 @@ const BillsAgingPage = () => {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              {/* Period */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Period:</span>
                 <DateRangePickerWithPresets
                   initialRange={{ from: startDate, to: selectedDate }}
                   $onSelect={(range?: DateRange) => {
@@ -132,79 +154,91 @@ const BillsAgingPage = () => {
                     if (range?.to) handleDateChange(range.to);
                   }}
                 />
-              </div>
-              {/* More Filters */}
-              <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
-                <div
-                  onMouseEnter={() => setFiltersOpen(true)}
-                  onMouseLeave={() => setFiltersOpen(false)}
-                  className="relative"
-                >
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="gap-2">
-                      <SlidersHorizontal className="h-4 w-4" />
-                      Filters
-                    </Button>
-                  </PopoverTrigger>
-                  {hasActiveFilters && (
-                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full border-2 border-background" />
-                  )}
-                  <PopoverContent className="w-52 -mt-1">
-                    <div className="flex flex-col gap-3 py-1">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Checkbox
-                          id="toggle-hide-status"
-                          checked={hideStatus}
-                          onCheckedChange={(v) => setHideStatus(Boolean(v))}
-                          aria-labelledby="lbl-hide-status"
-                        />
-                        <span id="lbl-hide-status">Hide status</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Checkbox
-                          id="toggle-hide-zero"
-                          checked={hideZeroRows}
-                          onCheckedChange={(v) => setHideZeroRows(Boolean(v))}
-                          aria-labelledby="lbl-hide-zero"
-                        />
-                        <span id="lbl-hide-zero">Hide settled bills</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Checkbox
-                          id="toggle-hide-negative"
-                          checked={hideNonPositiveOutstanding}
-                          onCheckedChange={(v) =>
-                            setHideNonPositiveOutstanding(Boolean(v))
-                          }
-                          aria-labelledby="lbl-hide-negative"
-                        />
-                        <span id="lbl-hide-negative">
-                          Hide settled accounts
-                        </span>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </div>
-              </Popover>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={refreshData}
-                title="Refresh Data"
-                disabled={isLoading}
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+                <VirtualMultiSelect
+                  options={customerOptions}
+                  value={selectedCustomerIds}
+                  onChange={(ids) =>
+                    handleCustomerFilterChange(ids.map((id) => Number(id)))
+                  }
+                  placeholder="All customers"
+                  searchPlaceholder="Search customers..."
+                  disabled={!customerOptions.length}
                 />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handlePrint}
-                title="Print Bills Aging"
-              >
-                <Printer className="h-4 w-4" />
-              </Button>
+              </div>
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+                  <div
+                    onMouseEnter={() => setFiltersOpen(true)}
+                    onMouseLeave={() => setFiltersOpen(false)}
+                    className="relative"
+                  >
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <SlidersHorizontal className="h-4 w-4" />
+                        Filters
+                      </Button>
+                    </PopoverTrigger>
+                    {hasActiveFilters && (
+                      <div className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full border-2 border-background" />
+                    )}
+                    <PopoverContent className="w-52 -mt-1">
+                      <div className="flex flex-col gap-3 py-1">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Checkbox
+                            id="toggle-hide-status"
+                            checked={hideStatus}
+                            onCheckedChange={(v) => setHideStatus(Boolean(v))}
+                            aria-labelledby="lbl-hide-status"
+                          />
+                          <span id="lbl-hide-status">Hide status</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Checkbox
+                            id="toggle-hide-zero"
+                            checked={hideZeroRows}
+                            onCheckedChange={(v) => setHideZeroRows(Boolean(v))}
+                            aria-labelledby="lbl-hide-zero"
+                          />
+                          <span id="lbl-hide-zero">Hide settled bills</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Checkbox
+                            id="toggle-hide-negative"
+                            checked={hideNonPositiveOutstanding}
+                            onCheckedChange={(v) =>
+                              setHideNonPositiveOutstanding(Boolean(v))
+                            }
+                            aria-labelledby="lbl-hide-negative"
+                          />
+                          <span id="lbl-hide-negative">
+                            Hide settled accounts
+                          </span>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </div>
+                </Popover>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={refreshData}
+                  title="Refresh Data"
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+                  />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrint}
+                  title="Print Bills Aging"
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -237,7 +271,11 @@ const BillsAgingPage = () => {
           message={infoMessage || 'No accounts found for this head.'}
         />
       ) : (
-        <React.Fragment key="bills-aging-content">
+        <React.Fragment
+          key={`bills-aging-${selectedCustomerIds.join('-')}-${
+            visibleAccounts.length
+          }`}
+        >
           {/* Screen Display - Original Complex Layout */}
           <div className="print:hidden">
             <BillsAgingTables {...tableProps} />
