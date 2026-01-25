@@ -1,14 +1,11 @@
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Card } from 'renderer/shad/ui/card';
-import { Calendar as CalendarIcon, Printer, RefreshCw } from 'lucide-react';
-import { Calendar } from 'renderer/shad/ui/calendar';
+import { Printer, RefreshCw } from 'lucide-react';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from 'renderer/shad/ui/popover';
-import { cn } from 'renderer/lib/utils';
+  DateRange,
+  DateRangePickerWithPresets,
+} from 'renderer/shad/ui/datePicker';
 import { ReportLayout } from 'renderer/components/ReportLayout';
 import { printStyles } from '../components';
 import { useAverageEquityBalances } from './useAverageEquityBalances';
@@ -37,56 +34,14 @@ const AverageEquityBalancesPage = () => {
           </h1>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Start:</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'w-[200px] justify-start text-left font-normal',
-                      isLoading && 'opacity-70 cursor-not-allowed',
-                    )}
-                    disabled={isLoading}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(startDate, 'PPP')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={handleStartDateChange}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">End:</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'w-[200px] justify-start text-left font-normal',
-                      isLoading && 'opacity-70 cursor-not-allowed',
-                    )}
-                    disabled={isLoading}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(endDate, 'PPP')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={handleEndDateChange}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <span className="text-sm text-muted-foreground">Period:</span>
+              <DateRangePickerWithPresets
+                initialRange={{ from: startDate, to: endDate }}
+                $onSelect={(range?: DateRange) => {
+                  if (range?.from) handleStartDateChange(range.from);
+                  if (range?.to) handleEndDateChange(range.to);
+                }}
+              />
             </div>
             <Button
               variant="outline"

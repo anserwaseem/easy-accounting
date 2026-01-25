@@ -28,6 +28,7 @@ export const useBillsAging = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [infoMessage, setInfoMessage] = useState<string>('');
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
 
   // fetch available charts (heads)
   const fetchCharts = useCallback(async () => {
@@ -421,6 +422,12 @@ export const useBillsAging = () => {
 
   const handleHeadChange = (headName: string) => {
     setSelectedHead(headName);
+    // reset customer filter when head changes
+    setSelectedCustomerIds([]);
+  };
+
+  const handleCustomerFilterChange = (ids: number[]) => {
+    setSelectedCustomerIds(ids);
   };
 
   const handleDateChange = (date: Date | undefined) => {
@@ -452,5 +459,7 @@ export const useBillsAging = () => {
     handleDateChange,
     refreshData,
     infoMessage,
+    selectedCustomerIds,
+    handleCustomerFilterChange,
   };
 };

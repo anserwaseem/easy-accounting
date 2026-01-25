@@ -41,7 +41,7 @@ export const MainNav = ({
         </div> */}
       </div>
 
-      <div className="ml-auto flex items-center space-x-4 lg:space-x-6">
+      <div className="ml-auto mr-4 flex items-center space-x-4 lg:space-x-6">
         <Link
           to="/settings"
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
