@@ -23,6 +23,8 @@ mac:
   gatekeeperAssess: false
   darkModeSupport: true
   category: public.app-category.productivity
+  signIgnore:
+    - '\.pak$'
 dmg:
   contents:
     - x: 130
