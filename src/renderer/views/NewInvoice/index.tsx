@@ -66,7 +66,6 @@ interface NewInvoiceProps {
 }
 
 // FIXME: set validation for max quantity of selected inventory item
-// FIXME: do not allow selecting same inventory item multiple times
 // TODO: improve performance, check states: remove unnecessary data
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
@@ -165,7 +164,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             .nonnegative('Discounted price must be non-negative'),
         }),
       )
-      .min(1, 'Add at-least one invoice item'),
+      .min(1, 'Add at-least one invoice item')
+      .refine(
+        (items) => {
+          const ids = items.map((i) => i.inventoryId).filter((id) => id > 0);
+          return new Set(ids).size === ids.length;
+        },
+        { message: 'Each item can only be added once' },
+      ),
     accountMapping: z.object({
       singleAccountId: z.coerce
         .number()
@@ -531,6 +537,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   );
 
   const columns: ColumnDef<InvoiceItem>[] = useMemo(() => {
+    const getItemOptionsForRow = (rowIndex: number) => {
+      const selectedElsewhere = (watchedInvoiceItems || [])
+        .filter((item, idx) => idx !== rowIndex && item.inventoryId > 0)
+        .map((item) => item.inventoryId);
+      return (inventory || []).filter(
+        (inv) => !selectedElsewhere.includes(inv.id),
+      );
+    };
+
     const baseColumns: ColumnDef<InvoiceItem>[] = [
       {
         header: 'Item',
@@ -541,7 +556,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             render={({ field }) => (
               <FormItem className="w-max min-w-[200px] space-y-0">
                 <VirtualSelect<InventoryItem>
-                  options={inventory || []}
+                  options={getItemOptionsForRow(row.index)}
                   value={field.value?.toString()}
                   onChange={(val) =>
                     onItemSelectionChange(
@@ -740,6 +755,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     invoiceType,
     form.control,
     inventory,
+    watchedInvoiceItems,
     onItemSelectionChange,
     onQuantityChange,
     handleRemoveRow,
@@ -1134,13 +1150,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               onSubmit={form.handleSubmit(onSubmit, (errors) => {
                 const firstKey = Object.keys(errors)[0];
                 const firstMessage =
-                  firstKey &&
-                  (get(errors, [firstKey, 'message']) as string | undefined);
+                  firstKey && get(errors, [firstKey, 'root', 'message']);
                 toast({
                   description:
-                    typeof firstMessage === 'string'
-                      ? firstMessage
-                      : 'Please fix the errors below',
+                    firstMessage || 'Please fix the errors before submitting',
                   variant: 'destructive',
                 });
               })}
