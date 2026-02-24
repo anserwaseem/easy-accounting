@@ -1159,16 +1159,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         ) : (
           <Form {...form}>
             <form
-              onSubmit={form.handleSubmit(onSubmit, (errors) => {
-                const firstKey = Object.keys(errors)[0];
-                const firstMessage =
-                  firstKey && get(errors, [firstKey, 'root', 'message']);
-                toast({
-                  description:
-                    firstMessage || 'Please fix the errors before submitting',
-                  variant: 'destructive',
-                });
-              })}
+              onSubmit={form.handleSubmit(onSubmit, (errors) =>
+                console.log('onSubmit errors', errors),
+              )}
               onReset={() => {
                 form.reset(defaultFormValues);
                 setIsDateExplicitlySet(false);
@@ -1334,11 +1327,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 {form.formState.errors.invoiceItems && (
                   <p className="text-sm font-medium text-destructive">
                     {get(form.formState.errors.invoiceItems, 'message', null)}
-                  </p>
-                )}
-                {form.formState.errors && (
-                  <p className="text-xs text-muted-foreground">
-                    Form Errors: {JSON.stringify(form.formState.errors)}
                   </p>
                 )}
               </div>
