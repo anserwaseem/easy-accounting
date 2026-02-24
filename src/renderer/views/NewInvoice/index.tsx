@@ -272,9 +272,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     (async () => {
       if (isNil(inventory)) {
         const inv: InventoryItem[] = await window.electron.getInventory();
-        const filteredInv = inv.map((item) =>
-          pick(item, ['id', 'name', 'price', 'quantity', 'description']),
-        );
+        const filteredInv = inv
+          .map((item) =>
+            pick(item, ['id', 'name', 'price', 'quantity', 'description']),
+          )
+          .filter((item) => item.quantity > 0 && item.price > 0);
         setInventory(filteredInv);
       }
     })();
