@@ -65,7 +65,6 @@ interface NewInvoiceProps {
   invoiceType: InvoiceType;
 }
 
-// FIXME: set validation for max quantity of selected inventory item
 // TODO: improve performance, check states: remove unnecessary data
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
@@ -171,7 +170,20 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           return new Set(ids).size === ids.length;
         },
         { message: 'Each item can only be added once' },
-      ),
+      )
+      .superRefine((items, ctx) => {
+        if (!inventory?.length) return;
+        items.forEach((item, idx) => {
+          if (item.inventoryId <= 0) return;
+          const inv = inventory.find((i) => i.id === item.inventoryId);
+          if (!inv || item.quantity <= inv.quantity) return;
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Max ${inv.quantity} available`,
+            path: [idx, 'quantity'],
+          });
+        });
+      }),
     accountMapping: z.object({
       singleAccountId: z.coerce
         .number()
