@@ -2,7 +2,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { get, isNil, pick, sum, toNumber, toString, trim } from 'lodash';
-import { Calendar as CalendarIcon, Plus, Upload, X } from 'lucide-react';
+import {
+  Calendar as CalendarIcon,
+  Plus,
+  RefreshCw,
+  Upload,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -86,6 +92,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [useSingleAccount, setUseSingleAccount] = useState(true);
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
+  const [isRefreshingParties, setIsRefreshingParties] = useState(false);
 
   const navigate = useNavigate();
 
@@ -281,47 +288,81 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       }
     })();
   }, [invoiceType, nextInvoiceNumber]);
+  const fetchPartiesAndRequiredAccounts = useCallback(async () => {
+    const allAccounts: Account[] = await window.electron.getAccounts();
+    const accounts = allAccounts.map((account) =>
+      pick(account, ['id', 'name', 'type', 'code']),
+    );
+    const saleAccount = accounts.find(
+      (account) =>
+        trim(account.name).toLowerCase() === InvoiceType.Sale.toLowerCase(),
+    );
+    const purchaseAccount = accounts.find(
+      (account) =>
+        trim(account.name).toLowerCase() === InvoiceType.Purchase.toLowerCase(),
+    );
+    const partyAccounts = accounts.filter(
+      (account) =>
+        account.type ===
+        (invoiceType === InvoiceType.Sale
+          ? AccountType.Asset
+          : AccountType.Liability),
+    );
+    return {
+      partyAccounts,
+      sale: !!saleAccount,
+      purchase: !!purchaseAccount,
+    };
+  }, [invoiceType]);
+
   useEffect(() => {
-    (async () => {
-      if (isNil(parties)) {
-        setRequiredAccountsExist({
-          sale: false,
-          purchase: false,
-          loading: true,
+    if (isNil(parties)) {
+      setRequiredAccountsExist({
+        sale: false,
+        purchase: false,
+        loading: true,
+      });
+      fetchPartiesAndRequiredAccounts()
+        .then(({ partyAccounts, sale, purchase }) => {
+          setRequiredAccountsExist({
+            sale,
+            purchase,
+            loading: false,
+          });
+          setParties(partyAccounts);
+        })
+        .catch((error) => {
+          console.error('Error fetching accounts:', error);
+          setRequiredAccountsExist((prev) => ({ ...prev, loading: false }));
         });
+    }
+  }, [invoiceType, parties, fetchPartiesAndRequiredAccounts]);
 
-        const allAccounts: Account[] = await window.electron.getAccounts();
-        const accounts = allAccounts.map((account) =>
-          pick(account, ['id', 'name', 'type', 'code']),
-        );
-
-        // check for both Sale and Purchase accounts
-        const saleAccount = accounts.find(
-          (account) =>
-            trim(account.name).toLowerCase() === InvoiceType.Sale.toLowerCase(),
-        );
-        const purchaseAccount = accounts.find(
-          (account) =>
-            trim(account.name).toLowerCase() ===
-            InvoiceType.Purchase.toLowerCase(),
-        );
-        setRequiredAccountsExist({
-          sale: !!saleAccount,
-          purchase: !!purchaseAccount,
-          loading: false,
-        });
-
-        const partyAccounts = accounts.filter(
-          (account) =>
-            account.type ===
-            (invoiceType === InvoiceType.Sale
-              ? AccountType.Asset
-              : AccountType.Liability),
-        );
-        setParties(partyAccounts);
-      }
-    })();
-  }, [invoiceType, parties]);
+  const refreshParties = useCallback(async () => {
+    setIsRefreshingParties(true);
+    try {
+      const { partyAccounts, sale, purchase } =
+        await fetchPartiesAndRequiredAccounts();
+      setRequiredAccountsExist((prev) => ({
+        ...prev,
+        sale,
+        purchase,
+      }));
+      setParties(partyAccounts);
+      toast({
+        description: 'Accounts refreshed successfully',
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        description: 'Failed to refresh accounts',
+        variant: 'destructive',
+      });
+      console.error('Error refreshing accounts:', error);
+    } finally {
+      setIsRefreshingParties(false);
+    }
+  }, [fetchPartiesAndRequiredAccounts]);
 
   const handleRemoveRow = useCallback(
     (rowIndex: number) => {
@@ -1065,7 +1106,20 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       </Dialog>
 
       <div className="py-1 flex flex-col gap-y-4">
-        <h1 className="title-new">{`New ${invoiceType} Invoice`}</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="title-new">{`New ${invoiceType} Invoice`}</h1>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={refreshParties}
+            title="Refresh accounts"
+            disabled={isRefreshingParties}
+          >
+            <RefreshCw
+              className={cn('h-4 w-4', isRefreshingParties && 'animate-spin')}
+            />
+          </Button>
+        </div>
 
         {isNil(nextInvoiceNumber) ? (
           <AddInvoiceNumber
