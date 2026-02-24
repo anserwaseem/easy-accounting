@@ -146,7 +146,7 @@ export class InvoiceService {
 
       this.createJournalEntry(invoiceType, invoice, accountId, totalAmount);
     }
-    // multiple accounts - multiple journals
+    // multiple accounts - multiple journals (single invoice per customer)
     else if (invoice.accountMapping.multipleAccountIds) {
       const invoiceResult = this.stmInsertInvoice.run({
         date: invoice.date,

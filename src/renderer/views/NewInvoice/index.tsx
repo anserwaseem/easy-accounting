@@ -41,6 +41,14 @@ import {
   InvoiceType,
 } from 'types';
 import { z } from 'zod';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'renderer/shad/ui/dialog';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import { parseInvoiceItems } from '@/renderer/lib/parser';
@@ -54,7 +62,6 @@ interface NewInvoiceProps {
 // FIXME: set validation for max quantity of selected inventory item
 // FIXME: do not allow selecting same inventory item multiple times
 // TODO: improve performance, check states: remove unnecessary data
-// TODO: in new sale invoice, date format is not matching with existing invoices: can we keep MM/DD/YYYY format when importing?
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
@@ -77,6 +84,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useState(false);
   const [cumulativeDiscount, setCumulativeDiscount] = useState<number>();
   const [useSingleAccount, setUseSingleAccount] = useState(true);
+  const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
+  const [showDateConfirmation, setShowDateConfirmation] = useState(false);
 
   const navigate = useNavigate();
 
@@ -86,7 +95,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       inventoryId: 0,
       quantity: 0,
       discount: 0,
-      price: -1,
+      price: 0,
       discountedPrice: 0,
     }),
     [],
@@ -94,10 +103,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const defaultFormValues: Invoice = {
     id: -1,
-    date: '',
+    date: new Date().toISOString(),
     invoiceNumber: -1,
     extraDiscount: 0,
-    totalAmount: -1,
+    totalAmount: 0,
     invoiceItems: [],
     invoiceType,
     biltyNumber: '',
@@ -110,7 +119,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const formSchema = z.object({
     id: z.number(),
-    date: z.string().datetime({ local: true, message: 'Select a valid date' }),
+    date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
+      message: 'Select a valid date',
+    }),
     biltyNumber: z.string().optional(),
     cartons: z.coerce
       .number()
@@ -160,12 +171,16 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       multipleAccountIds: z
         .array(
           z.coerce
-            .number()
-            .positive(
-              `Select a ${
+            .number({
+              invalid_type_error: `Select a ${
                 invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-              }`,
-            ),
+              } for this row`,
+            })
+            .refine((n) => Number.isFinite(n) && n > 0, {
+              message: `Select a ${
+                invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+              } for this row`,
+            }),
         )
         .optional(),
     }),
@@ -174,6 +189,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: defaultFormValues,
+    mode: 'onSubmit', // show validation errors only after user attempts submit
   });
 
   const watchedInvoiceItems = useWatch({
@@ -181,10 +197,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     name: 'invoiceItems',
   });
 
-  // Add validation for accountMapping based on useSingleAccount
+  // validate account mapping only after user has attempted submit
   useEffect(() => {
     const subscription = form.watch(() => {
-      // Validate that the appropriate account mapping is provided
+      if (!form.formState.isSubmitted) return;
       if (useSingleAccount) {
         const singleAccountId = form.getValues(
           'accountMapping.singleAccountId',
@@ -228,6 +244,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const watchedTotalAmount = useWatch({
     control: form.control,
     name: 'totalAmount',
+  });
+  const watchedSingleAccountId = useWatch({
+    control: form.control,
+    name: 'accountMapping.singleAccountId',
   });
 
   const { fields, append } = useFieldArray({
@@ -332,7 +352,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   // calculate and update total amount whenever relevant values change
   useEffect(() => {
-    if (!hasActiveInvoiceItem) return;
+    if (!hasActiveInvoiceItem) {
+      form.setValue('totalAmount', 0, {
+        shouldValidate: false,
+        shouldDirty: true,
+      });
+      return;
+    }
 
     const grossTotal = sum(
       watchedInvoiceItems.map((item) =>
@@ -344,7 +370,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     const total = grossTotal - watchedExtraDiscount;
 
     form.setValue('totalAmount', getFixedNumber(total, 2), {
-      shouldValidate: true,
+      shouldValidate: false,
       shouldDirty: true,
     });
   }, [
@@ -365,7 +391,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     (rowIndex: number, val: string, onChange: Function) => {
       onChange(val);
       const item = getSelectedItem(toNumber(val));
-      form.trigger(`invoiceItems.${rowIndex}.quantity`);
       form.setValue(`invoiceItems.${rowIndex}.price`, item?.price || 0);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
@@ -375,7 +400,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           item?.price,
         ),
         {
-          shouldValidate: true,
+          shouldValidate: false,
           shouldDirty: true,
         },
       );
@@ -392,7 +417,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onDiscountChange = useCallback(
     (rowIndex: number, value: string, onChange: Function) => {
       onChange(toNumber(value));
-      form.trigger(`invoiceItems.${rowIndex}.discount`);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
         getInvoiceItemTotal(
@@ -401,7 +425,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           form.getValues(`invoiceItems.${rowIndex}.price`),
         ),
         {
-          shouldValidate: true,
+          shouldValidate: false,
           shouldDirty: true,
         },
       );
@@ -411,7 +435,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onQuantityChange = useCallback(
     (rowIndex: number, value: string, onChange: Function) => {
       onChange(toNumber(value));
-      form.trigger(`invoiceItems.${rowIndex}.quantity`);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
         getInvoiceItemTotal(
@@ -420,7 +443,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           form.getValues(`invoiceItems.${rowIndex}.price`),
         ),
         {
-          shouldValidate: true,
+          shouldValidate: false,
           shouldDirty: true,
         },
       );
@@ -439,7 +462,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         );
       }
 
-      return fieldValue ? getFormattedCurrency(fieldValue) : null;
+      return typeof fieldValue === 'number' && fieldValue >= 0
+        ? getFormattedCurrency(fieldValue)
+        : null;
     },
     [cumulativeDiscount, enableCumulativeDiscount, form],
   );
@@ -522,6 +547,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     {...field}
                     type="number"
                     step={1}
+                    min={0}
                     onBlur={(e) => field.onChange(toNumber(e.target.value))}
                     onChange={(e) =>
                       onQuantityChange(
@@ -563,10 +589,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               render={({ field }) => (
                 <FormItem className="space-y-0">
                   <FormControl>
-                    <p>
-                      {field.value
+                    <p className="text-muted-foreground min-h-[1.5rem]">
+                      {typeof field.value === 'number' && field.value >= 0
                         ? getFormattedCurrency(toNumber(field.value))
-                        : null}
+                        : '—'}
                     </p>
                   </FormControl>
                   <FormMessage />
@@ -588,7 +614,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       {...field}
                       value={getDiscountValue(field.value)}
                       type="number"
-                      step={0.1}
+                      step="any"
+                      min={0}
+                      max={100}
                       disabled={enableCumulativeDiscount}
                       onBlur={(e) => field.onChange(toNumber(e.target.value))}
                       onChange={(e) =>
@@ -629,7 +657,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         ? []
         : [
             {
-              header: 'Customer',
+              header: `Customer *`,
               cell: ({ row }) => (
                 <FormField
                   control={form.control}
@@ -685,6 +713,35 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     () => append({ ...getInitialEntry() }),
     [append, getInitialEntry],
   );
+
+  const isSubmitDisabled = useMemo(() => {
+    if (form.formState.isSubmitting) return true;
+    const total = watchedTotalAmount;
+    if (
+      invoiceType === InvoiceType.Sale &&
+      (typeof total !== 'number' || total <= 0)
+    )
+      return true;
+    if (
+      invoiceType === InvoiceType.Purchase &&
+      typeof total === 'number' &&
+      total < 0
+    )
+      return true;
+    if (
+      useSingleAccount &&
+      (watchedSingleAccountId == null || watchedSingleAccountId <= 0)
+    )
+      return true;
+    return false;
+  }, [
+    form.formState.isSubmitting,
+    invoiceType,
+    useSingleAccount,
+    watchedSingleAccountId,
+    watchedTotalAmount,
+  ]);
+
   const onCumulativeDiscountChange = useCallback(
     (value: string) => {
       const discount = toNumber(value);
@@ -703,7 +760,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         }));
 
       form.setValue('invoiceItems', updatedInvoiceItems, {
-        shouldValidate: true,
+        shouldValidate: false,
         shouldDirty: true,
       });
     },
@@ -717,23 +774,23 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
     return [
       [
-        <div className="flex flex-row gap-2 items-center">
-          <h1>Cumulative Discount (%)</h1>
+        <h1>Cumulative Discount (%)</h1>,
+        <div className="flex gap-2 ml-1">
           <Checkbox
             checked={enableCumulativeDiscount}
             onCheckedChange={(checked) =>
               setEnableCumulativeDiscount(checked === true)
             }
-            className="ml-auto"
           />
-          <h2 className="text-xs mr-auto">Enable</h2>
+          <h2 className="text-xs">Enable</h2>
         </div>,
-        null,
         null,
         <Input
           value={cumulativeDiscount}
           type="number"
-          step={0.01}
+          step="any"
+          min={0}
+          max={100}
           disabled={!enableCumulativeDiscount}
           onChange={(e) => onCumulativeDiscountChange(e.target.value)}
         />,
@@ -754,7 +811,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 <Input
                   {...field}
                   type="number"
-                  step={0.0001}
+                  step="any"
+                  min={0}
                   disabled={!hasActiveInvoiceItem || !useSingleAccount}
                   onBlur={(e) => field.onChange(toNumber(e.target.value))}
                   onChange={(e) => field.onChange(toNumber(e.target.value))}
@@ -779,11 +837,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               <FormControl>
                 <p
                   className={cn(
-                    watchedTotalAmount &&
+                    typeof watchedTotalAmount === 'number' &&
                       'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2 w-fit',
                   )}
                 >
-                  {watchedTotalAmount
+                  {typeof watchedTotalAmount === 'number'
                     ? getFormattedCurrency(watchedTotalAmount)
                     : null}
                 </p>
@@ -806,10 +864,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
   ]);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    // eslint-disable-next-line no-console
-    console.log('onSubmit invoice:', values);
-
+  const submitInvoice = async (values: z.infer<typeof formSchema>) => {
     try {
       const invoice = {
         ...values,
@@ -823,6 +878,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       if (returnedNextInvoiceNumber > 0) {
         setNextInvoiceNumber(returnedNextInvoiceNumber);
         form.reset(defaultFormValues);
+        setIsDateExplicitlySet(false);
         toast({
           description: `${invoiceType} invoice saved successfully`,
           variant: 'success',
@@ -838,6 +894,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         variant: 'destructive',
       });
     }
+  };
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    // eslint-disable-next-line no-console
+    console.log('onSubmit invoice:', values);
+
+    if (!isDateExplicitlySet) {
+      setShowDateConfirmation(true);
+      return;
+    }
+
+    await submitInvoice(values);
   };
 
   const uploadInvoiceItems = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -894,6 +962,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     (date?: Date) => {
       if (!date) return;
       form.setValue('date', date.toISOString());
+      setIsDateExplicitlySet(true);
     },
     [form],
   );
@@ -926,11 +995,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       // clear the appropriate account mapping fields based on the toggle
       if (isChecked) {
         form.setValue('accountMapping.multipleAccountIds', [], {
-          shouldValidate: true,
+          shouldValidate: false,
         });
       } else {
         form.setValue('accountMapping.singleAccountId', undefined, {
-          shouldValidate: true,
+          shouldValidate: false,
         });
         form.setValue('extraDiscount', 0);
       }
@@ -963,240 +1032,302 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   }
 
   return (
-    <div className="py-1 flex flex-col gap-y-4">
-      <h1 className="title-new">{`New ${invoiceType} Invoice`}</h1>
+    <>
+      <Dialog
+        open={showDateConfirmation}
+        onOpenChange={setShowDateConfirmation}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm date</DialogTitle>
+            <DialogDescription>
+              You are using today&apos;s date ({format(new Date(), 'PPP')}).
+              Would you like to proceed with this date or set a different one?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-between">
+            <Button
+              variant="secondary"
+              onClick={() => setShowDateConfirmation(false)}
+            >
+              Change date
+            </Button>
+            <Button
+              onClick={async () => {
+                setShowDateConfirmation(false);
+                await submitInvoice(form.getValues());
+              }}
+            >
+              Use current date
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {isNil(nextInvoiceNumber) ? (
-        <AddInvoiceNumber
-          invoiceType={invoiceType}
-          onInvoiceNumberSet={onInvoiceNumberSet}
-        />
-      ) : (
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            onReset={() => form.reset(defaultFormValues)}
-            onKeyDown={checkKeyDown}
-            role="presentation"
-          >
-            <div className="flex flex-col gap-2">
-              {invoiceType === InvoiceType.Sale && (
-                <div className="flex items-center gap-2 mb-2">
-                  <Checkbox
-                    id="useSingleAccount"
-                    checked={useSingleAccount}
-                    onCheckedChange={onSingleAccountToggle}
-                  />
-                  <label
-                    htmlFor="useSingleAccount"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Use single customer for entire invoice{' '}
-                  </label>
-                </div>
-              )}
+      <div className="py-1 flex flex-col gap-y-4">
+        <h1 className="title-new">{`New ${invoiceType} Invoice`}</h1>
 
-              <div className="grid grid-cols-2 row-gap-4">
-                {useSingleAccount || invoiceType === InvoiceType.Purchase ? (
-                  <FormField
-                    control={form.control}
-                    name="accountMapping.singleAccountId"
-                    render={({ field }) => (
-                      <FormItem labelPosition="start" className="pr-16">
-                        <FormLabel className="text-base">
-                          {invoiceType === InvoiceType.Sale
-                            ? 'Customer'
-                            : 'Vendor'}
-                        </FormLabel>
-                        <VirtualSelect
-                          options={parties || []}
-                          value={field.value}
-                          onChange={(val) =>
-                            onAccountSelection(toString(val), field.onChange)
-                          }
-                          placeholder="Select a party"
-                          searchPlaceholder="Search parties..."
-                        />
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ) : (
-                  <div className="flex items-center">
-                    <p className="text-sm text-muted-foreground">
-                      Select a customer for each invoice item individually.
-                    </p>
+        {isNil(nextInvoiceNumber) ? (
+          <AddInvoiceNumber
+            invoiceType={invoiceType}
+            onInvoiceNumberSet={onInvoiceNumberSet}
+          />
+        ) : (
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmit, (errors) => {
+                const firstKey = Object.keys(errors)[0];
+                const firstMessage =
+                  firstKey &&
+                  (get(errors, [firstKey, 'message']) as string | undefined);
+                toast({
+                  description:
+                    typeof firstMessage === 'string'
+                      ? firstMessage
+                      : 'Please fix the errors below',
+                  variant: 'destructive',
+                });
+              })}
+              onReset={() => {
+                form.reset(defaultFormValues);
+                setIsDateExplicitlySet(false);
+              }}
+              onKeyDown={checkKeyDown}
+              role="presentation"
+            >
+              <div className="flex flex-col gap-2">
+                {invoiceType === InvoiceType.Sale && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <Checkbox
+                      id="useSingleAccount"
+                      checked={useSingleAccount}
+                      onCheckedChange={onSingleAccountToggle}
+                    />
+                    <label
+                      htmlFor="useSingleAccount"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Use single customer for entire invoice{' '}
+                    </label>
                   </div>
                 )}
 
-                {invoiceType === InvoiceType.Sale && (
+                <div className="grid grid-cols-2 row-gap-4">
+                  {useSingleAccount || invoiceType === InvoiceType.Purchase ? (
+                    <FormField
+                      control={form.control}
+                      name="accountMapping.singleAccountId"
+                      render={({ field }) => (
+                        <FormItem labelPosition="start" className="pr-16">
+                          <FormLabel className="text-base">
+                            {invoiceType === InvoiceType.Sale
+                              ? 'Customer'
+                              : 'Vendor'}
+                            <span className="text-destructive"> *</span>
+                          </FormLabel>
+                          <VirtualSelect
+                            options={parties || []}
+                            value={field.value}
+                            onChange={(val) =>
+                              onAccountSelection(toString(val), field.onChange)
+                            }
+                            placeholder="Select a party"
+                            searchPlaceholder="Search parties..."
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <div className="flex items-center">
+                      <p className="text-sm text-muted-foreground">
+                        One invoice per customer; select account per line.
+                      </p>
+                    </div>
+                  )}
+
+                  {invoiceType === InvoiceType.Sale && (
+                    <FormField
+                      control={form.control}
+                      name="biltyNumber"
+                      render={({ field }) => (
+                        <FormItem labelPosition="start" className="pl-16">
+                          <FormLabel className="text-base">
+                            Bilty Number
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="Enter bilty number"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
                   <FormField
                     control={form.control}
-                    name="biltyNumber"
+                    name="date"
                     render={({ field }) => (
-                      <FormItem labelPosition="start" className="pl-16">
+                      <FormItem
+                        labelPosition="start"
+                        className="pr-16 row-start-2"
+                      >
                         <FormLabel className="text-base">
-                          Bilty Number
+                          Date<span className="text-destructive"> *</span>
                         </FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Enter bilty number" />
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  'w-full justify-start text-left font-normal',
+                                  !field.value && 'text-muted-foreground',
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-12 w-4" />
+                                {field.value ? (
+                                  format(field.value, 'PPP')
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                {...field}
+                                mode="single"
+                                disabled={isDateDisabled}
+                                selected={new Date(field.value)}
+                                onSelect={onDateSelection}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
 
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem
-                      labelPosition="start"
-                      className="pr-16 row-start-2"
-                    >
-                      <FormLabel className="text-base">Date</FormLabel>
-                      <FormControl>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                'w-full justify-start text-left font-normal',
-                                !field.value && 'text-muted-foreground',
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-12 w-4" />
-                              {field.value ? (
-                                format(field.value, 'PPP')
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
+                  {invoiceType === InvoiceType.Sale && (
+                    <FormField
+                      control={form.control}
+                      name="cartons"
+                      render={({ field }) => (
+                        <FormItem labelPosition="start" className="pl-16">
+                          <FormLabel className="text-base">Cartons</FormLabel>
+                          <FormControl>
+                            <Input
                               {...field}
-                              mode="single"
-                              disabled={isDateDisabled}
-                              selected={new Date(field.value)}
-                              onSelect={onDateSelection}
-                              initialFocus
+                              type="number"
+                              step={1}
+                              min={0}
+                              placeholder="Number of cartons"
+                              onBlur={(e) =>
+                                field.onChange(toNumber(e.target.value))
+                              }
+                              onChange={(e) =>
+                                field.onChange(toNumber(e.target.value))
+                              }
                             />
-                          </PopoverContent>
-                        </Popover>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
-                />
+                </div>
+              </div>
 
-                {invoiceType === InvoiceType.Sale && (
-                  <FormField
-                    control={form.control}
-                    name="cartons"
-                    render={({ field }) => (
-                      <FormItem labelPosition="start" className="pl-16">
-                        <FormLabel className="text-base">Cartons</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="number"
-                            step={1}
-                            placeholder="Number of cartons"
-                            onBlur={(e) =>
-                              field.onChange(toNumber(e.target.value))
-                            }
-                            onChange={(e) =>
-                              field.onChange(toNumber(e.target.value))
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              <div className="py-8 flex flex-col gap-3">
+                <DataTable
+                  columns={columns}
+                  data={fields}
+                  sortingFns={defaultSortingFunctions}
+                  infoData={tableInfoData}
+                />
+                {form.formState.errors.invoiceItems && (
+                  <p className="text-sm font-medium text-destructive">
+                    {get(form.formState.errors.invoiceItems, 'message', null)}
+                  </p>
+                )}
+                {form.formState.errors && (
+                  <p className="text-xs text-muted-foreground">
+                    Form Errors: {JSON.stringify(form.formState.errors)}
+                  </p>
                 )}
               </div>
-            </div>
 
-            <div className="py-8 flex flex-col gap-3">
-              <DataTable
-                columns={columns}
-                data={fields}
-                sortingFns={defaultSortingFunctions}
-                infoData={tableInfoData}
-              />
-              {form.formState.errors.invoiceItems && (
-                <p className="text-sm font-medium text-destructive">
-                  {get(form.formState.errors.invoiceItems, 'message', null)}
-                </p>
-              )}
-              {form.formState.errors && (
-                <p className="text-xs text-muted-foreground">
-                  Form Errors: {JSON.stringify(form.formState.errors)}
-                </p>
-              )}
-            </div>
-
-            <div className="flex justify-between gap-20 pb-20">
-              <Button
-                type="button"
-                className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
-                onClick={() => handleAddNewRow()}
-              >
-                <Plus size={20} />
-                <span className="w-max">Add New Item</span>
-              </Button>
-              <div
-                className={`flex flex-row gap-4 ${
-                  invoiceType === InvoiceType.Sale ? 'hidden' : ''
-                }`}
-              >
+              <div className="flex justify-between gap-20 pb-20">
                 <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() =>
-                    document.getElementById('uploadInvoiceItemsInput')?.click()
-                  }
+                  type="button"
+                  className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
+                  onClick={() => handleAddNewRow()}
                 >
-                  <Upload size={16} className="mr-2" />
-                  Upload Invoice Items
+                  <Plus size={20} />
+                  <span className="w-max">Add New Item</span>
                 </Button>
-                <Input
-                  id="uploadInvoiceItemsInput"
-                  type="file"
-                  accept=".xlsx, .xls"
-                  className="hidden"
-                  onChange={uploadInvoiceItems}
-                />
+                <div
+                  className={`flex flex-row gap-4 ${
+                    invoiceType === InvoiceType.Sale ? 'hidden' : ''
+                  }`}
+                >
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      document
+                        .getElementById('uploadInvoiceItemsInput')
+                        ?.click()
+                    }
+                  >
+                    <Upload size={16} className="mr-2" />
+                    Upload Invoice Items
+                  </Button>
+                  <Input
+                    id="uploadInvoiceItemsInput"
+                    type="file"
+                    accept=".xlsx, .xls"
+                    className="hidden"
+                    onChange={uploadInvoiceItems}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="flex justify-between">
-              <div className="flex gap-4">
-                <Button type="submit" variant="default">
-                  Save
-                </Button>
-                <Button type="reset" variant="ghost">
-                  Clear
+              <div className="flex justify-between">
+                <div className="flex gap-4">
+                  <Button
+                    type="submit"
+                    variant="default"
+                    disabled={isSubmitDisabled}
+                  >
+                    Save
+                  </Button>
+                  <Button type="reset" variant="ghost">
+                    Clear
+                  </Button>
+                </div>
+
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    form.reset(defaultFormValues);
+                    setIsDateExplicitlySet(false);
+                    navigate(-1);
+                  }}
+                >
+                  Cancel
                 </Button>
               </div>
-
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  form.reset(defaultFormValues);
-                  navigate(-1);
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Form>
-      )}
-    </div>
+            </form>
+          </Form>
+        )}
+      </div>
+    </>
   );
 };
 

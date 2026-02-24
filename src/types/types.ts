@@ -215,6 +215,7 @@ export type Invoice = Prettify<
     invoiceType?: InvoiceType;
     accountMapping: {
       singleAccountId?: number;
+      /** same customer often has multiple accounts; multiple accounts = one invoice per customer, one journal per account */
       multipleAccountIds?: number[];
     };
   }
