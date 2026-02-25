@@ -9,7 +9,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { currencyFormatOptions } from 'renderer/lib/constants';
@@ -85,8 +85,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useState(false);
   const [cumulativeDiscount, setCumulativeDiscount] = useState<number>();
   const [useSingleAccount, setUseSingleAccount] = useState(true);
+  const useSingleAccountRef = useRef(useSingleAccount);
+  useSingleAccountRef.current = useSingleAccount;
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
+  const dateConfirmedInModalRef = useRef(false);
   const [isRefreshingParties, setIsRefreshingParties] = useState(false);
 
   const navigate = useNavigate();
@@ -119,94 +122,145 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     },
   };
 
-  const formSchema = z.object({
-    id: z.number(),
-    date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
-      message: 'Select a valid date',
-    }),
-    biltyNumber: z.string().optional(),
-    cartons: z.coerce
-      .number()
-      .nonnegative('Cartons must be non-negative')
-      .optional(),
-    extraDiscount: z.coerce
-      .number()
-      .nonnegative('Extra Discount must be non-negative'),
-    totalAmount:
-      invoiceType === InvoiceType.Sale
-        ? z.coerce.number().positive('Total Amount must be greater than 0')
-        : z.coerce.number(),
-    invoiceItems: z
-      .array(
-        z.object({
-          id: z.number(),
-          inventoryId: z.coerce.number().positive('Select an item'),
-          quantity: z.coerce
-            .number()
-            .int('Quantity must be a whole number')
-            .positive('Quantity must be greater than 0'),
-          discount: z.coerce
-            .number()
-            .multipleOf(0.01, 'Discount must be at-most 2 decimal places')
-            .nonnegative('Discount must be non-negative')
-            .max(100, 'Discount must be less than 100%')
-            .min(0, 'Discount must be greater than 0%'),
-          price:
-            invoiceType === InvoiceType.Sale
-              ? z.number().positive('Price must be greater than 0')
-              : z.number(),
-          discountedPrice: z
-            .number()
-            .nonnegative('Discounted price must be non-negative'),
+  const formSchema = z
+    .object({
+      id: z.number(),
+      date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
+        message: 'Select a valid date',
+      }),
+      biltyNumber: z.string().optional(),
+      cartons: z.coerce
+        .number()
+        .nonnegative('Cartons must be non-negative')
+        .optional(),
+      extraDiscount: z.coerce
+        .number()
+        .nonnegative('Extra Discount must be non-negative'),
+      totalAmount:
+        invoiceType === InvoiceType.Sale
+          ? z.coerce.number().positive('Total Amount must be greater than 0')
+          : z.coerce.number(),
+      invoiceItems: z
+        .array(
+          z.object({
+            id: z.number(),
+            inventoryId: z.coerce.number().positive('Select an item'),
+            quantity: z.coerce
+              .number()
+              .int('Quantity must be a whole number')
+              .positive('Quantity must be greater than 0'),
+            discount: z.coerce
+              .number()
+              .multipleOf(0.01, 'Discount must be at-most 2 decimal places')
+              .nonnegative('Discount must be non-negative')
+              .max(100, 'Discount must be less than 100%')
+              .min(0, 'Discount must be greater than 0%'),
+            price:
+              invoiceType === InvoiceType.Sale
+                ? z.number().positive('Price must be greater than 0')
+                : z.number(),
+            discountedPrice: z
+              .number()
+              .nonnegative('Discounted price must be non-negative'),
+          }),
+        )
+        .min(1, 'Add at-least one invoice item')
+        // validate each item can only be added once
+        .refine(
+          (items) => {
+            const ids = items.map((i) => i.inventoryId).filter((id) => id > 0);
+            return new Set(ids).size === ids.length;
+          },
+          { message: 'Each item can only be added once' },
+        )
+        // validate max quantity of selected inventory item
+        .superRefine((items, ctx) => {
+          if (!inventory?.length) return;
+          items.forEach((item, idx) => {
+            if (item.inventoryId <= 0) return;
+            const inv = inventory.find((i) => i.id === item.inventoryId);
+            if (!inv || item.quantity <= inv.quantity) return;
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Max ${inv.quantity} available`,
+              path: [idx, 'quantity'],
+            });
+          });
         }),
-      )
-      .min(1, 'Add at-least one invoice item')
-      .refine(
-        (items) => {
-          const ids = items.map((i) => i.inventoryId).filter((id) => id > 0);
-          return new Set(ids).size === ids.length;
-        },
-        { message: 'Each item can only be added once' },
-      )
-      .superRefine((items, ctx) => {
-        if (!inventory?.length) return;
-        items.forEach((item, idx) => {
-          if (item.inventoryId <= 0) return;
-          const inv = inventory.find((i) => i.id === item.inventoryId);
-          if (!inv || item.quantity <= inv.quantity) return;
+      accountMapping: z.object({
+        singleAccountId: z.coerce
+          .number()
+          .positive(
+            `Select a ${
+              invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+            }`,
+          )
+          .optional(),
+        multipleAccountIds: z
+          .array(
+            z.coerce
+              .number({
+                invalid_type_error: `Select a ${
+                  invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+                } for this row`,
+              })
+              .refine((n) => Number.isFinite(n) && n > 0, {
+                message: `Select a ${
+                  invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+                } for this row`,
+              }),
+          )
+          .optional(),
+      }),
+    })
+    // validate account mapping
+    // if single account is checked, validate that account is selected
+    // if single account is unchecked, validate that multiple accounts are selected for each invoice item
+    .superRefine((data, ctx) => {
+      const partyLabel =
+        invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
+      if (useSingleAccountRef.current) {
+        const sid = data.accountMapping.singleAccountId;
+        if (typeof sid !== 'number' || sid <= 0) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `Max ${inv.quantity} available`,
-            path: [idx, 'quantity'],
+            message: `Select a ${partyLabel}`,
+            path: ['accountMapping', 'singleAccountId'],
           });
+        }
+        return;
+      }
+      const ids = data.accountMapping.multipleAccountIds ?? [];
+      const itemCount = data.invoiceItems?.length ?? 0;
+      const message = `Select a ${partyLabel} for each invoice item`;
+      if (ids.length !== itemCount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message,
+          path: ['accountMapping', 'multipleAccountIds'],
         });
-      }),
-    accountMapping: z.object({
-      singleAccountId: z.coerce
-        .number()
-        .positive(
-          `Select a ${
-            invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-          }`,
-        )
-        .optional(),
-      multipleAccountIds: z
-        .array(
-          z.coerce
-            .number({
-              invalid_type_error: `Select a ${
-                invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-              } for this row`,
-            })
-            .refine((n) => Number.isFinite(n) && n > 0, {
-              message: `Select a ${
-                invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-              } for this row`,
-            }),
-        )
-        .optional(),
-    }),
-  });
+        for (let i = 0; i < itemCount; i++) {
+          const id = ids[i];
+          if (typeof id !== 'number' || id <= 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Select a ${partyLabel}`,
+              path: ['accountMapping', 'multipleAccountIds', i],
+            });
+          }
+        }
+        return;
+      }
+      ids.forEach((id, index) => {
+        if (typeof id !== 'number' || id <= 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Select a ${partyLabel}`,
+            path: ['accountMapping', 'multipleAccountIds', index],
+          });
+        }
+      });
+    });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -218,46 +272,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     control: form.control,
     name: 'invoiceItems',
   });
-
-  // validate account mapping only after user has attempted submit
-  useEffect(() => {
-    const subscription = form.watch(() => {
-      if (!form.formState.isSubmitted) return;
-      if (useSingleAccount) {
-        const singleAccountId = form.getValues(
-          'accountMapping.singleAccountId',
-        );
-        if (!singleAccountId) {
-          form.setError('accountMapping.singleAccountId', {
-            type: 'manual',
-            message: `Select a ${
-              invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-            }`,
-          });
-        } else {
-          form.clearErrors('accountMapping.singleAccountId');
-        }
-      } else {
-        const multipleAccountIds =
-          form.getValues('accountMapping.multipleAccountIds') || [];
-        if (
-          !multipleAccountIds.length ||
-          multipleAccountIds.length !== watchedInvoiceItems.length
-        ) {
-          form.setError('accountMapping.multipleAccountIds', {
-            type: 'manual',
-            message: `Select a ${
-              invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-            } for each invoice item`,
-          });
-        } else {
-          form.clearErrors('accountMapping.multipleAccountIds');
-        }
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [form, invoiceType, useSingleAccount, watchedInvoiceItems]);
 
   const watchedExtraDiscount = useWatch({
     control: form.control,
@@ -1009,6 +1023,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       return;
     }
 
+    // when user clicked "Use current date" in modal, state may not have updated yet
+    if (dateConfirmedInModalRef.current) {
+      dateConfirmedInModalRef.current = false;
+      setIsDateExplicitlySet(true);
+      await submitInvoice(values);
+      return;
+    }
+
     if (!isDateExplicitlySet) {
       setShowDateConfirmation(true);
       return;
@@ -1140,9 +1162,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               Change date
             </Button>
             <Button
-              onClick={async () => {
+              onClick={() => {
                 setShowDateConfirmation(false);
-                await submitInvoice(form.getValues());
+                form.setValue('date', new Date().toISOString());
+                dateConfirmedInModalRef.current = true;
+                form.handleSubmit(onSubmit)();
               }}
             >
               Use current date
