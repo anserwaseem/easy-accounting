@@ -76,9 +76,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   >(-1);
   const [parties, setParties] =
     useState<Pick<Account, 'id' | 'type' | 'name' | 'code'>[]>();
-  const [partyLastDateInLedger, setPartyLastDateInLedger] = useState<
-    Date | undefined | null // default state: undefined, null represents customer with no ledger entry hence no date selection restriction
-  >();
   const [requiredAccountsExist, setRequiredAccountsExist] = useState<{
     sale: boolean;
     purchase: boolean;
@@ -531,21 +528,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   );
 
   const onAccountSelection = useCallback(
-    async (accountId: string, onChange: Function) => {
+    (accountId: string, onChange: Function) => {
       onChange(accountId);
-      const partyLedger = await window.electron.getLedger(toNumber(accountId));
-      const latestDate = partyLedger.at(0)?.date;
-      // check if partyLastDateInLedger defined and is before latestDate, only then update
-      if (
-        latestDate &&
-        (!partyLastDateInLedger || partyLastDateInLedger < new Date(latestDate))
-      ) {
-        setPartyLastDateInLedger(new Date(latestDate));
-      } else {
-        setPartyLastDateInLedger(null);
-      }
     },
-    [partyLastDateInLedger],
+    [],
   );
 
   const columns: ColumnDef<InvoiceItem>[] = useMemo(() => {
@@ -967,9 +953,61 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     }
   };
 
+  const validateInvoiceDateAgainstParties = useCallback(
+    async (values: z.infer<typeof formSchema>): Promise<string | null> => {
+      const dateStr = values.date;
+      if (!dateStr) return null;
+      const invoiceDate = new Date(dateStr);
+      invoiceDate.setHours(0, 0, 0, 0);
+
+      let accountIds: number[];
+      if (useSingleAccount) {
+        const sid = values.accountMapping.singleAccountId;
+        accountIds = typeof sid === 'number' && sid > 0 ? [sid] : [];
+      } else {
+        accountIds = (values.accountMapping.multipleAccountIds || []).filter(
+          (id): id is number => typeof id === 'number' && id > 0,
+        );
+      }
+      if (accountIds.length === 0) return null;
+
+      const lastDatesResults = await Promise.all(
+        accountIds.map((accountId) =>
+          window.electron.getLedger(accountId).then((ledger) => {
+            const latest = ledger.at(-1)?.date;
+            return latest ? new Date(latest) : null;
+          }),
+        ),
+      );
+      const lastDates = lastDatesResults.filter((d): d is Date => d != null);
+      if (lastDates.length === 0) return null;
+
+      const minRequired = new Date(
+        Math.max(...lastDates.map((d) => d.getTime())),
+      );
+      minRequired.setHours(0, 0, 0, 0);
+      if (invoiceDate >= minRequired) return null;
+      const partyLabel =
+        invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
+      return `Invoice date must be on or after ${format(
+        minRequired,
+        'PPP',
+      )} for the selected ${partyLabel}${
+        useSingleAccount ? '' : '(s)'
+      } (last ledger date).`;
+    },
+    [invoiceType, useSingleAccount],
+  );
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // eslint-disable-next-line no-console
     console.log('onSubmit invoice:', values);
+
+    const dateError = await validateInvoiceDateAgainstParties(values);
+    if (dateError) {
+      form.setError('date', { type: 'manual', message: dateError });
+      return;
+    }
 
     if (!isDateExplicitlySet) {
       setShowDateConfirmation(true);
@@ -1037,28 +1075,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     },
     [form],
   );
-
-  const isDateDisabled = useMemo(() => {
-    if (partyLastDateInLedger === null) {
-      return false; // null represents customer with no ledger entry hence no date selection restriction
-    }
-
-    const accountMapping = form.getValues('accountMapping'); // need watch
-    const accountId =
-      accountMapping.singleAccountId ?? accountMapping.multipleAccountIds?.[0];
-    console.log('isDateDisabled', accountId, partyLastDateInLedger);
-    if (
-      partyLastDateInLedger === undefined || // last date hasn't been set for the selected party yet
-      accountId === undefined || // no party selected yet
-      accountId <= 0 // no party selected yet
-    ) {
-      return true;
-    }
-
-    return {
-      before: partyLastDateInLedger,
-    };
-  }, [form, partyLastDateInLedger]);
 
   const onSingleAccountToggle = useCallback(
     (isChecked: boolean) => {
@@ -1274,8 +1290,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                               <Calendar
                                 {...field}
                                 mode="single"
-                                disabled={isDateDisabled}
-                                selected={new Date(field.value)}
+                                selected={
+                                  field.value
+                                    ? new Date(field.value)
+                                    : undefined
+                                }
                                 onSelect={onDateSelection}
                                 initialFocus
                               />
