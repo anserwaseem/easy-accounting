@@ -131,11 +131,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       biltyNumber: z.string().optional(),
       cartons: z.coerce
         .number()
-        .nonnegative('Cartons must be non-negative')
+        .nonnegative('Cartons must be greater than 0')
         .optional(),
       extraDiscount: z.coerce
         .number()
-        .nonnegative('Extra Discount must be non-negative'),
+        .nonnegative('Extra Discount must be greater than 0'),
       totalAmount:
         invoiceType === InvoiceType.Sale
           ? z.coerce.number().positive('Total Amount must be greater than 0')
@@ -152,7 +152,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             discount: z.coerce
               .number()
               .multipleOf(0.01, 'Discount must be at-most 2 decimal places')
-              .nonnegative('Discount must be non-negative')
+              .nonnegative('Discount must be greater than 0')
               .max(100, 'Discount must be less than 100%')
               .min(0, 'Discount must be greater than 0%'),
             price:
@@ -161,7 +161,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 : z.number(),
             discountedPrice: z
               .number()
-              .nonnegative('Discounted price must be non-negative'),
+              .nonnegative('Discounted price must be greater than 0'),
           }),
         )
         .min(1, 'Add at-least one invoice item')
@@ -550,7 +550,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const columns: ColumnDef<InvoiceItem>[] = useMemo(() => {
     const getItemOptionsForRow = (rowIndex: number) => {
-      const selectedElsewhere = (watchedInvoiceItems || [])
+      const items = form.getValues('invoiceItems') || [];
+      const selectedElsewhere = items
         .filter((item, idx) => idx !== rowIndex && item.inventoryId > 0)
         .map((item) => item.inventoryId);
       return (inventory || []).filter(
@@ -765,9 +766,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     return baseColumns;
   }, [
     invoiceType,
-    form.control,
+    form,
     inventory,
-    watchedInvoiceItems,
     onItemSelectionChange,
     onQuantityChange,
     handleRemoveRow,
