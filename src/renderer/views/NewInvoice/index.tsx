@@ -5,6 +5,7 @@ import { get, isNil, pick, sum, toNumber, toString, trim } from 'lodash';
 import {
   Calendar as CalendarIcon,
   Plus,
+  Printer,
   RefreshCw,
   Upload,
   X,
@@ -90,6 +91,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
   const dateConfirmedInModalRef = useRef(false);
+  const openPrintAfterSaveRef = useRef(false);
   const [isRefreshingParties, setIsRefreshingParties] = useState(false);
 
   const navigate = useNavigate();
@@ -935,26 +937,28 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
   ]);
 
-  const submitInvoice = async (values: z.infer<typeof formSchema>) => {
+  const submitInvoice = async (
+    values: z.infer<typeof formSchema>,
+  ): Promise<number | undefined> => {
     try {
       const invoice = {
         ...values,
         invoiceNumber: nextInvoiceNumber,
       };
-      const returnedNextInvoiceNumber = (await window.electron.insertInvoice(
+      const result = (await window.electron.insertInvoice(
         invoiceType,
         invoice,
-      )) as number;
+      )) as { invoiceId: number; nextInvoiceNumber: number };
 
-      if (returnedNextInvoiceNumber > 0) {
-        setNextInvoiceNumber(returnedNextInvoiceNumber);
+      if (result.nextInvoiceNumber > 0) {
+        setNextInvoiceNumber(result.nextInvoiceNumber);
         form.reset(defaultFormValues);
         setIsDateExplicitlySet(false);
         toast({
           description: `${invoiceType} invoice saved successfully`,
           variant: 'success',
         });
-        return;
+        return result.invoiceId > 0 ? result.invoiceId : undefined;
       }
       raise(`Failed to save ${invoiceType} invoice`);
     } catch (error) {
@@ -965,6 +969,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         variant: 'destructive',
       });
     }
+    return undefined;
   };
 
   const validateInvoiceDateAgainstParties = useCallback(
@@ -1027,7 +1032,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     if (dateConfirmedInModalRef.current) {
       dateConfirmedInModalRef.current = false;
       setIsDateExplicitlySet(true);
-      await submitInvoice(values);
+      const invoiceId = await submitInvoice(values);
+      if (openPrintAfterSaveRef.current && invoiceId != null) {
+        openPrintAfterSaveRef.current = false;
+        navigate(`/invoices/${invoiceId}/print`);
+      }
       return;
     }
 
@@ -1036,7 +1045,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       return;
     }
 
-    await submitInvoice(values);
+    const invoiceId = await submitInvoice(values);
+    if (openPrintAfterSaveRef.current && invoiceId != null) {
+      openPrintAfterSaveRef.current = false;
+      navigate(`/invoices/${invoiceId}/print`);
+    }
   };
 
   const uploadInvoiceItems = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1418,6 +1431,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     disabled={isSubmitDisabled}
                   >
                     Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    disabled={isSubmitDisabled}
+                    onClick={() => {
+                      openPrintAfterSaveRef.current = true;
+                      form.handleSubmit(onSubmit)();
+                    }}
+                  >
+                    <Printer size={16} className="mr-2" />
+                    Save and Print
                   </Button>
                   <Button type="reset" variant="ghost">
                     Clear
