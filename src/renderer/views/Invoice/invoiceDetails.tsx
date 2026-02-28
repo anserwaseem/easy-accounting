@@ -1,5 +1,6 @@
 import { isNil, toNumber } from 'lodash';
 import { useEffect, useMemo, useState } from 'react';
+import { dateFormatOptions } from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
@@ -101,7 +102,14 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             )}
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Date:</p>
-              <p>{invoice?.date}</p>
+              <p>
+                {invoice?.date
+                  ? new Date(invoice.date).toLocaleString(
+                      'en-US',
+                      dateFormatOptions,
+                    )
+                  : ''}
+              </p>
             </div>
             {invoiceType === InvoiceType.Sale ? (
               <>

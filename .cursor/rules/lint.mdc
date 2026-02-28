@@ -1,0 +1,96 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+- Prefer questions over assumptions
+
+# General Rules
+1. always import toast from use-toast directly. don't create a useToast hook first.
+2. always setup new migration whenever some change is required in schema especially when adding a new table or updating definition of existing table
+3. if a new migration file is created, reflect its changes in schema.sql file also. Look at how schema changes for other migration files are reflected for example every new column is commented with the migration name.
+
+# Code Style Rules
+1. always use functional react
+2. always import type iff possible
+3. never leave unused imports
+4. always write comments starting from small letter
+5. apply DRY (Donot Repeat Yourself) principle
+6. always use lodash builtin methods where possible to reduce code complexity
+7. always fix props validation eslint issue by including prop type of the component
+8. NEVER EVER CHANGE ANYTHING IN *.db FILES - these are database files and never to be touched/altered
+9. do not comment out to pass tests
+10. always use minimum amount of re-renders - use different techniques like memoization, virtualization, splitting etc to make the components most efficient
+11. do not produce code with lint errors
+12. never use 'any', always use types
+13. dont break any rules of React
+14. ignore console.log, don't delete them
+
+ALWAYS FOLLOW ELSINT RULES
+# .eslintrc.js
+
+module.exports = {
+  extends: 'erb',
+  plugins: ['@typescript-eslint'],
+  globals: {
+    React: 'readonly',
+  },
+  rules: {
+    // A temporary hack related to IDE not resolving correct package.json
+    'import/no-extraneous-dependencies': 'off',
+    'react/react-in-jsx-scope': 'off',
+    'react/jsx-filename-extension': 'off',
+    'import/extensions': 'off',
+    'import/no-unresolved': 'off',
+    'import/no-import-module-exports': 'off',
+    'no-shadow': 'off',
+    '@typescript-eslint/no-shadow': 'error',
+    'no-unused-vars': 'off',
+    '@typescript-eslint/no-unused-vars': 'error',
+    'import/no-default-export': 'off',
+    'import/prefer-default-export': 'off',
+    'react/jsx-props-no-spreading': 'off',
+    'react/require-default-props': 'off',
+    'no-plusplus': 'off',
+    'no-use-before-define': ['error', { functions: false }],
+    'consistent-return': 'off',
+    'no-extra-boolean-cast': 'off',
+    'no-restricted-syntax': ['off', 'ForOfStatement'],
+    'global-require': 'off',
+    'import/no-dynamic-require': 'off',
+    'no-console': 'off',
+    'no-continue': 'off',
+    'no-underscore-dangle': 'off',
+    'promise/always-return': 'off',
+    'no-useless-constructor': 'off',
+    'react/function-component-definition': [
+      2,
+      {
+        namedComponents: 'arrow-function',
+        unnamedComponents: 'arrow-function',
+      },
+    ],
+  },
+  ignorePatterns: ['.eslintrc.js'],
+  parserOptions: {
+    ecmaVersion: 2020,
+    sourceType: 'module',
+    project: './tsconfig.json',
+    tsconfigRootDir: __dirname,
+    createDefaultProgram: true,
+  },
+  settings: {
+    'import/resolver': {
+      // See https://github.com/benmosher/eslint-plugin-import/issues/1396#issuecomment-575727774 for line below
+      node: {},
+      webpack: {
+        config: require.resolve('./.erb/configs/webpack.config.eslint.ts'),
+      },
+      typescript: {},
+    },
+    'import/parsers': {
+      '@typescript-eslint/parser': ['.ts', '.tsx'],
+    },
+  },
+};

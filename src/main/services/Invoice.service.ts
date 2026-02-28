@@ -96,7 +96,10 @@ export class InvoiceService {
     return res;
   }
 
-  insertInvoice(invoiceType: InvoiceType, invoice: Invoice): number {
+  insertInvoice(
+    invoiceType: InvoiceType,
+    invoice: Invoice,
+  ): { invoiceId: number; nextInvoiceNumber: number } {
     return this.db.transaction(() => {
       return this.insertInvoiceWithoutTransaction(invoiceType, invoice);
     })();
@@ -105,10 +108,11 @@ export class InvoiceService {
   private insertInvoiceWithoutTransaction(
     invoiceType: InvoiceType,
     invoice: Invoice,
-  ): number {
+  ): { invoiceId: number; nextInvoiceNumber: number } {
+    const invalid = { invoiceId: -1, nextInvoiceNumber: -1 };
     if (!invoice.invoiceNumber) {
       log.error('No invoice number found while inserting invoice', invoice);
-      return -1;
+      return invalid;
     }
 
     const totalAmount = invoice.totalAmount ?? 0;
@@ -145,9 +149,13 @@ export class InvoiceService {
       }
 
       this.createJournalEntry(invoiceType, invoice, accountId, totalAmount);
+      return {
+        invoiceId,
+        nextInvoiceNumber: invoice.invoiceNumber + 1,
+      };
     }
-    // multiple accounts - multiple journals
-    else if (invoice.accountMapping.multipleAccountIds) {
+    // multiple accounts - multiple journals (single invoice per customer)
+    if (invoice.accountMapping.multipleAccountIds) {
       const invoiceResult = this.stmInsertInvoice.run({
         date: invoice.date,
         accountId: invoice.accountMapping.multipleAccountIds[0], // workaround for multiple accounts - first account will be used
@@ -198,9 +206,13 @@ export class InvoiceService {
           groupTotalAmount,
         );
       });
+      return {
+        invoiceId,
+        nextInvoiceNumber: invoice.invoiceNumber + 1,
+      };
     }
 
-    return invoice.invoiceNumber + 1;
+    return invalid;
   }
 
   getInvoicesInDateRange(

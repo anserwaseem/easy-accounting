@@ -7,6 +7,7 @@ import { isNil, toNumber } from 'lodash';
 import { File, Loader2, Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { dateFormatOptions } from 'renderer/lib/constants';
 import {
   cn,
   defaultSortingFunctions,
@@ -59,17 +60,20 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
       ...((isMini
         ? [
             {
-              id: 'miniView',
+              accessorKey: 'invoiceNumber',
               header: `${invoiceType} Invoices`,
-              accessorFn: (row) => row,
-              accessorKey: 'invoices',
               // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ getValue }) => {
-                const invoice = getValue() as InvoicesView;
+              cell: ({ row }) => {
+                const invoice = row.original;
                 return (
                   <div className="flex justify-between items-start w-full">
                     <div className="flex flex-col">
-                      <p>{invoice.date}</p>
+                      <p>
+                        {new Date(invoice.date).toLocaleString(
+                          'en-US',
+                          dateFormatOptions,
+                        )}
+                      </p>
                       <p className="font-extrabold">{invoice.invoiceNumber}</p>
                     </div>
                     <div className="flex flex-col text-end">
@@ -104,6 +108,11 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
             {
               accessorKey: 'date',
               header: DateHeader,
+              cell: ({ row }) =>
+                new Date(row.original.date).toLocaleString(
+                  'en-US',
+                  dateFormatOptions,
+                ),
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
