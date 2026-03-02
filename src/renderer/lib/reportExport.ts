@@ -99,8 +99,9 @@ export function exportReportToExcel<T extends Record<string, unknown>>(
   const aoa = buildSheetRows(payload);
   const ws = utils.aoa_to_sheet(aoa);
 
+  // data starts after title (optional), subtitle (optional), and header row
+  const dataStartRow = (payload.title ? 1 : 0) + (payload.subtitle ? 1 : 0) + 1;
   // set number format for currency columns so Excel displays with thousand separators and 2 decimals
-  const dataStartRow = 3; // row 0 title, 1 subtitle, 2 headers, 3+ data
   payload.columns.forEach((col, c) => {
     if (col.format === 'currency') {
       for (let r = dataStartRow; r < aoa.length; r++) {
