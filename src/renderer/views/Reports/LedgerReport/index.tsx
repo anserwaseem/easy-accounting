@@ -1,6 +1,12 @@
+import { useCallback } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
-import { Calendar as CalendarIcon, Printer, RefreshCw } from 'lucide-react';
+import {
+  Calendar as CalendarIcon,
+  Download,
+  Printer,
+  RefreshCw,
+} from 'lucide-react';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import {
   Popover,
@@ -11,10 +17,55 @@ import { cn, getFormattedCurrency } from 'renderer/lib/utils';
 import { Card } from 'renderer/shad/ui/card';
 import { ReportLayout } from 'renderer/components/ReportLayout';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import {
+  exportReportToExcel,
+  type ReportExportPayload,
+} from 'renderer/lib/reportExport';
+import type { LedgerView } from '@/types';
+import { toast } from 'renderer/shad/ui/use-toast';
 import { printStyles } from '../components';
 import { useLedgerReport } from './useLedgerReport';
 import { LedgerReportTable } from './LedgerReportTable';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
+
+type LedgerReportRow = {
+  date: string | Date;
+  particulars: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  balanceType: string;
+};
+
+const buildLedgerReportPayload = (
+  ledgerEntries: LedgerView[],
+  accountName: string,
+  selectedDate: Date,
+): ReportExportPayload<LedgerReportRow> => ({
+  title: 'Ledger Report',
+  subtitle: `${accountName} as of ${format(selectedDate, 'PPP')}`,
+  sheetName: 'Ledger Report',
+  suggestedFileName: `Ledger_${accountName.replace(/\s+/g, '_')}_${format(
+    selectedDate,
+    'yyyy-MM-dd',
+  )}.xlsx`,
+  columns: [
+    { key: 'date', header: 'Date', format: 'date', width: 14 },
+    { key: 'particulars', header: 'Particulars', format: 'string', width: 36 },
+    { key: 'debit', header: 'Debit', format: 'currency', width: 14 },
+    { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
+    { key: 'balance', header: 'Balance', format: 'currency', width: 14 },
+    { key: 'balanceType', header: 'Type', format: 'string', width: 8 },
+  ],
+  rows: ledgerEntries.map((e) => ({
+    date: e.date,
+    particulars: e.linkedAccountName ?? e.particulars ?? '',
+    debit: e.debit,
+    credit: e.credit,
+    balance: e.balance,
+    balanceType: e.balanceType,
+  })),
+});
 
 const LedgerReportPage = () => {
   const {
@@ -37,6 +88,32 @@ const LedgerReportPage = () => {
           ledgerEntries.at(-1)?.balance ?? 0,
         ).trim()} ${ledgerEntries.at(-1)?.balanceType}`
       : '';
+
+  const handleExportExcel = useCallback(() => {
+    try {
+      const payload = buildLedgerReportPayload(
+        ledgerEntries,
+        selectedAccountName,
+        selectedDate,
+      );
+      exportReportToExcel(payload);
+      toast({
+        title: 'Success',
+        description: 'Ledger report exported to Excel.',
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to export ledger report to Excel.',
+        variant: 'destructive',
+      });
+    }
+  }, [ledgerEntries, selectedAccountName, selectedDate]);
+
+  const canExport =
+    !isLoading && selectedAccount != null && ledgerEntries.length > 0;
 
   return (
     <ReportLayout
@@ -100,6 +177,15 @@ const LedgerReportPage = () => {
                 <RefreshCw
                   className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
                 />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleExportExcel}
+                title="Export to Excel"
+                disabled={!canExport}
+              >
+                <Download className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"

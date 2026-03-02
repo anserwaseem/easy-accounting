@@ -1,15 +1,72 @@
+import { useCallback } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Card } from 'renderer/shad/ui/card';
-import { Printer, RefreshCw } from 'lucide-react';
+import { Download, Printer, RefreshCw } from 'lucide-react';
 import {
   DateRange,
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
 import { ReportLayout } from 'renderer/components/ReportLayout';
+import {
+  exportReportToExcel,
+  type ReportExportPayload,
+} from 'renderer/lib/reportExport';
+import { toast } from 'renderer/shad/ui/use-toast';
 import { printStyles } from '../components';
 import { useAverageEquityBalances } from './useAverageEquityBalances';
 import { AverageEquityBalancesTable } from './AverageEquityBalancesTable';
+import type {
+  AverageEquityBalancesState,
+  AverageEquityBalanceItem,
+} from './types';
+
+type AverageEquityRow = {
+  code: string | number;
+  name: string;
+  averageBalance: number;
+  balanceType: string;
+};
+
+const buildAverageEquityPayload = (
+  state: AverageEquityBalancesState,
+  startDate: Date,
+  endDate: Date,
+): ReportExportPayload<AverageEquityRow> => ({
+  title: 'Average Equity Balances',
+  subtitle: `${format(startDate, 'PPP')} to ${format(endDate, 'PPP')}`,
+  sheetName: 'Average Equity Balances',
+  suggestedFileName: `Average_Equity_Balances_${format(
+    startDate,
+    'yyyy-MM-dd',
+  )}_${format(endDate, 'yyyy-MM-dd')}.xlsx`,
+  columns: [
+    { key: 'code', header: 'Account Code', format: 'string', width: 14 },
+    { key: 'name', header: 'Account Name', format: 'string', width: 32 },
+    {
+      key: 'averageBalance',
+      header: 'Average Balance',
+      format: 'currency',
+      width: 16,
+    },
+    { key: 'balanceType', header: 'Type', format: 'string', width: 8 },
+  ],
+  rows: state.items.map((item: AverageEquityBalanceItem) => ({
+    code: item.code ?? '',
+    name: item.name,
+    averageBalance: Math.abs(item.averageBalance),
+    balanceType: item.averageBalance >= 0 ? 'Cr' : 'Dr',
+  })),
+  footerRow:
+    state.totalAverage != null
+      ? {
+          code: '',
+          name: 'Net Average',
+          averageBalance: Math.abs(state.totalAverage),
+          balanceType: state.totalAverage >= 0 ? 'Cr' : 'Dr',
+        }
+      : undefined,
+});
 
 const AverageEquityBalancesPage = () => {
   const {
@@ -23,6 +80,27 @@ const AverageEquityBalancesPage = () => {
   } = useAverageEquityBalances();
 
   const handlePrint = () => window.print();
+
+  const handleExportExcel = useCallback(() => {
+    try {
+      const payload = buildAverageEquityPayload(state, startDate, endDate);
+      exportReportToExcel(payload);
+      toast({
+        title: 'Success',
+        description: 'Average equity balances exported to Excel.',
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to export average equity balances to Excel.',
+        variant: 'destructive',
+      });
+    }
+  }, [state, startDate, endDate]);
+
+  const canExport = !isLoading && state.items.length > 0;
 
   return (
     <ReportLayout
@@ -53,6 +131,15 @@ const AverageEquityBalancesPage = () => {
               <RefreshCw
                 className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
               />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleExportExcel}
+              title="Export to Excel"
+              disabled={!canExport}
+            >
+              <Download className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"

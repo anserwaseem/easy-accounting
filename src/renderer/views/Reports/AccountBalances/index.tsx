@@ -1,7 +1,8 @@
+import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Card } from 'renderer/shad/ui/card';
-import { Calendar as CalendarIcon, Printer } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Printer } from 'lucide-react';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import {
   Popover,
@@ -17,9 +18,63 @@ import {
   SelectValue,
 } from 'renderer/shad/ui/select';
 import { ReportLayout } from 'renderer/components/ReportLayout';
-import { printStyles } from '../components';
+import {
+  exportReportToExcel,
+  sortDebitCreditRows,
+  type DebitCreditExportSortOrder,
+  type ReportExportPayload,
+} from 'renderer/lib/reportExport';
+import { toast } from 'renderer/shad/ui/use-toast';
+import { ExportOrderDialog, printStyles } from '../components';
 import { useAccountBalances } from './useAccountBalances';
 import { AccountBalancesTable } from './AccountBalancesTable';
+import type { AccountBalances as AccountBalancesType } from './types';
+
+type AccountBalancesRow = {
+  code: string | number;
+  name: string;
+  debit: number;
+  credit: number;
+};
+
+const buildAccountBalancesPayload = (
+  accountBalances: AccountBalancesType,
+  selectedHead: string,
+  selectedDate: Date,
+  exportSortOrder: DebitCreditExportSortOrder,
+): ReportExportPayload<AccountBalancesRow> => {
+  const rows = sortDebitCreditRows(
+    accountBalances.accounts.map((a) => ({
+      code: a.code ?? '',
+      name: a.name,
+      debit: a.balanceType === 'Dr' ? a.balance : 0,
+      credit: a.balanceType === 'Cr' ? a.balance : 0,
+    })),
+    exportSortOrder,
+  );
+  return {
+    title: 'Account Balances',
+    subtitle: `${selectedHead} as of ${format(selectedDate, 'PPP')}`,
+    sheetName: 'Account Balances',
+    suggestedFileName: `Account_Balances_${selectedHead.replace(
+      /\s+/g,
+      '_',
+    )}_${format(selectedDate, 'yyyy-MM-dd')}.xlsx`,
+    columns: [
+      { key: 'code', header: 'Account Code', format: 'string', width: 14 },
+      { key: 'name', header: 'Account Name', format: 'string', width: 32 },
+      { key: 'debit', header: 'Debit', format: 'currency', width: 14 },
+      { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
+    ],
+    rows,
+    footerRow: {
+      code: '',
+      name: 'Total',
+      debit: accountBalances.totalDebit,
+      credit: accountBalances.totalCredit,
+    },
+  };
+};
 
 const AccountBalancesPage = () => {
   const {
@@ -31,10 +86,40 @@ const AccountBalancesPage = () => {
     handleHeadChange,
     handleDateChange,
   } = useAccountBalances();
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   const handlePrint = () => {
     window.print();
   };
+
+  const handleExportExcel = useCallback(
+    (exportSortOrder: DebitCreditExportSortOrder) => {
+      try {
+        const payload = buildAccountBalancesPayload(
+          accountBalances,
+          selectedHead,
+          selectedDate,
+          exportSortOrder,
+        );
+        exportReportToExcel(payload);
+        toast({
+          title: 'Success',
+          description: 'Account balances exported to Excel.',
+          variant: 'success',
+        });
+      } catch (error) {
+        console.error('Export error:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to export account balances to Excel.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [accountBalances, selectedHead, selectedDate],
+  );
+
+  const canExport = !isLoading && accountBalances.accounts.length > 0;
 
   return (
     <ReportLayout
@@ -86,6 +171,21 @@ const AccountBalancesPage = () => {
                 </PopoverContent>
               </Popover>
             </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setExportDialogOpen(true)}
+              title="Export to Excel"
+              disabled={!canExport}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+            <ExportOrderDialog
+              open={exportDialogOpen}
+              onOpenChange={setExportDialogOpen}
+              onConfirm={handleExportExcel}
+              title="Export Account Balances"
+            />
             <Button
               variant="outline"
               size="icon"
