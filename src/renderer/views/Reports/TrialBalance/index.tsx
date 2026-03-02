@@ -1,6 +1,7 @@
+import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
-import { Calendar as CalendarIcon, Printer } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Printer } from 'lucide-react';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import {
   Popover,
@@ -8,19 +9,105 @@ import {
   PopoverContent,
 } from 'renderer/shad/ui/popover';
 import { cn } from 'renderer/lib/utils';
+import {
+  exportReportToExcel,
+  sortDebitCreditRows,
+  type DebitCreditExportSortOrder,
+  type ReportExportPayload,
+} from 'renderer/lib/reportExport';
 import { Card } from 'renderer/shad/ui/card';
+import { toast } from 'renderer/shad/ui/use-toast';
 import { ReportLayout } from 'renderer/components/ReportLayout';
-import { printStyles } from '../components';
+import { ExportOrderDialog, printStyles } from '../components';
 import { TrialBalanceTable } from './TrialBalanceTable';
+import type { TrialBalance as TrialBalanceType } from './types';
 import { useTrialBalance } from './useTrialBalance';
+
+type TrialBalanceRow = {
+  code: string | number;
+  name: string;
+  type: string;
+  debit: number;
+  credit: number;
+};
+
+const buildTrialBalancePayload = (
+  trialBalance: TrialBalanceType,
+  selectedDate: Date,
+  exportSortOrder: DebitCreditExportSortOrder,
+): ReportExportPayload<TrialBalanceRow> => {
+  const rows = sortDebitCreditRows(
+    trialBalance.accounts.map((a) => ({
+      code: a.code ?? '',
+      name: a.name,
+      type: a.type,
+      debit: a.debit,
+      credit: a.credit,
+    })),
+    exportSortOrder,
+  );
+  return {
+    title: 'Trial Balance',
+    subtitle: `As of ${format(selectedDate, 'PPP')}`,
+    sheetName: 'Trial Balance',
+    suggestedFileName: `Trial_Balance_${format(
+      selectedDate,
+      'yyyy-MM-dd',
+    )}.xlsx`,
+    columns: [
+      { key: 'code', header: 'Code', format: 'string', width: 14 },
+      { key: 'name', header: 'Account Name', format: 'string', width: 32 },
+      { key: 'type', header: 'Type', format: 'string', width: 14 },
+      { key: 'debit', header: 'Debit', format: 'currency', width: 14 },
+      { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
+    ],
+    rows,
+    footerRow: {
+      code: '',
+      name: 'Total',
+      type: '',
+      debit: trialBalance.totalDebit,
+      credit: trialBalance.totalCredit,
+    },
+  };
+};
 
 const TrialBalancePage = () => {
   const { selectedDate, trialBalance, isLoading, handleDateChange } =
     useTrialBalance();
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   const handlePrint = () => {
     window.print();
   };
+
+  const handleExportExcel = useCallback(
+    (exportSortOrder: DebitCreditExportSortOrder) => {
+      try {
+        const payload = buildTrialBalancePayload(
+          trialBalance,
+          selectedDate,
+          exportSortOrder,
+        );
+        exportReportToExcel(payload);
+        toast({
+          title: 'Success',
+          description: 'Trial balance exported to Excel.',
+          variant: 'success',
+        });
+      } catch (error) {
+        console.error('Export error:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to export trial balance to Excel.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [trialBalance, selectedDate],
+  );
+
+  const canExport = !isLoading && trialBalance.accounts.length > 0;
 
   return (
     <ReportLayout
@@ -55,6 +142,21 @@ const TrialBalancePage = () => {
                 </PopoverContent>
               </Popover>
             </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setExportDialogOpen(true)}
+              title="Export to Excel"
+              disabled={!canExport}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+            <ExportOrderDialog
+              open={exportDialogOpen}
+              onOpenChange={setExportDialogOpen}
+              onConfirm={handleExportExcel}
+              title="Export Trial Balance"
+            />
             <Button
               variant="outline"
               size="icon"
