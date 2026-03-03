@@ -9,7 +9,7 @@ import {
   TableFooter,
 } from 'renderer/shad/ui/table';
 import { getFormattedCurrencyInt, getFixedNumber } from 'renderer/lib/utils';
-import type { BillsAging } from './types';
+import type { BillsAging, BillsAgingRow } from './types';
 import './PrintStyles.css';
 
 interface BillsAgingPrintTableProps {
@@ -18,25 +18,10 @@ interface BillsAgingPrintTableProps {
   hideStatus?: boolean;
 }
 
-// flat row structure for the Excel-like table
-interface BillsAgingRow {
-  accountCode?: number | string;
-  billNumber: string;
-  billDate: string;
-  billPercentage: number | string;
-  balance: number;
-  sortKey?: string;
-  daysStatus?: {
-    isFullyPaid: boolean;
-    days: number;
-  };
-}
-
-export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
-  billsAging,
+export const buildBillsAgingRows = (
+  billsAging: BillsAging,
   hideZeroRows = false,
-  hideStatus = false,
-}) => {
+): BillsAgingRow[] => {
   const { accounts } = billsAging;
 
   // sort accounts by code (handle both number and string codes)
@@ -79,7 +64,7 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
         billNumber: 'Unallocated Receipt',
         billDate: receipt.receivedDate,
         billPercentage: '-',
-        balance: -receipt.receivedAmount, // negative because it's a receipt
+        balance: -receipt.receivedAmount,
         sortKey: `${
           account.accountCode?.toString()?.trim() || ''
         }-unallocated-${receipt.receivedDate}`,
@@ -97,6 +82,16 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
     }
     return 0;
   });
+
+  return allRows;
+};
+
+export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
+  billsAging,
+  hideZeroRows = false,
+  hideStatus = false,
+}) => {
+  const allRows = buildBillsAgingRows(billsAging, hideZeroRows);
 
   // calculate total balance (rounded)
   const totalBalance = getFixedNumber(
