@@ -10,3 +10,5 @@ export interface AverageEquityBalancesState {
   items: AverageEquityBalanceItem[];
   totalAverage?: number;
 }
+
+export type AverageEquitySortField = 'name' | 'averageBalance' | 'code';
