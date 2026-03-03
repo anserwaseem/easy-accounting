@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isEmpty } from 'lodash';
 import { AccountType, type Account, type LedgerView } from '@/types';
+import { getFixedNumber } from '@/renderer/lib/utils';
 import type {
   AverageEquityBalanceItem,
   AverageEquityBalancesState,
@@ -146,11 +147,15 @@ export const useAverageEquityBalances = () => {
           },
         );
 
-        const totalAverage = items.reduce(
+        const nonZeroItems = items.filter(
+          (it) => getFixedNumber(it.averageBalance) > 0,
+        );
+
+        const totalAverage = nonZeroItems.reduce(
           (sum, it) => sum + it.averageBalance,
           0,
         );
-        setState({ items, totalAverage });
+        setState({ items: nonZeroItems, totalAverage });
       } catch (error) {
         console.error('Error fetching average equity balances:', error);
         setState(defaultState);
