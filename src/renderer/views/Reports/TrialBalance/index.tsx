@@ -11,6 +11,7 @@ import {
 import { cn } from 'renderer/lib/utils';
 import {
   exportReportToExcel,
+  sortDebitCreditRows,
   type DebitCreditExportSortOrder,
   type ReportExportPayload,
 } from 'renderer/lib/reportExport';
@@ -42,27 +43,23 @@ const buildSortedTrialBalanceRows = (
     credit: a.credit,
   }));
 
-  const rows = [...baseRows];
-
-  rows.sort((a, b) => {
-    const typeCompare = a.type.localeCompare(b.type);
+  // for trial balance export, "unsorted" means default ordering: type A–Z (then code, then name)
+  const typeSortedRows = [...baseRows].sort((a, b) => {
+    const aType = String(a.type ?? '');
+    const bType = String(b.type ?? '');
+    const typeCompare = aType.localeCompare(bType);
     if (typeCompare !== 0) return typeCompare;
 
-    if (exportSortOrder === 'debit') {
-      const debitDiff = b.debit - a.debit;
-      if (debitDiff !== 0) return debitDiff;
-    } else if (exportSortOrder === 'credit') {
-      const creditDiff = b.credit - a.credit;
-      if (creditDiff !== 0) return creditDiff;
-    }
+    const codeCompare = String(a.code ?? '').localeCompare(
+      String(b.code ?? ''),
+    );
+    if (codeCompare !== 0) return codeCompare;
 
-    const aCode = String(a.code);
-    const bCode = String(b.code);
-    if (aCode === bCode) return 0;
-    return aCode.localeCompare(bCode);
+    return String(a.name ?? '').localeCompare(String(b.name ?? ''));
   });
 
-  return rows;
+  if (exportSortOrder === 'unsorted') return typeSortedRows;
+  return sortDebitCreditRows(typeSortedRows, exportSortOrder);
 };
 
 const buildTrialBalancePayload = (

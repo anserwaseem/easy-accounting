@@ -21,15 +21,24 @@ export interface ReportExportPayload<T = Record<string, unknown>> {
 }
 
 /** sort order for export when report has debit/credit columns */
-export type DebitCreditExportSortOrder = 'unsorted' | 'debit' | 'credit';
+export type DebitCreditExportSortOrder = 'unsorted' | 'amount';
 
-/** sort rows by debit or credit descending for export; no-op when unsorted */
+/** sort rows by amount for export; no-op when unsorted.
+ * when ordered by amount, all debit rows (debit > 0) come first, sorted by debit descending,
+ * followed by all credit rows (credit > 0), sorted by credit descending.
+ */
 export function sortDebitCreditRows<
   T extends { debit: number; credit: number },
 >(rows: T[], order: DebitCreditExportSortOrder): T[] {
   if (order === 'unsorted') return rows;
-  if (order === 'debit') return [...rows].sort((a, b) => b.debit - a.debit);
-  return [...rows].sort((a, b) => b.credit - a.credit);
+  const indexed = rows.map((row, index) => ({ row, index }));
+  const debitRows = indexed.filter((r) => r.row.debit > 0);
+  const creditRows = indexed.filter((r) => r.row.credit > 0);
+
+  debitRows.sort((a, b) => b.row.debit - a.row.debit || a.index - b.index);
+  creditRows.sort((a, b) => b.row.credit - a.row.credit || a.index - b.index);
+
+  return [...debitRows, ...creditRows].map((r) => r.row);
 }
 
 const EXCEL_MIME =

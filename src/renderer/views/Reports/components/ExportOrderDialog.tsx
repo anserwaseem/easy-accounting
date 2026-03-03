@@ -63,8 +63,7 @@ export const ExportOrderDialog = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="unsorted">Unsorted</SelectItem>
-                <SelectItem value="debit">Debit first</SelectItem>
-                <SelectItem value="credit">Credit first</SelectItem>
+                <SelectItem value="amount">Amount</SelectItem>
               </SelectContent>
             </Select>
           </div>
