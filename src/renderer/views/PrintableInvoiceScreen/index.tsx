@@ -224,21 +224,18 @@ const PrintableInvoiceScreen = () => {
       </div>
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center">
-          <div className="w-full">
+          <div className="w-full text-[13px]">
             <p className="text-sm text-center font-mono">SALES TAX INVOICE</p>
             <h1 className="text-3xl font-bold text-center font-mono">
               ALIF ZAFAR SONS
             </h1>
-            <p className="text-sm text-center font-mono">
-              Head Office: Iqra Center, Ghazni Street, Urdu Bazar, Lahore Phone:
-              37120115, 37245149
+            <p className="text-center font-mono print:text-[11px]">
+              Opposite Al Habib Mosque, Near National Saving Bank, Kacha Sanda
+              Road, Corporation Chowk, Lahore
             </p>
-            {/* <p className="text-sm text-center font-mono">
-              Manufacturing Unit: &nbsp;T.No.4, Bund Road, Sanda Kalan, Lahore
-            </p> */}
-            <p className="text-sm text-center font-mono">
-              NTN No.: 1406678-5&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;STRN:
-              3277876185527
+            <p className="text-center font-mono print:text-[11px]">
+              Iqra Center, Ghazni Street, Urdu Bazar, Lahore Phone: 37245149,
+              NTN No.: 1406678-5, STRN: 3277876185527
             </p>
           </div>
         </div>
@@ -298,31 +295,30 @@ const PrintableInvoiceScreen = () => {
               </tr>
             ))}
             <tr className="py-2">
+              <td className="italic absolute">Total No. of Quran Sold:</td>
               <td />
               <td />
-              <td className="flex justify-end">
-                <p className="underline">Total No. of Quran Sold:</p>
-                &nbsp;&nbsp;&nbsp;
-              </td>
+              <td className="text-right">{totalQuantity}</td>
               <td />
-              <td className="relative right-2">{totalQuantity}</td>
               <td />
             </tr>
+            {invoice.extraDiscount ? (
+              <tr>
+                <td>Extra Discount:</td>
+                <td />
+                <td />
+                <td />
+                <td />
+                <td />
+                <td className="pr-4 text-right">
+                  {getFormattedCurrency(toNumber(invoice.extraDiscount))}
+                </td>
+              </tr>
+            ) : null}
             <tr>
               <td />
               <td />
-              <td className="text-right">Extra Discount:&nbsp;&nbsp;&nbsp;</td>
               <td />
-              <td />
-              <td />
-              <td className="pr-4 text-right">
-                {getFormattedCurrency(toNumber(invoice?.extraDiscount))}
-              </td>
-            </tr>
-            <tr>
-              <td />
-              <td />
-              <td className="text-right">Total Amount:&nbsp;&nbsp;&nbsp;</td>
               <td />
               <td />
               <td />
@@ -334,9 +330,9 @@ const PrintableInvoiceScreen = () => {
         </table>
 
         <div>
-          <div className="flex flex-col gap-2">
-            <h3>
-              Total Rs.{' '}
+          <div className="flex flex-col w-[75%] -mt-8">
+            <h3 className="italic">
+              Total: Rs.{' '}
               {toWords(invoice.totalAmount || 0)
                 .split(' ')
                 .map((word) => word.charAt(0).toUpperCase() + word.slice(1))

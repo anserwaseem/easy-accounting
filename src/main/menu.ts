@@ -9,7 +9,7 @@ import {
 import { existsSync } from 'fs';
 import log from 'electron-log';
 import type {
-  BackupReadResult,
+  ApiResponse,
   BackupOperationStatusEvent,
   BackupOperationType,
 } from '@/types';
@@ -296,7 +296,7 @@ export default class MenuBuilder {
   }
 
   private async handleBackupOperation(
-    operation: () => Promise<BackupReadResult>,
+    operation: () => Promise<ApiResponse>,
     isCreate = false,
   ) {
     try {

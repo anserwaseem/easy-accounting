@@ -4,11 +4,13 @@ import { Button } from '@/renderer/shad/ui/button';
 import { Input } from '@/renderer/shad/ui/input';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
+import { Label } from '@/renderer/shad/ui/label';
 import { isNil, toString } from 'lodash';
 import { useEffect, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
+import { SetOpeningStock } from './SetOpeningStock';
 
 const InventoryPage: React.FC = () => {
   const [doesInventoryExist, setDoesInventoryExist] = useState<Boolean>();
@@ -56,18 +58,20 @@ const InventoryPage: React.FC = () => {
   }
 
   return (
-    <div>
-      <div className="grid grid-cols-3 justify-between items-center py-4">
-        <div className="flex max-w-sm items-center">
+    <div className="space-y-4">
+      {/* page header: title + primary actions */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
-            className="w-fit"
+            size="sm"
             onClick={() =>
               document.getElementById('uploadInventoryInput')?.click()
             }
           >
-            <Upload size={16} className="mr-2" />
-            Upload Inventory
+            <Upload size={16} className="mr-1.5" />
+            Upload items
           </Button>
           <Input
             id="uploadInventoryInput"
@@ -76,33 +80,53 @@ const InventoryPage: React.FC = () => {
             className="hidden"
             onChange={uploadInventory}
           />
+          <SetOpeningStock refetchInventory={refetchInventory} />
+          <AddInventoryItem refetchInventory={refetchInventory} />
         </div>
-        <h1 className="title mx-auto">Inventory</h1>
-        <AddInventoryItem refetchInventory={refetchInventory} />
+      </header>
+
+      {/* filters: single compact row */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3">
+        <span className="text-sm font-medium text-muted-foreground">
+          Hide rows:
+        </span>
+        <Label
+          htmlFor="filter-hide-negative-qty"
+          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+        >
+          <Checkbox
+            id="filter-hide-negative-qty"
+            checked={hideNegativeQuantity}
+            onCheckedChange={(checked) =>
+              setHideNegativeQuantity(checked === true)
+            }
+          />
+          <span>Negative quantity</span>
+        </Label>
+        <Label
+          htmlFor="filter-hide-zero-qty"
+          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+        >
+          <Checkbox
+            id="filter-hide-zero-qty"
+            checked={hideZeroQuantity}
+            onCheckedChange={(checked) => setHideZeroQuantity(checked === true)}
+          />
+          <span>Zero quantity</span>
+        </Label>
+        <Label
+          htmlFor="filter-hide-zero-price"
+          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+        >
+          <Checkbox
+            id="filter-hide-zero-price"
+            checked={hideZeroPrice}
+            onCheckedChange={(checked) => setHideZeroPrice(checked === true)}
+          />
+          <span>Zero price</span>
+        </Label>
       </div>
-      <div className="flex flex-row gap-2 items-center">
-        <h2 className="text-base">Hide negative quantity</h2>
-        <Checkbox
-          checked={hideNegativeQuantity}
-          onCheckedChange={(checked) =>
-            setHideNegativeQuantity(checked === true)
-          }
-        />
-      </div>
-      <div className="flex flex-row gap-2 items-center">
-        <h2 className="text-base">Hide zero quantity</h2>
-        <Checkbox
-          checked={hideZeroQuantity}
-          onCheckedChange={(checked) => setHideZeroQuantity(checked === true)}
-        />
-      </div>
-      <div className="flex flex-row gap-2 items-center">
-        <h2 className="text-base">Hide zero price</h2>
-        <Checkbox
-          checked={hideZeroPrice}
-          onCheckedChange={(checked) => setHideZeroPrice(checked === true)}
-        />
-      </div>
+
       <InventoryTable
         refetchInventory={refetchInventory}
         options={{

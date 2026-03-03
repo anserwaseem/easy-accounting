@@ -3,6 +3,7 @@ import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InventoryItem } from 'types';
 import { EditInventoryItem } from './editInventoryItem';
+import { AdjustStock } from './AdjustStock';
 
 interface InventoryTableProps {
   refetchInventory: () => void;
@@ -66,17 +67,23 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       header: 'Quantity',
     },
     {
-      header: 'Edit',
+      header: 'Actions',
       // eslint-disable-next-line react/no-unstable-nested-components
       cell: ({ row }) => (
-        <EditInventoryItem row={row} refetchInventory={refetchInventory} />
+        <div className="flex items-center gap-1">
+          <AdjustStock
+            item={row.original}
+            refetchInventory={refetchInventory}
+          />
+          <EditInventoryItem row={row} refetchInventory={refetchInventory} />
+        </div>
       ),
       size: 1,
     },
   ];
 
   return (
-    <div className="py-10">
+    <div className="pt-1">
       <DataTable
         columns={columns}
         data={getInventory()}

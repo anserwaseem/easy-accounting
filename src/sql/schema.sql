@@ -134,6 +134,28 @@ CREATE TABLE IF NOT EXISTS "invoice_items" ( -- "002 migration"
     --, FOREIGN KEY ("accountId") REFERENCES "account"("id") -- "010 migration"
 );
 
+CREATE TABLE IF NOT EXISTS "inventory_opening_stock" ( -- "014 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "inventoryId" INTEGER NOT NULL UNIQUE,
+    "quantity" INTEGER NOT NULL,
+    "asOfDate" DATETIME,
+    "old_quantity" INTEGER,
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
+);
+
+CREATE TABLE IF NOT EXISTS "stock_adjustments" ( -- "014 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "inventoryId" INTEGER NOT NULL,
+    "quantityDelta" INTEGER NOT NULL,
+    "reason" TEXT,
+    "date" DATETIME NOT NULL,
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
+);
+
 
 -- TRIGGERS --
 -- ledger
@@ -258,6 +280,42 @@ CREATE TRIGGER IF NOT EXISTS after_update_inventory_add_timestamp
 AFTER UPDATE ON inventory
 BEGIN
   UPDATE inventory SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- inventory_opening_stock -- "014 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_inventory_opening_stock_add_timestamp
+AFTER INSERT ON inventory_opening_stock
+BEGIN
+  UPDATE inventory_opening_stock SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_inventory_opening_stock_add_timestamp
+AFTER UPDATE ON inventory_opening_stock
+BEGIN
+  UPDATE inventory_opening_stock SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- stock_adjustments -- "014 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_stock_adjustments_add_timestamp
+AFTER INSERT ON stock_adjustments
+BEGIN
+  UPDATE stock_adjustments SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_stock_adjustments_add_timestamp
+AFTER UPDATE ON stock_adjustments
+BEGIN
+  UPDATE stock_adjustments SET
     updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;

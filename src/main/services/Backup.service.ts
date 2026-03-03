@@ -7,7 +7,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { get, orderBy } from 'lodash';
 import type {
   BackupCreateResult,
-  BackupReadResult,
+  ApiResponse,
   BackupInfo,
   BackupMetadata,
   BackupType,
@@ -171,7 +171,7 @@ export class BackupService {
     }
   }
 
-  public async restoreFromDate(dateString: string): Promise<BackupReadResult> {
+  public async restoreFromDate(dateString: string): Promise<ApiResponse> {
     try {
       if (!this.bucketName) {
         const error = 'Supabase bucket is not set right now [UNREACHABLE]';
@@ -245,7 +245,7 @@ export class BackupService {
     }
   }
 
-  public async restoreLastBackup(): Promise<BackupReadResult> {
+  public async restoreLastBackup(): Promise<ApiResponse> {
     const backups = await this.listBackups();
     if (backups.length === 0) {
       const errorMsg = 'No backups available';
@@ -344,7 +344,7 @@ export class BackupService {
     );
   }
 
-  private async restoreFromBackup(filename: string): Promise<BackupReadResult> {
+  private async restoreFromBackup(filename: string): Promise<ApiResponse> {
     try {
       const backupPath = path.join(this.backupDir, filename);
       if (!fs.existsSync(backupPath)) {

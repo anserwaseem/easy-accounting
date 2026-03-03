@@ -194,6 +194,34 @@ export interface InsertInventoryItem {
   description?: string;
 }
 
+/** opening stock (one row per item; old_quantity = inventory.quantity before this run) */
+export interface InventoryOpeningStock {
+  id?: number;
+  inventoryId: number;
+  quantity: number;
+  asOfDate?: string;
+  old_quantity?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** item for set opening stock: name (matched or created in service) and quantity */
+export interface SetOpeningStockItem {
+  name: string;
+  quantity: number;
+}
+
+export interface ApplyStockAdjustmentPayload {
+  inventoryId: number;
+  quantityDelta: number;
+  reason?: string;
+  date?: string;
+}
+
+export type StockAdjustment = Prettify<
+  BaseEntity & ApplyStockAdjustmentPayload
+>;
+
 /** Invoice */
 export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
   inventoryId: number;
@@ -249,13 +277,13 @@ export type InvoicesExport = Prettify<
   }
 >;
 
-export type BackupReadResult = {
+export type ApiResponse = {
   success: boolean;
   error?: string;
 };
 
 export type BackupCreateResult = Prettify<
-  BackupReadResult & {
+  ApiResponse & {
     path?: string;
   }
 >;
