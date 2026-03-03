@@ -11,7 +11,6 @@ import {
 import { cn } from 'renderer/lib/utils';
 import {
   exportReportToExcel,
-  sortDebitCreditRows,
   type DebitCreditExportSortOrder,
   type ReportExportPayload,
 } from 'renderer/lib/reportExport';
@@ -31,21 +30,47 @@ type TrialBalanceRow = {
   credit: number;
 };
 
+const buildSortedTrialBalanceRows = (
+  trialBalance: TrialBalanceType,
+  exportSortOrder: DebitCreditExportSortOrder,
+): TrialBalanceRow[] => {
+  const baseRows: TrialBalanceRow[] = trialBalance.accounts.map((a) => ({
+    code: a.code ?? '',
+    name: a.name,
+    type: a.type,
+    debit: a.debit,
+    credit: a.credit,
+  }));
+
+  const rows = [...baseRows];
+
+  rows.sort((a, b) => {
+    const typeCompare = a.type.localeCompare(b.type);
+    if (typeCompare !== 0) return typeCompare;
+
+    if (exportSortOrder === 'debit') {
+      const debitDiff = b.debit - a.debit;
+      if (debitDiff !== 0) return debitDiff;
+    } else if (exportSortOrder === 'credit') {
+      const creditDiff = b.credit - a.credit;
+      if (creditDiff !== 0) return creditDiff;
+    }
+
+    const aCode = String(a.code);
+    const bCode = String(b.code);
+    if (aCode === bCode) return 0;
+    return aCode.localeCompare(bCode);
+  });
+
+  return rows;
+};
+
 const buildTrialBalancePayload = (
   trialBalance: TrialBalanceType,
   selectedDate: Date,
   exportSortOrder: DebitCreditExportSortOrder,
 ): ReportExportPayload<TrialBalanceRow> => {
-  const rows = sortDebitCreditRows(
-    trialBalance.accounts.map((a) => ({
-      code: a.code ?? '',
-      name: a.name,
-      type: a.type,
-      debit: a.debit,
-      credit: a.credit,
-    })),
-    exportSortOrder,
-  );
+  const rows = buildSortedTrialBalanceRows(trialBalance, exportSortOrder);
   return {
     title: 'Trial Balance',
     subtitle: `As of ${format(selectedDate, 'PPP')}`,
