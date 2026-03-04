@@ -13,13 +13,14 @@ import {
   type ReportExportPayload,
 } from 'renderer/lib/reportExport';
 import { toast } from 'renderer/shad/ui/use-toast';
-import { printStyles } from '../components';
-import { useAverageEquityBalances } from './useAverageEquityBalances';
-import { AverageEquityBalancesTable } from './AverageEquityBalancesTable';
+import { useSorting, printStyles } from '../components';
 import type {
   AverageEquityBalancesState,
   AverageEquityBalanceItem,
+  AverageEquitySortField,
 } from './types';
+import { useAverageEquityBalances } from './useAverageEquityBalances';
+import { AverageEquityBalancesTable } from './AverageEquityBalancesTable';
 
 type AverageEquityRow = {
   code: string | number;
@@ -79,11 +80,25 @@ const AverageEquityBalancesPage = () => {
     handleRefresh,
   } = useAverageEquityBalances();
 
+  const { sortField, sortDirection, handleSort, sortItems } = useSorting<
+    AverageEquityBalanceItem,
+    AverageEquitySortField
+  >({
+    initialSortField: 'averageBalance',
+    initialSortDirection: 'desc',
+  });
+
+  const sortedItems = sortItems(state.items);
+
   const handlePrint = () => window.print();
 
   const handleExportExcel = useCallback(() => {
     try {
-      const payload = buildAverageEquityPayload(state, startDate, endDate);
+      const payload = buildAverageEquityPayload(
+        { ...state, items: sortItems(state.items) },
+        startDate,
+        endDate,
+      );
       exportReportToExcel(payload);
       toast({
         title: 'Success',
@@ -98,7 +113,7 @@ const AverageEquityBalancesPage = () => {
         variant: 'destructive',
       });
     }
-  }, [state, startDate, endDate]);
+  }, [state, startDate, endDate, sortItems]);
 
   const canExport = !isLoading && state.items.length > 0;
 
@@ -162,7 +177,14 @@ const AverageEquityBalancesPage = () => {
       </div>
 
       <Card className="p-6 shadow-md print-card">
-        <AverageEquityBalancesTable data={state} isLoading={isLoading} />
+        <AverageEquityBalancesTable
+          items={sortedItems}
+          totalAverage={state.totalAverage}
+          isLoading={isLoading}
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+        />
       </Card>
     </ReportLayout>
   );

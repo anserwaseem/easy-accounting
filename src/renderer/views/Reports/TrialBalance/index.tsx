@@ -31,21 +31,43 @@ type TrialBalanceRow = {
   credit: number;
 };
 
+const buildSortedTrialBalanceRows = (
+  trialBalance: TrialBalanceType,
+  exportSortOrder: DebitCreditExportSortOrder,
+): TrialBalanceRow[] => {
+  const baseRows: TrialBalanceRow[] = trialBalance.accounts.map((a) => ({
+    code: a.code ?? '',
+    name: a.name,
+    type: a.type,
+    debit: a.debit,
+    credit: a.credit,
+  }));
+
+  // for trial balance export, "unsorted" means default ordering: type A–Z (then code, then name)
+  const typeSortedRows = [...baseRows].sort((a, b) => {
+    const aType = String(a.type ?? '');
+    const bType = String(b.type ?? '');
+    const typeCompare = aType.localeCompare(bType);
+    if (typeCompare !== 0) return typeCompare;
+
+    const codeCompare = String(a.code ?? '').localeCompare(
+      String(b.code ?? ''),
+    );
+    if (codeCompare !== 0) return codeCompare;
+
+    return String(a.name ?? '').localeCompare(String(b.name ?? ''));
+  });
+
+  if (exportSortOrder === 'unsorted') return typeSortedRows;
+  return sortDebitCreditRows(typeSortedRows, exportSortOrder);
+};
+
 const buildTrialBalancePayload = (
   trialBalance: TrialBalanceType,
   selectedDate: Date,
   exportSortOrder: DebitCreditExportSortOrder,
 ): ReportExportPayload<TrialBalanceRow> => {
-  const rows = sortDebitCreditRows(
-    trialBalance.accounts.map((a) => ({
-      code: a.code ?? '',
-      name: a.name,
-      type: a.type,
-      debit: a.debit,
-      credit: a.credit,
-    })),
-    exportSortOrder,
-  );
+  const rows = buildSortedTrialBalanceRows(trialBalance, exportSortOrder);
   return {
     title: 'Trial Balance',
     subtitle: `As of ${format(selectedDate, 'PPP')}`,

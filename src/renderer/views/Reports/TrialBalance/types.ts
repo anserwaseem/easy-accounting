@@ -14,8 +14,3 @@ export interface TrialBalance {
   totalCredit: number;
   isBalanced: boolean;
 }
-
-export interface TrialBalanceTableProps {
-  trialBalance: TrialBalance;
-  isLoading: boolean;
-}

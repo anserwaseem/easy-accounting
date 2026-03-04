@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
-import type { TrialBalanceTableProps, TrialBalanceItem } from './types';
+import type { TrialBalanceItem, TrialBalance } from './types';
 import {
   EmptyState,
   LoadingState,
@@ -20,6 +20,11 @@ import {
 } from '../components';
 
 type SortField = 'code' | 'name' | 'debit' | 'credit';
+
+interface TrialBalanceTableProps {
+  trialBalance: TrialBalance;
+  isLoading: boolean;
+}
 
 export const TrialBalanceTable = ({
   trialBalance,

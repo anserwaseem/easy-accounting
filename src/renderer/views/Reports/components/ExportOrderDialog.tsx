@@ -7,13 +7,8 @@ import {
   DialogTitle,
 } from 'renderer/shad/ui/dialog';
 import { Button } from 'renderer/shad/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from 'renderer/shad/ui/select';
+import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
+import { Label } from 'renderer/shad/ui/label';
 import type { DebitCreditExportSortOrder } from 'renderer/lib/reportExport';
 
 interface ExportOrderDialogProps {
@@ -48,25 +43,55 @@ export const ExportOrderDialog = ({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              Export order:
+          <div className="flex flex-col gap-3">
+            <span className="text-sm text-muted-foreground">
+              Choose how to order accounts in the exported file.
             </span>
-            <Select
+            <RadioGroup
               value={sortOrder}
               onValueChange={(v) =>
                 setSortOrder(v as DebitCreditExportSortOrder)
               }
+              className="gap-3"
             >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unsorted">Unsorted</SelectItem>
-                <SelectItem value="debit">Debit first</SelectItem>
-                <SelectItem value="credit">Credit first</SelectItem>
-              </SelectContent>
-            </Select>
+              <div className="flex items-center space-x-3">
+                <RadioGroupItem
+                  value="unsorted"
+                  id="export-order-unsorted"
+                  aria-label="By account type"
+                />
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="export-order-unsorted"
+                    className="text-sm font-medium cursor-pointer flex flex-col gap-1"
+                  >
+                    By Account Type
+                    <p className="text-xs text-muted-foreground">
+                      Groups accounts by type (A-Z), then by code and name.
+                    </p>
+                  </Label>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <RadioGroupItem
+                  value="amount"
+                  id="export-order-amount"
+                  aria-label="By amount"
+                />
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="export-order-amount"
+                    className="text-sm font-medium cursor-pointer flex flex-col gap-1"
+                  >
+                    By Amount (Debits then Credits)
+                    <p className="text-xs text-muted-foreground">
+                      Lists all debit balances from largest to smallest, then
+                      all credit balances from largest to smallest.
+                    </p>
+                  </Label>
+                </div>
+              </div>
+            </RadioGroup>
           </div>
         </div>
         <DialogFooter>

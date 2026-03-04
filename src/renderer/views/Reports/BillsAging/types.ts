@@ -39,3 +39,17 @@ export interface BillsAging {
   asOfDate: string;
   accounts: BillsAgingAccount[];
 }
+
+/** flat row structure for the Excel-like/print table */
+export interface BillsAgingRow {
+  accountCode?: number | string;
+  billNumber: string;
+  billDate: string;
+  billPercentage: number | string;
+  balance: number;
+  sortKey?: string;
+  daysStatus?: {
+    isFullyPaid: boolean;
+    days: number;
+  };
+}
