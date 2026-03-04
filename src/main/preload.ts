@@ -129,6 +129,11 @@ const electronHandler = {
       StockAdjustment[]
     >,
 
+  getInventoryIdsWithHistory: () =>
+    ipcRenderer.invoke('inventory:getInventoryIdsWithHistory') as Promise<
+      number[]
+    >,
+
   getNextInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getId', invoiceType),
 

@@ -298,6 +298,9 @@ app
     ipcMain.handle('inventory:getStockAdjustments', (_, inventoryId?: number) =>
       inventoryService.getStockAdjustments(inventoryId),
     );
+    ipcMain.handle('inventory:getInventoryIdsWithHistory', () =>
+      inventoryService.getInventoryIdsWithHistory(),
+    );
     ipcMain.handle('invoice:getId', (_, invoiceType: InvoiceType) =>
       invoiceService.getNextInvoiceNumber(invoiceType),
     );

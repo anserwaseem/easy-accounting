@@ -45,6 +45,8 @@ export class InventoryService {
 
   private stmGetInventoryQuantity!: Statement;
 
+  private stmGetInventoryIdsWithHistory!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -210,6 +212,11 @@ export class InventoryService {
     return this.stmGetStockAdjustments.all() as StockAdjustment[];
   }
 
+  getInventoryIdsWithHistory(): number[] {
+    const rows = <{ id: number }[]>this.stmGetInventoryIdsWithHistory.all();
+    return rows.map((r) => r.id);
+  }
+
   private initPreparedStatements() {
     this.stmInventoryExists = this.db.prepare(`
       SELECT COUNT(*) AS 'count' from inventory;
@@ -271,6 +278,15 @@ export class InventoryService {
 
     this.stmGetInventoryIdByName = this.db.prepare(`
       SELECT id FROM inventory WHERE TRIM(name) = ? LIMIT 1
+    `);
+
+    this.stmGetInventoryIdsWithHistory = this.db.prepare(`
+      SELECT DISTINCT inventoryId AS id
+      FROM (
+        SELECT inventoryId FROM inventory_opening_stock
+        UNION ALL
+        SELECT inventoryId FROM stock_adjustments
+      );
     `);
   }
 }
