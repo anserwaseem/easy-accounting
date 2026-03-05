@@ -14,6 +14,11 @@ import type {
   InsertInventoryItem,
   InsertChart,
   UpdateJournalFields,
+  SetOpeningStockItem,
+  StockAdjustment,
+  InventoryOpeningStock,
+  ApplyStockAdjustmentPayload,
+  ApiResponse,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -95,6 +100,39 @@ const electronHandler = {
 
   updateInventoryItem: (item: UpdateInventoryItem) =>
     ipcRenderer.invoke('inventory:update', item),
+
+  getOpeningStock: () =>
+    ipcRenderer.invoke('inventory:getOpeningStock') as Promise<
+      InventoryOpeningStock[]
+    >,
+
+  setOpeningStock: (
+    items: SetOpeningStockItem[],
+    asOfDate?: string,
+    resetOthersToZero?: boolean,
+  ) =>
+    ipcRenderer.invoke(
+      'inventory:setOpeningStock',
+      items,
+      asOfDate,
+      resetOthersToZero,
+    ) as Promise<ApiResponse>,
+
+  applyStockAdjustment: (payload: ApplyStockAdjustmentPayload) =>
+    ipcRenderer.invoke(
+      'inventory:applyStockAdjustment',
+      payload,
+    ) as Promise<ApiResponse>,
+
+  getStockAdjustments: (inventoryId?: number) =>
+    ipcRenderer.invoke('inventory:getStockAdjustments', inventoryId) as Promise<
+      StockAdjustment[]
+    >,
+
+  getInventoryIdsWithHistory: () =>
+    ipcRenderer.invoke('inventory:getInventoryIdsWithHistory') as Promise<
+      number[]
+    >,
 
   getNextInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getId', invoiceType),

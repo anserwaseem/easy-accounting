@@ -687,3 +687,66 @@ export const parseInvoiceItems = (
     );
   }
 };
+
+function isHeaderRowOpeningStock(row: unknown[]): boolean {
+  return row.some(
+    (cell) =>
+      typeof cell === 'string' &&
+      ['name', 'quantity'].includes((cell as string).toLowerCase().trim()),
+  );
+}
+
+/** parses opening stock Excel: rows with name and quantity (header row optional: name, quantity) */
+export const parseOpeningStock = (
+  obj: unknown,
+): Array<{ name: string; quantity: number }> => {
+  if (!isTwoDimensionalArray(obj)) {
+    raise('Invalid format for opening stock');
+  }
+
+  const rows = obj as unknown[][];
+  const startIndex = isHeaderRowOpeningStock(rows[0]) ? 1 : 0;
+
+  return compact(
+    rows.slice(startIndex).map((row, index) => {
+      if (!Array.isArray(row) || row.length < 2) {
+        raise(
+          `Invalid row at index ${
+            index + startIndex
+          }: Expected at least name and quantity`,
+        );
+      }
+
+      // eslint-disable-next-line prefer-const
+      let [name, quantity] = row;
+
+      if (typeof name === 'number') {
+        name = name.toString();
+      }
+
+      if (typeof name !== 'string' || name.trim() === '') {
+        raise(
+          `Invalid name at row ${
+            index + startIndex + 1
+          }: Name must be a non-empty string`,
+        );
+      }
+
+      const rawQty = isNil(quantity) ? 0 : quantity;
+      const qty =
+        typeof rawQty === 'number' ? rawQty : parseFloat(rawQty as string);
+      if (Number.isNaN(qty) || qty < 0) {
+        raise(
+          `Invalid quantity at row ${
+            index + startIndex + 1
+          }: Quantity must be a non-negative number`,
+        );
+      }
+
+      return {
+        name: (name as string).trim(),
+        quantity: Math.floor(qty),
+      };
+    }),
+  );
+};

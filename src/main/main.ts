@@ -21,6 +21,8 @@ import type {
   InsertInventoryItem,
   InsertChart,
   UpdateJournalFields,
+  SetOpeningStockItem,
+  ApplyStockAdjustmentPayload,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -275,6 +277,29 @@ app
     );
     ipcMain.handle('inventory:update', (_, item: UpdateInventoryItem) =>
       inventoryService.updateItem(item),
+    );
+    ipcMain.handle('inventory:getOpeningStock', () =>
+      inventoryService.getOpeningStock(),
+    );
+    ipcMain.handle(
+      'inventory:setOpeningStock',
+      (
+        _,
+        items: SetOpeningStockItem[],
+        asOfDate?: string,
+        resetOthersToZero?: boolean,
+      ) => inventoryService.setOpeningStock(items, asOfDate, resetOthersToZero),
+    );
+    ipcMain.handle(
+      'inventory:applyStockAdjustment',
+      (_, payload: ApplyStockAdjustmentPayload) =>
+        inventoryService.applyStockAdjustment(payload),
+    );
+    ipcMain.handle('inventory:getStockAdjustments', (_, inventoryId?: number) =>
+      inventoryService.getStockAdjustments(inventoryId),
+    );
+    ipcMain.handle('inventory:getInventoryIdsWithHistory', () =>
+      inventoryService.getInventoryIdsWithHistory(),
     );
     ipcMain.handle('invoice:getId', (_, invoiceType: InvoiceType) =>
       invoiceService.getNextInvoiceNumber(invoiceType),

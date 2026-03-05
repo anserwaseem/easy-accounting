@@ -49,8 +49,8 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
   return (
     <Dialog open={openCreateForm} onOpenChange={setOpenCreateForm}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-fit ml-auto">
-          <Plus size={16} className="mr-2" />
+        <Button variant="outline" size="sm" className="w-fit">
+          <Plus size={16} className="mr-1.5" />
           New Inventory Item
         </Button>
       </DialogTrigger>

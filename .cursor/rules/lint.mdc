@@ -26,6 +26,7 @@ alwaysApply: true
 12. never use 'any', always use types
 13. dont break any rules of React
 14. ignore console.log, don't delete them
+15. don't use raw sql directly in the method of service
 
 ALWAYS FOLLOW ELSINT RULES
 # .eslintrc.js
