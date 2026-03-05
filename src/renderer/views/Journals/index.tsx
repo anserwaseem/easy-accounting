@@ -20,7 +20,7 @@ import type {
   JournalEntry,
   UpdateJournalFields,
 } from 'types';
-import { toNumber, toString } from 'lodash';
+import { orderBy, toNumber, toString } from 'lodash';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
@@ -190,6 +190,18 @@ const JournalsPage: React.FC<HasMiniView> = ({
     ],
   );
 
+  const sortedJournals = useMemo(
+    () =>
+      isMini
+        ? orderBy(
+            filteredJournals,
+            (journal) => new Date(journal.date || '').getTime(),
+            'desc',
+          )
+        : filteredJournals,
+    [filteredJournals, isMini],
+  );
+
   useEffect(
     () => window.electron.store.set('filteredJournals', filteredJournals),
     [filteredJournals],
@@ -248,7 +260,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
         {isMini ? (
           <Table>
             <TableBody>
-              {filteredJournals.map((journal) => (
+              {sortedJournals.map((journal) => (
                 <TableRow
                   key={journal.id}
                   onClick={() => navigate(`/journals/${journal.id}`)}
@@ -262,7 +274,9 @@ const JournalsPage: React.FC<HasMiniView> = ({
                             dateFormatOptions,
                           )}
                         </p>
-                        <p>{journal.id}</p>
+                        <p className="text-xs text-muted-foreground mt-auto">
+                          {journal.narration}
+                        </p>
                       </div>
                       <div className="flex flex-col">
                         <p>
@@ -283,7 +297,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
         ) : (
           <DataTable
             columns={columns}
-            data={filteredJournals}
+            data={sortedJournals}
             sortingFns={defaultSortingFunctions}
             defaultSortField="date"
             defaultSortDirection="desc"
