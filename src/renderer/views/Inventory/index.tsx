@@ -15,9 +15,10 @@ import { SetOpeningStock } from './SetOpeningStock';
 const InventoryPage: React.FC = () => {
   const [doesInventoryExist, setDoesInventoryExist] = useState<Boolean>();
   const [refresh, setRefresh] = useState(false);
-  const [hideZeroQuantity, setHideZeroQuantity] = useState(false);
-  const [hideZeroPrice, setHideZeroPrice] = useState(false);
-  const [hideNegativeQuantity, setHideNegativeQuantity] = useState(false);
+  const [hideZeroQuantity, setHideZeroQuantity] = useState(true);
+  const [hideZeroPrice, setHideZeroPrice] = useState(true);
+  const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
+
   useEffect(() => {
     const checkInventoryExists = async () => {
       const result = await window.electron.doesInventoryExist();
@@ -88,8 +89,24 @@ const InventoryPage: React.FC = () => {
       {/* filters: single compact row */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3">
         <span className="text-sm font-medium text-muted-foreground">
-          Hide rows:
+          Hide items:
         </span>
+        <Label
+          htmlFor="filter-hide-all"
+          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+        >
+          <Checkbox
+            id="filter-hide-all"
+            checked={hideNegativeQuantity && hideZeroQuantity && hideZeroPrice}
+            onCheckedChange={(checked) => {
+              const value = checked === true;
+              setHideNegativeQuantity(value);
+              setHideZeroQuantity(value);
+              setHideZeroPrice(value);
+            }}
+          />
+          <span>All</span>
+        </Label>
         <Label
           htmlFor="filter-hide-negative-qty"
           className="flex cursor-pointer items-center gap-2 text-sm font-normal"

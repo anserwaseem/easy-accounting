@@ -42,17 +42,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
   const getInventory = () => {
     const filteredInventory = inventory?.filter((i) => {
-      if (options?.hideZeroQuantity && options?.hideZeroPrice) {
-        return i.quantity > 0 && i.price > 0;
+      if (options?.hideNegativeQuantity && i.quantity < 0) {
+        return false;
       }
-      if (options?.hideZeroQuantity) {
-        return i.quantity > 0;
+      if (options?.hideZeroQuantity && i.quantity === 0) {
+        return false;
       }
-      if (options?.hideZeroPrice) {
-        return i.price > 0;
-      }
-      if (options?.hideNegativeQuantity) {
-        return i.quantity >= 0;
+      if (options?.hideZeroPrice && i.price === 0) {
+        return false;
       }
       return true;
     });
