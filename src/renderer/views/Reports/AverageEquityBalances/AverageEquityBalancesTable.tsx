@@ -9,35 +9,31 @@ import {
   TableRow,
   TableFooter,
 } from 'renderer/shad/ui/table';
-import {
-  useSorting,
-  SortableHeader,
-  LoadingState,
-  EmptyState,
-} from '../components';
+import { SortableHeader, LoadingState, EmptyState } from '../components';
 import type {
   AverageEquityBalancesState,
   AverageEquityBalanceItem,
+  AverageEquitySortField,
 } from './types';
+import type { SortDirection } from '../components/useSorting';
 
 interface Props {
-  data: AverageEquityBalancesState;
+  items: AverageEquityBalanceItem[];
+  totalAverage?: AverageEquityBalancesState['totalAverage'];
   isLoading: boolean;
+  sortField: AverageEquitySortField;
+  sortDirection: SortDirection;
+  onSort: (field: AverageEquitySortField) => void;
 }
 
-type SortField = 'name' | 'averageBalance' | 'code';
-
-export const AverageEquityBalancesTable: FC<Props> = ({ data, isLoading }) => {
-  const { items, totalAverage } = data;
-
-  const { sortField, sortDirection, handleSort, sortItems } = useSorting<
-    AverageEquityBalanceItem,
-    SortField
-  >({
-    initialSortField: 'averageBalance',
-    initialSortDirection: 'desc',
-  });
-
+export const AverageEquityBalancesTable: FC<Props> = ({
+  items,
+  totalAverage,
+  isLoading,
+  sortField,
+  sortDirection,
+  onSort,
+}) => {
   if (isLoading) {
     return <LoadingState variant="skeleton" skeletonCount={6} />;
   }
@@ -48,8 +44,6 @@ export const AverageEquityBalancesTable: FC<Props> = ({ data, isLoading }) => {
     );
   }
 
-  const sorted = sortItems(items);
-
   return (
     <Table className="border-collapse w-full print-table">
       <TableHeader>
@@ -58,7 +52,7 @@ export const AverageEquityBalancesTable: FC<Props> = ({ data, isLoading }) => {
             currentSortField={sortField}
             sortField="code"
             sortDirection={sortDirection}
-            onSort={() => handleSort('code')}
+            onSort={() => onSort('code')}
             className="w-[150px]"
           >
             Account Code
@@ -67,7 +61,7 @@ export const AverageEquityBalancesTable: FC<Props> = ({ data, isLoading }) => {
             currentSortField={sortField}
             sortField="name"
             sortDirection={sortDirection}
-            onSort={() => handleSort('name')}
+            onSort={() => onSort('name')}
           >
             Account Name
           </SortableHeader>
@@ -75,7 +69,7 @@ export const AverageEquityBalancesTable: FC<Props> = ({ data, isLoading }) => {
             currentSortField={sortField}
             sortField="averageBalance"
             sortDirection={sortDirection}
-            onSort={() => handleSort('averageBalance')}
+            onSort={() => onSort('averageBalance')}
             className="w-[320px] text-right"
           >
             Average Balance
@@ -83,7 +77,7 @@ export const AverageEquityBalancesTable: FC<Props> = ({ data, isLoading }) => {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sorted.map((item) => (
+        {items.map((item) => (
           <TableRow key={item.id} className="print-row">
             <TableCell className="font-mono">{item.code ?? ''}</TableCell>
             <TableCell>{item.name}</TableCell>

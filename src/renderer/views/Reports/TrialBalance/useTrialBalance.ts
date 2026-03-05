@@ -70,7 +70,7 @@ export const useTrialBalance = () => {
           entriesUpToSelectedDate[entriesUpToSelectedDate.length - 1];
         const { balance, balanceType } = latestEntry;
 
-        if (balance === 0) continue; // skip accounts with zero balance
+        if (getFixedNumber(balance) <= 0) continue; // skip accounts with zero balance
 
         trialBalanceItems.push({
           id: account.id,

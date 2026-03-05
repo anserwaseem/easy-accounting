@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
-import { Printer, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import { Download, Printer, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { getFormattedCurrencyInt, getFixedNumber } from 'renderer/lib/utils';
 import {
   Select,
@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from 'renderer/shad/ui/select';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
+import { Label } from 'renderer/shad/ui/label';
+import { Separator } from '@/renderer/shad/ui/separator';
 import {
   Popover,
   PopoverTrigger,
@@ -21,11 +23,92 @@ import {
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
 import { ReportLayout } from 'renderer/components/ReportLayout';
+import {
+  exportReportToExcel,
+  type ReportExportPayload,
+} from 'renderer/lib/reportExport';
+import { toast } from 'renderer/shad/ui/use-toast';
 import VirtualMultiSelect from 'renderer/components/VirtualMultiSelect';
 import { useBillsAging } from './useBillsAging';
 import { EmptyState, LoadingState, printStyles } from '../components';
 import { BillsAgingTables } from './BillsAgingTables';
-import { BillsAgingPrintTable } from './BillsAgingPrintTable';
+import {
+  BillsAgingPrintTable,
+  buildBillsAgingRows,
+} from './BillsAgingPrintTable';
+import { BillsAging, BillsAgingRow } from './types';
+
+type BillsAgingExportRow = {
+  accountCode?: number | string;
+  billNumber: string;
+  billDate: string;
+  billPercentage: number | string;
+  balance: number;
+  daysStatus?: string;
+};
+
+const buildBillsAgingExportPayload = (
+  billsAgingData: BillsAging,
+  hideZero: boolean,
+  hideStatus: boolean,
+  selectedHead: string,
+  selectedDate: Date,
+): ReportExportPayload<BillsAgingExportRow> => {
+  const rowsBase: BillsAgingRow[] = buildBillsAgingRows(
+    billsAgingData,
+    hideZero,
+  );
+
+  const rows: BillsAgingExportRow[] = rowsBase.map((row) => {
+    let daysStatusText = '';
+    if (!hideStatus && row.daysStatus) {
+      daysStatusText = row.daysStatus.isFullyPaid
+        ? `Cleared in ${row.daysStatus.days} days`
+        : `Overdue by ${row.daysStatus.days} days`;
+    }
+
+    return {
+      accountCode: row.accountCode,
+      billNumber: row.billNumber,
+      billDate: format(new Date(row.billDate), 'dd/MM/yy'),
+      billPercentage: row.billPercentage,
+      balance: row.balance,
+      daysStatus: daysStatusText,
+    };
+  });
+
+  const columns: ReportExportPayload<BillsAgingExportRow>['columns'] = [
+    { key: 'accountCode', header: 'Account', format: 'string', width: 18 },
+    { key: 'billNumber', header: 'Bill #', format: 'string', width: 14 },
+    { key: 'billDate', header: 'Bill Date', format: 'string', width: 12 },
+    { key: 'billPercentage', header: '%', format: 'string', width: 8 },
+    { key: 'balance', header: 'Balance', format: 'currency', width: 14 },
+  ];
+
+  if (!hideStatus) {
+    columns.push({
+      key: 'daysStatus',
+      header: 'Days Status',
+      format: 'string',
+      width: 18,
+    });
+  }
+
+  const title = 'Bills Aging';
+  const subtitle = `Report for ${selectedHead} on ${format(
+    selectedDate,
+    'dd/MM/yy',
+  )}`;
+
+  return {
+    title,
+    subtitle,
+    sheetName: 'Bills Aging',
+    suggestedFileName: `Bills_Aging_${format(selectedDate, 'yyyy-MM-dd')}.xlsx`,
+    columns,
+    rows,
+  };
+};
 
 const BillsAgingPage = () => {
   const {
@@ -44,6 +127,7 @@ const BillsAgingPage = () => {
     handleCustomerFilterChange,
   } = useBillsAging();
 
+  const [hideAllFilters, setHideAllFilters] = useState(false);
   const [hideZeroRows, setHideZeroRows] = useState(false);
   const [hideStatus, setHideStatus] = useState(false);
   const [hideNonPositiveOutstanding, setHideNonPositiveOutstanding] =
@@ -63,6 +147,7 @@ const BillsAgingPage = () => {
 
   // Check if any filter is applied
   const hasActiveFilters =
+    hideAllFilters ||
     hideZeroRows ||
     hideStatus ||
     hideNonPositiveOutstanding ||
@@ -92,6 +177,43 @@ const BillsAgingPage = () => {
 
     return filtered;
   }, [billsAging.accounts, selectedCustomerIds, hideNonPositiveOutstanding]);
+
+  const canExport = !isLoading && visibleAccounts.length > 0;
+
+  const handleExportExcel = useCallback(() => {
+    try {
+      const payload = buildBillsAgingExportPayload(
+        {
+          ...billsAging,
+          accounts: visibleAccounts,
+        },
+        hideZeroRows,
+        hideStatus,
+        selectedHead,
+        selectedDate,
+      );
+      exportReportToExcel(payload);
+      toast({
+        title: 'Success',
+        description: 'Bills aging exported to Excel.',
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to export bills aging to Excel.',
+        variant: 'destructive',
+      });
+    }
+  }, [
+    billsAging,
+    visibleAccounts,
+    hideZeroRows,
+    hideStatus,
+    selectedHead,
+    selectedDate,
+  ]);
 
   const tableProps = useMemo(
     () => ({
@@ -182,38 +304,88 @@ const BillsAgingPage = () => {
                     {hasActiveFilters && (
                       <div className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full border-2 border-background" />
                     )}
-                    <PopoverContent className="w-52 -mt-1">
+                    <PopoverContent className="w-56 -mt-1">
                       <div className="flex flex-col gap-3 py-1">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Checkbox
+                            id="toggle-hide-all"
+                            checked={hideAllFilters}
+                            onCheckedChange={(v) => {
+                              const next = Boolean(v);
+                              setHideAllFilters(next);
+                              setHideStatus(next);
+                              setHideZeroRows(next);
+                              setHideNonPositiveOutstanding(next);
+                            }}
+                          />
+                          <Label
+                            htmlFor="toggle-hide-all"
+                            className="font-medium cursor-pointer"
+                          >
+                            Hide all
+                          </Label>
+                        </div>
+                        <Separator />
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Checkbox
                             id="toggle-hide-status"
                             checked={hideStatus}
-                            onCheckedChange={(v) => setHideStatus(Boolean(v))}
-                            aria-labelledby="lbl-hide-status"
+                            onCheckedChange={(v) => {
+                              const next = Boolean(v);
+                              const nextHideAllFilters =
+                                next &&
+                                hideZeroRows &&
+                                hideNonPositiveOutstanding;
+                              setHideStatus(next);
+                              setHideAllFilters(nextHideAllFilters);
+                            }}
                           />
-                          <span id="lbl-hide-status">Hide status</span>
+                          <Label
+                            htmlFor="toggle-hide-status"
+                            className="cursor-pointer"
+                          >
+                            Hide status
+                          </Label>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Checkbox
                             id="toggle-hide-zero"
                             checked={hideZeroRows}
-                            onCheckedChange={(v) => setHideZeroRows(Boolean(v))}
-                            aria-labelledby="lbl-hide-zero"
+                            onCheckedChange={(v) => {
+                              const next = Boolean(v);
+                              const nextHideAllFilters =
+                                hideStatus &&
+                                next &&
+                                hideNonPositiveOutstanding;
+                              setHideZeroRows(next);
+                              setHideAllFilters(nextHideAllFilters);
+                            }}
                           />
-                          <span id="lbl-hide-zero">Hide settled bills</span>
+                          <Label
+                            htmlFor="toggle-hide-zero"
+                            className="cursor-pointer"
+                          >
+                            Hide settled bills
+                          </Label>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Checkbox
                             id="toggle-hide-negative"
                             checked={hideNonPositiveOutstanding}
-                            onCheckedChange={(v) =>
-                              setHideNonPositiveOutstanding(Boolean(v))
-                            }
-                            aria-labelledby="lbl-hide-negative"
+                            onCheckedChange={(v) => {
+                              const next = Boolean(v);
+                              const nextHideAllFilters =
+                                hideStatus && hideZeroRows && next;
+                              setHideNonPositiveOutstanding(next);
+                              setHideAllFilters(nextHideAllFilters);
+                            }}
                           />
-                          <span id="lbl-hide-negative">
+                          <Label
+                            htmlFor="toggle-hide-negative"
+                            className="cursor-pointer"
+                          >
                             Hide settled accounts
-                          </span>
+                          </Label>
                         </div>
                       </div>
                     </PopoverContent>
@@ -229,6 +401,15 @@ const BillsAgingPage = () => {
                   <RefreshCw
                     className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
                   />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleExportExcel}
+                  title="Export Bills Aging"
+                  disabled={canExport === false}
+                >
+                  <Download className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"

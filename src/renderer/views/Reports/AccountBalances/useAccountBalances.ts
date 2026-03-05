@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isEmpty, sumBy } from 'lodash';
 import type { Account, Chart, LedgerView } from '@/types';
+import { getFixedNumber } from '@/renderer/lib/utils';
 import type { AccountBalances, AccountBalanceItem } from './types';
 
 export const useAccountBalances = () => {
@@ -100,6 +101,8 @@ export const useAccountBalances = () => {
           const latestEntry =
             entriesUpToSelectedDate[entriesUpToSelectedDate.length - 1];
           const { balance, balanceType } = latestEntry;
+
+          if (getFixedNumber(balance) <= 0) continue; // skip accounts with zero balance
 
           balanceItems.push({
             id: account.id,
