@@ -7,7 +7,7 @@ import {
   DialogHeader,
 } from 'renderer/shad/ui/dialog';
 import { Button } from 'renderer/shad/ui/button';
-import type { Chart, DiscountProfile } from 'types';
+import type { Chart } from 'types';
 import { useState, useEffect } from 'react';
 import { toString } from 'lodash';
 import { cn, handleAsync } from '@/renderer/lib/utils';
@@ -16,7 +16,6 @@ import { AccountForm, type AccountFormData } from './accountForm';
 interface AddAccountProps {
   refetchAccounts: () => void;
   charts: Chart[];
-  discountProfiles: DiscountProfile[];
   clearRef: React.RefObject<HTMLButtonElement>;
   btnClassName?: string;
   initialValues?: Partial<AccountFormData>;
@@ -28,7 +27,6 @@ interface AddAccountProps {
 export const AddAccount: React.FC<AddAccountProps> = ({
   refetchAccounts,
   charts,
-  discountProfiles,
   clearRef,
   btnClassName,
   initialValues,
@@ -65,7 +63,7 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           phone1: values.phone1,
           phone2: values.phone2,
           goodsName: values.goodsName,
-          discountProfileId: values.discountProfileId,
+          discountProfileId: null,
           isActive: true,
         }),
       {
@@ -106,7 +104,6 @@ export const AddAccount: React.FC<AddAccountProps> = ({
         <AccountForm
           onSubmit={onSubmit}
           charts={charts}
-          discountProfiles={discountProfiles}
           clearRef={clearRef}
           initialValues={{ headName: accountHead, ...initialValues }}
           onHeadNameChange={(value) => {

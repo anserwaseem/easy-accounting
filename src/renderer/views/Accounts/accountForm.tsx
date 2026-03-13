@@ -9,15 +9,10 @@ import {
   FormItem,
   FormLabel,
   FormControl,
-  FormDescription,
   FormMessage,
 } from 'renderer/shad/ui/form';
-import { useEffect, useMemo } from 'react';
-import type { Chart, DiscountProfile } from 'types';
-import { AccountType } from 'types';
+import type { Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
-import VirtualSelect from '@/renderer/components/VirtualSelect';
-import { NO_DISCOUNT_POLICY_OPTION } from '@/renderer/lib/constants';
 
 export const accountFormSchema = z.object({
   id: z.number().optional(),
@@ -48,11 +43,6 @@ export const accountFormSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => val ?? undefined),
-  discountProfileId: z.coerce
-    .number()
-    .optional()
-    .nullable()
-    .transform((val) => (val && val > 0 ? val : undefined)),
   isActive: z.boolean().default(true),
 });
 
@@ -66,7 +56,6 @@ export const defaultValues: AccountFormData = {
   phone1: undefined,
   phone2: undefined,
   goodsName: undefined,
-  discountProfileId: undefined,
   isActive: true,
 };
 
@@ -75,7 +64,6 @@ interface AccountFormProps {
   onReset?: () => void;
   initialValues?: Partial<AccountFormData>;
   charts: Chart[];
-  discountProfiles: DiscountProfile[];
   clearRef?: React.RefObject<HTMLButtonElement>;
   onHeadNameChange?: (value: string) => void;
 }
@@ -85,7 +73,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   onReset,
   initialValues,
   charts,
-  discountProfiles,
   clearRef,
   onHeadNameChange,
 }: AccountFormProps) => {
@@ -93,24 +80,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     resolver: zodResolver(accountFormSchema),
     defaultValues: { ...defaultValues, ...initialValues },
   });
-
-  const selectedHeadName = form.watch('headName');
-  const selectedChartType = useMemo(
-    () => charts.find((chart) => chart.name === selectedHeadName)?.type,
-    [charts, selectedHeadName],
-  );
-  const showDiscountProfileField = selectedChartType === AccountType.Asset;
-  const activeDiscountProfiles = useMemo(
-    () => discountProfiles.filter((profile) => profile.isActive),
-    [discountProfiles],
-  );
-
-  // reset profile selection when selected account head is not an Asset.
-  useEffect(() => {
-    if (!showDiscountProfileField) {
-      form.setValue('discountProfileId', undefined, { shouldValidate: false });
-    }
-  }, [form, showDiscountProfileField]);
 
   return (
     <Form {...form}>
@@ -219,35 +188,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             </FormItem>
           )}
         />
-
-        {showDiscountProfileField && (
-          <FormField
-            control={form.control}
-            name="discountProfileId"
-            render={({ field }) => (
-              <FormItem labelPosition="start">
-                <FormLabel>Policy</FormLabel>
-                <FormControl>
-                  <VirtualSelect
-                    options={[
-                      NO_DISCOUNT_POLICY_OPTION,
-                      ...activeDiscountProfiles,
-                    ]}
-                    value={field.value ?? 0}
-                    onChange={(value) => field.onChange(Number(value))}
-                    placeholder="Select policy"
-                    searchPlaceholder="Search policies..."
-                  />
-                </FormControl>
-                <FormDescription>
-                  This policy controls auto discount by item type for this
-                  customer account.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         <div className="flex justify-between">
           <Button type="submit" className="w-1/2">

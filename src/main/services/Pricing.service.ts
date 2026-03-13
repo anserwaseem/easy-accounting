@@ -2,7 +2,9 @@ import type { Database, Statement } from 'better-sqlite3';
 import type { DiscountProfile, ItemType, ProfileTypeDiscount } from 'types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
-import { cast } from '../utils/sqlite';
+import { cast, normalizeSqliteBooleanRows } from '../utils/sqlite';
+
+const SQLITE_ACTIVE_FIELD = ['isActive'] as const;
 
 @logErrors
 export class PricingService {
@@ -44,7 +46,8 @@ export class PricingService {
   }
 
   getItemTypes(): ItemType[] {
-    return this.stmGetItemTypes.all() as ItemType[];
+    const rows = this.stmGetItemTypes.all() as ItemType[];
+    return normalizeSqliteBooleanRows(rows, SQLITE_ACTIVE_FIELD);
   }
 
   insertItemType(name: string): boolean {
@@ -69,7 +72,8 @@ export class PricingService {
   }
 
   getDiscountProfiles(): DiscountProfile[] {
-    return this.stmGetDiscountProfiles.all() as DiscountProfile[];
+    const rows = this.stmGetDiscountProfiles.all() as DiscountProfile[];
+    return normalizeSqliteBooleanRows(rows, SQLITE_ACTIVE_FIELD);
   }
 
   insertDiscountProfile(name: string): boolean {

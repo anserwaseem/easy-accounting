@@ -84,7 +84,17 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     number | undefined
   >(-1);
   const [parties, setParties] =
-    useState<Pick<Account, 'id' | 'type' | 'name' | 'code'>[]>();
+    useState<
+      Pick<
+        Account,
+        | 'id'
+        | 'type'
+        | 'name'
+        | 'code'
+        | 'discountProfileId'
+        | 'discountProfileIsActive'
+      >[]
+    >();
   const [requiredAccountsExist, setRequiredAccountsExist] = useState<{
     sale: boolean;
     purchase: boolean;
@@ -329,6 +339,44 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     },
     [parties],
   );
+  const getPartyById = useCallback(
+    (accountId?: number) => parties?.find((party) => party.id === accountId),
+    [parties],
+  );
+  const isAutoDiscountOffForParty = useCallback(
+    (accountId?: number) => {
+      const party = getPartyById(accountId);
+      return Boolean(
+        party?.discountProfileId && party.discountProfileIsActive === false,
+      );
+    },
+    [getPartyById],
+  );
+  const singleAccountAutoDiscountOff = useMemo(
+    () =>
+      invoiceType === InvoiceType.Sale &&
+      useSingleAccount &&
+      isAutoDiscountOffForParty(toNumber(watchedSingleAccountId)),
+    [
+      invoiceType,
+      isAutoDiscountOffForParty,
+      useSingleAccount,
+      watchedSingleAccountId,
+    ],
+  );
+  const sectionAutoDiscountOffCount = useMemo(() => {
+    if (invoiceType !== InvoiceType.Sale || useSingleAccount) return 0;
+
+    const selectedIds = new Set(
+      sections
+        .map((section) => toNumber(section.accountId))
+        .filter((accountId) => accountId > 0),
+    );
+
+    return Array.from(selectedIds).filter((accountId) =>
+      isAutoDiscountOffForParty(accountId),
+    ).length;
+  }, [invoiceType, isAutoDiscountOffForParty, sections, useSingleAccount]);
 
   // ensure multi-customer sale mode always starts with one section selected.
   useEffect(() => {
@@ -519,7 +567,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const fetchPartiesAndRequiredAccounts = useCallback(async () => {
     const allAccounts: Account[] = await window.electron.getAccounts();
     const accounts = allAccounts.map((account) =>
-      pick(account, ['id', 'name', 'type', 'code']),
+      pick(account, [
+        'id',
+        'name',
+        'type',
+        'code',
+        'discountProfileId',
+        'discountProfileIsActive',
+      ]),
     );
     const saleAccount = accounts.find(
       (account) =>
@@ -1659,30 +1714,40 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
                 <div className="grid grid-cols-2 row-gap-4">
                   {useSingleAccount || invoiceType === InvoiceType.Purchase ? (
-                    <FormField
-                      control={form.control}
-                      name="accountMapping.singleAccountId"
-                      render={({ field }) => (
-                        <FormItem labelPosition="start" className="pr-16">
-                          <FormLabel className="text-base">
-                            {invoiceType === InvoiceType.Sale
-                              ? 'Customer'
-                              : 'Vendor'}
-                            <span className="text-destructive"> *</span>
-                          </FormLabel>
-                          <VirtualSelect
-                            options={parties || []}
-                            value={field.value}
-                            onChange={(val) =>
-                              onAccountSelection(toString(val), field.onChange)
-                            }
-                            placeholder="Select a party"
-                            searchPlaceholder="Search parties..."
-                          />
-                          <FormMessage />
-                        </FormItem>
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="accountMapping.singleAccountId"
+                        render={({ field }) => (
+                          <FormItem labelPosition="start" className="pr-16">
+                            <FormLabel className="text-base">
+                              {invoiceType === InvoiceType.Sale
+                                ? 'Customer'
+                                : 'Vendor'}
+                              <span className="text-destructive"> *</span>
+                            </FormLabel>
+                            <VirtualSelect
+                              options={parties || []}
+                              value={field.value}
+                              onChange={(val) =>
+                                onAccountSelection(
+                                  toString(val),
+                                  field.onChange,
+                                )
+                              }
+                              placeholder="Select a party"
+                              searchPlaceholder="Search parties..."
+                            />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {singleAccountAutoDiscountOff && (
+                        <div className="col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                          Auto discount off for selected customer.
+                        </div>
                       )}
-                    />
+                    </>
                   ) : (
                     <div className="col-span-2 space-y-2 rounded-md border p-3">
                       <div className="flex items-center justify-between">
@@ -1741,6 +1806,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           </div>
                         ))}
                       </div>
+                      {sectionAutoDiscountOffCount > 0 && (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                          Auto discount off for {sectionAutoDiscountOffCount}{' '}
+                          selected customer
+                          {sectionAutoDiscountOffCount === 1 ? '' : 's'}.
+                        </div>
+                      )}
                     </div>
                   )}
 

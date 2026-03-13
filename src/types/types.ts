@@ -111,6 +111,7 @@ export interface Account extends BaseEntity {
   isActive: boolean;
   discountProfileId?: number | null;
   discountProfileName?: string | null;
+  discountProfileIsActive?: boolean | null;
 }
 
 export type InsertAccount = Omit<

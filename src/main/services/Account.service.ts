@@ -2,8 +2,14 @@ import type { Account, InsertAccount, UpdateAccount } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { store } from '../store';
 import { DatabaseService } from './Database.service';
-import { cast } from '../utils/sqlite';
+import {
+  cast,
+  normalizeSqliteBooleanFields,
+  normalizeSqliteBooleanRows,
+} from '../utils/sqlite';
 import { logErrors } from '../errorLogger';
+
+const ACCOUNT_BOOLEAN_FIELDS = ['isActive', 'discountProfileIsActive'] as const;
 
 @logErrors
 export class AccountService {
@@ -34,10 +40,8 @@ export class AccountService {
 
   getAccounts(): Account[] {
     const username = store.get('username');
-    const results = this.stmGetAccounts.all({
-      username,
-    }) as Account[];
-    return results;
+    const results = this.stmGetAccounts.all({ username }) as Account[];
+    return normalizeSqliteBooleanRows(results, ACCOUNT_BOOLEAN_FIELDS);
   }
 
   insertAccount(account: InsertAccount): boolean {
@@ -135,7 +139,9 @@ export class AccountService {
       code,
       username,
     });
-    return result;
+    return result
+      ? normalizeSqliteBooleanFields(result, ACCOUNT_BOOLEAN_FIELDS)
+      : result;
   }
 
   private initPreparedStatements() {
@@ -155,7 +161,8 @@ export class AccountService {
         a.goodsName,
         a.isActive,
         a.discountProfileId,
-        dp.name AS discountProfileName
+        dp.name AS discountProfileName,
+        dp.isActive AS discountProfileIsActive
       FROM account a
       JOIN chart c ON c.id = a.chartId
       LEFT JOIN discount_profiles dp ON dp.id = a.discountProfileId
