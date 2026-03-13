@@ -9,3 +9,4 @@ export * from './Inventory.service';
 export * from './Invoice.service';
 export * from './Print.service';
 export * from './Backup.service';
+export * from './Pricing.service';

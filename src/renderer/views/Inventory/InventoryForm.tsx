@@ -1,7 +1,11 @@
 import type { z } from 'zod';
 import { DefaultValues, useForm, type Path } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import type { InsertInventoryItem, UpdateInventoryItem } from '@/types';
+import type {
+  InsertInventoryItem,
+  UpdateInventoryItem,
+  ItemType,
+} from '@/types';
 import {
   Form,
   FormField,
@@ -12,9 +16,10 @@ import {
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
-import { get, keys, map, merge, omit } from 'lodash';
+import { get, keys, map, merge } from 'lodash';
 import { baseEntityKeys } from '@/renderer/lib/constants';
 import { useMemo } from 'react';
+import VirtualSelect from '@/renderer/components/VirtualSelect';
 
 interface InventoryFormProps<
   T extends InsertInventoryItem | UpdateInventoryItem,
@@ -24,6 +29,7 @@ interface InventoryFormProps<
   onSubmit: (values: T) => Promise<void>;
   onReset?: () => void;
   disabledFields?: string[];
+  itemTypes?: ItemType[];
 }
 
 export const InventoryForm = <
@@ -34,6 +40,7 @@ export const InventoryForm = <
   onSubmit,
   onReset,
   disabledFields = [],
+  itemTypes = [],
 }: InventoryFormProps<T>) => {
   const form = useForm<T>({
     resolver: zodResolver(schema),
@@ -55,11 +62,18 @@ export const InventoryForm = <
     [defaultValues],
   );
 
-  const fields = map(keys(omit(defaultValues, baseEntityKeys)), (key) => ({
-    name: key as Path<T>,
-    label: key,
-    type: typeof defaultValues[key as keyof T] === 'number' ? 'number' : 'text',
-  }));
+  const schemaKeys = keys(schema.shape);
+  const baseEntityKeyNames = baseEntityKeys.map((key) => String(key));
+
+  const fields = map(
+    schemaKeys.filter((key) => !baseEntityKeyNames.includes(key)),
+    (key) => ({
+      name: key as Path<T>,
+      label: key === 'itemTypeId' ? 'Type' : key,
+      type:
+        typeof defaultValues[key as keyof T] === 'number' ? 'number' : 'text',
+    }),
+  );
 
   return (
     <Form {...form}>
@@ -80,7 +94,21 @@ export const InventoryForm = <
               <FormItem labelPosition="start">
                 <FormLabel>{label}</FormLabel>
                 <FormControl>
-                  <Input {...field} type={type} />
+                  {name === 'itemTypeId' ? (
+                    <VirtualSelect
+                      options={[{ id: 0, name: 'No type' }, ...itemTypes]}
+                      value={field.value as string | number | null | undefined}
+                      onChange={(value) => field.onChange(Number(value))}
+                      placeholder="Select item type"
+                      searchPlaceholder="Search item types..."
+                    />
+                  ) : (
+                    <Input
+                      {...field}
+                      type={type}
+                      value={(field.value ?? '') as string | number}
+                    />
+                  )}
                 </FormControl>
                 <FormMessage />
               </FormItem>

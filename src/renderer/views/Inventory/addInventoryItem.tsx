@@ -8,8 +8,8 @@ import {
 } from 'renderer/shad/ui/dialog';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
-import { useState } from 'react';
-import type { InsertInventoryItem } from '@/types';
+import { useEffect, useState } from 'react';
+import type { InsertInventoryItem, ItemType } from '@/types';
 import { addInventorySchema } from './inventorySchemas';
 import { InventoryForm } from './InventoryForm';
 
@@ -21,12 +21,23 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
   refetchInventory,
 }: AddInventoryItemProps) => {
   const [openCreateForm, setOpenCreateForm] = useState(false);
+  const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
 
   const defaultValues = {
     name: '',
     description: undefined,
     price: 0,
+    itemTypeId: undefined,
   };
+
+  // load active item types each time create dialog opens.
+  useEffect(() => {
+    if (!openCreateForm) return;
+    (async () => {
+      const rows = await window.electron.getItemTypes();
+      setItemTypes(rows.filter((row) => row.isActive));
+    })();
+  }, [openCreateForm]);
 
   const onSubmit = async (values: InsertInventoryItem) => {
     const res = await window.electron.insertInventoryItem({ ...values });
@@ -62,6 +73,7 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
           schema={addInventorySchema}
           defaultValues={defaultValues}
           onSubmit={onSubmit}
+          itemTypes={itemTypes}
         />
       </DialogContent>
     </Dialog>

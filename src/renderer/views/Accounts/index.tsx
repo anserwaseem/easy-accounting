@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Settings2 } from 'lucide-react';
 import { Button } from 'renderer/shad/ui/button';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -11,16 +11,119 @@ import {
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
 import { dateFormatOptions } from 'renderer/lib/constants';
-import { AccountType, type Account, type Chart, type HasMiniView } from 'types';
-import type { CellContext } from '@tanstack/react-table';
+import {
+  AccountType,
+  type Account,
+  type Chart,
+  type DiscountProfile,
+  type HasMiniView,
+} from 'types';
+import type { CellContext, Row } from '@tanstack/react-table';
 import { cn, defaultSortingFunctions } from 'renderer/lib/utils';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from 'renderer/shad/ui/popover';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
+import { AccountPricingSheet } from './AccountPricing';
+
+type AccountTypeFilter = 'All' | AccountType;
+type OptionalAccountColumnId =
+  | 'code'
+  | 'address'
+  | 'phone1'
+  | 'phone2'
+  | 'goodsName'
+  | 'policy'
+  | 'headName'
+  | 'type'
+  | 'updatedAt'
+  | 'createdAt';
+
+type AccountColumnOption = {
+  id: OptionalAccountColumnId;
+  label: string;
+};
 
 type AccountPageProps = {
   onRowClick?: (id?: number) => void;
 } & HasMiniView;
+
+const getStoredAccountType = (): AccountTypeFilter =>
+  (window.electron.store.get('accountTypeSelected') as AccountTypeFilter) ||
+  AccountType.Asset;
+
+const getColumnStorageKey = (typeSelected: AccountTypeFilter) =>
+  `accountVisibleColumns:${typeSelected}`;
+
+const getAvailableColumnOptions = (
+  typeSelected: AccountTypeFilter,
+): AccountColumnOption[] => {
+  const options: AccountColumnOption[] = [
+    { id: 'code', label: 'Code' },
+    { id: 'headName', label: 'Head' },
+    { id: 'updatedAt', label: 'Updated at' },
+    { id: 'createdAt', label: 'Created at' },
+    { id: 'address', label: 'Address' },
+    { id: 'goodsName', label: 'Goods name' },
+    { id: 'phone1', label: 'Phone 1' },
+    { id: 'phone2', label: 'Phone 2' },
+  ];
+
+  if (typeSelected === AccountType.Asset) {
+    options.splice(1, 0, { id: 'policy', label: 'Policy' });
+  }
+
+  if (typeSelected === 'All') {
+    options.splice(1, 0, { id: 'type', label: 'Type' });
+    options.splice(2, 0, { id: 'policy', label: 'Policy' });
+  }
+
+  return options;
+};
+
+const getDefaultVisibleColumns = (
+  typeSelected: AccountTypeFilter,
+): OptionalAccountColumnId[] => {
+  switch (typeSelected) {
+    case AccountType.Asset:
+      return ['code', 'policy', 'headName', 'updatedAt'];
+    case 'All':
+      return ['code', 'type', 'headName', 'updatedAt'];
+    default:
+      return ['code', 'headName', 'updatedAt'];
+  }
+};
+
+const sanitizeVisibleColumns = (
+  typeSelected: AccountTypeFilter,
+  columnIds?: OptionalAccountColumnId[],
+): OptionalAccountColumnId[] => {
+  const availableIds = new Set(
+    getAvailableColumnOptions(typeSelected).map((column) => column.id),
+  );
+
+  if (!columnIds) {
+    return getDefaultVisibleColumns(typeSelected);
+  }
+
+  return Array.from(new Set(columnIds)).filter((columnId) =>
+    availableIds.has(columnId),
+  );
+};
+
+const getStoredVisibleColumns = (
+  typeSelected: AccountTypeFilter,
+): OptionalAccountColumnId[] =>
+  sanitizeVisibleColumns(
+    typeSelected,
+    window.electron.store.get(getColumnStorageKey(typeSelected)) as
+      | OptionalAccountColumnId[]
+      | undefined,
+  );
 
 const AccountCell: React.FC<CellContext<Account, unknown>> = ({
   row,
@@ -66,24 +169,70 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   // eslint-disable-next-line no-console
   console.log('AccountsPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [typeSelected, setTypeSelected] = useState<'All' | AccountType>(
-    window.electron.store.get('accountTypeSelected') || 'All',
-  );
+  const [typeSelected, setTypeSelected] =
+    useState<AccountTypeFilter>(getStoredAccountType);
+  const [visibleColumnIds, setVisibleColumnIds] = useState<
+    OptionalAccountColumnId[]
+  >(() => getStoredVisibleColumns(getStoredAccountType()));
   const [showInactive, setShowInactive] = useState<boolean>(
     window.electron.store.get('showInactiveAccounts') || false,
   );
   const [charts, setCharts] = useState<Chart[]>([]);
+  const [discountProfiles, setDiscountProfiles] = useState<DiscountProfile[]>(
+    [],
+  );
+  const [pricingAccountId, setPricingAccountId] = useState<number | null>(null);
   const clearRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
   const refetchAccounts = useCallback(async () => {
-    const [fetchedAccounts, fetchedCharts] = await Promise.all([
-      window.electron.getAccounts(),
-      window.electron.getCharts(),
-    ]);
+    const [fetchedAccounts, fetchedCharts, fetchedDiscountProfiles] =
+      await Promise.all([
+        window.electron.getAccounts(),
+        window.electron.getCharts(),
+        window.electron.getDiscountProfiles(),
+      ]);
     setAccounts(fetchedAccounts);
     setCharts(fetchedCharts);
+    setDiscountProfiles(fetchedDiscountProfiles);
   }, []);
+
+  const pricingAccount = useMemo(
+    () => accounts.find((account) => account.id === pricingAccountId),
+    [accounts, pricingAccountId],
+  );
+
+  const availableColumnOptions = useMemo(
+    () => getAvailableColumnOptions(typeSelected),
+    [typeSelected],
+  );
+  const visibleColumnSet = useMemo(
+    () => new Set(visibleColumnIds),
+    [visibleColumnIds],
+  );
+  const openAccount = useCallback(
+    (row: Row<Account>) => navigate(`/accounts/${row.original.id}`),
+    [navigate],
+  );
+
+  const handleTypeChange = useCallback((nextType: AccountTypeFilter) => {
+    setTypeSelected(nextType);
+    setVisibleColumnIds(getStoredVisibleColumns(nextType));
+  }, []);
+
+  const toggleVisibleColumn = useCallback(
+    (columnId: OptionalAccountColumnId) => {
+      setVisibleColumnIds((prev) =>
+        prev.includes(columnId)
+          ? prev.filter((id) => id !== columnId)
+          : [...prev, columnId],
+      );
+    },
+    [],
+  );
+
+  const shouldShowPolicyColumn =
+    typeSelected === AccountType.Asset || typeSelected === 'All';
 
   const columns: ColumnDef<Account>[] = useMemo(
     () =>
@@ -93,82 +242,147 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'name',
               header: 'Accounts',
               cell: AccountCell,
-              onClick: (row) => {
+              onClick: (row: Row<Account>) => {
                 onRowClick?.(row.original.id);
-                navigate(`/accounts/${row.original.id}`);
+                openAccount(row);
               },
             },
           ]
         : [
             {
+              id: 'name',
               accessorKey: 'name',
               header: 'Account',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
               cell: AccountNameCell,
             },
             {
+              id: 'code',
               accessorKey: 'code',
               header: 'Code',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
             },
             {
+              id: 'address',
               accessorKey: 'address',
               header: 'Address',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
             },
             {
+              id: 'phone1',
               accessorKey: 'phone1',
               header: 'Phone 1',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
             },
             {
+              id: 'phone2',
               accessorKey: 'phone2',
               header: 'Phone 2',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
             },
             {
+              id: 'goodsName',
               accessorKey: 'goodsName',
               header: 'Goods Name',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
             },
+            ...(shouldShowPolicyColumn
+              ? [
+                  {
+                    id: 'policy',
+                    accessorKey: 'discountProfileName',
+                    header: 'Policy',
+                    // eslint-disable-next-line react/no-unstable-nested-components
+                    cell: ({ row }: CellContext<Account, unknown>) => {
+                      if (row.original.type !== AccountType.Asset) {
+                        return (
+                          <span className="text-xs text-muted-foreground">
+                            -
+                          </span>
+                        );
+                      }
+
+                      let pricingLabel = 'Set up';
+                      if (row.original.discountProfileId) {
+                        pricingLabel =
+                          row.original.discountProfileIsActive === false
+                            ? 'Auto off'
+                            : 'Edit';
+                      }
+
+                      return (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={
+                            row.original.discountProfileId
+                              ? 'outline'
+                              : 'secondary'
+                          }
+                          title={
+                            row.original.discountProfileId
+                              ? `${
+                                  row.original.discountProfileName || 'Policy'
+                                }`
+                              : 'Set up policy'
+                          }
+                          className={cn(
+                            'h-8 min-w-[96px] justify-center px-3',
+                            row.original.discountProfileIsActive === false &&
+                              'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100',
+                          )}
+                          onClick={() => setPricingAccountId(row.original.id)}
+                        >
+                          {pricingLabel}
+                        </Button>
+                      );
+                    },
+                  } as ColumnDef<Account>,
+                ]
+              : []),
             {
+              id: 'headName',
               accessorKey: 'headName',
               header: 'Head',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
               size: 1,
             },
             {
+              id: 'type',
               accessorKey: 'type',
               header: 'Type',
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
               size: 1,
             },
             {
+              id: 'updatedAt',
               accessorKey: 'updatedAt',
               header: 'Updated At',
-              cell: ({ row }) =>
+              cell: ({ row }: CellContext<Account, unknown>) =>
                 new Date(row.original.updatedAt || '').toLocaleString(
                   'en-US',
                   dateFormatOptions,
                 ),
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
               size: 1,
             },
             {
+              id: 'createdAt',
               accessorKey: 'createdAt',
               header: 'Created At',
-              cell: ({ row }) =>
+              cell: ({ row }: CellContext<Account, unknown>) =>
                 new Date(row.original.createdAt || '').toLocaleString(
                   'en-US',
                   dateFormatOptions,
                 ),
-              onClick: (row) => navigate(`/accounts/${row.original.id}`),
+              onClick: openAccount,
               size: 1,
             },
             {
+              id: 'edit',
               header: 'Edit',
               // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }) => (
+              cell: ({ row }: CellContext<Account, unknown>) => (
                 <EditAccount
                   row={row}
                   refetchAccounts={refetchAccounts}
@@ -178,8 +392,21 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               ),
               size: 1,
             },
-          ],
-    [charts, isMini, navigate, onRowClick, refetchAccounts],
+          ].filter(
+            (column) =>
+              column.id === 'name' ||
+              column.id === 'edit' ||
+              visibleColumnSet.has(column.id as OptionalAccountColumnId),
+          ),
+    [
+      charts,
+      isMini,
+      openAccount,
+      onRowClick,
+      refetchAccounts,
+      shouldShowPolicyColumn,
+      visibleColumnSet,
+    ],
   );
 
   useEffect(() => {
@@ -191,6 +418,14 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     () => window.electron.store.set('accountTypeSelected', typeSelected),
     [typeSelected],
   );
+
+  // persist visible columns for the currently selected account view.
+  useEffect(() => {
+    window.electron.store.set(
+      getColumnStorageKey(typeSelected),
+      sanitizeVisibleColumns(typeSelected, visibleColumnIds),
+    );
+  }, [typeSelected, visibleColumnIds]);
 
   useEffect(
     () => window.electron.store.set('showInactiveAccounts', showInactive),
@@ -212,58 +447,124 @@ const AccountsPage: React.FC<AccountPageProps> = ({
 
   return (
     <div>
-      <div className="grid grid-cols-3 justify-between items-center py-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className={isMini ? 'w-max' : 'w-fit'}>
-              <span className="mr-2">{typeSelected} Accounts</span>
-              <ChevronDown size={16} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="px-4">
-            <DropdownMenuItem onClick={() => setTypeSelected('All')}>
-              All Accounts
-            </DropdownMenuItem>
-            {Object.keys(AccountType).map((type) => (
-              <DropdownMenuItem
-                onClick={() =>
-                  setTypeSelected(AccountType[type as keyof typeof AccountType])
-                }
-              >
-                {type} Accounts
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="flex flex-col gap-3 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={isMini ? 'w-max' : 'w-fit'}
+                >
+                  <span className="mr-2">{typeSelected} Accounts</span>
+                  <ChevronDown size={16} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="px-4">
+                <DropdownMenuItem onClick={() => handleTypeChange('All')}>
+                  All Accounts
+                </DropdownMenuItem>
+                {Object.keys(AccountType).map((type) => (
+                  <DropdownMenuItem
+                    key={type}
+                    onClick={() =>
+                      handleTypeChange(
+                        AccountType[type as keyof typeof AccountType],
+                      )
+                    }
+                  >
+                    {type} Accounts
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-        <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
+            <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
+          </div>
 
-        {isMini ? null : (
-          <div className={cn('flex w-fit ml-auto gap-2')}>
-            <div className="flex items-center mr-4">
-              <div className="flex items-center space-x-2">
+          {isMini ? null : (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="mr-2 flex items-center gap-2 whitespace-nowrap text-sm font-medium leading-none">
                 <Checkbox
                   checked={showInactive}
                   onCheckedChange={() => setShowInactive(!showInactive)}
                 />
-                <h2 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                <button
+                  type="button"
+                  className="cursor-pointer"
+                  onClick={() => setShowInactive(!showInactive)}
+                >
                   Show inactive accounts
-                </h2>
+                </button>
               </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="px-3"
+                  >
+                    <Settings2 className="mr-2 h-4 w-4" />
+                    Columns
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-60 p-0">
+                  <div className="space-y-3 p-3">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold">Visible columns</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Saved for {typeSelected} Accounts
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      {availableColumnOptions.map((column) => (
+                        <button
+                          key={column.id}
+                          type="button"
+                          className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
+                          onClick={() => toggleVisibleColumn(column.id)}
+                        >
+                          <span>{column.label}</span>
+                          <Checkbox
+                            checked={visibleColumnSet.has(column.id)}
+                            className="pointer-events-none"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex justify-end border-t pt-3">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setVisibleColumnIds(
+                            getDefaultVisibleColumns(typeSelected),
+                          )
+                        }
+                      >
+                        Reset defaults
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <AddCustomHead
+                charts={charts}
+                onHeadAdded={refetchAccounts}
+                btnClassName="px-3"
+              />
+              <AddAccount
+                charts={charts}
+                clearRef={clearRef}
+                refetchAccounts={refetchAccounts}
+                btnClassName="px-3"
+              />
             </div>
-            <AddCustomHead
-              charts={charts}
-              onHeadAdded={refetchAccounts}
-              btnClassName="min-w-max"
-            />
-            <AddAccount
-              charts={charts}
-              clearRef={clearRef}
-              refetchAccounts={refetchAccounts}
-              btnClassName="min-w-max"
-            />
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <div className="py-8">
         <DataTable
@@ -274,9 +575,27 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           virtual
           isMini={isMini}
           searchPlaceholder="Search accounts..."
-          searchFields={['name', 'code', 'headName']}
+          searchFields={[
+            'name',
+            'code',
+            'headName',
+            'address',
+            'phone1',
+            'phone2',
+            'goodsName',
+            'discountProfileName',
+          ]}
         />
       </div>
+      <AccountPricingSheet
+        open={pricingAccountId !== null}
+        account={pricingAccount}
+        discountProfiles={discountProfiles}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setPricingAccountId(null);
+        }}
+        onUpdated={refetchAccounts}
+      />
     </div>
   );
 };

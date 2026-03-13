@@ -63,6 +63,8 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           phone1: values.phone1,
           phone2: values.phone2,
           goodsName: values.goodsName,
+          discountProfileId: null,
+          isActive: true,
         }),
       {
         successMessage: `"${values.accountName}" account created successfully`,
@@ -87,7 +89,8 @@ export const AddAccount: React.FC<AddAccountProps> = ({
         <DialogTrigger asChild>
           <Button
             variant="outline"
-            className={cn('w-full min-w-max', btnClassName)}
+            size="sm"
+            className={cn('w-auto', btnClassName)}
           >
             <Plus className="mr-2 h-4 w-4" />
             New Account

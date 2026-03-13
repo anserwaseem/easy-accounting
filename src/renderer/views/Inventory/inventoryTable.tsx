@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import type { InventoryItem } from 'types';
+import type { InventoryItem, ItemType } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
+import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { toast } from '@/renderer/shad/ui/use-toast';
 import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
+
+const NO_ITEM_TYPE_OPTION = { id: 0, name: 'No type' };
 
 interface InventoryTableProps {
   refetchInventory: () => void;
@@ -22,6 +26,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 }: InventoryTableProps) => {
   // eslint-disable-next-line no-console
   const [inventory, setInventory] = useState<InventoryItem[]>();
+  const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [itemsWithHistory, setItemsWithHistory] = useState<number[]>([]);
@@ -29,16 +34,60 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
   useEffect(() => {
     const fetchInventory = async () => {
-      const [fetchedInventory, idsWithHistory] = await Promise.all([
-        window.electron.getInventory(),
-        window.electron.getInventoryIdsWithHistory(),
-      ]);
+      const [fetchedInventory, idsWithHistory, fetchedItemTypes] =
+        await Promise.all([
+          window.electron.getInventory(),
+          window.electron.getInventoryIdsWithHistory(),
+          window.electron.getItemTypes(),
+        ]);
 
       setInventory(fetchedInventory);
       setItemsWithHistory(idsWithHistory);
+      setItemTypes(fetchedItemTypes);
     };
     fetchInventory();
   }, [options?.refresh]);
+
+  const itemTypeOptions = useMemo(
+    () => [NO_ITEM_TYPE_OPTION, ...itemTypes],
+    [itemTypes],
+  );
+
+  const updateItemType = async (
+    row: InventoryItem,
+    selectedTypeId: string | number,
+  ) => {
+    const nextItemTypeId =
+      Number(selectedTypeId) > 0 ? Number(selectedTypeId) : undefined;
+
+    const updated = await window.electron.updateInventoryItem({
+      id: row.id,
+      price: row.price,
+      description: row.description,
+      itemTypeId: nextItemTypeId,
+    });
+
+    if (!updated) {
+      toast({
+        description: 'Failed to update item type',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setInventory((prev) => {
+      return prev?.map((item) => {
+        if (item.id !== row.id) return item;
+        return {
+          ...item,
+          itemTypeId: nextItemTypeId,
+          itemTypeName:
+            itemTypes.find((itemType) => itemType.id === nextItemTypeId)
+              ?.name ?? null,
+        };
+      });
+    });
+  };
 
   const getInventory = () => {
     const filteredInventory = inventory?.filter((i) => {
@@ -64,6 +113,24 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     {
       accessorKey: 'description',
       header: 'Description',
+    },
+    {
+      accessorKey: 'itemTypeName',
+      header: 'Type',
+      // eslint-disable-next-line react/no-unstable-nested-components
+      cell: ({ row }) => (
+        <div className="min-w-[160px]">
+          <VirtualSelect
+            options={itemTypeOptions}
+            value={row.original.itemTypeId ?? 0}
+            onChange={(value) => {
+              updateItemType(row.original, value);
+            }}
+            placeholder="Select type"
+            searchPlaceholder="Search types..."
+          />
+        </div>
+      ),
     },
     {
       accessorKey: 'price',
@@ -127,7 +194,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         sortingFns={defaultSortingFunctions}
         virtual
         searchPlaceholder="Search inventory..."
-        searchFields={['name', 'description', 'price', 'quantity']}
+        searchFields={[
+          'name',
+          'description',
+          'itemTypeName',
+          'price',
+          'quantity',
+        ]}
       />
       <StockHistoryDialog
         open={historyOpen}

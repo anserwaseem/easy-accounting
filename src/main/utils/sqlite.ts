@@ -37,3 +37,33 @@ export function cast(value: boolean | Date | number) {
 
   raise('Invalid input type for cast function');
 }
+
+export function uncastBoolean(
+  value: SqliteBoolean | boolean | null | undefined,
+) {
+  if (value == null) return value;
+  return value === true || value === 1;
+}
+
+export function normalizeSqliteBooleanFields<T extends object>(
+  row: T,
+  keys: ReadonlyArray<keyof T>,
+): T {
+  const normalized = { ...row };
+  const mutableNormalized = normalized as Record<keyof T, unknown>;
+
+  keys.forEach((key) => {
+    mutableNormalized[key] = uncastBoolean(
+      mutableNormalized[key] as SqliteBoolean | boolean | null | undefined,
+    );
+  });
+
+  return normalized;
+}
+
+export function normalizeSqliteBooleanRows<T extends object>(
+  rows: T[],
+  keys: ReadonlyArray<keyof T>,
+): T[] {
+  return rows.map((row) => normalizeSqliteBooleanFields(row, keys));
+}

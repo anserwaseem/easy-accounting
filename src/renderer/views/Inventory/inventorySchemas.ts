@@ -4,6 +4,11 @@ export const addInventorySchema = z.object({
   name: z.string().min(1, 'Name must be at least 1 character'),
   price: z.coerce.number().nonnegative('Price must not be negative'), // allow 0 price to keep up with old data
   description: z.string().optional().nullable(),
+  itemTypeId: z.coerce
+    .number()
+    .optional()
+    .nullable()
+    .transform((val) => (val && val > 0 ? val : undefined)),
 });
 
 export const editInventorySchema = z.object({
@@ -12,6 +17,11 @@ export const editInventorySchema = z.object({
   quantity: z.number().optional(), // disabled in UI
   price: z.coerce.number().nonnegative('Price must not be negative'), // allow 0 price to keep up with old data
   description: z.string().optional().nullable(),
+  itemTypeId: z.coerce
+    .number()
+    .optional()
+    .nullable()
+    .transform((val) => (val && val > 0 ? val : undefined)),
 });
 
 export type AddInventorySchema = z.infer<typeof addInventorySchema>;

@@ -19,6 +19,9 @@ import type {
   InventoryOpeningStock,
   ApplyStockAdjustmentPayload,
   ApiResponse,
+  ItemType,
+  DiscountProfile,
+  ProfileTypeDiscount,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -134,6 +137,68 @@ const electronHandler = {
       number[]
     >,
 
+  getItemTypes: () =>
+    ipcRenderer.invoke('itemType:getAll') as Promise<ItemType[]>,
+
+  insertItemType: (name: string) =>
+    ipcRenderer.invoke('itemType:insert', name) as Promise<boolean>,
+
+  updateItemTypeName: (id: number, name: string) =>
+    ipcRenderer.invoke('itemType:updateName', id, name) as Promise<boolean>,
+
+  toggleItemTypeActive: (id: number, isActive: boolean) =>
+    ipcRenderer.invoke(
+      'itemType:toggleActive',
+      id,
+      isActive,
+    ) as Promise<boolean>,
+
+  getDiscountProfiles: () =>
+    ipcRenderer.invoke('discountProfile:getAll') as Promise<DiscountProfile[]>,
+
+  insertDiscountProfile: (name: string) =>
+    ipcRenderer.invoke('discountProfile:insert', name) as Promise<boolean>,
+
+  updateDiscountProfileName: (id: number, name: string) =>
+    ipcRenderer.invoke(
+      'discountProfile:updateName',
+      id,
+      name,
+    ) as Promise<boolean>,
+
+  toggleDiscountProfileActive: (id: number, isActive: boolean) =>
+    ipcRenderer.invoke(
+      'discountProfile:toggleActive',
+      id,
+      isActive,
+    ) as Promise<boolean>,
+
+  deleteDiscountProfile: (id: number) =>
+    ipcRenderer.invoke('discountProfile:delete', id) as Promise<boolean>,
+
+  deleteDiscountProfileFromAccount: (accountId: number, profileId: number) =>
+    ipcRenderer.invoke(
+      'discountProfile:deleteFromAccount',
+      accountId,
+      profileId,
+    ) as Promise<boolean>,
+
+  getDiscountProfileTypeDiscounts: (profileId: number) =>
+    ipcRenderer.invoke(
+      'discountProfile:getTypeDiscounts',
+      profileId,
+    ) as Promise<ProfileTypeDiscount[]>,
+
+  saveDiscountProfileTypeDiscounts: (
+    profileId: number,
+    discounts: Array<{ itemTypeId: number; discountPercent: number }>,
+  ) =>
+    ipcRenderer.invoke(
+      'discountProfile:saveTypeDiscounts',
+      profileId,
+      discounts,
+    ) as Promise<boolean>,
+
   getNextInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getId', invoiceType),
 
@@ -154,6 +219,13 @@ const electronHandler = {
 
   getLastInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getLastNumber', invoiceType),
+
+  getAutoDiscount: (accountId: number, inventoryId: number) =>
+    ipcRenderer.invoke(
+      'invoice:getAutoDiscount',
+      accountId,
+      inventoryId,
+    ) as Promise<number>,
 
   printToPdf: (invoiceNumber: number) =>
     ipcRenderer.invoke('print:toPDF', invoiceNumber),
@@ -196,6 +268,16 @@ const electronHandler = {
    */
   updateAccount: (account: UpdateAccount) =>
     ipcRenderer.invoke('account:updateAccount', account),
+
+  updateAccountDiscountProfile: (
+    accountId: number,
+    discountProfileId: number | null,
+  ) =>
+    ipcRenderer.invoke(
+      'account:updateDiscountProfile',
+      accountId,
+      discountProfileId,
+    ) as Promise<boolean>,
   /**
    * Check if an account has any journal entries
    * @param accountId The account ID to check
