@@ -25,6 +25,8 @@ export class AccountService {
 
   private stmToggleAccountActive!: Statement;
 
+  private stmUpdateAccountDiscountProfile!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -111,6 +113,18 @@ export class AccountService {
     return Boolean(result.changes);
   }
 
+  updateAccountDiscountProfile(
+    accountId: number,
+    discountProfileId: number | null,
+  ): boolean {
+    const result = this.stmUpdateAccountDiscountProfile.run({
+      accountId: cast(accountId),
+      discountProfileId:
+        discountProfileId == null ? null : cast(discountProfileId),
+    });
+    return Boolean(result.changes);
+  }
+
   getAccountByNameAndCode(
     name: Account['name'],
     code?: Account['code'],
@@ -126,9 +140,25 @@ export class AccountService {
 
   private initPreparedStatements() {
     this.stmGetAccounts = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.address, a.phone1, a.phone2, a.goodsName, a.isActive
+      SELECT
+        a.id,
+        a.name,
+        c.name as headName,
+        a.chartId,
+        c.type,
+        a.code,
+        a.createdAt,
+        a.updatedAt,
+        a.address,
+        a.phone1,
+        a.phone2,
+        a.goodsName,
+        a.isActive,
+        a.discountProfileId,
+        dp.name AS discountProfileName
       FROM account a
       JOIN chart c ON c.id = a.chartId
+      LEFT JOIN discount_profiles dp ON dp.id = a.discountProfileId
       WHERE userId = (
         SELECT id
         FROM users
@@ -137,7 +167,7 @@ export class AccountService {
     `);
 
     this.stmInsertAccount = this.db.prepare(`
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive, discountProfileId)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -146,12 +176,12 @@ export class AccountService {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName, 1)
+      ), @code, @address, @phone1, @phone2, @goodsName, 1, @discountProfileId)
     `);
 
     this.stmUpdateAccount = this.db.prepare(`
       UPDATE account
-      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, chartId = (
+      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, discountProfileId = @discountProfileId, chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName AND userId = (
@@ -178,7 +208,7 @@ export class AccountService {
     `);
 
     this.stmGetAccountByName = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE LOWER(a.name) LIKE LOWER(@name) AND userId = (
@@ -203,6 +233,12 @@ export class AccountService {
     this.stmToggleAccountActive = this.db.prepare(`
       UPDATE account
       SET isActive = @isActive
+      WHERE id = @accountId
+    `);
+
+    this.stmUpdateAccountDiscountProfile = this.db.prepare(`
+      UPDATE account
+      SET discountProfileId = @discountProfileId
       WHERE id = @accountId
     `);
   }

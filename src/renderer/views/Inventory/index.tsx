@@ -11,6 +11,7 @@ import { Upload } from 'lucide-react';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
 import { SetOpeningStock } from './SetOpeningStock';
+import { ManageItemTypes } from './ManageItemTypes';
 
 const InventoryPage: React.FC = () => {
   const [doesInventoryExist, setDoesInventoryExist] = useState<Boolean>();
@@ -82,6 +83,7 @@ const InventoryPage: React.FC = () => {
             onChange={uploadInventory}
           />
           <SetOpeningStock refetchInventory={refetchInventory} />
+          <ManageItemTypes onUpdated={refetchInventory} />
           <AddInventoryItem refetchInventory={refetchInventory} />
         </div>
       </header>

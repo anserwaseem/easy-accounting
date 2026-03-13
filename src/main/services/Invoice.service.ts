@@ -82,9 +82,11 @@ export class InvoiceService {
         prev.invoiceItems = [];
       }
       prev.invoiceItems.push({
+        inventoryId: cur.inventoryId,
         quantity: cur.quantity,
         price: cur.price,
         discount: cur.discount,
+        itemTypeName: cur.itemTypeName,
         discountedPrice: InvoiceService.getInvoiceItemTotal(cur, cur.price),
         inventoryItemName: cur.inventoryItemName,
         inventoryItemDescription: cur.inventoryItemDescription,
@@ -453,11 +455,13 @@ export class InvoiceService {
         i.extraDiscount,
         i.biltyNumber,
         i.cartons,
+        ii.inventoryId,
         ii.quantity,
         ii.price,
         ii.discount,
         iii.name as 'inventoryItemName',
         iii.description AS 'inventoryItemDescription',
+        it.name as 'itemTypeName',
         COALESCE(
           CASE WHEN ii.accountId IS NOT NULL THEN a2.name ELSE NULL END,
           a.name
@@ -466,6 +470,7 @@ export class InvoiceService {
       JOIN account a ON i.accountId = a.id
       JOIN invoice_items ii ON i.id = ii.invoiceId
       JOIN inventory iii ON iii.id = ii.inventoryId
+      LEFT JOIN item_types it ON it.id = iii.itemTypeId
       LEFT JOIN account a2 ON ii.accountId = a2.id AND ii.accountId IS NOT NULL
       WHERE i.id = @invoiceId
     `);

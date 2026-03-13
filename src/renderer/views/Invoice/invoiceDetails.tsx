@@ -78,6 +78,56 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     ];
   }, [invoiceType, invoice?.accountName]);
 
+  const groupedInvoiceItems = useMemo(() => {
+    const grouped = new Map<string, InvoiceItemView[]>();
+    (invoice?.invoiceItems || []).forEach((item) => {
+      const sectionName = item.itemTypeName?.trim() || 'No Type';
+      const existingItems = grouped.get(sectionName) ?? [];
+      grouped.set(sectionName, [...existingItems, item]);
+    });
+    return Array.from(grouped.entries()).map(([sectionName, items]) => {
+      const totalQuantity = items.reduce(
+        (sum, item) => sum + toNumber(item.quantity),
+        0,
+      );
+      const totalAmount = items.reduce((sum, item) => {
+        const discountedAmount =
+          item.discountedPrice ??
+          toNumber(item.quantity) *
+            toNumber(item.price) *
+            (1 - toNumber(item.discount) / 100);
+        return sum + toNumber(discountedAmount);
+      }, 0);
+
+      return {
+        sectionName,
+        items,
+        totalQuantity,
+        totalAmount,
+      };
+    });
+  }, [invoice?.invoiceItems]);
+
+  const quantityColumnIndex = useMemo(
+    () =>
+      columns.findIndex(
+        (column) =>
+          (column as { accessorKey?: string }).accessorKey === 'quantity',
+      ),
+    [columns],
+  );
+
+  const totalColumnIndex = useMemo(
+    () =>
+      columns.findIndex((column) => {
+        const { accessorKey } = column as { accessorKey?: string };
+        if (invoiceType === InvoiceType.Sale)
+          return accessorKey === 'discountedPrice';
+        return accessorKey === 'price';
+      }),
+    [columns, invoiceType],
+  );
+
   const handlePrintClick = () => {
     navigate(`/invoices/${invoice!.id}/print`);
   };
@@ -155,12 +205,34 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         </div>
       </div>
 
-      <div className="py-10">
-        <DataTable
-          columns={columns}
-          data={invoice?.invoiceItems || []}
-          sortingFns={defaultSortingFunctions}
-        />
+      <div className="space-y-8 py-10">
+        {groupedInvoiceItems.map((section) => (
+          <div key={section.sectionName} className="space-y-2">
+            <h2 className="text-lg font-semibold">{section.sectionName}</h2>
+            {section.items.length > 1 ? (
+              <DataTable
+                columns={columns}
+                data={section.items}
+                sortingFns={defaultSortingFunctions}
+                infoData={[
+                  Array.from({ length: columns.length }, (_, index) => {
+                    if (index === quantityColumnIndex)
+                      return section.totalQuantity;
+                    if (index === totalColumnIndex)
+                      return getFormattedCurrency(section.totalAmount);
+                    return '';
+                  }),
+                ]}
+              />
+            ) : (
+              <DataTable
+                columns={columns}
+                data={section.items}
+                sortingFns={defaultSortingFunctions}
+              />
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

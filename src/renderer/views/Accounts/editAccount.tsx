@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
-import type { UpdateAccount, Chart } from 'types';
+import type { UpdateAccount, Chart, DiscountProfile } from 'types';
 import { useState } from 'react';
 import { AccountForm, AccountFormData } from './accountForm';
 import { AddAccount } from './addAccount';
@@ -26,6 +26,7 @@ interface EditAccountProps {
   };
   refetchAccounts: () => void;
   charts: Chart[];
+  discountProfiles: DiscountProfile[];
   clearRef: React.RefObject<HTMLButtonElement>;
 }
 
@@ -33,6 +34,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   row,
   refetchAccounts,
   charts,
+  discountProfiles,
   clearRef,
 }: EditAccountProps) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -50,6 +52,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     phone1: inputRow.phone1,
     phone2: inputRow.phone2,
     goodsName: inputRow.goodsName,
+    discountProfileId: inputRow.discountProfileId ?? undefined,
     isActive: !!inputRow.isActive, // included for type safety, but not used in the form
   });
 
@@ -63,6 +66,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       phone1: values.phone1,
       phone2: values.phone2,
       goodsName: values.goodsName,
+      discountProfileId: values.discountProfileId,
       isActive: row.original.isActive,
     });
 
@@ -182,6 +186,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
           <AccountForm
             onSubmit={onSubmit}
             charts={charts}
+            discountProfiles={discountProfiles}
             clearRef={clearRef}
             initialValues={mapRowToFormData(row.original)}
           />
@@ -225,6 +230,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
         <AddAccount
           refetchAccounts={refetchAccounts}
           charts={charts}
+          discountProfiles={discountProfiles}
           clearRef={clearRef}
           initialValues={accountToCopy}
           isOpen={!!accountToCopy}

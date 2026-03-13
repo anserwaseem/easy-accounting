@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format, isValid } from 'date-fns';
 import { InvoiceView } from 'types';
@@ -160,14 +160,78 @@ const PrintableInvoiceScreen = () => {
     navigate(`/invoices/${toNumber(id) - 1}/print`);
   };
 
+  const invoiceItems = useMemo(
+    () => invoice?.invoiceItems ?? [],
+    [invoice?.invoiceItems],
+  );
+  const totalQuantity = invoiceItems.reduce(
+    (sum, item) => sum + toNumber(item.quantity),
+    0,
+  );
+
+  const groupedInvoiceItems = useMemo(() => {
+    const grouped = new Map<string, InvoiceView['invoiceItems']>();
+    invoiceItems.forEach((item) => {
+      const sectionName = item.itemTypeName?.trim() || 'No Type';
+      const existingItems = grouped.get(sectionName) ?? [];
+      grouped.set(sectionName, [...existingItems, item]);
+    });
+    return Array.from(grouped.entries()).map(([sectionName, items]) => ({
+      sectionName,
+      items,
+    }));
+  }, [invoiceItems]);
+
+  const sectionedRows = useMemo(() => {
+    let serialNumber = 0;
+    return groupedInvoiceItems.flatMap((section) => {
+      const itemRows = section.items.map((item) => {
+        serialNumber += 1;
+        return {
+          kind: 'item' as const,
+          key: `${section.sectionName}-${item.inventoryId}-${serialNumber}`,
+          serialNumber,
+          item,
+        };
+      });
+
+      const sectionTotalQuantity = section.items.reduce(
+        (sum, item) => sum + toNumber(item.quantity),
+        0,
+      );
+      const sectionTotalAmount = section.items.reduce((sum, item) => {
+        const discountedAmount =
+          item.discountedPrice ??
+          toNumber(item.quantity) *
+            toNumber(item.price) *
+            (1 - toNumber(item.discount) / 100);
+        return sum + toNumber(discountedAmount);
+      }, 0);
+
+      return [
+        {
+          kind: 'header' as const,
+          key: `${section.sectionName}-header`,
+          sectionName: section.sectionName,
+        },
+        ...itemRows,
+        ...(section.items.length > 1
+          ? [
+              {
+                kind: 'subtotal' as const,
+                key: `${section.sectionName}-subtotal`,
+                totalQuantity: sectionTotalQuantity,
+                totalAmount: sectionTotalAmount,
+              },
+            ]
+          : []),
+      ];
+    });
+  }, [groupedInvoiceItems]);
+
   if (!invoice) {
     return <div>Loading...</div>;
   }
-
-  const totalQuantity = invoice.invoiceItems.reduce(
-    (sum, item) => sum + item.quantity,
-    0,
-  );
 
   return (
     <div className="min-h-screen bg-white p-8 print:p-0">
@@ -280,20 +344,55 @@ const PrintableInvoiceScreen = () => {
             </tr>
           </thead>
           <tbody>
-            {invoice.invoiceItems.map((item, index) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <tr key={index} className="border-b border-gray-300">
-                <td>{index + 1}</td>
-                <td className="text-center">{item.inventoryItemName}</td>
-                <td>{item.inventoryItemDescription}</td>
-                <td className="text-right">{item.quantity}</td>
-                <td className="text-right">{item.price.toFixed(0)}</td>
-                <td className="text-right">{item.discount.toFixed(2)}</td>
-                <td className="text-right pr-4">
-                  {item.discountedPrice?.toFixed(2)}
-                </td>
-              </tr>
-            ))}
+            {sectionedRows.map((row) => {
+              if (row.kind === 'header') {
+                return (
+                  <tr
+                    key={row.key}
+                    className="border-b border-gray-300 bg-gray-100"
+                  >
+                    <td className="py-1 font-semibold" colSpan={7}>
+                      {row.sectionName}
+                    </td>
+                  </tr>
+                );
+              }
+
+              if (row.kind === 'subtotal') {
+                return (
+                  <tr
+                    key={row.key}
+                    className="border-b border-gray-300 bg-gray-50"
+                  >
+                    <td colSpan={3} />
+                    <td className="text-right font-semibold">
+                      {row.totalQuantity}
+                    </td>
+                    <td />
+                    <td />
+                    <td className="text-right pr-4 font-semibold">
+                      {toNumber(row.totalAmount).toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={row.key} className="border-b border-gray-300">
+                  <td>{row.serialNumber}</td>
+                  <td className="text-center">{row.item.inventoryItemName}</td>
+                  <td>{row.item.inventoryItemDescription}</td>
+                  <td className="text-right">{row.item.quantity}</td>
+                  <td className="text-right">
+                    {toNumber(row.item.price).toFixed(0)}
+                  </td>
+                  <td className="text-right">{row.item.discount.toFixed(2)}</td>
+                  <td className="text-right pr-4">
+                    {toNumber(row.item.discountedPrice).toFixed(2)}
+                  </td>
+                </tr>
+              );
+            })}
             <tr className="py-2">
               <td className="italic absolute">Total No. of Quran Sold:</td>
               <td />

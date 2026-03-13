@@ -23,8 +23,10 @@ type VirtualSelectProps<T extends BaseOption> = {
   value: string | number | null | undefined;
   onChange: (value: string | number) => void;
   placeholder?: string;
+  disabled?: boolean;
   searchFields?: (keyof T)[];
   searchPlaceholder?: string;
+  triggerClassName?: string;
   renderSelectItem?: (item: T) => ReactNode;
 };
 
@@ -33,8 +35,10 @@ const VirtualSelect = <T extends BaseOption = Account>({
   value,
   onChange,
   placeholder = 'Select an option',
+  disabled = false,
   searchFields = ['name', 'code'] as (keyof T)[],
   searchPlaceholder = 'Search...',
+  triggerClassName,
   renderSelectItem,
 }: VirtualSelectProps<T>) => {
   const [searchInputValue, setSearchInputValue] = useState('');
@@ -169,8 +173,9 @@ const VirtualSelect = <T extends BaseOption = Account>({
       onValueChange={(val) => onChange(val)}
       onOpenChange={handleOpenChange}
       open={isOpen}
+      disabled={disabled}
     >
-      <SelectTrigger>
+      <SelectTrigger className={triggerClassName}>
         <SelectValue placeholder={placeholder}>
           {options.find((opt) => opt.id?.toString() === value?.toString())
             ?.name || placeholder}

@@ -11,12 +11,19 @@ import {
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
 import { dateFormatOptions } from 'renderer/lib/constants';
-import { AccountType, type Account, type Chart, type HasMiniView } from 'types';
+import {
+  AccountType,
+  type Account,
+  type Chart,
+  type DiscountProfile,
+  type HasMiniView,
+} from 'types';
 import type { CellContext } from '@tanstack/react-table';
 import { cn, defaultSortingFunctions } from 'renderer/lib/utils';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
+import { AccountPricingSheet } from './AccountPricingSheet';
 
 type AccountPageProps = {
   onRowClick?: (id?: number) => void;
@@ -67,23 +74,35 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   console.log('AccountsPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] = useState<'All' | AccountType>(
-    window.electron.store.get('accountTypeSelected') || 'All',
+    window.electron.store.get('accountTypeSelected') || AccountType.Asset,
   );
   const [showInactive, setShowInactive] = useState<boolean>(
     window.electron.store.get('showInactiveAccounts') || false,
   );
   const [charts, setCharts] = useState<Chart[]>([]);
+  const [discountProfiles, setDiscountProfiles] = useState<DiscountProfile[]>(
+    [],
+  );
+  const [pricingAccountId, setPricingAccountId] = useState<number | null>(null);
   const clearRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
   const refetchAccounts = useCallback(async () => {
-    const [fetchedAccounts, fetchedCharts] = await Promise.all([
-      window.electron.getAccounts(),
-      window.electron.getCharts(),
-    ]);
+    const [fetchedAccounts, fetchedCharts, fetchedDiscountProfiles] =
+      await Promise.all([
+        window.electron.getAccounts(),
+        window.electron.getCharts(),
+        window.electron.getDiscountProfiles(),
+      ]);
     setAccounts(fetchedAccounts);
     setCharts(fetchedCharts);
+    setDiscountProfiles(fetchedDiscountProfiles);
   }, []);
+
+  const pricingAccount = useMemo(
+    () => accounts.find((account) => account.id === pricingAccountId),
+    [accounts, pricingAccountId],
+  );
 
   const columns: ColumnDef<Account>[] = useMemo(
     () =>
@@ -131,6 +150,32 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               header: 'Goods Name',
               onClick: (row) => navigate(`/accounts/${row.original.id}`),
             },
+            ...(typeSelected === AccountType.Asset
+              ? [
+                  {
+                    accessorKey: 'discountProfileName',
+                    header: 'Pricing',
+                    // eslint-disable-next-line react/no-unstable-nested-components
+                    cell: ({ row }: CellContext<Account, unknown>) => (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={
+                          row.original.discountProfileId
+                            ? 'outline'
+                            : 'secondary'
+                        }
+                        className="max-w-[220px] justify-start"
+                        onClick={() => setPricingAccountId(row.original.id)}
+                      >
+                        <span className="truncate">
+                          {row.original.discountProfileName || 'Set pricing'}
+                        </span>
+                      </Button>
+                    ),
+                  } as ColumnDef<Account>,
+                ]
+              : []),
             {
               accessorKey: 'headName',
               header: 'Head',
@@ -173,13 +218,22 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   row={row}
                   refetchAccounts={refetchAccounts}
                   charts={charts}
+                  discountProfiles={discountProfiles}
                   clearRef={clearRef}
                 />
               ),
               size: 1,
             },
           ],
-    [charts, isMini, navigate, onRowClick, refetchAccounts],
+    [
+      charts,
+      discountProfiles,
+      isMini,
+      navigate,
+      onRowClick,
+      refetchAccounts,
+      typeSelected,
+    ],
   );
 
   useEffect(() => {
@@ -212,58 +266,71 @@ const AccountsPage: React.FC<AccountPageProps> = ({
 
   return (
     <div>
-      <div className="grid grid-cols-3 justify-between items-center py-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className={isMini ? 'w-max' : 'w-fit'}>
-              <span className="mr-2">{typeSelected} Accounts</span>
-              <ChevronDown size={16} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="px-4">
-            <DropdownMenuItem onClick={() => setTypeSelected('All')}>
-              All Accounts
-            </DropdownMenuItem>
-            {Object.keys(AccountType).map((type) => (
-              <DropdownMenuItem
-                onClick={() =>
-                  setTypeSelected(AccountType[type as keyof typeof AccountType])
-                }
-              >
-                {type} Accounts
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="flex flex-col gap-3 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={isMini ? 'w-max' : 'w-fit'}
+                >
+                  <span className="mr-2">{typeSelected} Accounts</span>
+                  <ChevronDown size={16} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="px-4">
+                <DropdownMenuItem onClick={() => setTypeSelected('All')}>
+                  All Accounts
+                </DropdownMenuItem>
+                {Object.keys(AccountType).map((type) => (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      setTypeSelected(
+                        AccountType[type as keyof typeof AccountType],
+                      )
+                    }
+                  >
+                    {type} Accounts
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-        <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
+            <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
+          </div>
 
-        {isMini ? null : (
-          <div className={cn('flex w-fit ml-auto gap-2')}>
-            <div className="flex items-center mr-4">
-              <div className="flex items-center space-x-2">
+          {isMini ? null : (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="mr-2 flex items-center gap-2 whitespace-nowrap text-sm font-medium leading-none">
                 <Checkbox
                   checked={showInactive}
                   onCheckedChange={() => setShowInactive(!showInactive)}
                 />
-                <h2 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                <button
+                  type="button"
+                  className="cursor-pointer"
+                  onClick={() => setShowInactive(!showInactive)}
+                >
                   Show inactive accounts
-                </h2>
+                </button>
               </div>
+              <AddCustomHead
+                charts={charts}
+                onHeadAdded={refetchAccounts}
+                btnClassName="px-3"
+              />
+              <AddAccount
+                charts={charts}
+                discountProfiles={discountProfiles}
+                clearRef={clearRef}
+                refetchAccounts={refetchAccounts}
+                btnClassName="px-3"
+              />
             </div>
-            <AddCustomHead
-              charts={charts}
-              onHeadAdded={refetchAccounts}
-              btnClassName="min-w-max"
-            />
-            <AddAccount
-              charts={charts}
-              clearRef={clearRef}
-              refetchAccounts={refetchAccounts}
-              btnClassName="min-w-max"
-            />
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <div className="py-8">
         <DataTable
@@ -277,6 +344,15 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           searchFields={['name', 'code', 'headName']}
         />
       </div>
+      <AccountPricingSheet
+        open={pricingAccountId !== null}
+        account={pricingAccount}
+        discountProfiles={discountProfiles}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setPricingAccountId(null);
+        }}
+        onUpdated={refetchAccounts}
+      />
     </div>
   );
 };
