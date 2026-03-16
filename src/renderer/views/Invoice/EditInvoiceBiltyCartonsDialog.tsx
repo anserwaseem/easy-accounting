@@ -12,11 +12,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from 'renderer/shad/ui/dialog';
-import { handleAsync } from '../lib/utils';
+import { handleAsync } from '../../lib/utils';
 
 interface EditInvoiceBiltyCartonsDialogProps {
   invoiceId: number;
-  biltyNumber: string | undefined;
+  biltyNumber: string | number | undefined;
   cartons: number | undefined;
   onSave: (
     invoiceId: number,
@@ -34,8 +34,8 @@ export const EditInvoiceBiltyCartonsDialog: React.FC<
   onSave,
 }: EditInvoiceBiltyCartonsDialogProps) => {
   const [open, setOpen] = useState(false);
-  const [editedBiltyNumber, setEditedBiltyNumber] = useState(
-    biltyNumber ?? '',
+  const [editedBiltyNumber, setEditedBiltyNumber] = useState(() =>
+    String(biltyNumber ?? ''),
   );
   const [editedCartons, setEditedCartons] = useState(
     cartons != null ? String(cartons) : '',
@@ -44,14 +44,14 @@ export const EditInvoiceBiltyCartonsDialog: React.FC<
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
-      setEditedBiltyNumber(biltyNumber ?? '');
+      setEditedBiltyNumber(String(biltyNumber ?? ''));
       setEditedCartons(cartons != null ? String(cartons) : '');
     }
     setOpen(newOpen);
   };
 
   const handleReset = () => {
-    setEditedBiltyNumber(biltyNumber ?? '');
+    setEditedBiltyNumber(String(biltyNumber ?? ''));
     setEditedCartons(cartons != null ? String(cartons) : '');
   };
 
@@ -61,18 +61,23 @@ export const EditInvoiceBiltyCartonsDialog: React.FC<
       : Number.parseInt(editedCartons, 10);
   const isCartonsValid =
     editedCartons.trim() === '' ||
-    (Number.isInteger(parsedCartons) && parsedCartons >= 0);
+    (Number.isInteger(parsedCartons) && parsedCartons! >= 0);
+
+  const biltyTrimmed = String(editedBiltyNumber ?? '').trim();
+  const isBiltyValid = biltyTrimmed === '' || /^\d+$/.test(biltyTrimmed);
 
   const handleSave = async () => {
-    const bilty =
-      editedBiltyNumber.trim() === '' ? undefined : editedBiltyNumber.trim();
+    const bilty = biltyTrimmed === '' ? undefined : biltyTrimmed;
     const cartonsNum =
       editedCartons.trim() === ''
         ? undefined
         : Number.parseInt(editedCartons, 10);
-    if (!Number.isInteger(cartonsNum) || cartonsNum < 0) return;
+    if (!isBiltyValid) return;
+    if (!Number.isInteger(cartonsNum) || cartonsNum! < 0) return;
+    const biltyCurrent =
+      biltyNumber != null ? String(biltyNumber).trim() : undefined;
     if (
-      bilty === (biltyNumber ?? undefined) &&
+      bilty === (biltyCurrent ?? undefined) &&
       cartonsNum === (cartons ?? undefined)
     ) {
       setOpen(false);
@@ -80,16 +85,13 @@ export const EditInvoiceBiltyCartonsDialog: React.FC<
     }
 
     setIsLoading(true);
-    handleAsync(
-      () => onSave(invoiceId, bilty, cartonsNum),
-      {
-        successMessage: 'Invoice updated successfully',
-        errorMessage: 'Failed to update invoice',
-        onFinally: () => setIsLoading(false),
-        onSuccess: () => setOpen(false),
-        shouldExpectResult: false,
-      },
-    );
+    handleAsync(() => onSave(invoiceId, bilty, cartonsNum), {
+      successMessage: 'Invoice updated successfully',
+      errorMessage: 'Failed to update invoice',
+      onFinally: () => setIsLoading(false),
+      onSuccess: () => setOpen(false),
+      shouldExpectResult: false,
+    });
   };
 
   return (
@@ -112,11 +114,20 @@ export const EditInvoiceBiltyCartonsDialog: React.FC<
             </Label>
             <Input
               id="biltyNumber"
-              value={editedBiltyNumber}
+              value={
+                typeof editedBiltyNumber === 'string'
+                  ? editedBiltyNumber
+                  : String(editedBiltyNumber ?? '')
+              }
               onChange={(e) => setEditedBiltyNumber(e.target.value)}
               className="col-span-3"
-              placeholder="Enter bilty number"
+              placeholder="Digits only"
             />
+            {!isBiltyValid && biltyTrimmed !== '' && (
+              <p className="col-span-4 text-sm text-destructive">
+                Bilty number must be digits only
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="cartons" className="text-right">
@@ -143,7 +154,7 @@ export const EditInvoiceBiltyCartonsDialog: React.FC<
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isLoading || !isCartonsValid}
+            disabled={isLoading || !isCartonsValid || !isBiltyValid}
           >
             Save changes
           </Button>

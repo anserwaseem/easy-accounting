@@ -122,9 +122,7 @@ const LedgerReportPage = () => {
         <div className="print-header flex flex-col gap-2 pb-2">
           <div className="flex justify-between items-center pb-2">
             {/* Title */}
-            <h1 className="text-2xl font-semibold text-primary">
-              Ledger Report
-            </h1>
+            <h1 className="title-new">Ledger Report</h1>
             {/* Filters Section */}
             <div className="flex items-center gap-4">
               {/* Account */}

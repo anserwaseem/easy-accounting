@@ -1,10 +1,16 @@
 import { toNumber } from 'lodash';
 import type { InvoiceItemView } from 'types';
 
-export interface GroupedInvoiceSection {
+interface GroupedInvoiceSection {
   sectionName: string;
   items: InvoiceItemView[];
 }
+
+export const computeInvoiceItemTotal = (
+  quantity: number,
+  discount: number,
+  price?: number,
+): number => quantity * (price ?? 0) * (1 - toNumber(discount) / 100);
 
 export const getInvoiceItemDiscountedAmount = (
   item: InvoiceItemView,

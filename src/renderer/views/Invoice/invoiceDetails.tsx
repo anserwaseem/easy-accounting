@@ -19,7 +19,7 @@ import type { InvoiceItemView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { EditInvoiceBiltyCartonsDialog } from '@/renderer/components/EditInvoiceBiltyCartonsDialog';
+import { EditInvoiceBiltyCartonsDialog } from './EditInvoiceBiltyCartonsDialog';
 
 interface InvoiceDetailsProps {
   invoiceType: InvoiceType;

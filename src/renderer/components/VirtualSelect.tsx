@@ -221,16 +221,27 @@ const VirtualSelect = <T extends BaseOption = Account>({
 
   const listContentRenderer = useCallback(
     (index: number, entry: SectionOrItem<T> | T) => {
-      if (listWithSections) {
-        const row = entry as SectionOrItem<T>;
-        if (row.type === 'header') {
-          return sectionHeaderRenderer(row.label);
-        }
+      if (!listWithSections) {
+        return itemRenderer(index, entry as T);
+      }
+      const row = entry as SectionOrItem<T>;
+      if (row.type === 'item') {
         return itemRenderer(index, row.item);
       }
-      return itemRenderer(index, entry as T);
+      // when this header is the one shown sticky above, render same-height spacer to avoid duplicate label
+      if (row.label === stickySectionLabel) {
+        return (
+          <div
+            className="px-3 py-2 text-xs font-semibold uppercase tracking-wider opacity-0 select-none pointer-events-none"
+            aria-hidden
+          >
+            {row.label}
+          </div>
+        );
+      }
+      return sectionHeaderRenderer(row.label);
     },
-    [itemRenderer, listWithSections, sectionHeaderRenderer],
+    [itemRenderer, listWithSections, sectionHeaderRenderer, stickySectionLabel],
   );
 
   const virtuosoData = listWithSections ?? filteredOptions;

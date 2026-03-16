@@ -750,3 +750,12 @@ export const parseOpeningStock = (
     }),
   );
 };
+
+/** returns true if every parsed item name exists in inventory */
+export const checkParsedItemsAvailability = (
+  parsedItems: Array<{ name: string; quantity: number }>,
+  items: InventoryItem[],
+): boolean =>
+  parsedItems.every((parsedItem) =>
+    items.some((i) => i.name === parsedItem.name),
+  );

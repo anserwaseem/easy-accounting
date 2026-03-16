@@ -252,7 +252,7 @@ const BillsAgingPage = () => {
         <div className="print-header flex flex-col gap-2 pb-2">
           <div className="flex justify-between items-center pb-2">
             {/* Title */}
-            <h1 className="text-2xl font-semibold text-primary">Bills Aging</h1>
+            <h1 className="title-new">Bills Aging</h1>
             {/* Filters Section */}
             <div className="flex flex-wrap items-center gap-3">
               {/* Primary Filters - Compact without labels */}

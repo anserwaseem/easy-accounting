@@ -46,7 +46,7 @@ const RegisterPage: React.FC = () => {
   return (
     <div className="flex justify-center items-center h-screen">
       <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
-        <h1 className="text-xl font-semibold">Sign Up</h1>
+        <h1 className="title-new">Sign Up</h1>
         <form onSubmit={(e) => handleRegister(e)}>
           <Input
             type="text"
