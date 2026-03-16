@@ -91,6 +91,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         | 'type'
         | 'name'
         | 'code'
+        | 'chartId'
         | 'discountProfileId'
         | 'discountProfileIsActive'
       >[]
@@ -109,6 +110,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [useSingleAccount, setUseSingleAccount] = useState(true);
   const useSingleAccountRef = useRef(useSingleAccount);
   useSingleAccountRef.current = useSingleAccount;
+  const [splitByItemType, setSplitByItemType] = useState(true);
+  const splitByItemTypeRef = useRef(splitByItemType);
+  splitByItemTypeRef.current = splitByItemType;
+  const [resolutionFallbacks, setResolutionFallbacks] = useState<
+    Array<{ rowIndex: number; expectedSuffixedName: string }>
+  >([]);
+  const [resolvedRowLabels, setResolvedRowLabels] = useState<string[]>([]);
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
   const dateConfirmedInModalRef = useRef(false);
@@ -251,12 +259,28 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       }),
     })
     // validate account mapping
-    // if single account is checked, validate that account is selected
+    // if single account is checked (and not split by type), validate that account is selected
+    // if split by type is on, validate multipleAccountIds from resolution
     // if single account is unchecked, validate that multiple accounts are selected for each invoice item
     .superRefine((data, ctx) => {
       const partyLabel =
         invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
       if (useSingleAccountRef.current) {
+        if (invoiceType === InvoiceType.Sale && splitByItemTypeRef.current) {
+          const ids = data.accountMapping.multipleAccountIds ?? [];
+          const itemCount = data.invoiceItems?.length ?? 0;
+          if (
+            ids.length !== itemCount ||
+            ids.some((id) => typeof id !== 'number' || id <= 0)
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Resolve accounts for each row (select a ${partyLabel} and items)`,
+              path: ['accountMapping', 'multipleAccountIds'],
+            });
+          }
+          return;
+        }
         const sid = data.accountMapping.singleAccountId;
         if (typeof sid !== 'number' || sid <= 0) {
           ctx.addIssue({
@@ -309,6 +333,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     control: form.control,
     name: 'invoiceItems',
   });
+
+  /** stable trigger for type-based resolution: re-run only when row count or per-row inventory ids change (avoids loop from form re-renders) */
+  const resolutionTrigger = useMemo(() => {
+    const items = Array.isArray(watchedInvoiceItems) ? watchedInvoiceItems : [];
+    return `${items.length}-${items.map((i) => i?.inventoryId ?? 0).join(',')}`;
+  }, [watchedInvoiceItems]);
 
   const watchedExtraDiscount = useWatch({
     control: form.control,
@@ -429,12 +459,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedInvoiceItems,
   ]);
 
-  // derive `multipleAccountIds` from current row-to-section customer mapping.
+  // derive `multipleAccountIds` from current row-to-section customer mapping (sections mode).
+  // when useSingleAccount && splitByItemType, multipleAccountIds is set by resolution effect.
   useEffect(() => {
     if (invoiceType !== InvoiceType.Sale || useSingleAccount) {
-      form.setValue('accountMapping.multipleAccountIds', [], {
-        shouldValidate: false,
-      });
+      if (!splitByItemType) {
+        form.setValue('accountMapping.multipleAccountIds', [], {
+          shouldValidate: false,
+        });
+      }
       return;
     }
 
@@ -454,6 +487,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     invoiceType,
     rowSectionMap,
     sections,
+    splitByItemType,
     useSingleAccount,
     watchedInvoiceItems,
   ]);
@@ -461,6 +495,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const getRowAccountId = useCallback(
     (rowIndex: number): number | undefined => {
       if (useSingleAccountRef.current) {
+        if (invoiceType === InvoiceType.Sale && splitByItemTypeRef.current) {
+          const ids = form.getValues('accountMapping.multipleAccountIds') ?? [];
+          const accountId = toNumber(ids[rowIndex]);
+          return accountId > 0 ? accountId : undefined;
+        }
         const accountId = toNumber(
           form.getValues('accountMapping.singleAccountId'),
         );
@@ -475,7 +514,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       if (accountId <= 0) return undefined;
       return accountId;
     },
-    [form, rowSectionMap, sections],
+    [form, invoiceType, rowSectionMap, sections],
   );
 
   const applyAutoDiscountForRow = useCallback(
@@ -537,6 +576,136 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     manualDiscountRows,
   ]);
 
+  const recalculateAutoDiscountsRef = useRef(recalculateAutoDiscounts);
+  recalculateAutoDiscountsRef.current = recalculateAutoDiscounts;
+
+  // type-based resolution: when split by type is on, resolve each row to party or suffixed account (e.g. ABC-{itemTypeName}).
+  useEffect(() => {
+    if (
+      invoiceType !== InvoiceType.Sale ||
+      !useSingleAccount ||
+      !splitByItemType ||
+      !parties?.length ||
+      !inventory?.length
+    ) {
+      setResolutionFallbacks([]);
+      setResolvedRowLabels([]);
+      return;
+    }
+    const singleId = toNumber(form.getValues('accountMapping.singleAccountId'));
+    if (singleId <= 0) {
+      setResolutionFallbacks([]);
+      setResolvedRowLabels([]);
+      return;
+    }
+
+    const party = parties.find((p) => p.id === singleId);
+    if (!party?.chartId) {
+      setResolutionFallbacks([]);
+      setResolvedRowLabels([]);
+      return;
+    }
+
+    const runResolution = async () => {
+      const primaryId = await window.electron.getPrimaryItemType?.();
+      const rows = form.getValues('invoiceItems');
+      const partyName = party.name.trim();
+
+      const needLookup: Array<{ rowIndex: number; suffixedName: string }> = [];
+
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        const invId = toNumber(rows[rowIndex]?.inventoryId);
+        const invItem = inventory?.find((i) => i.id === invId);
+        const itemTypeId = invItem?.itemTypeId ?? null;
+        const itemTypeName = invItem?.itemTypeName?.trim() ?? null;
+
+        if (
+          primaryId == null ||
+          itemTypeId == null ||
+          itemTypeName == null ||
+          itemTypeId === primaryId
+        ) {
+          needLookup.push({
+            rowIndex,
+            suffixedName: '',
+          });
+          continue;
+        }
+        needLookup.push({
+          rowIndex,
+          suffixedName: `${partyName}-${itemTypeName}`,
+        });
+      }
+
+      const lookupResults = await Promise.all(
+        needLookup.map(async (item) => {
+          if (!item.suffixedName) {
+            return {
+              rowIndex: item.rowIndex,
+              accountId: singleId,
+              label: partyName,
+              fallback: undefined as
+                | { expectedSuffixedName: string }
+                | undefined,
+            };
+          }
+          const suffixedAccount =
+            await window.electron.getAccountByNameAndChart(
+              party.chartId,
+              item.suffixedName,
+            );
+          if (suffixedAccount?.id) {
+            return {
+              rowIndex: item.rowIndex,
+              accountId: suffixedAccount.id,
+              label: suffixedAccount.name ?? item.suffixedName,
+              fallback: undefined as
+                | { expectedSuffixedName: string }
+                | undefined,
+            };
+          }
+          return {
+            rowIndex: item.rowIndex,
+            accountId: singleId,
+            label: `${partyName} (expected ${item.suffixedName} – not found)`,
+            fallback: { expectedSuffixedName: item.suffixedName },
+          };
+        }),
+      );
+
+      const accountIds: number[] = new Array(rows.length);
+      const labels: string[] = new Array(rows.length);
+      const fallbacks: Array<{
+        rowIndex: number;
+        expectedSuffixedName: string;
+      }> = [];
+      lookupResults.forEach((r) => {
+        accountIds[r.rowIndex] = r.accountId;
+        labels[r.rowIndex] = r.label;
+        if (r.fallback) fallbacks.push({ rowIndex: r.rowIndex, ...r.fallback });
+      });
+
+      form.setValue('accountMapping.multipleAccountIds', accountIds, {
+        shouldValidate: false,
+        shouldDirty: true,
+      });
+      setResolutionFallbacks(fallbacks);
+      setResolvedRowLabels(labels);
+      recalculateAutoDiscountsRef.current();
+    };
+
+    runResolution();
+  }, [
+    form,
+    invoiceType,
+    inventory,
+    parties,
+    resolutionTrigger,
+    splitByItemType,
+    useSingleAccount,
+    watchedSingleAccountId,
+  ]);
+
   useEffect(() => {
     form.clearErrors();
   }, [invoiceType, form]);
@@ -547,7 +716,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         const inv: InventoryItem[] = await window.electron.getInventory();
         const filteredInv = inv
           .map((item) =>
-            pick(item, ['id', 'name', 'price', 'quantity', 'description']),
+            pick(item, [
+              'id',
+              'name',
+              'price',
+              'quantity',
+              'description',
+              'itemTypeId',
+              'itemTypeName',
+            ]),
           )
           .filter((item) => item.quantity > 0 && item.price > 0);
         setInventory(filteredInv);
@@ -572,6 +749,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         'name',
         'type',
         'code',
+        'chartId',
         'discountProfileId',
         'discountProfileIsActive',
       ]),
@@ -1060,8 +1238,23 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             },
           ];
 
+      const accountColumn: ColumnDef<InvoiceItem>[] =
+        useSingleAccount && splitByItemType
+          ? [
+              {
+                header: 'Account',
+                cell: ({ row }) => (
+                  <span className="text-sm text-muted-foreground">
+                    {resolvedRowLabels[row.index] ?? '—'}
+                  </span>
+                ),
+              },
+            ]
+          : [];
+
       // insert additional columns before the remove action (last) column
       baseColumns.splice(baseColumns.length - 1, 0, ...priceColumns);
+      baseColumns.splice(baseColumns.length - 1, 0, ...accountColumn);
       baseColumns.splice(baseColumns.length - 1, 0, ...sectionColumn);
     }
 
@@ -1070,6 +1263,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     invoiceType,
     form,
     inventory,
+    resolvedRowLabels,
+    splitByItemType,
     onItemSelectionChange,
     onQuantityChange,
     handleRemoveRow,
@@ -1314,8 +1509,23 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
       let accountIds: number[];
       if (useSingleAccount) {
-        const sid = values.accountMapping.singleAccountId;
-        accountIds = typeof sid === 'number' && sid > 0 ? [sid] : [];
+        if (
+          invoiceType === InvoiceType.Sale &&
+          splitByItemType &&
+          Array.isArray(values.accountMapping.multipleAccountIds) &&
+          values.accountMapping.multipleAccountIds.length > 0
+        ) {
+          accountIds = [
+            ...new Set(
+              (values.accountMapping.multipleAccountIds || []).filter(
+                (id): id is number => typeof id === 'number' && id > 0,
+              ),
+            ),
+          ];
+        } else {
+          const sid = values.accountMapping.singleAccountId;
+          accountIds = typeof sid === 'number' && sid > 0 ? [sid] : [];
+        }
       } else {
         accountIds = (values.accountMapping.multipleAccountIds || []).filter(
           (id): id is number => typeof id === 'number' && id > 0,
@@ -1345,10 +1555,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         minRequired,
         'PPP',
       )} for the selected ${partyLabel}${
-        useSingleAccount ? '' : '(s)'
+        useSingleAccount && !splitByItemType ? '' : '(s)'
       } (last ledger date).`;
     },
-    [invoiceType, useSingleAccount],
+    [invoiceType, splitByItemType, useSingleAccount],
   );
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -1697,18 +1907,41 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             >
               <div className="flex flex-col gap-2">
                 {invoiceType === InvoiceType.Sale && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <Checkbox
-                      id="useSingleAccount"
-                      checked={useSingleAccount}
-                      onCheckedChange={onSingleAccountToggle}
-                    />
-                    <label
-                      htmlFor="useSingleAccount"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Use single customer for entire invoice{' '}
-                    </label>
+                  <div className="flex flex-col gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="useSingleAccount"
+                        checked={useSingleAccount}
+                        onCheckedChange={onSingleAccountToggle}
+                      />
+                      <label
+                        htmlFor="useSingleAccount"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Use single customer for entire invoice{' '}
+                      </label>
+                    </div>
+                    {useSingleAccount && (
+                      <div className="flex items-center gap-2 pl-6">
+                        <Checkbox
+                          id="splitByItemType"
+                          checked={splitByItemType}
+                          onCheckedChange={(checked) =>
+                            setSplitByItemType(checked === true)
+                          }
+                          aria-labelledby="splitByItemTypeLabel"
+                        />
+                        <span
+                          id="splitByItemTypeLabel"
+                          className="text-sm font-medium leading-none cursor-pointer"
+                          role="presentation"
+                          onKeyDown={() => {}}
+                          onClick={() => setSplitByItemType(!splitByItemType)}
+                        >
+                          Split accounts by item type
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1917,6 +2150,24 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
 
               <div className="py-8 flex flex-col gap-3">
+                {invoiceType === InvoiceType.Sale &&
+                  useSingleAccount &&
+                  splitByItemType &&
+                  resolutionFallbacks.length > 0 && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                      Account(s) not found:{' '}
+                      {[
+                        ...new Set(
+                          resolutionFallbacks.map(
+                            (f) => f.expectedSuffixedName,
+                          ),
+                        ),
+                      ].join(', ')}
+                      . These rows use the selected party. Create the account in
+                      another window and click <strong>Refresh accounts</strong>{' '}
+                      to link.
+                    </div>
+                  )}
                 <DataTable
                   columns={columns}
                   data={fields}

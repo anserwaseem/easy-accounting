@@ -46,3 +46,6 @@ export const NO_DISCOUNT_POLICY_OPTION = {
 } as const;
 
 export const FF_INVOICE_DISCOUNT_EDIT_ENABLED = false;
+
+/** account name required for extra discount journal (expense account) */
+export const DISCOUNT_ACCOUNT_NAME = 'Discount';

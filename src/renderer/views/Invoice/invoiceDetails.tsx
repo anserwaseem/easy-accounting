@@ -1,15 +1,25 @@
+import { usePrimaryItemType } from '@/renderer/hooks';
 import { isNil, toNumber } from 'lodash';
 import { useEffect, useMemo, useState } from 'react';
-import { dateFormatOptions } from 'renderer/lib/constants';
+import {
+  dateFormatOptions,
+  datetimeFormatOptions,
+} from 'renderer/lib/constants';
+import {
+  computeSectionTotals,
+  groupInvoiceItemsByType,
+} from '@/renderer/lib/invoiceUtils';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
+  stripItemTypeSuffixFromAccountName,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InvoiceItemView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { EditInvoiceBiltyCartonsDialog } from '@/renderer/components/EditInvoiceBiltyCartonsDialog';
 
 interface InvoiceDetailsProps {
   invoiceType: InvoiceType;
@@ -23,6 +33,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   invoice: propInvoice,
 }: InvoiceDetailsProps) => {
   const [invoice, setInvoice] = useState<InvoiceView>();
+  const { primaryItemTypeName, itemTypeNames } = usePrimaryItemType();
   const navigate = useNavigate();
   // eslint-disable-next-line no-console
   console.log('InvoiceDetails', invoiceId, propInvoice, invoice);
@@ -35,6 +46,12 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     };
     fetchInvoice();
   }, [invoiceId, propInvoice]);
+
+  const customerDisplayName = useMemo(
+    () =>
+      stripItemTypeSuffixFromAccountName(invoice?.accountName, itemTypeNames),
+    [invoice?.accountName, itemTypeNames],
+  );
 
   const columns: ColumnDef<InvoiceItemView>[] = useMemo(() => {
     return [
@@ -67,46 +84,19 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             },
           ] as ColumnDef<InvoiceItemView>[])
         : []),
-      ...(isNil(invoice?.accountName)
-        ? [
-            {
-              accessorKey: 'accountName',
-              header: 'Customer',
-            },
-          ]
-        : []),
     ];
-  }, [invoiceType, invoice?.accountName]);
+  }, [invoiceType]);
 
   const groupedInvoiceItems = useMemo(() => {
-    const grouped = new Map<string, InvoiceItemView[]>();
-    (invoice?.invoiceItems || []).forEach((item) => {
-      const sectionName = item.itemTypeName?.trim() || 'No Type';
-      const existingItems = grouped.get(sectionName) ?? [];
-      grouped.set(sectionName, [...existingItems, item]);
-    });
-    return Array.from(grouped.entries()).map(([sectionName, items]) => {
-      const totalQuantity = items.reduce(
-        (sum, item) => sum + toNumber(item.quantity),
-        0,
-      );
-      const totalAmount = items.reduce((sum, item) => {
-        const discountedAmount =
-          item.discountedPrice ??
-          toNumber(item.quantity) *
-            toNumber(item.price) *
-            (1 - toNumber(item.discount) / 100);
-        return sum + toNumber(discountedAmount);
-      }, 0);
-
-      return {
-        sectionName,
-        items,
-        totalQuantity,
-        totalAmount,
-      };
-    });
-  }, [invoice?.invoiceItems]);
+    const sections = groupInvoiceItemsByType(
+      invoice?.invoiceItems ?? [],
+      primaryItemTypeName,
+    );
+    return sections.map((section) => ({
+      ...section,
+      ...computeSectionTotals(section.items),
+    }));
+  }, [invoice?.invoiceItems, primaryItemTypeName]);
 
   const quantityColumnIndex = useMemo(
     () =>
@@ -138,18 +128,34 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         <h1 className="text-4xl font-light">{`${invoiceType.toUpperCase()} INVOICE`}</h1>
         <div className="grid grid-cols-2">
           <div className="flex flex-col gap-2 mt-8">
-            <div className="flex gap-8">
+            <div className="flex gap-8 items-center">
               <p className="font-extrabold text-md w-[160px]">Invoice #:</p>
-              <p>{invoice?.invoiceNumber}</p>
-            </div>
-            {isNil(invoice?.accountName) ? null : (
-              <div className="flex gap-8">
-                <p className="font-medium text-md w-[160px]">{`${
-                  invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
-                }:`}</p>
-                <p>{invoice?.accountName}</p>
+              <div className="flex items-center gap-2">
+                <p>{invoice?.invoiceNumber}</p>
+                {invoiceType === InvoiceType.Sale && invoice?.id != null && (
+                  <EditInvoiceBiltyCartonsDialog
+                    invoiceId={invoice.id}
+                    biltyNumber={invoice.biltyNumber}
+                    cartons={invoice.cartons}
+                    onSave={async (id, bilty, cartonsCount) => {
+                      await window.electron.updateInvoiceBiltyAndCartons(
+                        id,
+                        bilty,
+                        cartonsCount,
+                      );
+                      const updated = await window.electron.getInvoice(id);
+                      setInvoice(updated);
+                    }}
+                  />
+                )}
               </div>
-            )}
+            </div>
+            <div className="flex gap-8">
+              <p className="font-medium text-md min-w-[160px]">{`${
+                invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
+              }:`}</p>
+              <p className="whitespace-nowrap">{customerDisplayName}</p>
+            </div>
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Date:</p>
               <p>
@@ -163,14 +169,29 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             </div>
             {invoiceType === InvoiceType.Sale ? (
               <>
-                <div className="flex gap-8">
-                  <p className="font-medium text-md w-[160px]">Bilty #:</p>
-                  <p>{invoice?.biltyNumber}</p>
-                </div>
-                <div className="flex gap-8">
-                  <p className="font-medium text-md w-[160px]">Cartons:</p>
-                  <p>{invoice?.cartons}</p>
-                </div>
+                {invoice?.biltyNumber != null &&
+                  String(invoice.biltyNumber).trim() !== '' && (
+                    <div className="flex gap-8">
+                      <p className="font-medium text-md w-[160px]">Bilty #:</p>
+                      <p>{invoice.biltyNumber}</p>
+                    </div>
+                  )}
+                {!!invoice?.cartons && (
+                  <div className="flex gap-8">
+                    <p className="font-medium text-md w-[160px]">Cartons:</p>
+                    <p>{invoice.cartons}</p>
+                  </div>
+                )}
+                {invoice?.createdAt !== invoice?.updatedAt &&
+                  invoice?.updatedAt && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Updated: At{' '}
+                      {new Date(invoice.updatedAt).toLocaleString(
+                        'en-US',
+                        datetimeFormatOptions,
+                      )}
+                    </p>
+                  )}
               </>
             ) : null}
             {invoiceType === InvoiceType.Sale ? (

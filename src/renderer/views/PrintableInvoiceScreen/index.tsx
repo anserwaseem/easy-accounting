@@ -1,4 +1,5 @@
 /* eslint-disable no-await-in-loop */
+import { usePrimaryItemType } from '@/renderer/hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format, isValid } from 'date-fns';
@@ -7,11 +8,19 @@ import { Button } from 'renderer/shad/ui/button';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
 import { toNumber, toString } from 'lodash';
-import { getFormattedCurrency } from '@/renderer/lib/utils';
+import {
+  computeSectionTotals,
+  groupInvoiceItemsByType,
+} from '@/renderer/lib/invoiceUtils';
+import {
+  getFormattedCurrency,
+  stripItemTypeSuffixFromAccountName,
+} from '@/renderer/lib/utils';
 
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
   const [invoice, setInvoice] = useState<InvoiceView | null>(null);
+  const { primaryItemTypeName, itemTypeNames } = usePrimaryItemType();
   const [doesInvoiceExists, setDoesInvoiceExists] = useState<{
     next: boolean;
     previous: boolean;
@@ -164,23 +173,22 @@ const PrintableInvoiceScreen = () => {
     () => invoice?.invoiceItems ?? [],
     [invoice?.invoiceItems],
   );
+  const billToName = useMemo(() => {
+    const name = stripItemTypeSuffixFromAccountName(
+      invoice?.accountName,
+      itemTypeNames,
+    );
+    return name === '—' ? 'UNREGISTERED TAXPAYER' : name;
+  }, [invoice?.accountName, itemTypeNames]);
   const totalQuantity = invoiceItems.reduce(
     (sum, item) => sum + toNumber(item.quantity),
     0,
   );
 
-  const groupedInvoiceItems = useMemo(() => {
-    const grouped = new Map<string, InvoiceView['invoiceItems']>();
-    invoiceItems.forEach((item) => {
-      const sectionName = item.itemTypeName?.trim() || 'No Type';
-      const existingItems = grouped.get(sectionName) ?? [];
-      grouped.set(sectionName, [...existingItems, item]);
-    });
-    return Array.from(grouped.entries()).map(([sectionName, items]) => ({
-      sectionName,
-      items,
-    }));
-  }, [invoiceItems]);
+  const groupedInvoiceItems = useMemo(
+    () => groupInvoiceItemsByType(invoiceItems, primaryItemTypeName),
+    [invoiceItems, primaryItemTypeName],
+  );
 
   const sectionedRows = useMemo(() => {
     let serialNumber = 0;
@@ -195,18 +203,10 @@ const PrintableInvoiceScreen = () => {
         };
       });
 
-      const sectionTotalQuantity = section.items.reduce(
-        (sum, item) => sum + toNumber(item.quantity),
-        0,
-      );
-      const sectionTotalAmount = section.items.reduce((sum, item) => {
-        const discountedAmount =
-          item.discountedPrice ??
-          toNumber(item.quantity) *
-            toNumber(item.price) *
-            (1 - toNumber(item.discount) / 100);
-        return sum + toNumber(discountedAmount);
-      }, 0);
+      const {
+        totalQuantity: sectionTotalQuantity,
+        totalAmount: sectionTotalAmount,
+      } = computeSectionTotals(section.items);
 
       return [
         {
@@ -320,12 +320,14 @@ const PrintableInvoiceScreen = () => {
             </div>
             <div className="flex gap-4">
               <p>BILTY&nbsp;</p>
-              <p>()&nbsp;CARTONS</p>
+              <p>{invoice.biltyNumber ?? '—'}</p>
+              <p>&nbsp;CARTONS&nbsp;</p>
+              <p>{invoice.cartons ?? '—'}</p>
             </div>
           </div>
           <div className="flex gap-12">
             <p>BILL TO:</p>
-            <p>Walk In Customer</p>
+            <p>{billToName}</p>
             <p>Lahore</p>
             <p className="pl-48">NTN/CNIC No.</p>
           </div>

@@ -14,6 +14,7 @@ module.exports = {
               "id" INTEGER PRIMARY KEY AUTOINCREMENT,
               "name" TEXT NOT NULL UNIQUE,
               "isActive" BOOLEAN NOT NULL DEFAULT 1,
+              "isPrimary" BOOLEAN NOT NULL DEFAULT 0,
               "createdAt" DATETIME,
               "updatedAt" DATETIME
             )

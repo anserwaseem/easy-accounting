@@ -204,6 +204,8 @@ export interface InsertInventoryItem {
 export interface ItemType extends Omit<BaseEntity, 'date'> {
   name: string;
   isActive: boolean;
+  isPrimary?: boolean;
+  inventoryCount?: number;
 }
 
 export interface DiscountProfile extends Omit<BaseEntity, 'date'> {
@@ -261,6 +263,8 @@ export type Invoice = Prettify<
   BaseEntity & {
     invoiceItems: Prettify<InvoiceItem>[];
     extraDiscount?: number; // will be provided by UI
+    /** when extraDiscount > 0, the account to credit (discount applied from this party account) */
+    extraDiscountAccountId?: number;
     biltyNumber?: string; // will be provided by UI
     cartons?: number; // will be provided by UI
     totalAmount?: number; // will be calculated at service layer

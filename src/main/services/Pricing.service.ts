@@ -5,6 +5,7 @@ import { DatabaseService } from './Database.service';
 import { cast, normalizeSqliteBooleanRows } from '../utils/sqlite';
 
 const SQLITE_ACTIVE_FIELD = ['isActive'] as const;
+const SQLITE_ITEM_TYPE_BOOLEAN_FIELDS = ['isActive', 'isPrimary'] as const;
 
 @logErrors
 export class PricingService {
@@ -40,6 +41,18 @@ export class PricingService {
 
   private stmGetAutoDiscount!: Statement;
 
+  private stmClearPrimaryItemType!: Statement;
+
+  private stmSetPrimaryItemType!: Statement;
+
+  private stmGetPrimaryItemType!: Statement;
+
+  private stmClearPrimaryForItemType!: Statement;
+
+  private stmCountInventoryByItemType!: Statement;
+
+  private stmDeleteItemType!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -47,7 +60,35 @@ export class PricingService {
 
   getItemTypes(): ItemType[] {
     const rows = this.stmGetItemTypes.all() as ItemType[];
-    return normalizeSqliteBooleanRows(rows, SQLITE_ACTIVE_FIELD);
+    return normalizeSqliteBooleanRows(rows, SQLITE_ITEM_TYPE_BOOLEAN_FIELDS);
+  }
+
+  deleteItemType(id: number): boolean {
+    const usage = this.stmCountInventoryByItemType.get({
+      id: cast(id),
+    }) as { count: number } | undefined;
+    if ((usage?.count ?? 0) > 0) return false;
+
+    const result = this.stmDeleteItemType.run({ id: cast(id) });
+    return Boolean(result.changes);
+  }
+
+  getPrimaryItemType(): number | undefined {
+    const row = this.stmGetPrimaryItemType.get() as { id: number } | undefined;
+    return row?.id;
+  }
+
+  setPrimaryItemType(itemTypeId: number): boolean {
+    return this.db.transaction(() => {
+      this.stmClearPrimaryItemType.run();
+      const result = this.stmSetPrimaryItemType.run({ id: cast(itemTypeId) });
+      return Boolean(result.changes);
+    })();
+  }
+
+  clearPrimaryItemType(): boolean {
+    this.stmClearPrimaryItemType.run();
+    return true;
   }
 
   insertItemType(name: string): boolean {
@@ -64,6 +105,9 @@ export class PricingService {
   }
 
   toggleItemType(id: number, isActive: boolean): boolean {
+    if (!isActive) {
+      this.stmClearPrimaryForItemType.run({ id: cast(id) });
+    }
     const result = this.stmToggleItemType.run({
       id: cast(id),
       isActive: cast(isActive),
@@ -182,14 +226,29 @@ export class PricingService {
 
   private initPreparedStatements() {
     this.stmGetItemTypes = this.db.prepare(`
-      SELECT id, name, isActive, createdAt, updatedAt
-      FROM item_types
-      ORDER BY id
+      SELECT
+        it.id,
+        it.name,
+        it.isActive,
+        it.isPrimary,
+        it.createdAt,
+        it.updatedAt,
+        COUNT(inv.id) AS inventoryCount
+      FROM item_types it
+      LEFT JOIN inventory inv ON inv.itemTypeId = it.id
+      GROUP BY
+        it.id,
+        it.name,
+        it.isActive,
+        it.isPrimary,
+        it.createdAt,
+        it.updatedAt
+      ORDER BY it.id
     `);
 
     this.stmInsertItemType = this.db.prepare(`
-      INSERT INTO item_types (name, isActive)
-      VALUES (@name, 1)
+      INSERT INTO item_types (name, isActive, isPrimary)
+      VALUES (@name, 1, 0)
     `);
 
     this.stmUpdateItemTypeName = this.db.prepare(`
@@ -296,6 +355,33 @@ export class PricingService {
        AND ptd.itemTypeId = i.itemTypeId
       WHERE a.id = @accountId
       LIMIT 1
+    `);
+
+    this.stmGetPrimaryItemType = this.db.prepare(`
+      SELECT id FROM item_types WHERE isPrimary = 1 LIMIT 1
+    `);
+
+    this.stmClearPrimaryItemType = this.db.prepare(`
+      UPDATE item_types SET isPrimary = 0
+    `);
+
+    this.stmSetPrimaryItemType = this.db.prepare(`
+      UPDATE item_types SET isPrimary = 1 WHERE id = @id
+    `);
+
+    this.stmClearPrimaryForItemType = this.db.prepare(`
+      UPDATE item_types SET isPrimary = 0 WHERE id = @id
+    `);
+
+    this.stmCountInventoryByItemType = this.db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM inventory
+      WHERE itemTypeId = @id
+    `);
+
+    this.stmDeleteItemType = this.db.prepare(`
+      DELETE FROM item_types
+      WHERE id = @id
     `);
   }
 }

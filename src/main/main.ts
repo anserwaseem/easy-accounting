@@ -226,6 +226,14 @@ app
       },
     );
     ipcMain.handle('account:getAll', async () => accountService.getAccounts());
+    ipcMain.handle('account:getByName', (_, name: string) =>
+      accountService.getAccountByName(name),
+    );
+    ipcMain.handle(
+      'account:getByNameAndChart',
+      (_, chartId: number, name: string) =>
+        accountService.getAccountByNameAndChart(chartId, name),
+    );
     ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
       accountService.insertAccount(account),
     );
@@ -323,6 +331,18 @@ app
       (_, id: number, isActive: boolean) =>
         pricingService.toggleItemType(id, isActive),
     );
+    ipcMain.handle('itemType:delete', (_, id: number) =>
+      pricingService.deleteItemType(id),
+    );
+    ipcMain.handle('itemType:getPrimary', () =>
+      pricingService.getPrimaryItemType(),
+    );
+    ipcMain.handle('itemType:setPrimary', (_, itemTypeId: number) =>
+      pricingService.setPrimaryItemType(itemTypeId),
+    );
+    ipcMain.handle('itemType:clearPrimary', () =>
+      pricingService.clearPrimaryItemType(),
+    );
     ipcMain.handle('discountProfile:getAll', () =>
       pricingService.getDiscountProfiles(),
     );
@@ -371,6 +391,20 @@ app
     );
     ipcMain.handle('invoice:get', (_, invoiceId: number) =>
       invoiceService.getInvoice(invoiceId),
+    );
+    ipcMain.handle(
+      'invoice:updateBiltyAndCartons',
+      (
+        _,
+        invoiceId: number,
+        biltyNumber: string | undefined,
+        cartons: number | undefined,
+      ) =>
+        invoiceService.updateInvoiceBiltyAndCartons(
+          invoiceId,
+          biltyNumber,
+          cartons,
+        ),
     );
     ipcMain.handle(
       'invoice:exportExcel',

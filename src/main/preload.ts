@@ -153,6 +153,18 @@ const electronHandler = {
       isActive,
     ) as Promise<boolean>,
 
+  deleteItemType: (id: number) =>
+    ipcRenderer.invoke('itemType:delete', id) as Promise<boolean>,
+
+  getPrimaryItemType: () =>
+    ipcRenderer.invoke('itemType:getPrimary') as Promise<number | undefined>,
+
+  setPrimaryItemType: (itemTypeId: number) =>
+    ipcRenderer.invoke('itemType:setPrimary', itemTypeId) as Promise<boolean>,
+
+  clearPrimaryItemType: () =>
+    ipcRenderer.invoke('itemType:clearPrimary') as Promise<boolean>,
+
   getDiscountProfiles: () =>
     ipcRenderer.invoke('discountProfile:getAll') as Promise<DiscountProfile[]>,
 
@@ -211,6 +223,18 @@ const electronHandler = {
   getInvoice: (invoiceId: number) =>
     ipcRenderer.invoke('invoice:get', invoiceId),
 
+  updateInvoiceBiltyAndCartons: (
+    invoiceId: number,
+    biltyNumber?: string,
+    cartons?: number,
+  ) =>
+    ipcRenderer.invoke(
+      'invoice:updateBiltyAndCartons',
+      invoiceId,
+      biltyNumber,
+      cartons,
+    ),
+
   exportInvoices: (startDate?: string, endDate?: string) =>
     ipcRenderer.invoke('invoice:exportExcel', startDate, endDate),
 
@@ -238,6 +262,10 @@ const electronHandler = {
    * @example const accounts = getAccounts();
    */
   getAccounts: () => ipcRenderer.invoke('account:getAll'),
+  getAccountByName: (name: string) =>
+    ipcRenderer.invoke('account:getByName', name),
+  getAccountByNameAndChart: (chartId: number, name: string) =>
+    ipcRenderer.invoke('account:getByNameAndChart', chartId, name),
   /**
    * Get all charts
    * @returns All charts

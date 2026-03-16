@@ -33,6 +33,10 @@ export class AccountService {
 
   private stmUpdateAccountDiscountProfile!: Statement;
 
+  private stmGetAccountByNameAndChart!: Statement;
+
+  private stmGetAccountByNameAnyChart!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -144,6 +148,44 @@ export class AccountService {
       : result;
   }
 
+  getAccountByNameAndChart(chartId: number, name: string): Account | undefined {
+    const username = store.get('username');
+    const trimmedName = name.trim();
+    const result = <Account | undefined>this.stmGetAccountByNameAndChart.get({
+      chartId: cast(chartId),
+      name: trimmedName,
+      username,
+    });
+    if (result) {
+      return normalizeSqliteBooleanFields(
+        result,
+        ACCOUNT_BOOLEAN_FIELDS,
+      ) as Account;
+    }
+    // fallback: suffixed account may live in a different chart
+    const anyChart = this.stmGetAccountByNameAnyChart.all({
+      name: trimmedName,
+      username,
+    }) as Account[];
+    const first = anyChart[0];
+    return first
+      ? (normalizeSqliteBooleanFields(first, ACCOUNT_BOOLEAN_FIELDS) as Account)
+      : undefined;
+  }
+
+  /** Finds first account with exact name (trimmed) in any chart for current user. */
+  getAccountByName(name: string): Account | undefined {
+    const username = store.get('username');
+    const result = this.stmGetAccountByNameAnyChart.all({
+      name: name.trim(),
+      username,
+    }) as Account[];
+    const first = result[0];
+    return first
+      ? (normalizeSqliteBooleanFields(first, ACCOUNT_BOOLEAN_FIELDS) as Account)
+      : undefined;
+  }
+
   private initPreparedStatements() {
     this.stmGetAccounts = this.db.prepare(`
       SELECT
@@ -224,6 +266,33 @@ export class AccountService {
         WHERE username = @username
       )
         AND (@code IS NULL OR LOWER(a.code) LIKE LOWER(@code))
+    `);
+
+    this.stmGetAccountByNameAndChart = this.db.prepare(`
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      WHERE a.chartId = @chartId
+        AND TRIM(a.name) = TRIM(@name)
+        AND c.userId = (
+          SELECT id
+          FROM users
+          WHERE username = @username
+        )
+      LIMIT 1
+    `);
+
+    this.stmGetAccountByNameAnyChart = this.db.prepare(`
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      WHERE TRIM(a.name) = TRIM(@name)
+        AND c.userId = (
+          SELECT id
+          FROM users
+          WHERE username = @username
+        )
+      LIMIT 1
     `);
 
     this.stmHasJournals = this.db.prepare(`

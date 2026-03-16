@@ -82,6 +82,11 @@ const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
               (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick &&
                 'cursor-pointer',
             )}
+            style={{
+              width: cell.column.getSize(),
+              minWidth: cell.column.getSize(),
+              maxWidth: cell.column.getSize(),
+            }}
             onClick={() =>
               (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick?.(
                 cell.row,
