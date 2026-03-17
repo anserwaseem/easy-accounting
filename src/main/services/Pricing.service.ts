@@ -1,5 +1,6 @@
 import type { Database, Statement } from 'better-sqlite3';
 import type { DiscountProfile, ItemType, ProfileTypeDiscount } from 'types';
+import { uniq } from 'lodash';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
 import { cast, normalizeSqliteBooleanRows } from '../utils/sqlite';
@@ -40,6 +41,8 @@ export class PricingService {
   private stmUpsertProfileTypeDiscount!: Statement;
 
   private stmGetAutoDiscount!: Statement;
+
+  private stmGetPolicyDiscountDistinctForInventoryIds!: Statement;
 
   private stmClearPrimaryItemType!: Statement;
 
@@ -224,6 +227,25 @@ export class PricingService {
     return Number(result?.discountPercent ?? 0);
   }
 
+  getPolicyDiscountPercentForInventoryIds(
+    accountId: number,
+    inventoryIds: number[],
+  ): number | undefined {
+    const normalizedIds = uniq(
+      inventoryIds.filter((id) => Number.isFinite(id) && id > 0),
+    );
+    if (!normalizedIds.length) return undefined;
+
+    // resolve policy discounts for all provided inventoryIds in one query and only return when a single distinct discount applies.
+    const rows = this.stmGetPolicyDiscountDistinctForInventoryIds.all({
+      accountId: cast(accountId),
+      inventoryIdsJson: JSON.stringify(normalizedIds),
+    }) as Array<{ discountPercent?: number }>;
+    const distinct = uniq(rows.map((r) => Number(r.discountPercent ?? 0)));
+    if (distinct.length !== 1) return undefined;
+    return distinct[0];
+  }
+
   private initPreparedStatements() {
     this.stmGetItemTypes = this.db.prepare(`
       SELECT
@@ -355,6 +377,21 @@ export class PricingService {
        AND ptd.itemTypeId = i.itemTypeId
       WHERE a.id = @accountId
       LIMIT 1
+    `);
+
+    // returns distinct policy discount % values (coalesced to 0) for a set of inventory ids for a given account.
+    // used for journal metadata: only store discountPercentage when there is a single distinct policy discount across all items.
+    this.stmGetPolicyDiscountDistinctForInventoryIds = this.db.prepare(`
+      SELECT DISTINCT COALESCE(ptd.discountPercent, 0) AS discountPercent
+      FROM inventory i
+      LEFT JOIN account a ON a.id = @accountId
+      LEFT JOIN discount_profiles dp
+        ON dp.id = a.discountProfileId
+       AND dp.isActive = 1
+      LEFT JOIN profile_type_discounts ptd
+        ON ptd.profileId = dp.id
+       AND ptd.itemTypeId = i.itemTypeId
+      WHERE i.id IN (SELECT value FROM json_each(@inventoryIdsJson))
     `);
 
     this.stmGetPrimaryItemType = this.db.prepare(`

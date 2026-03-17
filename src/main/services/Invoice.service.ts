@@ -16,6 +16,7 @@ import { DatabaseService } from './Database.service';
 import { raise, convertOrdinalDate } from '../utils/general';
 import { JournalService } from './Journal.service';
 import { AccountService } from './Account.service';
+import { PricingService } from './Pricing.service';
 import { cast } from '../utils/sqlite';
 import {
   INVOICE_DISCOUNT_PERCENTAGE,
@@ -29,6 +30,8 @@ export class InvoiceService {
   private journalService!: JournalService;
 
   private accountService!: AccountService;
+
+  private pricingService!: PricingService;
 
   private stmGetNextInvoiceNumber!: Statement;
 
@@ -54,6 +57,7 @@ export class InvoiceService {
     this.db = DatabaseService.getInstance().getDatabase();
     this.journalService = new JournalService();
     this.accountService = new AccountService();
+    this.pricingService = new PricingService();
     this.initPreparedStatements();
   }
 
@@ -165,10 +169,11 @@ export class InvoiceService {
             sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
           );
         }, 0);
-        const groupDiscountPercentage = this.getPolicyDiscountPercentage(
-          toNumber(accountId),
-          groupItems,
-        );
+        const groupDiscountPercentage =
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            toNumber(accountId),
+            groupItems.map((item) => item.inventoryId),
+          );
 
         for (const item of groupItems) {
           this.stmInsertInvoiceItems.run({
@@ -272,7 +277,10 @@ export class InvoiceService {
           invoice,
           accountId,
           totalAmount + extraDiscount,
-          this.getPolicyDiscountPercentage(accountId, invoice.invoiceItems),
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            accountId,
+            invoice.invoiceItems.map((item) => item.inventoryId),
+          ),
         );
         this.createExtraDiscountJournalEntry(
           invoiceType,
@@ -287,7 +295,10 @@ export class InvoiceService {
           invoice,
           accountId,
           totalAmount,
-          this.getPolicyDiscountPercentage(accountId, invoice.invoiceItems),
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            accountId,
+            invoice.invoiceItems.map((item) => item.inventoryId),
+          ),
         );
       }
       return {
@@ -458,34 +469,6 @@ export class InvoiceService {
         },
       ],
     });
-  }
-
-  /** derive a single "policy discount %" for journal metadata from the account's discount profile per item type. */
-  private getPolicyDiscountPercentage(
-    accountId: number,
-    items: InvoiceItem[],
-  ): number | undefined {
-    if (!items.length) return undefined;
-
-    const stm = this.db.prepare(`
-      SELECT DISTINCT COALESCE(ptd.discountPercent, 0) AS discountPercent
-      FROM inventory inv
-      LEFT JOIN account a ON a.id = @accountId
-      LEFT JOIN profile_type_discounts ptd
-        ON ptd.profileId = a.discountProfileId
-        AND ptd.itemTypeId = inv.itemTypeId
-      WHERE inv.id IN (${items.map((item) => item.inventoryId).join(', ')})
-    `);
-    const rows = stm.all({ accountId: cast(accountId) }) as Array<{
-      discountPercent?: number;
-    }>;
-    const distinct = uniq(rows.map((r) => Number(r.discountPercent ?? 0)));
-    // only store when there is exactly one distinct discount policy across these items in this journal
-    if (distinct.length !== 1) {
-      return undefined;
-    }
-    const value = distinct[0];
-    return Number.isFinite(value) ? value : undefined;
   }
 
   private getTotalAmount(items: InvoiceItem[]): number {

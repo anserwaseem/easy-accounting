@@ -360,13 +360,14 @@ const NewJournalPage: React.FC = () => {
     () => [
       {
         header: 'Account',
+        size: 420,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <FormField
             control={form.control}
             name={`journalEntries.${row.index}.accountId` as const}
             render={({ field }) => (
-              <FormItem className="w-max min-w-[200px] space-y-0">
+              <FormItem className="w-full space-y-0">
                 <VirtualSelect
                   options={accounts || []}
                   value={field.value?.toString()}
@@ -433,6 +434,7 @@ const NewJournalPage: React.FC = () => {
       },
       {
         header: 'Credit',
+        size: 160,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <FormField
@@ -485,6 +487,7 @@ const NewJournalPage: React.FC = () => {
       {
         id: 'remove',
         header: 'Action',
+        size: 80,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <X
