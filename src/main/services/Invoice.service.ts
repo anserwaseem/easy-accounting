@@ -165,6 +165,10 @@ export class InvoiceService {
             sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
           );
         }, 0);
+        const groupDiscountPercentage = this.getPolicyDiscountPercentage(
+          toNumber(accountId),
+          groupItems,
+        );
 
         for (const item of groupItems) {
           this.stmInsertInvoiceItems.run({
@@ -186,6 +190,7 @@ export class InvoiceService {
           invoice,
           toNumber(accountId),
           groupTotalAmount,
+          groupDiscountPercentage,
         );
       });
 
@@ -267,6 +272,7 @@ export class InvoiceService {
           invoice,
           accountId,
           totalAmount + extraDiscount,
+          this.getPolicyDiscountPercentage(accountId, invoice.invoiceItems),
         );
         this.createExtraDiscountJournalEntry(
           invoiceType,
@@ -276,7 +282,13 @@ export class InvoiceService {
           extraDiscount,
         );
       } else {
-        this.createJournalEntry(invoiceType, invoice, accountId, totalAmount);
+        this.createJournalEntry(
+          invoiceType,
+          invoice,
+          accountId,
+          totalAmount,
+          this.getPolicyDiscountPercentage(accountId, invoice.invoiceItems),
+        );
       }
       return {
         invoiceId,
@@ -378,6 +390,7 @@ export class InvoiceService {
     invoice: Invoice,
     accountId: number,
     amount: number,
+    discountPercentage?: number,
   ): boolean {
     const { debitAccountId, creditAccountId } = this.getTransactionAccounts(
       invoiceType,
@@ -389,6 +402,8 @@ export class InvoiceService {
       date: invoice.date,
       isPosted: true,
       narration: `${invoiceType} Invoice #${invoice.invoiceNumber}`,
+      billNumber: invoice.invoiceNumber,
+      discountPercentage,
       journalEntries: [
         {
           id: -1,
@@ -425,6 +440,7 @@ export class InvoiceService {
       date: invoice.date,
       isPosted: true,
       narration: `${invoiceType} Invoice #${invoice.invoiceNumber} (extra discount)`,
+      billNumber: invoice.invoiceNumber,
       journalEntries: [
         {
           id: -1,
@@ -442,6 +458,34 @@ export class InvoiceService {
         },
       ],
     });
+  }
+
+  /** derive a single "policy discount %" for journal metadata from the account's discount profile per item type. */
+  private getPolicyDiscountPercentage(
+    accountId: number,
+    items: InvoiceItem[],
+  ): number | undefined {
+    if (!items.length) return undefined;
+
+    const stm = this.db.prepare(`
+      SELECT DISTINCT COALESCE(ptd.discountPercent, 0) AS discountPercent
+      FROM inventory inv
+      LEFT JOIN account a ON a.id = @accountId
+      LEFT JOIN profile_type_discounts ptd
+        ON ptd.profileId = a.discountProfileId
+        AND ptd.itemTypeId = inv.itemTypeId
+      WHERE inv.id IN (${items.map((item) => item.inventoryId).join(', ')})
+    `);
+    const rows = stm.all({ accountId: cast(accountId) }) as Array<{
+      discountPercent?: number;
+    }>;
+    const distinct = uniq(rows.map((r) => Number(r.discountPercent ?? 0)));
+    // only store when there is exactly one distinct discount policy across these items in this journal
+    if (distinct.length !== 1) {
+      return undefined;
+    }
+    const value = distinct[0];
+    return Number.isFinite(value) ? value : undefined;
   }
 
   private getTotalAmount(items: InvoiceItem[]): number {
