@@ -106,7 +106,7 @@ export const AccountPricingSheet: React.FC<AccountPricingSheetProps> = ({
     busyAction === null &&
     !!policyNameDraft.trim() &&
     !renamePolicyConflict;
-  const hasSelectedPolicy = !!selectedPolicy;
+  const shouldShowPolicyToolsCard = !selectedPolicy || showPolicyTools;
 
   /** surface contextual hints when user types a new policy name that matches an existing profile */
   const createPolicyHint = useMemo(() => {
@@ -617,14 +617,16 @@ export const AccountPricingSheet: React.FC<AccountPricingSheetProps> = ({
               firstDiscountInputRef={firstDiscountInputRef}
             />
 
-            <AccountPricingToolsCard
-              hasSelectedPolicy={hasSelectedPolicy}
-              isSharedPolicy={isSharedPolicy}
-              policyDetails={policyDetailsProps}
-              createPolicy={createPolicyProps}
-              existingPolicy={existingPolicyProps}
-              assignment={assignmentProps}
-            />
+            {shouldShowPolicyToolsCard ? (
+              <AccountPricingToolsCard
+                hasSelectedPolicy={!!selectedPolicy}
+                isSharedPolicy={isSharedPolicy}
+                policyDetails={policyDetailsProps}
+                createPolicy={createPolicyProps}
+                existingPolicy={existingPolicyProps}
+                assignment={assignmentProps}
+              />
+            ) : null}
           </div>
         ) : null}
       </SheetContent>
