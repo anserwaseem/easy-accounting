@@ -30,14 +30,14 @@ export const CompactSearchBar: React.FC<CompactSearchBarProps> = ({
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border bg-background px-2 py-2 ${
+      className={`flex items-center gap-1.5 rounded-md border bg-background px-1.5 py-1.5 focus-within:ring-2 focus-within:ring-ring/40 ${
         className || ''
       }`}
     >
       <div className="relative min-w-0 flex-1">
         <Search
-          size={16}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+          size={14}
+          className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
           aria-hidden="true"
         />
         <Input
@@ -48,12 +48,12 @@ export const CompactSearchBar: React.FC<CompactSearchBarProps> = ({
           name="compact-search"
           autoComplete="off"
           spellCheck={false}
-          className={`h-9 border-0 bg-transparent pl-8 pr-2 shadow-none focus-visible:ring-0 ${
+          className={`h-8 border-0 bg-transparent pl-7 pr-1 text-sm shadow-none focus-visible:ring-0 ${
             inputClassName || ''
           }`}
         />
       </div>
-      <p className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+      <p className="text-[11px] text-muted-foreground whitespace-nowrap tabular-nums shrink-0">
         {countLabel}
       </p>
     </div>

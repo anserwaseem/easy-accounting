@@ -306,17 +306,19 @@ const DataTable = <TData, TValue>({
     total: data.length,
   };
 
-  const searchClassName = useMemo(
-    () => 'w-full transition-all duration-200 text-xs md:w-[300px]',
-    [],
-  );
+  const searchClassName = useMemo(() => 'w-full md:w-[320px]', []);
 
   if (virtual) {
     return (
       <div ref={containerRef} className="rounded-md border">
         {searchFields?.length ? (
           <div className="search-container border-b">
-            <div className="px-4 py-3 gap-2 flex justify-between items-center">
+            <div
+              className={cn(
+                'gap-2 flex justify-between items-center',
+                isMini ? 'px-2 py-2' : 'px-4 py-3',
+              )}
+            >
               {isMini ? (
                 <CompactSearchBar
                   value={searchInputValue}
@@ -330,7 +332,8 @@ const DataTable = <TData, TValue>({
                 <>
                   <Search
                     placeholder={searchPlaceholder}
-                    onChange={debounceSearch}
+                    value={searchInputValue}
+                    onChange={handleSearchInputChange}
                     className={searchClassName}
                   />
                   <RecordCount {...recordCount} />
@@ -379,7 +382,12 @@ const DataTable = <TData, TValue>({
     <div ref={containerRef} className="rounded-md border">
       {searchFields?.length ? (
         <div className="search-container border-b">
-          <div className="px-4 py-3 gap-2 flex justify-between items-center">
+          <div
+            className={cn(
+              'gap-2 flex justify-between items-center',
+              isMini ? 'px-2 py-2' : 'px-4 py-3',
+            )}
+          >
             {isMini ? (
               <CompactSearchBar
                 value={searchInputValue}
@@ -393,7 +401,8 @@ const DataTable = <TData, TValue>({
               <>
                 <Search
                   placeholder={searchPlaceholder}
-                  onChange={debounceSearch}
+                  value={searchInputValue}
+                  onChange={handleSearchInputChange}
                   className={searchClassName}
                 />
                 <RecordCount {...recordCount} />
