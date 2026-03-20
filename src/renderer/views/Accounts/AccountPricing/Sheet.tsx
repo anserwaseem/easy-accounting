@@ -173,11 +173,11 @@ export const AccountPricingSheet: React.FC<AccountPricingSheetProps> = ({
   useEffect(() => {
     if (!open) return;
     setAssignedPolicyId(account?.discountProfileId ?? null);
-    setNewPolicyName(account?.name ?? '');
+    setNewPolicyName(String(account?.code ?? ''));
     setExistingPolicyId(null);
     setAssignmentNotice('');
     setShowPolicyTools(!(account?.discountProfileId ?? null));
-  }, [account?.discountProfileId, account?.id, account?.name, open]);
+  }, [account?.discountProfileId, account?.code, account?.id, open]);
 
   // keep the editable policy fields aligned with the selected policy.
   useEffect(() => {
