@@ -19,6 +19,7 @@ const InventoryPage: React.FC = () => {
   const [hideZeroQuantity, setHideZeroQuantity] = useState(true);
   const [hideZeroPrice, setHideZeroPrice] = useState(true);
   const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
+  const [hideNoType, setHideNoType] = useState(true);
 
   useEffect(() => {
     const checkInventoryExists = async () => {
@@ -99,12 +100,18 @@ const InventoryPage: React.FC = () => {
         >
           <Checkbox
             id="filter-hide-all"
-            checked={hideNegativeQuantity && hideZeroQuantity && hideZeroPrice}
+            checked={
+              hideNegativeQuantity &&
+              hideZeroQuantity &&
+              hideZeroPrice &&
+              hideNoType
+            }
             onCheckedChange={(checked) => {
               const value = checked === true;
               setHideNegativeQuantity(value);
               setHideZeroQuantity(value);
               setHideZeroPrice(value);
+              setHideNoType(value);
             }}
           />
           <span>All</span>
@@ -144,6 +151,17 @@ const InventoryPage: React.FC = () => {
           />
           <span>Zero price</span>
         </Label>
+        <Label
+          htmlFor="filter-hide-no-type"
+          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+        >
+          <Checkbox
+            id="filter-hide-no-type"
+            checked={hideNoType}
+            onCheckedChange={(checked) => setHideNoType(checked === true)}
+          />
+          <span>No type</span>
+        </Label>
       </div>
 
       <InventoryTable
@@ -153,6 +171,7 @@ const InventoryPage: React.FC = () => {
           hideZeroQuantity,
           hideZeroPrice,
           hideNegativeQuantity,
+          hideNoType,
         }}
       />
     </div>

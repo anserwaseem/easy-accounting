@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { isNil } from 'lodash';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InventoryItem, ItemType } from 'types';
@@ -18,6 +19,7 @@ interface InventoryTableProps {
     hideZeroQuantity?: boolean;
     hideZeroPrice?: boolean;
     hideNegativeQuantity?: boolean;
+    hideNoType?: boolean;
   };
 }
 export const InventoryTable: React.FC<InventoryTableProps> = ({
@@ -99,6 +101,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       }
       if (options?.hideZeroPrice && i.price === 0) {
         return false;
+      }
+      if (options?.hideNoType) {
+        // hide items that don't have an associated type
+        const hasItemType = !isNil(i.itemTypeId) && Number(i.itemTypeId) > 0;
+        if (!hasItemType) return false;
       }
       return true;
     });
