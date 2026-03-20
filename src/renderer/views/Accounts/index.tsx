@@ -585,6 +585,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             'goodsName',
             'discountProfileName',
           ]}
+          searchPersistenceKey="datatable:accounts:search"
         />
       </div>
       <AccountPricingSheet

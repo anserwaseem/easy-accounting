@@ -321,6 +321,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
               'date',
               'totalAmount',
             ]}
+            searchPersistenceKey={`datatable:${invoiceType.toLowerCase()}:invoices:search`}
           />
         )}
       </div>

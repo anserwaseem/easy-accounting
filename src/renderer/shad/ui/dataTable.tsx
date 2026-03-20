@@ -24,6 +24,7 @@ import {
   HTMLAttributes,
   forwardRef,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useMemo,
@@ -47,6 +48,7 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   searchPlaceholder?: string;
   searchFields?: string[];
   isMini?: boolean;
+  searchPersistenceKey?: string;
 }
 
 const TableComponent = forwardRef<
@@ -206,6 +208,7 @@ const DataTable = <TData, TValue>({
   searchPlaceholder,
   searchFields,
   isMini = false,
+  searchPersistenceKey,
   ...props
 }: DataTableProps<TData, TValue>) => {
   const [sorting, setSorting] = useState<SortingState>(() => {
@@ -222,6 +225,7 @@ const DataTable = <TData, TValue>({
   const [filteredData, setFilteredData] = useState(data);
   const [height, setHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isSearchHydratedRef = useRef(false);
 
   // calculate height of the table based for virtual table
   useEffect(() => {
@@ -286,6 +290,28 @@ const DataTable = <TData, TValue>({
     setSearchInputValue(value);
     debounceSearch(value);
   };
+
+  useLayoutEffect(() => {
+    isSearchHydratedRef.current = false;
+    if (!searchPersistenceKey) {
+      isSearchHydratedRef.current = true;
+      return;
+    }
+
+    const persistedSearchValue =
+      window.electron.store.get(searchPersistenceKey);
+    const normalizedSearchValue =
+      typeof persistedSearchValue === 'string' ? persistedSearchValue : '';
+    setSearchInputValue(normalizedSearchValue);
+    setSearchValue(normalizedSearchValue);
+    isSearchHydratedRef.current = true;
+  }, [searchPersistenceKey]);
+
+  useEffect(() => {
+    if (!searchPersistenceKey) return;
+    if (!isSearchHydratedRef.current) return;
+    window.electron.store.set(searchPersistenceKey, searchInputValue);
+  }, [searchPersistenceKey, searchInputValue]);
 
   const table = useReactTable({
     data: filteredData,

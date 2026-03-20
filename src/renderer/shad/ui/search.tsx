@@ -10,13 +10,16 @@ interface SearchProps {
 }
 
 export const Search = ({
-  placeholder = 'Search...',
+  placeholder = 'Search…',
   value,
   onChange,
   className,
 }: SearchProps) => (
-  <div className="relative">
-    <SearchIcon className="absolute left-2 top-[18px] h-4 w-4 text-muted-foreground transition-colors duration-200 group-focus-within:text-primary" />
+  <div className="relative min-w-0">
+    <SearchIcon
+      aria-hidden="true"
+      className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+    />
     <Input
       type="search"
       placeholder={placeholder}
@@ -24,7 +27,10 @@ export const Search = ({
       onChange={(e: ChangeEvent<HTMLInputElement>) =>
         onChange?.(e.target.value)
       }
-      className={`pl-8 pr-4 h-9 transition-all duration-200 focus:ring-2 focus:ring-ring focus:ring-offset-2 ${className}`}
+      aria-label={placeholder}
+      autoComplete="off"
+      spellCheck={false}
+      className={`h-10 pl-9 pr-3 text-sm ${className}`}
     />
   </div>
 );

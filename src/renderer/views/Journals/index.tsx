@@ -285,6 +285,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
           isMini={isMini}
           searchPlaceholder="Search journals…"
           searchFields={['narration', 'date', 'amount', 'billNumber']}
+          searchPersistenceKey="datatable:journals:search"
         />
       </div>
     </div>
