@@ -14,13 +14,14 @@ import {
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
+import { CompactSearchBar } from 'renderer/shad/ui/compactSearchBar';
 import type {
   HasMiniView,
   Journal,
   JournalEntry,
   UpdateJournalFields,
 } from 'types';
-import { orderBy, toNumber, toString } from 'lodash';
+import { includes, orderBy, toLower, toNumber, toString, trim } from 'lodash';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
@@ -42,6 +43,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
   const [journalFilterSelectValue, setJournalFilterSelectValue] = useState<
     string | undefined
   >(window.electron.store.get('journalFilterSelectValue') || undefined);
+  const [miniSearchTerm, setMiniSearchTerm] = useState('');
 
   const navigate = useNavigate();
 
@@ -201,6 +203,34 @@ const JournalsPage: React.FC<HasMiniView> = ({
         : filteredJournals,
     [filteredJournals, isMini],
   );
+  const miniSearchFilteredJournals = useMemo(() => {
+    if (!isMini) return sortedJournals;
+
+    const normalizedSearchTerm = toLower(trim(miniSearchTerm));
+    if (!normalizedSearchTerm) return sortedJournals;
+
+    return sortedJournals.filter((journal) => {
+      const journalDate = new Date(journal.date || '').toLocaleString(
+        'en-US',
+        dateFormatOptions,
+      );
+      const journalAmount = getFormattedCurrency(
+        calculateJournalAmount(journal),
+      );
+      const status = journal.isPosted ? 'posted' : 'draft';
+      const searchableContent = toLower(
+        [
+          journal.narration || '',
+          journal.billNumber || '',
+          journalDate,
+          journalAmount,
+          status,
+        ].join(' '),
+      );
+
+      return includes(searchableContent, normalizedSearchTerm);
+    });
+  }, [isMini, miniSearchTerm, sortedJournals]);
 
   useEffect(
     () => window.electron.store.set('filteredJournals', filteredJournals),
@@ -258,42 +288,58 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
       <div className="py-8 flex flex-col gap-6">
         {isMini ? (
-          <Table>
-            <TableBody>
-              {sortedJournals.map((journal) => (
-                <TableRow
-                  key={journal.id}
-                  onClick={() => navigate(`/journals/${journal.id}`)}
-                >
-                  <TableCell>
-                    <div className="flex justify-between">
-                      <div className="flex flex-col">
-                        <p>
-                          {new Date(journal.date || '').toLocaleString(
-                            'en-US',
-                            dateFormatOptions,
-                          )}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-auto">
-                          {journal.narration}
-                        </p>
-                      </div>
-                      <div className="flex flex-col">
-                        <p>
-                          {getFormattedCurrency(
-                            calculateJournalAmount(journal),
-                          )}
-                        </p>
-                        <p className="text-end text-green-600">
-                          {journal.isPosted ? 'Posted' : 'Draft'}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <>
+            <CompactSearchBar
+              value={miniSearchTerm}
+              onChange={setMiniSearchTerm}
+              placeholder="Search journals…"
+              ariaLabel="Search journals"
+              filteredCount={miniSearchFilteredJournals.length}
+              totalCount={sortedJournals.length}
+            />
+            <Table>
+              <TableBody>
+                {miniSearchFilteredJournals.length ? (
+                  miniSearchFilteredJournals.map((journal) => (
+                    <TableRow
+                      key={journal.id}
+                      onClick={() => navigate(`/journals/${journal.id}`)}
+                    >
+                      <TableCell className="p-1 pl-0 flex justify-between">
+                        <div className="flex flex-col min-w-0">
+                          <p>
+                            {new Date(journal.date || '').toLocaleString(
+                              'en-US',
+                              dateFormatOptions,
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-auto break-words">
+                            {journal.narration}
+                          </p>
+                        </div>
+                        <div className="flex flex-col">
+                          <p>
+                            {getFormattedCurrency(
+                              calculateJournalAmount(journal),
+                            )}
+                          </p>
+                          <p className="text-end text-green-600">
+                            {journal.isPosted ? 'Posted' : 'Draft'}
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell className="text-center text-sm text-muted-foreground py-10">
+                      No journals match the current search.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </>
         ) : (
           <DataTable
             columns={columns}
