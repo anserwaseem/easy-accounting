@@ -8,20 +8,18 @@ import {
   type DateRange,
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
-import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import {
   cn,
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
-import { CompactSearchBar } from 'renderer/shad/ui/compactSearchBar';
 import type {
   HasMiniView,
   Journal,
   JournalEntry,
   UpdateJournalFields,
 } from 'types';
-import { includes, orderBy, toLower, toNumber, toString, trim } from 'lodash';
+import { toNumber } from 'lodash';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
@@ -43,8 +41,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
   const [journalFilterSelectValue, setJournalFilterSelectValue] = useState<
     string | undefined
   >(window.electron.store.get('journalFilterSelectValue') || undefined);
-  const [miniSearchTerm, setMiniSearchTerm] = useState('');
-
   const navigate = useNavigate();
 
   const handleUpdateJournal = useCallback(
@@ -75,77 +71,109 @@ const JournalsPage: React.FC<HasMiniView> = ({
   );
 
   const columns: ColumnDef<JournalView>[] = useMemo(
-    () => [
-      {
-        accessorKey: 'date',
-        header: DateHeader,
-        onClick: (row) => navigate(toString(row.original.id)),
-        cell: ({ row }) =>
-          new Date(row.original.date).toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
-        size: 40,
-      },
-      {
-        accessorKey: 'narration',
-        header: 'Narration',
-        onClick: (row) => navigate(toString(row.original.id)),
-        size: 800,
-      },
-      {
-        accessorKey: 'billNumber',
-        header: 'Bill#',
-        cell: ({ row }) => row.original.billNumber || '-',
-        onClick: (row) => navigate(toString(row.original.id)),
-        size: 80,
-      },
-      {
-        accessorKey: 'discountPercentage',
-        header: 'Discount%',
-        cell: ({ row }) =>
-          row.original.discountPercentage
-            ? `${row.original.discountPercentage}%`
-            : '-',
-        onClick: (row) => navigate(toString(row.original.id)),
-        size: 100,
-      },
-      {
-        accessorKey: 'amount',
-        header: 'Amount',
-        cell: ({ getValue }) => getFormattedCurrency(toNumber(getValue())),
-        onClick: (row) => navigate(toString(row.original.id)),
-        size: 150,
-      },
-      {
-        accessorKey: 'createdAt',
-        header: 'Created At',
-        cell: ({ row }) =>
-          new Date(row.original.createdAt || '').toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
-        onClick: (row) => navigate(toString(row.original.id)),
-        size: 40,
-      },
-      {
-        header: 'Edit',
-        // eslint-disable-next-line react/no-unstable-nested-components
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <EditJournalFieldsDialog
-              journalId={row.original.id}
-              narration={row.original.narration || ''}
-              billNumber={row.original.billNumber}
-              discountPercentage={row.original.discountPercentage}
-              onSave={handleUpdateJournal}
-            />
-          </div>
-        ),
-        size: 10,
-      },
-    ],
-    [navigate, handleUpdateJournal],
+    () =>
+      (isMini
+        ? [
+            {
+              accessorKey: 'date',
+              header: 'Journals',
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => (
+                <div className="flex justify-between items-start w-full">
+                  <div className="flex flex-col min-w-0">
+                    <p>
+                      {new Date(row.original.date || '').toLocaleString(
+                        'en-US',
+                        dateFormatOptions,
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-auto break-words">
+                      {row.original.narration}
+                    </p>
+                  </div>
+                  <div className="flex flex-col text-end">
+                    <p>{getFormattedCurrency(row.original.amount)}</p>
+                    <p className="text-green-600">
+                      {row.original.isPosted ? 'Posted' : 'Draft'}
+                    </p>
+                  </div>
+                </div>
+              ),
+              onClick: (row) => navigate(`/journals/${row.original.id}`),
+            },
+          ]
+        : [
+            {
+              accessorKey: 'date',
+              header: DateHeader,
+              onClick: (row) => navigate(`/journals/${row.original.id}`),
+              cell: ({ row }) =>
+                new Date(row.original.date).toLocaleString(
+                  'en-US',
+                  dateFormatOptions,
+                ),
+              size: 40,
+            },
+            {
+              accessorKey: 'narration',
+              header: 'Narration',
+              onClick: (row) => navigate(`/journals/${row.original.id}`),
+              size: 800,
+            },
+            {
+              accessorKey: 'billNumber',
+              header: 'Bill#',
+              cell: ({ row }) => row.original.billNumber || '-',
+              onClick: (row) => navigate(`/journals/${row.original.id}`),
+              size: 80,
+            },
+            {
+              accessorKey: 'discountPercentage',
+              header: 'Discount%',
+              cell: ({ row }) =>
+                row.original.discountPercentage
+                  ? `${row.original.discountPercentage}%`
+                  : '-',
+              onClick: (row) => navigate(`/journals/${row.original.id}`),
+              size: 100,
+            },
+            {
+              accessorKey: 'amount',
+              header: 'Amount',
+              cell: ({ getValue }) =>
+                getFormattedCurrency(toNumber(getValue())),
+              onClick: (row) => navigate(`/journals/${row.original.id}`),
+              size: 150,
+            },
+            {
+              accessorKey: 'createdAt',
+              header: 'Created At',
+              cell: ({ row }) =>
+                new Date(row.original.createdAt || '').toLocaleString(
+                  'en-US',
+                  dateFormatOptions,
+                ),
+              onClick: (row) => navigate(`/journals/${row.original.id}`),
+              size: 40,
+            },
+            {
+              header: 'Edit',
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => (
+                <div className="flex items-center gap-2">
+                  <EditJournalFieldsDialog
+                    journalId={row.original.id}
+                    narration={row.original.narration || ''}
+                    billNumber={row.original.billNumber}
+                    discountPercentage={row.original.discountPercentage}
+                    onSave={handleUpdateJournal}
+                  />
+                </div>
+              ),
+              size: 10,
+            },
+          ]) as ColumnDef<JournalView>[],
+    [isMini, navigate, handleUpdateJournal],
   );
 
   const handleFilterDateSelect = useCallback(
@@ -191,46 +219,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
       journals,
     ],
   );
-
-  const sortedJournals = useMemo(
-    () =>
-      isMini
-        ? orderBy(
-            filteredJournals,
-            (journal) => new Date(journal.date || '').getTime(),
-            'desc',
-          )
-        : filteredJournals,
-    [filteredJournals, isMini],
-  );
-  const miniSearchFilteredJournals = useMemo(() => {
-    if (!isMini) return sortedJournals;
-
-    const normalizedSearchTerm = toLower(trim(miniSearchTerm));
-    if (!normalizedSearchTerm) return sortedJournals;
-
-    return sortedJournals.filter((journal) => {
-      const journalDate = new Date(journal.date || '').toLocaleString(
-        'en-US',
-        dateFormatOptions,
-      );
-      const journalAmount = getFormattedCurrency(
-        calculateJournalAmount(journal),
-      );
-      const status = journal.isPosted ? 'posted' : 'draft';
-      const searchableContent = toLower(
-        [
-          journal.narration || '',
-          journal.billNumber || '',
-          journalDate,
-          journalAmount,
-          status,
-        ].join(' '),
-      );
-
-      return includes(searchableContent, normalizedSearchTerm);
-    });
-  }, [isMini, miniSearchTerm, sortedJournals]);
 
   useEffect(
     () => window.electron.store.set('filteredJournals', filteredJournals),
@@ -287,71 +275,17 @@ const JournalsPage: React.FC<HasMiniView> = ({
       </div>
 
       <div className="py-8 flex flex-col gap-6">
-        {isMini ? (
-          <>
-            <CompactSearchBar
-              value={miniSearchTerm}
-              onChange={setMiniSearchTerm}
-              placeholder="Search journals…"
-              ariaLabel="Search journals"
-              filteredCount={miniSearchFilteredJournals.length}
-              totalCount={sortedJournals.length}
-            />
-            <Table>
-              <TableBody>
-                {miniSearchFilteredJournals.length ? (
-                  miniSearchFilteredJournals.map((journal) => (
-                    <TableRow
-                      key={journal.id}
-                      onClick={() => navigate(`/journals/${journal.id}`)}
-                    >
-                      <TableCell className="p-1 pl-0 flex justify-between">
-                        <div className="flex flex-col min-w-0">
-                          <p>
-                            {new Date(journal.date || '').toLocaleString(
-                              'en-US',
-                              dateFormatOptions,
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-auto break-words">
-                            {journal.narration}
-                          </p>
-                        </div>
-                        <div className="flex flex-col">
-                          <p>
-                            {getFormattedCurrency(
-                              calculateJournalAmount(journal),
-                            )}
-                          </p>
-                          <p className="text-end text-green-600">
-                            {journal.isPosted ? 'Posted' : 'Draft'}
-                          </p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell className="text-center text-sm text-muted-foreground py-10">
-                      No journals match the current search.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={sortedJournals}
-            sortingFns={defaultSortingFunctions}
-            defaultSortField="date"
-            defaultSortDirection="desc"
-            virtual
-            searchPlaceholder="Search journals..."
-            searchFields={['narration', 'date', 'amount']}
-          />
-        )}
+        <DataTable
+          columns={columns}
+          data={filteredJournals}
+          sortingFns={defaultSortingFunctions}
+          defaultSortField="date"
+          defaultSortDirection="desc"
+          virtual
+          isMini={isMini}
+          searchPlaceholder="Search journals…"
+          searchFields={['narration', 'date', 'amount', 'billNumber']}
+        />
       </div>
     </div>
   );
