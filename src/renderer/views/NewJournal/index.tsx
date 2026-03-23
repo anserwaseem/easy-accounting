@@ -544,6 +544,10 @@ const NewJournalPage: React.FC = () => {
     (value: unknown) => toString(value).trim().toLowerCase(),
     [],
   );
+  const normalizeAccountName = useCallback(
+    (value: unknown) => toString(value).trim().toLowerCase(),
+    [],
+  );
 
   const handleImportJournalEntries = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -555,25 +559,55 @@ const NewJournalPage: React.FC = () => {
       try {
         const json = await convertFileToJson(file);
         const parsed = parseJournalImportSheet(json);
-        const accountMap = new Map<string, Account>();
+        const accountsByCode = new Map<string, Account[]>();
+        const accountsByName = new Map<string, Account[]>();
 
         (accounts || []).forEach((account) => {
           const normalizedCode = normalizeAccountCode(account.code);
+          const normalizedName = normalizeAccountName(account.name);
           if (normalizedCode) {
-            accountMap.set(normalizedCode, account);
+            const existingByCode = accountsByCode.get(normalizedCode) || [];
+            existingByCode.push(account);
+            accountsByCode.set(normalizedCode, existingByCode);
+          }
+          if (normalizedName) {
+            const existingByName = accountsByName.get(normalizedName) || [];
+            existingByName.push(account);
+            accountsByName.set(normalizedName, existingByName);
           }
         });
 
-        const unmatchedCodes: string[] = [];
+        const unmatchedRows: string[] = [];
         const importedEntries: JournalEntry[] = parsed.entries
           .map((entry, index) => {
-            const matchedAccount = accountMap.get(
-              normalizeAccountCode(entry.accountCode),
-            );
-            if (!matchedAccount) {
-              unmatchedCodes.push(entry.accountCode);
+            const normalizedRowCode = normalizeAccountCode(entry.accountCode);
+            const normalizedRowName = normalizeAccountName(entry.accountName);
+
+            let candidates: Account[] = [];
+            if (normalizedRowCode) {
+              candidates = accountsByCode.get(normalizedRowCode) || [];
+              if (normalizedRowName) {
+                candidates = candidates.filter(
+                  (candidate) =>
+                    normalizeAccountName(candidate.name) === normalizedRowName,
+                );
+              }
+            } else {
+              candidates = accountsByName.get(normalizedRowName) || [];
+              // support files where Account column contains account codes instead of names
+              if (candidates.length === 0 && normalizedRowName) {
+                candidates = accountsByCode.get(normalizedRowName) || [];
+              }
+            }
+
+            if (candidates.length !== 1) {
+              const identifier = normalizedRowCode
+                ? `${entry.accountCode} / ${entry.accountName}`
+                : entry.accountName;
+              unmatchedRows.push(identifier || `row ${entry.rowNumber}`);
               return null;
             }
+            const matchedAccount = candidates[0];
 
             const isCreditSide = parsed.entrySide === BalanceType.Cr;
             return {
@@ -588,7 +622,7 @@ const NewJournalPage: React.FC = () => {
 
         if (importedEntries.length === 0) {
           raise(
-            'No rows were imported. Make sure account codes exist in Accounts and amounts are greater than zero.',
+            'No rows were imported. Make sure account identifiers (code/name) exist in Accounts and amounts are greater than zero.',
           );
         }
 
@@ -630,14 +664,14 @@ const NewJournalPage: React.FC = () => {
           parsed.entrySide === BalanceType.Cr ? 'credit' : 'debit';
         const balanceLabel =
           parsed.entrySide === BalanceType.Cr ? 'debit' : 'credit';
-        const hasUnmatched = unmatchedCodes.length > 0;
+        const hasUnmatched = unmatchedRows.length > 0;
 
         toast({
           description: `Imported ${
             importedEntries.length
           } ${sideLabel} entries. Skipped ${parsed.skippedRows} rows. ${
             hasUnmatched
-              ? `Unmatched account codes: ${unmatchedCodes.join(', ')}.`
+              ? `Unmatched/ambiguous rows: ${unmatchedRows.join(', ')}.`
               : `Please select the ${balanceLabel} account next.`
           }`,
           variant: hasUnmatched ? 'warning' : 'success',
@@ -652,7 +686,7 @@ const NewJournalPage: React.FC = () => {
         event.target.value = '';
       }
     },
-    [accounts, nextId, normalizeAccountCode],
+    [accounts, nextId, normalizeAccountCode, normalizeAccountName],
   );
 
   const submitJournal = async (values: z.infer<typeof formSchema>) => {
