@@ -18,6 +18,7 @@ import {
   toString,
 } from 'lodash';
 import {
+  BalanceType,
   Sections,
   SectionTypes,
   type BalanceSheet,
@@ -32,7 +33,10 @@ import {
   removeEmptySubarrays,
   toLowerString,
   raise,
+  parseCurrencyLikeAmount,
 } from './utils';
+
+// #region balance sheet
 
 /**
  * Parses the balance sheet object and returns a parsed BalanceSheet object.
@@ -545,6 +549,10 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   }
 };
 
+// #endregion
+
+// #region inventory
+
 export const parseInventory = (obj: unknown): InventoryItem[] => {
   if (!isTwoDimensionalArray(obj)) raise('Invalid format for inventory');
 
@@ -620,6 +628,10 @@ export const parseInventory = (obj: unknown): InventoryItem[] => {
   }
 };
 
+// #endregion
+
+// #region invoice items
+
 export const parseInvoiceItems = (
   obj: unknown,
 ): Array<{ name: string; quantity: number }> => {
@@ -688,6 +700,10 @@ export const parseInvoiceItems = (
   }
 };
 
+// #endregion
+
+// #region opening stock
+
 function isHeaderRowOpeningStock(row: unknown[]): boolean {
   return row.some(
     (cell) =>
@@ -751,6 +767,10 @@ export const parseOpeningStock = (
   );
 };
 
+// #endregion
+
+// #region inventory availability
+
 /** returns true if every parsed item name exists in inventory */
 export const checkParsedItemsAvailability = (
   parsedItems: Array<{ name: string; quantity: number }>,
@@ -759,3 +779,111 @@ export const checkParsedItemsAvailability = (
   parsedItems.every((parsedItem) =>
     items.some((i) => i.name === parsedItem.name),
   );
+
+// #endregion
+
+// #region journal import sheet
+
+/** returns index of first row with (Code or Account) + Credit/Debit together, or raises with a specific reason */
+const resolveJournalImportHeaderRowOrRaise = (rows: unknown[][]): number => {
+  let anyCode = false;
+  let anyAccount = false;
+  let anyCreditOrDebit = false;
+  for (let i = 0; i < rows.length; i++) {
+    const n = map(rows[i], (e) => toLowerString(e).trim());
+    const hasCode = n.includes('code');
+    const hasAccount = n.includes('account');
+    const hasCreditOrDebit = n.includes('credit') || n.includes('debit');
+    if (hasCode) anyCode = true;
+    if (hasAccount) anyAccount = true;
+    if (hasCreditOrDebit) anyCreditOrDebit = true;
+    if ((hasCode || hasAccount) && hasCreditOrDebit) {
+      return i;
+    }
+  }
+  if (!anyCode && !anyAccount && !anyCreditOrDebit) {
+    return raise('Could not find Code/Account or Credit/Debit columns');
+  }
+  if (!anyCode && !anyAccount)
+    return raise('Could not find Code or Account column');
+  if (!anyCreditOrDebit) return raise('Could not find Credit or Debit column');
+  return raise(
+    'Code or Account and Credit or Debit must appear in the same header row',
+  );
+};
+
+/** spreadsheet with Account plus exactly one of Credit or Debit (case-insensitive headers). Not both Credit and Debit in the same sheet. */
+export const parseJournalImportSheet = (obj: unknown) => {
+  if (!isTwoDimensionalArray(obj)) {
+    raise('Invalid spreadsheet: expected rows of cells');
+  }
+
+  const rows = obj as unknown[][];
+  if (rows.length < 2) {
+    raise('Spreadsheet is empty');
+  }
+
+  const headerRowIndex = resolveJournalImportHeaderRowOrRaise(rows);
+
+  const headers = rows[headerRowIndex];
+  const normalizedHeaders = map(headers, (e) => toLowerString(e).trim());
+  const codeColumnIndex = normalizedHeaders.indexOf('code');
+  const accountColumnIndex = normalizedHeaders.indexOf('account');
+  const creditColumnIndex = normalizedHeaders.indexOf('credit');
+  const debitColumnIndex = normalizedHeaders.indexOf('debit');
+
+  if (creditColumnIndex !== -1 && debitColumnIndex !== -1) {
+    raise('Include only one of Credit or Debit columns, not both');
+  }
+  if (codeColumnIndex === -1 && accountColumnIndex === -1) {
+    raise('Required: at least one of Code or Account columns');
+  }
+
+  const amountColumnIndex =
+    creditColumnIndex !== -1 ? creditColumnIndex : debitColumnIndex;
+  const entrySide = creditColumnIndex !== -1 ? BalanceType.Cr : BalanceType.Dr;
+
+  const dataRows = rows.slice(headerRowIndex + 1);
+
+  let skippedRows = 0;
+  const entries = compact(
+    map(dataRows, (row, rowIndex) => {
+      const accountCode =
+        codeColumnIndex === -1 ? '' : toString(row[codeColumnIndex]).trim();
+      const accountName =
+        accountColumnIndex === -1
+          ? ''
+          : toString(row[accountColumnIndex]).trim();
+      const amount = parseCurrencyLikeAmount(row[amountColumnIndex]);
+      const excelRowNumber = headerRowIndex + rowIndex + 2;
+
+      if (
+        (isEmpty(accountCode) && isEmpty(accountName)) ||
+        amount === null ||
+        amount <= 0
+      ) {
+        skippedRows += 1;
+        return null;
+      }
+
+      return {
+        accountCode,
+        accountName,
+        amount: getFixedNumber(amount, 2),
+        rowNumber: excelRowNumber,
+      };
+    }),
+  );
+
+  if (isEmpty(entries)) {
+    raise('No valid rows to import');
+  }
+
+  return {
+    entrySide,
+    entries,
+    skippedRows,
+  };
+};
+
+// #endregion

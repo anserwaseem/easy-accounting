@@ -1,4 +1,10 @@
-import { Plus, Calendar as CalendarIcon, X, RefreshCw } from 'lucide-react';
+import {
+  Plus,
+  Calendar as CalendarIcon,
+  X,
+  RefreshCw,
+  Upload,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -33,8 +39,15 @@ import {
 } from 'renderer/shad/ui/form';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
-import type { Account, Journal, JournalEntry } from 'types';
+import {
+  BalanceType,
+  type Account,
+  type Journal,
+  type JournalEntry,
+} from 'types';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { convertFileToJson } from 'renderer/lib/lib';
+import { parseJournalImportSheet } from 'renderer/lib/parser';
 import {
   Dialog,
   DialogContent,
@@ -61,6 +74,7 @@ const NewJournalPage: React.FC = () => {
     Record<string, string>
   >({});
   const entryInputValuesRef = useRef<Record<string, string>>({});
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const getInitialEntry = useCallback(
     () => ({
@@ -529,6 +543,155 @@ const NewJournalPage: React.FC = () => {
     [append, getInitialEntry],
   );
 
+  const normalizeAccountCode = useCallback(
+    (value: unknown) => toString(value).trim().toLowerCase(),
+    [],
+  );
+  const normalizeAccountName = useCallback(
+    (value: unknown) => toString(value).trim().toLowerCase(),
+    [],
+  );
+
+  const handleImportJournalEntries = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      try {
+        const json = await convertFileToJson(file);
+        const parsed = parseJournalImportSheet(json);
+        const accountsByCode = new Map<string, Account[]>();
+        const accountsByName = new Map<string, Account[]>();
+
+        (accounts || []).forEach((account) => {
+          const normalizedCode = normalizeAccountCode(account.code);
+          const normalizedName = normalizeAccountName(account.name);
+          if (normalizedCode) {
+            const existingByCode = accountsByCode.get(normalizedCode) || [];
+            existingByCode.push(account);
+            accountsByCode.set(normalizedCode, existingByCode);
+          }
+          if (normalizedName) {
+            const existingByName = accountsByName.get(normalizedName) || [];
+            existingByName.push(account);
+            accountsByName.set(normalizedName, existingByName);
+          }
+        });
+
+        const unmatchedRows: string[] = [];
+        const importedEntries: JournalEntry[] = parsed.entries
+          .map((entry, index) => {
+            const normalizedRowCode = normalizeAccountCode(entry.accountCode);
+            const normalizedRowName = normalizeAccountName(entry.accountName);
+
+            let candidates: Account[] = [];
+            if (normalizedRowCode) {
+              candidates = accountsByCode.get(normalizedRowCode) || [];
+              if (normalizedRowName) {
+                candidates = candidates.filter(
+                  (candidate) =>
+                    normalizeAccountName(candidate.name) === normalizedRowName,
+                );
+              }
+            } else {
+              candidates = accountsByName.get(normalizedRowName) || [];
+              // support files where Account column contains account codes instead of names
+              if (candidates.length === 0 && normalizedRowName) {
+                candidates = accountsByCode.get(normalizedRowName) || [];
+              }
+            }
+
+            if (candidates.length !== 1) {
+              const identifier = normalizedRowCode
+                ? `${entry.accountCode} / ${entry.accountName}`
+                : entry.accountName;
+              unmatchedRows.push(identifier || `row ${entry.rowNumber}`);
+              return null;
+            }
+            const matchedAccount = candidates[0];
+
+            const isCreditSide = parsed.entrySide === BalanceType.Cr;
+            return {
+              id: Date.now() + index,
+              journalId: nextId,
+              accountId: matchedAccount.id,
+              debitAmount: isCreditSide ? 0 : entry.amount,
+              creditAmount: isCreditSide ? entry.amount : 0,
+            };
+          })
+          .filter((entry): entry is JournalEntry => entry !== null);
+
+        if (importedEntries.length === 0) {
+          raise(
+            'No rows were imported. Make sure account identifiers (code/name) exist in Accounts and amounts are greater than zero.',
+          );
+        }
+
+        const totalImportedAmount = getFixedNumber(
+          importedEntries.reduce(
+            (sum, row) => sum + row.creditAmount + row.debitAmount,
+            0,
+          ),
+          2,
+        );
+
+        const balancingEntry: JournalEntry =
+          parsed.entrySide === BalanceType.Cr
+            ? {
+                id: Date.now() + importedEntries.length + 1,
+                journalId: nextId,
+                accountId: 0,
+                debitAmount: totalImportedAmount,
+                creditAmount: 0,
+              }
+            : {
+                id: Date.now() + importedEntries.length + 1,
+                journalId: nextId,
+                accountId: 0,
+                debitAmount: 0,
+                creditAmount: totalImportedAmount,
+              };
+
+        setJournal((prev) => ({
+          ...prev,
+          journalEntries: [...importedEntries, balancingEntry],
+        }));
+        setEntryInputValues({});
+        entryInputValuesRef.current = {};
+        setTotalDebits(totalImportedAmount);
+        setTotalCredits(totalImportedAmount);
+
+        const sideLabel =
+          parsed.entrySide === BalanceType.Cr ? 'credit' : 'debit';
+        const balanceLabel =
+          parsed.entrySide === BalanceType.Cr ? 'debit' : 'credit';
+        const hasUnmatched = unmatchedRows.length > 0;
+
+        toast({
+          description: `Imported ${
+            importedEntries.length
+          } ${sideLabel} entries. Skipped ${parsed.skippedRows} rows. ${
+            hasUnmatched
+              ? `Unmatched/ambiguous rows: ${unmatchedRows.join(', ')}.`
+              : `Please select the ${balanceLabel} account next.`
+          }`,
+          variant: hasUnmatched ? 'warning' : 'success',
+          duration: hasUnmatched ? 10000 : 7000,
+        });
+      } catch (error) {
+        toast({
+          description: toString(error),
+          variant: 'destructive',
+        });
+      } finally {
+        event.target.value = '';
+      }
+    },
+    [accounts, nextId, normalizeAccountCode, normalizeAccountName],
+  );
+
   const submitJournal = async (values: z.infer<typeof formSchema>) => {
     try {
       const isInserted = await window.electron.insertJournal(values);
@@ -825,14 +988,33 @@ const NewJournalPage: React.FC = () => {
             </div>
 
             <div className="flex justify-between pr-4 gap-20 pb-20">
-              <Button
-                type="button"
-                className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
-                onClick={() => handleAddNewRow()}
-              >
-                <Plus size={20} />
-                <span className="w-max">Add New Row</span>
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
+                  onClick={() => handleAddNewRow()}
+                >
+                  <Plus size={20} />
+                  <span className="w-max">Add New Row</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => importInputRef.current?.click()}
+                  title="Import Entries from Excel"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import Entries
+                </Button>
+                <Input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={handleImportJournalEntries}
+                />
+              </div>
 
               <Table className="dark:bg-gray-900 bg-gray-100 rounded-xl">
                 <TableBody>

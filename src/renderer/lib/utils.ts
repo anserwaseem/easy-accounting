@@ -1,6 +1,14 @@
 import { Row, SortingFn } from '@tanstack/react-table';
 import { type ClassValue, clsx } from 'clsx';
-import { every, isArray, isNil, toString, toLower } from 'lodash';
+import {
+  every,
+  isArray,
+  isNil,
+  toString,
+  toLower,
+  isEmpty,
+  toNumber,
+} from 'lodash';
 import { twMerge } from 'tailwind-merge';
 import {
   currencyFormatOptions,
@@ -123,6 +131,25 @@ export const getFormattedCurrencyInt = (
   currencyIntFormatter
     .format(getFixedNumber(value, 0))
     .replace(withoutCurrency ? currencyFormatOptions.currency! : '', '');
+
+/**
+ * Parses a currency-like amount from a value.
+ * @param value - The value to parse.
+ * @returns The parsed amount.
+ * @example parseCurrencyLikeAmount('1,234.56'); // 1234.56
+ */
+export const parseCurrencyLikeAmount = (value: unknown): number | null => {
+  if (isNil(value)) return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const normalized = toString(value).replace(/[^0-9.-]/g, '');
+  if (isEmpty(normalized)) return null;
+
+  const amount = toNumber(normalized);
+  return Number.isFinite(amount) ? amount : null;
+};
 
 /**
  * Compares two date strings
