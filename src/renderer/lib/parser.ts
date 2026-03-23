@@ -784,27 +784,31 @@ export const checkParsedItemsAvailability = (
 
 // #region journal import sheet
 
-/** returns index of first row with Account + Credit/Debit together, or raises with a specific reason */
+/** returns index of first row with (Code or Account) + Credit/Debit together, or raises with a specific reason */
 const resolveJournalImportHeaderRowOrRaise = (rows: unknown[][]): number => {
+  let anyCode = false;
   let anyAccount = false;
   let anyCreditOrDebit = false;
   for (let i = 0; i < rows.length; i++) {
     const n = map(rows[i], (e) => toLowerString(e).trim());
+    const hasCode = n.includes('code');
     const hasAccount = n.includes('account');
     const hasCreditOrDebit = n.includes('credit') || n.includes('debit');
+    if (hasCode) anyCode = true;
     if (hasAccount) anyAccount = true;
     if (hasCreditOrDebit) anyCreditOrDebit = true;
-    if (hasAccount && hasCreditOrDebit) {
+    if ((hasCode || hasAccount) && hasCreditOrDebit) {
       return i;
     }
   }
-  if (!anyAccount && !anyCreditOrDebit) {
-    return raise('Could not find Account column or a Credit/Debit column');
+  if (!anyCode && !anyAccount && !anyCreditOrDebit) {
+    return raise('Could not find Code/Account or Credit/Debit columns');
   }
-  if (!anyAccount) return raise('Could not find Account column');
+  if (!anyCode && !anyAccount)
+    return raise('Could not find Code or Account column');
   if (!anyCreditOrDebit) return raise('Could not find Credit or Debit column');
   return raise(
-    'Account and Credit or Debit must appear in the same header row',
+    'Code or Account and Credit or Debit must appear in the same header row',
   );
 };
 
@@ -823,12 +827,16 @@ export const parseJournalImportSheet = (obj: unknown) => {
 
   const headers = rows[headerRowIndex];
   const normalizedHeaders = map(headers, (e) => toLowerString(e).trim());
+  const codeColumnIndex = normalizedHeaders.indexOf('code');
   const accountColumnIndex = normalizedHeaders.indexOf('account');
   const creditColumnIndex = normalizedHeaders.indexOf('credit');
   const debitColumnIndex = normalizedHeaders.indexOf('debit');
 
   if (creditColumnIndex !== -1 && debitColumnIndex !== -1) {
     raise('Include only one of Credit or Debit columns, not both');
+  }
+  if (codeColumnIndex === -1 && accountColumnIndex === -1) {
+    raise('Required: at least one of Code or Account columns');
   }
 
   const amountColumnIndex =
@@ -840,17 +848,27 @@ export const parseJournalImportSheet = (obj: unknown) => {
   let skippedRows = 0;
   const entries = compact(
     map(dataRows, (row, rowIndex) => {
-      const accountCode = toString(row[accountColumnIndex]).trim();
+      const accountCode =
+        codeColumnIndex === -1 ? '' : toString(row[codeColumnIndex]).trim();
+      const accountName =
+        accountColumnIndex === -1
+          ? ''
+          : toString(row[accountColumnIndex]).trim();
       const amount = parseCurrencyLikeAmount(row[amountColumnIndex]);
       const excelRowNumber = headerRowIndex + rowIndex + 2;
 
-      if (isEmpty(accountCode) || amount === null || amount <= 0) {
+      if (
+        (isEmpty(accountCode) && isEmpty(accountName)) ||
+        amount === null ||
+        amount <= 0
+      ) {
         skippedRows += 1;
         return null;
       }
 
       return {
         accountCode,
+        accountName,
         amount: getFixedNumber(amount, 2),
         rowNumber: excelRowNumber,
       };
