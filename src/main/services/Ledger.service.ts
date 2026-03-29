@@ -76,7 +76,7 @@ export class LedgerService {
       SELECT COUNT(*) as count
       FROM ledger
       WHERE accountId = @accountId
-      AND date > @date
+      AND datetime(date) > datetime(@date)
     `);
     this.stmLedger = this.db.prepare(
       `INSERT INTO ledger (date, accountId, debit, credit, balance, balanceType, particulars, linkedAccountId)
@@ -86,7 +86,7 @@ export class LedgerService {
       `SELECT balance, balanceType
        FROM ledger
        WHERE accountId = @accountId
-       ORDER BY date DESC, id DESC
+       ORDER BY datetime(date) DESC, id DESC
        LIMIT 1`,
     );
   }

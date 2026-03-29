@@ -217,6 +217,11 @@ const electronHandler = {
   insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) =>
     ipcRenderer.invoke('invoice:insert', invoiceType, invoice),
 
+  importHistoricInvoices: (absoluteJsonPath: string) =>
+    ipcRenderer.invoke('invoice:importHistoric', absoluteJsonPath) as Promise<{
+      inserted: number;
+    }>,
+
   getInvoices: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getAll', invoiceType),
 

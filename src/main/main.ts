@@ -6,6 +6,7 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
+import fs from 'fs';
 import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import log from 'electron-log';
@@ -23,6 +24,7 @@ import type {
   UpdateJournalFields,
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
+  HistoricInvoiceImportFile,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -386,6 +388,25 @@ app
       (_, invoiceType: InvoiceType, invoice: Invoice) =>
         invoiceService.insertInvoice(invoiceType, invoice),
     );
+    ipcMain.handle('invoice:importHistoric', (_, absoluteJsonPath: string) => {
+      const resolved = path.isAbsolute(absoluteJsonPath)
+        ? absoluteJsonPath
+        : path.resolve(process.cwd(), absoluteJsonPath);
+      const raw = fs.readFileSync(resolved, 'utf8');
+      const data = JSON.parse(raw) as HistoricInvoiceImportFile;
+      if (!Array.isArray(data?.invoices)) {
+        raise('historic invoice file must be JSON with an "invoices" array');
+      }
+      const validTypes = [InvoiceType.Sale, InvoiceType.Purchase];
+      data.invoices.forEach((row, i) => {
+        if (!validTypes.includes(row.invoiceType)) {
+          raise(
+            `invoices[${i}]: invalid invoiceType "${String(row.invoiceType)}"`,
+          );
+        }
+      });
+      return invoiceService.insertHistoricInvoicesAtomic(data.invoices);
+    });
     ipcMain.handle('invoice:getAll', (_, invoiceType: InvoiceType) =>
       invoiceService.getInvoices(invoiceType),
     );

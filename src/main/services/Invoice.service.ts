@@ -1,9 +1,11 @@
 import type { Database, Statement } from 'better-sqlite3';
 import log from 'electron-log';
-import { forEach, get, groupBy, toNumber, uniq } from 'lodash';
+import { forEach, get, groupBy, round, toNumber, uniq } from 'lodash';
 import { write, utils } from 'xlsx';
 import {
+  type HistoricInvoiceBatchRow,
   type Invoice,
+  type InvoiceInsertOptions,
   InvoiceItem,
   InvoiceItemView,
   InvoiceType,
@@ -13,7 +15,11 @@ import {
 } from '../../types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
-import { raise, convertOrdinalDate } from '../utils/general';
+import {
+  raise,
+  convertOrdinalDate,
+  normalizeToSqliteDate,
+} from '../utils/general';
 import { JournalService } from './Journal.service';
 import { AccountService } from './Account.service';
 import { PricingService } from './Pricing.service';
@@ -39,7 +45,13 @@ export class InvoiceService {
 
   private stmInsertInvoiceItems!: Statement;
 
+  private stmInsertInvoiceItemsExplicitPrice!: Statement;
+
   private stmUpdateInventoryItem!: Statement;
+
+  private stmDoesAccountExistById!: Statement;
+
+  private stmDoesInventoryExistById!: Statement;
 
   private stmGetInvoices!: Statement;
 
@@ -118,15 +130,178 @@ export class InvoiceService {
   insertInvoice(
     invoiceType: InvoiceType,
     invoice: Invoice,
+    options?: InvoiceInsertOptions,
   ): { invoiceId: number; nextInvoiceNumber: number } {
     return this.db.transaction(() => {
-      return this.insertInvoiceWithoutTransaction(invoiceType, invoice);
+      return this.insertInvoiceWithoutTransaction(
+        invoiceType,
+        invoice,
+        options,
+      );
     })();
+  }
+
+  /**
+   * imports many invoices in one DB transaction (all commit or all rollback).
+   * defaults: skip inventory qty changes, persist line prices from payload (historic JSON);
+   * for Purchase, zero/missing line prices are replaced from inventory.price and totalAmount is recomputed.
+   */
+  insertHistoricInvoicesAtomic(
+    rows: HistoricInvoiceBatchRow[],
+    options?: InvoiceInsertOptions,
+  ): { inserted: number } {
+    const merged: InvoiceInsertOptions = {
+      skipInventoryUpdate: options?.skipInventoryUpdate !== false,
+      useExplicitLinePrices: options?.useExplicitLinePrices !== false,
+      historicPurchaseResolvePricesFromInventory:
+        options?.historicPurchaseResolvePricesFromInventory !== false,
+    };
+    return this.db.transaction(() => {
+      let index = 0;
+      for (const row of rows) {
+        let result!: { invoiceId: number; nextInvoiceNumber: number };
+        try {
+          result = this.insertInvoiceWithoutTransaction(
+            row.invoiceType,
+            row.invoice,
+            merged,
+          );
+        } catch (error) {
+          const n = row.invoice?.invoiceNumber;
+          const d = row.invoice?.date;
+          raise(
+            `historic import failed at index ${index} (invoiceNumber=${String(
+              n,
+            )}, type=${row.invoiceType}, date=${String(d)}): ${String(error)}`,
+          );
+        }
+        if (result.invoiceId < 0) {
+          raise(
+            `historic import failed at index ${index} (invoiceNumber=${row.invoice.invoiceNumber}, type=${row.invoiceType})`,
+          );
+        }
+        index += 1;
+      }
+      return { inserted: rows.length };
+    })();
+  }
+
+  /**
+   * batch-read inventory unit prices for historic purchase line resolution.
+   */
+  private getInventoryUnitPricesByIds(
+    inventoryIds: number[],
+  ): Map<number, number> {
+    const uniqueIds = uniq(
+      inventoryIds.filter((id) => Number.isFinite(id) && id > 0),
+    );
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+    const stmt = this.db.prepare(
+      `SELECT id, price FROM inventory WHERE id IN (${uniqueIds
+        .map(() => '?')
+        .join(', ')})`,
+    );
+    const rows = stmt.all(...uniqueIds.map((id) => cast(id))) as Array<{
+      id: number;
+      price: number;
+    }>;
+    return new Map(rows.map((r) => [r.id, r.price]));
+  }
+
+  /**
+   * historic purchase JSON often has line price 0; fill from inventory.price and set header total (gross lines minus extra discount).
+   */
+  private buildInvoiceWithHistoricPurchaseInventoryPrices(
+    invoice: Invoice,
+  ): Invoice {
+    const priceById = this.getInventoryUnitPricesByIds(
+      invoice.invoiceItems.map((item) => item.inventoryId),
+    );
+    const invoiceItems = invoice.invoiceItems.map((item) => {
+      const explicit = toNumber(item.price);
+      const invPrice = toNumber(priceById.get(item.inventoryId) ?? 0);
+      const useInventoryPrice = !Number.isFinite(explicit) || explicit === 0;
+      const resolved = useInventoryPrice ? invPrice : explicit;
+      if (useInventoryPrice && invPrice === 0) {
+        log.warn(
+          'historic purchase import: line price was 0/missing and inventory.price is 0',
+          { inventoryId: item.inventoryId },
+        );
+      }
+      return { ...item, price: resolved };
+    });
+    const linesGross = invoiceItems.reduce(
+      (sum, item) =>
+        sum + InvoiceService.getInvoiceItemTotal(item, toNumber(item.price)),
+      0,
+    );
+    const extra = toNumber(invoice.extraDiscount) || 0;
+    return {
+      ...invoice,
+      invoiceItems,
+      totalAmount: round(linesGross - extra, 2),
+    };
+  }
+
+  private insertInvoiceLineItem(
+    invoiceType: InvoiceType,
+    invoiceId: number,
+    item: InvoiceItem,
+    accountId: number,
+    options?: InvoiceInsertOptions,
+  ): void {
+    const accountExists = this.stmDoesAccountExistById.get({
+      id: cast(accountId),
+    }) as { count: number };
+    if ((accountExists?.count ?? 0) === 0) {
+      raise(`accountId=${accountId} does not exist`);
+    }
+    const inventoryExists = this.stmDoesInventoryExistById.get({
+      id: cast(item.inventoryId),
+    }) as { count: number };
+    if ((inventoryExists?.count ?? 0) === 0) {
+      raise(`inventoryId=${item.inventoryId} does not exist`);
+    }
+
+    const useExplicit = options?.useExplicitLinePrices === true;
+    if (useExplicit) {
+      const price = toNumber(item.price);
+      if (!Number.isFinite(price) || price < 0) {
+        raise(
+          'historic import requires each line item to have a finite price >= 0',
+        );
+      }
+      this.stmInsertInvoiceItemsExplicitPrice.run({
+        invoiceId,
+        inventoryId: item.inventoryId,
+        quantity: item.quantity,
+        price,
+        discount: toNumber(item.discount) || 0,
+        accountId,
+      });
+    } else {
+      this.stmInsertInvoiceItems.run({
+        invoiceId,
+        inventoryId: item.inventoryId,
+        quantity: item.quantity,
+        discount: toNumber(item.discount) || 0,
+        accountId,
+      });
+    }
+    if (options?.skipInventoryUpdate !== true) {
+      this.stmUpdateInventoryItem.run(
+        invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
+        item.inventoryId,
+      );
+    }
   }
 
   private insertInvoiceWithoutTransaction(
     invoiceType: InvoiceType,
     invoice: Invoice,
+    options?: InvoiceInsertOptions,
   ): { invoiceId: number; nextInvoiceNumber: number } {
     const invalid = { invoiceId: -1, nextInvoiceNumber: -1 };
     if (!invoice.invoiceNumber) {
@@ -134,33 +309,63 @@ export class InvoiceService {
       return invalid;
     }
 
-    const totalAmount = invoice.totalAmount ?? 0;
+    const effectiveInvoice =
+      invoiceType === InvoiceType.Purchase &&
+      options?.historicPurchaseResolvePricesFromInventory === true &&
+      options?.useExplicitLinePrices === true
+        ? this.buildInvoiceWithHistoricPurchaseInventoryPrices(invoice)
+        : invoice;
 
-    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const invoiceForInsert: Invoice = {
+      ...effectiveInvoice,
+      date: normalizeToSqliteDate(effectiveInvoice.date),
+    };
+
+    const totalAmount = invoiceForInsert.totalAmount ?? 0;
+    const extraDiscount = toNumber(invoiceForInsert.extraDiscount) || 0;
+
+    const multipleIds = invoiceForInsert.accountMapping.multipleAccountIds;
     const hasMultiple =
       Array.isArray(multipleIds) &&
-      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.length === invoiceForInsert.invoiceItems.length &&
       multipleIds.every((id) => typeof id === 'number' && id > 0);
 
     // multiple accounts (e.g. type-based split or sections) - multiple journals
     if (hasMultiple) {
       // use primary party (real customer) for invoice header so display shows unsuffixed name
       const primaryAccountId =
-        toNumber(invoice.accountMapping.singleAccountId) || multipleIds[0];
+        toNumber(invoiceForInsert.accountMapping.singleAccountId) ||
+        multipleIds[0];
+      const primaryExists = this.stmDoesAccountExistById.get({
+        id: cast(primaryAccountId),
+      }) as { count: number };
+      if ((primaryExists?.count ?? 0) === 0) {
+        raise(`invoice header accountId=${primaryAccountId} does not exist`);
+      }
+
+      for (const id of uniq(multipleIds)) {
+        const exists = this.stmDoesAccountExistById.get({ id: cast(id) }) as {
+          count: number;
+        };
+        if ((exists?.count ?? 0) === 0) {
+          raise(`invoice line accountId=${id} does not exist`);
+        }
+      }
+
       const invoiceResult = this.stmInsertInvoice.run({
-        date: invoice.date,
+        date: invoiceForInsert.date,
         accountId: primaryAccountId,
         invoiceType,
         totalAmount,
-        invoiceNumber: invoice.invoiceNumber,
-        extraDiscount: invoice.extraDiscount,
-        biltyNumber: invoice.biltyNumber,
-        cartons: invoice.cartons,
+        invoiceNumber: invoiceForInsert.invoiceNumber,
+        extraDiscount,
+        biltyNumber: invoiceForInsert.biltyNumber,
+        cartons: invoiceForInsert.cartons,
       });
       const invoiceId = <number>invoiceResult.lastInsertRowid;
 
-      const itemsByAccount = groupBy(invoice.invoiceItems, (item) => {
-        return multipleIds[invoice.invoiceItems.indexOf(item)];
+      const itemsByAccount = groupBy(invoiceForInsert.invoiceItems, (item) => {
+        return multipleIds[invoiceForInsert.invoiceItems.indexOf(item)];
       });
 
       forEach(itemsByAccount, (groupItems, accountId) => {
@@ -176,30 +381,24 @@ export class InvoiceService {
           );
 
         for (const item of groupItems) {
-          this.stmInsertInvoiceItems.run({
+          this.insertInvoiceLineItem(
+            invoiceType,
             invoiceId,
-            inventoryId: item.inventoryId,
-            quantity: item.quantity,
-            discount: item.discount,
-            accountId: toNumber(accountId),
-          });
-
-          this.stmUpdateInventoryItem.run(
-            invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
-            item.inventoryId,
+            item,
+            toNumber(accountId),
+            options,
           );
         }
 
         this.createJournalEntry(
           invoiceType,
-          invoice,
+          invoiceForInsert,
           toNumber(accountId),
           groupTotalAmount,
           groupDiscountPercentage,
         );
       });
 
-      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
       if (extraDiscount > 0) {
         const discountAccount = this.accountService.getAccountByName(
           DISCOUNT_ACCOUNT_NAME,
@@ -210,13 +409,13 @@ export class InvoiceService {
           );
         }
         const creditAccountId =
-          toNumber(invoice.extraDiscountAccountId) || multipleIds[0];
+          toNumber(invoiceForInsert.extraDiscountAccountId) || multipleIds[0];
         if (!creditAccountId || !multipleIds.includes(creditAccountId)) {
           raise('Extra discount requires a valid account selection.');
         }
         this.createExtraDiscountJournalEntry(
           invoiceType,
-          invoice,
+          invoiceForInsert,
           discountAccount!.id,
           creditAccountId,
           extraDiscount,
@@ -229,37 +428,37 @@ export class InvoiceService {
     }
 
     // all items use the same account - single journal
-    if (invoice.accountMapping.singleAccountId) {
-      const accountId = invoice.accountMapping.singleAccountId;
+    if (invoiceForInsert.accountMapping.singleAccountId) {
+      const accountId = invoiceForInsert.accountMapping.singleAccountId;
+      const accountExists = this.stmDoesAccountExistById.get({
+        id: cast(accountId),
+      }) as { count: number };
+      if ((accountExists?.count ?? 0) === 0) {
+        raise(`invoice header accountId=${accountId} does not exist`);
+      }
 
       const invoiceResult = this.stmInsertInvoice.run({
-        date: invoice.date,
+        date: invoiceForInsert.date,
         accountId,
         invoiceType,
         totalAmount,
-        invoiceNumber: invoice.invoiceNumber,
-        extraDiscount: invoice.extraDiscount,
-        biltyNumber: invoice.biltyNumber,
-        cartons: invoice.cartons,
+        invoiceNumber: invoiceForInsert.invoiceNumber,
+        extraDiscount,
+        biltyNumber: invoiceForInsert.biltyNumber,
+        cartons: invoiceForInsert.cartons,
       });
       const invoiceId = <number>invoiceResult.lastInsertRowid;
 
-      for (const item of invoice.invoiceItems) {
-        this.stmInsertInvoiceItems.run({
+      for (const item of invoiceForInsert.invoiceItems) {
+        this.insertInvoiceLineItem(
+          invoiceType,
           invoiceId,
-          inventoryId: item.inventoryId,
-          quantity: item.quantity,
-          discount: item.discount,
+          item,
           accountId,
-        });
-
-        this.stmUpdateInventoryItem.run(
-          invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
-          item.inventoryId,
+          options,
         );
       }
 
-      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
       if (extraDiscount > 0) {
         const discountAccount = this.accountService.getAccountByName(
           DISCOUNT_ACCOUNT_NAME,
@@ -271,20 +470,20 @@ export class InvoiceService {
         }
         const discountAccountId = discountAccount!.id;
         const creditAccountId =
-          toNumber(invoice.extraDiscountAccountId) ?? accountId;
+          toNumber(invoiceForInsert.extraDiscountAccountId) ?? accountId;
         this.createJournalEntry(
           invoiceType,
-          invoice,
+          invoiceForInsert,
           accountId,
           totalAmount + extraDiscount,
           this.pricingService.getPolicyDiscountPercentForInventoryIds(
             accountId,
-            invoice.invoiceItems.map((item) => item.inventoryId),
+            invoiceForInsert.invoiceItems.map((item) => item.inventoryId),
           ),
         );
         this.createExtraDiscountJournalEntry(
           invoiceType,
-          invoice,
+          invoiceForInsert,
           discountAccountId,
           creditAccountId,
           extraDiscount,
@@ -292,12 +491,12 @@ export class InvoiceService {
       } else {
         this.createJournalEntry(
           invoiceType,
-          invoice,
+          invoiceForInsert,
           accountId,
           totalAmount,
           this.pricingService.getPolicyDiscountPercentForInventoryIds(
             accountId,
-            invoice.invoiceItems.map((item) => item.inventoryId),
+            invoiceForInsert.invoiceItems.map((item) => item.inventoryId),
           ),
         );
       }
@@ -562,10 +761,29 @@ export class InvoiceService {
       VALUES (@invoiceId, @inventoryId, @quantity, (SELECT price FROM inventory WHERE id = @inventoryId), @discount, @accountId)
     `);
 
+    this.stmInsertInvoiceItemsExplicitPrice = this.db.prepare(`
+      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId)
+      VALUES (@invoiceId, @inventoryId, @quantity, @price, @discount, @accountId)
+    `);
+
     this.stmUpdateInventoryItem = this.db.prepare(`
       UPDATE inventory
       SET quantity = quantity + ?
       WHERE id = ?
+    `);
+
+    this.stmDoesAccountExistById = this.db.prepare(`
+      SELECT COUNT(1) AS count
+      FROM account
+      WHERE id = @id
+      LIMIT 1
+    `);
+
+    this.stmDoesInventoryExistById = this.db.prepare(`
+      SELECT COUNT(1) AS count
+      FROM inventory
+      WHERE id = @id
+      LIMIT 1
     `);
 
     // query detailed explanation:

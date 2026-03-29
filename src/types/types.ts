@@ -278,6 +278,23 @@ export type Invoice = Prettify<
   }
 >;
 
+/** flags for insertInvoice and historic JSON import */
+export interface InvoiceInsertOptions {
+  skipInventoryUpdate?: boolean;
+  useExplicitLinePrices?: boolean;
+  /** purchase + explicit line prices: replace zero/missing line price with inventory.price and recompute totalAmount (historic import default) */
+  historicPurchaseResolvePricesFromInventory?: boolean;
+}
+
+export interface HistoricInvoiceBatchRow {
+  invoiceType: InvoiceType;
+  invoice: Invoice;
+}
+
+export interface HistoricInvoiceImportFile {
+  invoices: HistoricInvoiceBatchRow[];
+}
+
 /** DTO */
 export type LedgerView = Prettify<Ledger & { linkedAccountName?: string }>;
 export type JournalView = Prettify<Journal & { amount: number }>;

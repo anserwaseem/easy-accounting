@@ -8,7 +8,7 @@ import { AccountType, BalanceType } from '../../types';
 import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
 import { LedgerService } from './Ledger.service';
-import { raise } from '../utils/general';
+import { normalizeToSqliteDate, raise } from '../utils/general';
 
 @logErrors
 export class JournalService {
@@ -117,8 +117,14 @@ export class JournalService {
           raise('Journal has multiple debits and multiple credits');
         }
 
-        const { date, narration, isPosted, billNumber, discountPercentage } =
-          journal;
+        const {
+          date: rawDate,
+          narration,
+          isPosted,
+          billNumber,
+          discountPercentage,
+        } = journal;
+        const date = normalizeToSqliteDate(rawDate);
 
         // first check if this is a past dated entry that needs rebuilding
         const affectedAccounts = new Set(

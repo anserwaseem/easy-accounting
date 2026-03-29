@@ -1,9 +1,9 @@
 /* eslint import/prefer-default-export: off */
 import { URL } from 'url';
 import path from 'path';
-import { format, parse } from 'date-fns';
+import { format, isValid, parse, parseISO } from 'date-fns';
 import { lookup } from 'dns';
-import { get, isEmpty } from 'lodash';
+import { get, isEmpty, toNumber } from 'lodash';
 import { hostname } from 'node:os';
 import cp from 'node:child_process';
 
@@ -34,6 +34,50 @@ export function resolveHtmlPath(htmlFileName: string) {
  */
 export const formatDate = (date: Date | string | number): string => {
   return format(new Date(date), 'dd-MMM-yy').toLowerCase();
+};
+
+/** calendar yyyy-MM-dd in UTC for ISO strings (handles Z and offsets without shifting the wrong calendar day). */
+const formatIsoLikeStringAsUtcYmd = (s: string): string | null => {
+  const d = parseISO(s);
+  if (!isValid(d)) {
+    return null;
+  }
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+/**
+ * normalizes invoice/journal date strings to yyyy-MM-dd so SQLite datetime() sorts and compares correctly.
+ * slash forms like 02/03/2026 are parsed as US (M/D/YYYY); ISO strings use the UTC calendar date.
+ */
+export const normalizeToSqliteDate = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return raise('date is required');
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    const ymd = formatIsoLikeStringAsUtcYmd(trimmed);
+    if (ymd) {
+      return ymd;
+    }
+  }
+  const slash = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slash) {
+    const month = toNumber(slash[1]);
+    const day = toNumber(slash[2]);
+    const year = toNumber(slash[3]);
+    const parsed = parse(`${month}/${day}/${year}`, 'M/d/yyyy', new Date(0));
+    if (isValid(parsed)) {
+      return format(parsed, 'yyyy-MM-dd');
+    }
+  }
+  const fallback = new Date(trimmed);
+  if (!Number.isNaN(fallback.getTime())) {
+    return format(fallback, 'yyyy-MM-dd');
+  }
+  return raise(`unparseable date: ${raw}`);
 };
 
 /**

@@ -42,6 +42,13 @@ export class DatabaseService {
   }
 
   static getPath(): string {
+    const override = process.env.EASY_ACCOUNTING_DB_PATH?.trim();
+    if (override) {
+      return path.isAbsolute(override)
+        ? override
+        : path.resolve(process.cwd(), override);
+    }
+
     const databaseFileName = 'database.db';
     let databasePath: string;
 
