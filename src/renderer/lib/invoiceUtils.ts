@@ -30,11 +30,13 @@ export const computeSectionTotals = (
     (sum, item) => sum + toNumber(item.quantity),
     0,
   );
-  const totalAmount = items.reduce(
+  const rawTotalAmount = items.reduce(
     (sum, item) => sum + getInvoiceItemDiscountedAmount(item),
     0,
   );
-  return { totalQuantity, totalAmount };
+  // section total is rounded to nearest rupee before contributing to grand totals.
+  const rounded = Math.round(toNumber(rawTotalAmount));
+  return { totalQuantity, totalAmount: rounded };
 };
 
 /** groups invoice items by itemTypeName, sorted with primary type first then alphabetically. */

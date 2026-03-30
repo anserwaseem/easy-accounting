@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { format } from 'date-fns';
-import { get, isNil, sum, toNumber, toString } from 'lodash';
+import { get, isNil, toNumber, toString } from 'lodash';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -14,7 +14,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   cn,
   defaultSortingFunctions,
-  getFixedNumber,
   getFormattedCurrency,
   raise,
 } from 'renderer/lib/utils';
@@ -296,7 +295,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [watchedInvoiceItems],
   );
 
-  // recompute totalAmount from line items (with optional cumulative discount) minus extra discount
+  // recompute totalAmount as sum of rounded section totals (F/T/TT) minus extra discount.
+  // each section total is rounded to nearest rupee first; grand total is not rounded again.
   useEffect(() => {
     if (!hasActiveInvoiceItem) {
       form.setValue('totalAmount', 0, {
@@ -306,20 +306,29 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       return;
     }
 
-    const grossTotal = sum(
-      watchedInvoiceItems.map((item) =>
-        enableCumulativeDiscount && cumulativeDiscount
-          ? computeInvoiceItemTotal(
-              item.quantity,
-              cumulativeDiscount,
-              item.price,
-            )
-          : item.discountedPrice,
-      ),
+    const sectionSums = watchedInvoiceItems.reduce(
+      (acc, item) => {
+        const key = rowSectionMap[item.id] || 'No Type';
+        const amount =
+          enableCumulativeDiscount && cumulativeDiscount
+            ? computeInvoiceItemTotal(
+                item.quantity,
+                cumulativeDiscount,
+                item.price,
+              )
+            : toNumber(item.discountedPrice);
+        acc[key] = (acc[key] ?? 0) + toNumber(amount);
+        return acc;
+      },
+      {} as Record<string, number>,
     );
-    const total = grossTotal - toNumber(watchedExtraDiscount ?? 0);
 
-    form.setValue('totalAmount', getFixedNumber(total, 2), {
+    const grossRounded = Object.values(sectionSums).reduce((sumRupees, s) => {
+      return sumRupees + Math.round(toNumber(s));
+    }, 0);
+    const total = grossRounded - toNumber(watchedExtraDiscount ?? 0);
+
+    form.setValue('totalAmount', total, {
       shouldValidate: false,
       shouldDirty: true,
     });
@@ -330,6 +339,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     hasActiveInvoiceItem,
     watchedExtraDiscount,
     watchedInvoiceItems,
+    rowSectionMap,
   ]);
 
   const getSelectedItem = useCallback(

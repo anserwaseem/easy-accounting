@@ -282,8 +282,14 @@ export type Invoice = Prettify<
 export interface InvoiceInsertOptions {
   skipInventoryUpdate?: boolean;
   useExplicitLinePrices?: boolean;
-  /** purchase + explicit line prices: replace zero/missing line price with inventory.price and recompute totalAmount (historic import default) */
-  historicPurchaseResolvePricesFromInventory?: boolean;
+  /** historic import: use inventory.price instead of JSON line price (recommended default for historic). */
+  historicResolveInventoryPrices?: boolean;
+  /** historic import (sales): apply account's discount policy (discountProfileId) instead of JSON line discount. */
+  historicApplyPolicyDiscounts?: boolean;
+  /** historic import (sales): resolve per-line accountId from current inventory item type (F/T/TT) under the base account. */
+  historicResolveAccountsByItemType?: boolean;
+  /** historic import: compute totalAmount from resolved line totals (minus extraDiscount). */
+  historicRecomputeTotalAmount?: boolean;
 }
 
 export interface HistoricInvoiceBatchRow {

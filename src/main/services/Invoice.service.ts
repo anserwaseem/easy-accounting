@@ -1,6 +1,6 @@
 import type { Database, Statement } from 'better-sqlite3';
 import log from 'electron-log';
-import { forEach, get, groupBy, round, toNumber, uniq } from 'lodash';
+import { forEach, get, groupBy, toNumber, uniq } from 'lodash';
 import { write, utils } from 'xlsx';
 import {
   type HistoricInvoiceBatchRow,
@@ -64,6 +64,14 @@ export class InvoiceService {
   private stmGetSalePurchaseAccounts!: Statement;
 
   private stmUpdateInvoiceBiltyAndCartons!: Statement;
+
+  private stmGetAccountNameById!: Statement;
+
+  private stmGetAccountIdByName!: Statement;
+
+  private stmGetAccountCodeById!: Statement;
+
+  private stmGetAccountIdByCode!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -143,8 +151,8 @@ export class InvoiceService {
 
   /**
    * imports many invoices in one DB transaction (all commit or all rollback).
-   * defaults: skip inventory qty changes, persist line prices from payload (historic JSON);
-   * for Purchase, zero/missing line prices are replaced from inventory.price and totalAmount is recomputed.
+   * defaults: skip inventory qty changes; use inventory.price; apply customer discount policy (sales);
+   * recompute totalAmount from resolved lines.
    */
   insertHistoricInvoicesAtomic(
     rows: HistoricInvoiceBatchRow[],
@@ -152,9 +160,15 @@ export class InvoiceService {
   ): { inserted: number } {
     const merged: InvoiceInsertOptions = {
       skipInventoryUpdate: options?.skipInventoryUpdate !== false,
-      useExplicitLinePrices: options?.useExplicitLinePrices !== false,
-      historicPurchaseResolvePricesFromInventory:
-        options?.historicPurchaseResolvePricesFromInventory !== false,
+      useExplicitLinePrices: options?.useExplicitLinePrices === true,
+      historicResolveInventoryPrices:
+        options?.historicResolveInventoryPrices !== false,
+      historicApplyPolicyDiscounts:
+        options?.historicApplyPolicyDiscounts !== false,
+      historicResolveAccountsByItemType:
+        options?.historicResolveAccountsByItemType !== false,
+      historicRecomputeTotalAmount:
+        options?.historicRecomputeTotalAmount !== false,
     };
     return this.db.transaction(() => {
       let index = 0;
@@ -210,38 +224,259 @@ export class InvoiceService {
     return new Map(rows.map((r) => [r.id, r.price]));
   }
 
-  /**
-   * historic purchase JSON often has line price 0; fill from inventory.price and set header total (gross lines minus extra discount).
-   */
-  private buildInvoiceWithHistoricPurchaseInventoryPrices(
-    invoice: Invoice,
-  ): Invoice {
-    const priceById = this.getInventoryUnitPricesByIds(
-      invoice.invoiceItems.map((item) => item.inventoryId),
+  private getInventoryItemTypeIdsByIds(
+    inventoryIds: number[],
+  ): Map<number, number | null> {
+    const uniqueIds = uniq(
+      inventoryIds.filter((id) => Number.isFinite(id) && id > 0),
     );
-    const invoiceItems = invoice.invoiceItems.map((item) => {
-      const explicit = toNumber(item.price);
-      const invPrice = toNumber(priceById.get(item.inventoryId) ?? 0);
-      const useInventoryPrice = !Number.isFinite(explicit) || explicit === 0;
-      const resolved = useInventoryPrice ? invPrice : explicit;
-      if (useInventoryPrice && invPrice === 0) {
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+    const stmt = this.db.prepare(
+      `SELECT id, itemTypeId FROM inventory WHERE id IN (${uniqueIds
+        .map(() => '?')
+        .join(', ')})`,
+    );
+    const rows = stmt.all(...uniqueIds.map((id) => cast(id))) as Array<{
+      id: number;
+      itemTypeId: number | null;
+    }>;
+    return new Map(rows.map((r) => [r.id, r.itemTypeId]));
+  }
+
+  private getInventoryItemTypeNamesByIds(
+    inventoryIds: number[],
+  ): Map<number, string> {
+    const uniqueIds = uniq(
+      inventoryIds.filter((id) => Number.isFinite(id) && id > 0),
+    );
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+    const stmt = this.db.prepare(
+      `SELECT i.id as id, COALESCE(it.name, 'F') as typeName
+       FROM inventory i
+       LEFT JOIN item_types it ON it.id = i.itemTypeId
+       WHERE i.id IN (${uniqueIds.map(() => '?').join(', ')})`,
+    );
+    const rows = stmt.all(...uniqueIds.map((id) => cast(id))) as Array<{
+      id: number;
+      typeName: string;
+    }>;
+    return new Map(rows.map((r) => [r.id, String(r.typeName || 'F')]));
+  }
+
+  private getAccountNameById(accountId: number): string | null {
+    const row = this.stmGetAccountNameById.get({
+      id: cast(accountId),
+    }) as { name?: string } | undefined;
+    const name = String(row?.name ?? '').trim();
+    return name || null;
+  }
+
+  private getAccountIdByName(name: string): number | null {
+    const row = this.stmGetAccountIdByName.get({
+      name,
+    }) as { id?: number } | undefined;
+    const id = toNumber(row?.id);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  private getAccountCodeById(accountId: number): string | null {
+    const row = this.stmGetAccountCodeById.get({
+      id: cast(accountId),
+    }) as { code?: string | number } | undefined;
+    const code = String(row?.code ?? '').trim();
+    return code || null;
+  }
+
+  private getAccountIdByCode(code: string): number | null {
+    const row = this.stmGetAccountIdByCode.get({
+      code,
+    }) as { id?: number } | undefined;
+    const id = toNumber(row?.id);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  private static stripTypedSuffix(name: string): string {
+    return String(name)
+      .replace(/-(TT|T)\s*$/i, '')
+      .trim();
+  }
+
+  private static typedAccountName(baseName: string, typeName: string): string {
+    const base = InvoiceService.stripTypedSuffix(baseName);
+    const t = String(typeName || 'F')
+      .trim()
+      .toUpperCase();
+    if (t === 'T') return `${base}-T`;
+    if (t === 'TT') return `${base}-TT`;
+    return base;
+  }
+
+  private static stripTypedSuffixFromCode(code: string): string {
+    return String(code)
+      .replace(/-(TT|T)\s*$/i, '')
+      .trim();
+  }
+
+  private static typedAccountCode(baseCode: string, typeName: string): string {
+    const base = InvoiceService.stripTypedSuffixFromCode(baseCode);
+    const t = String(typeName || 'F')
+      .trim()
+      .toUpperCase();
+    if (t === 'T') return `${base}-T`;
+    if (t === 'TT') return `${base}-TT`;
+    return base;
+  }
+
+  /**
+   * builds an effective invoice for historic imports by resolving inventory price,
+   * applying policy discounts (sales), and recomputing totalAmount.
+   */
+  private buildInvoiceForHistoricImport(
+    invoiceType: InvoiceType,
+    invoice: Invoice,
+    options: InvoiceInsertOptions,
+  ): Invoice {
+    const resolvePrices = options.historicResolveInventoryPrices === true;
+    const applyPolicyDiscounts =
+      options.historicApplyPolicyDiscounts === true &&
+      invoiceType === InvoiceType.Sale;
+    const recomputeTotal = options.historicRecomputeTotalAmount === true;
+    const resolveAccountsByItemType =
+      options.historicResolveAccountsByItemType === true &&
+      invoiceType === InvoiceType.Sale;
+
+    const priceById = resolvePrices
+      ? this.getInventoryUnitPricesByIds(
+          invoice.invoiceItems.map((item) => item.inventoryId),
+        )
+      : new Map<number, number>();
+
+    const originalMultipleIds = invoice.accountMapping.multipleAccountIds;
+    const originalHasMultiple =
+      Array.isArray(originalMultipleIds) &&
+      originalMultipleIds.length === invoice.invoiceItems.length &&
+      originalMultipleIds.every((id) => typeof id === 'number' && id > 0);
+
+    const headerAccountId =
+      toNumber(invoice.accountMapping.singleAccountId) ||
+      (originalHasMultiple ? toNumber(originalMultipleIds[0]) : 0);
+
+    const baseAccountCode = headerAccountId
+      ? this.getAccountCodeById(headerAccountId)
+      : null;
+
+    const itemTypeNameByInventoryId = resolveAccountsByItemType
+      ? this.getInventoryItemTypeNamesByIds(
+          invoice.invoiceItems.map((it) => it.inventoryId),
+        )
+      : new Map<number, string>();
+
+    const resolvedMultipleIds = resolveAccountsByItemType
+      ? invoice.invoiceItems.map((it, idx) => {
+          const typeName = itemTypeNameByInventoryId.get(it.inventoryId) || 'F';
+          const fallback =
+            originalHasMultiple && Array.isArray(originalMultipleIds)
+              ? toNumber(originalMultipleIds[idx])
+              : headerAccountId;
+          if (!baseAccountCode) return fallback;
+          const desiredCode = InvoiceService.typedAccountCode(
+            baseAccountCode,
+            typeName,
+          );
+          const resolvedId = this.getAccountIdByCode(desiredCode);
+          if (!resolvedId) {
+            log.warn(
+              'historic import: missing typed account for item type; falling back to provided accountId',
+              {
+                baseAccountId: headerAccountId,
+                baseAccountCode,
+                desiredCode,
+                typeName,
+              },
+            );
+            return fallback;
+          }
+          return resolvedId;
+        })
+      : originalMultipleIds;
+
+    const hasMultiple =
+      Array.isArray(resolvedMultipleIds) &&
+      resolvedMultipleIds.length === invoice.invoiceItems.length &&
+      resolvedMultipleIds.every((id) => typeof id === 'number' && id > 0);
+
+    const invoiceItems = invoice.invoiceItems.map((item, index) => {
+      const lineAccountId = hasMultiple
+        ? toNumber(resolvedMultipleIds[index])
+        : headerAccountId;
+
+      const invPrice = resolvePrices
+        ? toNumber(priceById.get(item.inventoryId) ?? 0)
+        : toNumber(item.price);
+
+      if (resolvePrices && invPrice === 0) {
         log.warn(
-          'historic purchase import: line price was 0/missing and inventory.price is 0',
+          'historic import: inventory.price is 0 while resolving line price',
           { inventoryId: item.inventoryId },
         );
       }
-      return { ...item, price: resolved };
+
+      const policyDiscount = applyPolicyDiscounts
+        ? this.pricingService.getAutoDiscount(lineAccountId, item.inventoryId)
+        : toNumber(item.discount) || 0;
+
+      return {
+        ...item,
+        price: invPrice,
+        discount: policyDiscount,
+      };
     });
-    const linesGross = invoiceItems.reduce(
-      (sum, item) =>
-        sum + InvoiceService.getInvoiceItemTotal(item, toNumber(item.price)),
+
+    const nextAccountMapping = resolveAccountsByItemType
+      ? (() => {
+          if (!hasMultiple) return invoice.accountMapping;
+          const unique = uniq(resolvedMultipleIds as number[]);
+          if (unique.length === 1) {
+            return { singleAccountId: unique[0] };
+          }
+          return {
+            singleAccountId: headerAccountId || unique[0],
+            multipleAccountIds: resolvedMultipleIds as number[],
+          };
+        })()
+      : invoice.accountMapping;
+
+    if (!recomputeTotal) {
+      return { ...invoice, invoiceItems, accountMapping: nextAccountMapping };
+    }
+
+    const extra = toNumber(invoice.extraDiscount) || 0;
+
+    // section rounding: each item-type section subtotal is rounded to cents first, then summed.
+    const itemTypeByInventoryId = this.getInventoryItemTypeIdsByIds(
+      invoiceItems.map((i) => i.inventoryId),
+    );
+    const sectionRawSums = invoiceItems.reduce((acc, item) => {
+      const key = itemTypeByInventoryId.get(item.inventoryId) ?? null;
+      const raw =
+        InvoiceService.getInvoiceItemTotal(item, toNumber(item.price)) || 0;
+      acc.set(key, (acc.get(key) ?? 0) + raw);
+      return acc;
+    }, new Map<number | null, number>());
+    const linesGrossRounded = Array.from(sectionRawSums.values()).reduce(
+      (sumRupees, rawSection) => sumRupees + Math.round(toNumber(rawSection)),
       0,
     );
-    const extra = toNumber(invoice.extraDiscount) || 0;
+
     return {
       ...invoice,
       invoiceItems,
-      totalAmount: round(linesGross - extra, 2),
+      accountMapping: nextAccountMapping,
+      totalAmount: linesGrossRounded - extra,
     };
   }
 
@@ -310,10 +545,21 @@ export class InvoiceService {
     }
 
     const effectiveInvoice =
-      invoiceType === InvoiceType.Purchase &&
-      options?.historicPurchaseResolvePricesFromInventory === true &&
-      options?.useExplicitLinePrices === true
-        ? this.buildInvoiceWithHistoricPurchaseInventoryPrices(invoice)
+      options?.historicResolveInventoryPrices === true ||
+      options?.historicApplyPolicyDiscounts === true ||
+      options?.historicResolveAccountsByItemType === true ||
+      options?.historicRecomputeTotalAmount === true
+        ? this.buildInvoiceForHistoricImport(invoiceType, invoice, {
+            useExplicitLinePrices: options?.useExplicitLinePrices === true,
+            historicResolveInventoryPrices:
+              options?.historicResolveInventoryPrices === true,
+            historicApplyPolicyDiscounts:
+              options?.historicApplyPolicyDiscounts === true,
+            historicResolveAccountsByItemType:
+              options?.historicResolveAccountsByItemType === true,
+            historicRecomputeTotalAmount:
+              options?.historicRecomputeTotalAmount === true,
+          })
         : invoice;
 
     const invoiceForInsert: Invoice = {
@@ -369,11 +615,13 @@ export class InvoiceService {
       });
 
       forEach(itemsByAccount, (groupItems, accountId) => {
-        const groupTotalAmount = groupItems.reduce((sum, item) => {
+        const groupRaw = groupItems.reduce((sum, item) => {
           return (
             sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
           );
         }, 0);
+        // round each section/group total to nearest rupee before journal posting
+        const groupTotalAmount = Math.round(toNumber(groupRaw));
         const groupDiscountPercentage =
           this.pricingService.getPolicyDiscountPercentForInventoryIds(
             toNumber(accountId),
@@ -783,6 +1031,34 @@ export class InvoiceService {
       SELECT COUNT(1) AS count
       FROM inventory
       WHERE id = @id
+      LIMIT 1
+    `);
+
+    this.stmGetAccountNameById = this.db.prepare(`
+      SELECT name
+      FROM account
+      WHERE id = @id
+      LIMIT 1
+    `);
+
+    this.stmGetAccountIdByName = this.db.prepare(`
+      SELECT id
+      FROM account
+      WHERE LOWER(TRIM(name)) = LOWER(TRIM(@name))
+      LIMIT 1
+    `);
+
+    this.stmGetAccountCodeById = this.db.prepare(`
+      SELECT code
+      FROM account
+      WHERE id = @id
+      LIMIT 1
+    `);
+
+    this.stmGetAccountIdByCode = this.db.prepare(`
+      SELECT id
+      FROM account
+      WHERE LOWER(TRIM(code)) = LOWER(TRIM(@code))
       LIMIT 1
     `);
 
