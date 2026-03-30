@@ -1,0 +1,8 @@
+============================================================
+import-historic-invoices 2026-03-29T15:47:30.216Z
+DB: release/app/database.db
+JSON: /Users/anserwaseem/Projects/azs-experiments/azs-oracle-sqlite-migration/output/historic-invoices-2026.json
+rows: 265
+============================================================
+FAILED: Error: historic import failed at index 160 (invoiceNumber=9940, type=Sale, date=02/14/2026): SqliteError: FOREIGN KEY constraint failed
+============================================================

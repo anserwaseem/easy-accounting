@@ -1,0 +1,13 @@
+temporarily dropping after_update_invoices_add_timestamp so updatedAt is preserved
+recreated after_update_invoices_add_timestamp
+============================================================
+normalize-invoice-dates 2026-03-29T18:30:24.017Z
+DB: release/app/database.db
+dryRun: false
+onlyUnparseable: true
+rows: 12111
+updated (or would update): 11846
+unchanged: 0
+skippedAlreadyParsable: 265
+failed: 0
+============================================================

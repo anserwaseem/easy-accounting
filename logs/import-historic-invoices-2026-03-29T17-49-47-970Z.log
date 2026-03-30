@@ -1,0 +1,8 @@
+============================================================
+import-historic-invoices 2026-03-29T17:49:47.972Z
+DB: release/app/database.db
+JSON: /Users/anserwaseem/Projects/azs-experiments/azs-oracle-sqlite-migration/output/historic-invoices-2026.json
+rows: 265
+============================================================
+FAILED: Error: historic import failed at index 75 (invoiceNumber=9864, type=Sale, date=01/24/2026): Error: invoice line accountId=1284 does not exist
+============================================================

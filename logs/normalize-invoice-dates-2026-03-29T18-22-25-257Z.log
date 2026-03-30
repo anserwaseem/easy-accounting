@@ -1,0 +1,11 @@
+============================================================
+normalize-invoice-dates 2026-03-29T18:22:30.184Z
+DB: release/app/database.db
+dryRun: false
+onlyUnparseable: true
+rows: 12111
+updated (or would update): 11846
+unchanged: 0
+skippedAlreadyParsable: 265
+failed: 0
+============================================================
