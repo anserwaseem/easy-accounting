@@ -8,11 +8,18 @@ import {
   DialogHeader,
 } from '@/renderer/shad/ui/dialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
+import { format } from 'date-fns';
 import type { InventoryItem } from '@/types';
 import { Label } from '@/renderer/shad/ui/label';
 import { toLocalDateInputValue } from '@/renderer/lib/localDate';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/renderer/shad/ui/popover';
+import { Calendar } from '@/renderer/shad/ui/calendar';
 
 interface AdjustStockProps {
   item: InventoryItem;
@@ -27,6 +34,14 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
   const [quantityDelta, setQuantityDelta] = useState(0);
   const [reason, setReason] = useState('');
   const [date, setDate] = useState(() => toLocalDateInputValue(new Date()));
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  const selectedDate = useMemo(() => {
+    if (!date) return undefined;
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return undefined;
+    return d;
+  }, [date]);
 
   const newQuantity = item.quantity + quantityDelta;
 
@@ -110,11 +125,29 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
         </div>
         <div className="space-y-2">
           <Label className="text-sm font-medium">Date</Label>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start font-normal"
+              >
+                {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : '—'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(d) => {
+                  if (!d) return;
+                  setDate(toLocalDateInputValue(d));
+                  setDatePickerOpen(false);
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => setOpen(false)}>

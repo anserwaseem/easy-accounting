@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isEmpty, orderBy, toString } from 'lodash';
+import { format } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,13 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
   const [openingStockRow, setOpeningStockRow] =
     useState<InventoryOpeningStock | null>(null);
+
+  const formatRowDate = (dateValue: string): string => {
+    if (!dateValue) return '—';
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return '—';
+    return format(d, 'MM/dd/yyyy');
+  };
 
   useEffect(() => {
     if (!open || !item) return;
@@ -118,7 +126,7 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-medium">Opening stock</span>
                       <span className="text-muted-foreground">
-                        {r.date || '—'}
+                        {formatRowDate(r.date)}
                       </span>
                     </div>
                     <div className="mt-1 flex items-center justify-between">
@@ -149,7 +157,7 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Adjustment</span>
                     <span className="text-muted-foreground">
-                      {r.date || '—'}
+                      {formatRowDate(r.date)}
                     </span>
                   </div>
                   <div className="mt-1 flex items-center justify-between">
