@@ -1,5 +1,9 @@
 /* eslint-disable no-await-in-loop */
-import { usePrimaryItemType } from '@/renderer/hooks';
+import {
+  useCompanyProfile,
+  useInvoicePrintSettings,
+  usePrimaryItemType,
+} from '@/renderer/hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format, isValid } from 'date-fns';
@@ -27,6 +31,9 @@ const PrintableInvoiceScreen = () => {
   }>({ next: false, previous: false });
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const navigate = useNavigate();
+  const { profile: companyProfile } = useCompanyProfile();
+  const { settings: invoicePrintSettings, defaults } =
+    useInvoicePrintSettings();
 
   const biltyGoodsText = useMemo(() => {
     if (!invoice) return '';
@@ -308,11 +315,27 @@ const PrintableInvoiceScreen = () => {
         <div className="flex justify-between items-center">
           <div className="w-full text-[13px]">
             <h1 className="text-3xl font-bold text-center font-mono">
-              ALIF ZAFAR SONS
+              {companyProfile.name.trim() ? companyProfile.name : 'INVOICE'}
             </h1>
-            <p className="text-center font-mono text-sm">
-              Iqra Center, Ghazni Street, Urdu Bazar, Lahore Phone: 37245149
-            </p>
+            {[
+              companyProfile.address,
+              companyProfile.phone,
+              companyProfile.email,
+            ]
+              .map((v) => v.trim())
+              .filter(Boolean)
+              .join(' · ') ? (
+              <p className="text-center font-mono text-sm">
+                {[
+                  companyProfile.address,
+                  companyProfile.phone,
+                  companyProfile.email,
+                ]
+                  .map((v) => v.trim())
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -409,7 +432,10 @@ const PrintableInvoiceScreen = () => {
               );
             })}
             <tr className="py-2">
-              <td className="italic absolute">Total No. of Quran Sold:</td>
+              <td className="italic absolute">
+                {invoicePrintSettings.totalQuantityLabel.trim() ||
+                  defaults.totalQuantityLabel}
+              </td>
               <td />
               <td />
               <td className="text-right">{totalQuantity}</td>

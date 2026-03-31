@@ -5,6 +5,7 @@ import { Input } from 'renderer/shad/ui/input';
 import { useCallback, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
+import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
 
 const SettingsPage: React.FC = () => {
   // eslint-disable-next-line no-console
@@ -14,16 +15,59 @@ const SettingsPage: React.FC = () => {
     (typeof defaultLabels)[number]
   >(window.electron.store.get('debitCreditDefaultLabel') ?? defaultLabels[0]);
 
+  const { profile: companyProfile, saveCompanyProfile } = useCompanyProfile();
+  const [draftCompanyName, setDraftCompanyName] = useState(companyProfile.name);
+  const [draftCompanyAddress, setDraftCompanyAddress] = useState(
+    companyProfile.address,
+  );
+  const [draftCompanyPhone, setDraftCompanyPhone] = useState(
+    companyProfile.phone,
+  );
+  const [draftCompanyEmail, setDraftCompanyEmail] = useState(
+    companyProfile.email,
+  );
+
+  const {
+    settings: invoicePrintSettings,
+    saveInvoicePrintSettings,
+    defaults,
+  } = useInvoicePrintSettings();
+  const [draftTotalQuantityLabel, setDraftTotalQuantityLabel] = useState(
+    invoicePrintSettings.totalQuantityLabel,
+  );
+
   const handleSaveSettings = useCallback(() => {
     window.electron.store.set(
       'debitCreditDefaultLabel',
       debitCreditDefaultLabel,
     );
 
+    saveCompanyProfile({
+      name: draftCompanyName.trim(),
+      address: draftCompanyAddress,
+      phone: draftCompanyPhone.trim(),
+      email: draftCompanyEmail.trim(),
+    });
+
+    saveInvoicePrintSettings({
+      totalQuantityLabel:
+        draftTotalQuantityLabel.trim() || defaults.totalQuantityLabel,
+    });
+
     toast({
       description: 'Settings saved',
     });
-  }, [debitCreditDefaultLabel]);
+  }, [
+    debitCreditDefaultLabel,
+    saveCompanyProfile,
+    draftCompanyName,
+    draftCompanyAddress,
+    draftCompanyPhone,
+    draftCompanyEmail,
+    saveInvoicePrintSettings,
+    draftTotalQuantityLabel,
+    defaults.totalQuantityLabel,
+  ]);
 
   return (
     <div>
@@ -39,6 +83,10 @@ const SettingsPage: React.FC = () => {
       </div>
       <p className="mb-2">
         Default label when <i>Debit</i> or <i>Credit</i> amount is 0:
+      </p>
+      <p className="text-xs text-muted-foreground mb-4">
+        This only changes how zero amounts are displayed in New Journal debit /
+        credit inputs. It does not change stored values, exports, or printing.
       </p>
       <RadioGroup
         value={
@@ -81,7 +129,69 @@ const SettingsPage: React.FC = () => {
         </div>
       </RadioGroup>
 
-      <div className="flex fixed bottom-6">
+      <div className="flex flex-col gap-2 mt-8">
+        <h2 className="text-2xl font-medium">Company Profile</h2>
+        <Separator />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="companyProfileName">Company name</Label>
+          <Input
+            id="companyProfileName"
+            value={draftCompanyName}
+            placeholder="e.g., ABC Traders"
+            onChange={(e) => setDraftCompanyName(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="companyProfilePhone">Phone</Label>
+          <Input
+            id="companyProfilePhone"
+            value={draftCompanyPhone}
+            placeholder="e.g., +92-..."
+            onChange={(e) => setDraftCompanyPhone(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2 md:col-span-2">
+          <Label htmlFor="companyProfileAddress">Address</Label>
+          <Input
+            id="companyProfileAddress"
+            value={draftCompanyAddress}
+            placeholder="e.g., Street, Area, City"
+            onChange={(e) => setDraftCompanyAddress(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="companyProfileEmail">Email</Label>
+          <Input
+            id="companyProfileEmail"
+            value={draftCompanyEmail}
+            placeholder="e.g., accounts@company.com"
+            onChange={(e) => setDraftCompanyEmail(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 mt-8">
+        <h2 className="text-2xl font-medium">Invoice Print</h2>
+        <Separator />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="totalQuantityLabel">Total quantity label</Label>
+          <Input
+            id="totalQuantityLabel"
+            value={draftTotalQuantityLabel}
+            placeholder={defaults.totalQuantityLabel}
+            onChange={(e) => setDraftTotalQuantityLabel(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Shown above the total quantity row on printed invoices.
+          </p>
+        </div>
+      </div>
+
+      <div className="fixed bottom-6 left-0 right-0 flex justify-end px-6">
         <Button variant="default" onClick={() => handleSaveSettings()}>
           Save
         </Button>
