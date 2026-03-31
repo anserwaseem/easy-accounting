@@ -7,7 +7,7 @@ import { InvoiceView } from 'types';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
-import { toNumber, toString } from 'lodash';
+import { toNumber, toString, truncate } from 'lodash';
 import {
   computeSectionTotals,
   groupInvoiceItemsByType,
@@ -32,7 +32,8 @@ const PrintableInvoiceScreen = () => {
     if (!invoice) return '';
     const bilty = invoice.biltyNumber ?? '';
     const goods = invoice.accountGoodsName?.trim();
-    return goods ? `${bilty} (${goods})` : `${bilty}`;
+    const goodsShort = goods ? truncate(goods, { length: 30 }).trim() : '';
+    return goodsShort ? `${bilty} (${goodsShort})` : `${bilty}`;
   }, [invoice]);
 
   useEffect(() => {
@@ -310,31 +311,33 @@ const PrintableInvoiceScreen = () => {
           </div>
         </div>
 
-        <div className="grid grid-rows-2">
-          <div className="flex justify-between">
-            <div className="flex gap-4">
-              <p>INVOICE NO.</p>
+        <div className="flex flex-col">
+          <div className="flex justify-between gap-4">
+            <div className="flex gap-1 whitespace-nowrap">
+              <p>Invoice No:</p>
               <p>{invoice.invoiceNumber}</p>
             </div>
-            <div className="flex gap-4 pr-4">
-              <p>DATE</p>
-              <p>
+            <div className="flex gap-1 whitespace-nowrap">
+              <p>Date:</p>
+              <p className="whitespace-nowrap">
                 {isValid(new Date(invoice.date))
                   ? format(invoice.date, 'PP')
                   : invoice.date}
               </p>
             </div>
-            <div className="flex gap-4">
-              <p>BILTY&nbsp;</p>
+            <div className="flex gap-1 whitespace-nowrap">
+              <p>Bilty:</p>
               <p>{biltyGoodsText}</p>
-              <p>&nbsp;CARTONS&nbsp;</p>
+            </div>
+            <div className="flex gap-1 whitespace-nowrap">
+              <p>Cartons:</p>
               <p>{invoice.cartons ?? ''}</p>
             </div>
           </div>
-          <div className="flex gap-12">
-            <p>BILL TO:</p>
-            <p>{billToName}</p>
-            <p className="whitespace-pre-wrap break-words">{billToAddress}</p>
+          <div className="flex gap-1">
+            <p className="whitespace-nowrap">Bill To:</p>
+            <p className="whitespace-nowrap">{billToName}</p>
+            <p className="pl-2">{billToAddress}</p>
           </div>
         </div>
 
