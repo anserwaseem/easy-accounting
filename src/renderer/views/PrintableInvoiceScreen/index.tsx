@@ -1,23 +1,47 @@
 /* eslint-disable no-await-in-loop */
-import { useEffect, useState } from 'react';
+import {
+  useCompanyProfile,
+  useInvoicePrintSettings,
+  usePrimaryItemType,
+} from '@/renderer/hooks';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format, isValid } from 'date-fns';
 import { InvoiceView } from 'types';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
-import { toNumber, toString } from 'lodash';
-import { getFormattedCurrency } from '@/renderer/lib/utils';
+import { toNumber, toString, truncate } from 'lodash';
+import {
+  computeSectionTotals,
+  groupInvoiceItemsByType,
+} from '@/renderer/lib/invoiceUtils';
+import {
+  getFormattedCurrency,
+  stripItemTypeSuffixFromAccountName,
+} from '@/renderer/lib/utils';
 
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
   const [invoice, setInvoice] = useState<InvoiceView | null>(null);
+  const { primaryItemTypeName, itemTypeNames } = usePrimaryItemType();
   const [doesInvoiceExists, setDoesInvoiceExists] = useState<{
     next: boolean;
     previous: boolean;
   }>({ next: false, previous: false });
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const navigate = useNavigate();
+  const { profile: companyProfile } = useCompanyProfile();
+  const { settings: invoicePrintSettings, defaults } =
+    useInvoicePrintSettings();
+
+  const biltyGoodsText = useMemo(() => {
+    if (!invoice) return '';
+    const bilty = invoice.biltyNumber ?? '';
+    const goods = invoice.accountGoodsName?.trim();
+    const goodsShort = goods ? truncate(goods, { length: 30 }).trim() : '';
+    return goodsShort ? `${bilty} (${goodsShort})` : `${bilty}`;
+  }, [invoice]);
 
   useEffect(() => {
     const fetchInvoice = async () => {
@@ -160,14 +184,79 @@ const PrintableInvoiceScreen = () => {
     navigate(`/invoices/${toNumber(id) - 1}/print`);
   };
 
+  const invoiceItems = useMemo(
+    () => invoice?.invoiceItems ?? [],
+    [invoice?.invoiceItems],
+  );
+  const billToName = useMemo(() => {
+    const name = stripItemTypeSuffixFromAccountName(
+      invoice?.accountName,
+      itemTypeNames,
+    );
+    return name === '—' ? 'WALK IN CUSTOMER' : name;
+  }, [invoice?.accountName, itemTypeNames]);
+  const billToAddress = useMemo(() => {
+    const raw = invoice?.accountAddress ?? '';
+    const address = String(raw).trim();
+    return address.length > 0 ? address : '';
+  }, [invoice?.accountAddress]);
+  const totalQuantity = invoiceItems.reduce(
+    (sum, item) => sum + toNumber(item.quantity),
+    0,
+  );
+
+  const groupedInvoiceItems = useMemo(
+    () => groupInvoiceItemsByType(invoiceItems, primaryItemTypeName),
+    [invoiceItems, primaryItemTypeName],
+  );
+
+  const sectionedRows = useMemo(() => {
+    let serialNumber = 0;
+    const shouldShowSectionHeaders = groupedInvoiceItems.length > 1;
+    return groupedInvoiceItems.flatMap((section) => {
+      const itemRows = section.items.map((item) => {
+        serialNumber += 1;
+        return {
+          kind: 'item' as const,
+          key: `${section.sectionName}-${item.inventoryId}-${serialNumber}`,
+          serialNumber,
+          item,
+        };
+      });
+
+      const {
+        totalQuantity: sectionTotalQuantity,
+        totalAmount: sectionTotalAmount,
+      } = computeSectionTotals(section.items);
+
+      return [
+        ...(shouldShowSectionHeaders
+          ? [
+              {
+                kind: 'header' as const,
+                key: `${section.sectionName}-header`,
+                sectionName: section.sectionName,
+              },
+            ]
+          : []),
+        ...itemRows,
+        ...(section.items.length > 1
+          ? [
+              {
+                kind: 'subtotal' as const,
+                key: `${section.sectionName}-subtotal`,
+                totalQuantity: sectionTotalQuantity,
+                totalAmount: sectionTotalAmount,
+              },
+            ]
+          : []),
+      ];
+    });
+  }, [groupedInvoiceItems]);
+
   if (!invoice) {
     return <div>Loading...</div>;
   }
-
-  const totalQuantity = invoice.invoiceItems.reduce(
-    (sum, item) => sum + item.quantity,
-    0,
-  );
 
   return (
     <div className="min-h-screen bg-white p-8 print:p-0">
@@ -225,45 +314,58 @@ const PrintableInvoiceScreen = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center">
           <div className="w-full text-[13px]">
-            <p className="text-sm text-center font-mono">SALES TAX INVOICE</p>
             <h1 className="text-3xl font-bold text-center font-mono">
-              ALIF ZAFAR SONS
+              {companyProfile.name.trim() ? companyProfile.name : 'INVOICE'}
             </h1>
-            <p className="text-center font-mono print:text-[11px]">
-              Opposite Al Habib Mosque, Near National Saving Bank, Kacha Sanda
-              Road, Corporation Chowk, Lahore
-            </p>
-            <p className="text-center font-mono print:text-[11px]">
-              Iqra Center, Ghazni Street, Urdu Bazar, Lahore Phone: 37245149,
-              NTN No.: 1406678-5, STRN: 3277876185527
-            </p>
+            {[
+              companyProfile.address,
+              companyProfile.phone,
+              companyProfile.email,
+            ]
+              .map((v) => v.trim())
+              .filter(Boolean)
+              .join(' · ') ? (
+              <p className="text-center font-mono text-sm">
+                {[
+                  companyProfile.address,
+                  companyProfile.phone,
+                  companyProfile.email,
+                ]
+                  .map((v) => v.trim())
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            ) : null}
           </div>
         </div>
 
-        <div className="grid grid-rows-2">
-          <div className="flex justify-between">
-            <div className="flex gap-4">
-              <p>INVOICE NO.</p>
+        <div className="flex flex-col">
+          <div className="flex justify-between gap-4">
+            <div className="flex gap-1 whitespace-nowrap">
+              <p>Invoice No:</p>
               <p>{invoice.invoiceNumber}</p>
             </div>
-            <div className="flex gap-4 pr-4">
-              <p>DATE</p>
-              <p>
+            <div className="flex gap-1 whitespace-nowrap">
+              <p>Date:</p>
+              <p className="whitespace-nowrap">
                 {isValid(new Date(invoice.date))
                   ? format(invoice.date, 'PP')
                   : invoice.date}
               </p>
             </div>
-            <div className="flex gap-4">
-              <p>BILTY&nbsp;</p>
-              <p>()&nbsp;CARTONS</p>
+            <div className="flex gap-1 whitespace-nowrap">
+              <p>Bilty:</p>
+              <p>{biltyGoodsText}</p>
+            </div>
+            <div className="flex gap-1 whitespace-nowrap">
+              <p>Cartons:</p>
+              <p>{invoice.cartons ?? ''}</p>
             </div>
           </div>
-          <div className="flex gap-12">
-            <p>BILL TO:</p>
-            <p>Walk In Customer</p>
-            <p>Lahore</p>
-            <p className="pl-48">NTN/CNIC No.</p>
+          <div className="flex gap-1">
+            <p className="whitespace-nowrap">Bill To:</p>
+            <p className="whitespace-nowrap">{billToName}</p>
+            <p className="pl-2">{billToAddress}</p>
           </div>
         </div>
 
@@ -280,22 +382,60 @@ const PrintableInvoiceScreen = () => {
             </tr>
           </thead>
           <tbody>
-            {invoice.invoiceItems.map((item, index) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <tr key={index} className="border-b border-gray-300">
-                <td>{index + 1}</td>
-                <td className="text-center">{item.inventoryItemName}</td>
-                <td>{item.inventoryItemDescription}</td>
-                <td className="text-right">{item.quantity}</td>
-                <td className="text-right">{item.price.toFixed(0)}</td>
-                <td className="text-right">{item.discount.toFixed(2)}</td>
-                <td className="text-right pr-4">
-                  {item.discountedPrice?.toFixed(2)}
-                </td>
-              </tr>
-            ))}
+            {sectionedRows.map((row) => {
+              if (row.kind === 'header') {
+                return (
+                  <tr
+                    key={row.key}
+                    className="border-b border-gray-300 bg-gray-100"
+                  >
+                    <td className="py-1 font-semibold" colSpan={7}>
+                      {row.sectionName}
+                    </td>
+                  </tr>
+                );
+              }
+
+              if (row.kind === 'subtotal') {
+                return (
+                  <tr
+                    key={row.key}
+                    className="border-b border-gray-300 bg-gray-50"
+                  >
+                    <td colSpan={3} />
+                    <td className="text-right font-semibold">
+                      {row.totalQuantity}
+                    </td>
+                    <td />
+                    <td />
+                    <td className="text-right pr-4 font-semibold">
+                      {toNumber(row.totalAmount).toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={row.key} className="border-b border-gray-300">
+                  <td>{row.serialNumber}</td>
+                  <td className="text-center">{row.item.inventoryItemName}</td>
+                  <td>{row.item.inventoryItemDescription}</td>
+                  <td className="text-right">{row.item.quantity}</td>
+                  <td className="text-right">
+                    {toNumber(row.item.price).toFixed(0)}
+                  </td>
+                  <td className="text-right">{row.item.discount.toFixed(2)}</td>
+                  <td className="text-right pr-4">
+                    {toNumber(row.item.discountedPrice).toFixed(2)}
+                  </td>
+                </tr>
+              );
+            })}
             <tr className="py-2">
-              <td className="italic absolute">Total No. of Quran Sold:</td>
+              <td className="italic absolute">
+                {invoicePrintSettings.totalQuantityLabel.trim() ||
+                  defaults.totalQuantityLabel}
+              </td>
               <td />
               <td />
               <td className="text-right">{totalQuantity}</td>

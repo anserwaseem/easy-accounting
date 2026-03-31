@@ -24,12 +24,14 @@ import {
   HTMLAttributes,
   forwardRef,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useMemo,
 } from 'react';
 import { TableVirtuoso } from 'react-virtuoso';
 import { Search } from './search';
+import { CompactSearchBar } from './compactSearchBar';
 
 export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
@@ -46,6 +48,7 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   searchPlaceholder?: string;
   searchFields?: string[];
   isMini?: boolean;
+  searchPersistenceKey?: string;
 }
 
 const TableComponent = forwardRef<
@@ -82,6 +85,11 @@ const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
               (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick &&
                 'cursor-pointer',
             )}
+            style={{
+              width: cell.column.getSize(),
+              minWidth: cell.column.getSize(),
+              maxWidth: cell.column.getSize(),
+            }}
             onClick={() =>
               (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick?.(
                 cell.row,
@@ -174,31 +182,17 @@ const NoResultsRow = ({
 const RecordCount = ({
   filtered,
   total,
-  isMini,
 }: {
   filtered: number;
   total: number;
-  isMini?: boolean;
 }) => {
   if (filtered === total) {
     return (
-      <p
-        className={cn(
-          'text-sm text-muted-foreground',
-          isMini ? 'text-xs -mr-3.5 -ml-1 whitespace-pre' : '',
-        )}
-      >
-        Total records: {total}
-      </p>
+      <p className="text-sm text-muted-foreground">Total records: {total}</p>
     );
   }
   return (
-    <p
-      className={cn(
-        'text-sm text-muted-foreground',
-        isMini ? 'text-xs -mr-3.5 whitespace-break-spaces' : '',
-      )}
-    >
+    <p className="text-sm text-muted-foreground">
       Showing {filtered} out of {total} records
     </p>
   );
@@ -214,6 +208,7 @@ const DataTable = <TData, TValue>({
   searchPlaceholder,
   searchFields,
   isMini = false,
+  searchPersistenceKey,
   ...props
 }: DataTableProps<TData, TValue>) => {
   const [sorting, setSorting] = useState<SortingState>(() => {
@@ -226,9 +221,11 @@ const DataTable = <TData, TValue>({
     ];
   });
   const [searchValue, setSearchValue] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
   const [filteredData, setFilteredData] = useState(data);
   const [height, setHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isSearchHydratedRef = useRef(false);
 
   // calculate height of the table based for virtual table
   useEffect(() => {
@@ -287,6 +284,34 @@ const DataTable = <TData, TValue>({
       }, 300),
     [],
   );
+  useEffect(() => () => debounceSearch.cancel(), [debounceSearch]);
+
+  const handleSearchInputChange = (value: string) => {
+    setSearchInputValue(value);
+    debounceSearch(value);
+  };
+
+  useLayoutEffect(() => {
+    isSearchHydratedRef.current = false;
+    if (!searchPersistenceKey) {
+      isSearchHydratedRef.current = true;
+      return;
+    }
+
+    const persistedSearchValue =
+      window.electron.store.get(searchPersistenceKey);
+    const normalizedSearchValue =
+      typeof persistedSearchValue === 'string' ? persistedSearchValue : '';
+    setSearchInputValue(normalizedSearchValue);
+    setSearchValue(normalizedSearchValue);
+    isSearchHydratedRef.current = true;
+  }, [searchPersistenceKey]);
+
+  useEffect(() => {
+    if (!searchPersistenceKey) return;
+    if (!isSearchHydratedRef.current) return;
+    window.electron.store.set(searchPersistenceKey, searchInputValue);
+  }, [searchPersistenceKey, searchInputValue]);
 
   const table = useReactTable({
     data: filteredData,
@@ -307,25 +332,39 @@ const DataTable = <TData, TValue>({
     total: data.length,
   };
 
-  const searchClassName = useMemo(() => {
-    const common = 'w-full transition-all duration-200 text-xs';
-    return isMini
-      ? `max-w-[166px] ${common}` // focus-within:max-w-[220px]
-      : `md:w-[300px] ${common}`; // focus-within:md:w-[400px]
-  }, [isMini]);
+  const searchClassName = useMemo(() => 'w-full md:w-[320px]', []);
 
   if (virtual) {
     return (
       <div ref={containerRef} className="rounded-md border">
         {searchFields?.length ? (
           <div className="search-container border-b">
-            <div className="px-4 py-3 gap-2 flex justify-between items-center">
-              <Search
-                placeholder={searchPlaceholder}
-                onChange={debounceSearch}
-                className={searchClassName}
-              />
-              <RecordCount {...recordCount} isMini={isMini} />
+            <div
+              className={cn(
+                'gap-2 flex justify-between items-center',
+                isMini ? 'px-2 py-2' : 'px-4 py-3',
+              )}
+            >
+              {isMini ? (
+                <CompactSearchBar
+                  value={searchInputValue}
+                  onChange={handleSearchInputChange}
+                  placeholder={searchPlaceholder || 'Search…'}
+                  filteredCount={recordCount.filtered}
+                  totalCount={recordCount.total}
+                  className="w-full"
+                />
+              ) : (
+                <>
+                  <Search
+                    placeholder={searchPlaceholder}
+                    value={searchInputValue}
+                    onChange={handleSearchInputChange}
+                    className={searchClassName}
+                  />
+                  <RecordCount {...recordCount} />
+                </>
+              )}
             </div>
           </div>
         ) : null}
@@ -369,13 +408,32 @@ const DataTable = <TData, TValue>({
     <div ref={containerRef} className="rounded-md border">
       {searchFields?.length ? (
         <div className="search-container border-b">
-          <div className="px-4 py-3 flex justify-between items-center">
-            <Search
-              placeholder={searchPlaceholder}
-              onChange={debounceSearch}
-              className={searchClassName}
-            />
-            <RecordCount {...recordCount} isMini={isMini} />
+          <div
+            className={cn(
+              'gap-2 flex justify-between items-center',
+              isMini ? 'px-2 py-2' : 'px-4 py-3',
+            )}
+          >
+            {isMini ? (
+              <CompactSearchBar
+                value={searchInputValue}
+                onChange={handleSearchInputChange}
+                placeholder={searchPlaceholder || 'Search…'}
+                filteredCount={recordCount.filtered}
+                totalCount={recordCount.total}
+                className="w-full"
+              />
+            ) : (
+              <>
+                <Search
+                  placeholder={searchPlaceholder}
+                  value={searchInputValue}
+                  onChange={handleSearchInputChange}
+                  className={searchClassName}
+                />
+                <RecordCount {...recordCount} />
+              </>
+            )}
           </div>
         </div>
       ) : null}

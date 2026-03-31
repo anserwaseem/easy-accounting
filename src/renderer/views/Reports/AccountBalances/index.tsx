@@ -126,9 +126,7 @@ const AccountBalancesPage = () => {
       printStyles={printStyles}
       header={
         <div className="flex justify-between items-center pb-2 print-header">
-          <h1 className="text-2xl font-semibold text-primary">
-            Account Balances
-          </h1>
+          <h1 className="title-new">Account Balances</h1>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Head:</span>

@@ -109,6 +109,9 @@ export interface Account extends BaseEntity {
   phone2?: string;
   goodsName?: string;
   isActive: boolean;
+  discountProfileId?: number | null;
+  discountProfileName?: string | null;
+  discountProfileIsActive?: boolean | null;
 }
 
 export type InsertAccount = Omit<
@@ -180,6 +183,8 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   price: number;
   quantity: number;
   description?: string;
+  itemTypeId?: number | null;
+  itemTypeName?: string | null;
 }
 export interface UpdateInventoryItem {
   id: number;
@@ -187,11 +192,33 @@ export interface UpdateInventoryItem {
   name?: string;
   quantity?: number;
   description?: string;
+  itemTypeId?: number | null;
 }
 export interface InsertInventoryItem {
   name: string;
   price: number;
   description?: string;
+  itemTypeId?: number | null;
+}
+
+export interface ItemType extends Omit<BaseEntity, 'date'> {
+  name: string;
+  isActive: boolean;
+  isPrimary?: boolean;
+  inventoryCount?: number;
+}
+
+export interface DiscountProfile extends Omit<BaseEntity, 'date'> {
+  name: string;
+  isActive: boolean;
+  accountCount?: number;
+}
+
+export interface ProfileTypeDiscount extends Omit<BaseEntity, 'date'> {
+  profileId: number;
+  itemTypeId: number;
+  discountPercent: number;
+  itemTypeName?: string;
 }
 
 /** opening stock (one row per item; old_quantity = inventory.quantity before this run) */
@@ -236,6 +263,8 @@ export type Invoice = Prettify<
   BaseEntity & {
     invoiceItems: Prettify<InvoiceItem>[];
     extraDiscount?: number; // will be provided by UI
+    /** when extraDiscount > 0, the account to credit (discount applied from this party account) */
+    extraDiscountAccountId?: number;
     biltyNumber?: string; // will be provided by UI
     cartons?: number; // will be provided by UI
     totalAmount?: number; // will be calculated at service layer
@@ -259,6 +288,7 @@ export type InvoiceItemView = {
   price: number;
   quantity: number;
   discount: number;
+  itemTypeName?: string | null;
   inventoryItemName: string;
   inventoryId?: number;
   inventoryItemDescription?: string;
@@ -268,6 +298,8 @@ export type InvoiceItemView = {
 export type InvoiceView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {
     accountName?: string;
+    accountAddress?: string | null;
+    accountGoodsName?: string | null;
     invoiceItems: Array<InvoiceItemView>;
   }
 >;

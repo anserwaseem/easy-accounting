@@ -1,29 +1,25 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { get, isNil, pick, sum, toNumber, toString, trim } from 'lodash';
+import { get, isNil, toNumber, toString } from 'lodash';
 import {
   Calendar as CalendarIcon,
   Plus,
   Printer,
   RefreshCw,
   Upload,
-  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import type { UseFormReturn } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { currencyFormatOptions } from 'renderer/lib/constants';
 import {
   cn,
   defaultSortingFunctions,
-  getFixedNumber,
   getFormattedCurrency,
   raise,
 } from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
-import { type ColumnDef, DataTable } from 'renderer/shad/ui/dataTable';
+import { DataTable } from 'renderer/shad/ui/dataTable';
 import {
   Form,
   FormControl,
@@ -39,28 +35,30 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 import { toast } from 'renderer/shad/ui/use-toast';
-import {
-  type Account,
-  AccountType,
-  type InventoryItem,
-  type Invoice,
-  type InvoiceItem,
-  InvoiceType,
-} from 'types';
+import { type InventoryItem, InvoiceType } from 'types';
 import { z } from 'zod';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from 'renderer/shad/ui/dialog';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
+import { Label } from '@/renderer/shad/ui/label';
+import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
 import { convertFileToJson } from '@/renderer/lib/lib';
-import { parseInvoiceItems } from '@/renderer/lib/parser';
+import {
+  checkParsedItemsAvailability,
+  parseInvoiceItems,
+} from '@/renderer/lib/parser';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
-import { AddInvoiceNumber } from './addInvoiceNumber';
+import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
+import { AddInvoiceNumber } from './components/addInvoiceNumber';
+import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
+import { DateConfirmationDialog } from './components/DateConfirmationDialog';
+import { useNewInvoiceColumns } from './hooks/useNewInvoiceColumns';
+import { useNewInvoiceDiscounts } from './hooks/useNewInvoiceDiscounts';
+import { useNewInvoiceFormCore } from './hooks/useNewInvoiceFormCore';
+import { useNewInvoiceInventory } from './hooks/useNewInvoiceInventory';
+import { useNewInvoiceNextNumber } from './hooks/useNewInvoiceNextNumber';
+import { useNewInvoiceParties } from './hooks/useNewInvoiceParties';
+import { useNewInvoiceResolution } from './hooks/useNewInvoiceResolution';
+import { useNewInvoiceSections } from './hooks/useNewInvoiceSections';
+import { useNewInvoiceTableInfo } from './hooks/useNewInvoiceTableInfo';
 
 interface NewInvoiceProps {
   invoiceType: InvoiceType;
@@ -71,34 +69,119 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
   console.log('NewInvoicePage', invoiceType);
-  const [inventory, setInventory] = useState<InventoryItem[]>();
-  const [nextInvoiceNumber, setNextInvoiceNumber] = useState<
-    number | undefined
-  >(-1);
-  const [parties, setParties] =
-    useState<Pick<Account, 'id' | 'type' | 'name' | 'code'>[]>();
-  const [requiredAccountsExist, setRequiredAccountsExist] = useState<{
-    sale: boolean;
-    purchase: boolean;
-    loading: boolean;
-  }>({ sale: false, purchase: false, loading: false });
-  const [enableCumulativeDiscount, setEnableCumulativeDiscount] =
-    useState(false);
-  const [cumulativeDiscount, setCumulativeDiscount] = useState<number>();
+  const [inventory] = useNewInvoiceInventory();
+  const [nextInvoiceNumber, setNextInvoiceNumber] =
+    useNewInvoiceNextNumber(invoiceType);
+  const {
+    parties,
+    requiredAccountsExist,
+    isRefreshingParties,
+    refreshParties,
+  } = useNewInvoiceParties(invoiceType);
+
   const [useSingleAccount, setUseSingleAccount] = useState(true);
   const useSingleAccountRef = useRef(useSingleAccount);
   useSingleAccountRef.current = useSingleAccount;
+  const [splitByItemType, setSplitByItemType] = useState(true);
+  const splitByItemTypeRef = useRef(splitByItemType);
+  splitByItemTypeRef.current = splitByItemType;
+
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
   const dateConfirmedInModalRef = useRef(false);
   const openPrintAfterSaveRef = useRef(false);
-  const [isRefreshingParties, setIsRefreshingParties] = useState(false);
+
+  const formCore = useNewInvoiceFormCore({
+    invoiceType,
+    inventory,
+    useSingleAccountRef,
+    splitByItemTypeRef,
+  });
+  const {
+    form,
+    defaultFormValues,
+    formSchema,
+    fields,
+    append,
+    watchedInvoiceItems,
+    watchedExtraDiscount,
+    watchedTotalAmount,
+    watchedSingleAccountId,
+    watchedMultipleAccountIds,
+    resolutionTrigger,
+    discountAccountExists,
+  } = formCore;
+
+  const {
+    sections,
+    setSections,
+    activeSectionId,
+    setActiveSectionId,
+    rowSectionMap,
+    setRowSectionMap,
+  } = useNewInvoiceSections({
+    invoiceType,
+    useSingleAccount,
+    splitByItemType,
+    form: form as unknown as UseFormReturn<Record<string, unknown>>,
+    watchedInvoiceItems,
+  });
+
+  const discounts = useNewInvoiceDiscounts({
+    invoiceType,
+    form: form as unknown as UseFormReturn<Record<string, unknown>>,
+    useSingleAccount,
+    useSingleAccountRef,
+    splitByItemTypeRef,
+    parties,
+    sections,
+    rowSectionMap,
+    watchedSingleAccountId,
+  });
+  const {
+    applyAutoDiscountForRow,
+    recalculateAutoDiscounts,
+    recalculateAutoDiscountsRef,
+    manualDiscountRows,
+    setManualDiscountRows,
+    enableCumulativeDiscount,
+    setEnableCumulativeDiscount,
+    cumulativeDiscount,
+    setCumulativeDiscount,
+    isDiscountEditEnabled,
+    singleAccountAutoDiscountOff,
+    sectionAutoDiscountOffCount,
+    getSectionLabel,
+  } = discounts;
+
+  const onResolved = useCallback(() => {
+    recalculateAutoDiscountsRef.current();
+  }, [recalculateAutoDiscountsRef]);
+
+  const { resolvedRowLabels, resolutionFallbacks } = useNewInvoiceResolution({
+    invoiceType,
+    useSingleAccount,
+    splitByItemType,
+    form: form as unknown as UseFormReturn<Record<string, unknown>>,
+    parties,
+    inventory,
+    resolutionTrigger,
+    watchedSingleAccountId,
+    onResolved,
+  });
+
+  // derived layout flags
+  const isSale = invoiceType === InvoiceType.Sale;
+  const isPurchase = invoiceType === InvoiceType.Purchase;
+  const isSingleAccountSale = useSingleAccount && isSale;
+  const isSingleAccountOrPurchase = useSingleAccount || isPurchase;
+  const isSectionsView = !isSingleAccountOrPurchase;
 
   const navigate = useNavigate();
 
   const getInitialEntry = useCallback(
     () => ({
-      id: Date.now(), // generates a unique ID for each new entry. not used to insert into db
+      id: Date.now() + Math.floor(Math.random() * 1000),
       inventoryId: 0,
       quantity: 0,
       discount: 0,
@@ -108,298 +191,81 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [],
   );
 
-  const defaultFormValues: Invoice = {
-    id: -1,
-    date: new Date().toISOString(),
-    invoiceNumber: -1,
-    extraDiscount: 0,
-    totalAmount: 0,
-    invoiceItems: [],
-    invoiceType,
-    biltyNumber: '',
-    cartons: 0,
-    accountMapping: {
-      singleAccountId: -1,
-      multipleAccountIds: [],
-    },
-  };
-
-  const formSchema = z
-    .object({
-      id: z.number(),
-      date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
-        message: 'Select a valid date',
-      }),
-      biltyNumber: z.string().optional(),
-      cartons: z.coerce
-        .number()
-        .nonnegative('Cartons must be greater than 0')
-        .optional(),
-      extraDiscount: z.coerce
-        .number()
-        .nonnegative('Extra Discount must be greater than 0'),
-      totalAmount:
-        invoiceType === InvoiceType.Sale
-          ? z.coerce.number().positive('Total Amount must be greater than 0')
-          : z.coerce.number(),
-      invoiceItems: z
-        .array(
-          z.object({
-            id: z.number(),
-            inventoryId: z.coerce.number().positive('Select an item'),
-            quantity: z.coerce
-              .number()
-              .int('Quantity must be a whole number')
-              .positive('Quantity must be greater than 0'),
-            discount: z.coerce
-              .number()
-              .multipleOf(0.01, 'Discount must be at-most 2 decimal places')
-              .nonnegative('Discount must be greater than 0')
-              .max(100, 'Discount must be less than 100%')
-              .min(0, 'Discount must be greater than 0%'),
-            price:
-              invoiceType === InvoiceType.Sale
-                ? z.number().positive('Price must be greater than 0')
-                : z.number(),
-            discountedPrice: z
-              .number()
-              .nonnegative('Discounted price must be greater than 0'),
-          }),
-        )
-        .min(1, 'Add at-least one invoice item')
-        // validate each item can only be added once
-        .refine(
-          (items) => {
-            const ids = items.map((i) => i.inventoryId).filter((id) => id > 0);
-            return new Set(ids).size === ids.length;
-          },
-          { message: 'Each item can only be added once' },
-        )
-        // validate max quantity of selected inventory item
-        .superRefine((items, ctx) => {
-          if (!inventory?.length) return;
-          items.forEach((item, idx) => {
-            if (item.inventoryId <= 0) return;
-            const inv = inventory.find((i) => i.id === item.inventoryId);
-            if (!inv || item.quantity <= inv.quantity) return;
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Max ${inv.quantity} available`,
-              path: [idx, 'quantity'],
-            });
-          });
-        }),
-      accountMapping: z.object({
-        singleAccountId: z.coerce
-          .number()
-          .positive(
-            `Select a ${
-              invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-            }`,
-          )
-          .optional(),
-        multipleAccountIds: z
-          .array(
-            z.coerce
-              .number({
-                invalid_type_error: `Select a ${
-                  invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-                } for this row`,
-              })
-              .refine((n) => Number.isFinite(n) && n > 0, {
-                message: `Select a ${
-                  invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-                } for this row`,
-              }),
-          )
-          .optional(),
-      }),
-    })
-    // validate account mapping
-    // if single account is checked, validate that account is selected
-    // if single account is unchecked, validate that multiple accounts are selected for each invoice item
-    .superRefine((data, ctx) => {
-      const partyLabel =
-        invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
-      if (useSingleAccountRef.current) {
-        const sid = data.accountMapping.singleAccountId;
-        if (typeof sid !== 'number' || sid <= 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Select a ${partyLabel}`,
-            path: ['accountMapping', 'singleAccountId'],
-          });
-        }
-        return;
-      }
-      const ids = data.accountMapping.multipleAccountIds ?? [];
-      const itemCount = data.invoiceItems?.length ?? 0;
-      const message = `Select a ${partyLabel} for each invoice item`;
-      if (ids.length !== itemCount) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message,
-          path: ['accountMapping', 'multipleAccountIds'],
-        });
-        for (let i = 0; i < itemCount; i++) {
-          const id = ids[i];
-          if (typeof id !== 'number' || id <= 0) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Select a ${partyLabel}`,
-              path: ['accountMapping', 'multipleAccountIds', i],
-            });
-          }
-        }
-        return;
-      }
-      ids.forEach((id, index) => {
-        if (typeof id !== 'number' || id <= 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Select a ${partyLabel}`,
-            path: ['accountMapping', 'multipleAccountIds', index],
-          });
-        }
-      });
-    });
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: defaultFormValues,
-    mode: 'onSubmit', // show validation errors only after user attempts submit
-  });
-
-  const watchedInvoiceItems = useWatch({
-    control: form.control,
-    name: 'invoiceItems',
-  });
-
-  const watchedExtraDiscount = useWatch({
-    control: form.control,
-    name: 'extraDiscount',
-  });
-  const watchedTotalAmount = useWatch({
-    control: form.control,
-    name: 'totalAmount',
-  });
-  const watchedSingleAccountId = useWatch({
-    control: form.control,
-    name: 'accountMapping.singleAccountId',
-  });
-
-  const { fields, append } = useFieldArray({
-    control: form.control,
-    name: 'invoiceItems',
-  });
-
-  // clear form errors when invoiceType changes
-  useEffect(() => {
-    form.clearErrors();
-  }, [invoiceType, form]);
-
-  // fetch data for this page
-  useEffect(() => {
-    (async () => {
-      if (isNil(inventory)) {
-        const inv: InventoryItem[] = await window.electron.getInventory();
-        const filteredInv = inv
-          .map((item) =>
-            pick(item, ['id', 'name', 'price', 'quantity', 'description']),
-          )
-          .filter((item) => item.quantity > 0 && item.price > 0);
-        setInventory(filteredInv);
-      }
-    })();
-  }, [inventory]);
-  useEffect(() => {
-    (async () => {
-      if (nextInvoiceNumber === -1) {
-        setNextInvoiceNumber(
-          await window.electron.getNextInvoiceNumber(invoiceType),
+  /** options for "Extra discount from account" when extra discount > 0 */
+  const extraDiscountAccountOptions = useMemo(() => {
+    if (!(toNumber(watchedExtraDiscount) > 0)) return [];
+    const ids: number[] = [];
+    if (useSingleAccount) {
+      if (
+        invoiceType === InvoiceType.Sale &&
+        splitByItemType &&
+        Array.isArray(watchedMultipleAccountIds) &&
+        watchedMultipleAccountIds.length > 0
+      ) {
+        ids.push(
+          ...new Set(
+            watchedMultipleAccountIds.filter(
+              (id): id is number => typeof id === 'number' && id > 0,
+            ),
+          ),
         );
+      } else {
+        const sid = toNumber(watchedSingleAccountId);
+        if (sid > 0) ids.push(sid);
       }
-    })();
-  }, [invoiceType, nextInvoiceNumber]);
-  const fetchPartiesAndRequiredAccounts = useCallback(async () => {
-    const allAccounts: Account[] = await window.electron.getAccounts();
-    const accounts = allAccounts.map((account) =>
-      pick(account, ['id', 'name', 'type', 'code']),
-    );
-    const saleAccount = accounts.find(
-      (account) =>
-        trim(account.name).toLowerCase() === InvoiceType.Sale.toLowerCase(),
-    );
-    const purchaseAccount = accounts.find(
-      (account) =>
-        trim(account.name).toLowerCase() === InvoiceType.Purchase.toLowerCase(),
-    );
-    const partyAccounts = accounts.filter(
-      (account) =>
-        account.type ===
-        (invoiceType === InvoiceType.Sale
-          ? AccountType.Asset
-          : AccountType.Liability),
-    );
-    return {
-      partyAccounts,
-      sale: !!saleAccount,
-      purchase: !!purchaseAccount,
-    };
-  }, [invoiceType]);
+    } else {
+      (watchedMultipleAccountIds ?? []).forEach((id) => {
+        if (typeof id === 'number' && id > 0) ids.push(id);
+      });
+    }
+    const uniqueIds = [...new Set(ids)];
+    return uniqueIds.map((id) => {
+      const party = parties?.find((p) => p.id === id);
+      const label =
+        party?.name ??
+        (Array.isArray(resolvedRowLabels) &&
+        typeof watchedMultipleAccountIds?.indexOf === 'function'
+          ? resolvedRowLabels[
+              (watchedMultipleAccountIds as number[]).indexOf(id)
+            ]
+          : undefined) ??
+        `Account ${id}`;
+      return { id, name: label };
+    });
+  }, [
+    invoiceType,
+    parties,
+    resolvedRowLabels,
+    splitByItemType,
+    useSingleAccount,
+    watchedExtraDiscount,
+    watchedMultipleAccountIds,
+    watchedSingleAccountId,
+  ]);
 
+  // when extra discount is set, clear or default extraDiscountAccountId; when options change, select first if none selected
   useEffect(() => {
-    if (isNil(parties)) {
-      setRequiredAccountsExist({
-        sale: false,
-        purchase: false,
-        loading: true,
+    if (!(toNumber(watchedExtraDiscount) > 0)) {
+      form.setValue('extraDiscountAccountId', undefined, {
+        shouldValidate: false,
+        shouldDirty: true,
       });
-      fetchPartiesAndRequiredAccounts()
-        .then(({ partyAccounts, sale, purchase }) => {
-          setRequiredAccountsExist({
-            sale,
-            purchase,
-            loading: false,
-          });
-          setParties(partyAccounts);
-        })
-        .catch((error) => {
-          console.error('Error fetching accounts:', error);
-          setRequiredAccountsExist((prev) => ({ ...prev, loading: false }));
-        });
+      return;
     }
-  }, [invoiceType, parties, fetchPartiesAndRequiredAccounts]);
-
-  const refreshParties = useCallback(async () => {
-    setIsRefreshingParties(true);
-    try {
-      const { partyAccounts, sale, purchase } =
-        await fetchPartiesAndRequiredAccounts();
-      setRequiredAccountsExist((prev) => ({
-        ...prev,
-        sale,
-        purchase,
-      }));
-      setParties(partyAccounts);
-      toast({
-        description: 'Accounts refreshed successfully',
-        variant: 'success',
+    const first = extraDiscountAccountOptions[0];
+    const currentId = form.getValues('extraDiscountAccountId');
+    if (first && (!currentId || toNumber(currentId) <= 0)) {
+      form.setValue('extraDiscountAccountId', first.id, {
+        shouldValidate: false,
+        shouldDirty: true,
       });
-    } catch (error) {
-      toast({
-        description: 'Failed to refresh accounts',
-        variant: 'destructive',
-      });
-      console.error('Error refreshing accounts:', error);
-    } finally {
-      setIsRefreshingParties(false);
     }
-  }, [fetchPartiesAndRequiredAccounts]);
+  }, [extraDiscountAccountOptions, form, watchedExtraDiscount]);
 
   const handleRemoveRow = useCallback(
     (rowIndex: number) => {
       const latestInvoice = form.getValues();
+      const removedRow = latestInvoice.invoiceItems[rowIndex];
 
       if (fields.length > 0) {
         form.clearErrors(`invoiceItems.${rowIndex}` as const);
@@ -407,16 +273,22 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           'invoiceItems',
           latestInvoice.invoiceItems.filter((_, index) => index !== rowIndex),
         );
+        if (removedRow?.id) {
+          setRowSectionMap((prev) => {
+            const next = { ...prev };
+            delete next[removedRow.id];
+            return next;
+          });
+          setManualDiscountRows((prev) => {
+            const next = { ...prev };
+            delete next[removedRow.id];
+            return next;
+          });
+        }
       }
     },
-    [fields.length, form],
+    [fields.length, form, setManualDiscountRows, setRowSectionMap],
   );
-
-  const getInvoiceItemTotal = (
-    quantity: number,
-    discount: number,
-    price?: number,
-  ) => quantity * (price ?? 0) * (1 - discount / 100);
 
   /** has item + its quantity selected */
   const hasActiveInvoiceItem = useMemo(
@@ -424,7 +296,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [watchedInvoiceItems],
   );
 
-  // calculate and update total amount whenever relevant values change
+  // recompute totalAmount as sum of rounded section totals (F/T/TT) minus extra discount.
+  // each section total is rounded to nearest rupee first; grand total is not rounded again.
   useEffect(() => {
     if (!hasActiveInvoiceItem) {
       form.setValue('totalAmount', 0, {
@@ -434,16 +307,29 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       return;
     }
 
-    const grossTotal = sum(
-      watchedInvoiceItems.map((item) =>
-        enableCumulativeDiscount && cumulativeDiscount
-          ? getInvoiceItemTotal(item.quantity, cumulativeDiscount, item.price)
-          : item.discountedPrice,
-      ),
+    const sectionSums = watchedInvoiceItems.reduce(
+      (acc, item) => {
+        const key = rowSectionMap[item.id] || 'No Type';
+        const amount =
+          enableCumulativeDiscount && cumulativeDiscount
+            ? computeInvoiceItemTotal(
+                item.quantity,
+                cumulativeDiscount,
+                item.price,
+              )
+            : toNumber(item.discountedPrice);
+        acc[key] = (acc[key] ?? 0) + toNumber(amount);
+        return acc;
+      },
+      {} as Record<string, number>,
     );
-    const total = grossTotal - watchedExtraDiscount;
 
-    form.setValue('totalAmount', getFixedNumber(total, 2), {
+    const grossRounded = Object.values(sectionSums).reduce((sumRupees, s) => {
+      return sumRupees + Math.round(toNumber(s));
+    }, 0);
+    const total = grossRounded - toNumber(watchedExtraDiscount ?? 0);
+
+    form.setValue('totalAmount', total, {
       shouldValidate: false,
       shouldDirty: true,
     });
@@ -454,6 +340,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     hasActiveInvoiceItem,
     watchedExtraDiscount,
     watchedInvoiceItems,
+    rowSectionMap,
   ]);
 
   const getSelectedItem = useCallback(
@@ -462,13 +349,19 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [inventory],
   );
   const onItemSelectionChange = useCallback(
-    (rowIndex: number, val: string, onChange: Function) => {
+    async (rowIndex: number, val: string, onChange: Function) => {
       onChange(val);
       const item = getSelectedItem(toNumber(val));
       form.setValue(`invoiceItems.${rowIndex}.price`, item?.price || 0);
+
+      if (invoiceType === InvoiceType.Sale) {
+        await applyAutoDiscountForRow(rowIndex, toNumber(val));
+        return;
+      }
+
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
-        getInvoiceItemTotal(
+        computeInvoiceItemTotal(
           form.getValues(`invoiceItems.${rowIndex}.quantity`),
           form.getValues(`invoiceItems.${rowIndex}.discount`),
           item?.price,
@@ -479,7 +372,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         },
       );
     },
-    [form, getSelectedItem],
+    [applyAutoDiscountForRow, form, getSelectedItem, invoiceType],
   );
   const getDiscountValue = useCallback(
     (fieldValue: number) =>
@@ -491,9 +384,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onDiscountChange = useCallback(
     (rowIndex: number, value: string, onChange: Function) => {
       onChange(toNumber(value));
+      const rowId = form.getValues(`invoiceItems.${rowIndex}.id`);
+      if (isDiscountEditEnabled) {
+        setManualDiscountRows((prev) => ({ ...prev, [rowId]: true }));
+      }
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
-        getInvoiceItemTotal(
+        computeInvoiceItemTotal(
           form.getValues(`invoiceItems.${rowIndex}.quantity`),
           toNumber(value),
           form.getValues(`invoiceItems.${rowIndex}.price`),
@@ -504,14 +401,22 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         },
       );
     },
-    [form],
+    [form, isDiscountEditEnabled, setManualDiscountRows],
+  );
+  const onResetDiscountToAuto = useCallback(
+    async (rowIndex: number) => {
+      const rowId = form.getValues(`invoiceItems.${rowIndex}.id`);
+      setManualDiscountRows((prev) => ({ ...prev, [rowId]: false }));
+      await applyAutoDiscountForRow(rowIndex);
+    },
+    [applyAutoDiscountForRow, form, setManualDiscountRows],
   );
   const onQuantityChange = useCallback(
     (rowIndex: number, value: string, onChange: Function) => {
       onChange(toNumber(value));
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
-        getInvoiceItemTotal(
+        computeInvoiceItemTotal(
           toNumber(value),
           form.getValues(`invoiceItems.${rowIndex}.discount`),
           form.getValues(`invoiceItems.${rowIndex}.price`),
@@ -528,7 +433,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     (rowIndex: number, fieldValue?: number) => {
       if (enableCumulativeDiscount && cumulativeDiscount) {
         return getFormattedCurrency(
-          getInvoiceItemTotal(
+          computeInvoiceItemTotal(
             form.getValues(`invoiceItems.${rowIndex}.quantity`),
             cumulativeDiscount,
             form.getValues(`invoiceItems.${rowIndex}.price`),
@@ -544,248 +449,87 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   );
 
   const onAccountSelection = useCallback(
-    (accountId: string, onChange: Function) => {
-      onChange(accountId);
+    async (accountId: string, onChange: Function) => {
+      onChange(toNumber(accountId));
+      if (invoiceType === InvoiceType.Sale && useSingleAccountRef.current) {
+        await recalculateAutoDiscounts();
+      }
     },
-    [],
+    [invoiceType, recalculateAutoDiscounts],
   );
 
-  const columns: ColumnDef<InvoiceItem>[] = useMemo(() => {
-    const getItemOptionsForRow = (rowIndex: number) => {
-      const items = form.getValues('invoiceItems') || [];
-      const selectedElsewhere = items
-        .filter((item, idx) => idx !== rowIndex && item.inventoryId > 0)
-        .map((item) => item.inventoryId);
-      return (inventory || []).filter(
-        (inv) => !selectedElsewhere.includes(inv.id),
-      );
-    };
+  const columnsParams = useMemo(
+    () => ({
+      form: { control: form.control, getValues: form.getValues },
+      inventory,
+      invoiceType,
+      resolvedRowLabels,
+      splitByItemType,
+      useSingleAccount,
+      enableCumulativeDiscount,
+      isDiscountEditEnabled,
+      manualDiscountRows,
+      sections,
+      rowSectionMap,
+      setRowSectionMap,
+      onItemSelectionChange,
+      onQuantityChange,
+      handleRemoveRow,
+      getDiscountValue,
+      onDiscountChange,
+      renderDiscountedPrice,
+      onResetDiscountToAuto,
+      applyAutoDiscountForRow,
+      getSectionLabel,
+    }),
+    [
+      form.control,
+      form.getValues,
+      inventory,
+      invoiceType,
+      resolvedRowLabels,
+      splitByItemType,
+      useSingleAccount,
+      enableCumulativeDiscount,
+      isDiscountEditEnabled,
+      manualDiscountRows,
+      sections,
+      rowSectionMap,
+      setRowSectionMap,
+      onItemSelectionChange,
+      onQuantityChange,
+      handleRemoveRow,
+      getDiscountValue,
+      onDiscountChange,
+      renderDiscountedPrice,
+      onResetDiscountToAuto,
+      applyAutoDiscountForRow,
+      getSectionLabel,
+    ],
+  );
+  const columns = useNewInvoiceColumns(columnsParams);
 
-    const baseColumns: ColumnDef<InvoiceItem>[] = [
-      {
-        header: 'Item',
-        cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`invoiceItems.${row.index}.inventoryId` as const}
-            render={({ field }) => (
-              <FormItem className="w-max min-w-[200px] space-y-0">
-                <VirtualSelect<InventoryItem>
-                  options={getItemOptionsForRow(row.index)}
-                  value={field.value?.toString()}
-                  onChange={(val) =>
-                    onItemSelectionChange(
-                      row.index,
-                      toString(val),
-                      field.onChange,
-                    )
-                  }
-                  placeholder="Select item"
-                  searchPlaceholder="Search items..."
-                  renderSelectItem={(item) => (
-                    <div className="flex w-40 justify-between gap-2">
-                      <h2 className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere]">
-                        {item.name}
-                      </h2>
-
-                      <div className="text-xs text-muted-foreground text-end">
-                        <div className="flex gap-2">
-                          <p className="font-bold">{item.quantity}</p>
-
-                          <span className="font-extralight">
-                            item{item.quantity < 2 ? '' : 's'} left
-                          </span>
-                        </div>
-                        <p>{getFormattedCurrency(item.price)}</p>
-                      </div>
-                    </div>
-                  )}
-                />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ),
-      },
-      {
-        header: 'Quantity',
-        cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`invoiceItems.${row.index}.quantity` as const}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <Input
-                    {...field}
-                    type="number"
-                    step={1}
-                    min={0}
-                    onBlur={(e) => field.onChange(toNumber(e.target.value))}
-                    onChange={(e) =>
-                      onQuantityChange(
-                        row.index,
-                        e.target.value,
-                        field.onChange,
-                      )
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ),
-      },
-      {
-        id: 'remove',
-        header: 'Action',
-        cell: ({ row }) => (
-          <X
-            color="red"
-            size={16}
-            onClick={() => handleRemoveRow(row.index)}
-            cursor="pointer"
-          />
-        ),
-      },
-    ];
-
-    if (invoiceType === InvoiceType.Sale) {
-      const priceColumns: ColumnDef<InvoiceItem>[] = [
-        {
-          header: 'Price',
-          cell: ({ row }) => (
-            <FormField
-              control={form.control}
-              name={`invoiceItems.${row.index}.price` as const}
-              render={({ field }) => (
-                <FormItem className="space-y-0">
-                  <FormControl>
-                    <p className="text-muted-foreground min-h-[1.5rem]">
-                      {typeof field.value === 'number' && field.value >= 0
-                        ? getFormattedCurrency(toNumber(field.value))
-                        : '—'}
-                    </p>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ),
-        },
-        {
-          header: 'Discount',
-          cell: ({ row }) => (
-            <FormField
-              control={form.control}
-              name={`invoiceItems.${row.index}.discount` as const}
-              render={({ field }) => (
-                <FormItem className="space-y-0">
-                  <FormControl>
-                    <Input
-                      {...field}
-                      value={getDiscountValue(field.value)}
-                      type="number"
-                      step="any"
-                      min={0}
-                      max={100}
-                      disabled={enableCumulativeDiscount}
-                      onBlur={(e) => field.onChange(toNumber(e.target.value))}
-                      onChange={(e) =>
-                        onDiscountChange(
-                          row.index,
-                          e.target.value,
-                          field.onChange,
-                        )
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ),
-        },
-        {
-          header: 'Discounted Price',
-          cell: ({ row }) => (
-            <FormField
-              control={form.control}
-              name={`invoiceItems.${row.index}.discountedPrice` as const}
-              render={({ field }) => (
-                <FormItem className="space-y-0">
-                  <FormControl>
-                    <p>{renderDiscountedPrice(row.index, field.value)}</p>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ),
-        },
-      ];
-
-      const accountColumn: ColumnDef<InvoiceItem>[] = useSingleAccount
-        ? []
-        : [
-            {
-              header: `Customer *`,
-              cell: ({ row }) => (
-                <FormField
-                  control={form.control}
-                  name={
-                    `accountMapping.multipleAccountIds.${row.index}` as const
-                  }
-                  render={({ field }) => (
-                    <FormItem className="w-auto min-w-[200px] space-y-0">
-                      <VirtualSelect
-                        options={parties || []}
-                        value={field.value}
-                        onChange={(val) =>
-                          onAccountSelection(toString(val), field.onChange)
-                        }
-                        placeholder={`Select ${
-                          invoiceType === InvoiceType.Sale
-                            ? 'customer'
-                            : 'vendor'
-                        }`}
-                        searchPlaceholder="Search parties..."
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ),
-            },
-          ];
-
-      // insert additional columns before the remove action (last) column
-      baseColumns.splice(baseColumns.length - 1, 0, ...priceColumns);
-      baseColumns.splice(baseColumns.length - 1, 0, ...accountColumn);
+  const handleAddNewRow = useCallback(() => {
+    const entry = getInitialEntry();
+    append({ ...entry });
+    if (
+      invoiceType === InvoiceType.Sale &&
+      !useSingleAccount &&
+      activeSectionId
+    ) {
+      setRowSectionMap((prev) => ({
+        ...prev,
+        [entry.id]: activeSectionId,
+      }));
     }
-
-    return baseColumns;
   }, [
+    activeSectionId,
+    append,
+    getInitialEntry,
     invoiceType,
-    form,
-    inventory,
-    onItemSelectionChange,
-    onQuantityChange,
-    handleRemoveRow,
+    setRowSectionMap,
     useSingleAccount,
-    getDiscountValue,
-    enableCumulativeDiscount,
-    onDiscountChange,
-    renderDiscountedPrice,
-    parties,
-    onAccountSelection,
   ]);
-
-  const handleAddNewRow = useCallback(
-    () => append({ ...getInitialEntry() }),
-    [append, getInitialEntry],
-  );
 
   const isSubmitDisabled = useMemo(() => {
     if (form.formState.isSubmitting) return true;
@@ -806,17 +550,27 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       (watchedSingleAccountId == null || watchedSingleAccountId <= 0)
     )
       return true;
+    if (invoiceType === InvoiceType.Sale && !useSingleAccount) {
+      const multipleAccountIds = watchedMultipleAccountIds || [];
+      if (
+        !multipleAccountIds.length ||
+        multipleAccountIds.some((id) => id <= 0)
+      )
+        return true;
+    }
     return false;
   }, [
-    form.formState.isSubmitting,
+    form,
     invoiceType,
     useSingleAccount,
+    watchedMultipleAccountIds,
     watchedSingleAccountId,
     watchedTotalAmount,
   ]);
 
   const onCumulativeDiscountChange = useCallback(
     (value: string) => {
+      if (!isDiscountEditEnabled) return;
       const discount = toNumber(value);
       setCumulativeDiscount(discount);
 
@@ -825,7 +579,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         .map((item) => ({
           ...item,
           discount,
-          discountedPrice: getInvoiceItemTotal(
+          discountedPrice: computeInvoiceItemTotal(
             item.quantity,
             discount,
             item.price,
@@ -837,105 +591,24 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         shouldDirty: true,
       });
     },
-    [form],
+    [form, isDiscountEditEnabled, setCumulativeDiscount],
   );
 
-  const tableInfoData = useMemo(() => {
-    if (invoiceType === InvoiceType.Purchase) {
-      return [];
-    }
-
-    return [
-      [
-        <h1>Cumulative Discount (%)</h1>,
-        <div className="flex gap-2 ml-1">
-          <Checkbox
-            checked={enableCumulativeDiscount}
-            onCheckedChange={(checked) =>
-              setEnableCumulativeDiscount(checked === true)
-            }
-          />
-          <h2 className="text-xs">Enable</h2>
-        </div>,
-        null,
-        <Input
-          value={cumulativeDiscount}
-          type="number"
-          step="any"
-          min={0}
-          max={100}
-          disabled={!enableCumulativeDiscount}
-          onChange={(e) => onCumulativeDiscountChange(e.target.value)}
-        />,
-        null,
-        null,
-      ],
-      [
-        <h1>Extra Discount ({currencyFormatOptions.currency})</h1>,
-        null,
-        null,
-        null,
-        <FormField
-          control={form.control}
-          name="extraDiscount"
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <Input
-                  {...field}
-                  type="number"
-                  step="any"
-                  min={0}
-                  disabled={!hasActiveInvoiceItem || !useSingleAccount}
-                  onBlur={(e) => field.onChange(toNumber(e.target.value))}
-                  onChange={(e) => field.onChange(toNumber(e.target.value))}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />,
-        null,
-      ],
-      [
-        <h1 className="text-green-500 text-lg font-bold">Total</h1>,
-        null,
-        null,
-        null,
-        <FormField
-          control={form.control}
-          name="totalAmount"
-          render={() => (
-            <FormItem className="w-1/2 space-y-0">
-              <FormControl>
-                <p
-                  className={cn(
-                    typeof watchedTotalAmount === 'number' &&
-                      'border-2 border-green-500 rounded-lg h-10 pl-2 pr-4 pt-2 w-fit',
-                  )}
-                >
-                  {typeof watchedTotalAmount === 'number'
-                    ? getFormattedCurrency(watchedTotalAmount)
-                    : null}
-                </p>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />,
-        null,
-      ],
-    ].map((row) => (useSingleAccount ? row : [...row, null]));
-  }, [
+  const tableInfoData = useNewInvoiceTableInfo({
+    control: form.control,
     invoiceType,
-    enableCumulativeDiscount,
-    cumulativeDiscount,
-    form.control,
-    onCumulativeDiscountChange,
-    hasActiveInvoiceItem,
+    watchedExtraDiscount,
     watchedTotalAmount,
+    extraDiscountAccountOptions,
+    discountAccountExists,
+    enableCumulativeDiscount,
+    setEnableCumulativeDiscount,
+    cumulativeDiscount,
+    isDiscountEditEnabled,
+    onCumulativeDiscountChange,
     useSingleAccount,
-  ]);
+    splitByItemType,
+  });
 
   const submitInvoice = async (
     values: z.infer<typeof formSchema>,
@@ -954,6 +627,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         setNextInvoiceNumber(result.nextInvoiceNumber);
         form.reset(defaultFormValues);
         setIsDateExplicitlySet(false);
+        setSections([]);
+        setActiveSectionId(null);
+        setRowSectionMap({});
+        setManualDiscountRows({});
         toast({
           description: `${invoiceType} invoice saved successfully`,
           variant: 'success',
@@ -981,8 +658,23 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
       let accountIds: number[];
       if (useSingleAccount) {
-        const sid = values.accountMapping.singleAccountId;
-        accountIds = typeof sid === 'number' && sid > 0 ? [sid] : [];
+        if (
+          invoiceType === InvoiceType.Sale &&
+          splitByItemType &&
+          Array.isArray(values.accountMapping.multipleAccountIds) &&
+          values.accountMapping.multipleAccountIds.length > 0
+        ) {
+          accountIds = [
+            ...new Set(
+              (values.accountMapping.multipleAccountIds || []).filter(
+                (id): id is number => typeof id === 'number' && id > 0,
+              ),
+            ),
+          ];
+        } else {
+          const sid = values.accountMapping.singleAccountId;
+          accountIds = typeof sid === 'number' && sid > 0 ? [sid] : [];
+        }
       } else {
         accountIds = (values.accountMapping.multipleAccountIds || []).filter(
           (id): id is number => typeof id === 'number' && id > 0,
@@ -1012,10 +704,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         minRequired,
         'PPP',
       )} for the selected ${partyLabel}${
-        useSingleAccount ? '' : '(s)'
+        useSingleAccount && !splitByItemType ? '' : '(s)'
       } (last ledger date).`;
     },
-    [invoiceType, useSingleAccount],
+    [invoiceType, splitByItemType, useSingleAccount],
   );
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -1074,15 +766,30 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
       parsedItems.forEach((pItem) => {
         const inventoryItem = items.find((i) => i.name === pItem.name);
-        append({
-          id: Date.now(),
+        const entry = {
+          ...getInitialEntry(),
           inventoryId: inventoryItem?.id ?? 0,
           quantity: pItem.quantity,
           discount: 0,
           price: inventoryItem?.price ?? 0,
           discountedPrice: 0,
-        });
+        };
+        append(entry);
+        if (
+          invoiceType === InvoiceType.Sale &&
+          !useSingleAccount &&
+          activeSectionId
+        ) {
+          setRowSectionMap((prev) => ({
+            ...prev,
+            [entry.id]: activeSectionId,
+          }));
+        }
       });
+
+      if (invoiceType === InvoiceType.Sale) {
+        await recalculateAutoDiscounts();
+      }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error(error);
@@ -1105,7 +812,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onDateSelection = useCallback(
     (date?: Date) => {
       if (!date) return;
-      form.setValue('date', date.toISOString());
+      // date picker gives a day; store it as an ISO instant at local noon to avoid timezone shifts
+      // (e.g., ISO midnight UTC can display as previous day in negative timezones).
+      form.setValue('date', toLocalNoonIsoString(date));
       setIsDateExplicitlySet(true);
     },
     [form],
@@ -1119,14 +828,149 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         form.setValue('accountMapping.multipleAccountIds', [], {
           shouldValidate: false,
         });
+        setSections([]);
+        setActiveSectionId(null);
+        setRowSectionMap({});
       } else {
+        const selectedCustomerId = form.getValues(
+          'accountMapping.singleAccountId',
+        );
+        const sectionId = `section-${Date.now()}`;
+        setSections([
+          {
+            id: sectionId,
+            accountId:
+              typeof selectedCustomerId === 'number' && selectedCustomerId > 0
+                ? selectedCustomerId
+                : undefined,
+          },
+        ]);
+        setActiveSectionId(sectionId);
+        const invoiceItems = form.getValues('invoiceItems');
+        setRowSectionMap(
+          invoiceItems.reduce(
+            (acc, item) => ({
+              ...acc,
+              [item.id]: sectionId,
+            }),
+            {},
+          ),
+        );
         form.setValue('accountMapping.singleAccountId', undefined, {
           shouldValidate: false,
         });
         form.setValue('extraDiscount', 0);
+        if (invoiceType === InvoiceType.Sale) {
+          const forcedAccountId = toNumber(selectedCustomerId);
+          const currentInvoiceItems = form.getValues('invoiceItems');
+          (async () => {
+            for (
+              let rowIndex = 0;
+              rowIndex < currentInvoiceItems.length;
+              rowIndex += 1
+            ) {
+              // eslint-disable-next-line no-await-in-loop
+              await applyAutoDiscountForRow(
+                rowIndex,
+                toNumber(currentInvoiceItems[rowIndex].inventoryId),
+                forcedAccountId,
+              );
+            }
+          })().catch((error) => {
+            console.error(
+              'Error applying auto discount after account toggle',
+              error,
+            );
+          });
+        }
       }
     },
-    [form],
+    [
+      applyAutoDiscountForRow,
+      form,
+      invoiceType,
+      setActiveSectionId,
+      setRowSectionMap,
+      setSections,
+    ],
+  );
+
+  const addSection = useCallback(() => {
+    const sectionId = `section-${Date.now()}`;
+    setSections((prev) => [...prev, { id: sectionId }]);
+    if (!activeSectionId) {
+      setActiveSectionId(sectionId);
+    }
+  }, [activeSectionId, setActiveSectionId, setSections]);
+
+  const removeSection = useCallback(
+    (sectionId: string) => {
+      if (sections.length <= 1) return;
+
+      const nextSections = sections.filter(
+        (section) => section.id !== sectionId,
+      );
+      const fallbackSectionId = nextSections[0]?.id;
+      setSections(nextSections);
+
+      if (activeSectionId === sectionId) {
+        setActiveSectionId(fallbackSectionId ?? null);
+      }
+
+      if (fallbackSectionId) {
+        setRowSectionMap((prev) =>
+          Object.fromEntries(
+            Object.entries(prev).map(([rowId, mappedSectionId]) => [
+              rowId,
+              mappedSectionId === sectionId
+                ? fallbackSectionId
+                : mappedSectionId,
+            ]),
+          ),
+        );
+      }
+    },
+    [
+      activeSectionId,
+      sections,
+      setActiveSectionId,
+      setRowSectionMap,
+      setSections,
+    ],
+  );
+
+  const setSectionCustomer = useCallback(
+    async (sectionId: string, accountId: number) => {
+      setSections((prev) =>
+        prev.map((section) =>
+          section.id === sectionId ? { ...section, accountId } : section,
+        ),
+      );
+
+      if (invoiceType !== InvoiceType.Sale) return;
+
+      const items = form.getValues('invoiceItems');
+      for (let rowIndex = 0; rowIndex < items.length; rowIndex += 1) {
+        const row = items[rowIndex];
+        if (rowSectionMap[row.id] !== sectionId) {
+          continue;
+        }
+        if (isDiscountEditEnabled && manualDiscountRows[row.id]) {
+          continue;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await applyAutoDiscountForRow(rowIndex, row.inventoryId, accountId);
+      }
+    },
+    [
+      applyAutoDiscountForRow,
+      form,
+      isDiscountEditEnabled,
+      invoiceType,
+      manualDiscountRows,
+      rowSectionMap,
+      setSections,
+    ],
   );
 
   if (isNil(inventory)) {
@@ -1155,53 +999,66 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   return (
     <>
-      <Dialog
+      <DateConfirmationDialog
         open={showDateConfirmation}
         onOpenChange={setShowDateConfirmation}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm date</DialogTitle>
-            <DialogDescription>
-              You are using today&apos;s date ({format(new Date(), 'PPP')}).
-              Would you like to proceed with this date or set a different one?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="sm:justify-between">
-            <Button
-              variant="secondary"
-              onClick={() => setShowDateConfirmation(false)}
-            >
-              Change date
-            </Button>
-            <Button
-              onClick={() => {
-                setShowDateConfirmation(false);
-                form.setValue('date', new Date().toISOString());
-                dateConfirmedInModalRef.current = true;
-                form.handleSubmit(onSubmit)();
-              }}
-            >
-              Use current date
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onUseCurrentDate={() => {
+          form.setValue('date', toLocalNoonIsoString(new Date()));
+          dateConfirmedInModalRef.current = true;
+          form.handleSubmit(onSubmit)();
+        }}
+      />
 
       <div className="py-1 flex flex-col gap-y-4">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="title-new">{`New ${invoiceType} Invoice`}</h1>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={refreshParties}
-            title="Refresh accounts"
-            disabled={isRefreshingParties}
-          >
-            <RefreshCw
-              className={cn('h-4 w-4', isRefreshingParties && 'animate-spin')}
-            />
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            {invoiceType === InvoiceType.Sale && !isNil(nextInvoiceNumber) && (
+              <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3">
+                <div className="flex items-center gap-2 min-h-[44px]">
+                  <Checkbox
+                    id="useSingleAccount"
+                    checked={useSingleAccount}
+                    onCheckedChange={onSingleAccountToggle}
+                  />
+                  <Label
+                    htmlFor="useSingleAccount"
+                    className="cursor-pointer select-none"
+                  >
+                    One customer for entire invoice
+                  </Label>
+                </div>
+                {useSingleAccount && (
+                  <div className="flex items-center gap-2 min-h-[44px]">
+                    <Checkbox
+                      id="splitByItemType"
+                      checked={splitByItemType}
+                      onCheckedChange={(checked) =>
+                        setSplitByItemType(checked === true)
+                      }
+                    />
+                    <Label
+                      htmlFor="splitByItemType"
+                      className="cursor-pointer select-none"
+                    >
+                      Split ledger by item type
+                    </Label>
+                  </div>
+                )}
+              </div>
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={refreshParties}
+              title="Refresh accounts"
+              disabled={isRefreshingParties}
+            >
+              <RefreshCw
+                className={cn('h-4 w-4', isRefreshingParties && 'animate-spin')}
+              />
+            </Button>
+          </div>
         </div>
 
         {isNil(nextInvoiceNumber) ? (
@@ -1218,162 +1075,402 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               onReset={() => {
                 form.reset(defaultFormValues);
                 setIsDateExplicitlySet(false);
+                setSections([]);
+                setActiveSectionId(null);
+                setRowSectionMap({});
+                setManualDiscountRows({});
               }}
               onKeyDown={checkKeyDown}
               role="presentation"
             >
-              <div className="flex flex-col gap-2">
-                {invoiceType === InvoiceType.Sale && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <Checkbox
-                      id="useSingleAccount"
-                      checked={useSingleAccount}
-                      onCheckedChange={onSingleAccountToggle}
-                    />
-                    <label
-                      htmlFor="useSingleAccount"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Use single customer for entire invoice{' '}
-                    </label>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 row-gap-4">
-                  {useSingleAccount || invoiceType === InvoiceType.Purchase ? (
-                    <FormField
-                      control={form.control}
-                      name="accountMapping.singleAccountId"
-                      render={({ field }) => (
-                        <FormItem labelPosition="start" className="pr-16">
-                          <FormLabel className="text-base">
-                            {invoiceType === InvoiceType.Sale
-                              ? 'Customer'
-                              : 'Vendor'}
-                            <span className="text-destructive"> *</span>
-                          </FormLabel>
-                          <VirtualSelect
-                            options={parties || []}
-                            value={field.value}
-                            onChange={(val) =>
-                              onAccountSelection(toString(val), field.onChange)
-                            }
-                            placeholder="Select a party"
-                            searchPlaceholder="Search parties..."
+              <div className="flex flex-col gap-6">
+                <section
+                  className="flex flex-col gap-4"
+                  aria-label="Invoice details"
+                >
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                    {isSingleAccountSale && (
+                      <>
+                        <div
+                          className="grid gap-3 col-span-2"
+                          style={{
+                            gridTemplateColumns: '2fr 1.2fr 0.6fr 0.4fr',
+                          }}
+                        >
+                          <FormField
+                            control={form.control}
+                            name="accountMapping.singleAccountId"
+                            render={({ field }) => (
+                              <FormItem labelPosition="top" className="min-w-0">
+                                <FormLabel className="text-base">
+                                  {isSale ? 'Customer' : 'Vendor'}
+                                  <span className="text-destructive"> *</span>
+                                </FormLabel>
+                                <VirtualSelect
+                                  options={parties || []}
+                                  value={field.value}
+                                  onChange={(val) =>
+                                    onAccountSelection(
+                                      toString(val),
+                                      field.onChange,
+                                    )
+                                  }
+                                  placeholder="Select a party"
+                                  searchPlaceholder="Search parties..."
+                                />
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ) : (
-                    <div className="flex items-center">
-                      <p className="text-sm text-muted-foreground">
-                        One invoice per customer; select account per line.
-                      </p>
-                    </div>
-                  )}
-
-                  {invoiceType === InvoiceType.Sale && (
-                    <FormField
-                      control={form.control}
-                      name="biltyNumber"
-                      render={({ field }) => (
-                        <FormItem labelPosition="start" className="pl-16">
-                          <FormLabel className="text-base">
-                            Bilty Number
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              placeholder="Enter bilty number"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem
-                        labelPosition="start"
-                        className="pr-16 row-start-2"
-                      >
-                        <FormLabel className="text-base">
-                          Date<span className="text-destructive"> *</span>
-                        </FormLabel>
-                        <FormControl>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                className={cn(
-                                  'w-full justify-start text-left font-normal',
-                                  !field.value && 'text-muted-foreground',
-                                )}
+                          <FormField
+                            control={form.control}
+                            name="date"
+                            render={({ field }) => (
+                              <FormItem labelPosition="top" className="min-w-0">
+                                <FormLabel className="text-base">
+                                  Date
+                                  <span className="text-destructive"> *</span>
+                                </FormLabel>
+                                <FormControl>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        className={cn(
+                                          'w-full justify-start text-left font-normal min-w-0',
+                                          !field.value &&
+                                            'text-muted-foreground',
+                                        )}
+                                      >
+                                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                                        {field.value ? (
+                                          format(new Date(field.value), 'PPP')
+                                        ) : (
+                                          <span>Pick a date</span>
+                                        )}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                      <Calendar
+                                        {...field}
+                                        mode="single"
+                                        selected={
+                                          field.value
+                                            ? new Date(field.value)
+                                            : undefined
+                                        }
+                                        onSelect={onDateSelection}
+                                        initialFocus
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="biltyNumber"
+                            render={({ field }) => (
+                              <FormItem
+                                labelPosition="top"
+                                className="min-w-0 space-y-1.5"
                               >
-                                <CalendarIcon className="mr-2 h-12 w-4" />
-                                {field.value ? (
-                                  format(field.value, 'PPP')
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar
-                                {...field}
-                                mode="single"
-                                selected={
-                                  field.value
-                                    ? new Date(field.value)
-                                    : undefined
-                                }
-                                onSelect={onDateSelection}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                                <FormLabel className="text-base">
+                                  Bilty Number
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="Bilty"
+                                    className="w-full"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="cartons"
+                            render={({ field }) => (
+                              <FormItem
+                                labelPosition="top"
+                                className="min-w-0 space-y-1.5"
+                              >
+                                <FormLabel className="text-base">
+                                  Cartons
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    type="number"
+                                    step={1}
+                                    min={0}
+                                    placeholder="0"
+                                    className="w-full"
+                                    onBlur={(e) =>
+                                      field.onChange(toNumber(e.target.value))
+                                    }
+                                    onChange={(e) =>
+                                      field.onChange(toNumber(e.target.value))
+                                    }
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        {singleAccountAutoDiscountOff && (
+                          <div className="col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                            Auto discount off for selected customer.
+                          </div>
+                        )}
+                      </>
                     )}
-                  />
+                    {isSingleAccountOrPurchase && !isSingleAccountSale && (
+                      <>
+                        <div
+                          className="grid gap-3 col-span-2"
+                          style={{
+                            gridTemplateColumns: '2fr 1.2fr',
+                          }}
+                        >
+                          <FormField
+                            control={form.control}
+                            name="accountMapping.singleAccountId"
+                            render={({ field }) => (
+                              <FormItem labelPosition="top" className="min-w-0">
+                                <FormLabel className="text-base">
+                                  {isSale ? 'Customer' : 'Vendor'}
+                                  <span className="text-destructive"> *</span>
+                                </FormLabel>
+                                <VirtualSelect
+                                  options={parties || []}
+                                  value={field.value}
+                                  onChange={(val) =>
+                                    onAccountSelection(
+                                      toString(val),
+                                      field.onChange,
+                                    )
+                                  }
+                                  placeholder="Select a party"
+                                  searchPlaceholder="Search parties..."
+                                />
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="date"
+                            render={({ field }) => (
+                              <FormItem labelPosition="top" className="min-w-0">
+                                <FormLabel className="text-base">
+                                  Date
+                                  <span className="text-destructive"> *</span>
+                                </FormLabel>
+                                <FormControl>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        className={cn(
+                                          'w-full justify-start text-left font-normal min-w-0',
+                                          !field.value &&
+                                            'text-muted-foreground',
+                                        )}
+                                      >
+                                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                                        {field.value ? (
+                                          format(new Date(field.value), 'PPP')
+                                        ) : (
+                                          <span>Pick a date</span>
+                                        )}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                      <Calendar
+                                        {...field}
+                                        mode="single"
+                                        selected={
+                                          field.value
+                                            ? new Date(field.value)
+                                            : undefined
+                                        }
+                                        onSelect={onDateSelection}
+                                        initialFocus
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        {singleAccountAutoDiscountOff && (
+                          <div className="col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                            Auto discount off for selected customer.
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {isSectionsView && (
+                      <CustomerSectionsBlock
+                        sections={sections}
+                        activeSectionId={activeSectionId}
+                        parties={parties || []}
+                        getSectionLabel={getSectionLabel}
+                        onAddSection={addSection}
+                        onRemoveSection={removeSection}
+                        onSetActiveSection={setActiveSectionId}
+                        onSetSectionCustomer={setSectionCustomer}
+                        sectionAutoDiscountOffCount={
+                          sectionAutoDiscountOffCount
+                        }
+                      />
+                    )}
 
-                  {invoiceType === InvoiceType.Sale && (
-                    <FormField
-                      control={form.control}
-                      name="cartons"
-                      render={({ field }) => (
-                        <FormItem labelPosition="start" className="pl-16">
-                          <FormLabel className="text-base">Cartons</FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              type="number"
-                              step={1}
-                              min={0}
-                              placeholder="Number of cartons"
-                              onBlur={(e) =>
-                                field.onChange(toNumber(e.target.value))
-                              }
-                              onChange={(e) =>
-                                field.onChange(toNumber(e.target.value))
-                              }
+                    {/* date, bilty, cartons row only for multi-account (sections) view */}
+                    {isSectionsView && (
+                      <div
+                        className={cn(
+                          'grid gap-4 col-span-2',
+                          isSale ? 'grid-cols-3' : 'grid-cols-1',
+                        )}
+                      >
+                        <FormField
+                          control={form.control}
+                          name="date"
+                          render={({ field }) => (
+                            <FormItem labelPosition="top">
+                              <FormLabel className="text-base">
+                                Date
+                                <span className="text-destructive"> *</span>
+                              </FormLabel>
+                              <FormControl>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      className={cn(
+                                        'w-full justify-start text-left font-normal',
+                                        !field.value && 'text-muted-foreground',
+                                      )}
+                                    >
+                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                      {field.value ? (
+                                        format(new Date(field.value), 'PPP')
+                                      ) : (
+                                        <span>Pick a date</span>
+                                      )}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                      {...field}
+                                      mode="single"
+                                      selected={
+                                        field.value
+                                          ? new Date(field.value)
+                                          : undefined
+                                      }
+                                      onSelect={onDateSelection}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        {isSale && (
+                          <>
+                            <FormField
+                              control={form.control}
+                              name="biltyNumber"
+                              render={({ field }) => (
+                                <FormItem
+                                  labelPosition="top"
+                                  className="space-y-1"
+                                >
+                                  <FormLabel className="text-base">
+                                    Bilty Number
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...field}
+                                      placeholder="Enter bilty number"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
                             />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                </div>
+                            <FormField
+                              control={form.control}
+                              name="cartons"
+                              render={({ field }) => (
+                                <FormItem
+                                  labelPosition="top"
+                                  className="space-y-1"
+                                >
+                                  <FormLabel className="text-base">
+                                    Cartons
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...field}
+                                      type="number"
+                                      step={1}
+                                      min={0}
+                                      placeholder="Number of cartons"
+                                      onBlur={(e) =>
+                                        field.onChange(toNumber(e.target.value))
+                                      }
+                                      onChange={(e) =>
+                                        field.onChange(toNumber(e.target.value))
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </section>
               </div>
 
-              <div className="py-8 flex flex-col gap-3">
+              <div className="flex flex-col gap-4 mt-8">
+                <h2 className="text-sm font-medium text-muted-foreground">
+                  Line items
+                </h2>
+                {invoiceType === InvoiceType.Sale &&
+                  useSingleAccount &&
+                  splitByItemType &&
+                  resolutionFallbacks.length > 0 && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                      Account(s) not found:{' '}
+                      {[
+                        ...new Set(
+                          resolutionFallbacks.map(
+                            (f) => f.expectedSuffixedName,
+                          ),
+                        ),
+                      ].join(', ')}
+                      . These rows use the selected party. Create the account in
+                      another window and click <strong>Refresh accounts</strong>{' '}
+                      to link.
+                    </div>
+                  )}
                 <DataTable
                   columns={columns}
                   data={fields}
@@ -1387,10 +1484,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 )}
               </div>
 
-              <div className="flex justify-between gap-20 pb-20">
+              <div className="flex justify-between gap-6 pb-6">
                 <Button
                   type="button"
-                  className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
+                  variant="default"
+                  className="gap-2 px-6 py-3 min-h-[44px] rounded-lg"
                   onClick={() => handleAddNewRow()}
                 >
                   <Plus size={20} />
@@ -1423,19 +1521,21 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 </div>
               </div>
 
-              <div className="flex justify-between">
-                <div className="flex gap-4">
+              <div className="flex justify-between items-center gap-4 pt-6 mt-2 border-t border-border min-h-[44px]">
+                <div className="flex gap-3 flex-wrap">
                   <Button
                     type="submit"
                     variant="default"
                     disabled={isSubmitDisabled}
+                    className="min-h-[44px]"
                   >
                     Save
                   </Button>
                   <Button
                     type="button"
-                    variant="default"
+                    variant="outline"
                     disabled={isSubmitDisabled}
+                    className="min-h-[44px]"
                     onClick={() => {
                       openPrintAfterSaveRef.current = true;
                       form.handleSubmit(onSubmit)();
@@ -1444,16 +1544,20 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     <Printer size={16} className="mr-2" />
                     Save and Print
                   </Button>
-                  <Button type="reset" variant="ghost">
+                  <Button type="reset" variant="ghost" className="min-h-[44px]">
                     Clear
                   </Button>
                 </div>
 
                 <Button
                   variant="secondary"
+                  className="min-h-[44px]"
                   onClick={() => {
                     form.reset(defaultFormValues);
                     setIsDateExplicitlySet(false);
+                    setSections([]);
+                    setActiveSectionId(null);
+                    setRowSectionMap({});
                     navigate(-1);
                   }}
                 >
@@ -1469,16 +1573,3 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 };
 
 export default NewInvoicePage;
-
-function checkParsedItemsAvailability(
-  parsedItems: ReturnType<typeof parseInvoiceItems>,
-  items: InventoryItem[],
-): boolean {
-  return parsedItems.every((parsedItem) => {
-    const item = items.find((i) => i.name === parsedItem.name);
-    if (!item) {
-      return false;
-    }
-    return true;
-  });
-}

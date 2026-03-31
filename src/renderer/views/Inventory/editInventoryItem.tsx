@@ -7,8 +7,8 @@ import {
   DialogHeader,
 } from 'renderer/shad/ui/dialog';
 import { toast } from 'renderer/shad/ui/use-toast';
-import type { UpdateInventoryItem } from '@/types';
-import { useState } from 'react';
+import type { UpdateInventoryItem, ItemType } from '@/types';
+import { useEffect, useState } from 'react';
 import { editInventorySchema } from './inventorySchemas';
 import { InventoryForm } from './InventoryForm';
 
@@ -24,7 +24,24 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   refetchInventory,
 }: EditInventoryItemProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const defaultValues = row.original;
+  const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
+  const defaultValues: UpdateInventoryItem = {
+    id: row.original.id,
+    name: row.original.name,
+    quantity: row.original.quantity,
+    price: row.original.price,
+    description: row.original.description,
+    itemTypeId: row.original.itemTypeId,
+  };
+
+  // load active item types each time edit dialog opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      const rows = await window.electron.getItemTypes();
+      setItemTypes(rows.filter((itemType) => itemType.isActive));
+    })();
+  }, [isOpen]);
 
   const onEdit = async (values: UpdateInventoryItem) => {
     const res = await window.electron.updateInventoryItem({ ...values });
@@ -63,6 +80,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
           defaultValues={defaultValues}
           onSubmit={onEdit}
           disabledFields={['name', 'quantity']}
+          itemTypes={itemTypes}
         />
       </DialogContent>
     </Dialog>

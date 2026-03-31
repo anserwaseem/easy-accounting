@@ -42,6 +42,7 @@ import {
   InvoiceService,
   InventoryService,
   PrintService,
+  PricingService,
 } from './services';
 import { ErrorManager } from './errorManager';
 import { DEFAULT_USER } from './utils/constants';
@@ -201,6 +202,7 @@ app
     const inventoryService = new InventoryService();
     const invoiceService = new InvoiceService();
     const printService = new PrintService();
+    const pricingService = new PricingService();
 
     // setupUser(migrationRunner, authService);
 
@@ -224,11 +226,27 @@ app
       },
     );
     ipcMain.handle('account:getAll', async () => accountService.getAccounts());
+    ipcMain.handle('account:getByName', (_, name: string) =>
+      accountService.getAccountByName(name),
+    );
+    ipcMain.handle(
+      'account:getByNameAndChart',
+      (_, chartId: number, name: string) =>
+        accountService.getAccountByNameAndChart(chartId, name),
+    );
     ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
       accountService.insertAccount(account),
     );
     ipcMain.handle('account:updateAccount', async (_, account: UpdateAccount) =>
       accountService.updateAccount(account),
+    );
+    ipcMain.handle(
+      'account:updateDiscountProfile',
+      async (_, accountId: number, discountProfileId: number | null) =>
+        accountService.updateAccountDiscountProfile(
+          accountId,
+          discountProfileId,
+        ),
     );
     ipcMain.handle('account:hasJournalEntries', (_, accountId: number) =>
       accountService.hasJournalEntries(accountId),
@@ -301,6 +319,65 @@ app
     ipcMain.handle('inventory:getInventoryIdsWithHistory', () =>
       inventoryService.getInventoryIdsWithHistory(),
     );
+    ipcMain.handle('itemType:getAll', () => pricingService.getItemTypes());
+    ipcMain.handle('itemType:insert', (_, name: string) =>
+      pricingService.insertItemType(name),
+    );
+    ipcMain.handle('itemType:updateName', (_, id: number, name: string) =>
+      pricingService.updateItemTypeName(id, name),
+    );
+    ipcMain.handle(
+      'itemType:toggleActive',
+      (_, id: number, isActive: boolean) =>
+        pricingService.toggleItemType(id, isActive),
+    );
+    ipcMain.handle('itemType:delete', (_, id: number) =>
+      pricingService.deleteItemType(id),
+    );
+    ipcMain.handle('itemType:getPrimary', () =>
+      pricingService.getPrimaryItemType(),
+    );
+    ipcMain.handle('itemType:setPrimary', (_, itemTypeId: number) =>
+      pricingService.setPrimaryItemType(itemTypeId),
+    );
+    ipcMain.handle('itemType:clearPrimary', () =>
+      pricingService.clearPrimaryItemType(),
+    );
+    ipcMain.handle('discountProfile:getAll', () =>
+      pricingService.getDiscountProfiles(),
+    );
+    ipcMain.handle('discountProfile:insert', (_, name: string) =>
+      pricingService.insertDiscountProfile(name),
+    );
+    ipcMain.handle(
+      'discountProfile:updateName',
+      (_, id: number, name: string) =>
+        pricingService.updateDiscountProfileName(id, name),
+    );
+    ipcMain.handle(
+      'discountProfile:toggleActive',
+      (_, id: number, isActive: boolean) =>
+        pricingService.toggleDiscountProfile(id, isActive),
+    );
+    ipcMain.handle('discountProfile:delete', (_, id: number) =>
+      pricingService.deleteDiscountProfile(id),
+    );
+    ipcMain.handle(
+      'discountProfile:deleteFromAccount',
+      (_, accountId: number, profileId: number) =>
+        pricingService.deleteDiscountProfileFromAccount(accountId, profileId),
+    );
+    ipcMain.handle('discountProfile:getTypeDiscounts', (_, profileId: number) =>
+      pricingService.getProfileTypeDiscounts(profileId),
+    );
+    ipcMain.handle(
+      'discountProfile:saveTypeDiscounts',
+      (
+        _,
+        profileId: number,
+        discounts: Array<{ itemTypeId: number; discountPercent: number }>,
+      ) => pricingService.saveProfileTypeDiscounts(profileId, discounts),
+    );
     ipcMain.handle('invoice:getId', (_, invoiceType: InvoiceType) =>
       invoiceService.getNextInvoiceNumber(invoiceType),
     );
@@ -316,6 +393,20 @@ app
       invoiceService.getInvoice(invoiceId),
     );
     ipcMain.handle(
+      'invoice:updateBiltyAndCartons',
+      (
+        _,
+        invoiceId: number,
+        biltyNumber: string | undefined,
+        cartons: number | undefined,
+      ) =>
+        invoiceService.updateInvoiceBiltyAndCartons(
+          invoiceId,
+          biltyNumber,
+          cartons,
+        ),
+    );
+    ipcMain.handle(
       'invoice:exportExcel',
       async (_, startDate?: string, endDate?: string) =>
         invoiceService.exportSaleInvoices(startDate, endDate),
@@ -327,6 +418,11 @@ app
     );
     ipcMain.handle('invoice:getLastNumber', (_, invoiceType: InvoiceType) =>
       invoiceService.getLastInvoiceNumber(invoiceType),
+    );
+    ipcMain.handle(
+      'invoice:getAutoDiscount',
+      (_, accountId: number, inventoryId: number) =>
+        pricingService.getAutoDiscount(accountId, inventoryId),
     );
     ipcMain.handle('print:toPDF', (_, invoiceNumber: number) =>
       printService.printPDF(invoiceNumber),

@@ -32,7 +32,7 @@ const LoginPage: React.FC = () => {
   return (
     <div className="flex justify-center items-center h-screen">
       <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
-        <h1 className="text-xl font-semibold">Login</h1>
+        <h1 className="title-new">Login</h1>
         <form>
           <Input
             type="text"

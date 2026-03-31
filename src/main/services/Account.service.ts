@@ -2,8 +2,14 @@ import type { Account, InsertAccount, UpdateAccount } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { store } from '../store';
 import { DatabaseService } from './Database.service';
-import { cast } from '../utils/sqlite';
+import {
+  cast,
+  normalizeSqliteBooleanFields,
+  normalizeSqliteBooleanRows,
+} from '../utils/sqlite';
 import { logErrors } from '../errorLogger';
+
+const ACCOUNT_BOOLEAN_FIELDS = ['isActive', 'discountProfileIsActive'] as const;
 
 @logErrors
 export class AccountService {
@@ -25,6 +31,12 @@ export class AccountService {
 
   private stmToggleAccountActive!: Statement;
 
+  private stmUpdateAccountDiscountProfile!: Statement;
+
+  private stmGetAccountByNameAndChart!: Statement;
+
+  private stmGetAccountByNameAnyChart!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -32,10 +44,8 @@ export class AccountService {
 
   getAccounts(): Account[] {
     const username = store.get('username');
-    const results = this.stmGetAccounts.all({
-      username,
-    }) as Account[];
-    return results;
+    const results = this.stmGetAccounts.all({ username }) as Account[];
+    return normalizeSqliteBooleanRows(results, ACCOUNT_BOOLEAN_FIELDS);
   }
 
   insertAccount(account: InsertAccount): boolean {
@@ -111,6 +121,18 @@ export class AccountService {
     return Boolean(result.changes);
   }
 
+  updateAccountDiscountProfile(
+    accountId: number,
+    discountProfileId: number | null,
+  ): boolean {
+    const result = this.stmUpdateAccountDiscountProfile.run({
+      accountId: cast(accountId),
+      discountProfileId:
+        discountProfileId == null ? null : cast(discountProfileId),
+    });
+    return Boolean(result.changes);
+  }
+
   getAccountByNameAndCode(
     name: Account['name'],
     code?: Account['code'],
@@ -121,14 +143,71 @@ export class AccountService {
       code,
       username,
     });
-    return result;
+    return result
+      ? normalizeSqliteBooleanFields(result, ACCOUNT_BOOLEAN_FIELDS)
+      : result;
+  }
+
+  getAccountByNameAndChart(chartId: number, name: string): Account | undefined {
+    const username = store.get('username');
+    const trimmedName = name.trim();
+    const result = <Account | undefined>this.stmGetAccountByNameAndChart.get({
+      chartId: cast(chartId),
+      name: trimmedName,
+      username,
+    });
+    if (result) {
+      return normalizeSqliteBooleanFields(
+        result,
+        ACCOUNT_BOOLEAN_FIELDS,
+      ) as Account;
+    }
+    // fallback: suffixed account may live in a different chart
+    const anyChart = this.stmGetAccountByNameAnyChart.all({
+      name: trimmedName,
+      username,
+    }) as Account[];
+    const first = anyChart[0];
+    return first
+      ? (normalizeSqliteBooleanFields(first, ACCOUNT_BOOLEAN_FIELDS) as Account)
+      : undefined;
+  }
+
+  /** Finds first account with exact name (trimmed) in any chart for current user. */
+  getAccountByName(name: string): Account | undefined {
+    const username = store.get('username');
+    const result = this.stmGetAccountByNameAnyChart.all({
+      name: name.trim(),
+      username,
+    }) as Account[];
+    const first = result[0];
+    return first
+      ? (normalizeSqliteBooleanFields(first, ACCOUNT_BOOLEAN_FIELDS) as Account)
+      : undefined;
   }
 
   private initPreparedStatements() {
     this.stmGetAccounts = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.address, a.phone1, a.phone2, a.goodsName, a.isActive
+      SELECT
+        a.id,
+        a.name,
+        c.name as headName,
+        a.chartId,
+        c.type,
+        a.code,
+        a.createdAt,
+        a.updatedAt,
+        a.address,
+        a.phone1,
+        a.phone2,
+        a.goodsName,
+        a.isActive,
+        a.discountProfileId,
+        dp.name AS discountProfileName,
+        dp.isActive AS discountProfileIsActive
       FROM account a
       JOIN chart c ON c.id = a.chartId
+      LEFT JOIN discount_profiles dp ON dp.id = a.discountProfileId
       WHERE userId = (
         SELECT id
         FROM users
@@ -137,7 +216,7 @@ export class AccountService {
     `);
 
     this.stmInsertAccount = this.db.prepare(`
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive, discountProfileId)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -146,12 +225,12 @@ export class AccountService {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName, 1)
+      ), @code, @address, @phone1, @phone2, @goodsName, 1, @discountProfileId)
     `);
 
     this.stmUpdateAccount = this.db.prepare(`
       UPDATE account
-      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, chartId = (
+      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, discountProfileId = @discountProfileId, chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName AND userId = (
@@ -178,7 +257,7 @@ export class AccountService {
     `);
 
     this.stmGetAccountByName = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE LOWER(a.name) LIKE LOWER(@name) AND userId = (
@@ -187,6 +266,33 @@ export class AccountService {
         WHERE username = @username
       )
         AND (@code IS NULL OR LOWER(a.code) LIKE LOWER(@code))
+    `);
+
+    this.stmGetAccountByNameAndChart = this.db.prepare(`
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      WHERE a.chartId = @chartId
+        AND TRIM(a.name) = TRIM(@name)
+        AND c.userId = (
+          SELECT id
+          FROM users
+          WHERE username = @username
+        )
+      LIMIT 1
+    `);
+
+    this.stmGetAccountByNameAnyChart = this.db.prepare(`
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      WHERE TRIM(a.name) = TRIM(@name)
+        AND c.userId = (
+          SELECT id
+          FROM users
+          WHERE username = @username
+        )
+      LIMIT 1
     `);
 
     this.stmHasJournals = this.db.prepare(`
@@ -203,6 +309,12 @@ export class AccountService {
     this.stmToggleAccountActive = this.db.prepare(`
       UPDATE account
       SET isActive = @isActive
+      WHERE id = @accountId
+    `);
+
+    this.stmUpdateAccountDiscountProfile = this.db.prepare(`
+      UPDATE account
+      SET discountProfileId = @discountProfileId
       WHERE id = @accountId
     `);
   }

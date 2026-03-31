@@ -1,4 +1,4 @@
-import { debounce, toString } from 'lodash';
+import { debounce, sortBy, toString } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Virtuoso } from 'react-virtuoso';
@@ -10,7 +10,12 @@ import {
   SelectContent,
   SelectItem,
 } from '@/renderer/shad/ui/select';
+import { cn } from '@/renderer/lib/utils';
 import type { Account } from 'types';
+
+type SectionOrItem<T> =
+  | { type: 'header'; label: string }
+  | { type: 'item'; item: T };
 
 type BaseOption = {
   id?: unknown;
@@ -23,8 +28,12 @@ type VirtualSelectProps<T extends BaseOption> = {
   value: string | number | null | undefined;
   onChange: (value: string | number) => void;
   placeholder?: string;
+  disabled?: boolean;
   searchFields?: (keyof T)[];
   searchPlaceholder?: string;
+  triggerClassName?: string;
+  /** when provided, options are shown in sections with sticky section headers (e.g. group by itemTypeName) */
+  groupBy?: (item: T) => string;
   renderSelectItem?: (item: T) => ReactNode;
 };
 
@@ -33,13 +42,19 @@ const VirtualSelect = <T extends BaseOption = Account>({
   value,
   onChange,
   placeholder = 'Select an option',
+  disabled = false,
   searchFields = ['name', 'code'] as (keyof T)[],
   searchPlaceholder = 'Search...',
+  triggerClassName,
+  groupBy,
   renderSelectItem,
 }: VirtualSelectProps<T>) => {
   const [searchInputValue, setSearchInputValue] = useState('');
   const [filteredSearchValue, setFilteredSearchValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [stickySectionLabel, setStickySectionLabel] = useState<string | null>(
+    null,
+  );
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
 
@@ -110,6 +125,33 @@ const VirtualSelect = <T extends BaseOption = Account>({
     );
   }, [filteredSearchValue, options, searchFields]);
 
+  // when groupBy is provided: build flat list of section headers + items (single Virtuoso, reliable in portal)
+  const listWithSections = useMemo((): SectionOrItem<T>[] | null => {
+    if (!groupBy || !filteredOptions.length) return null;
+    const byKey = new Map<string, T[]>();
+    for (const opt of filteredOptions) {
+      const key = groupBy(opt);
+      const list = byKey.get(key) ?? [];
+      list.push(opt);
+      byKey.set(key, list);
+    }
+    const keys = Array.from(byKey.keys());
+    const otherKey = keys.find((k) => k.toLowerCase() === 'other');
+    const rest = keys.filter((k) => k.toLowerCase() !== 'other');
+    const sortedKeys = [
+      ...sortBy(rest, (k) => k),
+      ...(otherKey ? [otherKey] : []),
+    ];
+    const flat: SectionOrItem<T>[] = [];
+    for (const key of sortedKeys) {
+      flat.push({ type: 'header', label: key });
+      for (const item of byKey.get(key)!) {
+        flat.push({ type: 'item', item });
+      }
+    }
+    return flat;
+  }, [filteredOptions, groupBy]);
+
   const defaultRenderSelectItem = useCallback(
     (item: T) => (
       <div>
@@ -123,9 +165,9 @@ const VirtualSelect = <T extends BaseOption = Account>({
   const handleOpenChange = useCallback((open: boolean) => {
     setIsOpen(open);
     if (!open) {
-      // reset search values when dropdown is closed
       setSearchInputValue('');
       setFilteredSearchValue('');
+      setStickySectionLabel(null);
       isTypingRef.current = false;
     }
   }, []);
@@ -163,14 +205,83 @@ const VirtualSelect = <T extends BaseOption = Account>({
     [renderSelectItem, defaultRenderSelectItem],
   );
 
+  const sectionHeaderRenderer = useCallback(
+    (label: string) => (
+      <div
+        className={cn(
+          'sticky top-0 z-10 border-b bg-muted/90 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm',
+        )}
+        role="presentation"
+      >
+        {label}
+      </div>
+    ),
+    [],
+  );
+
+  const listContentRenderer = useCallback(
+    (index: number, entry: SectionOrItem<T> | T) => {
+      if (!listWithSections) {
+        return itemRenderer(index, entry as T);
+      }
+      const row = entry as SectionOrItem<T>;
+      if (row.type === 'item') {
+        return itemRenderer(index, row.item);
+      }
+      // when this header is the one shown sticky above, render same-height spacer to avoid duplicate label
+      if (row.label === stickySectionLabel) {
+        return (
+          <div
+            className="px-3 py-2 text-xs font-semibold uppercase tracking-wider opacity-0 select-none pointer-events-none"
+            aria-hidden
+          >
+            {row.label}
+          </div>
+        );
+      }
+      return sectionHeaderRenderer(row.label);
+    },
+    [itemRenderer, listWithSections, sectionHeaderRenderer, stickySectionLabel],
+  );
+
+  const virtuosoData = listWithSections ?? filteredOptions;
+  const hasOptions = virtuosoData.length > 0;
+
+  // set initial sticky section when list with sections is shown
+  useEffect(() => {
+    if (!listWithSections?.length || !isOpen) return;
+    const first = listWithSections[0];
+    if (first.type === 'header') {
+      setStickySectionLabel(first.label);
+    }
+  }, [listWithSections, isOpen]);
+
+  // update sticky section label from visible range (section at top of viewport)
+  const handleRangeChanged = useCallback(
+    (range: { startIndex: number; endIndex: number }) => {
+      if (!listWithSections?.length) return;
+      const { startIndex } = range;
+      for (let i = startIndex; i >= 0; i -= 1) {
+        const row = listWithSections[i];
+        if (row.type === 'header') {
+          setStickySectionLabel(row.label);
+          return;
+        }
+      }
+      setStickySectionLabel(null);
+    },
+    [listWithSections],
+  );
+
   return (
     <Select
       value={value?.toString()}
       onValueChange={(val) => onChange(val)}
       onOpenChange={handleOpenChange}
       open={isOpen}
+      disabled={disabled}
     >
-      <SelectTrigger>
+      <SelectTrigger className={triggerClassName}>
         <SelectValue placeholder={placeholder}>
           {options.find((opt) => opt.id?.toString() === value?.toString())
             ?.name || placeholder}
@@ -187,12 +298,34 @@ const VirtualSelect = <T extends BaseOption = Account>({
             className="w-full"
           />
         </div>
-        <div className="transition-opacity duration-150 ease-in-out">
-          <Virtuoso
-            data={filteredOptions}
-            style={{ height: 600 }}
-            itemContent={itemRenderer}
-          />
+        <div
+          className="transition-opacity duration-150 ease-in-out min-h-[320px] relative"
+          style={{ height: hasOptions ? 400 : undefined }}
+        >
+          {listWithSections && stickySectionLabel && hasOptions && (
+            <div
+              className={cn(
+                'sticky top-0 z-10 border-b bg-muted/95 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm',
+              )}
+              role="presentation"
+            >
+              {stickySectionLabel}
+            </div>
+          )}
+          {hasOptions ? (
+            <Virtuoso
+              data={virtuosoData}
+              style={{ height: listWithSections ? 368 : 400 }}
+              itemContent={listContentRenderer}
+              rangeChanged={handleRangeChanged}
+            />
+          ) : (
+            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+              {filteredSearchValue
+                ? 'No matching items'
+                : 'No options available'}
+            </div>
+          )}
         </div>
       </SelectContent>
     </Select>

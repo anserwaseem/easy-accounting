@@ -63,6 +63,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       phone1: values.phone1,
       phone2: values.phone2,
       goodsName: values.goodsName,
+      discountProfileId: row.original.discountProfileId ?? null,
       isActive: row.original.isActive,
     });
 

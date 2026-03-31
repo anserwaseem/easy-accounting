@@ -98,7 +98,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
         : [
             {
               accessorKey: 'invoiceNumber',
-              header: 'Invoice #',
+              header: <p className="whitespace-nowrap">Invoice #</p>,
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
@@ -321,6 +321,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
               'date',
               'totalAmount',
             ]}
+            searchPersistenceKey={`datatable:${invoiceType.toLowerCase()}:invoices:search`}
           />
         )}
       </div>

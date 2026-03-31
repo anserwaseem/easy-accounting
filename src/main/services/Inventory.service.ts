@@ -67,8 +67,8 @@ export class InventoryService {
       return false;
     }
 
-    const placeholders = inventory.map(() => '(?, ?, ?)').join(', ');
-    const sql = `INSERT INTO inventory (name, description, price) VALUES ${placeholders}`;
+    const placeholders = inventory.map(() => '(?, ?, ?, ?)').join(', ');
+    const sql = `INSERT INTO inventory (name, description, price, itemTypeId) VALUES ${placeholders}`;
 
     const stmInsertInventory = this.db.prepare(sql);
 
@@ -76,6 +76,7 @@ export class InventoryService {
       item.name,
       item.description,
       item.price,
+      item.itemTypeId ?? null,
     ]);
 
     const result = stmInsertInventory.run(values);
@@ -124,6 +125,7 @@ export class InventoryService {
               name,
               description: null,
               price: 0,
+              itemTypeId: null,
             });
             inventoryId = Number(result.lastInsertRowid);
             if (!inventoryId) {
@@ -223,18 +225,20 @@ export class InventoryService {
     `);
 
     this.stmGetInventory = this.db.prepare(`
-      SELECT * FROM inventory
-      ORDER BY id;
+      SELECT i.*, it.name AS itemTypeName
+      FROM inventory i
+      LEFT JOIN item_types it ON it.id = i.itemTypeId
+      ORDER BY i.id;
     `);
 
     this.stmInsertItem = this.db.prepare(`
-      INSERT INTO inventory (name, description, price)
-      VALUES (@name, @description, @price);
+      INSERT INTO inventory (name, description, price, itemTypeId)
+      VALUES (@name, @description, @price, @itemTypeId);
     `);
 
     this.stmUpdateItem = this.db.prepare(`
       UPDATE inventory
-      SET price = @price, description = @description
+      SET price = @price, description = @description, itemTypeId = @itemTypeId
       WHERE id = @id;
     `);
 

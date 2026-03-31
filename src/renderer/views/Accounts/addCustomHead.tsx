@@ -87,7 +87,11 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className={cn('w-full', btnClassName)}>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('w-auto', btnClassName)}
+        >
           <Plus className="mr-2 h-4 w-4" />
           New Head
         </Button>

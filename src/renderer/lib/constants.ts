@@ -33,11 +33,19 @@ export const currencyIntFormatter = new Intl.NumberFormat('en-US', {
 
 export const DEFAULT_INVOICE_NUMBER = 1;
 
-export const INVOICE_DISCOUNT_PERCENTAGE = 40; // TODO: make this configurable
-
 export const baseEntityKeys: (keyof BaseEntity)[] = [
   'id',
   'date',
   'createdAt',
   'updatedAt',
 ];
+
+export const NO_DISCOUNT_POLICY_OPTION = {
+  id: 0,
+  name: 'No policy',
+} as const;
+
+export const FF_INVOICE_DISCOUNT_EDIT_ENABLED = false;
+
+/** account name required for extra discount journal (expense account) */
+export const DISCOUNT_ACCOUNT_NAME = 'Discount';

@@ -15,14 +15,23 @@ import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
 import { raise, convertOrdinalDate } from '../utils/general';
 import { JournalService } from './Journal.service';
+import { AccountService } from './Account.service';
+import { PricingService } from './Pricing.service';
 import { cast } from '../utils/sqlite';
-import { INVOICE_DISCOUNT_PERCENTAGE } from '../utils/constants';
+import {
+  INVOICE_DISCOUNT_PERCENTAGE,
+  DISCOUNT_ACCOUNT_NAME,
+} from '../utils/constants';
 
 @logErrors
 export class InvoiceService {
   private db: Database;
 
   private journalService!: JournalService;
+
+  private accountService!: AccountService;
+
+  private pricingService!: PricingService;
 
   private stmGetNextInvoiceNumber!: Statement;
 
@@ -42,9 +51,13 @@ export class InvoiceService {
 
   private stmGetSalePurchaseAccounts!: Statement;
 
+  private stmUpdateInvoiceBiltyAndCartons!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.journalService = new JournalService();
+    this.accountService = new AccountService();
+    this.pricingService = new PricingService();
     this.initPreparedStatements();
   }
 
@@ -62,7 +75,12 @@ export class InvoiceService {
 
   getInvoice(invoiceId: number): InvoiceView {
     const result = this.stmGetInvoice.all({ invoiceId }) as Array<
-      Omit<InvoiceView, 'invoiceItems'> & InvoiceItemView
+      Omit<InvoiceView, 'invoiceItems'> &
+        InvoiceItemView & {
+          invoiceAccountName?: string;
+          invoiceAccountAddress?: string | null;
+          invoiceAccountGoodsName?: string | null;
+        }
     >;
 
     const isSingleAccount =
@@ -78,13 +96,20 @@ export class InvoiceService {
         prev.extraDiscount = cur.extraDiscount;
         prev.biltyNumber = cur.biltyNumber;
         prev.cartons = cur.cartons;
-        prev.accountName = isSingleAccount ? cur.accountName : undefined;
+        prev.createdAt = cur.createdAt;
+        prev.updatedAt = cur.updatedAt;
+        // header always shows real customer (invoice's primary account), not suffixed row accounts
+        prev.accountName = cur.invoiceAccountName ?? cur.accountName;
+        prev.accountAddress = cur.invoiceAccountAddress ?? null;
+        prev.accountGoodsName = cur.invoiceAccountGoodsName ?? null;
         prev.invoiceItems = [];
       }
       prev.invoiceItems.push({
+        inventoryId: cur.inventoryId,
         quantity: cur.quantity,
         price: cur.price,
         discount: cur.discount,
+        itemTypeName: cur.itemTypeName,
         discountedPrice: InvoiceService.getInvoiceItemTotal(cur, cur.price),
         inventoryItemName: cur.inventoryItemName,
         inventoryItemDescription: cur.inventoryItemDescription,
@@ -117,6 +142,100 @@ export class InvoiceService {
 
     const totalAmount = invoice.totalAmount ?? 0;
 
+    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const hasMultiple =
+      Array.isArray(multipleIds) &&
+      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.every((id) => typeof id === 'number' && id > 0);
+
+    // multiple accounts (e.g. type-based split or sections) - multiple journals
+    if (hasMultiple) {
+      // use primary party (real customer) for invoice header so display shows unsuffixed name
+      const primaryAccountId =
+        toNumber(invoice.accountMapping.singleAccountId) || multipleIds[0];
+      const invoiceResult = this.stmInsertInvoice.run({
+        date: invoice.date,
+        accountId: primaryAccountId,
+        invoiceType,
+        totalAmount,
+        invoiceNumber: invoice.invoiceNumber,
+        extraDiscount: invoice.extraDiscount,
+        biltyNumber: invoice.biltyNumber,
+        cartons: invoice.cartons,
+      });
+      const invoiceId = <number>invoiceResult.lastInsertRowid;
+
+      const itemsByAccount = groupBy(invoice.invoiceItems, (item) => {
+        return multipleIds[invoice.invoiceItems.indexOf(item)];
+      });
+
+      forEach(itemsByAccount, (groupItems, accountId) => {
+        const groupRaw = groupItems.reduce((sum, item) => {
+          return (
+            sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
+          );
+        }, 0);
+        // round each section/group total to nearest rupee before journal posting
+        const groupTotalAmount = Math.round(toNumber(groupRaw));
+        const groupDiscountPercentage =
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            toNumber(accountId),
+            groupItems.map((item) => item.inventoryId),
+          );
+
+        for (const item of groupItems) {
+          this.stmInsertInvoiceItems.run({
+            invoiceId,
+            inventoryId: item.inventoryId,
+            quantity: item.quantity,
+            discount: item.discount,
+            accountId: toNumber(accountId),
+          });
+
+          this.stmUpdateInventoryItem.run(
+            invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
+            item.inventoryId,
+          );
+        }
+
+        this.createJournalEntry(
+          invoiceType,
+          invoice,
+          toNumber(accountId),
+          groupTotalAmount,
+          groupDiscountPercentage,
+        );
+      });
+
+      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
+      if (extraDiscount > 0) {
+        const discountAccount = this.accountService.getAccountByName(
+          DISCOUNT_ACCOUNT_NAME,
+        );
+        if (!discountAccount?.id) {
+          raise(
+            `"${DISCOUNT_ACCOUNT_NAME}" account not found. Create an expense account named "${DISCOUNT_ACCOUNT_NAME}" for extra discount.`,
+          );
+        }
+        const creditAccountId =
+          toNumber(invoice.extraDiscountAccountId) || multipleIds[0];
+        if (!creditAccountId || !multipleIds.includes(creditAccountId)) {
+          raise('Extra discount requires a valid account selection.');
+        }
+        this.createExtraDiscountJournalEntry(
+          invoiceType,
+          invoice,
+          discountAccount!.id,
+          creditAccountId,
+          extraDiscount,
+        );
+      }
+      return {
+        invoiceId,
+        nextInvoiceNumber: invoice.invoiceNumber + 1,
+      };
+    }
+
     // all items use the same account - single journal
     if (invoice.accountMapping.singleAccountId) {
       const accountId = invoice.accountMapping.singleAccountId;
@@ -148,64 +267,48 @@ export class InvoiceService {
         );
       }
 
-      this.createJournalEntry(invoiceType, invoice, accountId, totalAmount);
-      return {
-        invoiceId,
-        nextInvoiceNumber: invoice.invoiceNumber + 1,
-      };
-    }
-    // multiple accounts - multiple journals (single invoice per customer)
-    if (invoice.accountMapping.multipleAccountIds) {
-      const invoiceResult = this.stmInsertInvoice.run({
-        date: invoice.date,
-        accountId: invoice.accountMapping.multipleAccountIds[0], // workaround for multiple accounts - first account will be used
-        invoiceType,
-        totalAmount,
-        invoiceNumber: invoice.invoiceNumber,
-        extraDiscount: invoice.extraDiscount,
-        biltyNumber: invoice.biltyNumber,
-        cartons: invoice.cartons,
-      });
-      const invoiceId = <number>invoiceResult.lastInsertRowid;
-
-      // group items by accountId
-      const itemsByAccount = groupBy(invoice.invoiceItems, (item) => {
-        return invoice.accountMapping.multipleAccountIds?.[
-          invoice.invoiceItems.indexOf(item)
-        ];
-      });
-
-      // create journal for each account group
-      forEach(itemsByAccount, (groupItems, accountId) => {
-        // calculate total amount for this account group
-        const groupTotalAmount = groupItems.reduce((sum, item) => {
-          return (
-            sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
-          );
-        }, 0);
-
-        for (const item of groupItems) {
-          this.stmInsertInvoiceItems.run({
-            invoiceId,
-            inventoryId: item.inventoryId,
-            quantity: item.quantity,
-            discount: item.discount,
-            accountId: toNumber(accountId),
-          });
-
-          this.stmUpdateInventoryItem.run(
-            invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
-            item.inventoryId,
+      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
+      if (extraDiscount > 0) {
+        const discountAccount = this.accountService.getAccountByName(
+          DISCOUNT_ACCOUNT_NAME,
+        );
+        if (!discountAccount?.id) {
+          raise(
+            `"${DISCOUNT_ACCOUNT_NAME}" account not found. Create an expense account named "${DISCOUNT_ACCOUNT_NAME}" for extra discount.`,
           );
         }
-
+        const discountAccountId = discountAccount!.id;
+        const creditAccountId =
+          toNumber(invoice.extraDiscountAccountId) ?? accountId;
         this.createJournalEntry(
           invoiceType,
           invoice,
-          toNumber(accountId),
-          groupTotalAmount,
+          accountId,
+          totalAmount + extraDiscount,
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            accountId,
+            invoice.invoiceItems.map((item) => item.inventoryId),
+          ),
         );
-      });
+        this.createExtraDiscountJournalEntry(
+          invoiceType,
+          invoice,
+          discountAccountId,
+          creditAccountId,
+          extraDiscount,
+        );
+      } else {
+        this.createJournalEntry(
+          invoiceType,
+          invoice,
+          accountId,
+          totalAmount,
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            accountId,
+            invoice.invoiceItems.map((item) => item.inventoryId),
+          ),
+        );
+      }
       return {
         invoiceId,
         nextInvoiceNumber: invoice.invoiceNumber + 1,
@@ -284,11 +387,29 @@ export class InvoiceService {
     return result?.lastInvoiceNumber ?? 0;
   }
 
+  updateInvoiceBiltyAndCartons(
+    invoiceId: number,
+    biltyNumber: string | undefined,
+    cartons: number | undefined,
+  ): boolean {
+    const bilty =
+      biltyNumber != null && String(biltyNumber).trim() !== ''
+        ? cast(parseInt(String(biltyNumber).trim(), 10))
+        : null;
+    const result = this.stmUpdateInvoiceBiltyAndCartons.run({
+      invoiceId: cast(invoiceId),
+      biltyNumber: bilty,
+      cartons: cartons != null ? cast(cartons) : null,
+    });
+    return Boolean(result.changes);
+  }
+
   private createJournalEntry(
     invoiceType: InvoiceType,
     invoice: Invoice,
     accountId: number,
     amount: number,
+    discountPercentage?: number,
   ): boolean {
     const { debitAccountId, creditAccountId } = this.getTransactionAccounts(
       invoiceType,
@@ -300,6 +421,8 @@ export class InvoiceService {
       date: invoice.date,
       isPosted: true,
       narration: `${invoiceType} Invoice #${invoice.invoiceNumber}`,
+      billNumber: invoice.invoiceNumber,
+      discountPercentage,
       journalEntries: [
         {
           id: -1,
@@ -313,6 +436,43 @@ export class InvoiceService {
           accountId: creditAccountId,
           debitAmount: 0,
           creditAmount: amount,
+          journalId: 0,
+        },
+      ],
+    });
+  }
+
+  /**
+   * Creates a journal entry for extra discount: Debit Discount (expense) account, Credit selected party account.
+   * Requires a "Discount" named account to exist. creditAccountId is the account from which discount is applied (user-selected).
+   */
+  private createExtraDiscountJournalEntry(
+    invoiceType: InvoiceType,
+    invoice: Invoice,
+    discountAccountId: number,
+    creditAccountId: number,
+    extraDiscountAmount: number,
+  ): boolean {
+    if (extraDiscountAmount <= 0) return true;
+    return this.journalService.insertJournal({
+      id: -1,
+      date: invoice.date,
+      isPosted: true,
+      narration: `${invoiceType} Invoice #${invoice.invoiceNumber} (extra discount)`,
+      billNumber: invoice.invoiceNumber,
+      journalEntries: [
+        {
+          id: -1,
+          accountId: discountAccountId,
+          creditAmount: 0,
+          debitAmount: extraDiscountAmount,
+          journalId: 0,
+        },
+        {
+          id: -1,
+          accountId: creditAccountId,
+          debitAmount: 0,
+          creditAmount: extraDiscountAmount,
           journalId: 0,
         },
       ],
@@ -453,11 +613,18 @@ export class InvoiceService {
         i.extraDiscount,
         i.biltyNumber,
         i.cartons,
+        i.createdAt,
+        i.updatedAt,
+        a.name AS 'invoiceAccountName',
+        a.address AS 'invoiceAccountAddress',
+        a.goodsName AS 'invoiceAccountGoodsName',
+        ii.inventoryId,
         ii.quantity,
         ii.price,
         ii.discount,
         iii.name as 'inventoryItemName',
         iii.description AS 'inventoryItemDescription',
+        it.name as 'itemTypeName',
         COALESCE(
           CASE WHEN ii.accountId IS NOT NULL THEN a2.name ELSE NULL END,
           a.name
@@ -466,6 +633,7 @@ export class InvoiceService {
       JOIN account a ON i.accountId = a.id
       JOIN invoice_items ii ON i.id = ii.invoiceId
       JOIN inventory iii ON iii.id = ii.inventoryId
+      LEFT JOIN item_types it ON it.id = iii.itemTypeId
       LEFT JOIN account a2 ON ii.accountId = a2.id AND ii.accountId IS NOT NULL
       WHERE i.id = @invoiceId
     `);
@@ -492,5 +660,11 @@ export class InvoiceService {
         `,
       )
       .bind(InvoiceType.Purchase.toLowerCase(), InvoiceType.Sale.toLowerCase());
+
+    this.stmUpdateInvoiceBiltyAndCartons = this.db.prepare(`
+      UPDATE invoices
+      SET biltyNumber = @biltyNumber, cartons = @cartons
+      WHERE id = @invoiceId
+    `);
   }
 }

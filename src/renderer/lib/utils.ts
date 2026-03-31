@@ -57,6 +57,26 @@ export const removeEmptySubarrays = (list: unknown[][]): unknown[][] =>
   list.filter((subarray) => !every(subarray, isNil));
 
 /**
+ * Returns display name for an account that may have "-{itemTypeName}" suffix (e.g. "ABC-TT" -> "ABC").
+ * Used so invoice customer/vendor shows the real party name, not the suffixed account name.
+ */
+export const stripItemTypeSuffixFromAccountName = (
+  accountName: string | undefined | null,
+  itemTypeNames: string[],
+): string => {
+  const name = accountName?.trim();
+  if (!name) return '—';
+  for (const typeName of itemTypeNames) {
+    if (!typeName) continue;
+    const suffix = `-${typeName.trim()}`;
+    if (name.endsWith(suffix)) {
+      return name.slice(0, name.length - suffix.length).trim();
+    }
+  }
+  return name;
+};
+
+/**
  * Converts a value to a lowercase string.
  * @param value - The value to be converted.
  * @returns The lowercase string.
