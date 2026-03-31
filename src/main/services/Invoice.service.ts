@@ -164,11 +164,13 @@ export class InvoiceService {
       });
 
       forEach(itemsByAccount, (groupItems, accountId) => {
-        const groupTotalAmount = groupItems.reduce((sum, item) => {
+        const groupRaw = groupItems.reduce((sum, item) => {
           return (
             sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
           );
         }, 0);
+        // round each section/group total to nearest rupee before journal posting
+        const groupTotalAmount = Math.round(toNumber(groupRaw));
         const groupDiscountPercentage =
           this.pricingService.getPolicyDiscountPercentForInventoryIds(
             toNumber(accountId),
