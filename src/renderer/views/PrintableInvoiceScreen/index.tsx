@@ -205,6 +205,7 @@ const PrintableInvoiceScreen = () => {
 
   const sectionedRows = useMemo(() => {
     let serialNumber = 0;
+    const shouldShowSectionHeaders = groupedInvoiceItems.length > 1;
     return groupedInvoiceItems.flatMap((section) => {
       const itemRows = section.items.map((item) => {
         serialNumber += 1;
@@ -222,11 +223,15 @@ const PrintableInvoiceScreen = () => {
       } = computeSectionTotals(section.items);
 
       return [
-        {
-          kind: 'header' as const,
-          key: `${section.sectionName}-header`,
-          sectionName: section.sectionName,
-        },
+        ...(shouldShowSectionHeaders
+          ? [
+              {
+                kind: 'header' as const,
+                key: `${section.sectionName}-header`,
+                sectionName: section.sectionName,
+              },
+            ]
+          : []),
         ...itemRows,
         ...(section.items.length > 1
           ? [
