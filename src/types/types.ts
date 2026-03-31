@@ -298,6 +298,8 @@ export type InvoiceItemView = {
 export type InvoiceView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {
     accountName?: string;
+    accountAddress?: string | null;
+    accountGoodsName?: string | null;
     invoiceItems: Array<InvoiceItemView>;
   }
 >;

@@ -76,7 +76,11 @@ export class InvoiceService {
   getInvoice(invoiceId: number): InvoiceView {
     const result = this.stmGetInvoice.all({ invoiceId }) as Array<
       Omit<InvoiceView, 'invoiceItems'> &
-        InvoiceItemView & { invoiceAccountName?: string }
+        InvoiceItemView & {
+          invoiceAccountName?: string;
+          invoiceAccountAddress?: string | null;
+          invoiceAccountGoodsName?: string | null;
+        }
     >;
 
     const isSingleAccount =
@@ -96,6 +100,8 @@ export class InvoiceService {
         prev.updatedAt = cur.updatedAt;
         // header always shows real customer (invoice's primary account), not suffixed row accounts
         prev.accountName = cur.invoiceAccountName ?? cur.accountName;
+        prev.accountAddress = cur.invoiceAccountAddress ?? null;
+        prev.accountGoodsName = cur.invoiceAccountGoodsName ?? null;
         prev.invoiceItems = [];
       }
       prev.invoiceItems.push({
@@ -610,6 +616,8 @@ export class InvoiceService {
         i.createdAt,
         i.updatedAt,
         a.name AS 'invoiceAccountName',
+        a.address AS 'invoiceAccountAddress',
+        a.goodsName AS 'invoiceAccountGoodsName',
         ii.inventoryId,
         ii.quantity,
         ii.price,

@@ -28,6 +28,13 @@ const PrintableInvoiceScreen = () => {
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const navigate = useNavigate();
 
+  const biltyGoodsText = useMemo(() => {
+    if (!invoice) return '';
+    const bilty = invoice.biltyNumber ?? '';
+    const goods = invoice.accountGoodsName?.trim();
+    return goods ? `${bilty} (${goods})` : `${bilty}`;
+  }, [invoice]);
+
   useEffect(() => {
     const fetchInvoice = async () => {
       const fetchedInvoice = await window.electron.getInvoice(toNumber(id));
@@ -178,8 +185,13 @@ const PrintableInvoiceScreen = () => {
       invoice?.accountName,
       itemTypeNames,
     );
-    return name === '—' ? 'UNREGISTERED TAXPAYER' : name;
+    return name === '—' ? 'WALK IN CUSTOMER' : name;
   }, [invoice?.accountName, itemTypeNames]);
+  const billToAddress = useMemo(() => {
+    const raw = invoice?.accountAddress ?? '';
+    const address = String(raw).trim();
+    return address.length > 0 ? address : '';
+  }, [invoice?.accountAddress]);
   const totalQuantity = invoiceItems.reduce(
     (sum, item) => sum + toNumber(item.quantity),
     0,
@@ -289,17 +301,11 @@ const PrintableInvoiceScreen = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center">
           <div className="w-full text-[13px]">
-            <p className="text-sm text-center font-mono">SALES TAX INVOICE</p>
             <h1 className="text-3xl font-bold text-center font-mono">
               ALIF ZAFAR SONS
             </h1>
-            <p className="text-center font-mono print:text-[11px]">
-              Opposite Al Habib Mosque, Near National Saving Bank, Kacha Sanda
-              Road, Corporation Chowk, Lahore
-            </p>
-            <p className="text-center font-mono print:text-[11px]">
-              Iqra Center, Ghazni Street, Urdu Bazar, Lahore Phone: 37245149,
-              NTN No.: 1406678-5, STRN: 3277876185527
+            <p className="text-center font-mono text-sm">
+              Iqra Center, Ghazni Street, Urdu Bazar, Lahore Phone: 37245149
             </p>
           </div>
         </div>
@@ -320,16 +326,15 @@ const PrintableInvoiceScreen = () => {
             </div>
             <div className="flex gap-4">
               <p>BILTY&nbsp;</p>
-              <p>{invoice.biltyNumber ?? '—'}</p>
+              <p>{biltyGoodsText}</p>
               <p>&nbsp;CARTONS&nbsp;</p>
-              <p>{invoice.cartons ?? '—'}</p>
+              <p>{invoice.cartons ?? ''}</p>
             </div>
           </div>
           <div className="flex gap-12">
             <p>BILL TO:</p>
             <p>{billToName}</p>
-            <p>Lahore</p>
-            <p className="pl-48">NTN/CNIC No.</p>
+            <p className="whitespace-pre-wrap break-words">{billToAddress}</p>
           </div>
         </div>
 
