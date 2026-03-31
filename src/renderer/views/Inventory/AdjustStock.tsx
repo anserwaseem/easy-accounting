@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import type { InventoryItem } from '@/types';
 import { Label } from '@/renderer/shad/ui/label';
+import { toLocalDateInputValue } from '@/renderer/lib/localDate';
 
 interface AdjustStockProps {
   item: InventoryItem;
@@ -25,7 +26,7 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
   const [open, setOpen] = useState(false);
   const [quantityDelta, setQuantityDelta] = useState(0);
   const [reason, setReason] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => toLocalDateInputValue(new Date()));
 
   const newQuantity = item.quantity + quantityDelta;
 
@@ -48,7 +49,7 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
       setOpen(false);
       setQuantityDelta(0);
       setReason('');
-      setDate(new Date().toISOString().slice(0, 10));
+      setDate(toLocalDateInputValue(new Date()));
       toast({
         description: `Stock adjusted for ${item.name} successfully`,
         variant: 'success',

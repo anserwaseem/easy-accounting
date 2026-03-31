@@ -2,6 +2,7 @@ import { toNumber } from 'lodash';
 import type { Invoice, InventoryItem } from 'types';
 import { InvoiceType } from 'types';
 import { z } from 'zod';
+import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
 
 export interface NewInvoiceSchemaOptions {
   invoiceType: InvoiceType;
@@ -12,7 +13,8 @@ export interface NewInvoiceSchemaOptions {
 
 export const getDefaultFormValues = (invoiceType: InvoiceType): Invoice => ({
   id: -1,
-  date: new Date().toISOString(),
+  // use local noon to avoid timezone "previous day" shifts when serializing to ISO
+  date: toLocalNoonIsoString(new Date()),
   invoiceNumber: -1,
   extraDiscount: 0,
   extraDiscountAccountId: undefined,

@@ -47,6 +47,7 @@ import {
   parseInvoiceItems,
 } from '@/renderer/lib/parser';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
 import { DateConfirmationDialog } from './components/DateConfirmationDialog';
@@ -801,7 +802,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onDateSelection = useCallback(
     (date?: Date) => {
       if (!date) return;
-      form.setValue('date', date.toISOString());
+      // date picker gives a day; store it as an ISO instant at local noon to avoid timezone shifts
+      // (e.g., ISO midnight UTC can display as previous day in negative timezones).
+      form.setValue('date', toLocalNoonIsoString(date));
       setIsDateExplicitlySet(true);
     },
     [form],
@@ -990,7 +993,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         open={showDateConfirmation}
         onOpenChange={setShowDateConfirmation}
         onUseCurrentDate={() => {
-          form.setValue('date', new Date().toISOString());
+          form.setValue('date', toLocalNoonIsoString(new Date()));
           dateConfirmedInModalRef.current = true;
           form.handleSubmit(onSubmit)();
         }}
@@ -1131,7 +1134,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                       >
                                         <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                                         {field.value ? (
-                                          format(field.value, 'PPP')
+                                          format(new Date(field.value), 'PPP')
                                         ) : (
                                           <span>Pick a date</span>
                                         )}
@@ -1272,7 +1275,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                       >
                                         <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                                         {field.value ? (
-                                          format(field.value, 'PPP')
+                                          format(new Date(field.value), 'PPP')
                                         ) : (
                                           <span>Pick a date</span>
                                         )}
@@ -1350,7 +1353,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                     >
                                       <CalendarIcon className="mr-2 h-4 w-4" />
                                       {field.value ? (
-                                        format(field.value, 'PPP')
+                                        format(new Date(field.value), 'PPP')
                                       ) : (
                                         <span>Pick a date</span>
                                       )}

@@ -15,6 +15,7 @@ import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { max, toString } from 'lodash';
 import { useEffect, useState } from 'react';
 import { PackageOpen } from 'lucide-react';
+import { toLocalDateInputValue } from '@/renderer/lib/localDate';
 
 interface SetOpeningStockProps {
   refetchInventory: () => void;
@@ -23,7 +24,7 @@ interface SetOpeningStockProps {
 export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
   refetchInventory,
 }: SetOpeningStockProps) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalDateInputValue(new Date());
   const [open, setOpen] = useState(false);
   const [asOfDate, setAsOfDate] = useState(today);
   const [resetOthersToZero, setResetOthersToZero] = useState(true);

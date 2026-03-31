@@ -48,6 +48,7 @@ import {
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { convertFileToJson } from 'renderer/lib/lib';
 import { parseJournalImportSheet } from 'renderer/lib/parser';
+import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
 import {
   Dialog,
   DialogContent,
@@ -89,7 +90,8 @@ const NewJournalPage: React.FC = () => {
 
   const defaultFormValues: Journal = {
     id: nextId, // using journal id as journal number as well (uneditable from UI)
-    date: new Date().toISOString(),
+    // use local noon to avoid timezone "previous day" shifts when serializing to ISO
+    date: toLocalNoonIsoString(new Date()),
     narration: '',
     isPosted: true, // FUTURE: support draft journals
     journalEntries: [{ ...getInitialEntry() }, { ...getInitialEntry() }],
@@ -787,6 +789,8 @@ const NewJournalPage: React.FC = () => {
             </Button>
             <Button
               onClick={async () => {
+                form.setValue('date', toLocalNoonIsoString(new Date()));
+                setIsDateExplicitlySet(true);
                 setShowDateConfirmation(false);
                 await submitJournal(form.getValues());
               }}
@@ -852,7 +856,7 @@ const NewJournalPage: React.FC = () => {
                           >
                             <CalendarIcon className="mr-2 h-12 w-4" />
                             {field.value ? (
-                              format(field.value, 'PPP')
+                              format(new Date(field.value), 'PPP')
                             ) : (
                               <span>Pick a date</span>
                             )}
@@ -865,7 +869,9 @@ const NewJournalPage: React.FC = () => {
                             selected={new Date(field.value)}
                             onSelect={(date) => {
                               if (!date) return;
-                              form.setValue('date', date.toISOString());
+                              // date picker gives a day; store it as an ISO instant at local noon to avoid timezone shifts
+                              // (e.g., ISO midnight UTC can display as previous day in negative timezones).
+                              form.setValue('date', toLocalNoonIsoString(date));
                               setIsDateExplicitlySet(true);
                             }}
                             initialFocus
