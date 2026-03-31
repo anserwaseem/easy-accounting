@@ -1,0 +1,8 @@
+============================================================
+import-historic-invoices 2026-03-31T08:24:54.388Z
+DB: release/app/database.db
+JSON: /Users/anserwaseem/Projects/azs-experiments/azs-oracle-sqlite-migration/output/historic-invoices-2026.json
+rows: 265
+============================================================
+OK inserted=265
+============================================================

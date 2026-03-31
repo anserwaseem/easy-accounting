@@ -340,8 +340,30 @@ export class InvoiceService {
     invoice: Invoice,
     options: InvoiceInsertOptions,
   ): Invoice {
-    const resolvePrices = options.historicResolveInventoryPrices === true;
+    const priceSource = invoice.importOverrides?.priceSource;
+    const discountSource = invoice.importOverrides?.discountSource;
+    const rawLineOverrides = invoice.importOverrides?.lineOverrides;
+    const lineOverridePriceByInventoryId = new Map<number, number>(
+      Array.isArray(rawLineOverrides)
+        ? rawLineOverrides
+            .filter(
+              (o) =>
+                o != null &&
+                Number.isFinite(toNumber(o.inventoryId)) &&
+                toNumber(o.inventoryId) > 0 &&
+                Number.isFinite(toNumber(o.price)) &&
+                toNumber(o.price) >= 0,
+            )
+            .map((o) => [toNumber(o.inventoryId), toNumber(o.price)])
+        : [],
+    );
+
+    const resolvePrices =
+      (priceSource == null || priceSource === 'inventory') &&
+      options.historicResolveInventoryPrices === true;
+
     const applyPolicyDiscounts =
+      (discountSource == null || discountSource === 'policy') &&
       options.historicApplyPolicyDiscounts === true &&
       invoiceType === InvoiceType.Sale;
     const recomputeTotal = options.historicRecomputeTotalAmount === true;
@@ -414,9 +436,13 @@ export class InvoiceService {
         ? toNumber(resolvedMultipleIds[index])
         : headerAccountId;
 
-      const invPrice = resolvePrices
-        ? toNumber(priceById.get(item.inventoryId) ?? 0)
-        : toNumber(item.price);
+      let invPrice = toNumber(item.price);
+      const overridden = lineOverridePriceByInventoryId.get(item.inventoryId);
+      if (overridden != null) {
+        invPrice = overridden;
+      } else if (priceSource !== 'json' && resolvePrices) {
+        invPrice = toNumber(priceById.get(item.inventoryId) ?? 0);
+      }
 
       if (resolvePrices && invPrice === 0) {
         log.warn(
@@ -567,6 +593,16 @@ export class InvoiceService {
       date: normalizeToSqliteDate(effectiveInvoice.date),
     };
 
+    const hasLinePriceOverrides = Array.isArray(
+      invoiceForInsert.importOverrides?.lineOverrides,
+    );
+    // per-invoice override: when priceSource=json OR lineOverrides exist, force explicit line prices into invoice_items.
+    const insertOptions: InvoiceInsertOptions =
+      invoiceForInsert.importOverrides?.priceSource === 'json' ||
+      hasLinePriceOverrides
+        ? { ...options, useExplicitLinePrices: true }
+        : options ?? {};
+
     const totalAmount = invoiceForInsert.totalAmount ?? 0;
     const extraDiscount = toNumber(invoiceForInsert.extraDiscount) || 0;
 
@@ -634,7 +670,7 @@ export class InvoiceService {
             invoiceId,
             item,
             toNumber(accountId),
-            options,
+            insertOptions,
           );
         }
 
@@ -703,7 +739,7 @@ export class InvoiceService {
           invoiceId,
           item,
           accountId,
-          options,
+          insertOptions,
         );
       }
 

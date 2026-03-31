@@ -259,6 +259,16 @@ export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
   discountedPrice?: number; // will be calculated at service layer
 }
 
+export interface HistoricInvoiceImportOverrides {
+  priceSource?: 'inventory' | 'json';
+  discountSource?: 'policy' | 'json';
+  /** explicit per-item unit price overrides (applies to all matching lines in the invoice) */
+  lineOverrides?: Array<{
+    inventoryId: number;
+    price: number;
+  }>;
+}
+
 export type Invoice = Prettify<
   BaseEntity & {
     invoiceItems: Prettify<InvoiceItem>[];
@@ -270,6 +280,8 @@ export type Invoice = Prettify<
     totalAmount?: number; // will be calculated at service layer
     invoiceNumber?: number; // only given from UI for the first time => user input
     invoiceType?: InvoiceType;
+    /** optional overrides used by historic import only */
+    importOverrides?: HistoricInvoiceImportOverrides;
     accountMapping: {
       singleAccountId?: number;
       /** same customer often has multiple accounts; multiple accounts = one invoice per customer, one journal per account */
