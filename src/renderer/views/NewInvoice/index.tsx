@@ -72,7 +72,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
   console.log('NewInvoicePage', invoiceType);
-  const [inventory] = useNewInvoiceInventory();
+  const [inventory] = useNewInvoiceInventory(invoiceType);
   const [nextInvoiceNumber, setNextInvoiceNumber] =
     useNewInvoiceNextNumber(invoiceType);
   const {

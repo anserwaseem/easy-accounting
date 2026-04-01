@@ -99,8 +99,9 @@ export const buildNewInvoiceFormSchema = (
             },
             { message: 'Each item can only be added once' },
           )
-          // validate max quantity of selected inventory item
+          // sale only: cannot invoice more than current stock; purchase has no on-hand cap
           .superRefine((items, ctx) => {
+            if (invoiceType !== InvoiceType.Sale) return;
             if (!inventory?.length) return;
             items.forEach((item, idx) => {
               if (item.inventoryId <= 0) return;
