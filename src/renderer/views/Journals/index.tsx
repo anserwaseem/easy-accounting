@@ -118,7 +118,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
               accessorKey: 'narration',
               header: 'Narration',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 800,
+              size: 400,
             },
             {
               accessorKey: 'billNumber',
@@ -154,7 +154,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                   dateFormatOptions,
                 ),
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 40,
+              size: 100,
             },
             {
               header: 'Edit',
