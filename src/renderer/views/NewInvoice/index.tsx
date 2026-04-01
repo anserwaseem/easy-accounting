@@ -2,6 +2,8 @@
 import { format } from 'date-fns';
 import { get, isNil, toNumber, toString } from 'lodash';
 import {
+  AlertTriangle,
+  ArrowRight,
   Calendar as CalendarIcon,
   Plus,
   Printer,
@@ -85,6 +87,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [splitByItemType, setSplitByItemType] = useState(true);
   const splitByItemTypeRef = useRef(splitByItemType);
   splitByItemTypeRef.current = splitByItemType;
+  const [isPrimaryItemTypeMissing, setIsPrimaryItemTypeMissing] =
+    useState(false);
+  const primaryItemTypeWarnedRef = useRef(false);
 
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
@@ -169,6 +174,43 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedSingleAccountId,
     onResolved,
   });
+
+  useEffect(() => {
+    if (
+      invoiceType !== InvoiceType.Sale ||
+      !useSingleAccount ||
+      !splitByItemType
+    ) {
+      setIsPrimaryItemTypeMissing(false);
+      primaryItemTypeWarnedRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    window.electron
+      .getPrimaryItemType?.()
+      .then((primaryId) => {
+        if (cancelled) return;
+        const missing = primaryId == null;
+        setIsPrimaryItemTypeMissing(missing);
+        if (missing && !primaryItemTypeWarnedRef.current) {
+          primaryItemTypeWarnedRef.current = true;
+          toast({
+            duration: 12000,
+            variant: 'warning',
+            description:
+              "Primary item type is not set. Split-by-type won't post to typed ledgers until you set it in Inventory → Manage Item Types.",
+          });
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching primary item type:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceType, splitByItemType, useSingleAccount]);
 
   // derived layout flags
   const isSale = invoiceType === InvoiceType.Sale;
@@ -1045,6 +1087,46 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     </Label>
                   </div>
                 )}
+                {useSingleAccount &&
+                  splitByItemType &&
+                  isPrimaryItemTypeMissing && (
+                    <div className="w-full -mt-2 pb-2">
+                      <div
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 dark:border-amber-500/50 dark:bg-amber-500/15"
+                        role="status"
+                      >
+                        <div className="flex min-w-0 items-start gap-2">
+                          <AlertTriangle
+                            className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                            aria-hidden
+                          />
+                          <div className="min-w-0 text-xs">
+                            <div className="font-medium text-amber-950 dark:text-amber-50">
+                              Set a primary item type
+                            </div>
+                            <div className="text-amber-900/80 dark:text-amber-100/80">
+                              Required for split-by-type posting to typed
+                              ledgers.
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 border-amber-600/35 bg-background hover:bg-amber-500/10 dark:border-amber-500/40"
+                          onClick={() =>
+                            navigate('/inventory', {
+                              state: { openManageItemTypes: true },
+                            })
+                          }
+                        >
+                          Set primary type
+                          <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
               </div>
             )}
             <Button

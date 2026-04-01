@@ -8,12 +8,18 @@ import { Label } from '@/renderer/shad/ui/label';
 import { isNil, toString } from 'lodash';
 import { useEffect, useState } from 'react';
 import { Upload } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
 import { SetOpeningStock } from './SetOpeningStock';
 import { ManageItemTypes } from './ManageItemTypes';
 
 const InventoryPage: React.FC = () => {
+  const location = useLocation();
+  const openManageItemTypesFromNav =
+    (location.state as { openManageItemTypes?: boolean } | null)
+      ?.openManageItemTypes === true;
+
   const [doesInventoryExist, setDoesInventoryExist] = useState<Boolean>();
   const [refresh, setRefresh] = useState(false);
   const [hideZeroQuantity, setHideZeroQuantity] = useState(true);
@@ -84,7 +90,10 @@ const InventoryPage: React.FC = () => {
             onChange={uploadInventory}
           />
           <SetOpeningStock refetchInventory={refetchInventory} />
-          <ManageItemTypes onUpdated={refetchInventory} />
+          <ManageItemTypes
+            onUpdated={refetchInventory}
+            initialOpen={openManageItemTypesFromNav}
+          />
           <AddInventoryItem refetchInventory={refetchInventory} />
         </div>
       </header>
