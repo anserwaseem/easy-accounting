@@ -8,6 +8,7 @@ import {
   toLower,
   isEmpty,
   toNumber,
+  trim,
 } from 'lodash';
 import { twMerge } from 'tailwind-merge';
 import {
@@ -83,6 +84,14 @@ export const stripItemTypeSuffixFromAccountName = (
  * @example toLowerString('Hello World'); // 'hello world'
  */
 export const toLowerString = (value: unknown) => toLower(toString(value));
+
+/**
+ * Converts a value to a lowercase, trimmed string.
+ * @param value - The value to be converted.
+ * @returns The lowercase, trimmed string.
+ * @example toLowerTrim('  Hello World  '); // 'hello world'
+ */
+export const toLowerTrim = (value: unknown) => toLower(trim(toString(value)));
 
 /**
  * Rounds a number to a fixed number of decimal places.
