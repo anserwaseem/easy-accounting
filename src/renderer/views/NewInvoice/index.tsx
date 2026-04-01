@@ -2,6 +2,8 @@
 import { format } from 'date-fns';
 import { get, isNil, toNumber, toString } from 'lodash';
 import {
+  AlertTriangle,
+  ArrowRight,
   Calendar as CalendarIcon,
   Plus,
   Printer,
@@ -17,6 +19,7 @@ import {
   getFormattedCurrency,
   raise,
 } from 'renderer/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from 'renderer/shad/ui/alert';
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { DataTable } from 'renderer/shad/ui/dataTable';
@@ -69,7 +72,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
   console.log('NewInvoicePage', invoiceType);
-  const [inventory] = useNewInvoiceInventory();
+  const [inventory] = useNewInvoiceInventory(invoiceType);
   const [nextInvoiceNumber, setNextInvoiceNumber] =
     useNewInvoiceNextNumber(invoiceType);
   const {
@@ -85,6 +88,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [splitByItemType, setSplitByItemType] = useState(true);
   const splitByItemTypeRef = useRef(splitByItemType);
   splitByItemTypeRef.current = splitByItemType;
+  const [isPrimaryItemTypeMissing, setIsPrimaryItemTypeMissing] =
+    useState(false);
+  const primaryItemTypeWarnedRef = useRef(false);
 
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
@@ -169,6 +175,43 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedSingleAccountId,
     onResolved,
   });
+
+  useEffect(() => {
+    if (
+      invoiceType !== InvoiceType.Sale ||
+      !useSingleAccount ||
+      !splitByItemType
+    ) {
+      setIsPrimaryItemTypeMissing(false);
+      primaryItemTypeWarnedRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    window.electron
+      .getPrimaryItemType?.()
+      .then((primaryId) => {
+        if (cancelled) return;
+        const missing = primaryId == null;
+        setIsPrimaryItemTypeMissing(missing);
+        if (missing && !primaryItemTypeWarnedRef.current) {
+          primaryItemTypeWarnedRef.current = true;
+          toast({
+            duration: 12000,
+            variant: 'warning',
+            description:
+              "Primary item type is not set. Split-by-type won't post to typed ledgers until you set it in Inventory → Manage Item Types.",
+          });
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching primary item type:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceType, splitByItemType, useSingleAccount]);
 
   // derived layout flags
   const isSale = invoiceType === InvoiceType.Sale;
@@ -1045,6 +1088,43 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     </Label>
                   </div>
                 )}
+                {useSingleAccount &&
+                  splitByItemType &&
+                  isPrimaryItemTypeMissing && (
+                    <div className="w-full -mt-2 pb-2">
+                      <Alert
+                        variant="warning"
+                        className="items-start py-2.5 sm:items-center"
+                      >
+                        <AlertTriangle aria-hidden />
+                        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <AlertTitle className="text-xs">
+                              Set a primary item type
+                            </AlertTitle>
+                            <AlertDescription className="text-xs text-amber-900/80 dark:text-amber-100/80">
+                              Required for split-by-type posting to typed
+                              ledgers.
+                            </AlertDescription>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 shrink-0 border-amber-600/35 bg-background hover:bg-amber-500/10 dark:border-amber-500/40"
+                            onClick={() =>
+                              navigate('/inventory', {
+                                state: { openManageItemTypes: true },
+                              })
+                            }
+                          >
+                            Set primary type
+                            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </Alert>
+                    </div>
+                  )}
               </div>
             )}
             <Button

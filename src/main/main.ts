@@ -230,6 +230,11 @@ app
       accountService.getAccountByName(name),
     );
     ipcMain.handle(
+      'account:getByNameAndCode',
+      (_, name: string, code?: string) =>
+        accountService.getAccountByNameAndCode(name, code),
+    );
+    ipcMain.handle(
       'account:getByNameAndChart',
       (_, chartId: number, name: string) =>
         accountService.getAccountByNameAndChart(chartId, name),

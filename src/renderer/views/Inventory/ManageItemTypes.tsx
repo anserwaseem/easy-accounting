@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Settings, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, Settings, Trash2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/renderer/shad/ui/alert';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   Dialog,
@@ -23,12 +24,15 @@ import type { ItemType } from '@/types';
 
 interface ManageItemTypesProps {
   onUpdated?: () => void;
+  /** when true on first mount, opens the dialog (e.g. deep-link from New Sale Invoice) */
+  initialOpen?: boolean;
 }
 
 export const ManageItemTypes: React.FC<ManageItemTypesProps> = ({
   onUpdated,
+  initialOpen = false,
 }: ManageItemTypesProps) => {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [newTypeName, setNewTypeName] = useState('');
   const [nameDrafts, setNameDrafts] = useState<Record<number, string>>({});
@@ -247,9 +251,18 @@ export const ManageItemTypes: React.FC<ManageItemTypesProps> = ({
                   ))}
               </RadioGroup>
               {primaryValue === 'none' && (
-                <p className="text-muted-foreground mt-1.5 text-xs">
-                  All rows treated as primary when none is set.
-                </p>
+                <Alert variant="warning" className="mt-2 items-start py-2">
+                  <AlertTriangle aria-hidden />
+                  <div className="min-w-0">
+                    <AlertTitle className="text-xs">
+                      primary item type is not set
+                    </AlertTitle>
+                    <AlertDescription className="text-xs text-amber-900/80 dark:text-amber-100/80">
+                      Sale invoice split-by-item-type will not be able to post
+                      to typed ledgers.
+                    </AlertDescription>
+                  </div>
+                </Alert>
               )}
             </section>
 

@@ -264,6 +264,8 @@ const electronHandler = {
   getAccounts: () => ipcRenderer.invoke('account:getAll'),
   getAccountByName: (name: string) =>
     ipcRenderer.invoke('account:getByName', name),
+  getAccountByNameAndCode: (name: string, code?: string) =>
+    ipcRenderer.invoke('account:getByNameAndCode', name, code),
   getAccountByNameAndChart: (chartId: number, name: string) =>
     ipcRenderer.invoke('account:getByNameAndChart', chartId, name),
   /**

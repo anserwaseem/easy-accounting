@@ -1,4 +1,4 @@
-import { toNumber } from 'lodash';
+import { toNumber, toString } from 'lodash';
 import { useEffect, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { InventoryItem } from 'types';
@@ -79,6 +79,7 @@ export function useNewInvoiceResolution(
         [key: string]: unknown;
       }>;
       const partyName = (party.name ?? '').trim();
+      const partyCode = toString(party.code ?? '').trim();
 
       const needLookup: Array<{ rowIndex: number; suffixedName: string }> = [];
 
@@ -115,16 +116,34 @@ export function useNewInvoiceResolution(
                 | undefined,
             };
           }
+          const expectedTypeSuffix = item.suffixedName.replace(
+            `${partyName}-`,
+            '',
+          );
+          const expectedCode =
+            partyCode.length > 0 ? `${partyCode}-${expectedTypeSuffix}` : '';
+
           const suffixedAccount =
-            await window.electron.getAccountByNameAndChart(
-              party.chartId,
-              item.suffixedName,
-            );
-          if (suffixedAccount?.id) {
+            expectedCode.length > 0
+              ? await window.electron.getAccountByNameAndCode(
+                  partyName,
+                  expectedCode,
+                )
+              : undefined;
+          const fallbackSuffixedAccount =
+            suffixedAccount?.id == null
+              ? await window.electron.getAccountByNameAndChart(
+                  party.chartId,
+                  item.suffixedName,
+                )
+              : undefined;
+          const resolved = suffixedAccount ?? fallbackSuffixedAccount;
+
+          if (resolved?.id) {
             return {
               rowIndex: item.rowIndex,
-              accountId: suffixedAccount.id,
-              label: suffixedAccount.name ?? item.suffixedName,
+              accountId: resolved.id,
+              label: resolved.name ?? item.suffixedName,
               fallback: undefined as
                 | { expectedSuffixedName: string }
                 | undefined,
@@ -133,8 +152,13 @@ export function useNewInvoiceResolution(
           return {
             rowIndex: item.rowIndex,
             accountId: singleId,
-            label: `${partyName} (expected ${item.suffixedName} – not found)`,
-            fallback: { expectedSuffixedName: item.suffixedName },
+            label: `${partyName} (expected ${
+              expectedCode.length > 0 ? expectedCode : item.suffixedName
+            } – not found)`,
+            fallback: {
+              expectedSuffixedName:
+                expectedCode.length > 0 ? expectedCode : item.suffixedName,
+            },
           };
         }),
       );
