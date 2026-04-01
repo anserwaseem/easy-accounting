@@ -19,6 +19,7 @@ import {
   getFormattedCurrency,
   raise,
 } from 'renderer/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from 'renderer/shad/ui/alert';
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { DataTable } from 'renderer/shad/ui/dataTable';
@@ -1091,40 +1092,37 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   splitByItemType &&
                   isPrimaryItemTypeMissing && (
                     <div className="w-full -mt-2 pb-2">
-                      <div
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 dark:border-amber-500/50 dark:bg-amber-500/15"
-                        role="status"
+                      <Alert
+                        variant="warning"
+                        className="items-start py-2.5 sm:items-center"
                       >
-                        <div className="flex min-w-0 items-start gap-2">
-                          <AlertTriangle
-                            className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
-                            aria-hidden
-                          />
-                          <div className="min-w-0 text-xs">
-                            <div className="font-medium text-amber-950 dark:text-amber-50">
+                        <AlertTriangle aria-hidden />
+                        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <AlertTitle className="text-xs">
                               Set a primary item type
-                            </div>
-                            <div className="text-amber-900/80 dark:text-amber-100/80">
+                            </AlertTitle>
+                            <AlertDescription className="text-xs text-amber-900/80 dark:text-amber-100/80">
                               Required for split-by-type posting to typed
                               ledgers.
-                            </div>
+                            </AlertDescription>
                           </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 shrink-0 border-amber-600/35 bg-background hover:bg-amber-500/10 dark:border-amber-500/40"
+                            onClick={() =>
+                              navigate('/inventory', {
+                                state: { openManageItemTypes: true },
+                              })
+                            }
+                          >
+                            Set primary type
+                            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 border-amber-600/35 bg-background hover:bg-amber-500/10 dark:border-amber-500/40"
-                          onClick={() =>
-                            navigate('/inventory', {
-                              state: { openManageItemTypes: true },
-                            })
-                          }
-                        >
-                          Set primary type
-                          <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      </Alert>
                     </div>
                   )}
               </div>

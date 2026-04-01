@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Plus, Settings, Trash2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/renderer/shad/ui/alert';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   Dialog,
@@ -250,24 +251,18 @@ export const ManageItemTypes: React.FC<ManageItemTypesProps> = ({
                   ))}
               </RadioGroup>
               {primaryValue === 'none' && (
-                <div
-                  className="mt-2 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 dark:border-amber-500/50 dark:bg-amber-500/15"
-                  role="status"
-                >
-                  <AlertTriangle
-                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400"
-                    aria-hidden
-                  />
-                  <div className="min-w-0 text-xs">
-                    <div className="font-medium text-amber-950 dark:text-amber-50">
+                <Alert variant="warning" className="mt-2 items-start py-2">
+                  <AlertTriangle aria-hidden />
+                  <div className="min-w-0">
+                    <AlertTitle className="text-xs">
                       primary item type is not set
-                    </div>
-                    <div className="text-amber-900/80 dark:text-amber-100/80">
+                    </AlertTitle>
+                    <AlertDescription className="text-xs text-amber-900/80 dark:text-amber-100/80">
                       Sale invoice split-by-item-type will not be able to post
                       to typed ledgers.
-                    </div>
+                    </AlertDescription>
                   </div>
-                </div>
+                </Alert>
               )}
             </section>
 
