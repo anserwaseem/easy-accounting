@@ -77,10 +77,14 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
     const purchaseAccount = accounts.find(
       (a) => toLowerTrim(a.name) === InvoiceType.Purchase.toLowerCase(),
     );
-    const requiredPartyType =
-      invoiceType === InvoiceType.Sale
-        ? AccountType.Asset
-        : AccountType.Liability;
+
+    const isPartyAccountType = (a: PartyAccount): boolean => {
+      if (invoiceType === InvoiceType.Sale) {
+        return a.type === AccountType.Asset;
+      }
+      // purchase vendors may live under liability (creditors) or asset in some charts
+      return a.type === AccountType.Liability || a.type === AccountType.Asset;
+    };
 
     const isTypedPartyAccount = (account: PartyAccount): boolean => {
       const name = trim(String(account.name ?? ''));
@@ -96,13 +100,18 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
     };
 
     const partyAccounts = accounts.filter(
-      (a) => a.type === requiredPartyType && !isTypedPartyAccount(a),
+      (a) => isPartyAccountType(a) && !isTypedPartyAccount(a),
     );
     return {
       partyAccounts,
       sale: !!saleAccount,
       purchase: !!purchaseAccount,
     };
+  }, [invoiceType]);
+
+  // refetch when invoice type changes so sale vs purchase party filters don't reuse the wrong list
+  useEffect(() => {
+    setParties(undefined);
   }, [invoiceType]);
 
   useEffect(() => {
