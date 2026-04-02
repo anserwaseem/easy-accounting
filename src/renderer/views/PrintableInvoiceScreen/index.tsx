@@ -11,6 +11,12 @@ import { format, isValid } from 'date-fns';
 import { InvoiceType, type InvoiceView } from 'types';
 import { Button } from 'renderer/shad/ui/button';
 import { Kbd, KbdGroup } from 'renderer/shad/ui/kbd';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from 'renderer/shad/ui/tooltip';
 import { dismissAllToasts, toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
 import { toNumber, toString, truncate } from 'lodash';
@@ -57,6 +63,7 @@ const PrintableInvoiceScreen = () => {
     previous: number;
   }>({ next: 0, previous: 0 });
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+  const [pdfOutputDir, setPdfOutputDir] = useState<string | null>(null);
   const navigate = useNavigate();
   const { profile: companyProfile } = useCompanyProfile();
   const { settings: invoicePrintSettings, defaults } =
@@ -123,6 +130,23 @@ const PrintableInvoiceScreen = () => {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.electron
+      .getOutputDir()
+      .then((dir) => {
+        if (!cancelled && typeof dir === 'string' && dir.trim().length > 0) {
+          setPdfOutputDir(dir.trim());
+        }
+      })
+      .catch(() => {
+        /* keep tooltip without path if ipc fails */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // one dismiss per id change (not cleanup+setup, which would duplicate)
   useEffect(() => {
@@ -489,16 +513,48 @@ const PrintableInvoiceScreen = () => {
                 <Kbd className={printToolbarKbdOnPrimaryClass}>P</Kbd>
               </KbdGroup>
             </Button>
-            <Button
-              onClick={handleBatchPrint}
-              variant="default"
-              className={`min-w-[14rem] max-w-[20rem] ${printToolbarPrimaryBtnClass}`}
-              disabled={isBatchPrinting || !isInvoiceSynced}
-            >
-              {isBatchPrinting
-                ? 'Saving PDFs…'
-                : 'Save all PDFs next to this invoice'}
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    onClick={handleBatchPrint}
+                    variant="default"
+                    className={`min-w-[9.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
+                    disabled={isBatchPrinting || !isInvoiceSynced}
+                    aria-label={
+                      isBatchPrinting
+                        ? 'Saving PDFs'
+                        : 'Save PDFs for this invoice and every newer invoice'
+                    }
+                  >
+                    {isBatchPrinting ? 'Saving PDFs…' : 'Batch save PDFs'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  className="max-w-[min(22rem,calc(100vw-2rem))] space-y-2 px-3 py-2.5 text-pretty"
+                >
+                  <p className="text-sm leading-snug text-popover-foreground">
+                    Saves PDFs for this invoice and every newer invoice.
+                  </p>
+                  <div className="border-t border-border pt-2">
+                    <p className="mb-1 text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
+                      Output folder
+                    </p>
+                    {pdfOutputDir ? (
+                      <code className="block w-full max-w-full break-all rounded-md border border-neutral-200 bg-neutral-100 px-2 py-1.5 font-mono text-[0.75rem] leading-relaxed text-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">
+                        {pdfOutputDir}
+                      </code>
+                    ) : (
+                      <p className="text-xs italic text-muted-foreground">
+                        Path unavailable
+                      </p>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {isBatchPrinting ? (
               <p className="text-2xl font-semibold text-red-600">
                 Please wait until saving finishes.
