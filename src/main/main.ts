@@ -435,6 +435,11 @@ app
       invoiceService.getLastInvoiceNumber(invoiceType),
     );
     ipcMain.handle(
+      'invoice:getIdsFromMinId',
+      (_, invoiceType: InvoiceType, fromInvoiceId: number) =>
+        invoiceService.getInvoiceIdsFromMinId(invoiceType, fromInvoiceId),
+    );
+    ipcMain.handle(
       'invoice:getAutoDiscount',
       (_, accountId: number, inventoryId: number) =>
         pricingService.getAutoDiscount(accountId, inventoryId),

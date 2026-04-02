@@ -3,6 +3,7 @@ import {
   useCompanyProfile,
   useInvoicePrintSettings,
   usePrimaryItemType,
+  useTheme,
 } from '@/renderer/hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -10,7 +11,7 @@ import { format, isValid } from 'date-fns';
 import { InvoiceType, type InvoiceView } from 'types';
 import { Button } from 'renderer/shad/ui/button';
 import { Kbd, KbdGroup } from 'renderer/shad/ui/kbd';
-import { toast } from '@/renderer/shad/ui/use-toast';
+import { dismissAllToasts, toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
 import { toNumber, toString, truncate } from 'lodash';
 import {
@@ -23,6 +24,29 @@ import { getFormattedCurrency } from '@/renderer/lib/utils';
 const isAppleLikePlatform = () =>
   typeof navigator !== 'undefined' &&
   /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+/** screen preview only; print stays neutral/black ink */
+const printPreviewRootClass =
+  'min-h-screen bg-white p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:p-0 print:text-black';
+
+/** lock controls to light surfaces so shadcn tokens (bg-background, accent) never go dark-on-dark */
+const printToolbarPanelClass =
+  'print:hidden mb-4 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-200 dark:bg-white dark:shadow-md';
+
+const printToolbarOutlineBtnClass =
+  'border-neutral-300 bg-white text-neutral-900 shadow-sm hover:bg-neutral-50 hover:text-neutral-900 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-50 dark:hover:text-neutral-900';
+
+const printToolbarPrimaryBtnClass =
+  'border border-neutral-800 bg-neutral-900 text-white shadow-sm hover:bg-neutral-800 hover:text-white dark:border-neutral-800 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 dark:hover:text-white';
+
+const printToolbarKbdClass =
+  'border-neutral-200 bg-neutral-100 text-neutral-800 dark:border-neutral-200 dark:bg-neutral-100 dark:text-neutral-800';
+
+const printToolbarKbdOnPrimaryClass =
+  'border-white/30 bg-white/15 text-white dark:border-white/30 dark:bg-white/15 dark:text-white';
+
+/** sticky batch toasts clear on navigation/print; this caps lifetime if user stays idle */
+const BATCH_TOAST_FALLBACK_MS = 45_000;
 
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +61,12 @@ const PrintableInvoiceScreen = () => {
   const { profile: companyProfile } = useCompanyProfile();
   const { settings: invoicePrintSettings, defaults } =
     useInvoicePrintSettings();
+  const { theme } = useTheme();
+  const isDarkAppChrome =
+    theme === 'dark' ||
+    (theme === 'system' &&
+      typeof document !== 'undefined' &&
+      document.documentElement.classList.contains('dark'));
 
   const showAppleKbdHints = useMemo(() => isAppleLikePlatform(), []);
 
@@ -94,14 +124,17 @@ const PrintableInvoiceScreen = () => {
     };
   }, [id]);
 
+  // one dismiss per id change (not cleanup+setup, which would duplicate)
   useEffect(() => {
-    if (invoice && localStorage.getItem('ui-theme') === 'dark') {
-      toast({
-        title: 'Info',
-        description: 'Please switch to light mode in order to view the invoice',
-      });
-    }
-  }, [invoice]);
+    dismissAllToasts();
+  }, [id]);
+
+  // leaving print view does not change `id` again — only unmount runs
+  useEffect(() => {
+    return () => {
+      dismissAllToasts();
+    };
+  }, []);
 
   useEffect(() => {
     if (!invoice?.invoiceNumber) {
@@ -118,6 +151,7 @@ const PrintableInvoiceScreen = () => {
   }, [invoice?.invoiceNumber]);
 
   const handlePrint = () => {
+    dismissAllToasts();
     window.print();
   };
 
@@ -125,45 +159,58 @@ const PrintableInvoiceScreen = () => {
     try {
       setIsBatchPrinting(true);
 
-      const startInvoice = toNumber(id);
-      const endInvoice = await window.electron.getLastInvoiceNumber(
-        invoice?.invoiceType!,
+      const startId = toNumber(id);
+      const invoiceType = invoice?.invoiceType;
+      if (invoiceType == null) {
+        return;
+      }
+
+      const rowIds = await window.electron.getInvoiceIdsFromMinId(
+        invoiceType,
+        startId,
       );
       const outputDir = await window.electron.getOutputDir();
 
-      if (!endInvoice) {
-        console.error('Could not determine last invoice number');
+      if (rowIds.length === 0) {
+        toast({
+          title: 'No PDFs to save',
+          description: 'No invoices of this type from this row onward.',
+          variant: 'destructive',
+          duration: BATCH_TOAST_FALLBACK_MS,
+        });
         return;
       }
 
       console.log(
-        `Starting batch PDF generation for invoices ${invoice?.invoiceNumber} to ${endInvoice}...`,
+        `Starting batch PDF for ${rowIds.length} invoice row(s) from id ${startId} (${invoiceType})…`,
       );
 
       let successCount = 0;
       let failCount = 0;
 
-      for (let currentId = startInvoice; currentId <= endInvoice; currentId++) {
-        if (!invoice?.invoiceNumber) continue;
-        let currentInvoiceNumber = currentId;
+      // clear any prior toasts; per-invoice navigation also runs dismiss via useEffect([id])
+      dismissAllToasts();
 
+      // allow renderer to fetch invoice before printToPDF snapshots the webview
+      const settleMs = 100;
+
+      for (const rowId of rowIds) {
+        let label = rowId;
         try {
           const invoiceNumber = await window.electron.doesInvoiceExists(
-            currentId,
-            invoice?.invoiceType!,
+            rowId,
+            invoiceType,
           );
 
-          if (!invoiceNumber) continue;
-          currentInvoiceNumber = invoiceNumber;
+          if (!invoiceNumber) {
+            continue;
+          }
+          label = invoiceNumber;
 
-          // Navigate to invoice
-          navigate(`/invoices/${currentId}/print`);
-
-          // Wait for page to load
+          navigate(`/invoices/${rowId}/print`);
           // eslint-disable-next-line no-promise-executor-return
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, settleMs));
 
-          // Generate PDF
           const result = await window.electron.printToPdf(invoiceNumber);
 
           if (result.success) {
@@ -177,28 +224,29 @@ const PrintableInvoiceScreen = () => {
           }
         } catch (err) {
           failCount++;
-          console.error(
-            `Error processing invoice ${currentInvoiceNumber}:`,
-            err,
-          );
+          console.error(`Error processing invoice ${label}:`, err);
         }
       }
 
       toast({
-        title: 'Batch Processing Complete',
-        description: `Successfully generated ${successCount} PDFs${
-          failCount > 0 ? `, Failed: ${failCount}` : ''
-        }. Files saved to: ${outputDir}`,
+        title: 'Batch processing complete',
+        description: `Saved ${successCount} PDF${
+          successCount === 1 ? '' : 's'
+        }${
+          failCount > 0 ? ` (${failCount} failed)` : ''
+        }. Folder: ${outputDir}`,
         variant: failCount > 0 ? 'destructive' : 'success',
+        duration: BATCH_TOAST_FALLBACK_MS,
       });
     } catch (error: unknown) {
       console.error('Batch processing error:', error);
       toast({
-        title: 'Error',
+        title: 'Batch PDF failed',
         description: `Failed to process batch: ${
           error instanceof Error ? error.message : error
         }`,
         variant: 'destructive',
+        duration: BATCH_TOAST_FALLBACK_MS,
       });
     } finally {
       setIsBatchPrinting(false);
@@ -210,6 +258,7 @@ const PrintableInvoiceScreen = () => {
 
   const handleClose = () => {
     if (!invoice || !isInvoiceSynced) {
+      dismissAllToasts();
       return;
     }
     const { invoiceType } = invoice;
@@ -392,48 +441,71 @@ const PrintableInvoiceScreen = () => {
   }, [groupedInvoiceItems]);
 
   if (!invoice) {
-    return <div>Loading...</div>;
+    return (
+      <div
+        className={`${printPreviewRootClass} flex items-center justify-center`}
+      >
+        <p className="text-sm text-neutral-600">Loading…</p>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-white p-8 print:p-0">
-      <div className="print:hidden mb-4">
+    <div className={printPreviewRootClass}>
+      {isDarkAppChrome ? (
+        <div
+          className="print:hidden mb-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 shadow-sm dark:border-amber-300/50 dark:bg-amber-950/30 dark:text-amber-50"
+          role="status"
+        >
+          Preview uses light paper colors so it matches print. You can keep dark
+          theme for the rest of the app.
+        </div>
+      ) : null}
+      <div className={printToolbarPanelClass}>
         <div className="flex flex-col gap-2">
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-2">
             <Button
               onClick={handleClose}
               variant="outline"
-              className="min-w-[7.5rem] gap-1.5 px-2"
+              className={`min-w-[7.5rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
               disabled={isBatchPrinting || !isInvoiceSynced}
             >
               Back
-              <Kbd className="hidden sm:inline-flex">Esc</Kbd>
+              <Kbd className={`hidden sm:inline-flex ${printToolbarKbdClass}`}>
+                Esc
+              </Kbd>
             </Button>
             <Button
               onClick={handlePrint}
-              className="min-w-[10.5rem] gap-1.5 px-2"
+              variant="default"
+              className={`min-w-[10.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
               disabled={isBatchPrinting || !isInvoiceSynced}
             >
               Print
               <KbdGroup className="hidden sm:inline-flex">
-                <Kbd>{showAppleKbdHints ? '⌘' : 'Ctrl'}</Kbd>
-                <Kbd>P</Kbd>
+                <Kbd className={printToolbarKbdOnPrimaryClass}>
+                  {showAppleKbdHints ? '⌘' : 'Ctrl'}
+                </Kbd>
+                <Kbd className={printToolbarKbdOnPrimaryClass}>P</Kbd>
               </KbdGroup>
             </Button>
             <Button
               onClick={handleBatchPrint}
-              className="w-[250px]"
+              variant="default"
+              className={`min-w-[14rem] max-w-[20rem] ${printToolbarPrimaryBtnClass}`}
               disabled={isBatchPrinting || !isInvoiceSynced}
             >
-              {isBatchPrinting ? 'Generating PDFs...' : 'Batch Generate PDFs'}
+              {isBatchPrinting
+                ? 'Saving PDFs…'
+                : 'Save all PDFs next to this invoice'}
             </Button>
             {isBatchPrinting ? (
-              <h1 className="text-red-500 text-xl font-extrabold">
-                PLEASE WAIT TILL THE PROCESS FINISHES.
-              </h1>
+              <p className="text-2xl font-semibold text-red-600">
+                Please wait until saving finishes.
+              </p>
             ) : null}
           </div>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-2">
             <Button
               onClick={handlePrevious}
               variant="outline"
@@ -442,10 +514,12 @@ const PrintableInvoiceScreen = () => {
                 adjacentInvoiceIds.previous <= 0 ||
                 isBatchPrinting
               }
-              className="min-w-[7.5rem] gap-1.5 px-2"
+              className={`min-w-[7.5rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
             >
               Previous
-              <Kbd className="hidden sm:inline-flex">←</Kbd>
+              <Kbd className={`hidden sm:inline-flex ${printToolbarKbdClass}`}>
+                ←
+              </Kbd>
             </Button>
             <Button
               onClick={handleNext}
@@ -455,10 +529,12 @@ const PrintableInvoiceScreen = () => {
                 adjacentInvoiceIds.next <= 0 ||
                 isBatchPrinting
               }
-              className="min-w-[7.5rem] gap-1.5 px-2"
+              className={`min-w-[7.5rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
             >
               Next
-              <Kbd className="hidden sm:inline-flex">→</Kbd>
+              <Kbd className={`hidden sm:inline-flex ${printToolbarKbdClass}`}>
+                →
+              </Kbd>
             </Button>
           </div>
         </div>
@@ -469,8 +545,8 @@ const PrintableInvoiceScreen = () => {
         }`}
       >
         {!isInvoiceSynced ? (
-          <div className="print:hidden absolute inset-0 z-10 flex items-start justify-center pt-24 bg-white/40 pointer-events-none">
-            <span className="text-sm font-medium text-neutral-600">
+          <div className="print:hidden pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-white/50 pt-24 backdrop-blur-[1px]">
+            <span className="text-sm font-medium text-neutral-700">
               Loading…
             </span>
           </div>

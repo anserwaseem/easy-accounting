@@ -136,6 +136,11 @@ function dispatch(action: Action) {
   });
 }
 
+/** closes every toast (e.g. before printToPDF so fixed toasts are not captured) */
+export function dismissAllToasts(): void {
+  dispatch({ type: 'DISMISS_TOAST' });
+}
+
 type Toast = Omit<ToasterToast, 'id'>;
 
 function toast({ ...props }: Toast) {

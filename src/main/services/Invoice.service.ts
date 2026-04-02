@@ -53,6 +53,8 @@ export class InvoiceService {
 
   private stmGetLastInvoiceNumber!: Statement;
 
+  private stmGetInvoiceIdsFromMinId!: Statement;
+
   private stmGetSalePurchaseAccounts!: Statement;
 
   private stmUpdateInvoiceBiltyAndCartons!: Statement;
@@ -411,6 +413,18 @@ export class InvoiceService {
     return result?.lastInvoiceNumber ?? 0;
   }
 
+  /** ordered primary keys for batch print: same invoiceType from this row onward */
+  getInvoiceIdsFromMinId(
+    invoiceType: InvoiceType,
+    fromInvoiceId: number,
+  ): number[] {
+    const rows = this.stmGetInvoiceIdsFromMinId.all({
+      invoiceType,
+      fromInvoiceId: cast(fromInvoiceId),
+    }) as { id: number }[];
+    return rows.map((r) => toNumber(r.id));
+  }
+
   updateInvoiceBiltyAndCartons(
     invoiceId: number,
     biltyNumber: string | undefined,
@@ -689,6 +703,13 @@ export class InvoiceService {
       SELECT MAX(invoiceNumber) as lastInvoiceNumber
       FROM invoices
       WHERE invoiceType = ?
+    `);
+
+    this.stmGetInvoiceIdsFromMinId = this.db.prepare(`
+      SELECT id
+      FROM invoices
+      WHERE invoiceType = @invoiceType AND id >= @fromInvoiceId
+      ORDER BY id ASC
     `);
 
     this.stmGetSalePurchaseAccounts = this.db
