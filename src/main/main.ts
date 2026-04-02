@@ -421,8 +421,23 @@ app
       (_, invoiceId: number, invoiceType: InvoiceType) =>
         invoiceService.doesInvoiceExists(invoiceId, invoiceType),
     );
+    ipcMain.handle(
+      'invoice:getAdjacentId',
+      (
+        _,
+        invoiceId: number,
+        invoiceType: InvoiceType,
+        direction: 'next' | 'previous',
+      ) =>
+        invoiceService.getAdjacentInvoiceId(invoiceId, invoiceType, direction),
+    );
     ipcMain.handle('invoice:getLastNumber', (_, invoiceType: InvoiceType) =>
       invoiceService.getLastInvoiceNumber(invoiceType),
+    );
+    ipcMain.handle(
+      'invoice:getIdsFromMinId',
+      (_, invoiceType: InvoiceType, fromInvoiceId: number) =>
+        invoiceService.getInvoiceIdsFromMinId(invoiceType, fromInvoiceId),
     );
     ipcMain.handle(
       'invoice:getAutoDiscount',

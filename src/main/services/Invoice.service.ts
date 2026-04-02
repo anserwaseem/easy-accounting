@@ -47,7 +47,13 @@ export class InvoiceService {
 
   private stmDoesInvoiceExist!: Statement;
 
+  private stmAdjacentInvoiceIdNext!: Statement;
+
+  private stmAdjacentInvoiceIdPrev!: Statement;
+
   private stmGetLastInvoiceNumber!: Statement;
+
+  private stmGetInvoiceIdsFromMinId!: Statement;
 
   private stmGetSalePurchaseAccounts!: Statement;
 
@@ -380,11 +386,43 @@ export class InvoiceService {
     return toNumber(get(result, 'invoiceNumber', 0));
   }
 
+  /**
+   * returns the primary key of the next/previous invoice of the same type by row id order
+   * (not id±1, since another type or a gap can sit between ids)
+   */
+  getAdjacentInvoiceId(
+    invoiceId: number,
+    invoiceType: InvoiceType,
+    direction: 'next' | 'previous',
+  ): number {
+    const stmt =
+      direction === 'next'
+        ? this.stmAdjacentInvoiceIdNext
+        : this.stmAdjacentInvoiceIdPrev;
+    const row = stmt.get({
+      invoiceId: cast(invoiceId),
+      invoiceType,
+    }) as { id: number } | undefined;
+    return row?.id ?? 0;
+  }
+
   getLastInvoiceNumber(invoiceType: InvoiceType): number {
     const result = <{ lastInvoiceNumber: number } | undefined>(
       this.stmGetLastInvoiceNumber.get(invoiceType)
     );
     return result?.lastInvoiceNumber ?? 0;
+  }
+
+  /** ordered primary keys for batch print: same invoiceType from this row onward */
+  getInvoiceIdsFromMinId(
+    invoiceType: InvoiceType,
+    fromInvoiceId: number,
+  ): number[] {
+    const rows = this.stmGetInvoiceIdsFromMinId.all({
+      invoiceType,
+      fromInvoiceId: cast(fromInvoiceId),
+    }) as { id: number }[];
+    return rows.map((r) => toNumber(r.id));
   }
 
   updateInvoiceBiltyAndCartons(
@@ -645,10 +683,33 @@ export class InvoiceService {
       LIMIT 1
     `);
 
+    this.stmAdjacentInvoiceIdNext = this.db.prepare(`
+      SELECT id
+      FROM invoices
+      WHERE invoiceType = @invoiceType AND id > @invoiceId
+      ORDER BY id ASC
+      LIMIT 1
+    `);
+
+    this.stmAdjacentInvoiceIdPrev = this.db.prepare(`
+      SELECT id
+      FROM invoices
+      WHERE invoiceType = @invoiceType AND id < @invoiceId
+      ORDER BY id DESC
+      LIMIT 1
+    `);
+
     this.stmGetLastInvoiceNumber = this.db.prepare(`
       SELECT MAX(invoiceNumber) as lastInvoiceNumber
       FROM invoices
       WHERE invoiceType = ?
+    `);
+
+    this.stmGetInvoiceIdsFromMinId = this.db.prepare(`
+      SELECT id
+      FROM invoices
+      WHERE invoiceType = @invoiceType AND id >= @fromInvoiceId
+      ORDER BY id ASC
     `);
 
     this.stmGetSalePurchaseAccounts = this.db

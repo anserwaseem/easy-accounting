@@ -1,6 +1,62 @@
 import { toNumber } from 'lodash';
 import type { InvoiceItemView } from 'types';
 
+const missingPartyLabel = '—';
+
+/** "ABC-TT" -> "ABC" when TT matches a configured item type name (party display). */
+export const stripItemTypeSuffixFromAccountName = (
+  accountName: string | undefined | null,
+  itemTypeNames: string[],
+): string => {
+  const name = accountName?.trim();
+  if (!name) return missingPartyLabel;
+  for (const typeName of itemTypeNames) {
+    if (!typeName) continue;
+    const suffix = `-${typeName.trim()}`;
+    if (name.endsWith(suffix)) {
+      return name.slice(0, name.length - suffix.length).trim();
+    }
+  }
+  return name;
+};
+
+/** one bill-to label: per-line names if any (avoids splitting commas in legal names), else header string as a whole */
+export const getPrintBillToPartyName = (
+  headerAccountName: string | undefined | null,
+  itemTypeNames: string[],
+  invoiceItems?: ReadonlyArray<{ accountName?: string }>,
+): string => {
+  const lines = (invoiceItems ?? [])
+    .map((row) => row.accountName?.trim())
+    .filter((n): n is string => Boolean(n));
+
+  let rawSegments: string[];
+  if (lines.length > 0) {
+    rawSegments = [...new Set(lines)];
+  } else if (headerAccountName?.trim()) {
+    rawSegments = [headerAccountName.trim()];
+  } else {
+    rawSegments = [];
+  }
+
+  const bases = rawSegments
+    .map((s) => stripItemTypeSuffixFromAccountName(s, itemTypeNames))
+    .filter((b) => b && b !== missingPartyLabel);
+
+  if (bases.length === 0) return missingPartyLabel;
+
+  const unique = [...new Set(bases)];
+  if (unique.length === 1) return unique[0];
+
+  unique.sort((a, b) => a.length - b.length);
+  for (const c of unique) {
+    if (bases.every((n) => n === c || n.startsWith(`${c}-`))) {
+      return c;
+    }
+  }
+  return bases[0];
+};
+
 interface GroupedInvoiceSection {
   sectionName: string;
   items: InvoiceItemView[];

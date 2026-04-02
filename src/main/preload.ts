@@ -241,8 +241,27 @@ const electronHandler = {
   doesInvoiceExists: (invoiceId: number, invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:exist', invoiceId, invoiceType),
 
+  getAdjacentInvoiceId: (
+    invoiceId: number,
+    invoiceType: InvoiceType,
+    direction: 'next' | 'previous',
+  ) =>
+    ipcRenderer.invoke(
+      'invoice:getAdjacentId',
+      invoiceId,
+      invoiceType,
+      direction,
+    ),
+
   getLastInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getLastNumber', invoiceType),
+
+  getInvoiceIdsFromMinId: (invoiceType: InvoiceType, fromInvoiceId: number) =>
+    ipcRenderer.invoke(
+      'invoice:getIdsFromMinId',
+      invoiceType,
+      fromInvoiceId,
+    ) as Promise<number[]>,
 
   getAutoDiscount: (accountId: number, inventoryId: number) =>
     ipcRenderer.invoke(

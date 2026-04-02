@@ -8,11 +8,11 @@ import {
 import {
   computeSectionTotals,
   groupInvoiceItemsByType,
+  stripItemTypeSuffixFromAccountName,
 } from '@/renderer/lib/invoiceUtils';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
-  stripItemTypeSuffixFromAccountName,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InvoiceItemView, InvoiceView } from 'types';
