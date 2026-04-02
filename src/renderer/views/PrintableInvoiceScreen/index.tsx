@@ -54,6 +54,20 @@ const printToolbarKbdOnPrimaryClass =
 /** sticky batch toasts clear on navigation/print; this caps lifetime if user stays idle */
 const BATCH_TOAST_FALLBACK_MS = 45_000;
 
+const normalizePdfOutputDir = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const fetchPdfOutputDir = (): Promise<string | null> =>
+  window.electron
+    .getOutputDir()
+    .then(normalizePdfOutputDir)
+    .catch(() => null);
+
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
   const [invoice, setInvoice] = useState<InvoiceView | null>(null);
@@ -133,16 +147,13 @@ const PrintableInvoiceScreen = () => {
 
   useEffect(() => {
     let cancelled = false;
-    window.electron
-      .getOutputDir()
+    fetchPdfOutputDir()
       .then((dir) => {
-        if (!cancelled && typeof dir === 'string' && dir.trim().length > 0) {
-          setPdfOutputDir(dir.trim());
+        if (!cancelled && dir != null) {
+          setPdfOutputDir(dir);
         }
       })
-      .catch(() => {
-        /* keep tooltip without path if ipc fails */
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -193,7 +204,6 @@ const PrintableInvoiceScreen = () => {
         invoiceType,
         startId,
       );
-      const outputDir = await window.electron.getOutputDir();
 
       if (rowIds.length === 0) {
         toast({
@@ -252,13 +262,16 @@ const PrintableInvoiceScreen = () => {
         }
       }
 
+      const folderForToast =
+        pdfOutputDir ?? (await fetchPdfOutputDir()) ?? 'NO OUTPUT FOLDER';
+
       toast({
         title: 'Batch processing complete',
         description: `Saved ${successCount} PDF${
           successCount === 1 ? '' : 's'
         }${
           failCount > 0 ? ` (${failCount} failed)` : ''
-        }. Folder: ${outputDir}`,
+        }. Folder: ${folderForToast}`,
         variant: failCount > 0 ? 'destructive' : 'success',
         duration: BATCH_TOAST_FALLBACK_MS,
       });
@@ -547,9 +560,7 @@ const PrintableInvoiceScreen = () => {
                         {pdfOutputDir}
                       </code>
                     ) : (
-                      <p className="text-xs italic text-muted-foreground">
-                        Path unavailable
-                      </p>
+                      <p className="text-xs text-muted-foreground">Loading…</p>
                     )}
                   </div>
                 </TooltipContent>
