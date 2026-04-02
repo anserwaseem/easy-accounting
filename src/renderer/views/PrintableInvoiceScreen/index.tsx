@@ -4,36 +4,41 @@ import {
   useInvoicePrintSettings,
   usePrimaryItemType,
 } from '@/renderer/hooks';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format, isValid } from 'date-fns';
-import { InvoiceView } from 'types';
+import { InvoiceType, type InvoiceView } from 'types';
 import { Button } from 'renderer/shad/ui/button';
+import { Kbd, KbdGroup } from 'renderer/shad/ui/kbd';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
 import { toNumber, toString, truncate } from 'lodash';
 import {
   computeSectionTotals,
+  getPrintBillToPartyName,
   groupInvoiceItemsByType,
 } from '@/renderer/lib/invoiceUtils';
-import {
-  getFormattedCurrency,
-  stripItemTypeSuffixFromAccountName,
-} from '@/renderer/lib/utils';
+import { getFormattedCurrency } from '@/renderer/lib/utils';
+
+const isAppleLikePlatform = () =>
+  typeof navigator !== 'undefined' &&
+  /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
   const [invoice, setInvoice] = useState<InvoiceView | null>(null);
   const { primaryItemTypeName, itemTypeNames } = usePrimaryItemType();
-  const [doesInvoiceExists, setDoesInvoiceExists] = useState<{
-    next: boolean;
-    previous: boolean;
-  }>({ next: false, previous: false });
+  const [adjacentInvoiceIds, setAdjacentInvoiceIds] = useState<{
+    next: number;
+    previous: number;
+  }>({ next: 0, previous: 0 });
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const navigate = useNavigate();
   const { profile: companyProfile } = useCompanyProfile();
   const { settings: invoicePrintSettings, defaults } =
     useInvoicePrintSettings();
+
+  const showAppleKbdHints = useMemo(() => isAppleLikePlatform(), []);
 
   const biltyGoodsText = useMemo(() => {
     if (!invoice) return '';
@@ -44,22 +49,50 @@ const PrintableInvoiceScreen = () => {
   }, [invoice]);
 
   useEffect(() => {
+    let cancelled = false;
+    const numericId = toNumber(id);
+
     const fetchInvoice = async () => {
-      const fetchedInvoice = await window.electron.getInvoice(toNumber(id));
+      const fetchedInvoice = await window.electron.getInvoice(numericId);
+      if (cancelled) {
+        return;
+      }
       setInvoice(fetchedInvoice);
 
-      const next = await window.electron.doesInvoiceExists(
-        toNumber(id) + 1,
-        invoice?.invoiceType!,
+      const invoiceType = fetchedInvoice?.invoiceType;
+      if (invoiceType == null) {
+        setAdjacentInvoiceIds({ next: 0, previous: 0 });
+        return;
+      }
+
+      const nextId = await window.electron.getAdjacentInvoiceId(
+        numericId,
+        invoiceType,
+        'next',
       );
-      const previous = await window.electron.doesInvoiceExists(
-        toNumber(id) - 1,
-        invoice?.invoiceType!,
+      if (cancelled) {
+        return;
+      }
+      const previousId = await window.electron.getAdjacentInvoiceId(
+        numericId,
+        invoiceType,
+        'previous',
       );
-      setDoesInvoiceExists({ next, previous });
+      if (cancelled) {
+        return;
+      }
+      setAdjacentInvoiceIds({
+        next: toNumber(nextId),
+        previous: toNumber(previousId),
+      });
     };
+
     fetchInvoice();
-  }, [id, invoice?.invoiceType]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   useEffect(() => {
     if (invoice && localStorage.getItem('ui-theme') === 'dark') {
@@ -172,29 +205,133 @@ const PrintableInvoiceScreen = () => {
     }
   };
 
+  const routeInvoiceId = toNumber(id);
+  const isInvoiceSynced = invoice != null && invoice.id === routeInvoiceId;
+
   const handleClose = () => {
+    if (!invoice || !isInvoiceSynced) {
+      return;
+    }
+    const { invoiceType } = invoice;
+    const numericId = routeInvoiceId;
+    if (invoiceType === InvoiceType.Purchase) {
+      navigate(`/purchase/invoices/${numericId}`);
+      return;
+    }
+    if (invoiceType === InvoiceType.Sale) {
+      navigate(`/sale/invoices/${numericId}`);
+      return;
+    }
     navigate('/');
   };
 
   const handleNext = () => {
-    navigate(`/invoices/${toNumber(id) + 1}/print`);
+    if (adjacentInvoiceIds.next <= 0) {
+      return;
+    }
+    navigate(`/invoices/${adjacentInvoiceIds.next}/print`);
   };
 
   const handlePrevious = () => {
-    navigate(`/invoices/${toNumber(id) - 1}/print`);
+    if (adjacentInvoiceIds.previous <= 0) {
+      return;
+    }
+    navigate(`/invoices/${adjacentInvoiceIds.previous}/print`);
   };
+
+  const keyboardActionsRef = useRef({
+    handlePrint,
+    handleClose,
+    handleNext,
+    handlePrevious,
+  });
+  keyboardActionsRef.current = {
+    handlePrint,
+    handleClose,
+    handleNext,
+    handlePrevious,
+  };
+
+  const keyboardGateRef = useRef({
+    isBatchPrinting,
+    isInvoiceSynced,
+    nextId: adjacentInvoiceIds.next,
+    previousId: adjacentInvoiceIds.previous,
+  });
+  keyboardGateRef.current = {
+    isBatchPrinting,
+    isInvoiceSynced,
+    nextId: adjacentInvoiceIds.next,
+    previousId: adjacentInvoiceIds.previous,
+  };
+
+  // arrow keys, escape (back to invoice), and cmd/ctrl+p — refs keep the listener stable
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const g = keyboardGateRef.current;
+      if (g.isBatchPrinting) {
+        return;
+      }
+
+      const target = e.target as HTMLElement | undefined;
+      if (target?.closest?.('input, textarea, [contenteditable="true"]')) {
+        return;
+      }
+
+      const a = keyboardActionsRef.current;
+
+      if (e.key === 'Escape') {
+        if (!g.isInvoiceSynced) {
+          return;
+        }
+        e.preventDefault();
+        a.handleClose();
+        return;
+      }
+
+      if (e.key === 'p' && (e.metaKey || e.ctrlKey)) {
+        if (!g.isInvoiceSynced) {
+          return;
+        }
+        e.preventDefault();
+        a.handlePrint();
+        return;
+      }
+
+      if (e.key === 'ArrowRight') {
+        if (!g.isInvoiceSynced || g.nextId <= 0) {
+          return;
+        }
+        e.preventDefault();
+        a.handleNext();
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        if (!g.isInvoiceSynced || g.previousId <= 0) {
+          return;
+        }
+        e.preventDefault();
+        a.handlePrevious();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const invoiceItems = useMemo(
     () => invoice?.invoiceItems ?? [],
     [invoice?.invoiceItems],
   );
   const billToName = useMemo(() => {
-    const name = stripItemTypeSuffixFromAccountName(
+    const name = getPrintBillToPartyName(
       invoice?.accountName,
       itemTypeNames,
+      invoice?.invoiceItems,
     );
     return name === '—' ? 'WALK IN CUSTOMER' : name;
-  }, [invoice?.accountName, itemTypeNames]);
+  }, [invoice?.accountName, invoice?.invoiceItems, itemTypeNames]);
   const billToAddress = useMemo(() => {
     const raw = invoice?.accountAddress ?? '';
     const address = String(raw).trim();
@@ -266,22 +403,27 @@ const PrintableInvoiceScreen = () => {
             <Button
               onClick={handleClose}
               variant="outline"
-              className="w-[100px]"
-              disabled={isBatchPrinting}
+              className="min-w-[7.5rem] gap-1.5 px-2"
+              disabled={isBatchPrinting || !isInvoiceSynced}
             >
-              Close
+              Back
+              <Kbd className="hidden sm:inline-flex">Esc</Kbd>
             </Button>
             <Button
               onClick={handlePrint}
-              className="w-[150px]"
-              disabled={isBatchPrinting}
+              className="min-w-[10.5rem] gap-1.5 px-2"
+              disabled={isBatchPrinting || !isInvoiceSynced}
             >
-              Print Invoice
+              Print
+              <KbdGroup className="hidden sm:inline-flex">
+                <Kbd>{showAppleKbdHints ? '⌘' : 'Ctrl'}</Kbd>
+                <Kbd>P</Kbd>
+              </KbdGroup>
             </Button>
             <Button
               onClick={handleBatchPrint}
               className="w-[250px]"
-              disabled={isBatchPrinting}
+              disabled={isBatchPrinting || !isInvoiceSynced}
             >
               {isBatchPrinting ? 'Generating PDFs...' : 'Batch Generate PDFs'}
             </Button>
@@ -295,23 +437,44 @@ const PrintableInvoiceScreen = () => {
             <Button
               onClick={handlePrevious}
               variant="outline"
-              disabled={!doesInvoiceExists.previous || isBatchPrinting}
-              className="w-[100px]"
+              disabled={
+                !isInvoiceSynced ||
+                adjacentInvoiceIds.previous <= 0 ||
+                isBatchPrinting
+              }
+              className="min-w-[7.5rem] gap-1.5 px-2"
             >
               Previous
+              <Kbd className="hidden sm:inline-flex">←</Kbd>
             </Button>
             <Button
               onClick={handleNext}
               variant="outline"
-              disabled={!doesInvoiceExists.next || isBatchPrinting}
-              className="w-[150px]"
+              disabled={
+                !isInvoiceSynced ||
+                adjacentInvoiceIds.next <= 0 ||
+                isBatchPrinting
+              }
+              className="min-w-[7.5rem] gap-1.5 px-2"
             >
               Next
+              <Kbd className="hidden sm:inline-flex">→</Kbd>
             </Button>
           </div>
         </div>
       </div>
-      <div className="max-w-4xl mx-auto">
+      <div
+        className={`max-w-4xl mx-auto relative transition-opacity duration-150 print:opacity-100 ${
+          isInvoiceSynced ? 'opacity-100' : 'opacity-50'
+        }`}
+      >
+        {!isInvoiceSynced ? (
+          <div className="print:hidden absolute inset-0 z-10 flex items-start justify-center pt-24 bg-white/40 pointer-events-none">
+            <span className="text-sm font-medium text-neutral-600">
+              Loading…
+            </span>
+          </div>
+        ) : null}
         <div className="flex justify-between items-center">
           <div className="w-full text-[13px]">
             <h1 className="text-3xl font-bold text-center font-mono">

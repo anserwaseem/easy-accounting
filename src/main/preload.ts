@@ -241,6 +241,18 @@ const electronHandler = {
   doesInvoiceExists: (invoiceId: number, invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:exist', invoiceId, invoiceType),
 
+  getAdjacentInvoiceId: (
+    invoiceId: number,
+    invoiceType: InvoiceType,
+    direction: 'next' | 'previous',
+  ) =>
+    ipcRenderer.invoke(
+      'invoice:getAdjacentId',
+      invoiceId,
+      invoiceType,
+      direction,
+    ),
+
   getLastInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getLastNumber', invoiceType),
 
