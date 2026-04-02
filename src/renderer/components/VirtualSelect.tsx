@@ -52,6 +52,9 @@ const VirtualSelect = <T extends BaseOption = Account>({
   const [searchInputValue, setSearchInputValue] = useState('');
   const [filteredSearchValue, setFilteredSearchValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<
+    Record<string, boolean>
+  >({});
   const [stickySectionLabel, setStickySectionLabel] = useState<string | null>(
     null,
   );
@@ -125,32 +128,14 @@ const VirtualSelect = <T extends BaseOption = Account>({
     );
   }, [filteredSearchValue, options, searchFields]);
 
-  // when groupBy is provided: build flat list of section headers + items (single Virtuoso, reliable in portal)
-  const listWithSections = useMemo((): SectionOrItem<T>[] | null => {
-    if (!groupBy || !filteredOptions.length) return null;
-    const byKey = new Map<string, T[]>();
-    for (const opt of filteredOptions) {
-      const key = groupBy(opt);
-      const list = byKey.get(key) ?? [];
-      list.push(opt);
-      byKey.set(key, list);
-    }
-    const keys = Array.from(byKey.keys());
-    const otherKey = keys.find((k) => k.toLowerCase() === 'other');
-    const rest = keys.filter((k) => k.toLowerCase() !== 'other');
-    const sortedKeys = [
-      ...sortBy(rest, (k) => k),
-      ...(otherKey ? [otherKey] : []),
-    ];
-    const flat: SectionOrItem<T>[] = [];
-    for (const key of sortedKeys) {
-      flat.push({ type: 'header', label: key });
-      for (const item of byKey.get(key)!) {
-        flat.push({ type: 'item', item });
-      }
-    }
-    return flat;
-  }, [filteredOptions, groupBy]);
+  const isSearching = filteredSearchValue.trim().length > 0;
+
+  const toggleSectionCollapsed = useCallback((label: string) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [label]: !prev[label],
+    }));
+  }, []);
 
   const defaultRenderSelectItem = useCallback(
     (item: T) => (
@@ -167,6 +152,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
     if (!open) {
       setSearchInputValue('');
       setFilteredSearchValue('');
+      setCollapsedSections({});
       setStickySectionLabel(null);
       isTypingRef.current = false;
     }
@@ -205,23 +191,165 @@ const VirtualSelect = <T extends BaseOption = Account>({
     [renderSelectItem, defaultRenderSelectItem],
   );
 
-  const sectionHeaderRenderer = useCallback(
-    (label: string) => (
-      <div
-        className={cn(
-          'sticky top-0 z-10 border-b bg-muted/90 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm',
-        )}
-        role="presentation"
-      >
-        {label}
-      </div>
-    ),
+  const groupCountsByLabel = useMemo(() => {
+    if (!groupBy) return null;
+    const totalByLabel: Record<string, number> = {};
+    for (const opt of options) {
+      const label = groupBy(opt);
+      totalByLabel[label] = (totalByLabel[label] ?? 0) + 1;
+    }
+    const matchByLabel: Record<string, number> = {};
+    for (const opt of filteredOptions) {
+      const label = groupBy(opt);
+      matchByLabel[label] = (matchByLabel[label] ?? 0) + 1;
+    }
+    return { totalByLabel, matchByLabel };
+  }, [filteredOptions, groupBy, options]);
+
+  // when user starts searching, auto-expand groups that contain matches
+  // but preserve any manual collapses the user has applied during this search session.
+  useEffect(() => {
+    if (!groupBy || !isSearching || !groupCountsByLabel) return;
+    setCollapsedSections((prev) => {
+      const next = { ...prev };
+      for (const label of Object.keys(groupCountsByLabel.matchByLabel)) {
+        const matches = groupCountsByLabel.matchByLabel[label] ?? 0;
+        if (matches <= 0) continue;
+        // if user explicitly collapsed this label, keep it collapsed
+        if (next[label] === true) continue;
+        next[label] = false;
+      }
+      return next;
+    });
+  }, [groupBy, groupCountsByLabel, isSearching]);
+
+  const sortedGroupLabels = useMemo(() => {
+    const keys = Object.keys(groupCountsByLabel?.totalByLabel ?? {});
+    const otherKey = keys.find((k) => k.toLowerCase() === 'other');
+    const rest = keys.filter((k) => k.toLowerCase() !== 'other');
+    return [...sortBy(rest, (k) => k), ...(otherKey ? [otherKey] : [])];
+  }, [groupCountsByLabel]);
+
+  const handleExpandAllSections = useCallback(() => {
+    setCollapsedSections({});
+  }, []);
+
+  const handleCollapseAllSections = useCallback(() => {
+    if (!sortedGroupLabels.length) return;
+    setCollapsedSections(
+      sortedGroupLabels.reduce<Record<string, boolean>>((acc, label) => {
+        acc[label] = true;
+        return acc;
+      }, {}),
+    );
+  }, [sortedGroupLabels]);
+
+  const sectionHeaderClassName = useMemo(
+    () =>
+      cn(
+        'flex w-full items-center justify-between gap-2 border-b bg-muted/90 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm',
+        'transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+      ),
     [],
+  );
+
+  const sectionHeaderRenderer = useCallback(
+    (label: string) => {
+      const isCollapsed = collapsedSections[label] === true;
+      const totalCount = groupCountsByLabel?.totalByLabel[label] ?? 0;
+      const matchCount = groupCountsByLabel?.matchByLabel[label] ?? 0;
+      const countLabel = isSearching
+        ? `${matchCount}/${totalCount}`
+        : `${totalCount}`;
+      return (
+        <button
+          type="button"
+          className={sectionHeaderClassName}
+          onClick={() => toggleSectionCollapsed(label)}
+          aria-expanded={!isCollapsed}
+        >
+          <span className="flex items-center gap-2">
+            <span
+              className={cn(
+                'inline-block transition-transform duration-150 ease-in-out',
+                isCollapsed ? '-rotate-90' : 'rotate-0',
+              )}
+              aria-hidden
+            >
+              ▾
+            </span>
+            <span className="flex items-baseline gap-2">
+              <span>{label}</span>
+              <span className="text-[10px] font-medium normal-case opacity-70">
+                ({countLabel})
+              </span>
+            </span>
+          </span>
+          <span className="text-[10px] font-medium normal-case opacity-70">
+            {isCollapsed ? 'collapsed' : 'expanded'}
+          </span>
+        </button>
+      );
+    },
+    [
+      collapsedSections,
+      groupCountsByLabel,
+      isSearching,
+      sectionHeaderClassName,
+      toggleSectionCollapsed,
+    ],
+  );
+
+  const sectionHeaderSpacerRenderer = useCallback(
+    (label: string) => {
+      const isCollapsed = collapsedSections[label] === true;
+      const totalCount = groupCountsByLabel?.totalByLabel[label] ?? 0;
+      const matchCount = groupCountsByLabel?.matchByLabel[label] ?? 0;
+      const countLabel = isSearching
+        ? `${matchCount}/${totalCount}`
+        : `${totalCount}`;
+      return (
+        <div
+          className={cn(
+            sectionHeaderClassName,
+            'opacity-0 select-none pointer-events-none',
+          )}
+          aria-hidden
+        >
+          <span className="flex items-center gap-2">
+            <span
+              className={cn(
+                'inline-block transition-transform duration-150 ease-in-out',
+                isCollapsed ? '-rotate-90' : 'rotate-0',
+              )}
+              aria-hidden
+            >
+              ▾
+            </span>
+            <span className="flex items-baseline gap-2">
+              <span>{label}</span>
+              <span className="text-[10px] font-medium normal-case opacity-70">
+                ({countLabel})
+              </span>
+            </span>
+          </span>
+          <span className="text-[10px] font-medium normal-case opacity-70">
+            {isCollapsed ? 'collapsed' : 'expanded'}
+          </span>
+        </div>
+      );
+    },
+    [
+      collapsedSections,
+      groupCountsByLabel,
+      isSearching,
+      sectionHeaderClassName,
+    ],
   );
 
   const listContentRenderer = useCallback(
     (index: number, entry: SectionOrItem<T> | T) => {
-      if (!listWithSections) {
+      if (!groupBy) {
         return itemRenderer(index, entry as T);
       }
       const row = entry as SectionOrItem<T>;
@@ -230,19 +358,46 @@ const VirtualSelect = <T extends BaseOption = Account>({
       }
       // when this header is the one shown sticky above, render same-height spacer to avoid duplicate label
       if (row.label === stickySectionLabel) {
-        return (
-          <div
-            className="px-3 py-2 text-xs font-semibold uppercase tracking-wider opacity-0 select-none pointer-events-none"
-            aria-hidden
-          >
-            {row.label}
-          </div>
-        );
+        return sectionHeaderSpacerRenderer(row.label);
       }
       return sectionHeaderRenderer(row.label);
     },
-    [itemRenderer, listWithSections, sectionHeaderRenderer, stickySectionLabel],
+    [
+      groupBy,
+      itemRenderer,
+      sectionHeaderRenderer,
+      sectionHeaderSpacerRenderer,
+      stickySectionLabel,
+    ],
   );
+
+  // when groupBy is provided: build flat list of section headers + items (single Virtuoso, reliable in portal)
+  const listWithSections = useMemo((): SectionOrItem<T>[] | null => {
+    if (!groupBy || !filteredOptions.length) return null;
+    const byKey = new Map<string, T[]>();
+    for (const opt of filteredOptions) {
+      const key = groupBy(opt);
+      const list = byKey.get(key) ?? [];
+      list.push(opt);
+      byKey.set(key, list);
+    }
+    const keys = Array.from(byKey.keys());
+    const otherKey = keys.find((k) => k.toLowerCase() === 'other');
+    const rest = keys.filter((k) => k.toLowerCase() !== 'other');
+    const sortedKeys = [
+      ...sortBy(rest, (k) => k),
+      ...(otherKey ? [otherKey] : []),
+    ];
+    const flat: SectionOrItem<T>[] = [];
+    for (const key of sortedKeys) {
+      flat.push({ type: 'header', label: key });
+      if (collapsedSections[key] === true) continue;
+      for (const item of byKey.get(key)!) {
+        flat.push({ type: 'item', item });
+      }
+    }
+    return flat;
+  }, [collapsedSections, filteredOptions, groupBy]);
 
   const virtuosoData = listWithSections ?? filteredOptions;
   const hasOptions = virtuosoData.length > 0;
@@ -298,18 +453,36 @@ const VirtualSelect = <T extends BaseOption = Account>({
             className="w-full"
           />
         </div>
+        {groupBy && !isSearching && sortedGroupLabels.length > 0 && (
+          <div className="px-2 pb-2">
+            <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-1">
+              <span className="text-xs text-muted-foreground">Sections</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={handleExpandAllSections}
+                >
+                  Expand all
+                </button>
+                <button
+                  type="button"
+                  className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={handleCollapseAllSections}
+                >
+                  Collapse all
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div
           className="transition-opacity duration-150 ease-in-out min-h-[320px] relative"
           style={{ height: hasOptions ? 400 : undefined }}
         >
           {listWithSections && stickySectionLabel && hasOptions && (
-            <div
-              className={cn(
-                'sticky top-0 z-10 border-b bg-muted/95 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm',
-              )}
-              role="presentation"
-            >
-              {stickySectionLabel}
+            <div className="absolute left-0 right-0 top-0 z-20">
+              {sectionHeaderRenderer(stickySectionLabel)}
             </div>
           )}
           {hasOptions ? (
