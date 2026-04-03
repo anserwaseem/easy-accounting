@@ -47,9 +47,15 @@ describe('useNewInvoiceParties', () => {
       }),
       baseAccount({
         id: 11,
-        name: 'Tier customer',
+        name: 'Retail customer-T',
         type: AccountType.Asset,
         code: 'RET-T',
+      }),
+      baseAccount({
+        id: 12,
+        name: 'B-WASEEM',
+        type: AccountType.Asset,
+        code: 'B-WASEEM',
       }),
     ]);
     const getItemTypes = jest.fn().mockResolvedValue([{ id: 1, name: 'T' }]);
@@ -71,7 +77,7 @@ describe('useNewInvoiceParties', () => {
 
     expect(result.current.requiredAccountsExist.sale).toBe(true);
     expect(result.current.requiredAccountsExist.purchase).toBe(true);
-    expect(result.current.parties?.map((p) => p.id)).toEqual([10]);
+    expect(result.current.parties?.map((p) => p.id)).toEqual([10, 12]);
   });
 
   it('refreshParties refetches accounts and shows success toast', async () => {
