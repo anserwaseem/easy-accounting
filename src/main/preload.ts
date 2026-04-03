@@ -22,6 +22,7 @@ import type {
   ItemType,
   DiscountProfile,
   ProfileTypeDiscount,
+  BalanceType,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -217,11 +218,29 @@ const electronHandler = {
   insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) =>
     ipcRenderer.invoke('invoice:insert', invoiceType, invoice),
 
+  updateInvoice: (
+    invoiceType: InvoiceType,
+    invoiceId: number,
+    invoice: Invoice,
+  ) => ipcRenderer.invoke('invoice:update', invoiceType, invoiceId, invoice),
+
   getInvoices: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getAll', invoiceType),
 
   getInvoice: (invoiceId: number) =>
     ipcRenderer.invoke('invoice:get', invoiceId),
+
+  getSaleInvoiceEditDateBounds: (
+    invoiceId: number,
+    accountId: number,
+    invoiceNumber: number,
+  ) =>
+    ipcRenderer.invoke(
+      'invoice:getSaleEditDateBounds',
+      invoiceId,
+      accountId,
+      invoiceNumber,
+    ) as Promise<{ prevDate: string | null; nextDate: string | null }>,
 
   updateInvoiceBiltyAndCartons: (
     invoiceId: number,
@@ -361,6 +380,14 @@ const electronHandler = {
   getLedger: (accountId: number) =>
     ipcRenderer.invoke('ledger:get', accountId) as Promise<LedgerView[]>,
   /**
+   * Latest running balance for an account (same as last row on ledger screen), or null if no entries.
+   */
+  getLedgerBalance: (accountId: number) =>
+    ipcRenderer.invoke('ledger:getBalance', accountId) as Promise<{
+      balance: number;
+      balanceType: BalanceType;
+    } | null>,
+  /**
    * Get the next journal id
    * @returns The next journal id
    * @example const journalId = getNextJournalId();
@@ -389,6 +416,8 @@ const electronHandler = {
    */
   getJournal: (journalId: number) =>
     ipcRenderer.invoke('journal:get', journalId),
+  getJournalsByInvoiceId: (invoiceId: number) =>
+    ipcRenderer.invoke('journal:getByInvoiceId', invoiceId),
   /**
    * Update a journal narration
    * @param journalId The journal id to update

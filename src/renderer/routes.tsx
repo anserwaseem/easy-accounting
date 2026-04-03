@@ -76,6 +76,12 @@ const AppRoutes: React.FC = () => (
                   }
                 />
                 <Route
+                  path=":id/edit"
+                  element={
+                    <NewInvoicePage invoiceType={InvoiceType.Purchase} />
+                  }
+                />
+                <Route
                   path=":id"
                   element={
                     <InvoicePage
@@ -96,6 +102,15 @@ const AppRoutes: React.FC = () => (
                     <NewInvoicePage
                       invoiceType={InvoiceType.Sale}
                       key={InvoiceType.Sale}
+                    />
+                  }
+                />
+                <Route
+                  path=":id/edit"
+                  element={
+                    <NewInvoicePage
+                      invoiceType={InvoiceType.Sale}
+                      key={`${InvoiceType.Sale}-edit`}
                     />
                   }
                 />

@@ -1215,7 +1215,13 @@ describe('InvoiceService.insertInvoice', () => {
     );
 
     const view = invoiceService.getInvoice(invoiceId);
-    expect(view.accountName).toBe('PrimaryParty');
+    expect(
+      String(view.accountName)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .sort(),
+    ).toEqual(['PrimaryParty', 'SectionParty']);
 
     const byInventoryId = new Map(
       view.invoiceItems.map((row) => [row.inventoryId, row]),

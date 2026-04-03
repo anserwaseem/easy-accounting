@@ -15,11 +15,19 @@ import {
   getFormattedCurrency,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import type { InvoiceItemView, InvoiceView } from 'types';
-import { InvoiceType } from 'types';
+import type { Account, InvoiceItemView, InvoiceView, Journal } from 'types';
+import { BalanceType, InvoiceType } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
+import { Badge } from '@/renderer/shad/ui/badge';
+import { Separator } from '@/renderer/shad/ui/separator';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/renderer/shad/ui/tabs';
+import { Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { EditInvoiceBiltyCartonsDialog } from './EditInvoiceBiltyCartonsDialog';
 
 interface InvoiceDetailsProps {
   invoiceType: InvoiceType;
@@ -33,6 +41,12 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   invoice: propInvoice,
 }: InvoiceDetailsProps) => {
   const [invoice, setInvoice] = useState<InvoiceView>();
+  const [relatedJournals, setRelatedJournals] = useState<Journal[]>([]);
+  const [isRelatedLoading, setIsRelatedLoading] = useState(false);
+  const [ledgerJumpAccounts, setLedgerJumpAccounts] = useState<Account[]>([]);
+  const [relatedLedgerBalances, setRelatedLedgerBalances] = useState<
+    Record<number, { balance: number; balanceType: BalanceType }>
+  >({});
   const { primaryItemTypeName, itemTypeNames } = usePrimaryItemType();
   const navigate = useNavigate();
   // eslint-disable-next-line no-console
@@ -47,11 +61,76 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     fetchInvoice();
   }, [invoiceId, propInvoice]);
 
+  useEffect(() => {
+    const inv = invoice;
+    if (!inv?.id) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsRelatedLoading(true);
+        const [journalsRaw, accounts] = await Promise.all([
+          window.electron.getJournalsByInvoiceId(inv.id) as Promise<Journal[]>,
+          window.electron.getAccounts() as Promise<Account[]>,
+        ]);
+        if (cancelled) return;
+
+        setRelatedJournals(Array.isArray(journalsRaw) ? journalsRaw : []);
+        setRelatedLedgerBalances({});
+
+        const ids = new Set<number>();
+        const headerId = toNumber(inv.invoiceHeaderAccountId);
+        if (headerId > 0) ids.add(headerId);
+        (inv.invoiceItems ?? []).forEach((it) => {
+          const id = toNumber(it.accountId);
+          if (id > 0) ids.add(id);
+        });
+
+        const selected = accounts.filter((a) => ids.has(toNumber(a.id)));
+        setLedgerJumpAccounts(selected);
+
+        const balanceMap: Record<
+          number,
+          { balance: number; balanceType: BalanceType }
+        > = {};
+        await Promise.all(
+          selected.map(async (acc) => {
+            const aid = toNumber(acc.id);
+            if (aid <= 0) return;
+            const row = await window.electron.getLedgerBalance(aid);
+            if (cancelled || !row) return;
+            balanceMap[aid] = {
+              balance: toNumber(row.balance),
+              balanceType: row.balanceType,
+            };
+          }),
+        );
+        if (!cancelled) setRelatedLedgerBalances(balanceMap);
+      } finally {
+        if (!cancelled) setIsRelatedLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [invoice]);
+
   const customerDisplayName = useMemo(
     () =>
       stripItemTypeSuffixFromAccountName(invoice?.accountName, itemTypeNames),
     [invoice?.accountName, itemTypeNames],
   );
+
+  const relatedJournalViews = useMemo(() => {
+    return relatedJournals.map((j) => ({
+      ...j,
+      amount: (j.journalEntries ?? []).reduce(
+        (sum, e) => sum + (toNumber(e.debitAmount) || 0),
+        0,
+      ),
+    }));
+  }, [relatedJournals]);
 
   const columns: ColumnDef<InvoiceItemView>[] = useMemo(() => {
     return [
@@ -132,21 +211,23 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <p className="font-extrabold text-md w-[160px]">Invoice #:</p>
               <div className="flex items-center gap-2">
                 <p>{invoice?.invoiceNumber}</p>
-                {invoiceType === InvoiceType.Sale && invoice?.id != null && (
-                  <EditInvoiceBiltyCartonsDialog
-                    invoiceId={invoice.id}
-                    biltyNumber={invoice.biltyNumber}
-                    cartons={invoice.cartons}
-                    onSave={async (id, bilty, cartonsCount) => {
-                      await window.electron.updateInvoiceBiltyAndCartons(
-                        id,
-                        bilty,
-                        cartonsCount,
-                      );
-                      const updated = await window.electron.getInvoice(id);
-                      setInvoice(updated);
-                    }}
-                  />
+                {invoice?.id != null && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={() =>
+                      navigate(
+                        `/${invoiceType.toLowerCase()}/invoices/${
+                          invoice.id
+                        }/edit`,
+                      )
+                    }
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Edit
+                  </Button>
                 )}
               </div>
             </div>
@@ -154,7 +235,14 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <p className="font-medium text-md min-w-[160px]">{`${
                 invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
               }:`}</p>
-              <p className="whitespace-nowrap">{customerDisplayName}</p>
+              <div className="flex flex-wrap items-center gap-2 min-w-max">
+                <p className="whitespace-normal">{customerDisplayName}</p>
+                {invoice?.accountCode != null ? (
+                  <Badge variant="secondary" className="whitespace-nowrap">
+                    {invoice.accountCode}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Date:</p>
@@ -185,7 +273,10 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 {invoice?.createdAt !== invoice?.updatedAt &&
                   invoice?.updatedAt && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Updated: At{' '}
+                      <span className="font-medium text-foreground">
+                        Edited
+                      </span>
+                      {' · '}
                       {new Date(invoice.updatedAt).toLocaleString(
                         'en-US',
                         datetimeFormatOptions,
@@ -226,7 +317,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         </div>
       </div>
 
-      <div className="space-y-8 py-10">
+      <div className="space-y-6 py-6">
         {groupedInvoiceItems.map((section) => (
           <div key={section.sectionName} className="space-y-2">
             <h2 className="text-lg font-semibold">{section.sectionName}</h2>
@@ -254,6 +345,142 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             )}
           </div>
         ))}
+      </div>
+
+      <div className="py-6">
+        <Separator />
+        <div className="pt-6">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-lg font-semibold">Related</h2>
+            {isRelatedLoading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : null}
+          </div>
+
+          <Tabs defaultValue="journals" className="mt-3">
+            <TabsList>
+              <TabsTrigger value="journals">Journals</TabsTrigger>
+              <TabsTrigger value="ledgers">Ledgers</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="journals">
+              {relatedJournalViews.length === 0 ? (
+                <p className="text-sm text-muted-foreground mt-2">
+                  No linked journals.
+                </p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {relatedJournalViews.map((j) => (
+                    <button
+                      key={j.id}
+                      type="button"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-left hover:bg-muted/40"
+                      onClick={() => navigate(`/journals/${j.id}`)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {j.narration}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(j.date || '').toLocaleString(
+                              'en-US',
+                              dateFormatOptions,
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="secondary"
+                            className="whitespace-nowrap"
+                          >
+                            {getFormattedCurrency(toNumber(j.amount))}
+                          </Badge>
+                          {j.isPosted ? (
+                            <Badge className="whitespace-nowrap">Posted</Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="whitespace-nowrap"
+                            >
+                              Draft
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="ledgers">
+              {ledgerJumpAccounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground mt-2">
+                  No accounts found to open ledger.
+                </p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {ledgerJumpAccounts.map((a) => {
+                    const codeStr =
+                      a.code != null && String(a.code).trim() !== ''
+                        ? String(a.code)
+                        : '';
+                    const subLine =
+                      a.headName ??
+                      (codeStr ? `Code ${codeStr}` : 'General ledger');
+                    const aid = toNumber(a.id);
+                    const latestBal = relatedLedgerBalances[aid];
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-left hover:bg-muted/40"
+                        onClick={() => navigate(`/accounts/${a.id}`)}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {a.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {subLine}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                            {codeStr && a.headName ? (
+                              <Badge
+                                variant="secondary"
+                                className="whitespace-nowrap"
+                              >
+                                {codeStr}
+                              </Badge>
+                            ) : null}
+                            {latestBal ? (
+                              <Badge
+                                variant="secondary"
+                                className="whitespace-nowrap tabular-nums"
+                              >
+                                {getFormattedCurrency(latestBal.balance)}{' '}
+                                <span className="font-normal text-muted-foreground">
+                                  {latestBal.balanceType}
+                                </span>
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                No ledger activity
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

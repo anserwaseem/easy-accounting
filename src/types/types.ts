@@ -165,6 +165,8 @@ export interface Journal extends Omit<BaseEntity, 'date'> {
   isPosted: boolean;
   billNumber?: number;
   discountPercentage?: number;
+  /** set when journal is created from an invoice; null/undefined for manual journals */
+  invoiceId?: number | null;
   journalEntries: JournalEntry[];
 }
 
@@ -282,7 +284,10 @@ export type Invoice = Prettify<
 export type LedgerView = Prettify<Ledger & { linkedAccountName?: string }>;
 export type JournalView = Prettify<Journal & { amount: number }>;
 export type InvoicesView = Prettify<
-  Omit<Invoice, 'invoiceItems'> & { accountName: string }
+  Omit<Invoice, 'invoiceItems'> & {
+    accountName: string;
+    accountCode?: number | string | null;
+  }
 >;
 export type InvoiceItemView = {
   price: number;
@@ -294,10 +299,17 @@ export type InvoiceItemView = {
   inventoryItemDescription?: string;
   discountedPrice?: number;
   accountName?: string;
+  /** persisted line account when invoice uses per-row accounts */
+  accountId?: number;
 };
 export type InvoiceView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {
     accountName?: string;
+    accountCode?: number | string | null;
+    /** header party account id for edit hydration */
+    invoiceHeaderAccountId?: number;
+    /** persisted for edit round-trip when extra discount applies */
+    extraDiscountAccountId?: number | null;
     accountAddress?: string | null;
     accountGoodsName?: string | null;
     invoiceItems: Array<InvoiceItemView>;

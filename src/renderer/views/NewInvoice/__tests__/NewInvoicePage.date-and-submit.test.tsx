@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { InvoiceType } from 'types';
 
 // component under test (after mocks)
@@ -10,6 +11,11 @@ const navigateMock = jest.fn();
 jest.mock('react-router-dom', () => ({
   ...(jest.requireActual('react-router-dom') as object),
   useNavigate: () => navigateMock,
+}));
+
+jest.mock('react-hook-form', () => ({
+  ...(jest.requireActual('react-hook-form') as object),
+  useFormState: () => ({ isDirty: false }),
 }));
 
 // make Form primitives no-ops for this thin test
@@ -178,7 +184,11 @@ describe('NewInvoicePage date confirmation + submit', () => {
   });
 
   it('Save and Print: opens date modal first, then submits and navigates to print after modal confirm', async () => {
-    render(<NewInvoicePage invoiceType={InvoiceType.Sale} />);
+    render(
+      <MemoryRouter initialEntries={['/invoices/new']}>
+        <NewInvoicePage invoiceType={InvoiceType.Sale} />
+      </MemoryRouter>,
+    );
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /save and print/i }));

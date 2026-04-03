@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toNumber } from 'lodash';
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { DISCOUNT_ACCOUNT_NAME } from 'renderer/lib/constants';
 import type { InventoryItem } from 'types';
@@ -13,12 +13,22 @@ export interface UseNewInvoiceFormCoreParams {
   inventory: InventoryItem[] | undefined;
   useSingleAccountRef: React.MutableRefObject<boolean>;
   splitByItemTypeRef: React.MutableRefObject<boolean>;
+  /** sale edit: bonus quantities per inventory id for max-stock validation */
+  saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
 }
 
 /** owns form instance, schema, default values, field array, watched values, and discount-account-exists check */
 export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
-  const { invoiceType, inventory, useSingleAccountRef, splitByItemTypeRef } =
-    params;
+  const {
+    invoiceType,
+    inventory,
+    useSingleAccountRef,
+    splitByItemTypeRef,
+    saleStockValidationBonusRef,
+  } = params;
+
+  const internalBonusRef = useRef<Record<number, number>>({});
+  const bonusRef = saleStockValidationBonusRef ?? internalBonusRef;
 
   const defaultFormValues = useMemo(
     () => getDefaultFormValues(invoiceType),
@@ -32,8 +42,9 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
         inventory: inventory ?? [],
         getUseSingleAccount: () => useSingleAccountRef.current,
         getSplitByItemType: () => splitByItemTypeRef.current,
+        getSaleStockValidationBonus: () => ({ ...bonusRef.current }),
       }),
-    [invoiceType, inventory, useSingleAccountRef, splitByItemTypeRef],
+    [invoiceType, inventory, useSingleAccountRef, splitByItemTypeRef, bonusRef],
   );
 
   const form = useForm<z.infer<typeof formSchema>>({

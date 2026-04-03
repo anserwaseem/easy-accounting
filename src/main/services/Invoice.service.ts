@@ -3,13 +3,13 @@ import log from 'electron-log';
 import { forEach, get, groupBy, toNumber, uniq } from 'lodash';
 import { write, utils } from 'xlsx';
 import {
-  type Invoice,
-  InvoiceItem,
-  InvoiceItemView,
   InvoiceType,
-  InvoiceView,
-  InvoicesExport,
-  InvoicesView,
+  type Invoice,
+  type InvoiceItem,
+  type InvoiceItemView,
+  type InvoiceView,
+  type InvoicesExport,
+  type InvoicesView,
 } from '../../types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
@@ -59,6 +59,20 @@ export class InvoiceService {
 
   private stmUpdateInvoiceBiltyAndCartons!: Statement;
 
+  private stmDeleteInvoiceItems!: Statement;
+
+  private stmGetInvoiceItemsForUpdate!: Statement;
+
+  private stmUpdateInvoiceHeader!: Statement;
+
+  private stmGetInvoiceHeader!: Statement;
+
+  private stmGetInventoryQuantity!: Statement;
+
+  private stmGetPrevInvoiceDateForAccount!: Statement;
+
+  private stmGetNextInvoiceDateForAccount!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.journalService = new JournalService();
@@ -80,17 +94,42 @@ export class InvoiceService {
   }
 
   getInvoice(invoiceId: number): InvoiceView {
-    const result = this.stmGetInvoice.all({ invoiceId }) as Array<
-      Omit<InvoiceView, 'invoiceItems'> &
-        InvoiceItemView & {
-          invoiceAccountName?: string;
-          invoiceAccountAddress?: string | null;
-          invoiceAccountGoodsName?: string | null;
-        }
-    >;
+    interface InvoiceGetRow extends InvoiceItemView {
+      id: number;
+      date: string;
+      invoiceNumber: number;
+      invoiceType: InvoiceType;
+      totalAmount?: number;
+      extraDiscount?: number;
+      extraDiscountAccountId?: number | null;
+      invoiceHeaderAccountId?: number;
+      biltyNumber?: string;
+      cartons?: number | null;
+      createdAt?: Date;
+      updatedAt?: Date;
+      invoiceAccountName?: string;
+      invoiceAccountCode?: number | string | null;
+      invoiceAccountAddress?: string | null;
+      invoiceAccountGoodsName?: string | null;
+      itemRowAccountId?: number | null;
+      accountCode?: number | string | null;
+    }
+
+    const result = this.stmGetInvoice.all({ invoiceId }) as InvoiceGetRow[];
 
     const isSingleAccount =
       uniq(result.map((item) => item.accountName)).length === 1;
+    const invoiceAccountCodes = uniq(
+      result
+        .map((item) => item.accountCode)
+        .filter(
+          (c): c is number | string =>
+            (typeof c === 'number' && Number.isFinite(c)) ||
+            typeof c === 'string',
+        )
+        .map((c) => String(c)),
+    );
+    const isSingleCode = invoiceAccountCodes.length <= 1;
 
     const res = result.reduce((prev, cur) => {
       if (!prev.id) {
@@ -101,11 +140,19 @@ export class InvoiceService {
         prev.totalAmount = cur.totalAmount;
         prev.extraDiscount = cur.extraDiscount;
         prev.biltyNumber = cur.biltyNumber;
-        prev.cartons = cur.cartons;
+        prev.cartons = cur.cartons ?? undefined;
         prev.createdAt = cur.createdAt;
         prev.updatedAt = cur.updatedAt;
-        // header always shows real customer (invoice's primary account), not suffixed row accounts
+        prev.extraDiscountAccountId = cur.extraDiscountAccountId ?? undefined;
+        prev.invoiceHeaderAccountId = cur.invoiceHeaderAccountId;
+        // for multi-account invoices, show all customer/vendor names and codes (similar to list view)
         prev.accountName = cur.invoiceAccountName ?? cur.accountName;
+        if (isSingleCode) {
+          prev.accountCode =
+            cur.invoiceAccountCode != null
+              ? String(cur.invoiceAccountCode)
+              : null;
+        }
         prev.accountAddress = cur.invoiceAccountAddress ?? null;
         prev.accountGoodsName = cur.invoiceAccountGoodsName ?? null;
         prev.invoiceItems = [];
@@ -120,9 +167,20 @@ export class InvoiceService {
         inventoryItemName: cur.inventoryItemName,
         inventoryItemDescription: cur.inventoryItemDescription,
         accountName: isSingleAccount ? undefined : cur.accountName,
+        accountId:
+          cur.itemRowAccountId != null && cur.itemRowAccountId > 0
+            ? cur.itemRowAccountId
+            : undefined,
       });
       return prev;
     }, {} as InvoiceView);
+
+    if (!isSingleAccount) {
+      res.accountName = uniq(result.map((r) => r.accountName)).join(', ');
+    }
+    if (!isSingleCode) {
+      res.accountCode = invoiceAccountCodes.join(', ');
+    }
 
     return res;
   }
@@ -147,6 +205,10 @@ export class InvoiceService {
     }
 
     const totalAmount = invoice.totalAmount ?? 0;
+    const extraDiscAcct =
+      invoice.extraDiscountAccountId != null
+        ? cast(toNumber(invoice.extraDiscountAccountId))
+        : null;
 
     const multipleIds = invoice.accountMapping.multipleAccountIds;
     const hasMultiple =
@@ -154,9 +216,7 @@ export class InvoiceService {
       multipleIds.length === invoice.invoiceItems.length &&
       multipleIds.every((id) => typeof id === 'number' && id > 0);
 
-    // multiple accounts (e.g. type-based split or sections) - multiple journals
     if (hasMultiple) {
-      // use primary party (real customer) for invoice header so display shows unsuffixed name
       const primaryAccountId =
         toNumber(invoice.accountMapping.singleAccountId) || multipleIds[0];
       const invoiceResult = this.stmInsertInvoice.run({
@@ -168,6 +228,7 @@ export class InvoiceService {
         extraDiscount: invoice.extraDiscount,
         biltyNumber: invoice.biltyNumber,
         cartons: invoice.cartons,
+        extraDiscountAccountId: extraDiscAcct,
       });
       const invoiceId = <number>invoiceResult.lastInsertRowid;
 
@@ -176,13 +237,13 @@ export class InvoiceService {
       });
 
       forEach(itemsByAccount, (groupItems, accountId) => {
-        const groupRaw = groupItems.reduce((sum, item) => {
+        const groupTotalRaw = groupItems.reduce((sum, item) => {
           return (
             sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
           );
         }, 0);
-        // round each section/group total to nearest rupee before journal posting
-        const groupTotalAmount = Math.round(toNumber(groupRaw));
+        // match UI: per-account group gross is rounded before invoice total / ledger
+        const groupTotalAmount = Math.round(groupTotalRaw);
         const groupDiscountPercentage =
           this.pricingService.getPolicyDiscountPercentForInventoryIds(
             toNumber(accountId),
@@ -209,6 +270,7 @@ export class InvoiceService {
           invoice,
           toNumber(accountId),
           groupTotalAmount,
+          invoiceId,
           groupDiscountPercentage,
         );
       });
@@ -234,6 +296,7 @@ export class InvoiceService {
           discountAccount!.id,
           creditAccountId,
           extraDiscount,
+          invoiceId,
         );
       }
       return {
@@ -242,7 +305,6 @@ export class InvoiceService {
       };
     }
 
-    // all items use the same account - single journal
     if (invoice.accountMapping.singleAccountId) {
       const accountId = invoice.accountMapping.singleAccountId;
 
@@ -255,66 +317,20 @@ export class InvoiceService {
         extraDiscount: invoice.extraDiscount,
         biltyNumber: invoice.biltyNumber,
         cartons: invoice.cartons,
+        extraDiscountAccountId: extraDiscAcct,
       });
       const invoiceId = <number>invoiceResult.lastInsertRowid;
 
-      for (const item of invoice.invoiceItems) {
-        this.stmInsertInvoiceItems.run({
-          invoiceId,
-          inventoryId: item.inventoryId,
-          quantity: item.quantity,
-          discount: item.discount,
-          accountId,
-        });
+      this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
 
-        this.stmUpdateInventoryItem.run(
-          invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
-          item.inventoryId,
+      if (invoiceType === InvoiceType.Sale) {
+        this.assertSaleInventoryNonNegative(
+          uniq(invoice.invoiceItems.map((i) => i.inventoryId)),
         );
       }
 
-      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
-      if (extraDiscount > 0) {
-        const discountAccount = this.accountService.getAccountByName(
-          DISCOUNT_ACCOUNT_NAME,
-        );
-        if (!discountAccount?.id) {
-          raise(
-            `"${DISCOUNT_ACCOUNT_NAME}" account not found. Create an expense account named "${DISCOUNT_ACCOUNT_NAME}" for extra discount.`,
-          );
-        }
-        const discountAccountId = discountAccount!.id;
-        const creditAccountId =
-          toNumber(invoice.extraDiscountAccountId) ?? accountId;
-        this.createJournalEntry(
-          invoiceType,
-          invoice,
-          accountId,
-          totalAmount + extraDiscount,
-          this.pricingService.getPolicyDiscountPercentForInventoryIds(
-            accountId,
-            invoice.invoiceItems.map((item) => item.inventoryId),
-          ),
-        );
-        this.createExtraDiscountJournalEntry(
-          invoiceType,
-          invoice,
-          discountAccountId,
-          creditAccountId,
-          extraDiscount,
-        );
-      } else {
-        this.createJournalEntry(
-          invoiceType,
-          invoice,
-          accountId,
-          totalAmount,
-          this.pricingService.getPolicyDiscountPercentForInventoryIds(
-            accountId,
-            invoice.invoiceItems.map((item) => item.inventoryId),
-          ),
-        );
-      }
+      this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
+
       return {
         invoiceId,
         nextInvoiceNumber: invoice.invoiceNumber + 1,
@@ -442,11 +458,389 @@ export class InvoiceService {
     return Boolean(result.changes);
   }
 
+  updateInvoice(
+    invoiceType: InvoiceType,
+    invoiceId: number,
+    invoice: Invoice,
+  ): { success: boolean } {
+    return this.db.transaction(() => {
+      this.updateInvoiceWithoutTransaction(invoiceType, invoiceId, invoice);
+      return { success: true };
+    })();
+  }
+
+  private updateInvoiceWithoutTransaction(
+    invoiceType: InvoiceType,
+    invoiceId: number,
+    invoice: Invoice,
+  ): void {
+    const header = this.stmGetInvoiceHeader.get({
+      invoiceId: cast(invoiceId),
+    }) as { invoiceNumber: number; invoiceType: string } | undefined;
+    const invoiceHeader =
+      header && header.invoiceType === invoiceType
+        ? header
+        : raise('Invoice not found or type mismatch');
+    if (invoice.invoiceNumber !== invoiceHeader.invoiceNumber) {
+      raise('Invoice number cannot be changed');
+    }
+
+    const oldRows = this.stmGetInvoiceItemsForUpdate.all({
+      invoiceId: cast(invoiceId),
+    }) as { inventoryId: number; quantity: number }[];
+
+    const journalIds = this.journalService.getJournalIdsByInvoiceId(invoiceId);
+    if (journalIds.length === 0) {
+      raise(
+        'This invoice has no linked journals (cannot edit safely). Re-enter the invoice or restore journal links.',
+      );
+    }
+
+    this.journalService.removeLedgerEffectOfJournals(journalIds);
+    this.journalService.deleteJournalsByIds(journalIds);
+
+    this.stmDeleteInvoiceItems.run({ invoiceId: cast(invoiceId) });
+
+    this.updateInventoryForInvoiceLineItems(invoiceType, oldRows, 'reverse');
+
+    const totalAmount = invoice.totalAmount ?? 0;
+    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const hasMultiple =
+      Array.isArray(multipleIds) &&
+      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.every((id) => typeof id === 'number' && id > 0);
+
+    const primaryAccountId = hasMultiple
+      ? toNumber(invoice.accountMapping.singleAccountId) || multipleIds[0]
+      : invoice.accountMapping.singleAccountId ??
+        raise('Select a customer or vendor account');
+
+    if (invoiceType === InvoiceType.Sale) {
+      this.assertInvoiceDateWithinNeighborRangeForAccount(
+        invoiceId,
+        primaryAccountId,
+        invoiceHeader.invoiceNumber,
+        invoice.date,
+      );
+    }
+
+    const extraDiscAcct =
+      invoice.extraDiscountAccountId != null
+        ? cast(toNumber(invoice.extraDiscountAccountId))
+        : null;
+
+    this.stmUpdateInvoiceHeader.run({
+      invoiceId: cast(invoiceId),
+      date: invoice.date,
+      accountId: primaryAccountId,
+      totalAmount,
+      extraDiscount: invoice.extraDiscount,
+      biltyNumber: invoice.biltyNumber,
+      cartons: invoice.cartons,
+      extraDiscountAccountId: extraDiscAcct,
+    });
+
+    this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
+
+    if (invoiceType === InvoiceType.Sale) {
+      const touchedIds = uniq([
+        ...oldRows.map((r) => r.inventoryId),
+        ...invoice.invoiceItems.map((i) => i.inventoryId),
+      ]);
+      this.assertSaleInventoryNonNegative(touchedIds);
+    }
+
+    this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
+  }
+
+  private updateInventoryForInvoiceLineItems(
+    invoiceType: InvoiceType,
+    items: { inventoryId: number; quantity: number }[],
+    direction: 'post' | 'reverse',
+  ): void {
+    items.forEach((item) => {
+      let delta: number;
+      if (invoiceType === InvoiceType.Sale) {
+        delta = direction === 'post' ? -item.quantity : item.quantity;
+      } else {
+        delta = direction === 'post' ? item.quantity : -item.quantity;
+      }
+      this.stmUpdateInventoryItem.run(delta, item.inventoryId);
+    });
+  }
+
+  private assertSaleInventoryNonNegative(inventoryIds: number[]): void {
+    inventoryIds.forEach((id) => {
+      const row = this.stmGetInventoryQuantity.get(id) as
+        | { quantity: number }
+        | undefined;
+      if (row && toNumber(row.quantity) < 0) {
+        raise(`Insufficient stock for inventory id ${id}`);
+      }
+    });
+  }
+
+  /**
+   * Sale edit rule: invoice date must stay within the same customer's adjacent invoice dates
+   * (previous/next invoice by invoiceNumber).
+   */
+  private assertInvoiceDateWithinNeighborRangeForAccount(
+    invoiceId: number,
+    accountId: number,
+    invoiceNumber: number,
+    newDateIso: string,
+  ): void {
+    const normalize = (iso: string): number => {
+      const d = new Date(iso);
+      // normalize to local day to avoid timezone edge cases
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+
+    const nextPrevParams = {
+      accountId: cast(accountId),
+      invoiceType: InvoiceType.Sale,
+      invoiceNumber: cast(invoiceNumber),
+      invoiceId: cast(invoiceId),
+    };
+
+    const prev = this.stmGetPrevInvoiceDateForAccount.get(nextPrevParams) as
+      | { date: string }
+      | undefined;
+    const next = this.stmGetNextInvoiceDateForAccount.get(nextPrevParams) as
+      | { date: string }
+      | undefined;
+
+    const newTime = normalize(newDateIso);
+    const prevTime = prev?.date ? normalize(prev.date) : undefined;
+    const nextTime = next?.date ? normalize(next.date) : undefined;
+    const prevDateStr = prev?.date ?? '';
+    const nextDateStr = next?.date ?? '';
+
+    if (prevTime != null && newTime < prevTime) {
+      raise(
+        `Invoice date cannot be before the previous invoice date (${prevDateStr}).`,
+      );
+    }
+    if (nextTime != null && newTime > nextTime) {
+      raise(
+        `Invoice date cannot be after the next invoice date (${nextDateStr}).`,
+      );
+    }
+  }
+
+  /**
+   * Renderer helper for sale edit date bounds. Returns the previous and next invoice dates
+   * (by invoiceNumber) for the given account, excluding this invoice itself.
+   */
+  getSaleInvoiceEditDateBounds(
+    invoiceId: number,
+    accountId: number,
+    invoiceNumber: number,
+  ): { prevDate: string | null; nextDate: string | null } {
+    const params = {
+      accountId: cast(accountId),
+      invoiceType: InvoiceType.Sale,
+      invoiceNumber: cast(invoiceNumber),
+      invoiceId: cast(invoiceId),
+    };
+    const prev = this.stmGetPrevInvoiceDateForAccount.get(params) as
+      | { date: string }
+      | undefined;
+    const next = this.stmGetNextInvoiceDateForAccount.get(params) as
+      | { date: string }
+      | undefined;
+    return {
+      prevDate: prev?.date ?? null,
+      nextDate: next?.date ?? null,
+    };
+  }
+
+  private persistInvoiceItemsAndInventory(
+    invoiceType: InvoiceType,
+    invoiceId: number,
+    invoice: Invoice,
+  ): void {
+    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const hasMultiple =
+      Array.isArray(multipleIds) &&
+      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.every((id) => typeof id === 'number' && id > 0);
+
+    if (hasMultiple) {
+      const itemsByAccount = groupBy(invoice.invoiceItems, (item) => {
+        return multipleIds[invoice.invoiceItems.indexOf(item)];
+      });
+
+      forEach(itemsByAccount, (groupItems, accountIdStr) => {
+        const accountId = toNumber(accountIdStr);
+        for (const item of groupItems) {
+          this.stmInsertInvoiceItems.run({
+            invoiceId,
+            inventoryId: item.inventoryId,
+            quantity: item.quantity,
+            discount: item.discount,
+            accountId,
+          });
+
+          this.stmUpdateInventoryItem.run(
+            invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
+            item.inventoryId,
+          );
+        }
+      });
+      return;
+    }
+
+    if (invoice.accountMapping.singleAccountId) {
+      const accountId = invoice.accountMapping.singleAccountId;
+      for (const item of invoice.invoiceItems) {
+        this.stmInsertInvoiceItems.run({
+          invoiceId,
+          inventoryId: item.inventoryId,
+          quantity: item.quantity,
+          discount: item.discount,
+          accountId,
+        });
+
+        this.stmUpdateInventoryItem.run(
+          invoiceType === InvoiceType.Sale ? -item.quantity : item.quantity,
+          item.inventoryId,
+        );
+      }
+      return;
+    }
+
+    raise('Select a customer or vendor account');
+  }
+
+  private postJournalsForPersistedInvoice(
+    invoiceType: InvoiceType,
+    invoiceId: number,
+    invoice: Invoice,
+  ): void {
+    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const hasMultiple =
+      Array.isArray(multipleIds) &&
+      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.every((id) => typeof id === 'number' && id > 0);
+
+    if (hasMultiple) {
+      const itemsByAccount = groupBy(invoice.invoiceItems, (item) => {
+        return multipleIds[invoice.invoiceItems.indexOf(item)];
+      });
+
+      forEach(itemsByAccount, (groupItems, accountIdStr) => {
+        const accountId = toNumber(accountIdStr);
+        const groupTotalRaw = groupItems.reduce((sum, item) => {
+          return (
+            sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
+          );
+        }, 0);
+        const groupTotalAmount = Math.round(groupTotalRaw);
+        const groupDiscountPercentage =
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            accountId,
+            groupItems.map((item) => item.inventoryId),
+          );
+
+        this.createJournalEntry(
+          invoiceType,
+          invoice,
+          accountId,
+          groupTotalAmount,
+          invoiceId,
+          groupDiscountPercentage,
+        );
+      });
+
+      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
+      if (extraDiscount > 0) {
+        const discountAccount = this.accountService.getAccountByName(
+          DISCOUNT_ACCOUNT_NAME,
+        );
+        if (!discountAccount?.id) {
+          raise(
+            `"${DISCOUNT_ACCOUNT_NAME}" account not found. Create an expense account named "${DISCOUNT_ACCOUNT_NAME}" for extra discount.`,
+          );
+        }
+        const creditAccountId =
+          toNumber(invoice.extraDiscountAccountId) || multipleIds[0];
+        if (!creditAccountId || !multipleIds.includes(creditAccountId)) {
+          raise('Extra discount requires a valid account selection.');
+        }
+        this.createExtraDiscountJournalEntry(
+          invoiceType,
+          invoice,
+          discountAccount!.id,
+          creditAccountId,
+          extraDiscount,
+          invoiceId,
+        );
+      }
+      return;
+    }
+
+    if (invoice.accountMapping.singleAccountId) {
+      const accountId = invoice.accountMapping.singleAccountId;
+      const totalAmount = invoice.totalAmount ?? 0;
+      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
+      if (extraDiscount > 0) {
+        const discountAccount = this.accountService.getAccountByName(
+          DISCOUNT_ACCOUNT_NAME,
+        );
+        if (!discountAccount?.id) {
+          raise(
+            `"${DISCOUNT_ACCOUNT_NAME}" account not found. Create an expense account named "${DISCOUNT_ACCOUNT_NAME}" for extra discount.`,
+          );
+        }
+        const discountAccountId = discountAccount!.id;
+        const creditAccountId =
+          toNumber(invoice.extraDiscountAccountId) ?? accountId;
+        this.createJournalEntry(
+          invoiceType,
+          invoice,
+          accountId,
+          totalAmount + extraDiscount,
+          invoiceId,
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            accountId,
+            invoice.invoiceItems.map((item) => item.inventoryId),
+          ),
+        );
+        this.createExtraDiscountJournalEntry(
+          invoiceType,
+          invoice,
+          discountAccountId,
+          creditAccountId,
+          extraDiscount,
+          invoiceId,
+        );
+      } else {
+        this.createJournalEntry(
+          invoiceType,
+          invoice,
+          accountId,
+          totalAmount,
+          invoiceId,
+          this.pricingService.getPolicyDiscountPercentForInventoryIds(
+            accountId,
+            invoice.invoiceItems.map((item) => item.inventoryId),
+          ),
+        );
+      }
+      return;
+    }
+
+    raise('Select a customer or vendor account');
+  }
+
   private createJournalEntry(
     invoiceType: InvoiceType,
     invoice: Invoice,
     accountId: number,
     amount: number,
+    invoiceId: number,
     discountPercentage?: number,
   ): boolean {
     const { debitAccountId, creditAccountId } = this.getTransactionAccounts(
@@ -461,6 +855,7 @@ export class InvoiceService {
       narration: `${invoiceType} Invoice #${invoice.invoiceNumber}`,
       billNumber: invoice.invoiceNumber,
       discountPercentage,
+      invoiceId,
       journalEntries: [
         {
           id: -1,
@@ -490,6 +885,7 @@ export class InvoiceService {
     discountAccountId: number,
     creditAccountId: number,
     extraDiscountAmount: number,
+    invoiceId: number,
   ): boolean {
     if (extraDiscountAmount <= 0) return true;
     return this.journalService.insertJournal({
@@ -498,6 +894,7 @@ export class InvoiceService {
       isPosted: true,
       narration: `${invoiceType} Invoice #${invoice.invoiceNumber} (extra discount)`,
       billNumber: invoice.invoiceNumber,
+      invoiceId,
       journalEntries: [
         {
           id: -1,
@@ -599,8 +996,8 @@ export class InvoiceService {
     `);
 
     this.stmInsertInvoice = this.db.prepare(`
-      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount, biltyNumber, cartons)
-      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount, @biltyNumber, @cartons)
+      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount, biltyNumber, cartons, extraDiscountAccountId)
+      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount, @biltyNumber, @cartons, @extraDiscountAccountId)
     `);
 
     this.stmInsertInvoiceItems = this.db.prepare(`
@@ -628,6 +1025,10 @@ export class InvoiceService {
         i.date,
         i.totalAmount,
         COALESCE(
+          NULLIF(GROUP_CONCAT(DISTINCT a2.code), ''),
+          a.code
+        ) AS 'accountCode',
+        COALESCE(
           NULLIF(GROUP_CONCAT(DISTINCT a2.name), ''),
           a.name
         ) AS 'accountName',
@@ -638,7 +1039,7 @@ export class InvoiceService {
       LEFT JOIN invoice_items ii ON i.id = ii.invoiceId AND ii.accountId IS NOT NULL
       LEFT JOIN account a2 ON ii.accountId = a2.id
       WHERE i.invoiceType = ?
-      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name, i.biltyNumber, i.cartons
+      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.code, a.name, i.biltyNumber, i.cartons
     `);
 
     this.stmGetInvoice = this.db.prepare(`
@@ -649,24 +1050,32 @@ export class InvoiceService {
         i.invoiceType,
         i.totalAmount,
         i.extraDiscount,
+        i.extraDiscountAccountId,
+        i.accountId AS invoiceHeaderAccountId,
         i.biltyNumber,
         i.cartons,
         i.createdAt,
         i.updatedAt,
         a.name AS 'invoiceAccountName',
+        a.code AS 'invoiceAccountCode',
         a.address AS 'invoiceAccountAddress',
         a.goodsName AS 'invoiceAccountGoodsName',
         ii.inventoryId,
         ii.quantity,
         ii.price,
         ii.discount,
+        ii.accountId AS 'itemRowAccountId',
         iii.name as 'inventoryItemName',
         iii.description AS 'inventoryItemDescription',
         it.name as 'itemTypeName',
         COALESCE(
           CASE WHEN ii.accountId IS NOT NULL THEN a2.name ELSE NULL END,
           a.name
-        ) AS 'accountName'
+        ) AS 'accountName',
+        COALESCE(
+          CASE WHEN ii.accountId IS NOT NULL THEN a2.code ELSE NULL END,
+          a.code
+        ) AS 'accountCode'
       FROM invoices i
       JOIN account a ON i.accountId = a.id
       JOIN invoice_items ii ON i.id = ii.invoiceId
@@ -726,6 +1135,58 @@ export class InvoiceService {
       UPDATE invoices
       SET biltyNumber = @biltyNumber, cartons = @cartons
       WHERE id = @invoiceId
+    `);
+
+    this.stmDeleteInvoiceItems = this.db.prepare(`
+      DELETE FROM invoice_items WHERE invoiceId = @invoiceId
+    `);
+
+    this.stmGetInvoiceItemsForUpdate = this.db.prepare(`
+      SELECT inventoryId, quantity FROM invoice_items WHERE invoiceId = @invoiceId
+    `);
+
+    this.stmGetInvoiceHeader = this.db.prepare(`
+      SELECT invoiceNumber, invoiceType FROM invoices WHERE id = @invoiceId
+    `);
+
+    this.stmGetPrevInvoiceDateForAccount = this.db.prepare(`
+      SELECT date
+      FROM invoices
+      WHERE
+        invoiceType = @invoiceType
+        AND accountId = @accountId
+        AND id != @invoiceId
+        AND invoiceNumber < @invoiceNumber
+      ORDER BY invoiceNumber DESC
+      LIMIT 1
+    `);
+
+    this.stmGetNextInvoiceDateForAccount = this.db.prepare(`
+      SELECT date
+      FROM invoices
+      WHERE
+        invoiceType = @invoiceType
+        AND accountId = @accountId
+        AND id != @invoiceId
+        AND invoiceNumber > @invoiceNumber
+      ORDER BY invoiceNumber ASC
+      LIMIT 1
+    `);
+
+    this.stmUpdateInvoiceHeader = this.db.prepare(`
+      UPDATE invoices SET
+        date = @date,
+        accountId = @accountId,
+        totalAmount = @totalAmount,
+        extraDiscount = @extraDiscount,
+        biltyNumber = @biltyNumber,
+        cartons = @cartons,
+        extraDiscountAccountId = @extraDiscountAccountId
+      WHERE id = @invoiceId
+    `);
+
+    this.stmGetInventoryQuantity = this.db.prepare(`
+      SELECT quantity FROM inventory WHERE id = ?
     `);
   }
 }

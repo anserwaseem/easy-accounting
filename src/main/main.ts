@@ -268,6 +268,11 @@ app
     ipcMain.handle('ledger:get', async (_, accountId: number) =>
       ledgerService.getLedger(accountId),
     );
+    ipcMain.handle(
+      'ledger:getBalance',
+      async (_, accountId: number) =>
+        ledgerService.getBalance(accountId) ?? null,
+    );
     ipcMain.handle('journal:getNextId', async () =>
       journalService.getNextJournalId(),
     );
@@ -277,6 +282,9 @@ app
     ipcMain.handle('journal:getAll', async () => journalService.getJournals());
     ipcMain.handle('journal:get', async (_, journalId: number) =>
       journalService.getJournal(journalId),
+    );
+    ipcMain.handle('journal:getByInvoiceId', async (_, invoiceId: number) =>
+      journalService.getJournalsByInvoiceId(invoiceId),
     );
     ipcMain.handle(
       'journal:updateNarration',
@@ -391,11 +399,25 @@ app
       (_, invoiceType: InvoiceType, invoice: Invoice) =>
         invoiceService.insertInvoice(invoiceType, invoice),
     );
+    ipcMain.handle(
+      'invoice:update',
+      (_, invoiceType: InvoiceType, invoiceId: number, invoice: Invoice) =>
+        invoiceService.updateInvoice(invoiceType, invoiceId, invoice),
+    );
     ipcMain.handle('invoice:getAll', (_, invoiceType: InvoiceType) =>
       invoiceService.getInvoices(invoiceType),
     );
     ipcMain.handle('invoice:get', (_, invoiceId: number) =>
       invoiceService.getInvoice(invoiceId),
+    );
+    ipcMain.handle(
+      'invoice:getSaleEditDateBounds',
+      (_, invoiceId: number, accountId: number, invoiceNumber: number) =>
+        invoiceService.getSaleInvoiceEditDateBounds(
+          invoiceId,
+          accountId,
+          invoiceNumber,
+        ),
     );
     ipcMain.handle(
       'invoice:updateBiltyAndCartons',

@@ -4,8 +4,10 @@ import {
   DialogTrigger,
 } from '@/renderer/shad/ui/dialog';
 import { isNil, toNumber } from 'lodash';
-import { File, Loader2, Plus } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { File, Loader2, Pencil, Plus } from 'lucide-react';
+import type { Row } from '@tanstack/react-table';
+import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
+import type { NavigateFunction } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { dateFormatOptions } from 'renderer/lib/constants';
 import {
@@ -31,7 +33,59 @@ interface InvoicesProps extends HasMiniView {
   invoices?: InvoiceView[];
 }
 
-const InvoicesPage: React.FC<InvoicesProps> = ({
+interface InvoiceEditActionCellProps {
+  row: Row<InvoicesView>;
+  invoiceType: InvoiceType;
+  navigate: NavigateFunction;
+  isPreviewMode: boolean;
+}
+
+const InvoiceEditActionCell: FC<InvoiceEditActionCellProps> = ({
+  row,
+  invoiceType,
+  navigate,
+  isPreviewMode,
+}) => (
+  <Button
+    type="button"
+    variant="ghost"
+    size="icon"
+    className="h-8 w-8"
+    title="Edit invoice"
+    onClick={(e) => {
+      e.stopPropagation();
+      if (isPreviewMode) return;
+      navigate(
+        `/${invoiceType.toLowerCase()}/invoices/${row.original.id}/edit`,
+      );
+    }}
+  >
+    <Pencil className="h-4 w-4" />
+  </Button>
+);
+
+const createInvoiceEditColumn = (
+  invoiceType: InvoiceType,
+  navigate: NavigateFunction,
+  isPreviewMode: boolean,
+): ColumnDef<InvoicesView> => ({
+  id: 'edit',
+  header: '',
+  size: 56,
+  onClick: () => undefined,
+  cell({ row }) {
+    return (
+      <InvoiceEditActionCell
+        row={row}
+        invoiceType={invoiceType}
+        navigate={navigate}
+        isPreviewMode={isPreviewMode}
+      />
+    );
+  },
+});
+
+const InvoicesPage: FC<InvoicesProps> = ({
   invoiceType,
   isMini = false,
   invoices: propInvoices,
@@ -79,6 +133,9 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                     <div className="flex flex-col text-end">
                       <p className="text-muted-foreground">
                         {invoice.accountName}
+                        {invoice.accountCode != null
+                          ? ` · ${invoice.accountCode}`
+                          : ''}
                       </p>
                       {invoiceType === InvoiceType.Sale && (
                         <p>
@@ -117,7 +174,7 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 40,
+              size: 100,
             },
             {
               accessorKey: 'accountName',
@@ -126,7 +183,16 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 500,
+              size: 360,
+            },
+            {
+              accessorKey: 'accountCode',
+              header: 'Code',
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+              size: 200,
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -161,9 +227,14 @@ const InvoicesPage: React.FC<InvoicesProps> = ({
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),
+            createInvoiceEditColumn(
+              invoiceType,
+              navigate,
+              propInvoices != null,
+            ),
           ]) as ColumnDef<InvoicesView>[]),
     ],
-    [invoiceType, navigateToInvoice, propInvoices, isMini],
+    [invoiceType, navigate, navigateToInvoice, propInvoices, isMini],
   );
 
   const handleFilterDateSelect = useCallback(
