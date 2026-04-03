@@ -62,10 +62,10 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
       pick(account, [...PARTY_PICK]),
     );
 
-    const allCodesLower = new Set(
+    const allCodesLower = new Set<string>(
       accounts.map((a) => toLowerTrim(a.code)).filter((c) => c.length > 0),
     );
-    const itemTypeSuffixesLower = new Set(
+    const itemTypeSuffixesLower = new Set<string>(
       (itemTypes ?? [])
         .map((it) => toLowerTrim(it.name))
         .filter((n) => n.length > 0),

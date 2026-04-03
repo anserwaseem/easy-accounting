@@ -37,7 +37,7 @@ export class PrintService {
         },
       });
 
-      fs.writeFileSync(outputPath, data);
+      fs.writeFileSync(outputPath, Uint8Array.from(data));
 
       return { success: true, path: outputPath };
     } catch (error: unknown) {

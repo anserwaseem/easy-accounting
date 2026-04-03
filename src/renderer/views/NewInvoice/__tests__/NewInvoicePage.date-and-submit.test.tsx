@@ -16,6 +16,7 @@ jest.mock('react-router-dom', () => ({
 jest.mock('react-hook-form', () => ({
   ...(jest.requireActual('react-hook-form') as object),
   useFormState: () => ({ isDirty: false }),
+  useWatch: () => -1,
 }));
 
 // make Form primitives no-ops for this thin test

@@ -123,9 +123,8 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
     (rowIndex: number): number | undefined => {
       if (useSingleAccountRef.current) {
         if (invoiceType === InvoiceType.Sale && splitByItemTypeRef.current) {
-          const ids =
-            (form.getValues('accountMapping.multipleAccountIds') as number[]) ??
-            [];
+          const rawIds = form.getValues('accountMapping.multipleAccountIds');
+          const ids = Array.isArray(rawIds) ? rawIds : [];
           const accountId = toNumber(ids[rowIndex]);
           return accountId > 0 ? accountId : undefined;
         }
@@ -186,9 +185,9 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
         setOpts,
       );
       const discountedPrice = computeInvoiceItemTotal(
-        form.getValues(`invoiceItems.${rowIndex}.quantity`) as number,
+        toNumber(form.getValues(`invoiceItems.${rowIndex}.quantity`)),
         discount,
-        form.getValues(`invoiceItems.${rowIndex}.price`) as number,
+        toNumber(form.getValues(`invoiceItems.${rowIndex}.price`)),
       );
       (form.setValue as (name: string, value: number, opts?: object) => void)(
         `invoiceItems.${rowIndex}.discountedPrice`,
