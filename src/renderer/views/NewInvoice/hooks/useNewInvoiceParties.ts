@@ -35,6 +35,18 @@ const splitCode = (rawCode: string): { baseCode: string; suffix: string } => {
   };
 };
 
+const splitName = (rawName: string): { baseName: string; suffix: string } => {
+  const name = trim(rawName);
+  const lastDashIndex = name.lastIndexOf('-');
+  if (lastDashIndex <= 0 || lastDashIndex >= name.length - 1) {
+    return { baseName: name, suffix: '' };
+  }
+  return {
+    baseName: trim(name.slice(0, lastDashIndex)),
+    suffix: trim(name.slice(lastDashIndex + 1)),
+  };
+};
+
 /** loads parties (customers/vendors) for the invoice type and checks that required sale/purchase accounts exist */
 export function useNewInvoiceParties(invoiceType: InvoiceType): {
   parties: PartyAccount[] | undefined;
@@ -65,6 +77,9 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
     const allCodesLower = new Set<string>(
       accounts.map((a) => toLowerTrim(a.code)).filter((c) => c.length > 0),
     );
+    const allNamesLower = new Set<string>(
+      accounts.map((a) => toLowerTrim(a.name)).filter((n) => n.length > 0),
+    );
     const itemTypeSuffixesLower = new Set<string>(
       (itemTypes ?? [])
         .map((it) => toLowerTrim(it.name))
@@ -87,8 +102,16 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
     };
 
     const isTypedPartyAccount = (account: PartyAccount): boolean => {
-      const name = trim(String(account.name ?? ''));
-      if (/-\S+$/.test(name)) return true;
+      const { baseName, suffix: nameSuffix } = splitName(account.name);
+      if (nameSuffix) {
+        const suffixLower = nameSuffix.toLowerCase();
+        if (
+          itemTypeSuffixesLower.has(suffixLower) &&
+          allNamesLower.has(baseName.toLowerCase())
+        ) {
+          return true;
+        }
+      }
 
       const { baseCode, suffix } = splitCode(String(account.code ?? ''));
       if (!suffix) return false;
