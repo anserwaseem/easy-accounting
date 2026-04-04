@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { format } from 'date-fns';
-import { get, isNil, toNumber, toString } from 'lodash';
+import { get, isNil, pick, toNumber, toString } from 'lodash';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -36,7 +36,7 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 import { toast } from 'renderer/shad/ui/use-toast';
-import { type InventoryItem, InvoiceType } from 'types';
+import { type Account, type InventoryItem, InvoiceType } from 'types';
 import { z } from 'zod';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
@@ -48,6 +48,11 @@ import {
 } from '@/renderer/lib/parser';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
+import {
+  restoreSingleAccountIdFromSections,
+  shouldWarnWhenTurningSplitLedgerOff,
+} from '@/renderer/lib/invoiceAccountMappingGuard';
+import { buildCustomerVendorSelectOptions } from '@/renderer/lib/invoicePartySelect';
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
 import { DateConfirmationDialog } from './components/DateConfirmationDialog';
@@ -62,6 +67,7 @@ import { useNewInvoiceParties } from './hooks/useNewInvoiceParties';
 import { useNewInvoiceResolution } from './hooks/useNewInvoiceResolution';
 import { useNewInvoiceSections } from './hooks/useNewInvoiceSections';
 import { useNewInvoiceTableInfo } from './hooks/useNewInvoiceTableInfo';
+import type { PartyAccount } from './hooks/useNewInvoiceParties';
 
 interface NewInvoiceProps {
   invoiceType: InvoiceType;
@@ -90,10 +96,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   );
   const {
     parties,
+    partiesIncludingTyped,
     requiredAccountsExist,
     isRefreshingParties,
     refreshParties,
   } = useNewInvoiceParties(invoiceType);
+
+  const [missingPartyForSelect, setMissingPartyForSelect] = useState<
+    PartyAccount | undefined
+  >();
 
   const [useSingleAccount, setUseSingleAccount] = useState(true);
   const useSingleAccountRef = useRef(useSingleAccount);
@@ -131,7 +142,17 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     discountAccountExists,
   } = formCore;
 
-  const { isDirty } = useFormState({ control: form.control });
+  const { isDirty, errors: formErrors } = useFormState({
+    control: form.control,
+  });
+
+  const accountMappingErrorMessage = useMemo(() => {
+    const msg =
+      get(formErrors, 'accountMapping.message') ??
+      get(formErrors, 'accountMapping.multipleAccountIds.message') ??
+      get(formErrors, 'accountMapping.singleAccountId.message');
+    return typeof msg === 'string' && msg.length > 0 ? msg : undefined;
+  }, [formErrors]);
 
   const editHeadingInvoiceNumber = useWatch({
     control: form.control,
@@ -264,7 +285,104 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     saleStockValidationBonusRef,
   });
 
-  // browser close/refresh should warn when the user has unsaved edits on an existing invoice
+  // typed/suffixed accounts are omitted from parties; invoice header id may still reference them, so load that row for VirtualSelect label matching
+  useEffect(() => {
+    let cancelled = false;
+    const sid = toNumber(watchedSingleAccountId);
+    if (editInvoiceId == null || sid <= 0) {
+      setMissingPartyForSelect(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (parties === undefined) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (parties.some((p) => toNumber(p.id) === sid)) {
+      setMissingPartyForSelect(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+    (async () => {
+      try {
+        const all = (await window.electron.getAccounts()) as Account[];
+        if (cancelled) return;
+        const acc = all.find((a) => toNumber(a.id) === sid);
+        if (!acc) {
+          setMissingPartyForSelect(undefined);
+          return;
+        }
+        setMissingPartyForSelect(
+          pick(acc, [
+            'id',
+            'name',
+            'type',
+            'code',
+            'chartId',
+            'discountProfileId',
+            'discountProfileIsActive',
+          ]) as PartyAccount,
+        );
+      } catch {
+        if (!cancelled) setMissingPartyForSelect(undefined);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editInvoiceId, parties, watchedSingleAccountId]);
+
+  const customerVendorSelectOptions = useMemo(
+    () =>
+      buildCustomerVendorSelectOptions({
+        invoiceType,
+        baseParties: parties ?? [],
+        extendedParties: partiesIncludingTyped ?? [],
+        useSingleAccount,
+        splitByItemType,
+        singleAccountId: toNumber(watchedSingleAccountId),
+        missingExtra: missingPartyForSelect,
+      }),
+    [
+      invoiceType,
+      missingPartyForSelect,
+      parties,
+      partiesIncludingTyped,
+      splitByItemType,
+      useSingleAccount,
+      watchedSingleAccountId,
+    ],
+  );
+
+  const onSplitByItemTypeCheckedChange = useCallback(
+    (checked: boolean | 'indeterminate') => {
+      if (checked === true) {
+        setSplitByItemType(true);
+        return;
+      }
+      if (checked === false) {
+        if (
+          shouldWarnWhenTurningSplitLedgerOff(
+            form.getValues('accountMapping.singleAccountId'),
+            form.getValues('accountMapping.multipleAccountIds'),
+          )
+        ) {
+          // eslint-disable-next-line no-alert -- split-off guard v1 per product plan
+          const ok = window.confirm(
+            'Turning off split will save all line items to the single customer account above. Per-row typed ledgers will not be used. Continue?',
+          );
+          if (!ok) return;
+        }
+        setSplitByItemType(false);
+      }
+    },
+    [form],
+  );
+
+  // browser close/refresh should warn when the user has unsaved edits on an existing invoice //FIXME: untested on windows
   useEffect(() => {
     if (!isDirty || editInvoiceId == null) return undefined;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -970,6 +1088,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       setUseSingleAccount(isChecked);
       // clear the appropriate account mapping fields based on the toggle
       if (isChecked) {
+        const restored = restoreSingleAccountIdFromSections(
+          sections,
+          activeSectionId,
+        );
+        if (restored != null) {
+          form.setValue('accountMapping.singleAccountId', restored, {
+            shouldValidate: false,
+          });
+        }
         form.setValue('accountMapping.multipleAccountIds', [], {
           shouldValidate: false,
         });
@@ -1031,13 +1158,39 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       }
     },
     [
+      activeSectionId,
       applyAutoDiscountForRow,
       form,
       invoiceType,
+      sections,
       setActiveSectionId,
       setRowSectionMap,
       setSections,
     ],
+  );
+
+  const onUseSingleAccountCheckedChange = useCallback(
+    (checked: boolean | 'indeterminate') => {
+      if (checked === 'indeterminate') return;
+      if (checked === false) {
+        if (invoiceType === InvoiceType.Sale && splitByItemTypeRef.current) {
+          if (
+            shouldWarnWhenTurningSplitLedgerOff(
+              form.getValues('accountMapping.singleAccountId'),
+              form.getValues('accountMapping.multipleAccountIds'),
+            )
+          ) {
+            // eslint-disable-next-line no-alert -- same guard as split-off; v1 confirm
+            const ok = window.confirm(
+              'Switching to multiple customers will drop per-row ledger accounts from split-by-type. Assign customers per section instead. Continue?',
+            );
+            if (!ok) return;
+          }
+        }
+      }
+      onSingleAccountToggle(checked);
+    },
+    [form, invoiceType, onSingleAccountToggle],
   );
 
   const addSection = useCallback(() => {
@@ -1198,12 +1351,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             {invoiceType === InvoiceType.Sale &&
               showInvoiceForm &&
               (editInvoiceId != null || !isNil(nextInvoiceNumber)) && (
-                <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3">
+                <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3 py-2">
                   <div className="flex items-center gap-2 min-h-[44px]">
                     <Checkbox
                       id="useSingleAccount"
                       checked={useSingleAccount}
-                      onCheckedChange={onSingleAccountToggle}
+                      onCheckedChange={onUseSingleAccountCheckedChange}
                     />
                     <Label
                       htmlFor="useSingleAccount"
@@ -1217,9 +1370,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       <Checkbox
                         id="splitByItemType"
                         checked={splitByItemType}
-                        onCheckedChange={(checked) =>
-                          setSplitByItemType(checked === true)
-                        }
+                        onCheckedChange={onSplitByItemTypeCheckedChange}
                       />
                       <Label
                         htmlFor="splitByItemType"
@@ -1229,6 +1380,16 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       </Label>
                     </div>
                   )}
+                  {accountMappingErrorMessage ? (
+                    <div className="w-full min-w-0">
+                      <p
+                        role="alert"
+                        className="text-sm font-medium text-destructive"
+                      >
+                        {accountMappingErrorMessage}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               )}
             <Button
@@ -1292,7 +1453,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   <span className="text-destructive"> *</span>
                                 </FormLabel>
                                 <VirtualSelect
-                                  options={parties || []}
+                                  options={customerVendorSelectOptions}
                                   value={field.value}
                                   onChange={(val) =>
                                     onAccountSelection(
@@ -1433,7 +1594,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   <span className="text-destructive"> *</span>
                                 </FormLabel>
                                 <VirtualSelect
-                                  options={parties || []}
+                                  options={customerVendorSelectOptions}
                                   value={field.value}
                                   onChange={(val) =>
                                     onAccountSelection(
@@ -1507,7 +1668,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       <CustomerSectionsBlock
                         sections={sections}
                         activeSectionId={activeSectionId}
-                        parties={parties || []}
+                        parties={partiesIncludingTyped ?? parties ?? []}
                         getSectionLabel={getSectionLabel}
                         onAddSection={addSection}
                         onRemoveSection={removeSection}

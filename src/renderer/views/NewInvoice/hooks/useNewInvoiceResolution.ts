@@ -1,9 +1,23 @@
-import { toNumber, toString } from 'lodash';
+import { pick, toNumber, toString, trim } from 'lodash';
 import { useEffect, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import type { InventoryItem } from 'types';
+import type { Account, InventoryItem } from 'types';
 import { InvoiceType } from 'types';
+import {
+  buildPartyTypingContext,
+  resolvePartyRowForSplitByType,
+} from '@/renderer/lib/partyAccountTyping';
 import type { PartyAccount } from './useNewInvoiceParties';
+
+const PARTY_PICK = [
+  'id',
+  'name',
+  'type',
+  'code',
+  'chartId',
+  'discountProfileId',
+  'discountProfileIsActive',
+] as const;
 
 export interface ResolutionFallback {
   rowIndex: number;
@@ -56,30 +70,56 @@ export function useNewInvoiceResolution(
     ) {
       setResolutionFallbacks([]);
       setResolvedRowLabels([]);
-      return;
+      return undefined;
     }
     const singleId = toNumber(form.getValues('accountMapping.singleAccountId'));
     if (singleId <= 0) {
       setResolutionFallbacks([]);
       setResolvedRowLabels([]);
-      return;
+      return undefined;
     }
 
-    const party = parties.find((p) => p.id === singleId);
-    if (!party?.chartId) {
-      setResolutionFallbacks([]);
-      setResolvedRowLabels([]);
-      return;
-    }
+    let cancelled = false;
 
     const runResolution = async () => {
+      const allAccountsRaw: Account[] = await window.electron.getAccounts();
+      const itemTypes = await window.electron.getItemTypes?.();
+      if (cancelled) return;
+
+      const picked = allAccountsRaw.map((account) =>
+        pick(account, [...PARTY_PICK]),
+      ) as PartyAccount[];
+      const itemTypeNameList = (itemTypes ?? [])
+        .map((it) => trim(it.name ?? ''))
+        .filter((n) => n.length > 0);
+      const typingCtx = buildPartyTypingContext(picked, itemTypeNameList);
+
+      const party = resolvePartyRowForSplitByType(
+        singleId,
+        parties,
+        picked,
+        typingCtx,
+      );
+
+      if (!party?.chartId) {
+        if (!cancelled) {
+          setResolutionFallbacks([]);
+          setResolvedRowLabels([]);
+        }
+        return;
+      }
+
       const primaryId = await window.electron.getPrimaryItemType?.();
+      if (cancelled) return;
+
       const rows = form.getValues('invoiceItems') as Array<{
         inventoryId?: number;
         [key: string]: unknown;
       }>;
       const partyName = (party.name ?? '').trim();
       const partyCode = toString(party.code ?? '').trim();
+      const headerAccount = picked.find((a) => a.id === singleId);
+      const primaryRowLabel = trim(headerAccount?.name ?? '') || partyName;
 
       const needLookup: Array<{ rowIndex: number; suffixedName: string }> = [];
 
@@ -110,7 +150,7 @@ export function useNewInvoiceResolution(
             return {
               rowIndex: item.rowIndex,
               accountId: singleId,
-              label: partyName,
+              label: primaryRowLabel,
               fallback: undefined as
                 | { expectedSuffixedName: string }
                 | undefined,
@@ -130,10 +170,11 @@ export function useNewInvoiceResolution(
                   expectedCode,
                 )
               : undefined;
+          const chartId = toNumber(party.chartId);
           const fallbackSuffixedAccount =
-            suffixedAccount?.id == null
+            suffixedAccount?.id == null && chartId > 0
               ? await window.electron.getAccountByNameAndChart(
-                  party.chartId,
+                  chartId,
                   item.suffixedName,
                 )
               : undefined;
@@ -163,6 +204,8 @@ export function useNewInvoiceResolution(
         }),
       );
 
+      if (cancelled) return;
+
       const accountIds: number[] = new Array(rows.length);
       const labels: string[] = new Array(rows.length);
       const fallbacks: ResolutionFallback[] = [];
@@ -183,6 +226,10 @@ export function useNewInvoiceResolution(
     };
 
     runResolution();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     form,
     invoiceType,

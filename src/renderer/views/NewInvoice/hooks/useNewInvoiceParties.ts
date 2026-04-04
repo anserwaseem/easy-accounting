@@ -2,6 +2,10 @@ import { isNil, pick, trim } from 'lodash';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { toLowerTrim } from 'renderer/lib/utils';
+import {
+  buildPartyTypingContext,
+  isTypedPartyAccount,
+} from '@/renderer/lib/partyAccountTyping';
 import type { Account } from 'types';
 import { AccountType, InvoiceType } from 'types';
 
@@ -23,34 +27,14 @@ export interface RequiredAccountsExist {
   loading: boolean;
 }
 
-const splitCode = (rawCode: string): { baseCode: string; suffix: string } => {
-  const code = trim(rawCode);
-  const lastDashIndex = code.lastIndexOf('-');
-  if (lastDashIndex <= 0 || lastDashIndex >= code.length - 1) {
-    return { baseCode: code, suffix: '' };
-  }
-  return {
-    baseCode: code.slice(0, lastDashIndex),
-    suffix: code.slice(lastDashIndex + 1),
-  };
-};
-
-const splitName = (rawName: string): { baseName: string; suffix: string } => {
-  const name = trim(rawName);
-  const lastDashIndex = name.lastIndexOf('-');
-  if (lastDashIndex <= 0 || lastDashIndex >= name.length - 1) {
-    return { baseName: name, suffix: '' };
-  }
-  return {
-    baseName: trim(name.slice(0, lastDashIndex)),
-    suffix: trim(name.slice(lastDashIndex + 1)),
-  };
-};
-
 /** loads parties (customers/vendors) for the invoice type and checks that required sale/purchase accounts exist */
 export function useNewInvoiceParties(invoiceType: InvoiceType): {
   parties: PartyAccount[] | undefined;
+  partiesIncludingTyped: PartyAccount[] | undefined;
   setParties: React.Dispatch<React.SetStateAction<PartyAccount[] | undefined>>;
+  setPartiesIncludingTyped: React.Dispatch<
+    React.SetStateAction<PartyAccount[] | undefined>
+  >;
   requiredAccountsExist: RequiredAccountsExist;
   setRequiredAccountsExist: React.Dispatch<
     React.SetStateAction<RequiredAccountsExist>
@@ -59,6 +43,9 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
   refreshParties: () => Promise<void>;
 } {
   const [parties, setParties] = useState<PartyAccount[] | undefined>();
+  const [partiesIncludingTyped, setPartiesIncludingTyped] = useState<
+    PartyAccount[] | undefined
+  >();
   const [requiredAccountsExist, setRequiredAccountsExist] =
     useState<RequiredAccountsExist>({
       sale: false,
@@ -74,17 +61,10 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
       pick(account, [...PARTY_PICK]),
     );
 
-    const allCodesLower = new Set<string>(
-      accounts.map((a) => toLowerTrim(a.code)).filter((c) => c.length > 0),
-    );
-    const allNamesLower = new Set<string>(
-      accounts.map((a) => toLowerTrim(a.name)).filter((n) => n.length > 0),
-    );
-    const itemTypeSuffixesLower = new Set<string>(
-      (itemTypes ?? [])
-        .map((it) => toLowerTrim(it.name))
-        .filter((n) => n.length > 0),
-    );
+    const itemTypeNameList = (itemTypes ?? [])
+      .map((it) => trim(it.name ?? ''))
+      .filter((n) => n.length > 0);
+    const typingCtx = buildPartyTypingContext(accounts, itemTypeNameList);
 
     const saleAccount = accounts.find(
       (a) => toLowerTrim(a.name) === InvoiceType.Sale.toLowerCase(),
@@ -101,32 +81,13 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
       return a.type === AccountType.Liability || a.type === AccountType.Asset;
     };
 
-    const isTypedPartyAccount = (account: PartyAccount): boolean => {
-      const { baseName, suffix: nameSuffix } = splitName(account.name);
-      if (nameSuffix) {
-        const suffixLower = nameSuffix.toLowerCase();
-        if (
-          itemTypeSuffixesLower.has(suffixLower) &&
-          allNamesLower.has(baseName.toLowerCase())
-        ) {
-          return true;
-        }
-      }
-
-      const { baseCode, suffix } = splitCode(String(account.code ?? ''));
-      if (!suffix) return false;
-
-      const suffixLower = suffix.toLowerCase();
-      if (!itemTypeSuffixesLower.has(suffixLower)) return false;
-
-      return allCodesLower.has(baseCode.toLowerCase());
-    };
-
-    const partyAccounts = accounts.filter(
-      (a) => isPartyAccountType(a) && !isTypedPartyAccount(a),
+    const partyAccountsAll = accounts.filter((a) => isPartyAccountType(a));
+    const partyAccounts = partyAccountsAll.filter(
+      (a) => !isTypedPartyAccount(a, typingCtx),
     );
     return {
       partyAccounts,
+      partyAccountsIncludingTyped: partyAccountsAll,
       sale: !!saleAccount,
       purchase: !!purchaseAccount,
     };
@@ -135,6 +96,7 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
   // refetch when invoice type changes so sale vs purchase party filters don't reuse the wrong list
   useEffect(() => {
     setParties(undefined);
+    setPartiesIncludingTyped(undefined);
   }, [invoiceType]);
 
   useEffect(() => {
@@ -145,14 +107,17 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
         loading: true,
       });
       fetchPartiesAndRequiredAccounts()
-        .then(({ partyAccounts, sale, purchase }) => {
-          setRequiredAccountsExist({
-            sale,
-            purchase,
-            loading: false,
-          });
-          setParties(partyAccounts);
-        })
+        .then(
+          ({ partyAccounts, partyAccountsIncludingTyped, sale, purchase }) => {
+            setRequiredAccountsExist({
+              sale,
+              purchase,
+              loading: false,
+            });
+            setParties(partyAccounts);
+            setPartiesIncludingTyped(partyAccountsIncludingTyped);
+          },
+        )
         .catch((error) => {
           console.error('Error fetching accounts:', error);
           setRequiredAccountsExist((prev) => ({ ...prev, loading: false }));
@@ -163,7 +128,7 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
   const refreshParties = useCallback(async () => {
     setIsRefreshingParties(true);
     try {
-      const { partyAccounts, sale, purchase } =
+      const { partyAccounts, partyAccountsIncludingTyped, sale, purchase } =
         await fetchPartiesAndRequiredAccounts();
       setRequiredAccountsExist((prev) => ({
         ...prev,
@@ -171,6 +136,7 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
         purchase,
       }));
       setParties(partyAccounts);
+      setPartiesIncludingTyped(partyAccountsIncludingTyped);
       toast({
         description: 'Accounts refreshed successfully',
         variant: 'success',
@@ -188,7 +154,9 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
 
   return {
     parties,
+    partiesIncludingTyped,
     setParties,
+    setPartiesIncludingTyped,
     requiredAccountsExist,
     setRequiredAccountsExist,
     isRefreshingParties,

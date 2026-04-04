@@ -78,6 +78,9 @@ describe('useNewInvoiceParties', () => {
     expect(result.current.requiredAccountsExist.sale).toBe(true);
     expect(result.current.requiredAccountsExist.purchase).toBe(true);
     expect(result.current.parties?.map((p) => p.id)).toEqual([10, 12]);
+    expect(result.current.partiesIncludingTyped?.map((p) => p.id)).toEqual([
+      10, 11, 12,
+    ]);
   });
 
   it('refreshParties refetches accounts and shows success toast', async () => {
