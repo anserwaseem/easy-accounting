@@ -120,7 +120,7 @@ function makeSaleInvoiceView(
   };
 }
 
-function setupElectronForSaleEdit(inv: InvoiceView) {
+function setupElectronForSaleEdit(inv: InvoiceView, overrides: any = {}) {
   const getInvoice = jest.fn(async () => inv);
   (window as unknown as { electron: Record<string, jest.Mock> }).electron = {
     getInvoice,
@@ -144,12 +144,14 @@ function setupElectronForSaleEdit(inv: InvoiceView) {
     updateInvoice: jest.fn(async () => ({ success: true })),
     insertInvoice: jest.fn(),
     getNextInvoiceNumber: jest.fn(),
+    getAutoDiscount: jest.fn(async () => 0),
+    ...overrides,
   };
   return { getInvoice };
 }
 
-function renderSaleEdit(path: string, inv: InvoiceView) {
-  const { getInvoice } = setupElectronForSaleEdit(inv);
+function renderSaleEdit(path: string, inv: InvoiceView, overrides: any = {}) {
+  const { getInvoice } = setupElectronForSaleEdit(inv, overrides);
   const view = render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
@@ -161,6 +163,53 @@ function renderSaleEdit(path: string, inv: InvoiceView) {
     </MemoryRouter>,
   );
   return { ...view, getInvoice };
+}
+
+function renderPurchaseEdit(
+  path: string,
+  inv: InvoiceView,
+  overrides: any = {},
+) {
+  (window as unknown as { electron: Record<string, jest.Mock> }).electron = {
+    getInvoice: jest.fn(async () => inv),
+    getJournalsByInvoiceId: jest.fn(async () => [{ id: 1 }]),
+    getAccounts: jest.fn(async () => [
+      saleAccount,
+      purchaseAccount,
+      {
+        id: 20,
+        name: 'VendorA',
+        type: AccountType.Liability,
+        code: 'VEN',
+        chartId: 1,
+        discountProfileId: null,
+        discountProfileIsActive: null,
+      },
+    ]),
+    getItemTypes: jest.fn(async () => []),
+    getInventory: jest.fn(async () => [inventoryRow]),
+    getPrimaryItemType: jest.fn(),
+    getAccountByName: jest.fn(async () => null),
+    getLedger: jest.fn(async () => []),
+    getSaleInvoiceEditDateBounds: jest.fn(),
+    getAccountByNameAndCode: jest.fn(),
+    getAccountByNameAndChart: jest.fn(),
+    updateInvoice: jest.fn(async () => ({ success: true })),
+    insertInvoice: jest.fn(),
+    getNextInvoiceNumber: jest.fn(),
+    getAutoDiscount: jest.fn(async () => 0),
+    ...overrides,
+  };
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route
+          path="/purchase/invoices/:id/edit"
+          element={<NewInvoicePage invoiceType={InvoiceType.Purchase} />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
 }
 
 describe('NewInvoicePage edit integration', () => {
@@ -309,5 +358,102 @@ describe('NewInvoicePage edit integration', () => {
       await screen.findByRole('heading', { name: /Edit Purchase Invoice/i }),
     ).toBeInTheDocument();
     expect(screen.getByText('#80')).toBeInTheDocument();
+  });
+
+  it('purchase edit: Save dispatches updateInvoice with correct ID and shape', async () => {
+    const inv: InvoiceView = {
+      id: 7,
+      date: '2025-03-01T12:00:00.000Z',
+      invoiceNumber: 80,
+      invoiceType: InvoiceType.Purchase,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      extraDiscount: 0,
+      invoiceHeaderAccountId: 20,
+      accountMapping: {
+        singleAccountId: 20,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          price: 50,
+          quantity: 1,
+          discount: 0,
+          inventoryItemName: 'Widget',
+          inventoryId: 100,
+          discountedPrice: 50,
+          accountId: 20,
+        },
+      ],
+    };
+
+    renderPurchaseEdit('/purchase/invoices/7/edit', inv);
+
+    await screen.findByRole('heading', { name: /Edit Purchase Invoice/i });
+
+    const saveBtn = screen.getByRole('button', { name: /^save$/i });
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+
+    const { updateInvoice } = (
+      window as unknown as { electron: { updateInvoice: jest.Mock } }
+    ).electron;
+
+    await waitFor(() => {
+      expect(updateInvoice).toHaveBeenCalledWith(
+        InvoiceType.Purchase,
+        7,
+        expect.objectContaining({
+          id: 7,
+          invoiceNumber: 80,
+          invoiceType: InvoiceType.Purchase,
+        }),
+      );
+    });
+  });
+
+  it('sale edit: Sale + Print calls updateInvoice', async () => {
+    const inv = makeSaleInvoiceView();
+    renderSaleEdit('/sale/invoices/42/edit', inv);
+
+    await screen.findByRole('heading', { name: /Edit Sale Invoice/i });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save and print/i }));
+    });
+
+    const { updateInvoice } = (
+      window as unknown as { electron: { updateInvoice: jest.Mock } }
+    ).electron;
+
+    await waitFor(() => {
+      expect(updateInvoice).toHaveBeenCalledWith(
+        InvoiceType.Sale,
+        42,
+        expect.any(Object),
+      );
+    });
+  });
+
+  it('sale edit: updateInvoice failure does not navigate', async () => {
+    const updateInvoice = jest.fn(async () => {
+      throw new Error('DB locked');
+    });
+    const inv = makeSaleInvoiceView();
+    renderSaleEdit('/sale/invoices/42/edit', inv, { updateInvoice });
+
+    await screen.findByRole('heading', { name: /Edit Sale Invoice/i });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    });
+
+    await waitFor(() => {
+      expect(updateInvoice).toHaveBeenCalled();
+    });
+
+    expect(navigateMock).not.toHaveBeenCalledWith('/sale/invoices/42');
   });
 });

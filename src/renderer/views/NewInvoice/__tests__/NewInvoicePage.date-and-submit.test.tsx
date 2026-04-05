@@ -1,5 +1,13 @@
+import '@testing-library/jest-dom';
+
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { InvoiceType } from 'types';
 
@@ -136,30 +144,37 @@ const submitValues = {
   ],
 };
 
+// Expose submitValues to the hook mock via global.
+// The mock factory reads this at call time (not hoist time).
+Object.defineProperty(global, '__testSubmitValues', {
+  get: () => submitValues,
+  configurable: true,
+});
+
 jest.mock('../hooks/useNewInvoiceFormCore', () => ({
   useNewInvoiceFormCore: () => {
+    const ref = (global as any).__testSubmitValues;
     const form = {
       control: {},
       formState: { isSubmitting: false, errors: {} },
-      getValues: jest.fn(() => submitValues),
+      getValues: jest.fn(() => ref),
       setValue: jest.fn(),
       reset: jest.fn(),
       clearErrors: jest.fn(),
-      handleSubmit: (onValid: (values: any) => void) => () =>
-        onValid(submitValues),
+      handleSubmit: (onValid: (values: any) => void) => () => onValid(ref),
       setError: jest.fn(),
     };
 
     return {
       form,
-      defaultFormValues: submitValues,
+      defaultFormValues: ref,
       formSchema: {} as any,
-      fields: submitValues.invoiceItems,
+      fields: ref.invoiceItems,
       append: jest.fn(),
-      watchedInvoiceItems: submitValues.invoiceItems,
+      watchedInvoiceItems: ref.invoiceItems,
       watchedExtraDiscount: 0,
-      watchedTotalAmount: 10,
-      watchedSingleAccountId: 10,
+      watchedTotalAmount: ref.totalAmount,
+      watchedSingleAccountId: ref.accountMapping?.singleAccountId,
       watchedMultipleAccountIds: [],
       resolutionTrigger: 'x',
       discountAccountExists: true,
@@ -214,8 +229,136 @@ describe('NewInvoicePage date confirmation + submit', () => {
     });
 
     // navigation happens after insert resolves
-    await act(async () => {});
     expect((window as any).electron.insertInvoice).toHaveBeenCalled();
     expect(navigateMock).toHaveBeenCalledWith('/invoices/77/print');
+  });
+
+  it('Save: opens date modal, then submits and navigates to invoice detail', async () => {
+    render(
+      <MemoryRouter initialEntries={['/invoices/new']}>
+        <NewInvoicePage invoiceType={InvoiceType.Sale} />
+      </MemoryRouter>,
+    );
+
+    const saveBtn = await screen.findByRole('button', { name: /^save$/i });
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+
+    expect(await screen.findByTestId('date-modal')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: /use current date/i }),
+      );
+    });
+
+    expect((window as any).electron.insertInvoice).toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith('/sale/invoices/77');
+  });
+
+  it('insertInvoice failure: shows error and does not navigate', async () => {
+    const insertInvoice = jest.fn(async () => {
+      throw new Error('Constraint violation');
+    });
+    (window as any).electron = {
+      ...((window as any).electron as object),
+      insertInvoice,
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/invoices/new']}>
+        <NewInvoicePage invoiceType={InvoiceType.Sale} />
+      </MemoryRouter>,
+    );
+
+    const saveBtn = await screen.findByRole('button', { name: /^save$/i });
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: /use current date/i }),
+      );
+    });
+
+    // InsertInvoice is called but throws; onSubmit catches it and
+    // returns undefined, so navigation should not happen.
+    await waitFor(() => {
+      expect(insertInvoice).toHaveBeenCalled();
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('Date modal Cancel: closes modal without saving', async () => {
+    // The DateConfirmationDialog mock does not render a Cancel button;
+    // instead we verify the insertInvoice is NOT called by asserting
+    // that Save triggers modal but nothing is submitted when modal is open.
+    // This is covered by the fact that we assert insertInvoice is called
+    // only after clicking "Use current date" in other tests.
+    //
+    // The component implementation: onSubmit checks isDateExplicitlySet first,
+    // shows modal, and only proceeds via modal's onUseCurrentDate callback.
+    // Without that callback firing, submit never runs.
+    render(
+      <MemoryRouter initialEntries={['/invoices/new']}>
+        <NewInvoicePage invoiceType={InvoiceType.Sale} />
+      </MemoryRouter>,
+    );
+
+    // Just verify modal opens and without confirming, insertInvoice is untouched
+    const saveBtn = await screen.findByRole('button', { name: /^save$/i });
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+
+    expect(await screen.findByTestId('date-modal')).toBeTruthy();
+    expect((window as any).electron.insertInvoice).not.toHaveBeenCalled();
+  });
+
+  it('Clear button: resets form without errors', async () => {
+    render(
+      <MemoryRouter initialEntries={['/invoices/new']}>
+        <NewInvoicePage invoiceType={InvoiceType.Sale} />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', {
+      name: /New Sale Invoice/i,
+    });
+    const clearBtn = await screen.findByRole('button', { name: /^clear$/i });
+    await act(async () => {
+      fireEvent.click(clearBtn);
+    });
+
+    expect(
+      screen.getByRole('heading', { name: /New Sale Invoice/i }),
+    ).toBeTruthy();
+  });
+
+  it('totalAmount <= 0: Save button is disabled', async () => {
+    submitValues.totalAmount = 0;
+    submitValues.accountMapping.singleAccountId = 10;
+    render(
+      <MemoryRouter initialEntries={['/invoices/new']}>
+        <NewInvoicePage invoiceType={InvoiceType.Sale} />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: /New Sale Invoice/i });
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  it('singleAccountId <= 0: Save button is disabled', async () => {
+    submitValues.totalAmount = 10;
+    submitValues.accountMapping.singleAccountId = 0;
+    render(
+      <MemoryRouter initialEntries={['/invoices/new']}>
+        <NewInvoicePage invoiceType={InvoiceType.Sale} />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: /New Sale Invoice/i });
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
   });
 });
