@@ -57,6 +57,20 @@ export const useEditInvoiceHydration = ({
         return;
       }
 
+      const linkedJournals = (await window.electron.getJournalsByInvoiceId(
+        editInvoiceId,
+      )) as unknown[];
+      if (cancelled) return;
+      if (!linkedJournals?.length) {
+        toast({
+          variant: 'destructive',
+          description:
+            'This invoice has no linked journals and cannot be edited safely.',
+        });
+        navigate(`/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`);
+        return;
+      }
+
       saleStockValidationBonusRef.current = {};
       if (invoiceType === InvoiceType.Sale) {
         inv.invoiceItems.forEach((it) => {

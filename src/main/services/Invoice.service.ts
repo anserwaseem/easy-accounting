@@ -1035,7 +1035,8 @@ export class InvoiceService {
           a.name
         ) AS 'accountName',
         i.biltyNumber,
-        i.cartons
+        i.cartons,
+        (SELECT COUNT(*) FROM journal j WHERE j.invoiceId = i.id) AS linkedJournalCount
       FROM invoices i
       JOIN account a ON i.accountId = a.id
       LEFT JOIN invoice_items ii ON i.id = ii.invoiceId AND ii.accountId IS NOT NULL

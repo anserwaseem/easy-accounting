@@ -80,15 +80,22 @@ describe('useEditInvoiceHydration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     saleStockValidationBonusRef.current = {};
-    (window as unknown as { electron: { getInvoice: jest.Mock } }).electron = {
+    (
+      window as unknown as {
+        electron: { getInvoice: jest.Mock; getJournalsByInvoiceId: jest.Mock };
+      }
+    ).electron = {
       getInvoice: jest.fn(),
+      getJournalsByInvoiceId: jest.fn(async () => [{ id: 1 }]),
     };
   });
 
   it('when editInvoiceId is null: does not fetch and sets edit hydrated false', () => {
     const {
-      electron: { getInvoice },
-    } = window as unknown as { electron: { getInvoice: jest.Mock } };
+      electron: { getInvoice, getJournalsByInvoiceId },
+    } = window as unknown as {
+      electron: { getInvoice: jest.Mock; getJournalsByInvoiceId: jest.Mock };
+    };
 
     render(
       <HydrationHarness
@@ -98,6 +105,7 @@ describe('useEditInvoiceHydration', () => {
     );
 
     expect(getInvoice).not.toHaveBeenCalled();
+    expect(getJournalsByInvoiceId).not.toHaveBeenCalled();
     expect(setEditHydrated).toHaveBeenCalledWith(false);
   });
 
@@ -188,6 +196,32 @@ describe('useEditInvoiceHydration', () => {
     await waitFor(() => {
       expect(setUseSingleAccount).toHaveBeenCalledWith(true);
     });
+  });
+
+  it('no linked journals: navigates to invoice details and shows toast', async () => {
+    const { toast } = jest.requireMock('renderer/shad/ui/use-toast') as {
+      toast: jest.Mock;
+    };
+
+    const inv = makeInvoiceView({});
+    (
+      window as unknown as { electron: { getInvoice: jest.Mock } }
+    ).electron.getInvoice.mockResolvedValue(inv);
+    (
+      window as unknown as { electron: { getJournalsByInvoiceId: jest.Mock } }
+    ).electron.getJournalsByInvoiceId.mockResolvedValue([]);
+
+    render(
+      <HydrationHarness editInvoiceId={5} invoiceType={InvoiceType.Sale} />,
+    );
+
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith('/sale/invoices/5');
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'destructive' }),
+      );
+    });
+    expect(setEditHydrated).not.toHaveBeenCalledWith(true);
   });
 
   it('invoice type mismatch: navigates away and shows toast', async () => {

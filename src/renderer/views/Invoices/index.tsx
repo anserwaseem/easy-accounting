@@ -48,19 +48,25 @@ const InvoiceEditActionCell: FC<InvoiceEditActionCellProps> = ({
   invoiceType,
   navigate,
   isPreviewMode,
-}) => (
-  <EditActionButton
-    title="Edit invoice"
-    aria-label="Edit invoice"
-    onClick={(e) => {
-      e.stopPropagation();
-      if (isPreviewMode) return;
-      navigate(
-        `/${invoiceType.toLowerCase()}/invoices/${row.original.id}/edit`,
-      );
-    }}
-  />
-);
+}) => {
+  const canEdit = toNumber(row.original.linkedJournalCount) > 0;
+  if (!canEdit) return null;
+
+  return (
+    <EditActionButton
+      title="Edit invoice"
+      aria-label="Edit invoice"
+      disabled={isPreviewMode}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (isPreviewMode) return;
+        navigate(
+          `/${invoiceType.toLowerCase()}/invoices/${row.original.id}/edit`,
+        );
+      }}
+    />
+  );
+};
 
 const createInvoiceEditColumn = (
   invoiceType: InvoiceType,

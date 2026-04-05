@@ -287,6 +287,8 @@ export type InvoicesView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {
     accountName: string;
     accountCode?: number | string | null;
+    /** journals linked by invoiceId; 0 means edit is unsafe (matches updateInvoice guard) */
+    linkedJournalCount: number;
   }
 >;
 export type InvoiceItemView = {

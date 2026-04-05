@@ -230,7 +230,9 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <p className="font-extrabold text-md w-[160px]">Invoice #:</p>
               <div className="flex items-center gap-2">
                 <p>{invoice?.invoiceNumber}</p>
-                {invoice?.id != null && (
+                {invoice?.id != null &&
+                !isRelatedLoading &&
+                relatedJournals.length > 0 ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -247,7 +249,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                     <Pencil className="h-3.5 w-3.5 mr-1" />
                     Edit
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
             <div className="flex gap-8">

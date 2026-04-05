@@ -124,6 +124,7 @@ function setupElectronForSaleEdit(inv: InvoiceView) {
   const getInvoice = jest.fn(async () => inv);
   (window as unknown as { electron: Record<string, jest.Mock> }).electron = {
     getInvoice,
+    getJournalsByInvoiceId: jest.fn(async () => [{ id: 1 }]),
     getAccounts: jest.fn(async () => [
       saleAccount,
       purchaseAccount,
@@ -253,6 +254,7 @@ describe('NewInvoicePage edit integration', () => {
 
     (window as unknown as { electron: Record<string, jest.Mock> }).electron = {
       getInvoice: jest.fn(async () => inv),
+      getJournalsByInvoiceId: jest.fn(async () => [{ id: 1 }]),
       getAccounts: jest.fn(async () => [
         saleAccount,
         purchaseAccount,

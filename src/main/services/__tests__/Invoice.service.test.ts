@@ -1159,6 +1159,7 @@ describe('InvoiceService.insertInvoice', () => {
     expect(Number(listRow!.totalAmount)).toBe(uiTotal);
     expect(Number(listRow!.biltyNumber)).toBe(55);
     expect(listRow!.cartons).toBe(2);
+    expect(Number(listRow!.linkedJournalCount)).toBeGreaterThan(0);
   });
 
   it('getInvoice shows per-line account names when invoice_items map to different parties', () => {
