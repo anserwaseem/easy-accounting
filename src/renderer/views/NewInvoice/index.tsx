@@ -55,8 +55,8 @@ import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
 import {
   restoreSingleAccountIdFromSections,
   shouldWarnWhenTurningSplitLedgerOff,
-} from '@/renderer/lib/invoiceAccountMappingGuard';
-import { buildCustomerVendorSelectOptions } from '@/renderer/lib/invoicePartySelect';
+} from '@/renderer/views/NewInvoice/lib/invoiceAccountMappingGuard';
+import { buildCustomerVendorSelectOptions } from '@/renderer/views/NewInvoice/lib/invoicePartySelect';
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
 import { DateConfirmationDialog } from './components/DateConfirmationDialog';

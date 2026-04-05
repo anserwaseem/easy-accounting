@@ -6,7 +6,7 @@ import { InvoiceType } from 'types';
 import {
   buildPartyTypingContext,
   resolvePartyRowForSplitByType,
-} from '@/renderer/lib/partyAccountTyping';
+} from '@/renderer/views/NewInvoice/lib/partyAccountTyping';
 import {
   buildInventoryById,
   buildItemTypeNameById,

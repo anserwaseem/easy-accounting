@@ -5,7 +5,7 @@ import {
   isTypedPartyAccount,
   splitPartyCode,
   splitPartyName,
-} from '@/renderer/lib/partyAccountTyping';
+} from '@/renderer/views/NewInvoice/lib/partyAccountTyping';
 import { toLowerTrim } from '@/renderer/lib/utils';
 import type { PartyAccount } from '../hooks/useNewInvoiceParties';
 

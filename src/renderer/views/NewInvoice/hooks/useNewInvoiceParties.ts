@@ -5,7 +5,7 @@ import { toLowerTrim } from 'renderer/lib/utils';
 import {
   buildPartyTypingContext,
   isTypedPartyAccount,
-} from '@/renderer/lib/partyAccountTyping';
+} from '@/renderer/views/NewInvoice/lib/partyAccountTyping';
 import type { Account } from 'types';
 import { AccountType, InvoiceType } from 'types';
 
