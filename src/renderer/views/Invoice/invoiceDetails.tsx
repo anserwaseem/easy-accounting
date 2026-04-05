@@ -302,7 +302,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             ) : null}
           </div>
         </div>
-        <div className="grid grid-cols-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-8">
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-8 items-center">
               <p className="font-extrabold text-md w-[160px]">Invoice #:</p>
@@ -335,10 +335,15 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <p className="font-medium text-md min-w-[160px]">{`${
                 invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
               }:`}</p>
-              <div className="flex flex-wrap items-center gap-2 min-w-max">
-                <p className="whitespace-normal">{customerDisplayName}</p>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <p className="shrink-0 whitespace-nowrap">
+                  {customerDisplayName}
+                </p>
                 {invoice?.accountCode != null ? (
-                  <Badge variant="secondary" className="whitespace-nowrap">
+                  <Badge
+                    variant="secondary"
+                    className="shrink-0 whitespace-nowrap"
+                  >
                     {invoice.accountCode}
                   </Badge>
                 ) : null}

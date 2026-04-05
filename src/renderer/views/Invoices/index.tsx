@@ -144,6 +144,14 @@ const InvoicesPage: FC<InvoicesProps> = ({
                           <Badge
                             variant="destructive"
                             className="text-[10px] font-normal"
+                            title={
+                              invoice.returnedAt
+                                ? new Date(invoice.returnedAt).toLocaleString(
+                                    'en-US',
+                                    datetimeFormatOptions,
+                                  )
+                                : undefined
+                            }
                           >
                             Returned
                           </Badge>
@@ -152,21 +160,37 @@ const InvoicesPage: FC<InvoicesProps> = ({
                           <Badge
                             variant="amber"
                             className="text-[10px] font-normal"
+                            title={
+                              invoice.updatedAt
+                                ? new Date(invoice.updatedAt).toLocaleString(
+                                    'en-US',
+                                    datetimeFormatOptions,
+                                  )
+                                : undefined
+                            }
                           >
                             Edited
                           </Badge>
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex flex-col text-end">
-                      <p className="text-muted-foreground">
-                        {invoice.accountName}
-                        {invoice.accountCode != null
-                          ? ` · ${invoice.accountCode}`
-                          : ''}
-                      </p>
+                    <div className="flex min-w-0 flex-col items-end gap-1.5 text-end">
+                      <div className="flex max-w-full flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
+                        <span className="font-medium leading-snug text-foreground">
+                          {invoice.accountName}
+                        </span>
+                        {invoice.accountCode != null ? (
+                          <Badge
+                            variant="secondary"
+                            className="shrink-0 px-1.5 py-0 text-[10px] font-mono font-normal tabular-nums"
+                            title={`Account code ${invoice.accountCode}`}
+                          >
+                            {invoice.accountCode}
+                          </Badge>
+                        ) : null}
+                      </div>
                       {invoiceType === InvoiceType.Sale && (
-                        <p>
+                        <p className="tabular-nums font-semibold">
                           {getFormattedCurrency(toNumber(invoice.totalAmount))}
                         </p>
                       )}
@@ -448,7 +472,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
             columns={columns}
             data={filteredInvoices || []}
             sortingFns={defaultSortingFunctions}
-            defaultSortField="invoiceNumber" // FIXME: for mini view, nested field sorting is not working
+            defaultSortField="invoiceNumber"
             defaultSortDirection="desc"
             virtual
             isMini={isMini}
@@ -456,6 +480,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
             searchFields={[
               'invoiceNumber',
               'accountName',
+              'accountCode',
               'date',
               'totalAmount',
             ]}
