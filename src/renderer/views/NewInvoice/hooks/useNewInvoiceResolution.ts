@@ -5,6 +5,7 @@ import type { Account, InventoryItem } from 'types';
 import { InvoiceType } from 'types';
 import {
   buildPartyTypingContext,
+  getHeaderTypedSuffixFromCode,
   resolvePartyRowForSplitByType,
 } from '@/renderer/views/NewInvoice/lib/partyAccountTyping';
 import {
@@ -12,7 +13,6 @@ import {
   buildItemTypeNameById,
   buildSplitRowPlans,
   findBasePartyRowInPicked,
-  getHeaderTypedSuffix,
   type SplitRowResolutionKind,
 } from '../lib/splitInvoiceRowResolution';
 import type { PartyAccount } from './useNewInvoiceParties';
@@ -144,7 +144,7 @@ export function useNewInvoiceResolution(
       const partyCode = toString(party.code ?? '').trim();
       const headerAccount = picked.find((a) => a.id === singleId);
       const primaryRowLabel = trim(headerAccount?.name ?? '') || partyName;
-      const { headerIsTyped, headerSuffix } = getHeaderTypedSuffix(
+      const { headerIsTyped, headerSuffix } = getHeaderTypedSuffixFromCode(
         headerAccount,
         typingCtx,
       );

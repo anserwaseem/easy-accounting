@@ -1,11 +1,5 @@
 import { toNumber, trim } from 'lodash';
 import type { InventoryItem } from 'types';
-import {
-  type PartyTypingContext,
-  isTypedPartyAccount,
-  splitPartyCode,
-  splitPartyName,
-} from '@/renderer/views/NewInvoice/lib/partyAccountTyping';
 import { toLowerTrim } from '@/renderer/lib/utils';
 import type { PartyAccount } from '../hooks/useNewInvoiceParties';
 
@@ -57,19 +51,6 @@ export function resolveInventoryLineItemType(
   const itemTypeName = label.length > 0 ? label : null;
 
   return { itemTypeId, itemTypeName };
-}
-
-export function getHeaderTypedSuffix(
-  headerAccount: PartyAccount | undefined,
-  typingCtx: PartyTypingContext,
-): { headerIsTyped: boolean; headerSuffix: string } {
-  if (!headerAccount || !isTypedPartyAccount(headerAccount, typingCtx)) {
-    return { headerIsTyped: false, headerSuffix: '' };
-  }
-  const headerSuffix =
-    trim(splitPartyName(headerAccount.name ?? '').suffix) ||
-    trim(splitPartyCode(String(headerAccount.code ?? '')).suffix);
-  return { headerIsTyped: true, headerSuffix };
 }
 
 export function findBasePartyRowInPicked(

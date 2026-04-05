@@ -1,6 +1,7 @@
 import {
   buildPartyTypingContext,
   findBasePartyRowForSingleAccountId,
+  getHeaderTypedSuffixFromCode,
   isTypedPartyAccount,
   resolvePartyRowForSplitByType,
   splitPartyCode,
@@ -23,6 +24,33 @@ describe('partyAccountTyping', () => {
     it('no dash returns whole string as base', () => {
       expect(splitPartyName('Acme')).toEqual({ baseName: 'Acme', suffix: '' });
       expect(splitPartyCode('RET')).toEqual({ baseCode: 'RET', suffix: '' });
+    });
+  });
+
+  describe('getHeaderTypedSuffixFromCode', () => {
+    const base = { id: 10, name: 'Acme', code: 'AC', chartId: 1 };
+    const typedTt = { id: 55, name: 'Acme-TT', code: 'AC-TT', chartId: 1 };
+    const ctx = buildPartyTypingContext([base, typedTt], ['TT']);
+
+    it('returns suffix from code when display name is base but code is suffixed', () => {
+      expect(getHeaderTypedSuffixFromCode({ code: 'AC-TT' }, ctx)).toEqual({
+        headerIsTyped: true,
+        headerSuffix: 'TT',
+      });
+    });
+
+    it('returns untyped when code has no typed suffix', () => {
+      expect(getHeaderTypedSuffixFromCode(base, ctx)).toEqual({
+        headerIsTyped: false,
+        headerSuffix: '',
+      });
+    });
+
+    it('ignores misleading name suffix when code is base', () => {
+      expect(getHeaderTypedSuffixFromCode({ code: 'AC' }, ctx)).toEqual({
+        headerIsTyped: false,
+        headerSuffix: '',
+      });
     });
   });
 

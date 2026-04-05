@@ -88,6 +88,27 @@ export function isTypedPartyAccount(
   return ctx.allCodesLower.has(baseCode.toLowerCase());
 }
 
+/**
+ * customer tier for sale invoice: derived from account code only (split-by-type resolution
+ * and split-off mismatch warnings). display names may repeat or omit suffixes.
+ */
+export function getHeaderTypedSuffixFromCode(
+  account: { code?: string | number | null } | undefined,
+  ctx: PartyTypingContext,
+): { headerIsTyped: boolean; headerSuffix: string } {
+  if (!account) return { headerIsTyped: false, headerSuffix: '' };
+  const { baseCode, suffix } = splitPartyCode(String(account.code ?? ''));
+  if (!suffix) return { headerIsTyped: false, headerSuffix: '' };
+  const suffixLower = suffix.toLowerCase();
+  if (!ctx.itemTypeSuffixesLower.has(suffixLower)) {
+    return { headerIsTyped: false, headerSuffix: '' };
+  }
+  if (!ctx.allCodesLower.has(baseCode.toLowerCase())) {
+    return { headerIsTyped: false, headerSuffix: '' };
+  }
+  return { headerIsTyped: true, headerSuffix: trim(suffix) };
+}
+
 /** maps a header account id to the base party row used for split-by-type resolution (name/code lookups) */
 export function findBasePartyRowForSingleAccountId<
   T extends PartyLikeForTyping,

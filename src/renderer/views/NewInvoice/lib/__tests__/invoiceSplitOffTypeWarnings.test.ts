@@ -142,6 +142,51 @@ describe('detectSplitOffAccountItemTypeMismatches', () => {
     expect(m).toEqual([]);
   });
 
+  it('matches typed tier by code when display name is shared with base', () => {
+    const typedByCodeOnly = {
+      ...typedTt,
+      name: 'Acme',
+    };
+    const ctx = buildPartyTypingContext(
+      [baseAcc, typedTt, typedPp],
+      ['TT', 'PP'],
+    );
+    const rows = [{ inventoryId: 200 }];
+    const m = detectSplitOffAccountItemTypeMismatches(
+      rows,
+      invById,
+      itemTypeNameById,
+      typedByCodeOnly,
+      ctx,
+      primaryId,
+    );
+    expect(m).toEqual([]);
+  });
+
+  it('treats account as base when code has no suffix even if name looks suffixed', () => {
+    const misleadingName = {
+      id: 77,
+      name: 'Acme-TT',
+      code: 'AC',
+      chartId: 1,
+      type: AccountType.Asset,
+    };
+    const ctx = buildPartyTypingContext(
+      [baseAcc, typedTt, misleadingName],
+      ['TT', 'PP'],
+    );
+    const rows = [{ inventoryId: 200 }];
+    const m = detectSplitOffAccountItemTypeMismatches(
+      rows,
+      invById,
+      itemTypeNameById,
+      misleadingName,
+      ctx,
+      primaryId,
+    );
+    expect(m).toEqual([{ rowIndex: 0, kind: 'base_account_non_primary_line' }]);
+  });
+
   it('skips rows with no inventory id', () => {
     const ctx = buildPartyTypingContext([baseAcc, typedTt], ['TT', 'PP']);
     const rows = [{ inventoryId: 0 }];

@@ -3,15 +3,15 @@ import type { InventoryItem } from 'types';
 import {
   type PartyTypingContext,
   buildPartyTypingContext,
+  getHeaderTypedSuffixFromCode,
 } from '@/renderer/views/NewInvoice/lib/partyAccountTyping';
-import type { PartyAccount } from '../hooks/useNewInvoiceParties';
 import {
   buildItemTypeNameById,
   buildInventoryById,
-  getHeaderTypedSuffix,
   resolveInventoryLineItemType,
 } from '@/renderer/views/NewInvoice/lib/splitInvoiceRowResolution';
 import { toLowerTrim } from '@/renderer/lib/utils';
+import type { PartyAccount } from '../hooks/useNewInvoiceParties';
 
 export type SplitOffMismatchKind =
   | 'base_account_non_primary_line'
@@ -26,6 +26,7 @@ export interface SplitOffAccountItemMismatch {
 /**
  * sale + single account + split-by-type off: flags lines where the header party account's
  * typing (base vs suffixed) doesn't match that line's inventory item type.
+ * uses account code only for typed vs base; names are not authoritative.
  */
 export function detectSplitOffAccountItemTypeMismatches(
   rows: Array<{ inventoryId?: number }>,
@@ -44,7 +45,7 @@ export function detectSplitOffAccountItemTypeMismatches(
       : null;
   const hasPrimary = primaryNum != null;
 
-  const { headerIsTyped, headerSuffix } = getHeaderTypedSuffix(
+  const { headerIsTyped, headerSuffix } = getHeaderTypedSuffixFromCode(
     headerAccount,
     typingCtx,
   );
@@ -129,7 +130,7 @@ function describeSplitOffMismatchKind(kind: SplitOffMismatchKind): string {
     case 'typed_account_primary_line':
       return 'primary-type item on a typed suffixed account';
     case 'typed_account_wrong_suffix':
-      return 'item type does not match the account suffix';
+      return 'item type does not match the account code suffix';
     default:
       return 'mismatch';
   }
