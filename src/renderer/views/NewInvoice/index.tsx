@@ -56,6 +56,10 @@ import {
   restoreSingleAccountIdFromSections,
   shouldWarnWhenTurningSplitLedgerOff,
 } from '@/renderer/views/NewInvoice/lib/invoiceAccountMappingGuard';
+import {
+  buildTypingAndDetectSplitOffMismatches,
+  formatSplitOffMismatchToast,
+} from '@/renderer/views/NewInvoice/lib/invoiceSplitOffTypeWarnings';
 import { buildCustomerVendorSelectOptions } from '@/renderer/views/NewInvoice/lib/invoicePartySelect';
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
@@ -121,6 +125,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   splitByItemTypeRef.current = splitByItemType;
   const [, setIsPrimaryItemTypeMissing] = useState(false);
   const primaryItemTypeWarnedRef = useRef(false);
+  const splitOffMismatchSigRef = useRef<string>('');
 
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
@@ -277,6 +282,95 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       cancelled = true;
     };
   }, [invoiceType, splitByItemType, useSingleAccount]);
+
+  // sale + single account + split off: warn when header account typing vs line item types mismatch
+  useEffect(() => {
+    if (
+      invoiceType !== InvoiceType.Sale ||
+      !useSingleAccount ||
+      splitByItemType
+    ) {
+      splitOffMismatchSigRef.current = '';
+      return undefined;
+    }
+    const singleId = toNumber(watchedSingleAccountId);
+    if (singleId <= 0) {
+      splitOffMismatchSigRef.current = '';
+      return undefined;
+    }
+    if (!inventory?.length) return undefined;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      (async () => {
+        try {
+          const [allAccountsRaw, itemTypes, primaryRaw] = await Promise.all([
+            window.electron.getAccounts() as Promise<Account[]>,
+            window.electron.getItemTypes?.() ?? Promise.resolve([]),
+            window.electron.getPrimaryItemType?.().catch(() => undefined),
+          ]);
+          if (cancelled) return;
+
+          const headerAccount = allAccountsRaw.find(
+            (a) => toNumber(a.id) === singleId,
+          );
+          if (!headerAccount) return;
+
+          const latestRows = form.getValues('invoiceItems') as Array<{
+            inventoryId?: number;
+          }>;
+
+          const primaryId =
+            primaryRaw != null && Number.isFinite(toNumber(primaryRaw))
+              ? toNumber(primaryRaw)
+              : undefined;
+
+          const mismatches = buildTypingAndDetectSplitOffMismatches(
+            latestRows,
+            inventory,
+            itemTypes,
+            headerAccount,
+            allAccountsRaw,
+            primaryId,
+          );
+
+          if (cancelled) return;
+
+          if (mismatches.length === 0) {
+            splitOffMismatchSigRef.current = '';
+            return;
+          }
+
+          const key = `${singleId}:${mismatches
+            .map((m) => `${m.rowIndex}:${m.kind}`)
+            .join(',')}`;
+          if (splitOffMismatchSigRef.current === key) return;
+          splitOffMismatchSigRef.current = key;
+
+          toast({
+            variant: 'warning',
+            duration: 12000,
+            description: formatSplitOffMismatchToast(mismatches),
+          });
+        } catch {
+          if (!cancelled) splitOffMismatchSigRef.current = '';
+        }
+      })();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    invoiceType,
+    useSingleAccount,
+    splitByItemType,
+    watchedSingleAccountId,
+    watchedInvoiceItems,
+    inventory,
+    form,
+  ]);
 
   // derived layout flags
   const isSale = invoiceType === InvoiceType.Sale;
