@@ -172,6 +172,40 @@ describe('useNewInvoiceResolution', () => {
     expect(hookResult.current.resolvedRowLabels[1]).toBe('Acme-TT');
   });
 
+  it('resolves non-primary type using catalog name when inventory omits itemTypeName', async () => {
+    const party = makeParty({ id: 10, name: 'Acme', code: 'AC', chartId: 111 });
+    const primaryTypeId = 1;
+    const inventory: InventoryItem[] = [
+      makeInv({
+        id: 200,
+        itemTypeId: 2,
+        itemTypeName: '',
+      }),
+    ];
+
+    const { hookResult, form } = setup({
+      party,
+      parties: [party],
+      inventory,
+      primaryItemTypeId: primaryTypeId,
+      getItemTypes: async () => [
+        { id: 1, name: 'T' },
+        { id: 2, name: 'X' },
+      ],
+      lookups: {
+        byNameAndCode: async (_name, code) =>
+          code === 'AC-X' ? { id: 999, name: 'Acme-X' } : undefined,
+      },
+      invoiceItems: [{ id: 1, inventoryId: 200 }],
+    });
+
+    await act(async () => {});
+
+    expect(form.getValues('accountMapping.multipleAccountIds')).toEqual([999]);
+    expect(hookResult.current.resolutionFallbacks).toEqual([]);
+    expect(hookResult.current.resolvedRowLabels[0]).toBe('Acme-X');
+  });
+
   it('falls back to chart+name lookup when name+code is not found', async () => {
     const party = makeParty({ id: 10, name: 'Acme', code: 'AC', chartId: 111 });
     const inventory: InventoryItem[] = [
@@ -271,8 +305,7 @@ describe('useNewInvoiceResolution', () => {
         { id: 2, name: 'TT' },
       ],
       lookups: {
-        byNameAndCode: async (_name, code) =>
-          code === 'AC-TT' ? { id: 999, name: 'Acme-TT' } : undefined,
+        byNameAndCode: async () => undefined,
       },
       invoiceItems: [
         { id: 1, inventoryId: 100 },
@@ -283,10 +316,69 @@ describe('useNewInvoiceResolution', () => {
     await act(async () => {});
 
     const ids = form.getValues('accountMapping.multipleAccountIds');
-    expect(ids).toEqual([55, 999]);
+    // row 0: global-primary T while header is TT -> unsuffixed base; row 1: TT matches header -> header id
+    expect(ids).toEqual([10, 55]);
     expect(ids).toHaveLength(2);
     expect(hookResult.current.resolutionFallbacks).toEqual([]);
-    expect(hookResult.current.resolvedRowLabels[0]).toBe('Acme-TT');
+    expect(hookResult.current.resolvedRowLabels[0]).toBe('Acme');
     expect(hookResult.current.resolvedRowLabels[1]).toBe('Acme-TT');
+  });
+
+  it('when header is typed for T1, a global-primary line resolves to unsuffixed base (not Acme-P) not the header T1', async () => {
+    const baseParty = makeParty({
+      id: 10,
+      name: 'Acme',
+      code: 'AC',
+      chartId: 111,
+    });
+    const inventory: InventoryItem[] = [
+      makeInv({
+        id: 100,
+        itemTypeId: 1,
+        itemTypeName: 'P',
+      }),
+    ];
+
+    const { hookResult, form } = setup({
+      party: baseParty,
+      singleAccountIdOverride: 55,
+      parties: [baseParty],
+      inventory,
+      primaryItemTypeId: 1,
+      getAccounts: async () => [
+        {
+          id: 10,
+          name: 'Acme',
+          type: 1,
+          code: 'AC',
+          chartId: 111,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+        {
+          id: 55,
+          name: 'Acme-T1',
+          type: 1,
+          code: 'AC-T1',
+          chartId: 111,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+      ],
+      getItemTypes: async () => [
+        { id: 1, name: 'P' },
+        { id: 2, name: 'T1' },
+      ],
+      lookups: {
+        byNameAndCode: async () => undefined,
+      },
+      invoiceItems: [{ id: 1, inventoryId: 100 }],
+    });
+
+    await act(async () => {});
+
+    expect(form.getValues('accountMapping.multipleAccountIds')).toEqual([10]);
+    expect(hookResult.current.resolutionFallbacks).toEqual([]);
+    expect(hookResult.current.resolvedRowLabels[0]).toBe('Acme');
   });
 });

@@ -63,7 +63,10 @@ import { DateConfirmationDialog } from './components/DateConfirmationDialog';
 import { useNewInvoiceColumns } from './hooks/useNewInvoiceColumns';
 import { useNewInvoiceDiscounts } from './hooks/useNewInvoiceDiscounts';
 import { useNewInvoiceFormCore } from './hooks/useNewInvoiceFormCore';
-import { useNewInvoiceInventory } from './hooks/useNewInvoiceInventory';
+import {
+  lineInventoryIdsKeyFromIds,
+  useInvoiceInventoryLoader,
+} from './hooks/useNewInvoiceInventory';
 import { useEditInvoiceHydration } from './hooks/useEditInvoiceHydration';
 import { useInvoiceDateValidation } from './hooks/useInvoiceDateValidation';
 import { useNewInvoiceNextNumber } from './hooks/useNewInvoiceNextNumber';
@@ -93,7 +96,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const saleStockValidationBonusRef = useRef<Record<number, number>>({});
   const [editHydrated, setEditHydrated] = useState(false);
 
-  const [inventory] = useNewInvoiceInventory(invoiceType);
+  const [inventory, setInventory] = useState<InventoryItem[] | undefined>();
   const [nextInvoiceNumber, setNextInvoiceNumber] = useNewInvoiceNextNumber(
     invoiceType,
     editInvoiceId == null,
@@ -131,6 +134,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     inventory,
     useSingleAccountRef,
     splitByItemTypeRef,
+    splitByItemType,
     saleStockValidationBonusRef,
   });
   const {
@@ -147,6 +151,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     resolutionTrigger,
     discountAccountExists,
   } = formCore;
+
+  const lineInventoryIdsKey = useMemo(
+    () =>
+      lineInventoryIdsKeyFromIds(
+        (watchedInvoiceItems ?? [])
+          .map((row) => toNumber(row?.inventoryId))
+          .filter((id) => id > 0),
+      ),
+    [watchedInvoiceItems],
+  );
+
+  useInvoiceInventoryLoader(invoiceType, lineInventoryIdsKey, setInventory);
 
   const { isDirty, errors: formErrors } = useFormState({
     control: form.control,
@@ -391,17 +407,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     },
     [form],
   );
-
-  // browser close/refresh should warn when the user has unsaved edits on an existing invoice //FIXME: untested on windows
-  useEffect(() => {
-    if (!isDirty || editInvoiceId == null) return undefined;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [isDirty, editInvoiceId]);
 
   const getInitialEntry = useCallback(
     () => ({

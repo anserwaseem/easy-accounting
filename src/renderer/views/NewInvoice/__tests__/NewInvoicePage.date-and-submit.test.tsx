@@ -60,10 +60,7 @@ jest.mock('../components/DateConfirmationDialog', () => ({
     ) : null,
 }));
 
-// stub out domain hooks so we only test date-confirm + submit flow
-jest.mock('../hooks/useNewInvoiceInventory', () => ({
-  useNewInvoiceInventory: () => [[{ id: 1, name: 'X', price: 1, quantity: 1 }]],
-}));
+// useInvoiceInventoryLoader uses getInventory from electron (stubbed in beforeEach)
 jest.mock('../hooks/useNewInvoiceNextNumber', () => ({
   useNewInvoiceNextNumber: () => [1001, jest.fn()],
 }));
@@ -181,6 +178,16 @@ describe('NewInvoicePage date confirmation + submit', () => {
       getLedger: jest.fn(async () => [
         { date: new Date('2026-03-01T00:00:00.000Z').toISOString() },
       ]),
+      getInventory: jest.fn(async () => [
+        {
+          id: 1,
+          name: 'X',
+          price: 10,
+          quantity: 5,
+          itemTypeId: 1,
+          itemTypeName: 'T',
+        },
+      ]),
       getPrimaryItemType: jest.fn(async () => 1),
     };
   });
@@ -192,8 +199,11 @@ describe('NewInvoicePage date confirmation + submit', () => {
       </MemoryRouter>,
     );
 
+    const saveAndPrint = await screen.findByRole('button', {
+      name: /save and print/i,
+    });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /save and print/i }));
+      fireEvent.click(saveAndPrint);
     });
     expect(await screen.findByTestId('date-modal')).toBeTruthy();
 

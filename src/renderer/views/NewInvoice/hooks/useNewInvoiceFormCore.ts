@@ -13,6 +13,8 @@ export interface UseNewInvoiceFormCoreParams {
   inventory: InventoryItem[] | undefined;
   useSingleAccountRef: React.MutableRefObject<boolean>;
   splitByItemTypeRef: React.MutableRefObject<boolean>;
+  /** drives resolutionTrigger when split toggles without line-item identity changes */
+  splitByItemType: boolean;
   /** sale edit: bonus quantities per inventory id for max-stock validation */
   saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
 }
@@ -24,6 +26,7 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     inventory,
     useSingleAccountRef,
     splitByItemTypeRef,
+    splitByItemType,
     saleStockValidationBonusRef,
   } = params;
 
@@ -60,8 +63,10 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
 
   const resolutionTrigger = useMemo(() => {
     const items = Array.isArray(watchedInvoiceItems) ? watchedInvoiceItems : [];
-    return `${items.length}-${items.map((i) => i?.inventoryId ?? 0).join(',')}`;
-  }, [watchedInvoiceItems]);
+    return `${splitByItemType ? 1 : 0}-${items.length}-${items
+      .map((i) => i?.inventoryId ?? 0)
+      .join(',')}`;
+  }, [watchedInvoiceItems, splitByItemType]);
 
   const watchedExtraDiscount = useWatch({
     control: form.control,

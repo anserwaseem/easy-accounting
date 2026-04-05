@@ -9,7 +9,10 @@ import type { Row } from '@tanstack/react-table';
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
-import { dateFormatOptions } from 'renderer/lib/constants';
+import {
+  dateFormatOptions,
+  datetimeFormatOptions,
+} from 'renderer/lib/constants';
 import {
   cn,
   defaultSortingFunctions,
@@ -189,6 +192,14 @@ const InvoicesPage: FC<InvoicesProps> = ({
                     <Badge
                       variant="destructive"
                       className="px-1.5 py-0 text-[10px] font-normal"
+                      title={
+                        row.original.returnedAt
+                          ? new Date(row.original.returnedAt).toLocaleString(
+                              'en-US',
+                              datetimeFormatOptions,
+                            )
+                          : undefined
+                      }
                     >
                       Returned
                     </Badge>
@@ -197,7 +208,14 @@ const InvoicesPage: FC<InvoicesProps> = ({
                     <Badge
                       variant="amber"
                       className="px-1.5 py-0 text-[10px] font-normal"
-                      title="Saved again after creation"
+                      title={
+                        row.original.updatedAt
+                          ? new Date(row.original.updatedAt).toLocaleString(
+                              'en-US',
+                              datetimeFormatOptions,
+                            )
+                          : undefined
+                      }
                     >
                       Edited
                     </Badge>
