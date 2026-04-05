@@ -235,6 +235,11 @@ const electronHandler = {
   returnSaleInvoice: (invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
     ipcRenderer.invoke('invoice:returnSale', invoiceId, payload),
 
+  returnPurchaseInvoice: (
+    invoiceId: number,
+    payload?: ReturnSaleInvoicePayload,
+  ) => ipcRenderer.invoke('invoice:returnPurchase', invoiceId, payload),
+
   getSaleInvoiceEditDateBounds: (
     invoiceId: number,
     accountId: number,

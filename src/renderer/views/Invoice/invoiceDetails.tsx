@@ -141,7 +141,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     };
   }, [invoice]);
 
-  const canEditOrReturnSale = useMemo(() => {
+  const canEditOrReturn = useMemo(() => {
     if (!invoice?.id || isJournalsLoading) return false;
     if (invoice.isReturned) return false;
     return relatedJournals.length > 0;
@@ -161,9 +161,14 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     setIsReturning(true);
     try {
       const trimmed = returnReasonDraft.trim();
-      await window.electron.returnSaleInvoice(invoice.id, {
+      const payload = {
         returnReason: trimmed.length > 0 ? trimmed : null,
-      });
+      };
+      if (invoiceType === InvoiceType.Sale) {
+        await window.electron.returnSaleInvoice(invoice.id, payload);
+      } else {
+        await window.electron.returnPurchaseInvoice(invoice.id, payload);
+      }
       toast({ description: 'Invoice returned.' });
       setReturnDialogOpen(false);
       setReturnReasonDraft('');
@@ -174,7 +179,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     } finally {
       setIsReturning(false);
     }
-  }, [invoice?.id, returnReasonDraft, reloadInvoice]);
+  }, [invoice?.id, invoiceType, returnReasonDraft, reloadInvoice]);
 
   const customerDisplayName = useMemo(
     () =>
@@ -283,9 +288,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 </p>
               </div>
             ) : null}
-            {invoiceType === InvoiceType.Sale &&
-            invoice?.id != null &&
-            canEditOrReturnSale ? (
+            {canEditOrReturn ? (
               <Button
                 type="button"
                 variant="outline"
@@ -311,7 +314,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 {invoice?.isReturned ? (
                   <Badge variant="destructive">Returned</Badge>
                 ) : null}
-                {invoice?.id != null && canEditOrReturnSale ? (
+                {canEditOrReturn ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -320,7 +323,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                     onClick={() =>
                       navigate(
                         `/${invoiceType.toLowerCase()}/invoices/${
-                          invoice.id
+                          invoice!.id
                         }/edit`,
                       )
                     }
@@ -603,11 +606,15 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       <Dialog open={returnDialogOpen} onOpenChange={setReturnDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Return this sale invoice?</DialogTitle>
+            <DialogTitle>
+              {invoiceType === InvoiceType.Sale
+                ? 'Return this sale invoice?'
+                : 'Return this purchase invoice?'}
+            </DialogTitle>
             <DialogDescription>
-              This removes the linked journals and ledger postings, restocks
-              inventory, and marks the invoice as returned. This cannot be
-              undone.
+              {invoiceType === InvoiceType.Sale
+                ? 'This removes the linked journals and ledger postings, restocks inventory, and marks the invoice as returned. This cannot be undone.'
+                : 'This removes the linked journals and ledger postings, reverses the inventory quantities from this purchase, and marks the invoice as returned. This cannot be undone.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">

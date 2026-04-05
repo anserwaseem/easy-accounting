@@ -325,7 +325,7 @@ export type InvoiceView = Prettify<
   }
 >;
 
-/** optional note stored when voiding a sale invoice via return */
+/** optional note stored when voiding a sale or purchase invoice via return */
 export type ReturnSaleInvoicePayload = {
   returnReason?: string | null;
 };

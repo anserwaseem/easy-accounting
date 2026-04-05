@@ -681,12 +681,34 @@ export class InvoiceService {
     options?: ReturnSaleInvoicePayload,
   ): void {
     this.db.transaction(() => {
-      this.returnSaleInvoiceWithoutTransaction(invoiceId, options);
+      this.voidInvoiceReturnWithoutTransaction(
+        invoiceId,
+        InvoiceType.Sale,
+        options,
+      );
     })();
   }
 
-  private returnSaleInvoiceWithoutTransaction(
+  /**
+   * voids a purchase invoice: removes linked journals and ledger lines, reverses inventory
+   * (stock added on purchase is removed), and marks the invoice as returned.
+   */
+  returnPurchaseInvoice(
     invoiceId: number,
+    options?: ReturnSaleInvoicePayload,
+  ): void {
+    this.db.transaction(() => {
+      this.voidInvoiceReturnWithoutTransaction(
+        invoiceId,
+        InvoiceType.Purchase,
+        options,
+      );
+    })();
+  }
+
+  private voidInvoiceReturnWithoutTransaction(
+    invoiceId: number,
+    expectedType: InvoiceType,
     options?: ReturnSaleInvoicePayload,
   ): void {
     const row = this.stmGetInvoiceForReturn.get({
@@ -696,8 +718,12 @@ export class InvoiceService {
       raise('Invoice not found.');
     }
     const header = row as { invoiceType: InvoiceType; isReturned: number };
-    if (header.invoiceType !== InvoiceType.Sale) {
-      raise('Only sale invoices can be returned.');
+    if (header.invoiceType !== expectedType) {
+      raise(
+        expectedType === InvoiceType.Sale
+          ? 'Only sale invoices can be returned.'
+          : 'Only purchase invoices can be returned.',
+      );
     }
     if (header.isReturned === 1) {
       raise('This invoice has already been returned.');
@@ -715,8 +741,13 @@ export class InvoiceService {
       invoiceId: cast(invoiceId),
     }) as { inventoryId: number; quantity: number }[];
 
+    const inventoryDelta = expectedType === InvoiceType.Sale ? 1 : -1;
+
     items.forEach((item) => {
-      this.stmUpdateInventoryItem.run(item.quantity, item.inventoryId);
+      this.stmUpdateInventoryItem.run(
+        inventoryDelta * item.quantity,
+        item.inventoryId,
+      );
     });
 
     const trimmed = options?.returnReason?.trim();

@@ -1336,4 +1336,118 @@ describe('InvoiceService.insertInvoice', () => {
 
     expect(() => invoiceService.returnSaleInvoice(invoiceId)).toThrow();
   });
+
+  it('returnPurchaseInvoice: removes journals, reduces inventory to pre-purchase level, stores reason, marks returned', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 2,
+        discount: 0,
+        price: 101,
+        discountedPrice: 0,
+      },
+    ];
+    const uiTotal = 202;
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-06-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: 93001,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: uiTotal,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+
+    const qtyAfterPurchase = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+    expect(qtyAfterPurchase).toBe(52);
+
+    const journalCountBefore = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountBefore).toBeGreaterThan(0);
+
+    invoiceService.returnPurchaseInvoice(invoiceId, {
+      returnReason: '  defective stock  ',
+    });
+
+    const journalCountAfter = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountAfter).toBe(0);
+
+    const qtyAfterReturn = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+    expect(qtyAfterReturn).toBe(50);
+
+    const returnedRow = db
+      .prepare(`SELECT isReturned, returnReason FROM invoices WHERE id = ?`)
+      .get([invoiceId]) as { isReturned: number; returnReason: string | null };
+    expect(returnedRow.isReturned).toBe(1);
+    expect(returnedRow.returnReason).toBe('defective stock');
+
+    const view = invoiceService.getInvoice(invoiceId);
+    expect(view.isReturned).toBe(true);
+    expect(view.returnReason).toBe('defective stock');
+
+    expect(() => invoiceService.returnPurchaseInvoice(invoiceId)).toThrow();
+  });
+
+  it('returnPurchaseInvoice: throws when invoice is a sale', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 1,
+        discount: 0,
+        price: 101,
+        discountedPrice: 101,
+      },
+    ];
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-06-02T12:00:00.000Z').toISOString(),
+      invoiceNumber: 94001,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 101,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      invoice,
+    );
+    expect(() => invoiceService.returnPurchaseInvoice(invoiceId, {})).toThrow();
+  });
 });

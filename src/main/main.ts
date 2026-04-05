@@ -425,6 +425,11 @@ app
         invoiceService.returnSaleInvoice(invoiceId, payload),
     );
     ipcMain.handle(
+      'invoice:returnPurchase',
+      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
+        invoiceService.returnPurchaseInvoice(invoiceId, payload),
+    );
+    ipcMain.handle(
       'invoice:getSaleEditDateBounds',
       (_, invoiceId: number, accountId: number, invoiceNumber: number) =>
         invoiceService.getSaleInvoiceEditDateBounds(
