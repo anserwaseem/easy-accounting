@@ -46,6 +46,10 @@ import {
   checkParsedItemsAvailability,
   parseInvoiceItems,
 } from '@/renderer/lib/parser';
+import {
+  ConfirmDialog,
+  type ConfirmDialogConfig,
+} from '@/renderer/components/ConfirmDialog';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
 import {
@@ -117,6 +121,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
+  const [pendingConfirm, setPendingConfirm] =
+    useState<ConfirmDialogConfig | null>(null);
   const dateConfirmedInModalRef = useRef(false);
   const openPrintAfterSaveRef = useRef(false);
 
@@ -371,11 +377,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             form.getValues('accountMapping.multipleAccountIds'),
           )
         ) {
-          // eslint-disable-next-line no-alert -- split-off guard v1 per product plan
-          const ok = window.confirm(
-            'Turning off split will save all line items to the single customer account above. Per-row typed ledgers will not be used. Continue?',
-          );
-          if (!ok) return;
+          setPendingConfirm({
+            title: 'Turn off split ledger?',
+            description:
+              'Turning off split will save all line items to the single customer account above. Per-row typed ledgers will not be used.',
+            confirmLabel: 'Continue',
+            onConfirm: () => setSplitByItemType(false),
+          });
+          return;
         }
         setSplitByItemType(false);
       }
@@ -1108,11 +1117,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               form.getValues('accountMapping.multipleAccountIds'),
             )
           ) {
-            // eslint-disable-next-line no-alert -- same guard as split-off; v1 confirm
-            const ok = window.confirm(
-              'Switching to multiple customers will drop per-row ledger accounts from split-by-type. Assign customers per section instead. Continue?',
-            );
-            if (!ok) return;
+            setPendingConfirm({
+              title: 'Switch to multiple customers?',
+              description:
+                'Switching to multiple customers will drop per-row ledger accounts from split-by-type. Assign customers per section instead.',
+              confirmLabel: 'Continue',
+              onConfirm: () => onSingleAccountToggle(false),
+            });
+            return;
           }
         }
       }
@@ -1235,6 +1247,21 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         }}
       />
 
+      <ConfirmDialog
+        open={pendingConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingConfirm(null);
+        }}
+        title={pendingConfirm?.title ?? ''}
+        description={pendingConfirm?.description ?? ''}
+        confirmLabel={pendingConfirm?.confirmLabel}
+        cancelLabel={pendingConfirm?.cancelLabel}
+        confirmVariant={pendingConfirm?.confirmVariant}
+        onConfirm={() => {
+          pendingConfirm?.onConfirm();
+        }}
+      />
+
       <div className="py-1 flex flex-col gap-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
@@ -1244,13 +1271,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  if (
-                    isDirty &&
-                    // eslint-disable-next-line no-alert
-                    !window.confirm(
-                      'Discard unsaved changes and return to the invoice?',
-                    )
-                  ) {
+                  if (isDirty) {
+                    setPendingConfirm({
+                      title: 'Discard unsaved changes?',
+                      description:
+                        'Discard unsaved changes and return to the invoice?',
+                      confirmLabel: 'Discard',
+                      confirmVariant: 'destructive',
+                      onConfirm: () =>
+                        navigate(
+                          `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
+                        ),
+                    });
                     return;
                   }
                   navigate(
@@ -1828,27 +1860,32 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   variant="secondary"
                   className="min-h-[44px]"
                   onClick={() => {
-                    if (
-                      isDirty &&
-                      // eslint-disable-next-line no-alert
-                      !window.confirm(
-                        'Discard unsaved changes and leave this screen?',
-                      )
-                    ) {
+                    const leave = () => {
+                      form.reset(defaultFormValues);
+                      setIsDateExplicitlySet(false);
+                      setSections([]);
+                      setActiveSectionId(null);
+                      setRowSectionMap({});
+                      if (editInvoiceId != null) {
+                        navigate(
+                          `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
+                        );
+                      } else {
+                        navigate(-1);
+                      }
+                    };
+                    if (isDirty) {
+                      setPendingConfirm({
+                        title: 'Leave this screen?',
+                        description:
+                          'Discard unsaved changes and leave this screen?',
+                        confirmLabel: 'Discard',
+                        confirmVariant: 'destructive',
+                        onConfirm: leave,
+                      });
                       return;
                     }
-                    form.reset(defaultFormValues);
-                    setIsDateExplicitlySet(false);
-                    setSections([]);
-                    setActiveSectionId(null);
-                    setRowSectionMap({});
-                    if (editInvoiceId != null) {
-                      navigate(
-                        `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
-                      );
-                    } else {
-                      navigate(-1);
-                    }
+                    leave();
                   }}
                 >
                   Cancel
