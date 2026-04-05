@@ -1441,6 +1441,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button
+                                        type="button"
                                         variant="outline"
                                         className={cn(
                                           'w-full justify-start text-left font-normal min-w-0',
@@ -1582,6 +1583,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button
+                                        type="button"
                                         variant="outline"
                                         className={cn(
                                           'w-full justify-start text-left font-normal min-w-0',
@@ -1661,6 +1663,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button
+                                      type="button"
                                       variant="outline"
                                       className={cn(
                                         'w-full justify-start text-left font-normal',
@@ -1807,6 +1810,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   }`}
                 >
                   <Button
+                    type="button"
                     variant="outline"
                     className="w-full"
                     onClick={() =>
@@ -1857,6 +1861,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 </div>
 
                 <Button
+                  type="button"
                   variant="secondary"
                   className="min-h-[44px]"
                   onClick={() => {
