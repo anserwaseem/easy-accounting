@@ -4,7 +4,7 @@ import {
   DialogTrigger,
 } from '@/renderer/shad/ui/dialog';
 import { isNil, toNumber } from 'lodash';
-import { File, Loader2, Pencil, Plus } from 'lucide-react';
+import { File, Loader2, Plus } from 'lucide-react';
 import type { Row } from '@tanstack/react-table';
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
@@ -15,12 +15,15 @@ import {
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
+import { isInvoiceEditedSnapshot } from '@/renderer/lib/invoiceUtils';
+import { Badge } from 'renderer/shad/ui/badge';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import {
   DateRangePickerWithPresets,
   type DateRange,
 } from 'renderer/shad/ui/datePicker';
+import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { DateHeader } from 'renderer/components/common/DateHeader';
 import type { HasMiniView, InvoicesView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
@@ -46,12 +49,9 @@ const InvoiceEditActionCell: FC<InvoiceEditActionCellProps> = ({
   navigate,
   isPreviewMode,
 }) => (
-  <Button
-    type="button"
-    variant="ghost"
-    size="icon"
-    className="h-8 w-8"
+  <EditActionButton
     title="Edit invoice"
+    aria-label="Edit invoice"
     onClick={(e) => {
       e.stopPropagation();
       if (isPreviewMode) return;
@@ -59,9 +59,7 @@ const InvoiceEditActionCell: FC<InvoiceEditActionCellProps> = ({
         `/${invoiceType.toLowerCase()}/invoices/${row.original.id}/edit`,
       );
     }}
-  >
-    <Pencil className="h-4 w-4" />
-  </Button>
+  />
 );
 
 const createInvoiceEditColumn = (
@@ -70,7 +68,7 @@ const createInvoiceEditColumn = (
   isPreviewMode: boolean,
 ): ColumnDef<InvoicesView> => ({
   id: 'edit',
-  header: '',
+  header: 'Edit',
   size: 56,
   onClick: () => undefined,
   cell({ row }) {
@@ -128,7 +126,19 @@ const InvoicesPage: FC<InvoicesProps> = ({
                           dateFormatOptions,
                         )}
                       </p>
-                      <p className="font-extrabold">{invoice.invoiceNumber}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-extrabold">
+                          {invoice.invoiceNumber}
+                        </p>
+                        {isInvoiceEditedSnapshot(invoice) ? (
+                          <Badge
+                            variant="amber"
+                            className="text-[10px] font-normal"
+                          >
+                            Edited
+                          </Badge>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="flex flex-col text-end">
                       <p className="text-muted-foreground">
@@ -153,14 +163,29 @@ const InvoicesPage: FC<InvoicesProps> = ({
             },
           ]
         : [
+            /* eslint-disable react/no-unstable-nested-components -- tanstack column cell factories */
             {
               accessorKey: 'invoiceNumber',
-              header: <p className="whitespace-nowrap">Invoice #</p>,
+              header: 'Invoice #',
+              cell: ({ row }) => (
+                <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
+                  {row.original.invoiceNumber}
+                  {isInvoiceEditedSnapshot(row.original) ? (
+                    <Badge
+                      variant="amber"
+                      className="px-1.5 py-0 text-[10px] font-normal"
+                      title="Saved again after creation"
+                    >
+                      Edited
+                    </Badge>
+                  ) : null}
+                </span>
+              ),
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 100,
+              size: 96,
             },
             {
               accessorKey: 'date',
@@ -174,7 +199,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 100,
+              size: 108,
             },
             {
               accessorKey: 'accountName',
@@ -183,7 +208,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 360,
+              size: 260,
             },
             {
               accessorKey: 'accountCode',
@@ -192,7 +217,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 200,
+              size: 100,
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -205,7 +230,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                         : navigateToInvoice(row.original.id),
                     cell: ({ getValue }) =>
                       getFormattedCurrency(toNumber(getValue())),
-                    size: 150,
+                    size: 128,
                   },
                   {
                     accessorKey: 'biltyNumber',
@@ -214,7 +239,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                       propInvoices
                         ? setPreviewInvoiceId(row.original.invoiceNumber)
                         : navigateToInvoice(row.original.id),
-                    size: 80,
+                    size: 72,
                   },
                   {
                     accessorKey: 'cartons',
@@ -223,7 +248,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                       propInvoices
                         ? setPreviewInvoiceId(row.original.invoiceNumber)
                         : navigateToInvoice(row.original.id),
-                    size: 40,
+                    size: 56,
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),
@@ -232,6 +257,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
               navigate,
               propInvoices != null,
             ),
+            /* eslint-enable react/no-unstable-nested-components */
           ]) as ColumnDef<InvoicesView>[]),
     ],
     [invoiceType, navigate, navigateToInvoice, propInvoices, isMini],

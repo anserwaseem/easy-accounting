@@ -1024,6 +1024,8 @@ export class InvoiceService {
         i.invoiceType,
         i.date,
         i.totalAmount,
+        i.createdAt,
+        i.updatedAt,
         COALESCE(
           NULLIF(GROUP_CONCAT(DISTINCT a2.code), ''),
           a.code
@@ -1039,7 +1041,7 @@ export class InvoiceService {
       LEFT JOIN invoice_items ii ON i.id = ii.invoiceId AND ii.accountId IS NOT NULL
       LEFT JOIN account a2 ON ii.accountId = a2.id
       WHERE i.invoiceType = ?
-      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.code, a.name, i.biltyNumber, i.cartons
+      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, i.createdAt, i.updatedAt, a.code, a.name, i.biltyNumber, i.cartons
     `);
 
     this.stmGetInvoice = this.db.prepare(`

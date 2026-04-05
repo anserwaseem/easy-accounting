@@ -1,4 +1,4 @@
-import { PenBox, Copy } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -7,6 +7,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from 'renderer/shad/ui/dialog';
+import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
 import {
@@ -160,7 +161,10 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <PenBox size={16} cursor="pointer" className="py-0" />
+          <EditActionButton
+            aria-label="Account actions"
+            title="Account actions"
+          />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setIsOpen(true)}>

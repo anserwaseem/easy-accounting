@@ -36,11 +36,12 @@ export interface UseNewInvoiceResolutionParams {
   onResolved?: () => void;
 }
 
-/** when split by item type is on, resolves each row to party or suffixed account and sets multipleAccountIds + resolvedRowLabels */
+/** when split by item type is on, resolves each row to party or suffixed account and sets multipleAccountIds + resolvedRowLabels + resolvedRowCodes */
 export function useNewInvoiceResolution(
   params: UseNewInvoiceResolutionParams,
 ): {
   resolvedRowLabels: string[];
+  resolvedRowCodes: string[];
   resolutionFallbacks: ResolutionFallback[];
 } {
   const {
@@ -56,6 +57,7 @@ export function useNewInvoiceResolution(
   } = params;
 
   const [resolvedRowLabels, setResolvedRowLabels] = useState<string[]>([]);
+  const [resolvedRowCodes, setResolvedRowCodes] = useState<string[]>([]);
   const [resolutionFallbacks, setResolutionFallbacks] = useState<
     ResolutionFallback[]
   >([]);
@@ -70,12 +72,14 @@ export function useNewInvoiceResolution(
     ) {
       setResolutionFallbacks([]);
       setResolvedRowLabels([]);
+      setResolvedRowCodes([]);
       return undefined;
     }
     const singleId = toNumber(form.getValues('accountMapping.singleAccountId'));
     if (singleId <= 0) {
       setResolutionFallbacks([]);
       setResolvedRowLabels([]);
+      setResolvedRowCodes([]);
       return undefined;
     }
 
@@ -105,6 +109,7 @@ export function useNewInvoiceResolution(
         if (!cancelled) {
           setResolutionFallbacks([]);
           setResolvedRowLabels([]);
+          setResolvedRowCodes([]);
         }
         return;
       }
@@ -147,10 +152,14 @@ export function useNewInvoiceResolution(
       const lookupResults = await Promise.all(
         needLookup.map(async (item) => {
           if (!item.suffixedName) {
+            const primaryCode = trim(
+              toString(headerAccount?.code ?? partyCode ?? ''),
+            );
             return {
               rowIndex: item.rowIndex,
               accountId: singleId,
               label: primaryRowLabel,
+              code: primaryCode,
               fallback: undefined as
                 | { expectedSuffixedName: string }
                 | undefined,
@@ -185,6 +194,7 @@ export function useNewInvoiceResolution(
               rowIndex: item.rowIndex,
               accountId: resolved.id,
               label: resolved.name ?? item.suffixedName,
+              code: trim(toString(resolved.code ?? '')),
               fallback: undefined as
                 | { expectedSuffixedName: string }
                 | undefined,
@@ -196,6 +206,10 @@ export function useNewInvoiceResolution(
             label: `${partyName} (expected ${
               expectedCode.length > 0 ? expectedCode : item.suffixedName
             } – not found)`,
+            code:
+              expectedCode.length > 0
+                ? expectedCode
+                : trim(toString(partyCode)),
             fallback: {
               expectedSuffixedName:
                 expectedCode.length > 0 ? expectedCode : item.suffixedName,
@@ -208,10 +222,12 @@ export function useNewInvoiceResolution(
 
       const accountIds: number[] = new Array(rows.length);
       const labels: string[] = new Array(rows.length);
+      const codes: string[] = new Array(rows.length);
       const fallbacks: ResolutionFallback[] = [];
       lookupResults.forEach((r) => {
         accountIds[r.rowIndex] = r.accountId;
         labels[r.rowIndex] = r.label;
+        codes[r.rowIndex] = r.code;
         if (r.fallback) fallbacks.push({ rowIndex: r.rowIndex, ...r.fallback });
       });
 
@@ -222,6 +238,7 @@ export function useNewInvoiceResolution(
       );
       setResolutionFallbacks(fallbacks);
       setResolvedRowLabels(labels);
+      setResolvedRowCodes(codes);
       onResolved?.();
     };
 
@@ -242,5 +259,5 @@ export function useNewInvoiceResolution(
     watchedSingleAccountId,
   ]);
 
-  return { resolvedRowLabels, resolutionFallbacks };
+  return { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks };
 }

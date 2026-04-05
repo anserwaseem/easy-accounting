@@ -121,3 +121,16 @@ export const groupInvoiceItemsByType = (
   });
   return sections;
 };
+
+/** true when persisted row was modified after creation (list + details edited indicator). */
+export const isInvoiceEditedSnapshot = (inv: {
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}): boolean => {
+  const c = inv.createdAt;
+  const u = inv.updatedAt;
+  if (c == null || u == null) return false;
+  const ct = new Date(c).getTime();
+  const ut = new Date(u).getTime();
+  return Number.isFinite(ct) && Number.isFinite(ut) && ut > ct;
+};

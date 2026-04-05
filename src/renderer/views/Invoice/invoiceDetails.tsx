@@ -8,6 +8,7 @@ import {
 import {
   computeSectionTotals,
   groupInvoiceItemsByType,
+  isInvoiceEditedSnapshot,
   stripItemTypeSuffixFromAccountName,
 } from '@/renderer/lib/invoiceUtils';
 import {
@@ -204,7 +205,25 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   return (
     <div>
       <div className="w-full">
-        <h1 className="text-4xl font-light">{`${invoiceType.toUpperCase()} INVOICE`}</h1>
+        <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <h1 className="min-w-0 shrink text-4xl font-light">{`${invoiceType.toUpperCase()} INVOICE`}</h1>
+          {invoice && isInvoiceEditedSnapshot(invoice) && invoice.updatedAt ? (
+            <div
+              className="flex gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm shadow-sm md:max-w-sm md:items-end md:text-right"
+              role="status"
+            >
+              <Badge variant="amber" className="w-fit">
+                Last edited
+              </Badge>
+              <p className="mt-1 text-muted-foreground">
+                {new Date(invoice.updatedAt).toLocaleString(
+                  'en-US',
+                  datetimeFormatOptions,
+                )}
+              </p>
+            </div>
+          ) : null}
+        </div>
         <div className="grid grid-cols-2">
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-8 items-center">
@@ -270,31 +289,20 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                     <p>{invoice.cartons}</p>
                   </div>
                 )}
-                {invoice?.createdAt !== invoice?.updatedAt &&
-                  invoice?.updatedAt && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      <span className="font-medium text-foreground">
-                        Edited
-                      </span>
-                      {' · '}
-                      {new Date(invoice.updatedAt).toLocaleString(
-                        'en-US',
-                        datetimeFormatOptions,
-                      )}
-                    </p>
-                  )}
               </>
             ) : null}
             {invoiceType === InvoiceType.Sale ? (
               <>
-                <div className="flex gap-8">
-                  <p className="font-medium text-md w-[160px]">
-                    Extra Discount:
-                  </p>
-                  <p>
-                    {getFormattedCurrency(toNumber(invoice?.extraDiscount))}
-                  </p>
-                </div>
+                {toNumber(invoice?.extraDiscount) > 0 ? (
+                  <div className="flex gap-8">
+                    <p className="font-medium text-md w-[160px]">
+                      Extra Discount:
+                    </p>
+                    <p>
+                      {getFormattedCurrency(toNumber(invoice?.extraDiscount))}
+                    </p>
+                  </div>
+                ) : null}
                 <div className="flex gap-8">
                   <p className="font-medium text-md w-[160px] self-center">
                     Amount:

@@ -12,6 +12,7 @@ import {
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
+import { Badge } from 'renderer/shad/ui/badge';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { InvoiceType } from 'types';
 import type { ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -26,6 +27,7 @@ interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
   inventory: InventoryItem[] | undefined;
   invoiceType: InvoiceType;
   resolvedRowLabels: string[];
+  resolvedRowCodes: string[];
   splitByItemType: boolean;
   useSingleAccount: boolean;
   enableCumulativeDiscount: boolean;
@@ -74,6 +76,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     inventory,
     invoiceType,
     resolvedRowLabels,
+    resolvedRowCodes,
     splitByItemType,
     useSingleAccount,
     enableCumulativeDiscount,
@@ -151,8 +154,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       },
       {
         header: 'Quantity',
-        size: 75,
-        minSize: 60,
+        size: 150,
+        minSize: 120,
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -349,11 +352,25 @@ export function useNewInvoiceColumns<T extends FieldValues>(
           ? [
               {
                 header: 'Account',
-                cell: ({ row }) => (
-                  <span className="text-sm text-muted-foreground">
-                    {resolvedRowLabels[row.index] ?? '—'}
-                  </span>
-                ),
+                cell: ({ row }) => {
+                  const label = resolvedRowLabels[row.index] ?? '—';
+                  const code = resolvedRowCodes[row.index]?.trim();
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        {label}
+                      </span>
+                      {code ? (
+                        <Badge
+                          variant="secondary"
+                          className="shrink-0 font-mono text-xs"
+                        >
+                          {code}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  );
+                },
               },
             ]
           : [];
@@ -369,6 +386,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     inventory,
     invoiceType,
     resolvedRowLabels,
+    resolvedRowCodes,
     splitByItemType,
     useSingleAccount,
     enableCumulativeDiscount,

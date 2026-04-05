@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PenBox } from 'lucide-react';
+import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Button } from 'renderer/shad/ui/button';
 import { Input } from 'renderer/shad/ui/input';
 import { Label } from 'renderer/shad/ui/label';
@@ -103,7 +103,7 @@ export const EditJournalFieldsDialog: React.FC<
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <PenBox size={16} cursor="pointer" className="py-0" />
+        <EditActionButton aria-label="Edit journal fields" />
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

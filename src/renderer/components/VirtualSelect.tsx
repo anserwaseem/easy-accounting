@@ -1,7 +1,7 @@
 import { debounce, sortBy, toString } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Virtuoso } from 'react-virtuoso';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
   Select,
@@ -60,6 +60,15 @@ const VirtualSelect = <T extends BaseOption = Account>({
   );
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+
+  const scrollVirtuosoToTop = useCallback(() => {
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start' });
+      });
+    });
+  }, []);
 
   // auto focus the search input when the select dropdown is opened
   useEffect(() => {
@@ -130,12 +139,17 @@ const VirtualSelect = <T extends BaseOption = Account>({
 
   const isSearching = filteredSearchValue.trim().length > 0;
 
-  const toggleSectionCollapsed = useCallback((label: string) => {
-    setCollapsedSections((prev) => ({
-      ...prev,
-      [label]: !prev[label],
-    }));
-  }, []);
+  const toggleSectionCollapsed = useCallback(
+    (label: string) => {
+      setCollapsedSections((prev) => ({
+        ...prev,
+        [label]: !prev[label],
+      }));
+      // list height changes; reset scroll so user is not stuck mid-list after collapse/expand
+      scrollVirtuosoToTop();
+    },
+    [scrollVirtuosoToTop],
+  );
 
   const defaultRenderSelectItem = useCallback(
     (item: T) => (
@@ -232,7 +246,8 @@ const VirtualSelect = <T extends BaseOption = Account>({
 
   const handleExpandAllSections = useCallback(() => {
     setCollapsedSections({});
-  }, []);
+    scrollVirtuosoToTop();
+  }, [scrollVirtuosoToTop]);
 
   const handleCollapseAllSections = useCallback(() => {
     if (!sortedGroupLabels.length) return;
@@ -242,7 +257,8 @@ const VirtualSelect = <T extends BaseOption = Account>({
         return acc;
       }, {}),
     );
-  }, [sortedGroupLabels]);
+    scrollVirtuosoToTop();
+  }, [scrollVirtuosoToTop, sortedGroupLabels]);
 
   const sectionHeaderClassName = useMemo(
     () =>
@@ -487,6 +503,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
           )}
           {hasOptions ? (
             <Virtuoso
+              ref={virtuosoRef}
               data={virtuosoData}
               style={{ height: listWithSections ? 368 : 400 }}
               itemContent={listContentRenderer}

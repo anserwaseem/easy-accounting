@@ -11,7 +11,7 @@ export interface CustomerSection {
 interface CustomerSectionsBlockProps {
   sections: CustomerSection[];
   activeSectionId: string | null;
-  parties: Array<{ id: number; name?: string }>;
+  parties: Array<{ id: number; name?: string; code?: string | number }>;
   getSectionLabel: (section: CustomerSection, index: number) => string;
   onAddSection: () => void;
   onRemoveSection: (sectionId: string) => void;

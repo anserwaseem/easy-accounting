@@ -205,17 +205,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     recalculateAutoDiscountsRef.current();
   }, [recalculateAutoDiscountsRef]);
 
-  const { resolvedRowLabels, resolutionFallbacks } = useNewInvoiceResolution({
-    invoiceType,
-    useSingleAccount,
-    splitByItemType,
-    form: form as unknown as UseFormReturn<Record<string, unknown>>,
-    parties,
-    inventory,
-    resolutionTrigger,
-    watchedSingleAccountId,
-    onResolved,
-  });
+  const { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks } =
+    useNewInvoiceResolution({
+      invoiceType,
+      useSingleAccount,
+      splitByItemType,
+      form: form as unknown as UseFormReturn<Record<string, unknown>>,
+      parties,
+      inventory,
+      resolutionTrigger,
+      watchedSingleAccountId,
+      onResolved,
+    });
 
   // sale split-by-type needs a primary item type for typed ledgers; warn once if it is missing and reset flags when mode is off
   useEffect(() => {
@@ -677,6 +678,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       inventory,
       invoiceType,
       resolvedRowLabels,
+      resolvedRowCodes,
       splitByItemType,
       useSingleAccount,
       enableCumulativeDiscount,
@@ -701,6 +703,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       inventory,
       invoiceType,
       resolvedRowLabels,
+      resolvedRowCodes,
       splitByItemType,
       useSingleAccount,
       enableCumulativeDiscount,
@@ -827,77 +830,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     values: z.infer<typeof formSchema>,
   ): Promise<number | undefined> => {
     try {
-      const showPostSaveToast = (savedInvoiceId: number) => {
-        const getLedgerAccountId = (): number | null => {
-          const sid = toNumber(values.accountMapping.singleAccountId);
-          if (sid > 0) return sid;
-          const ids = (values.accountMapping.multipleAccountIds ?? []).filter(
-            (id): id is number => typeof id === 'number' && id > 0,
-          );
-          return ids[0] != null ? toNumber(ids[0]) : null;
-        };
-
+      const showPostSaveToast = () => {
         toast({
           variant: 'success',
-          description: (
-            <div className="flex flex-col gap-2">
-              <p>{`${invoiceType} invoice ${
-                editInvoiceId != null ? 'updated' : 'saved successfully'
-              }`}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white text-green-700 hover:bg-white/90 hover:text-green-800"
-                  onClick={() =>
-                    navigate(
-                      `/${invoiceType.toLowerCase()}/invoices/${savedInvoiceId}`,
-                    )
-                  }
-                >
-                  Open invoice
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white text-green-700 hover:bg-white/90 hover:text-green-800"
-                  onClick={async () => {
-                    const journals =
-                      await window.electron.getJournalsByInvoiceId(
-                        savedInvoiceId,
-                      );
-                    const firstId = toNumber(
-                      (journals as { id?: number }[])?.[0]?.id,
-                    );
-                    if (firstId > 0) {
-                      navigate(`/journals/${firstId}`);
-                      return;
-                    }
-                    navigate(
-                      `/${invoiceType.toLowerCase()}/invoices/${savedInvoiceId}`,
-                    );
-                  }}
-                >
-                  View journals
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white text-green-700 hover:bg-white/90 hover:text-green-800"
-                  onClick={() => {
-                    const ledgerAccountId = getLedgerAccountId();
-                    if (ledgerAccountId == null || ledgerAccountId <= 0) return;
-                    navigate(`/accounts/${ledgerAccountId}`);
-                  }}
-                >
-                  View ledger
-                </Button>
-              </div>
-            </div>
-          ),
+          description: `${invoiceType} invoice ${
+            editInvoiceId != null ? 'updated' : 'saved successfully'
+          }`,
         });
       };
 
@@ -911,7 +849,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           editInvoiceId,
           invoice,
         );
-        showPostSaveToast(editInvoiceId);
+        showPostSaveToast();
         return editInvoiceId;
       }
 
@@ -932,7 +870,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         setActiveSectionId(null);
         setRowSectionMap({});
         setManualDiscountRows({});
-        if (result.invoiceId > 0) showPostSaveToast(result.invoiceId);
+        if (result.invoiceId > 0) showPostSaveToast();
         return result.invoiceId > 0 ? result.invoiceId : undefined;
       }
       raise(`Failed to save ${invoiceType} invoice`);
@@ -970,18 +908,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       dateConfirmedInModalRef.current = false;
       setIsDateExplicitlySet(true);
       const invoiceId = await submitInvoice(values);
-      if (editInvoiceId != null && invoiceId != null) {
+      if (invoiceId != null) {
         if (openPrintAfterSaveRef.current) {
           openPrintAfterSaveRef.current = false;
           navigate(`/invoices/${invoiceId}/print`);
           return;
         }
         navigate(`/${invoiceType.toLowerCase()}/invoices/${invoiceId}`);
-        return;
-      }
-      if (openPrintAfterSaveRef.current && invoiceId != null) {
-        openPrintAfterSaveRef.current = false;
-        navigate(`/invoices/${invoiceId}/print`);
       }
       return;
     }
@@ -992,19 +925,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     }
 
     const invoiceId = await submitInvoice(values);
-    if (editInvoiceId != null && invoiceId != null) {
-      if (openPrintAfterSaveRef.current) {
-        openPrintAfterSaveRef.current = false;
-        navigate(`/invoices/${invoiceId}/print`);
-        return;
-      }
-      navigate(`/${invoiceType.toLowerCase()}/invoices/${invoiceId}`);
-      return;
-    }
-    if (openPrintAfterSaveRef.current && invoiceId != null) {
+    if (invoiceId == null) return;
+
+    if (openPrintAfterSaveRef.current) {
       openPrintAfterSaveRef.current = false;
       navigate(`/invoices/${invoiceId}/print`);
+      return;
     }
+    navigate(`/${invoiceType.toLowerCase()}/invoices/${invoiceId}`);
   };
 
   const uploadInvoiceItems = async (e: React.ChangeEvent<HTMLInputElement>) => {

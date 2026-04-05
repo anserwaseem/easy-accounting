@@ -336,7 +336,10 @@ const DataTable = <TData, TValue>({
 
   if (virtual) {
     return (
-      <div ref={containerRef} className="rounded-md border">
+      <div
+        ref={containerRef}
+        className="rounded-md border w-full min-w-0 max-w-full overflow-x-auto"
+      >
         {searchFields?.length ? (
           <div className="search-container border-b">
             <div
