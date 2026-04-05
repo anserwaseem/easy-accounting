@@ -2,6 +2,7 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import type {
+  Account,
   UserCredentials,
   BalanceSheet,
   InsertAccount,
@@ -304,6 +305,8 @@ const electronHandler = {
    * @example const accounts = getAccounts();
    */
   getAccounts: () => ipcRenderer.invoke('account:getAll'),
+  getAccountsByIds: (ids: number[]) =>
+    ipcRenderer.invoke('account:getByIds', ids) as Promise<Account[]>,
   getAccountByName: (name: string) =>
     ipcRenderer.invoke('account:getByName', name),
   getAccountByNameAndCode: (name: string, code?: string) =>
@@ -391,6 +394,11 @@ const electronHandler = {
       balance: number;
       balanceType: BalanceType;
     } | null>,
+  getLedgerBalancesForAccountIds: (accountIds: number[]) =>
+    ipcRenderer.invoke(
+      'ledger:getBalancesForAccountIds',
+      accountIds,
+    ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
   /**
    * Get the next journal id
    * @returns The next journal id

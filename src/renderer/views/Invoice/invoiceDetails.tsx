@@ -14,7 +14,7 @@ import {
 import {
   cn,
   defaultSortingFunctions,
-  getFormattedCurrency,
+  getFormattedCurrencySafe,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { Account, InvoiceItemView, InvoiceView, Journal } from 'types';
@@ -54,6 +54,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
 }: InvoiceDetailsProps) => {
   const [invoice, setInvoice] = useState<InvoiceView>();
   const [relatedJournals, setRelatedJournals] = useState<Journal[]>([]);
+  const [isJournalsLoading, setIsJournalsLoading] = useState(false);
   const [isRelatedLoading, setIsRelatedLoading] = useState(false);
   const [ledgerJumpAccounts, setLedgerJumpAccounts] = useState<Account[]>([]);
   const [relatedLedgerBalances, setRelatedLedgerBalances] = useState<
@@ -69,11 +70,15 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
 
   useEffect(() => {
     const fetchInvoice = async () => {
-      if (isNil(propInvoice))
-        setInvoice(await window.electron.getInvoice(invoiceId));
-      else setInvoice(propInvoice);
+      if (!isNil(propInvoice)) {
+        setInvoice(propInvoice);
+        return;
+      }
+      setInvoice(undefined);
+      const inv = await window.electron.getInvoice(invoiceId);
+      setInvoice(inv);
     };
-    fetchInvoice();
+    fetchInvoice().catch(() => undefined);
   }, [invoiceId, propInvoice]);
 
   useEffect(() => {
@@ -81,17 +86,21 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     if (!inv?.id) return;
 
     let cancelled = false;
-    (async () => {
+    setIsJournalsLoading(true);
+    setIsRelatedLoading(true);
+    setRelatedJournals([]);
+    setLedgerJumpAccounts([]);
+    setRelatedLedgerBalances({});
+
+    const run = async () => {
       try {
-        setIsRelatedLoading(true);
-        const [journalsRaw, accounts] = await Promise.all([
-          window.electron.getJournalsByInvoiceId(inv.id) as Promise<Journal[]>,
-          window.electron.getAccounts() as Promise<Account[]>,
-        ]);
+        const journalsRaw = (await window.electron.getJournalsByInvoiceId(
+          inv.id,
+        )) as Journal[];
         if (cancelled) return;
 
         setRelatedJournals(Array.isArray(journalsRaw) ? journalsRaw : []);
-        setRelatedLedgerBalances({});
+        setIsJournalsLoading(false);
 
         const ids = new Set<number>();
         const headerId = toNumber(inv.invoiceHeaderAccountId);
@@ -101,44 +110,45 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           if (id > 0) ids.add(id);
         });
 
-        const selected = accounts.filter((a) => ids.has(toNumber(a.id)));
-        setLedgerJumpAccounts(selected);
+        const idList = [...ids];
+        const [accounts, balanceMap] = await Promise.all([
+          window.electron.getAccountsByIds(idList) as Promise<Account[]>,
+          window.electron.getLedgerBalancesForAccountIds(idList) as Promise<
+            Record<number, { balance: number; balanceType: BalanceType }>
+          >,
+        ]);
+        if (cancelled) return;
 
-        const balanceMap: Record<
-          number,
-          { balance: number; balanceType: BalanceType }
-        > = {};
-        await Promise.all(
-          selected.map(async (acc) => {
-            const aid = toNumber(acc.id);
-            if (aid <= 0) return;
-            const row = await window.electron.getLedgerBalance(aid);
-            if (cancelled || !row) return;
-            balanceMap[aid] = {
-              balance: toNumber(row.balance),
-              balanceType: row.balanceType,
-            };
-          }),
-        );
-        if (!cancelled) setRelatedLedgerBalances(balanceMap);
+        setLedgerJumpAccounts(accounts);
+        setRelatedLedgerBalances(balanceMap);
+      } catch {
+        if (!cancelled) {
+          setIsJournalsLoading(false);
+        }
       } finally {
-        if (!cancelled) setIsRelatedLoading(false);
+        if (!cancelled) {
+          setIsRelatedLoading(false);
+        }
       }
-    })();
+    };
+
+    run().catch(() => undefined);
 
     return () => {
       cancelled = true;
+      setIsJournalsLoading(false);
+      setIsRelatedLoading(false);
     };
   }, [invoice]);
 
   const canEditOrReturnSale = useMemo(() => {
-    if (!invoice?.id || isRelatedLoading) return false;
+    if (!invoice?.id || isJournalsLoading) return false;
     if (invoice.isReturned) return false;
     return relatedJournals.length > 0;
   }, [
     invoice?.id,
     invoice?.isReturned,
-    isRelatedLoading,
+    isJournalsLoading,
     relatedJournals.length,
   ]);
 
@@ -197,8 +207,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             {
               accessorKey: 'price',
               header: 'Price',
-              cell: ({ getValue }) =>
-                getFormattedCurrency(toNumber(getValue())),
+              cell: ({ getValue }) => getFormattedCurrencySafe(getValue()),
             },
             {
               accessorKey: 'discount',
@@ -208,8 +217,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             {
               accessorKey: 'discountedPrice',
               header: 'Discounted Price',
-              cell: ({ getValue }) =>
-                getFormattedCurrency(toNumber(getValue())),
+              cell: ({ getValue }) => getFormattedCurrencySafe(getValue()),
             },
           ] as ColumnDef<InvoiceItemView>[])
         : []),
@@ -387,14 +395,12 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             ) : null}
             {invoiceType === InvoiceType.Sale ? (
               <>
-                {toNumber(invoice?.extraDiscount) > 0 ? (
+                {invoice != null && toNumber(invoice.extraDiscount) > 0 ? (
                   <div className="flex gap-8">
                     <p className="font-medium text-md w-[160px]">
                       Extra Discount:
                     </p>
-                    <p>
-                      {getFormattedCurrency(toNumber(invoice?.extraDiscount))}
-                    </p>
+                    <p>{getFormattedCurrencySafe(invoice.extraDiscount)}</p>
                   </div>
                 ) : null}
                 <div className="flex gap-8">
@@ -402,7 +408,11 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                     Amount:
                   </p>
                   <p className="border-2 border-green-500 rounded-lg -ml-2 p-2">
-                    {getFormattedCurrency(toNumber(invoice?.totalAmount))}
+                    {invoice ? (
+                      getFormattedCurrencySafe(invoice.totalAmount)
+                    ) : (
+                      <span className="text-muted-foreground">Loading…</span>
+                    )}
                   </p>
                 </div>
               </>
@@ -433,7 +443,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                     if (index === quantityColumnIndex)
                       return section.totalQuantity;
                     if (index === totalColumnIndex)
-                      return getFormattedCurrency(section.totalAmount);
+                      return getFormattedCurrencySafe(section.totalAmount);
                     return '';
                   }),
                 ]}
@@ -496,7 +506,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                             variant="secondary"
                             className="whitespace-nowrap"
                           >
-                            {getFormattedCurrency(toNumber(j.amount))}
+                            {getFormattedCurrencySafe(j.amount)}
                           </Badge>
                           {j.isPosted ? (
                             <Badge className="whitespace-nowrap">Posted</Badge>
@@ -563,7 +573,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                                 variant="secondary"
                                 className="whitespace-nowrap tabular-nums"
                               >
-                                {getFormattedCurrency(latestBal.balance)}{' '}
+                                {getFormattedCurrencySafe(latestBal.balance)}{' '}
                                 <span className="font-normal text-muted-foreground">
                                   {latestBal.balanceType}
                                 </span>

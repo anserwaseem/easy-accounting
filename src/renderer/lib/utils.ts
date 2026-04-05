@@ -105,6 +105,13 @@ export const defaultSortingFunctions: Record<string, SortingFn<any>> = {
 export const getFormattedCurrency = (value: number | bigint): string =>
   currencyFormatter.format(value);
 
+/** avoids "PKR NaN" when values are still loading or invalid */
+export const getFormattedCurrencySafe = (value: unknown): string => {
+  const n = typeof value === 'number' ? value : toNumber(value);
+  if (!Number.isFinite(n)) return '—';
+  return getFormattedCurrency(n);
+};
+
 /**
  * Formats currency without decimal places.
  * @param value - The number to be formatted.

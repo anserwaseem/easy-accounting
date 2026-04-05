@@ -45,6 +45,45 @@ export class LedgerService {
     return <GetBalance | undefined>this.stmGetBalance.get({ accountId });
   }
 
+  /** latest balance per account in one round-trip (invoice details related ledgers). */
+  getBalancesForAccountIds(accountIds: number[]): Record<number, GetBalance> {
+    const unique = [
+      ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
+    ];
+    if (unique.length === 0) return {};
+    const placeholders = unique.map(() => '?').join(',');
+    const sql = `
+      SELECT t.accountId, t.balance, t.balanceType
+      FROM (
+        SELECT
+          l.accountId,
+          l.balance,
+          l.balanceType,
+          ROW_NUMBER() OVER (
+            PARTITION BY l.accountId
+            ORDER BY l.date DESC, l.id DESC
+          ) AS rn
+        FROM ledger l
+        WHERE l.accountId IN (${placeholders})
+      ) t
+      WHERE t.rn = 1
+    `;
+    const stmt = this.db.prepare(sql);
+    const rows = stmt.all(...unique) as Array<{
+      accountId: number;
+      balance: number;
+      balanceType: BalanceType;
+    }>;
+    const out: Record<number, GetBalance> = {};
+    for (const row of rows) {
+      out[row.accountId] = {
+        balance: row.balance,
+        balanceType: row.balanceType,
+      };
+    }
+    return out;
+  }
+
   insertLedger(ledger: Omit<Ledger, 'id'>): RunResult {
     return this.stmLedger.run({
       date: ledger.date,

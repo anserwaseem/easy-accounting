@@ -48,6 +48,45 @@ export class AccountService {
     return normalizeSqliteBooleanRows(results, ACCOUNT_BOOLEAN_FIELDS);
   }
 
+  /** same row shape as getAccounts, but restricted to ids (invoice details related ledgers). */
+  getAccountsByIds(ids: number[]): Account[] {
+    const unique = [
+      ...new Set(ids.filter((id) => Number.isInteger(id) && id > 0)),
+    ];
+    if (unique.length === 0) return [];
+    const username = store.get('username');
+    const placeholders = unique.map(() => '?').join(',');
+    const sql = `
+      SELECT
+        a.id,
+        a.name,
+        c.name as headName,
+        a.chartId,
+        c.type,
+        a.code,
+        a.createdAt,
+        a.updatedAt,
+        a.address,
+        a.phone1,
+        a.phone2,
+        a.goodsName,
+        a.isActive,
+        a.discountProfileId,
+        dp.name AS discountProfileName,
+        dp.isActive AS discountProfileIsActive
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      LEFT JOIN discount_profiles dp ON dp.id = a.discountProfileId
+      WHERE c.userId = (
+        SELECT id FROM users WHERE username = ?
+      )
+      AND a.id IN (${placeholders})
+    `;
+    const stmt = this.db.prepare(sql);
+    const results = stmt.all(username, ...unique) as Account[];
+    return normalizeSqliteBooleanRows(results, ACCOUNT_BOOLEAN_FIELDS);
+  }
+
   insertAccount(account: InsertAccount): boolean {
     const username = store.get('username');
     const result = this.stmInsertAccount.run({ ...account, username });

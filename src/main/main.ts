@@ -227,6 +227,9 @@ app
       },
     );
     ipcMain.handle('account:getAll', async () => accountService.getAccounts());
+    ipcMain.handle('account:getByIds', (_, ids: number[]) =>
+      accountService.getAccountsByIds(ids),
+    );
     ipcMain.handle('account:getByName', (_, name: string) =>
       accountService.getAccountByName(name),
     );
@@ -273,6 +276,11 @@ app
       'ledger:getBalance',
       async (_, accountId: number) =>
         ledgerService.getBalance(accountId) ?? null,
+    );
+    ipcMain.handle(
+      'ledger:getBalancesForAccountIds',
+      async (_, accountIds: number[]) =>
+        ledgerService.getBalancesForAccountIds(accountIds),
     );
     ipcMain.handle('journal:getNextId', async () =>
       journalService.getNextJournalId(),
