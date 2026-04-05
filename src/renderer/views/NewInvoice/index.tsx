@@ -855,34 +855,44 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
   ]);
 
-  const isSubmitDisabled = useMemo(() => {
-    if (form.formState.isSubmitting) return true;
+  const submitDisabledReason = useMemo((): string | undefined => {
+    if (form.formState.isSubmitting) {
+      return 'Saving invoice...';
+    }
+    if (
+      useSingleAccount &&
+      (watchedSingleAccountId == null || watchedSingleAccountId <= 0)
+    ) {
+      const partyLabel =
+        invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
+      return `Select a ${partyLabel}`;
+    }
+
     const total = watchedTotalAmount;
     if (
       invoiceType === InvoiceType.Sale &&
       (typeof total !== 'number' || total <= 0)
-    )
-      return true;
+    ) {
+      return 'Invoice total must be greater than 0';
+    }
     if (
       invoiceType === InvoiceType.Purchase &&
       typeof total === 'number' &&
       total < 0
-    )
-      return true;
-    if (
-      useSingleAccount &&
-      (watchedSingleAccountId == null || watchedSingleAccountId <= 0)
-    )
-      return true;
+    ) {
+      return 'Invoice total must not be negative';
+    }
+
     if (invoiceType === InvoiceType.Sale && !useSingleAccount) {
       const multipleAccountIds = watchedMultipleAccountIds || [];
-      if (
-        !multipleAccountIds.length ||
-        multipleAccountIds.some((id) => id <= 0)
-      )
-        return true;
+      if (!multipleAccountIds.length) {
+        return 'Add at least one customer section';
+      }
+      if (multipleAccountIds.some((id) => id <= 0)) {
+        return 'Select a customer for each section';
+      }
     }
-    return false;
+    return undefined;
   }, [
     form,
     invoiceType,
@@ -891,6 +901,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedSingleAccountId,
     watchedTotalAmount,
   ]);
+
+  const isSubmitDisabled = submitDisabledReason != null;
 
   const onCumulativeDiscountChange = useCallback(
     (value: string) => {
@@ -1933,14 +1945,22 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
               <div className="flex justify-between items-center gap-4 pt-6 mt-2 border-t border-border min-h-[44px]">
                 <div className="flex gap-3 flex-wrap">
-                  <Button
-                    type="submit"
-                    variant="default"
-                    disabled={isSubmitDisabled}
-                    className="min-h-[44px]"
-                  >
-                    Save
-                  </Button>
+                  <div>
+                    <Button
+                      type="submit"
+                      variant="default"
+                      disabled={isSubmitDisabled}
+                      className="min-h-[44px]"
+                      title={submitDisabledReason ?? ''}
+                    >
+                      Save
+                    </Button>
+                    {submitDisabledReason && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {submitDisabledReason}
+                      </p>
+                    )}
+                  </div>
                   <Button
                     type="button"
                     variant="outline"
