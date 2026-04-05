@@ -1750,6 +1750,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   data={fields}
                   sortingFns={defaultSortingFunctions}
                   infoData={tableInfoData}
+                  compact
                 />
                 {form.formState.errors.invoiceItems && (
                   <p className="text-sm font-medium text-destructive">

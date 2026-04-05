@@ -19,6 +19,10 @@ import type { ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InvoiceItem, InventoryItem } from 'types';
 import type { CustomerSection } from '../components/CustomerSectionsBlock';
 
+/** shorter select trigger + inputs in line-item rows (see Input default my-2) */
+const compactLineSelectTrigger =
+  'h-8 min-h-8 py-0 text-sm leading-tight [&>svg]:h-3.5 [&>svg]:w-3.5';
+
 interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
   form: {
     control: Control<T>;
@@ -115,7 +119,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
             control={form.control}
             name={`invoiceItems.${row.index}.inventoryId` as Path<T>}
             render={({ field }) => (
-              <FormItem className="w-max min-w-[340px] space-y-0">
+              <FormItem className="w-max min-w-[310px] space-y-0">
                 <VirtualSelect<InventoryItem>
                   options={getItemOptionsForRow(row.index)}
                   value={field.value?.toString()}
@@ -128,12 +132,13 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                   }
                   placeholder="Select item"
                   searchPlaceholder="Search items..."
+                  triggerClassName={compactLineSelectTrigger}
                   groupBy={(item) => item.itemTypeName?.trim() || 'Other'}
                   renderSelectItem={(item) => (
-                    <div className="flex min-w-[280px] justify-between gap-2">
-                      <h2 className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere]">
+                    <div className="flex min-w-[260px] justify-between gap-2">
+                      <span className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere] text-sm font-medium leading-snug">
                         {item.name}
-                      </h2>
+                      </span>
                       <div className="text-xs text-muted-foreground text-end">
                         <div className="flex gap-2">
                           <p className="font-bold">{item.quantity}</p>
@@ -165,6 +170,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                 <FormControl>
                   <Input
                     {...field}
+                    className="my-0 h-8"
                     type="number"
                     step={1}
                     min={0}
@@ -192,7 +198,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
         cell: ({ row }) => (
           <X
             color="red"
-            size={16}
+            size={14}
+            className="shrink-0"
             onClick={() => handleRemoveRow(row.index)}
             cursor="pointer"
           />
@@ -213,7 +220,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
               render={({ field }) => (
                 <FormItem className="space-y-0">
                   <FormControl>
-                    <p className="text-muted-foreground">
+                    <p className="text-sm leading-tight text-muted-foreground tabular-nums">
                       {typeof field.value === 'number' && field.value >= 0
                         ? getFormattedCurrency(toNumber(field.value))
                         : '—'}
@@ -236,14 +243,15 @@ export function useNewInvoiceColumns<T extends FieldValues>(
               render={({ field }) => (
                 <FormItem className="space-y-0">
                   <FormControl>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {!isDiscountEditEnabled || enableCumulativeDiscount ? (
-                        <p className="text-muted-foreground text-sm">
+                        <p className="text-sm leading-tight text-muted-foreground tabular-nums">
                           {getDiscountValue(field.value)}%
                         </p>
                       ) : (
                         <Input
                           {...field}
+                          className="my-0 h-8"
                           value={getDiscountValue(field.value)}
                           type="number"
                           step="any"
@@ -271,6 +279,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                             type="button"
                             size="sm"
                             variant="outline"
+                            className="h-7 shrink-0 px-2 text-xs"
                             onClick={() => onResetDiscountToAuto(row.index)}
                           >
                             Auto
@@ -293,9 +302,9 @@ export function useNewInvoiceColumns<T extends FieldValues>(
               render={({ field }) => (
                 <FormItem className="space-y-0">
                   <FormControl>
-                    <p>
+                    <div className="text-sm leading-tight tabular-nums">
                       {renderDiscountedPrice(row.index, field.value as number)}
-                    </p>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -316,13 +325,14 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                 ) as number;
                 const selectedSectionId = rowSectionMap[rowId];
                 return (
-                  <div className="min-w-[180px]">
+                  <div className="min-w-[150px] max-w-[200px]">
                     <VirtualSelect
                       options={sections.map((section, index) => ({
                         id: section.id,
                         name: getSectionLabel(section, index),
                       }))}
                       value={selectedSectionId}
+                      triggerClassName={compactLineSelectTrigger}
                       onChange={async (sectionId) => {
                         const nextSectionId = toString(sectionId);
                         setRowSectionMap((prev) => ({
@@ -355,15 +365,19 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                 cell: ({ row }) => {
                   const label = resolvedRowLabels[row.index] ?? '—';
                   const code = resolvedRowCodes[row.index]?.trim();
+                  const title = code ? `${label} (${code})` : label;
                   return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm text-muted-foreground">
+                    <div
+                      className="flex min-w-0 max-w-[13rem] items-center gap-1.5"
+                      title={title}
+                    >
+                      <span className="min-w-0 truncate text-xs leading-tight text-muted-foreground">
                         {label}
                       </span>
                       {code ? (
                         <Badge
                           variant="secondary"
-                          className="shrink-0 font-mono text-xs"
+                          className="shrink-0 font-mono text-[10px] leading-none"
                         >
                           {code}
                         </Badge>

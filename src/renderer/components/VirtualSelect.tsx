@@ -452,7 +452,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
       open={isOpen}
       disabled={disabled}
     >
-      <SelectTrigger className={triggerClassName}>
+      <SelectTrigger className={cn(triggerClassName)}>
         <SelectValue placeholder={placeholder}>
           {options.find((opt) => opt.id?.toString() === value?.toString())
             ?.name || placeholder}

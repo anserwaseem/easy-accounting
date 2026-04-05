@@ -166,7 +166,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
             /* eslint-disable react/no-unstable-nested-components -- tanstack column cell factories */
             {
               accessorKey: 'invoiceNumber',
-              header: 'Invoice #',
+              header: <span className="whitespace-nowrap">Invoice #</span>,
               cell: ({ row }) => (
                 <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
                   {row.original.invoiceNumber}

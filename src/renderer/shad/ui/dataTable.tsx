@@ -45,6 +45,8 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   defaultSortDirection?: SortDirection;
   infoData?: React.ReactNode[][];
   virtual?: boolean;
+  /** tighter row/header/cell padding for dense grids (e.g. invoice line items) */
+  compact?: boolean;
   searchPlaceholder?: string;
   searchFields?: string[];
   isMini?: boolean;
@@ -63,13 +65,15 @@ const TableComponent = forwardRef<
 ));
 TableComponent.displayName = 'TableComponent';
 
-const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
+const TableRowComponent = <TData,>(rows: Row<TData>[], compact: boolean) =>
   function getTableRow(props: HTMLAttributes<HTMLTableRowElement>) {
     // @ts-expect-error data-index is a valid attribute
     const index = props['data-index'];
     const row = rows[index];
 
     if (!row) return null;
+
+    const cellPad = compact ? 'py-1 px-2' : 'py-2 px-4';
 
     return (
       <TableRow
@@ -81,7 +85,7 @@ const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
           <TableCell
             key={cell.id}
             className={cn(
-              'py-2 px-4',
+              cellPad,
               (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick &&
                 'cursor-pointer',
             )}
@@ -136,7 +140,13 @@ const HeaderCellContent = ({ header }: { header: any }) => (
   </div>
 );
 
-const HeaderRow = ({ headerGroup }: { headerGroup: any }) => (
+const HeaderRow = ({
+  headerGroup,
+  compact,
+}: {
+  headerGroup: any;
+  compact?: boolean;
+}) => (
   <TableRow className="bg-card hover:bg-muted" key={headerGroup.id}>
     {headerGroup.headers.map((header: any) => (
       <TableHead
@@ -146,7 +156,7 @@ const HeaderRow = ({ headerGroup }: { headerGroup: any }) => (
           header.column.getIsSorted()
             ? 'bg-gray-300 dark:bg-gray-800'
             : 'bg-gray-200 dark:bg-gray-900',
-          'h-8',
+          compact ? 'h-7 px-2 py-1 text-xs' : 'h-8',
         )}
         style={{
           width: header.getSize(),
@@ -205,6 +215,7 @@ const DataTable = <TData, TValue>({
   defaultSortDirection = 'asc',
   infoData,
   virtual = false,
+  compact = false,
   searchPlaceholder,
   searchFields,
   isMini = false,
@@ -334,6 +345,8 @@ const DataTable = <TData, TValue>({
 
   const searchClassName = useMemo(() => 'w-full md:w-[320px]', []);
 
+  const cellPad = compact ? 'py-1 px-2' : 'py-2 px-4';
+
   if (virtual) {
     return (
       <div
@@ -377,13 +390,17 @@ const DataTable = <TData, TValue>({
             totalCount={rows.length}
             components={{
               Table: TableComponent,
-              TableRow: TableRowComponent(rows),
+              TableRow: TableRowComponent(rows, compact),
             }}
             fixedHeaderContent={() =>
               table
                 .getHeaderGroups()
                 .map((headerGroup) => (
-                  <HeaderRow key={headerGroup.id} headerGroup={headerGroup} />
+                  <HeaderRow
+                    key={headerGroup.id}
+                    headerGroup={headerGroup}
+                    compact={compact}
+                  />
                 ))
             }
           />
@@ -391,7 +408,11 @@ const DataTable = <TData, TValue>({
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <HeaderRow key={headerGroup.id} headerGroup={headerGroup} />
+                <HeaderRow
+                  key={headerGroup.id}
+                  headerGroup={headerGroup}
+                  compact={compact}
+                />
               ))}
             </TableHeader>
             <TableBody>
@@ -443,7 +464,11 @@ const DataTable = <TData, TValue>({
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
-            <HeaderRow key={headerGroup.id} headerGroup={headerGroup} />
+            <HeaderRow
+              key={headerGroup.id}
+              headerGroup={headerGroup}
+              compact={compact}
+            />
           ))}
         </TableHeader>
         <TableBody>
@@ -463,7 +488,7 @@ const DataTable = <TData, TValue>({
                         )?.onClick?.(cell.row)
                       }
                       className={cn(
-                        'py-2 px-4',
+                        cellPad,
                         (cell.column.columnDef as ColumnDef<TData, TValue>)
                           ?.onClick && 'cursor-pointer',
                       )}
@@ -490,7 +515,7 @@ const DataTable = <TData, TValue>({
                     <TableCell
                       // eslint-disable-next-line react/no-array-index-key
                       key={`info-cell-${rowIndex}-${cellIndex}`}
-                      className="py-2 px-4"
+                      className={cellPad}
                     >
                       {cell}
                     </TableCell>
