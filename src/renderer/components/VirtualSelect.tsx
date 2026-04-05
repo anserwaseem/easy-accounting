@@ -35,6 +35,11 @@ type VirtualSelectProps<T extends BaseOption> = {
   /** when provided, options are shown in sections with sticky section headers (e.g. group by itemTypeName) */
   groupBy?: (item: T) => string;
   renderSelectItem?: (item: T) => ReactNode;
+  /** custom closed-state trigger content (e.g. name + trailing meta on the right); default is selected option name */
+  renderTriggerValue?: (params: {
+    selected: T | undefined;
+    placeholder: string;
+  }) => ReactNode;
 };
 
 const VirtualSelect = <T extends BaseOption = Account>({
@@ -48,6 +53,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   triggerClassName,
   groupBy,
   renderSelectItem,
+  renderTriggerValue,
 }: VirtualSelectProps<T>) => {
   const [searchInputValue, setSearchInputValue] = useState('');
   const [filteredSearchValue, setFilteredSearchValue] = useState('');
@@ -136,6 +142,11 @@ const VirtualSelect = <T extends BaseOption = Account>({
       }),
     );
   }, [filteredSearchValue, options, searchFields]);
+
+  const selectedOption = useMemo(
+    () => options.find((opt) => opt.id?.toString() === value?.toString()),
+    [options, value],
+  );
 
   const isSearching = filteredSearchValue.trim().length > 0;
 
@@ -454,8 +465,9 @@ const VirtualSelect = <T extends BaseOption = Account>({
     >
       <SelectTrigger className={cn(triggerClassName)}>
         <SelectValue placeholder={placeholder}>
-          {options.find((opt) => opt.id?.toString() === value?.toString())
-            ?.name || placeholder}
+          {renderTriggerValue
+            ? renderTriggerValue({ selected: selectedOption, placeholder })
+            : selectedOption?.name || placeholder}
         </SelectValue>
       </SelectTrigger>
       <SelectContent className="overflow-hidden">

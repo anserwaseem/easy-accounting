@@ -119,7 +119,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
             control={form.control}
             name={`invoiceItems.${row.index}.inventoryId` as Path<T>}
             render={({ field }) => (
-              <FormItem className="w-max min-w-[310px] space-y-0">
+              <FormItem className="w-max min-w-[300px] space-y-0">
                 <VirtualSelect<InventoryItem>
                   options={getItemOptionsForRow(row.index)}
                   value={field.value?.toString()}
@@ -134,8 +134,24 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                   searchPlaceholder="Search items..."
                   triggerClassName={compactLineSelectTrigger}
                   groupBy={(item) => item.itemTypeName?.trim() || 'Other'}
+                  renderTriggerValue={({ selected, placeholder: ph }) =>
+                    selected ? (
+                      <span className="flex w-full min-w-0 items-center gap-2 pr-2">
+                        <span className="min-w-0 flex-1 truncate text-left font-medium">
+                          {selected.name}
+                        </span>
+                        {selected.itemTypeName?.trim() ? (
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            {selected.itemTypeName.trim()}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">{ph}</span>
+                    )
+                  }
                   renderSelectItem={(item) => (
-                    <div className="flex min-w-[260px] justify-between gap-2">
+                    <div className="flex min-w-[240px] justify-between gap-2">
                       <span className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere] text-sm font-medium leading-snug">
                         {item.name}
                       </span>
