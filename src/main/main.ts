@@ -23,6 +23,7 @@ import type {
   UpdateJournalFields,
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
+  ReturnSaleInvoicePayload,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -409,6 +410,11 @@ app
     );
     ipcMain.handle('invoice:get', (_, invoiceId: number) =>
       invoiceService.getInvoice(invoiceId),
+    );
+    ipcMain.handle(
+      'invoice:returnSale',
+      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
+        invoiceService.returnSaleInvoice(invoiceId, payload),
     );
     ipcMain.handle(
       'invoice:getSaleEditDateBounds',

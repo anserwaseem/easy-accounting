@@ -123,7 +123,7 @@ export const groupInvoiceItemsByType = (
 };
 
 /** true when persisted row was modified after creation (list + details edited indicator). */
-export const isInvoiceEditedSnapshot = (inv: {
+const isInvoiceEditedSnapshot = (inv: {
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }): boolean => {
@@ -133,4 +133,17 @@ export const isInvoiceEditedSnapshot = (inv: {
   const ct = new Date(c).getTime();
   const ut = new Date(u).getTime();
   return Number.isFinite(ct) && Number.isFinite(ut) && ut > ct;
+};
+
+/**
+ * use for "Edited" / "Last edited" UI: returned invoices get updatedAt from the return action,
+ * not from editing lines — hide edited affordances so "Returned" stays the single status signal.
+ */
+export const showInvoiceEditedIndicator = (inv: {
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+  isReturned?: boolean;
+}): boolean => {
+  if (inv.isReturned) return false;
+  return isInvoiceEditedSnapshot(inv);
 };

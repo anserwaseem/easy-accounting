@@ -15,7 +15,7 @@ import {
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
-import { isInvoiceEditedSnapshot } from '@/renderer/lib/invoiceUtils';
+import { showInvoiceEditedIndicator } from '@/renderer/lib/invoiceUtils';
 import { Badge } from 'renderer/shad/ui/badge';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -49,7 +49,8 @@ const InvoiceEditActionCell: FC<InvoiceEditActionCellProps> = ({
   navigate,
   isPreviewMode,
 }) => {
-  const canEdit = toNumber(row.original.linkedJournalCount) > 0;
+  const canEdit =
+    toNumber(row.original.linkedJournalCount) > 0 && !row.original.isReturned;
   if (!canEdit) return null;
 
   return (
@@ -136,7 +137,15 @@ const InvoicesPage: FC<InvoicesProps> = ({
                         <p className="font-extrabold">
                           {invoice.invoiceNumber}
                         </p>
-                        {isInvoiceEditedSnapshot(invoice) ? (
+                        {invoice.isReturned ? (
+                          <Badge
+                            variant="destructive"
+                            className="text-[10px] font-normal"
+                          >
+                            Returned
+                          </Badge>
+                        ) : null}
+                        {showInvoiceEditedIndicator(invoice) ? (
                           <Badge
                             variant="amber"
                             className="text-[10px] font-normal"
@@ -176,7 +185,15 @@ const InvoicesPage: FC<InvoicesProps> = ({
               cell: ({ row }) => (
                 <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
                   {row.original.invoiceNumber}
-                  {isInvoiceEditedSnapshot(row.original) ? (
+                  {row.original.isReturned ? (
+                    <Badge
+                      variant="destructive"
+                      className="px-1.5 py-0 text-[10px] font-normal"
+                    >
+                      Returned
+                    </Badge>
+                  ) : null}
+                  {showInvoiceEditedIndicator(row.original) ? (
                     <Badge
                       variant="amber"
                       className="px-1.5 py-0 text-[10px] font-normal"

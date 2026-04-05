@@ -19,6 +19,7 @@ import type {
   InventoryOpeningStock,
   ApplyStockAdjustmentPayload,
   ApiResponse,
+  ReturnSaleInvoicePayload,
   ItemType,
   DiscountProfile,
   ProfileTypeDiscount,
@@ -229,6 +230,9 @@ const electronHandler = {
 
   getInvoice: (invoiceId: number) =>
     ipcRenderer.invoke('invoice:get', invoiceId),
+
+  returnSaleInvoice: (invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
+    ipcRenderer.invoke('invoice:returnSale', invoiceId, payload),
 
   getSaleInvoiceEditDateBounds: (
     invoiceId: number,

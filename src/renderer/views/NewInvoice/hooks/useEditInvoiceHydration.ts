@@ -57,6 +57,15 @@ export const useEditInvoiceHydration = ({
         return;
       }
 
+      if (inv.isReturned) {
+        toast({
+          variant: 'destructive',
+          description: 'This invoice was returned and cannot be edited.',
+        });
+        navigate(`/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`);
+        return;
+      }
+
       const linkedJournals = (await window.electron.getJournalsByInvoiceId(
         editInvoiceId,
       )) as unknown[];

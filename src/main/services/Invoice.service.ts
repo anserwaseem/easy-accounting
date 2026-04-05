@@ -10,6 +10,7 @@ import {
   type InvoiceView,
   type InvoicesExport,
   type InvoicesView,
+  type ReturnSaleInvoicePayload,
 } from '../../types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
@@ -73,6 +74,10 @@ export class InvoiceService {
 
   private stmGetNextInvoiceDateForAccount!: Statement;
 
+  private stmGetInvoiceForReturn!: Statement;
+
+  private stmMarkInvoiceReturned!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.journalService = new JournalService();
@@ -89,8 +94,13 @@ export class InvoiceService {
   }
 
   getInvoices(invoiceType: InvoiceType): InvoicesView[] {
-    const result = <InvoicesView[]>this.stmGetInvoices.all(invoiceType);
-    return result;
+    const raw = this.stmGetInvoices.all(invoiceType) as Array<
+      InvoicesView & { isReturned?: number | boolean }
+    >;
+    return raw.map((row) => ({
+      ...row,
+      isReturned: Number(row.isReturned) === 1,
+    }));
   }
 
   getInvoice(invoiceId: number): InvoiceView {
@@ -113,6 +123,9 @@ export class InvoiceService {
       invoiceAccountGoodsName?: string | null;
       itemRowAccountId?: number | null;
       accountCode?: number | string | null;
+      isReturned?: number;
+      returnedAt?: string | null;
+      returnReason?: string | null;
     }
 
     const result = this.stmGetInvoice.all({ invoiceId }) as InvoiceGetRow[];
@@ -145,6 +158,9 @@ export class InvoiceService {
         prev.updatedAt = cur.updatedAt;
         prev.extraDiscountAccountId = cur.extraDiscountAccountId ?? undefined;
         prev.invoiceHeaderAccountId = cur.invoiceHeaderAccountId;
+        prev.isReturned = cur.isReturned === 1;
+        prev.returnedAt = cur.returnedAt ?? null;
+        prev.returnReason = cur.returnReason ?? null;
         // for multi-account invoices, show all customer/vendor names and codes (similar to list view)
         prev.accountName = cur.invoiceAccountName ?? cur.accountName;
         if (isSingleCode) {
@@ -656,6 +672,62 @@ export class InvoiceService {
     };
   }
 
+  /**
+   * voids a sale invoice: removes linked journals and their ledger lines, restocks inventory,
+   * and marks the invoice as returned (whole invoice only).
+   */
+  returnSaleInvoice(
+    invoiceId: number,
+    options?: ReturnSaleInvoicePayload,
+  ): void {
+    this.db.transaction(() => {
+      this.returnSaleInvoiceWithoutTransaction(invoiceId, options);
+    })();
+  }
+
+  private returnSaleInvoiceWithoutTransaction(
+    invoiceId: number,
+    options?: ReturnSaleInvoicePayload,
+  ): void {
+    const row = this.stmGetInvoiceForReturn.get({
+      invoiceId: cast(invoiceId),
+    });
+    if (!row) {
+      raise('Invoice not found.');
+    }
+    const header = row as { invoiceType: InvoiceType; isReturned: number };
+    if (header.invoiceType !== InvoiceType.Sale) {
+      raise('Only sale invoices can be returned.');
+    }
+    if (header.isReturned === 1) {
+      raise('This invoice has already been returned.');
+    }
+
+    const journalIds = this.journalService.getJournalIdsByInvoiceId(invoiceId);
+    if (journalIds.length === 0) {
+      raise('Cannot return this invoice: no linked journals were found.');
+    }
+
+    this.journalService.removeLedgerEffectOfJournals(journalIds);
+    this.journalService.deleteJournalsByIds(journalIds);
+
+    const items = this.stmGetInvoiceItemsForUpdate.all({
+      invoiceId: cast(invoiceId),
+    }) as { inventoryId: number; quantity: number }[];
+
+    items.forEach((item) => {
+      this.stmUpdateInventoryItem.run(item.quantity, item.inventoryId);
+    });
+
+    const trimmed = options?.returnReason?.trim();
+    const returnReason = trimmed != null && trimmed.length > 0 ? trimmed : null;
+
+    this.stmMarkInvoiceReturned.run({
+      invoiceId: cast(invoiceId),
+      returnReason,
+    });
+  }
+
   private persistInvoiceItemsAndInventory(
     invoiceType: InvoiceType,
     invoiceId: number,
@@ -1036,13 +1108,16 @@ export class InvoiceService {
         ) AS 'accountName',
         i.biltyNumber,
         i.cartons,
+        COALESCE(i.isReturned, 0) AS isReturned,
+        i.returnedAt,
+        i.returnReason,
         (SELECT COUNT(*) FROM journal j WHERE j.invoiceId = i.id) AS linkedJournalCount
       FROM invoices i
       JOIN account a ON i.accountId = a.id
       LEFT JOIN invoice_items ii ON i.id = ii.invoiceId AND ii.accountId IS NOT NULL
       LEFT JOIN account a2 ON ii.accountId = a2.id
       WHERE i.invoiceType = ?
-      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, i.createdAt, i.updatedAt, a.code, a.name, i.biltyNumber, i.cartons
+      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, i.createdAt, i.updatedAt, a.code, a.name, i.biltyNumber, i.cartons, i.isReturned, i.returnedAt, i.returnReason
     `);
 
     this.stmGetInvoice = this.db.prepare(`
@@ -1059,6 +1134,9 @@ export class InvoiceService {
         i.cartons,
         i.createdAt,
         i.updatedAt,
+        COALESCE(i.isReturned, 0) AS isReturned,
+        i.returnedAt,
+        i.returnReason,
         a.name AS 'invoiceAccountName',
         a.code AS 'invoiceAccountCode',
         a.address AS 'invoiceAccountAddress',
@@ -1190,6 +1268,19 @@ export class InvoiceService {
 
     this.stmGetInventoryQuantity = this.db.prepare(`
       SELECT quantity FROM inventory WHERE id = ?
+    `);
+
+    this.stmGetInvoiceForReturn = this.db.prepare(`
+      SELECT invoiceType, COALESCE(isReturned, 0) AS isReturned
+      FROM invoices WHERE id = @invoiceId
+    `);
+
+    this.stmMarkInvoiceReturned = this.db.prepare(`
+      UPDATE invoices SET
+        isReturned = 1,
+        returnedAt = datetime('now', 'localtime'),
+        returnReason = @returnReason
+      WHERE id = @invoiceId
     `);
   }
 }

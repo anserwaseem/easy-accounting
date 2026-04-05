@@ -618,6 +618,24 @@ const PrintableInvoiceScreen = () => {
             </span>
           </div>
         ) : null}
+        {invoice.isReturned ? (
+          <div
+            className="mb-4 rounded-md border-2 border-red-600 bg-red-50 px-4 py-3 text-center print:border-black print:bg-white print:text-black"
+            role="status"
+          >
+            <p className="text-lg font-bold uppercase tracking-wide text-red-800 print:text-black">
+              RETURNED
+            </p>
+            {invoice.returnedAt ? (
+              <p className="mt-1 text-sm text-red-900/80 print:text-neutral-800">
+                Returned on{' '}
+                {isValid(new Date(invoice.returnedAt))
+                  ? format(invoice.returnedAt, 'PP')
+                  : invoice.returnedAt}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex justify-between items-center">
           <div className="w-full text-[13px]">
             <h1 className="text-3xl font-bold text-center font-mono">

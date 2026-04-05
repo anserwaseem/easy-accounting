@@ -1244,4 +1244,96 @@ describe('InvoiceService.insertInvoice', () => {
       .sort();
     expect(names).toEqual(['PrimaryParty', 'SectionParty']);
   });
+
+  it('returnSaleInvoice: removes journals, restores inventory, stores trimmed reason, and marks returned', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    const profileId = seedDiscountProfileForAccount(
+      acc.primaryPartyId,
+      'DP-Primary',
+    );
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: inv.primaryTypeId, discountPercent: 10 },
+    ]);
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 2,
+        discount: 10,
+        price: 101,
+        discountedPrice: computeUiRowTotal({
+          quantity: 2,
+          price: 101,
+          discount: 10,
+        }),
+      },
+    ];
+
+    const uiTotal = computeUiTotal([items], 0);
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-03-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: 91001,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: uiTotal,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      invoice,
+    );
+
+    const qtyBeforeReturn = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+
+    const journalCountBefore = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+
+    expect(journalCountBefore).toBeGreaterThan(0);
+    expect(qtyBeforeReturn).toBe(48);
+
+    invoiceService.returnSaleInvoice(invoiceId, {
+      returnReason: '  customer changed mind  ',
+    });
+
+    const journalCountAfter = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountAfter).toBe(0);
+
+    const qtyAfterReturn = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+    expect(qtyAfterReturn).toBe(50);
+
+    const returnedRow = db
+      .prepare(`SELECT isReturned, returnReason FROM invoices WHERE id = ?`)
+      .get([invoiceId]) as { isReturned: number; returnReason: string | null };
+    expect(returnedRow.isReturned).toBe(1);
+    expect(returnedRow.returnReason).toBe('customer changed mind');
+
+    const view = invoiceService.getInvoice(invoiceId);
+    expect(view.isReturned).toBe(true);
+    expect(view.returnReason).toBe('customer changed mind');
+
+    expect(() => invoiceService.returnSaleInvoice(invoiceId)).toThrow();
+  });
 });

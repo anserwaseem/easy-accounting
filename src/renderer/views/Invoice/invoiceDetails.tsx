@@ -1,6 +1,6 @@
 import { usePrimaryItemType } from '@/renderer/hooks';
 import { isNil, toNumber } from 'lodash';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   dateFormatOptions,
   datetimeFormatOptions,
@@ -8,10 +8,11 @@ import {
 import {
   computeSectionTotals,
   groupInvoiceItemsByType,
-  isInvoiceEditedSnapshot,
+  showInvoiceEditedIndicator,
   stripItemTypeSuffixFromAccountName,
 } from '@/renderer/lib/invoiceUtils';
 import {
+  cn,
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
@@ -27,8 +28,18 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/renderer/shad/ui/tabs';
-import { Pencil } from 'lucide-react';
+import { Pencil, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/renderer/shad/ui/dialog';
+import { Label } from '@/renderer/shad/ui/label';
+import { toast } from '@/renderer/shad/ui/use-toast';
 
 interface InvoiceDetailsProps {
   invoiceType: InvoiceType;
@@ -48,6 +59,9 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   const [relatedLedgerBalances, setRelatedLedgerBalances] = useState<
     Record<number, { balance: number; balanceType: BalanceType }>
   >({});
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [returnReasonDraft, setReturnReasonDraft] = useState('');
+  const [isReturning, setIsReturning] = useState(false);
   const { primaryItemTypeName, itemTypeNames } = usePrimaryItemType();
   const navigate = useNavigate();
   // eslint-disable-next-line no-console
@@ -116,6 +130,41 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       cancelled = true;
     };
   }, [invoice]);
+
+  const canEditOrReturnSale = useMemo(() => {
+    if (!invoice?.id || isRelatedLoading) return false;
+    if (invoice.isReturned) return false;
+    return relatedJournals.length > 0;
+  }, [
+    invoice?.id,
+    invoice?.isReturned,
+    isRelatedLoading,
+    relatedJournals.length,
+  ]);
+
+  const reloadInvoice = useCallback(async () => {
+    setInvoice(await window.electron.getInvoice(invoiceId));
+  }, [invoiceId]);
+
+  const handleConfirmReturn = useCallback(async () => {
+    if (!invoice?.id) return;
+    setIsReturning(true);
+    try {
+      const trimmed = returnReasonDraft.trim();
+      await window.electron.returnSaleInvoice(invoice.id, {
+        returnReason: trimmed.length > 0 ? trimmed : null,
+      });
+      toast({ description: 'Invoice returned.' });
+      setReturnDialogOpen(false);
+      setReturnReasonDraft('');
+      await reloadInvoice();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ variant: 'destructive', description: message });
+    } finally {
+      setIsReturning(false);
+    }
+  }, [invoice?.id, returnReasonDraft, reloadInvoice]);
 
   const customerDisplayName = useMemo(
     () =>
@@ -207,32 +256,54 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       <div className="w-full">
         <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <h1 className="min-w-0 shrink text-4xl font-light">{`${invoiceType.toUpperCase()} INVOICE`}</h1>
-          {invoice && isInvoiceEditedSnapshot(invoice) && invoice.updatedAt ? (
-            <div
-              className="flex gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm shadow-sm md:max-w-sm md:items-end md:text-right"
-              role="status"
-            >
-              <Badge variant="amber" className="w-fit">
-                Last edited
-              </Badge>
-              <p className="mt-1 text-muted-foreground">
-                {new Date(invoice.updatedAt).toLocaleString(
-                  'en-US',
-                  datetimeFormatOptions,
-                )}
-              </p>
-            </div>
-          ) : null}
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 md:ml-auto md:w-auto md:shrink-0">
+            {invoice &&
+            showInvoiceEditedIndicator(invoice) &&
+            invoice.updatedAt ? (
+              <div
+                className="flex gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm shadow-sm md:max-w-sm md:items-end md:text-right"
+                role="status"
+              >
+                <Badge variant="amber" className="w-fit">
+                  Last edited
+                </Badge>
+                <p className="mt-1 text-muted-foreground">
+                  {new Date(invoice.updatedAt).toLocaleString(
+                    'en-US',
+                    datetimeFormatOptions,
+                  )}
+                </p>
+              </div>
+            ) : null}
+            {invoiceType === InvoiceType.Sale &&
+            invoice?.id != null &&
+            canEditOrReturnSale ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
+                onClick={() => {
+                  setReturnReasonDraft('');
+                  setReturnDialogOpen(true);
+                }}
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                Return
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="grid grid-cols-2">
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-8 items-center">
               <p className="font-extrabold text-md w-[160px]">Invoice #:</p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <p>{invoice?.invoiceNumber}</p>
-                {invoice?.id != null &&
-                !isRelatedLoading &&
-                relatedJournals.length > 0 ? (
+                {invoice?.isReturned ? (
+                  <Badge variant="destructive">Returned</Badge>
+                ) : null}
+                {invoice?.id != null && canEditOrReturnSale ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -276,6 +347,27 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                   : ''}
               </p>
             </div>
+            {invoice?.isReturned && invoice.returnedAt ? (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px]">Returned:</p>
+                <p>
+                  {new Date(invoice.returnedAt).toLocaleString(
+                    'en-US',
+                    datetimeFormatOptions,
+                  )}
+                </p>
+              </div>
+            ) : null}
+            {invoice?.isReturned &&
+            invoice.returnReason != null &&
+            String(invoice.returnReason).trim() !== '' ? (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px] self-start">
+                  Return note:
+                </p>
+                <p className="whitespace-pre-wrap">{invoice.returnReason}</p>
+              </div>
+            ) : null}
             {invoiceType === InvoiceType.Sale ? (
               <>
                 {invoice?.biltyNumber != null &&
@@ -492,6 +584,52 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           </Tabs>
         </div>
       </div>
+
+      <Dialog open={returnDialogOpen} onOpenChange={setReturnDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Return this sale invoice?</DialogTitle>
+            <DialogDescription>
+              This removes the linked journals and ledger postings, restocks
+              inventory, and marks the invoice as returned. This cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="invoice-return-reason">Reason (optional)</Label>
+            <textarea
+              id="invoice-return-reason"
+              rows={3}
+              value={returnReasonDraft}
+              onChange={(e) => setReturnReasonDraft(e.target.value)}
+              className={cn(
+                'flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+              )}
+              disabled={isReturning}
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReturnDialogOpen(false)}
+              disabled={isReturning}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                handleConfirmReturn().catch(() => undefined);
+              }}
+              disabled={isReturning}
+            >
+              {isReturning ? 'Returning…' : 'Return invoice'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

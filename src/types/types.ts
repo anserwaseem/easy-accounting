@@ -289,6 +289,10 @@ export type InvoicesView = Prettify<
     accountCode?: number | string | null;
     /** journals linked by invoiceId; 0 means edit is unsafe (matches updateInvoice guard) */
     linkedJournalCount: number;
+    /** whole-invoice return voided posting; when true, invoice should not be edited */
+    isReturned?: boolean;
+    returnedAt?: string | null;
+    returnReason?: string | null;
   }
 >;
 export type InvoiceItemView = {
@@ -315,8 +319,16 @@ export type InvoiceView = Prettify<
     accountAddress?: string | null;
     accountGoodsName?: string | null;
     invoiceItems: Array<InvoiceItemView>;
+    isReturned?: boolean;
+    returnedAt?: string | null;
+    returnReason?: string | null;
   }
 >;
+
+/** optional note stored when voiding a sale invoice via return */
+export type ReturnSaleInvoicePayload = {
+  returnReason?: string | null;
+};
 export type InvoicesExport = Prettify<
   Pick<Invoice, 'invoiceNumber' | 'date' | 'totalAmount'> & {
     totalQuantity: number;
