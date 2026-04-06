@@ -14,6 +14,7 @@ import type {
   BackupOperationType,
 } from '@/types';
 import { BackupService } from './services/Backup.service';
+import { PrintService } from './services/Print.service';
 import { AppUpdater } from './appUpdater';
 import { store } from './store';
 import { DatabaseService } from './services';
@@ -180,6 +181,26 @@ export default class MenuBuilder {
                 message:
                   'Backup folder not found or not yet created. It will be created when you make your first backup.',
               });
+            }
+          },
+        },
+        {
+          label: 'Open Batch PDF Folder',
+          click: async () => {
+            const printService = new PrintService();
+            const pdfDir = printService.outputDirectory;
+            if (!pdfDir || !existsSync(pdfDir)) {
+              dialog.showMessageBox({
+                type: 'info',
+                title: 'Batch PDF folder',
+                message:
+                  'The folder for saved PDFs could not be found. It is created when you use batch save PDFs.',
+              });
+              return;
+            }
+            const err = await shell.openPath(pdfDir);
+            if (err) {
+              dialog.showErrorBox('Could not open folder', err);
             }
           },
         },
