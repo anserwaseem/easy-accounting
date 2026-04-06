@@ -32,6 +32,25 @@ interface ConvertQuotationToastContent {
   description: ReactNode;
 }
 
+export interface InvoiceSaveToastContent {
+  title: string;
+  description: ReactNode;
+}
+
+const stockBelowZeroPrefix = 'Stock would go below zero for:';
+
+const toastForStockBelowZeroBody = (
+  message: string,
+): Pick<InvoiceSaveToastContent, 'title' | 'description'> | null => {
+  if (!message.startsWith(stockBelowZeroPrefix)) {
+    return null;
+  }
+  return {
+    title: 'Not enough on-hand stock',
+    description: <p className="text-sm leading-snug">{message}</p>,
+  };
+};
+
 /** turns raw IPC/rejection messages into concise toast title + description */
 export const toastContentFromConvertQuotationError = (
   raw: string,
@@ -63,5 +82,64 @@ export const toastContentFromConvertQuotationError = (
   return {
     title: 'Could not convert quotation',
     description: message,
+  };
+};
+
+/** invoice save/update IPC failures: short title, no "Error invoking remote method" noise */
+export const toastContentFromInvoiceSaveError = (
+  raw: string,
+  options?: { mode?: 'create' | 'update' },
+): InvoiceSaveToastContent => {
+  const message = stripElectronIpcWrappers(raw);
+  const defaultTitle =
+    options?.mode === 'create'
+      ? "Couldn't save this invoice"
+      : "Couldn't save your changes";
+
+  const stockToast = toastForStockBelowZeroBody(message);
+  if (stockToast) {
+    return stockToast;
+  }
+
+  if (/^Insufficient stock for inventory id \d+$/i.test(message)) {
+    const legacyStockHelp =
+      'This change would leave one or more products with negative stock. ' +
+      'Reduce quantities on the invoice or update amounts in Inventory, then try again.';
+    return {
+      title: 'Not enough on-hand stock',
+      description: <p className="text-sm leading-snug">{legacyStockHelp}</p>,
+    };
+  }
+
+  return {
+    title: defaultTitle,
+    description: <p className="text-sm leading-snug break-words">{message}</p>,
+  };
+};
+
+/** return sale/purchase invoice IPC failures */
+export const toastContentFromInvoiceReturnError = (
+  raw: string,
+): InvoiceSaveToastContent => {
+  const message = stripElectronIpcWrappers(raw);
+
+  const stockToast = toastForStockBelowZeroBody(message);
+  if (stockToast) {
+    return stockToast;
+  }
+
+  if (/^Insufficient stock for inventory id \d+$/i.test(message)) {
+    const legacyStockHelp =
+      'Returning this purchase would leave one or more products with negative stock. ' +
+      'Update Inventory or resolve other movements, then try again.';
+    return {
+      title: 'Not enough on-hand stock',
+      description: <p className="text-sm leading-snug">{legacyStockHelp}</p>,
+    };
+  }
+
+  return {
+    title: "Couldn't return this invoice",
+    description: <p className="text-sm leading-snug break-words">{message}</p>,
   };
 };

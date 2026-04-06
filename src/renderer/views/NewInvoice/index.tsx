@@ -41,6 +41,7 @@ import { z } from 'zod';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
+import { toastContentFromInvoiceSaveError } from '@/renderer/lib/ipcUserMessage';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import {
   checkParsedItemsAvailability,
@@ -1058,8 +1059,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error(error);
+      const raw = error instanceof Error ? error.message : toString(error);
+      const { title, description } = toastContentFromInvoiceSaveError(raw, {
+        mode: editInvoiceId != null ? 'update' : 'create',
+      });
       toast({
-        description: toString(error),
+        title,
+        description,
         variant: 'destructive',
       });
     }

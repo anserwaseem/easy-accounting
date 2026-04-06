@@ -703,6 +703,85 @@ describe('InvoiceService.insertInvoice', () => {
     expect(purchaseLedger.at(-1)!.debit).toBe(uiTotal);
   });
 
+  it('purchase: update rejects when edit would drive inventory negative', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    db.prepare(`UPDATE inventory SET quantity = 1 WHERE id = ?`).run([
+      inv.primaryItemId,
+    ]);
+
+    const qtyLarge = 100;
+    const price = 10;
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: qtyLarge,
+        discount: 0,
+        price,
+        discountedPrice: qtyLarge * price,
+      },
+    ];
+
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-03-06T12:00:00.000Z').toISOString(),
+      invoiceNumber: 5002,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: qtyLarge * price,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+
+    // simulate other stock movements since the purchase (sales, adjustments) so
+    // reversing the large receipt before applying the smaller edit can go negative
+    db.prepare(`UPDATE inventory SET quantity = 50 WHERE id = ?`).run([
+      inv.primaryItemId,
+    ]);
+
+    const qtySmall = 1;
+    const updatedItems: InvoiceItem[] = [
+      {
+        ...items[0],
+        quantity: qtySmall,
+        discountedPrice: qtySmall * price,
+      },
+    ];
+    const updatedInvoice: Invoice = {
+      ...invoice,
+      id: invoiceId,
+      invoiceNumber: invoice.invoiceNumber,
+      totalAmount: qtySmall * price,
+      invoiceItems: updatedItems,
+    };
+
+    expect(() =>
+      invoiceService.updateInvoice(
+        'Purchase' as InvoiceType,
+        invoiceId,
+        updatedInvoice,
+      ),
+    ).toThrow(/Stock would go below zero for:.*ItemPrimary/);
+
+    const invRow = db
+      .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+      .get([inv.primaryItemId]) as { quantity: number };
+    expect(invRow.quantity).toBe(50);
+  });
+
   it('sale: invoices + invoice_items + journal + journal_entry + chart/account + inventory + item_types + discount_profiles + profile_type_discounts align', () => {
     const acc = seedBaseAccounts();
     const inv = seedInventoryAndTypes();
@@ -1414,6 +1493,76 @@ describe('InvoiceService.insertInvoice', () => {
     expect(view.returnReason).toBe('defective stock');
 
     expect(() => invoiceService.returnPurchaseInvoice(invoiceId)).toThrow();
+  });
+
+  it('returnPurchaseInvoice: rejects when return would drive inventory negative', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    const qtyPurchase = 100;
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: qtyPurchase,
+        discount: 0,
+        price: 10,
+        discountedPrice: 0,
+      },
+    ];
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-06-03T12:00:00.000Z').toISOString(),
+      invoiceNumber: 93002,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: qtyPurchase * 10,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+
+    db.prepare(`UPDATE inventory SET quantity = 50 WHERE id = ?`).run([
+      inv.primaryItemId,
+    ]);
+
+    const journalCountBeforeReturn = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountBeforeReturn).toBeGreaterThan(0);
+
+    expect(() =>
+      invoiceService.returnPurchaseInvoice(invoiceId, {
+        returnReason: 'vendor credit',
+      }),
+    ).toThrow(/Stock would go below zero for:.*ItemPrimary/);
+
+    const returnedRow = db
+      .prepare(`SELECT isReturned FROM invoices WHERE id = ?`)
+      .get([invoiceId]) as { isReturned: number };
+    expect(returnedRow.isReturned).toBe(0);
+
+    const journalCountAfterFailed = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountAfterFailed).toBe(journalCountBeforeReturn);
+
+    const qtyAfterFailedReturn = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+    expect(qtyAfterFailedReturn).toBe(50);
   });
 
   it('returnPurchaseInvoice: throws when invoice is a sale', () => {

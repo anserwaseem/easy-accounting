@@ -12,7 +12,10 @@ import {
   showInvoiceEditedIndicator,
   stripItemTypeSuffixFromAccountName,
 } from '@/renderer/lib/invoiceUtils';
-import { toastContentFromConvertQuotationError } from '@/renderer/lib/ipcUserMessage';
+import {
+  toastContentFromConvertQuotationError,
+  toastContentFromInvoiceReturnError,
+} from '@/renderer/lib/ipcUserMessage';
 import {
   cn,
   defaultSortingFunctions,
@@ -247,8 +250,9 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       setReturnReasonDraft('');
       await reloadInvoice();
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast({ variant: 'destructive', description: message });
+      const raw = e instanceof Error ? e.message : String(e);
+      const { title, description } = toastContentFromInvoiceReturnError(raw);
+      toast({ variant: 'destructive', title, description, duration: 12000 });
     } finally {
       setIsReturning(false);
     }

@@ -118,6 +118,8 @@ export class InvoiceService {
 
   private stmGetInventoryQuantity!: Statement;
 
+  private stmGetInventoryNameQuantity!: Statement;
+
   private stmGetPrevInvoiceDateForAccount!: Statement;
 
   private stmGetNextInvoiceDateForAccount!: Statement;
@@ -412,7 +414,7 @@ export class InvoiceService {
       this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
 
       if (invoiceType === InvoiceType.Sale) {
-        this.assertSaleInventoryNonNegative(
+        this.assertInventoryNonNegative(
           uniq(invoice.invoiceItems.map((i) => i.inventoryId)),
         );
       }
@@ -748,7 +750,7 @@ export class InvoiceService {
           }) as { inventoryId: number }[]
         ).map((i) => i.inventoryId),
       );
-      this.assertSaleInventoryNonNegative(touchedIds);
+      this.assertInventoryNonNegative(touchedIds);
     } else {
       this.applyPersistedPurchaseInventoryIncrements(invoiceId);
     }
@@ -1011,12 +1013,15 @@ export class InvoiceService {
 
     this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
 
-    if (invoiceType === InvoiceType.Sale) {
+    if (
+      invoiceType === InvoiceType.Sale ||
+      invoiceType === InvoiceType.Purchase
+    ) {
       const touchedIds = uniq([
         ...oldRows.map((r) => r.inventoryId),
         ...invoice.invoiceItems.map((i) => i.inventoryId),
       ]);
-      this.assertSaleInventoryNonNegative(touchedIds);
+      this.assertInventoryNonNegative(touchedIds);
     }
 
     this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
@@ -1038,15 +1043,27 @@ export class InvoiceService {
     });
   }
 
-  private assertSaleInventoryNonNegative(inventoryIds: number[]): void {
-    inventoryIds.forEach((id) => {
-      const row = this.stmGetInventoryQuantity.get(id) as
-        | { quantity: number }
+  private assertInventoryNonNegative(inventoryIds: number[]): void {
+    const problemLines: string[] = [];
+    uniq(inventoryIds).forEach((id) => {
+      const row = this.stmGetInventoryNameQuantity.get(id) as
+        | { name: string | null; quantity: number }
         | undefined;
-      if (row && toNumber(row.quantity) < 0) {
-        raise(`Insufficient stock for inventory id ${id}`);
+      if (!row || toNumber(row.quantity) >= 0) {
+        return;
       }
+      const label = String(row.name ?? '').trim() || `item #${id}`;
+      problemLines.push(
+        `"${label}" (on-hand would be ${toNumber(row.quantity)})`,
+      );
     });
+    if (problemLines.length === 0) {
+      return;
+    }
+    const listed = problemLines.join('; ');
+    raise(
+      `Stock would go below zero for: ${listed}. Adjust line quantities or correct stock on the Inventory page, then try again.`,
+    );
   }
 
   /**
@@ -1209,6 +1226,12 @@ export class InvoiceService {
         item.inventoryId,
       );
     });
+
+    if (expectedType === InvoiceType.Purchase) {
+      this.assertInventoryNonNegative(
+        uniq(items.map((item) => item.inventoryId)),
+      );
+    }
 
     const trimmed = options?.returnReason?.trim();
     const returnReason = trimmed != null && trimmed.length > 0 ? trimmed : null;
@@ -1843,6 +1866,10 @@ export class InvoiceService {
 
     this.stmGetInventoryQuantity = this.db.prepare(`
       SELECT quantity FROM inventory WHERE id = ?
+    `);
+
+    this.stmGetInventoryNameQuantity = this.db.prepare(`
+      SELECT name, quantity FROM inventory WHERE id = ?
     `);
 
     this.stmGetInvoiceForReturn = this.db.prepare(`
