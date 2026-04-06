@@ -15,6 +15,7 @@ const setSplitByItemType = jest.fn();
 const setNextInvoiceNumber = jest.fn();
 const setIsDateExplicitlySet = jest.fn();
 const setEditHydrated = jest.fn();
+const setIsEditingQuotation = jest.fn();
 const saleStockValidationBonusRef: React.MutableRefObject<
   Record<number, number>
 > = { current: {} };
@@ -69,6 +70,7 @@ const HydrationHarness = ({
     setNextInvoiceNumber,
     setIsDateExplicitlySet,
     setEditHydrated,
+    setIsEditingQuotation,
     navigate,
     saleStockValidationBonusRef,
   });
@@ -107,6 +109,7 @@ describe('useEditInvoiceHydration', () => {
     expect(getInvoice).not.toHaveBeenCalled();
     expect(getJournalsByInvoiceId).not.toHaveBeenCalled();
     expect(setEditHydrated).toHaveBeenCalledWith(false);
+    expect(setIsEditingQuotation).toHaveBeenCalledWith(false);
   });
 
   it('sale: multiple distinct row accounts enables split and maps row ids', async () => {
@@ -196,6 +199,27 @@ describe('useEditInvoiceHydration', () => {
     await waitFor(() => {
       expect(setUseSingleAccount).toHaveBeenCalledWith(true);
     });
+  });
+
+  it('quotation: skips journal check and sets editing quotation', async () => {
+    const {
+      electron: { getInvoice, getJournalsByInvoiceId },
+    } = window as unknown as {
+      electron: { getInvoice: jest.Mock; getJournalsByInvoiceId: jest.Mock };
+    };
+
+    const inv = makeInvoiceView({ isQuotation: true, invoiceNumber: -3 });
+    getInvoice.mockResolvedValue(inv);
+
+    render(
+      <HydrationHarness editInvoiceId={5} invoiceType={InvoiceType.Sale} />,
+    );
+
+    await waitFor(() => {
+      expect(setIsEditingQuotation).toHaveBeenCalledWith(true);
+      expect(setEditHydrated).toHaveBeenCalledWith(true);
+    });
+    expect(getJournalsByInvoiceId).not.toHaveBeenCalled();
   });
 
   it('no linked journals: navigates to invoice details and shows toast', async () => {

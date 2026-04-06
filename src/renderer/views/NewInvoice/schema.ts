@@ -11,6 +11,8 @@ export interface NewInvoiceSchemaOptions {
   getSplitByItemType: () => boolean;
   /** sale edit: quantities still tied to this invoice (add to on-hand for max-qty validation) */
   getSaleStockValidationBonus?: () => Readonly<Record<number, number>>;
+  /** persisted quotations use negative placeholder invoice numbers */
+  getIsQuotationFlow?: () => boolean;
 }
 
 export const getDefaultFormValues = (invoiceType: InvoiceType): Invoice => ({
@@ -40,15 +42,23 @@ export const buildNewInvoiceFormSchema = (
     getUseSingleAccount,
     getSplitByItemType,
     getSaleStockValidationBonus,
+    getIsQuotationFlow,
   } = opts;
 
   return (
     z
       .object({
         id: z.number(),
-        invoiceNumber: z.coerce.number().refine((n) => n === -1 || n > 0, {
-          message: 'Invalid invoice number',
-        }),
+        invoiceNumber: z.coerce.number().refine(
+          (n) => {
+            const quotationFlow = getIsQuotationFlow?.() ?? false;
+            if (quotationFlow) {
+              return n === -1 || n < 0 || n > 0; // allow negative invoice numbers
+            }
+            return n === -1 || n > 0; // allow positive invoice numbers
+          }, // -1 is a placeholder invoice number, hence allow it
+          { message: 'Invalid invoice number' },
+        ),
         invoiceType: z.nativeEnum(InvoiceType).optional(),
         date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
           message: 'Select a valid date',

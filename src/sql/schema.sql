@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
     -- "isReturned" BOOLEAN NOT NULL DEFAULT 0, -- "017 migration"
     -- "returnedAt" DATETIME, -- "017 migration"
     -- "returnReason" TEXT, -- "017 migration"
+    -- "isQuotation" BOOLEAN NOT NULL DEFAULT 0, -- "018 migration"
 
     UNIQUE("invoiceNumber", "invoiceType"),
     FOREIGN KEY ("accountId") REFERENCES "account"("id")

@@ -91,11 +91,37 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   console.log('NewInvoicePage', invoiceType);
   const params = useParams<{ id: string }>();
   const location = useLocation();
+  const isPostedInvoiceEditPath = useMemo(
+    () =>
+      location.pathname.includes('/invoices/') &&
+      location.pathname.includes('/edit'),
+    [location.pathname],
+  );
   const editInvoiceId = useMemo(() => {
-    if (!location.pathname.includes('/edit')) return undefined;
+    if (!isPostedInvoiceEditPath) return undefined;
     const n = toNumber(params.id);
     return Number.isFinite(n) && n > 0 ? n : undefined;
-  }, [location.pathname, params.id]);
+  }, [isPostedInvoiceEditPath, params.id]);
+
+  const [isEditingQuotation, setIsEditingQuotation] = useState(false);
+  const isQuotationFlowRef = useRef(false);
+  isQuotationFlowRef.current = isEditingQuotation;
+  const submitSaveKindRef = useRef<'invoice' | 'quotation'>('invoice');
+
+  const newInvoicePageHeading = useMemo(() => {
+    if (editInvoiceId != null && isEditingQuotation) {
+      return `Edit ${
+        invoiceType === InvoiceType.Sale ? 'sale' : 'purchase'
+      } quotation`;
+    }
+    if (editInvoiceId != null) return `Edit ${invoiceType} Invoice`;
+    return `New ${invoiceType} Invoice`;
+  }, [editInvoiceId, invoiceType, isEditingQuotation]);
+
+  const primarySubmitLabel = useMemo(() => {
+    if (editInvoiceId != null && isEditingQuotation) return 'Update quotation';
+    return 'Save';
+  }, [editInvoiceId, isEditingQuotation]);
 
   const saleStockValidationBonusRef = useRef<Record<number, number>>({});
   const [editHydrated, setEditHydrated] = useState(false);
@@ -141,6 +167,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     splitByItemTypeRef,
     splitByItemType,
     saleStockValidationBonusRef,
+    isQuotationFlowRef,
   });
   const {
     form,
@@ -381,13 +408,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const navigate = useNavigate();
 
-  const showAddInvoiceNumberGate =
-    editInvoiceId == null &&
-    (nextInvoiceNumber === undefined || nextInvoiceNumber < 1);
+  const showAddInvoiceNumberGate = false;
 
-  const showInvoiceForm =
-    (editInvoiceId != null && editHydrated) ||
-    (nextInvoiceNumber !== undefined && nextInvoiceNumber > 0);
+  const showInvoiceForm = editInvoiceId == null || editHydrated;
 
   useEditInvoiceHydration({
     invoiceType,
@@ -398,6 +421,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     setNextInvoiceNumber,
     setIsDateExplicitlySet,
     setEditHydrated,
+    setIsEditingQuotation,
     navigate,
     saleStockValidationBonusRef,
   });
@@ -902,6 +926,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedTotalAmount,
   ]);
 
+  const postedNextNumberBlocked = useMemo(
+    () =>
+      editInvoiceId == null &&
+      (isNil(nextInvoiceNumber) || toNumber(nextInvoiceNumber) < 1),
+    [editInvoiceId, nextInvoiceNumber],
+  );
+
   const isSubmitDisabled = submitDisabledReason != null;
 
   const onCumulativeDiscountChange = useCallback(
@@ -958,6 +989,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           }`,
         });
       };
+      if (editInvoiceId != null && isEditingQuotation) {
+        const invoice = {
+          ...values,
+          invoiceNumber: values.invoiceNumber,
+        };
+        await window.electron.updateQuotation(editInvoiceId, invoice);
+        toast({
+          variant: 'success',
+          description: 'Quotation updated.',
+        });
+        return editInvoiceId;
+      }
 
       if (editInvoiceId != null) {
         const invoice = {
@@ -971,6 +1014,24 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         );
         showPostSaveToast();
         return editInvoiceId;
+      }
+
+      if (submitSaveKindRef.current === 'quotation') {
+        const invoice = {
+          ...values,
+          invoiceNumber: -1,
+        };
+        const result = (await window.electron.insertQuotation(
+          invoiceType,
+          invoice,
+        )) as { invoiceId: number };
+        if (result.invoiceId > 0) {
+          toast({
+            variant: 'success',
+            description: 'Quotation saved.',
+          });
+        }
+        return result.invoiceId > 0 ? result.invoiceId : undefined;
       }
 
       const invoice = {
@@ -1376,7 +1437,34 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       <div className="py-1 flex flex-col gap-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
-            {editInvoiceId != null && (
+            {editInvoiceId != null && isEditingQuotation ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const back = () =>
+                    navigate(
+                      `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
+                    );
+                  if (isDirty) {
+                    setPendingConfirm({
+                      title: 'Discard unsaved changes?',
+                      description:
+                        'Discard unsaved changes and return to the quotation?',
+                      confirmLabel: 'Discard',
+                      confirmVariant: 'destructive',
+                      onConfirm: back,
+                    });
+                    return;
+                  }
+                  back();
+                }}
+              >
+                Back to quotation
+              </Button>
+            ) : null}
+            {editInvoiceId != null && !isEditingQuotation ? (
               <Button
                 type="button"
                 variant="outline"
@@ -1403,13 +1491,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               >
                 Back to invoice
               </Button>
-            )}
+            ) : null}
             <h1 className="title-new flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span>
-                {editInvoiceId != null
-                  ? `Edit ${invoiceType} Invoice`
-                  : `New ${invoiceType} Invoice`}
-              </span>
+              <span>{newInvoicePageHeading}</span>
               {editInvoiceId != null &&
               toNumber(editHeadingInvoiceNumber) > 0 ? (
                 <span className="text-lg font-normal text-muted-foreground">
@@ -1419,50 +1503,48 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            {invoiceType === InvoiceType.Sale &&
-              showInvoiceForm &&
-              (editInvoiceId != null || !isNil(nextInvoiceNumber)) && (
-                <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3 py-2">
+            {invoiceType === InvoiceType.Sale && showInvoiceForm && (
+              <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <div className="flex items-center gap-2 min-h-[44px]">
+                  <Checkbox
+                    id="useSingleAccount"
+                    checked={useSingleAccount}
+                    onCheckedChange={onUseSingleAccountCheckedChange}
+                  />
+                  <Label
+                    htmlFor="useSingleAccount"
+                    className="cursor-pointer select-none"
+                  >
+                    One customer for entire invoice
+                  </Label>
+                </div>
+                {useSingleAccount && (
                   <div className="flex items-center gap-2 min-h-[44px]">
                     <Checkbox
-                      id="useSingleAccount"
-                      checked={useSingleAccount}
-                      onCheckedChange={onUseSingleAccountCheckedChange}
+                      id="splitByItemType"
+                      checked={splitByItemType}
+                      onCheckedChange={onSplitByItemTypeCheckedChange}
                     />
                     <Label
-                      htmlFor="useSingleAccount"
+                      htmlFor="splitByItemType"
                       className="cursor-pointer select-none"
                     >
-                      One customer for entire invoice
+                      Split ledger by item type
                     </Label>
                   </div>
-                  {useSingleAccount && (
-                    <div className="flex items-center gap-2 min-h-[44px]">
-                      <Checkbox
-                        id="splitByItemType"
-                        checked={splitByItemType}
-                        onCheckedChange={onSplitByItemTypeCheckedChange}
-                      />
-                      <Label
-                        htmlFor="splitByItemType"
-                        className="cursor-pointer select-none"
-                      >
-                        Split ledger by item type
-                      </Label>
-                    </div>
-                  )}
-                  {accountMappingErrorMessage ? (
-                    <div className="w-full min-w-0">
-                      <p
-                        role="alert"
-                        className="text-sm font-medium text-destructive"
-                      >
-                        {accountMappingErrorMessage}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              )}
+                )}
+                {accountMappingErrorMessage ? (
+                  <div className="w-full min-w-0">
+                    <p
+                      role="alert"
+                      className="text-sm font-medium text-destructive"
+                    >
+                      {accountMappingErrorMessage}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            )}
             <Button
               variant="outline"
               size="icon"
@@ -1947,33 +2029,62 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 <div className="flex gap-3 flex-wrap">
                   <div>
                     <Button
-                      type="submit"
+                      type="button"
                       variant="default"
+                      disabled={
+                        isSubmitDisabled ||
+                        (editInvoiceId == null && postedNextNumberBlocked)
+                      }
+                      className="min-h-[44px]"
+                      title={
+                        postedNextNumberBlocked && editInvoiceId == null
+                          ? 'Loading next invoice number…'
+                          : submitDisabledReason ?? ''
+                      }
+                      onClick={() => {
+                        submitSaveKindRef.current = 'invoice';
+                        form.handleSubmit(onSubmit)();
+                      }}
+                    >
+                      {primarySubmitLabel}
+                    </Button>
+                    {postedNextNumberBlocked && editInvoiceId == null ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Loading next invoice number for posted save…
+                      </p>
+                    ) : null}
+                  </div>
+                  {editInvoiceId == null ? (
+                    <Button
+                      type="button"
+                      variant="outline"
                       disabled={isSubmitDisabled}
                       className="min-h-[44px]"
-                      title={submitDisabledReason ?? ''}
+                      onClick={() => {
+                        submitSaveKindRef.current = 'quotation';
+                        form.handleSubmit(onSubmit)();
+                      }}
                     >
-                      Save
+                      Save as quotation
                     </Button>
-                    {submitDisabledReason && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {submitDisabledReason}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isSubmitDisabled}
-                    className="min-h-[44px]"
-                    onClick={() => {
-                      openPrintAfterSaveRef.current = true;
-                      form.handleSubmit(onSubmit)();
-                    }}
-                  >
-                    <Printer size={16} className="mr-2" />
-                    Save and Print
-                  </Button>
+                  ) : null}
+                  {editInvoiceId == null ||
+                  (editInvoiceId != null && !isEditingQuotation) ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitDisabled || postedNextNumberBlocked}
+                      className="min-h-[44px]"
+                      onClick={() => {
+                        submitSaveKindRef.current = 'invoice';
+                        openPrintAfterSaveRef.current = true;
+                        form.handleSubmit(onSubmit)();
+                      }}
+                    >
+                      <Printer size={16} className="mr-2" />
+                      Save and Print
+                    </Button>
+                  ) : null}
                   <Button type="reset" variant="ghost" className="min-h-[44px]">
                     Clear
                   </Button>
@@ -2015,6 +2126,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   Cancel
                 </Button>
               </div>
+
+              {submitDisabledReason && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {submitDisabledReason}
+                </p>
+              )}
             </form>
           </Form>
         ) : null}

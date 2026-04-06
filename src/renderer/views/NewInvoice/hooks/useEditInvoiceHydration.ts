@@ -18,6 +18,7 @@ interface UseEditInvoiceHydrationParams {
   setNextInvoiceNumber: (n: number | undefined) => void;
   setIsDateExplicitlySet: (v: boolean) => void;
   setEditHydrated: (v: boolean) => void;
+  setIsEditingQuotation: (v: boolean) => void;
   navigate: NavigateFunction;
   saleStockValidationBonusRef: React.MutableRefObject<Record<number, number>>;
 }
@@ -31,6 +32,7 @@ export const useEditInvoiceHydration = ({
   setNextInvoiceNumber,
   setIsDateExplicitlySet,
   setEditHydrated,
+  setIsEditingQuotation,
   navigate,
   saleStockValidationBonusRef,
 }: UseEditInvoiceHydrationParams) => {
@@ -38,6 +40,7 @@ export const useEditInvoiceHydration = ({
     // edit invoice hydration effect
     if (editInvoiceId == null) {
       setEditHydrated(false);
+      setIsEditingQuotation(false);
       saleStockValidationBonusRef.current = {};
       return undefined;
     }
@@ -66,18 +69,23 @@ export const useEditInvoiceHydration = ({
         return;
       }
 
-      const linkedJournals = (await window.electron.getJournalsByInvoiceId(
-        editInvoiceId,
-      )) as unknown[];
-      if (cancelled) return;
-      if (!linkedJournals?.length) {
-        toast({
-          variant: 'destructive',
-          description:
-            'This invoice has no linked journals and cannot be edited safely.',
-        });
-        navigate(`/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`);
-        return;
+      const isQuotation = Boolean(inv.isQuotation);
+      setIsEditingQuotation(isQuotation);
+
+      if (!isQuotation) {
+        const linkedJournals = (await window.electron.getJournalsByInvoiceId(
+          editInvoiceId,
+        )) as unknown[];
+        if (cancelled) return;
+        if (!linkedJournals?.length) {
+          toast({
+            variant: 'destructive',
+            description:
+              'This invoice has no linked journals and cannot be edited safely.',
+          });
+          navigate(`/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`);
+          return;
+        }
       }
 
       saleStockValidationBonusRef.current = {};
@@ -184,6 +192,7 @@ export const useEditInvoiceHydration = ({
     navigate,
     saleStockValidationBonusRef,
     setEditHydrated,
+    setIsEditingQuotation,
     setIsDateExplicitlySet,
     setNextInvoiceNumber,
     setSplitByItemType,

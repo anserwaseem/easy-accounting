@@ -23,6 +23,7 @@ import { toNumber, toString, truncate } from 'lodash';
 import {
   computeSectionTotals,
   getPrintBillToPartyName,
+  getQuotationDisplayNumber,
   groupInvoiceItemsByType,
 } from '@/renderer/lib/invoiceUtils';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
@@ -67,6 +68,18 @@ const fetchPdfOutputDir = (): Promise<string | null> =>
     .getOutputDir()
     .then(normalizePdfOutputDir)
     .catch(() => null);
+
+const getPrintDocumentTitleBase = (inv: InvoiceView): string => {
+  if (inv.isQuotation) {
+    return `quotation-${getQuotationDisplayNumber(
+      toNumber(inv.invoiceNumber),
+    )}`;
+  }
+  if (inv.invoiceNumber != null) {
+    return toString(inv.invoiceNumber);
+  }
+  return '';
+};
 
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
@@ -116,10 +129,15 @@ const PrintableInvoiceScreen = () => {
         return;
       }
 
+      const adjacentScope = fetchedInvoice?.isQuotation
+        ? 'quotation'
+        : 'posted';
+
       const nextId = await window.electron.getAdjacentInvoiceId(
         numericId,
         invoiceType,
         'next',
+        adjacentScope,
       );
       if (cancelled) {
         return;
@@ -128,6 +146,7 @@ const PrintableInvoiceScreen = () => {
         numericId,
         invoiceType,
         'previous',
+        adjacentScope,
       );
       if (cancelled) {
         return;
@@ -172,18 +191,24 @@ const PrintableInvoiceScreen = () => {
   }, []);
 
   useEffect(() => {
-    if (!invoice?.invoiceNumber) {
+    if (!invoice) {
+      return;
+    }
+
+    const titleBase = getPrintDocumentTitleBase(invoice);
+
+    if (!titleBase) {
       return;
     }
 
     window.onbeforeprint = () => {
-      document.title = toString(invoice?.invoiceNumber);
+      document.title = titleBase;
     };
 
     window.onafterprint = () => {
       document.title = 'Easy Invoicing';
     };
-  }, [invoice?.invoiceNumber]);
+  }, [invoice]);
 
   const handlePrint = () => {
     dismissAllToasts();
@@ -200,15 +225,21 @@ const PrintableInvoiceScreen = () => {
         return;
       }
 
+      const batchScope = invoice?.isQuotation ? 'quotation' : 'posted';
+
       const rowIds = await window.electron.getInvoiceIdsFromMinId(
         invoiceType,
         startId,
+        batchScope,
       );
 
       if (rowIds.length === 0) {
         toast({
           title: 'No PDFs to save',
-          description: 'No invoices of this type from this row onward.',
+          description:
+            batchScope === 'quotation'
+              ? 'No quotations of this type from this row onward.'
+              : 'No invoices of this type from this row onward.',
           variant: 'destructive',
           duration: BATCH_TOAST_FALLBACK_MS,
         });
@@ -216,7 +247,7 @@ const PrintableInvoiceScreen = () => {
       }
 
       console.log(
-        `Starting batch PDF for ${rowIds.length} invoice row(s) from id ${startId} (${invoiceType})…`,
+        `Starting batch PDF for ${rowIds.length} row(s) from id ${startId} (${invoiceType}, ${batchScope})…`,
       );
 
       let successCount = 0;
@@ -229,30 +260,30 @@ const PrintableInvoiceScreen = () => {
       const settleMs = 100;
 
       for (const rowId of rowIds) {
-        let label = rowId;
+        let label: string | number = rowId;
         try {
-          const invoiceNumber = await window.electron.doesInvoiceExists(
+          const pdfBase = await window.electron.getInvoicePdfOutputBaseName(
             rowId,
             invoiceType,
           );
 
-          if (!invoiceNumber) {
+          if (!pdfBase) {
             continue;
           }
-          label = invoiceNumber;
+          label = pdfBase;
 
           navigate(`/invoices/${rowId}/print`);
           // eslint-disable-next-line no-promise-executor-return
           await new Promise((resolve) => setTimeout(resolve, settleMs));
 
-          const result = await window.electron.printToPdf(invoiceNumber);
+          const result = await window.electron.printToPdf(pdfBase);
 
           if (result.success) {
             successCount++;
           } else {
             failCount++;
             console.error(
-              `Failed to generate PDF for invoice ${invoiceNumber}:`,
+              `Failed to generate PDF for ${pdfBase}:`,
               result.error,
             );
           }
@@ -423,6 +454,18 @@ const PrintableInvoiceScreen = () => {
     const address = String(raw).trim();
     return address.length > 0 ? address : '';
   }, [invoice?.accountAddress]);
+
+  const printCompanyHeading = useMemo(() => {
+    const name = companyProfile.name.trim();
+    if (name.length > 0) {
+      return name;
+    }
+    if (invoice?.isQuotation) {
+      return 'QUOTATION';
+    }
+    return 'INVOICE';
+  }, [companyProfile.name, invoice?.isQuotation]);
+
   const totalQuantity = invoiceItems.reduce(
     (sum, item) => sum + toNumber(item.quantity),
     0,
@@ -476,6 +519,16 @@ const PrintableInvoiceScreen = () => {
       ];
     });
   }, [groupedInvoiceItems]);
+
+  const batchSavePdfAriaLabel = useMemo(() => {
+    if (isBatchPrinting) {
+      return 'Saving PDFs';
+    }
+    if (invoice?.isQuotation) {
+      return 'Save PDFs for this quotation and every newer quotation of the same type';
+    }
+    return 'Save PDFs for this invoice and every newer invoice';
+  }, [invoice?.isQuotation, isBatchPrinting]);
 
   if (!invoice) {
     return (
@@ -535,11 +588,7 @@ const PrintableInvoiceScreen = () => {
                     variant="default"
                     className={`min-w-[9.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
                     disabled={isBatchPrinting || !isInvoiceSynced}
-                    aria-label={
-                      isBatchPrinting
-                        ? 'Saving PDFs'
-                        : 'Save PDFs for this invoice and every newer invoice'
-                    }
+                    aria-label={batchSavePdfAriaLabel}
                   >
                     {isBatchPrinting ? 'Saving PDFs…' : 'Batch save PDFs'}
                   </Button>
@@ -549,7 +598,9 @@ const PrintableInvoiceScreen = () => {
                   className="max-w-[min(22rem,calc(100vw-2rem))] space-y-2 px-3 py-2.5 text-pretty"
                 >
                   <p className="text-sm leading-snug text-popover-foreground">
-                    Saves PDFs for this invoice and every newer invoice.
+                    {invoice.isQuotation
+                      ? 'Saves PDFs for this quotation and every newer quotation.'
+                      : 'Saves PDFs for this invoice and every newer invoice.'}
                   </p>
                   <div className="border-t border-border pt-2">
                     <p className="mb-1 text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
@@ -636,10 +687,20 @@ const PrintableInvoiceScreen = () => {
             ) : null}
           </div>
         ) : null}
+        {invoice.isQuotation ? (
+          <div
+            className="mb-4 rounded-md border-2 border-amber-600 bg-amber-50 px-4 py-3 text-center print:border-black print:bg-white print:text-black"
+            role="status"
+          >
+            <p className="text-lg font-bold uppercase tracking-wide text-amber-950 print:text-black">
+              QUOTATION
+            </p>
+          </div>
+        ) : null}
         <div className="flex justify-between items-center">
           <div className="w-full text-[13px]">
             <h1 className="text-3xl font-bold text-center font-mono">
-              {companyProfile.name.trim() ? companyProfile.name : 'INVOICE'}
+              {printCompanyHeading}
             </h1>
             {[
               companyProfile.address,
@@ -666,8 +727,12 @@ const PrintableInvoiceScreen = () => {
         <div className="flex flex-col">
           <div className="flex justify-between gap-4">
             <div className="flex gap-1 whitespace-nowrap">
-              <p>Invoice No:</p>
-              <p>{invoice.invoiceNumber}</p>
+              <p>{invoice.isQuotation ? 'Quotation #:' : 'Invoice No:'}</p>
+              <p>
+                {invoice.isQuotation
+                  ? getQuotationDisplayNumber(toNumber(invoice.invoiceNumber))
+                  : invoice.invoiceNumber}
+              </p>
             </div>
             <div className="flex gap-1 whitespace-nowrap">
               <p>Date:</p>

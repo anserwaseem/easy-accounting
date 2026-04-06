@@ -7,10 +7,12 @@ import {
 } from 'renderer/lib/constants';
 import {
   computeSectionTotals,
+  getQuotationDisplayNumber,
   groupInvoiceItemsByType,
   showInvoiceEditedIndicator,
   stripItemTypeSuffixFromAccountName,
 } from '@/renderer/lib/invoiceUtils';
+import { toastContentFromConvertQuotationError } from '@/renderer/lib/ipcUserMessage';
 import {
   cn,
   defaultSortingFunctions,
@@ -63,27 +65,78 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [returnReasonDraft, setReturnReasonDraft] = useState('');
   const [isReturning, setIsReturning] = useState(false);
+  const [isConvertingQuotation, setIsConvertingQuotation] = useState(false);
   const { primaryItemTypeName, itemTypeNames } = usePrimaryItemType();
   const navigate = useNavigate();
   // eslint-disable-next-line no-console
   console.log('InvoiceDetails', invoiceId, propInvoice, invoice);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchInvoice = async () => {
       if (!isNil(propInvoice)) {
         setInvoice(propInvoice);
         return;
       }
-      setInvoice(undefined);
       const inv = await window.electron.getInvoice(invoiceId);
-      setInvoice(inv);
+      if (!cancelled) setInvoice(inv);
     };
     fetchInvoice().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [invoiceId, propInvoice]);
 
   useEffect(() => {
     const inv = invoice;
     if (!inv?.id) return;
+
+    const idsForLedgers = (): number[] => {
+      const ids = new Set<number>();
+      const headerId = toNumber(inv.invoiceHeaderAccountId);
+      if (headerId > 0) ids.add(headerId);
+      (inv.invoiceItems ?? []).forEach((it) => {
+        const aid = toNumber(it.accountId);
+        if (aid > 0) ids.add(aid);
+      });
+      return [...ids];
+    };
+
+    const loadLedgersOnly = async (cancelled: () => boolean) => {
+      setIsJournalsLoading(false);
+      setRelatedJournals([]);
+      setIsRelatedLoading(true);
+      setLedgerJumpAccounts([]);
+      setRelatedLedgerBalances({});
+      try {
+        const idList = idsForLedgers();
+        if (idList.length === 0) {
+          if (!cancelled()) setIsRelatedLoading(false);
+          return;
+        }
+        const [accounts, balanceMap] = await Promise.all([
+          window.electron.getAccountsByIds(idList) as Promise<Account[]>,
+          window.electron.getLedgerBalancesForAccountIds(idList) as Promise<
+            Record<number, { balance: number; balanceType: BalanceType }>
+          >,
+        ]);
+        if (cancelled()) return;
+        setLedgerJumpAccounts(accounts);
+        setRelatedLedgerBalances(balanceMap);
+      } finally {
+        if (!cancelled()) setIsRelatedLoading(false);
+      }
+    };
+
+    if (inv.isQuotation) {
+      let cancelled = false;
+      const isCancelled = () => cancelled;
+      loadLedgersOnly(isCancelled).catch(() => undefined);
+      return () => {
+        cancelled = true;
+        setIsRelatedLoading(false);
+      };
+    }
 
     let cancelled = false;
     setIsJournalsLoading(true);
@@ -102,15 +155,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         setRelatedJournals(Array.isArray(journalsRaw) ? journalsRaw : []);
         setIsJournalsLoading(false);
 
-        const ids = new Set<number>();
-        const headerId = toNumber(inv.invoiceHeaderAccountId);
-        if (headerId > 0) ids.add(headerId);
-        (inv.invoiceItems ?? []).forEach((it) => {
-          const id = toNumber(it.accountId);
-          if (id > 0) ids.add(id);
-        });
-
-        const idList = [...ids];
+        const idList = idsForLedgers();
         const [accounts, balanceMap] = await Promise.all([
           window.electron.getAccountsByIds(idList) as Promise<Account[]>,
           window.electron.getLedgerBalancesForAccountIds(idList) as Promise<
@@ -141,20 +186,48 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     };
   }, [invoice]);
 
-  const canEditOrReturn = useMemo(() => {
+  const canEditPostedInvoice = useMemo(() => {
     if (!invoice?.id || isJournalsLoading) return false;
     if (invoice.isReturned) return false;
+    if (invoice.isQuotation) return false;
     return relatedJournals.length > 0;
   }, [
     invoice?.id,
     invoice?.isReturned,
+    invoice?.isQuotation,
     isJournalsLoading,
     relatedJournals.length,
   ]);
 
+  const showQuotationActions = useMemo(
+    () => Boolean(invoice?.isQuotation) && !invoice?.isReturned,
+    [invoice?.isQuotation, invoice?.isReturned],
+  );
+
   const reloadInvoice = useCallback(async () => {
     setInvoice(await window.electron.getInvoice(invoiceId));
   }, [invoiceId]);
+
+  const handleConvertQuotation = useCallback(async () => {
+    if (!invoice?.id) return;
+    setIsConvertingQuotation(true);
+    try {
+      const { invoiceNumber } = await window.electron.convertQuotation(
+        invoice.id,
+      );
+      toast({
+        variant: 'success',
+        description: `Converted to ${invoiceType.toLowerCase()} invoice #${invoiceNumber}.`,
+      });
+      await reloadInvoice();
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      const { title, description } = toastContentFromConvertQuotationError(raw);
+      toast({ variant: 'destructive', title, description });
+    } finally {
+      setIsConvertingQuotation(false);
+    }
+  }, [invoice?.id, invoiceType, reloadInvoice]);
 
   const handleConfirmReturn = useCallback(async () => {
     if (!invoice?.id) return;
@@ -268,7 +341,11 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     <div>
       <div className="w-full">
         <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <h1 className="min-w-0 shrink text-4xl font-light">{`${invoiceType.toUpperCase()} INVOICE`}</h1>
+          <h1 className="min-w-0 shrink text-4xl font-light">
+            {invoice?.isQuotation
+              ? `${invoiceType.toUpperCase()} QUOTATION`
+              : `${invoiceType.toUpperCase()} INVOICE`}
+          </h1>
           <div className="flex w-full flex-wrap items-center justify-end gap-2 md:ml-auto md:w-auto md:shrink-0">
             {invoice &&
             showInvoiceEditedIndicator(invoice) &&
@@ -288,7 +365,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 </p>
               </div>
             ) : null}
-            {canEditOrReturn ? (
+            {canEditPostedInvoice ? (
               <Button
                 type="button"
                 variant="outline"
@@ -303,18 +380,58 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 Return
               </Button>
             ) : null}
+            {showQuotationActions ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 md:h-10"
+                  onClick={() =>
+                    navigate(
+                      `/${invoiceType.toLowerCase()}/invoices/${
+                        invoice!.id
+                      }/edit`,
+                    )
+                  }
+                >
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                  Edit quotation
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="h-9 md:h-10"
+                  disabled={isConvertingQuotation}
+                  onClick={() => {
+                    handleConvertQuotation().catch(() => undefined);
+                  }}
+                >
+                  {isConvertingQuotation ? 'Converting…' : 'Convert to invoice'}
+                </Button>
+              </>
+            ) : null}
           </div>
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-8">
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-8 items-center">
-              <p className="font-extrabold text-md w-[160px]">Invoice #:</p>
+              <p className="font-extrabold text-md w-[160px]">
+                {invoice?.isQuotation ? 'Quotation #:' : 'Invoice #:'}
+              </p>
               <div className="flex flex-wrap items-center gap-2">
-                <p>{invoice?.invoiceNumber}</p>
+                {invoice?.isQuotation ? (
+                  <p className="tabular-nums">
+                    {getQuotationDisplayNumber(toNumber(invoice.invoiceNumber))}
+                  </p>
+                ) : (
+                  <p className="tabular-nums">{invoice?.invoiceNumber}</p>
+                )}
                 {invoice?.isReturned ? (
                   <Badge variant="destructive">Returned</Badge>
                 ) : null}
-                {canEditOrReturn ? (
+                {canEditPostedInvoice ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -427,10 +544,12 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             ) : null}
           </div>
 
-          {propInvoice || invoiceType === InvoiceType.Purchase ? null : (
+          {invoiceType === InvoiceType.Purchase ? null : (
             <div className="flex flex-col justify-end gap-4 w-32 ml-auto">
               <Button onClick={handlePrintClick} className="px-4 py-8">
-                View Printable Invoice
+                {invoice?.isQuotation
+                  ? 'View Printable Quotation'
+                  : 'View Printable Invoice'}
               </Button>
             </div>
           )}
@@ -467,141 +586,232 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         ))}
       </div>
 
-      <div className="py-6">
-        <Separator />
-        <div className="pt-6">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold">Related</h2>
-            {isRelatedLoading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : null}
-          </div>
+      {invoice && !invoice.isQuotation && (
+        <div className="py-6">
+          <Separator />
+          <div className="pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold">Related</h2>
+              {isRelatedLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : null}
+            </div>
 
-          <Tabs defaultValue="journals" className="mt-3">
-            <TabsList>
-              <TabsTrigger value="journals">Journals</TabsTrigger>
-              <TabsTrigger value="ledgers">Ledgers</TabsTrigger>
-            </TabsList>
+            <Tabs defaultValue="journals" className="mt-3">
+              <TabsList>
+                <TabsTrigger value="journals">Journals</TabsTrigger>
+                <TabsTrigger value="ledgers">Ledgers</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="journals">
-              {relatedJournalViews.length === 0 ? (
-                <p className="text-sm text-muted-foreground mt-2">
-                  No linked journals.
-                </p>
-              ) : (
-                <div className="mt-2 space-y-2">
-                  {relatedJournalViews.map((j) => (
-                    <button
-                      key={j.id}
-                      type="button"
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-left hover:bg-muted/40"
-                      onClick={() => navigate(`/journals/${j.id}`)}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {j.narration}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(j.date || '').toLocaleString(
-                              'en-US',
-                              dateFormatOptions,
-                            )}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="secondary"
-                            className="whitespace-nowrap"
-                          >
-                            {getFormattedCurrencySafe(j.amount)}
-                          </Badge>
-                          {j.isPosted ? (
-                            <Badge className="whitespace-nowrap">Posted</Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="whitespace-nowrap"
-                            >
-                              Draft
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="ledgers">
-              {ledgerJumpAccounts.length === 0 ? (
-                <p className="text-sm text-muted-foreground mt-2">
-                  No accounts found to open ledger.
-                </p>
-              ) : (
-                <div className="mt-2 space-y-2">
-                  {ledgerJumpAccounts.map((a) => {
-                    const codeStr =
-                      a.code != null && String(a.code).trim() !== ''
-                        ? String(a.code)
-                        : '';
-                    const subLine =
-                      a.headName ??
-                      (codeStr ? `Code ${codeStr}` : 'General ledger');
-                    const aid = toNumber(a.id);
-                    const latestBal = relatedLedgerBalances[aid];
-                    return (
+              <TabsContent value="journals">
+                {relatedJournalViews.length === 0 ? (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    No linked journals.
+                  </p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {relatedJournalViews.map((j) => (
                       <button
-                        key={a.id}
+                        key={j.id}
                         type="button"
                         className="w-full rounded-md border border-border bg-background px-3 py-2 text-left hover:bg-muted/40"
-                        onClick={() => navigate(`/accounts/${a.id}`)}
+                        onClick={() => navigate(`/journals/${j.id}`)}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">
-                              {a.name}
+                              {j.narration}
                             </p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {subLine}
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(j.date || '').toLocaleString(
+                                'en-US',
+                                dateFormatOptions,
+                              )}
                             </p>
                           </div>
-                          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                            {codeStr && a.headName ? (
-                              <Badge
-                                variant="secondary"
-                                className="whitespace-nowrap"
-                              >
-                                {codeStr}
-                              </Badge>
-                            ) : null}
-                            {latestBal ? (
-                              <Badge
-                                variant="secondary"
-                                className="whitespace-nowrap tabular-nums"
-                              >
-                                {getFormattedCurrencySafe(latestBal.balance)}{' '}
-                                <span className="font-normal text-muted-foreground">
-                                  {latestBal.balanceType}
-                                </span>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="secondary"
+                              className="whitespace-nowrap"
+                            >
+                              {getFormattedCurrencySafe(j.amount)}
+                            </Badge>
+                            {j.isPosted ? (
+                              <Badge className="whitespace-nowrap">
+                                Posted
                               </Badge>
                             ) : (
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                No ledger activity
-                              </span>
+                              <Badge
+                                variant="outline"
+                                className="whitespace-nowrap"
+                              >
+                                Draft
+                              </Badge>
                             )}
                           </div>
                         </div>
                       </button>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="ledgers">
+                {ledgerJumpAccounts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    No accounts found to open ledger.
+                  </p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {ledgerJumpAccounts.map((a) => {
+                      const codeStr =
+                        a.code != null && String(a.code).trim() !== ''
+                          ? String(a.code)
+                          : '';
+                      const subLine =
+                        a.headName ??
+                        (codeStr ? `Code ${codeStr}` : 'General ledger');
+                      const aid = toNumber(a.id);
+                      const latestBal = relatedLedgerBalances[aid];
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-left hover:bg-muted/40"
+                          onClick={() => navigate(`/accounts/${a.id}`)}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {a.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {subLine}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                              {codeStr && a.headName ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="whitespace-nowrap"
+                                >
+                                  {codeStr}
+                                </Badge>
+                              ) : null}
+                              {latestBal ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="whitespace-nowrap tabular-nums"
+                                >
+                                  {getFormattedCurrencySafe(latestBal.balance)}{' '}
+                                  <span className="font-normal text-muted-foreground">
+                                    {latestBal.balanceType}
+                                  </span>
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                  No ledger activity
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
-      </div>
+      )}
+      {invoice?.isQuotation && (
+        <div className="py-6">
+          <Separator />
+          <div className="pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Related ledgers</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {invoice.invoiceType === InvoiceType.Sale
+                    ? 'Customer'
+                    : 'Vendor'}
+                  &nbsp;accounts on this quotation. Journals are created only
+                  after invoice is created.
+                </p>
+              </div>
+              {isRelatedLoading ? (
+                <p className="text-sm text-muted-foreground shrink-0">
+                  Loading…
+                </p>
+              ) : null}
+            </div>
+            {ledgerJumpAccounts.length === 0 ? (
+              <p className="text-sm text-muted-foreground mt-3">
+                No accounts found to open ledger.
+              </p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {ledgerJumpAccounts.map((a) => {
+                  const codeStr =
+                    a.code != null && String(a.code).trim() !== ''
+                      ? String(a.code)
+                      : '';
+                  const subLine =
+                    a.headName ??
+                    (codeStr ? `Code ${codeStr}` : 'General ledger');
+                  const aid = toNumber(a.id);
+                  const latestBal = relatedLedgerBalances[aid];
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-left hover:bg-muted/40"
+                      onClick={() => navigate(`/accounts/${a.id}`)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {a.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {subLine}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                          {codeStr && a.headName ? (
+                            <Badge
+                              variant="secondary"
+                              className="whitespace-nowrap"
+                            >
+                              {codeStr}
+                            </Badge>
+                          ) : null}
+                          {latestBal ? (
+                            <Badge
+                              variant="secondary"
+                              className="whitespace-nowrap tabular-nums"
+                            >
+                              {getFormattedCurrencySafe(latestBal.balance)}{' '}
+                              <span className="font-normal text-muted-foreground">
+                                {latestBal.balanceType}
+                              </span>
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              No ledger activity
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <Dialog open={returnDialogOpen} onOpenChange={setReturnDialogOpen}>
         <DialogContent>

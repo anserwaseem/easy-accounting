@@ -3,12 +3,15 @@ import { Sidebar as ShadSidebar } from 'renderer/shad/ui/sidebar';
 import { Button } from 'renderer/shad/ui/button';
 import { Link, Outlet } from 'react-router-dom';
 import {
-  FileCheck2,
-  Plus,
-  Table2,
-  FileText,
-  Store,
   BarChart3,
+  FileCheck2,
+  FileInput,
+  FileOutput,
+  Plus,
+  Quote,
+  Store,
+  Table2,
+  TextQuote,
 } from 'lucide-react';
 import { PropsWithChildren } from 'react';
 
@@ -57,15 +60,6 @@ const Sidebar: React.FC<PropsWithChildren> = ({
               <span>Inventory</span>
             </Button>
           </Link>,
-          <Link to="/reports">
-            <Button
-              variant="outline"
-              className="w-full md:w-[225px] gap-2 justify-start"
-            >
-              <BarChart3 />
-              <span>Reports</span>
-            </Button>
-          </Link>,
           <div className="flex flex-row">
             <Button
               variant="outline"
@@ -76,7 +70,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({
                 to="/purchase/invoices"
                 className="w-5/6 flex items-center justify-start gap-2"
               >
-                <FileText />
+                <FileInput />
                 <span>Purchase Invoices</span>
               </Link>
               <Link to="/purchase/invoices/new">
@@ -88,6 +82,15 @@ const Sidebar: React.FC<PropsWithChildren> = ({
               </Link>
             </Button>
           </div>,
+          <Link to="/purchase/quotations">
+            <Button
+              variant="outline"
+              className="w-full md:w-[225px] gap-2 justify-start"
+            >
+              <TextQuote />
+              <span>Purchase Quotations</span>
+            </Button>
+          </Link>,
           <div className="flex flex-row">
             <Button
               variant="outline"
@@ -98,7 +101,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({
                 to="/sale/invoices"
                 className="w-5/6 flex items-center justify-start gap-2"
               >
-                <FileText />
+                <FileOutput />
                 <span>Sale Invoices</span>
               </Link>
               <Link to="/sale/invoices/new">
@@ -110,8 +113,26 @@ const Sidebar: React.FC<PropsWithChildren> = ({
               </Link>
             </Button>
           </div>,
+          <Link to="/sale/quotations">
+            <Button
+              variant="outline"
+              className="w-full md:w-[225px] gap-2 justify-start"
+            >
+              <Quote />
+              <span>Sale Quotations</span>
+            </Button>
+          </Link>,
+          <Link to="/reports">
+            <Button
+              variant="outline"
+              className="w-full md:w-[225px] gap-2 justify-start"
+            >
+              <BarChart3 />
+              <span>Reports</span>
+            </Button>
+          </Link>,
         ]}
-        className="print:hidden h-full overflow-y-auto"
+        className="print:hidden h-full"
       />
       <div className="flex flex-col flex-grow min-w-0 w-full mx-auto">
         <MainNav className="print:hidden flex-shrink-0" />

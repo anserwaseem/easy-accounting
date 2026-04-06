@@ -147,3 +147,5 @@ export const showInvoiceEditedIndicator = (inv: {
   if (inv.isReturned) return false;
   return isInvoiceEditedSnapshot(inv);
 };
+
+export { getQuotationDisplayNumber } from '@/lib/quotationDisplay';

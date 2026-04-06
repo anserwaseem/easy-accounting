@@ -17,6 +17,8 @@ export interface UseNewInvoiceFormCoreParams {
   splitByItemType: boolean;
   /** sale edit: bonus quantities per inventory id for max-stock validation */
   saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
+  /** when true, invoiceNumber may be a negative quotation placeholder */
+  isQuotationFlowRef?: React.MutableRefObject<boolean>;
 }
 
 /** owns form instance, schema, default values, field array, watched values, and discount-account-exists check */
@@ -28,10 +30,13 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     splitByItemTypeRef,
     splitByItemType,
     saleStockValidationBonusRef,
+    isQuotationFlowRef,
   } = params;
 
   const internalBonusRef = useRef<Record<number, number>>({});
   const bonusRef = saleStockValidationBonusRef ?? internalBonusRef;
+  const internalQuotationRef = useRef(false);
+  const quotationFlowRef = isQuotationFlowRef ?? internalQuotationRef;
 
   const defaultFormValues = useMemo(
     () => getDefaultFormValues(invoiceType),
@@ -46,8 +51,16 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
         getUseSingleAccount: () => useSingleAccountRef.current,
         getSplitByItemType: () => splitByItemTypeRef.current,
         getSaleStockValidationBonus: () => ({ ...bonusRef.current }),
+        getIsQuotationFlow: () => quotationFlowRef.current,
       }),
-    [invoiceType, inventory, useSingleAccountRef, splitByItemTypeRef, bonusRef],
+    [
+      invoiceType,
+      inventory,
+      useSingleAccountRef,
+      splitByItemTypeRef,
+      bonusRef,
+      quotationFlowRef,
+    ],
   );
 
   const form = useForm<z.infer<typeof formSchema>>({

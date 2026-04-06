@@ -420,6 +420,22 @@ app
       invoiceService.getInvoice(invoiceId),
     );
     ipcMain.handle(
+      'invoice:insertQuotation',
+      (_, invoiceType: InvoiceType, invoice: Invoice) =>
+        invoiceService.insertQuotationInvoice(invoiceType, invoice),
+    );
+    ipcMain.handle('invoice:getQuotations', (_, invoiceType: InvoiceType) =>
+      invoiceService.getQuotationInvoices(invoiceType),
+    );
+    ipcMain.handle(
+      'invoice:updateQuotation',
+      (_, invoiceId: number, invoice: Invoice) =>
+        invoiceService.updateQuotationInvoice(invoiceId, invoice),
+    );
+    ipcMain.handle('invoice:convertQuotation', (_, invoiceId: number) =>
+      invoiceService.convertQuotationInvoice(invoiceId),
+    );
+    ipcMain.handle(
       'invoice:returnSale',
       (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
         invoiceService.returnSaleInvoice(invoiceId, payload),
@@ -469,24 +485,44 @@ app
         invoiceId: number,
         invoiceType: InvoiceType,
         direction: 'next' | 'previous',
+        scope?: 'posted' | 'quotation',
       ) =>
-        invoiceService.getAdjacentInvoiceId(invoiceId, invoiceType, direction),
+        invoiceService.getAdjacentInvoiceId(
+          invoiceId,
+          invoiceType,
+          direction,
+          scope ?? 'posted',
+        ),
     );
     ipcMain.handle('invoice:getLastNumber', (_, invoiceType: InvoiceType) =>
       invoiceService.getLastInvoiceNumber(invoiceType),
     );
     ipcMain.handle(
       'invoice:getIdsFromMinId',
-      (_, invoiceType: InvoiceType, fromInvoiceId: number) =>
-        invoiceService.getInvoiceIdsFromMinId(invoiceType, fromInvoiceId),
+      (
+        _,
+        invoiceType: InvoiceType,
+        fromInvoiceId: number,
+        scope?: 'posted' | 'quotation',
+      ) =>
+        invoiceService.getInvoiceIdsFromMinId(
+          invoiceType,
+          fromInvoiceId,
+          scope ?? 'posted',
+        ),
+    );
+    ipcMain.handle(
+      'invoice:getPdfOutputBaseName',
+      (_, invoiceId: number, invoiceType: InvoiceType) =>
+        invoiceService.getInvoicePdfOutputBaseName(invoiceId, invoiceType),
     );
     ipcMain.handle(
       'invoice:getAutoDiscount',
       (_, accountId: number, inventoryId: number) =>
         pricingService.getAutoDiscount(accountId, inventoryId),
     );
-    ipcMain.handle('print:toPDF', (_, invoiceNumber: number) =>
-      printService.printPDF(invoiceNumber),
+    ipcMain.handle('print:toPDF', (_, outputBaseName: string | number) =>
+      printService.printPDF(String(outputBaseName)),
     );
     ipcMain.handle('print:outputDir', () => printService.outputDirectory);
     ipcMain.handle('chart:insertCustomHead', (_, chart: InsertChart) =>

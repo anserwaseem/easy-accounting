@@ -220,6 +220,30 @@ const electronHandler = {
   insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) =>
     ipcRenderer.invoke('invoice:insert', invoiceType, invoice),
 
+  insertQuotation: (invoiceType: InvoiceType, invoice: Invoice) =>
+    ipcRenderer.invoke(
+      'invoice:insertQuotation',
+      invoiceType,
+      invoice,
+    ) as Promise<{
+      invoiceId: number;
+    }>,
+
+  getQuotations: (invoiceType: InvoiceType) =>
+    ipcRenderer.invoke('invoice:getQuotations', invoiceType),
+
+  updateQuotation: (invoiceId: number, invoice: Invoice) =>
+    ipcRenderer.invoke(
+      'invoice:updateQuotation',
+      invoiceId,
+      invoice,
+    ) as Promise<void>,
+
+  convertQuotation: (invoiceId: number) =>
+    ipcRenderer.invoke('invoice:convertQuotation', invoiceId) as Promise<{
+      invoiceNumber: number;
+    }>,
+
   updateInvoice: (
     invoiceType: InvoiceType,
     invoiceId: number,
@@ -274,23 +298,37 @@ const electronHandler = {
     invoiceId: number,
     invoiceType: InvoiceType,
     direction: 'next' | 'previous',
+    scope?: 'posted' | 'quotation',
   ) =>
     ipcRenderer.invoke(
       'invoice:getAdjacentId',
       invoiceId,
       invoiceType,
       direction,
+      scope,
     ),
 
   getLastInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getLastNumber', invoiceType),
 
-  getInvoiceIdsFromMinId: (invoiceType: InvoiceType, fromInvoiceId: number) =>
+  getInvoiceIdsFromMinId: (
+    invoiceType: InvoiceType,
+    fromInvoiceId: number,
+    scope?: 'posted' | 'quotation',
+  ) =>
     ipcRenderer.invoke(
       'invoice:getIdsFromMinId',
       invoiceType,
       fromInvoiceId,
+      scope,
     ) as Promise<number[]>,
+
+  getInvoicePdfOutputBaseName: (invoiceId: number, invoiceType: InvoiceType) =>
+    ipcRenderer.invoke(
+      'invoice:getPdfOutputBaseName',
+      invoiceId,
+      invoiceType,
+    ) as Promise<string | null>,
 
   getAutoDiscount: (accountId: number, inventoryId: number) =>
     ipcRenderer.invoke(
@@ -299,8 +337,8 @@ const electronHandler = {
       inventoryId,
     ) as Promise<number>,
 
-  printToPdf: (invoiceNumber: number) =>
-    ipcRenderer.invoke('print:toPDF', invoiceNumber),
+  printToPdf: (outputBaseName: string | number) =>
+    ipcRenderer.invoke('print:toPDF', outputBaseName),
 
   getOutputDir: () => ipcRenderer.invoke('print:outputDir'),
 

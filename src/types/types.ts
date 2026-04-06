@@ -289,6 +289,8 @@ export type InvoicesView = Prettify<
     accountCode?: number | string | null;
     /** journals linked by invoiceId; 0 means edit is unsafe (matches updateInvoice guard) */
     linkedJournalCount: number;
+    /** sale quotation row; not a posted invoice until converted */
+    isQuotation?: boolean;
     /** whole-invoice return voided posting; when true, invoice should not be edited */
     isReturned?: boolean;
     returnedAt?: string | null;
@@ -319,6 +321,8 @@ export type InvoiceView = Prettify<
     accountAddress?: string | null;
     accountGoodsName?: string | null;
     invoiceItems: Array<InvoiceItemView>;
+    /** sale quotation until converted to a numbered invoice */
+    isQuotation?: boolean;
     isReturned?: boolean;
     returnedAt?: string | null;
     returnReason?: string | null;

@@ -608,6 +608,76 @@ describe('NewInvoice schema', () => {
       ),
     ).toBe(true);
   });
+
+  it('quotation flow: allows negative placeholder invoice numbers', () => {
+    const schema = buildNewInvoiceFormSchema({
+      invoiceType: InvoiceType.Sale,
+      inventory: [inv({ id: 10, quantity: 100 })],
+      getUseSingleAccount: () => true,
+      getSplitByItemType: () => false,
+      getIsQuotationFlow: () => true,
+    });
+
+    const result = schema.safeParse({
+      id: 5,
+      date: new Date().toISOString(),
+      invoiceNumber: -42,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 100,
+      invoiceType: InvoiceType.Sale,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: 123, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: 10,
+          quantity: 1,
+          discount: 0,
+          price: 100,
+          discountedPrice: 100,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('non-quotation flow: rejects negative invoice numbers', () => {
+    const schema = buildNewInvoiceFormSchema({
+      invoiceType: InvoiceType.Sale,
+      inventory: [inv({ id: 10, quantity: 100 })],
+      getUseSingleAccount: () => true,
+      getSplitByItemType: () => false,
+      getIsQuotationFlow: () => false,
+    });
+
+    const result = schema.safeParse({
+      id: 5,
+      date: new Date().toISOString(),
+      invoiceNumber: -42,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 100,
+      invoiceType: InvoiceType.Sale,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: 123, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: 10,
+          quantity: 1,
+          discount: 0,
+          price: 100,
+          discountedPrice: 100,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('getDefaultFormValues', () => {
