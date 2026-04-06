@@ -1,5 +1,5 @@
 /* eslint-disable no-lonely-if */
-import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
+import type { Journal, JournalEntry, Ledger, UpdateJournalFields } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { compact, get, has, omit } from 'lodash';
 import { cast } from '../utils/sqlite';
@@ -28,9 +28,19 @@ export class JournalService {
 
   private stmGetJournal!: Statement;
 
+  private stmGetJournalsByInvoiceId!: Statement;
+
   private stmLedger!: Statement;
 
   private stmUpdateJournalNarration!: Statement;
+
+  private stmGetJournalIdsByInvoiceId!: Statement;
+
+  private stmGetAccountIdsByJournalIdsJson!: Statement;
+
+  private stmDeleteJournalEntriesByJournalIdsJson!: Statement;
+
+  private stmDeleteJournalsByIdsJson!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -46,6 +56,33 @@ export class JournalService {
   getJournals(): Journal[] {
     const username = store.get('username');
     const res = this.stmGetJournals.all({
+      username,
+    }) as (Journal & { debitAmount: number })[];
+
+    const journals = compact(
+      res.reduce((acc, journal) => {
+        if (!acc[journal.id]) {
+          acc[journal.id] = {
+            ...omit(journal, 'debitAmount'),
+            journalEntries: [],
+          };
+        }
+
+        acc[journal.id].journalEntries.push({
+          debitAmount: journal.debitAmount,
+        } as JournalEntry);
+
+        return acc;
+      }, [] as Journal[]),
+    );
+
+    return journals;
+  }
+
+  getJournalsByInvoiceId(invoiceId: number): Journal[] {
+    const username = store.get('username');
+    const res = this.stmGetJournalsByInvoiceId.all({
+      invoiceId: cast(invoiceId),
       username,
     }) as (Journal & { debitAmount: number })[];
 
@@ -117,8 +154,14 @@ export class JournalService {
           raise('Journal has multiple debits and multiple credits');
         }
 
-        const { date, narration, isPosted, billNumber, discountPercentage } =
-          journal;
+        const {
+          date,
+          narration,
+          isPosted,
+          billNumber,
+          discountPercentage,
+          invoiceId,
+        } = journal;
 
         // first check if this is a past dated entry that needs rebuilding
         const affectedAccounts = new Set(
@@ -139,6 +182,7 @@ export class JournalService {
           isPosted: cast(isPosted),
           billNumber,
           discountPercentage,
+          invoiceId: invoiceId ?? null,
         });
         const journalId = Number(result.lastInsertRowid);
 
@@ -174,25 +218,24 @@ export class JournalService {
   }
 
   private rebuildLedger(accountId: number) {
-    // get account type
+    const entries = this.ledgerService.getLedger(accountId);
+    this.rebuildLedgerFromEntries(accountId, entries);
+  }
+
+  /** replays ledger rows in order with fresh running balances (used after stripping journal lines) */
+  private rebuildLedgerFromEntries(accountId: number, entries: Ledger[]) {
     const { type: accountType } = this.stmAccountType.get(accountId) as {
       type: string;
     };
 
-    // get existing ledger for chronological reordering
-    const entries = this.ledgerService.getLedger(accountId);
-
-    // delete all existing ledger entries for this account
     this.ledgerService.deleteLedger(accountId);
 
     let balance = 0;
     let balanceType = JournalService.getDefaultBalanceType(accountType);
 
-    // rebuild ledger entries in chronological order
     entries.forEach((entry) => {
       const { date, debit, credit, linkedAccountId, particulars } = entry;
 
-      // calculate new balance based on account type
       switch (accountType) {
         case AccountType.Asset:
         case AccountType.Expense:
@@ -209,7 +252,6 @@ export class JournalService {
           raise(`Unknown account type: ${accountType}`);
       }
 
-      // insert new ledger entry
       this.stmLedger.run({
         date,
         accountId,
@@ -221,6 +263,40 @@ export class JournalService {
         linkedAccountId,
       });
     });
+  }
+
+  getJournalIdsByInvoiceId(invoiceId: number): number[] {
+    const rows = this.stmGetJournalIdsByInvoiceId.all(invoiceId) as {
+      id: number;
+    }[];
+    return rows.map((r) => r.id);
+  }
+
+  /** removes ledger lines whose particulars are `Journal #<id>` for the given ids, then rebuilds each affected account */
+  removeLedgerEffectOfJournals(journalIds: number[]): void {
+    if (journalIds.length === 0) return;
+    const rows = this.stmGetAccountIdsByJournalIdsJson.all({
+      journalIdsJson: JSON.stringify(journalIds),
+    }) as { accountId: number }[];
+    const accountIds = [...new Set(rows.map((r) => r.accountId))];
+    const idSet = new Set(journalIds);
+
+    accountIds.forEach((accountId) => {
+      const entries = this.ledgerService.getLedger(accountId);
+      const filtered = entries.filter((e) => {
+        const m = e.particulars.match(/^Journal #(\d+)$/);
+        if (!m) return true;
+        return !idSet.has(parseInt(m[1], 10));
+      });
+      this.rebuildLedgerFromEntries(accountId, filtered);
+    });
+  }
+
+  deleteJournalsByIds(journalIds: number[]): void {
+    if (journalIds.length === 0) return;
+    const journalIdsJson = JSON.stringify(journalIds);
+    this.stmDeleteJournalEntriesByJournalIdsJson.run({ journalIdsJson });
+    this.stmDeleteJournalsByIdsJson.run({ journalIdsJson });
   }
 
   private static getDefaultBalanceType(accountType: string): BalanceType {
@@ -384,8 +460,8 @@ export class JournalService {
 
   private initPreparedStatements() {
     this.stmJournal = this.db.prepare(
-      `INSERT INTO journal (date, narration, isPosted, billNumber, discountPercentage)
-       VALUES (@date, @narration, @isPosted, @billNumber, @discountPercentage)`,
+      `INSERT INTO journal (date, narration, isPosted, billNumber, discountPercentage, invoiceId)
+       VALUES (@date, @narration, @isPosted, @billNumber, @discountPercentage, @invoiceId)`,
     );
     this.stmJournalEntry = this.db.prepare(
       `INSERT INTO journal_entry (journalId, debitAmount, accountId, creditAmount)
@@ -406,8 +482,18 @@ export class JournalService {
        WHERE userId = (SELECT id FROM users WHERE username = @username)
        ORDER BY j.date DESC, j.id DESC`,
     );
+    this.stmGetJournalsByInvoiceId = this.db.prepare(
+      `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.invoiceId, j.createdAt, j.updatedAt, je.debitAmount
+       FROM journal j
+       JOIN journal_entry je ON j.id = je.journalId
+       JOIN account a ON a.id = je.accountId
+       JOIN chart c ON c.id = a.chartId
+       WHERE j.invoiceId = @invoiceId
+       AND userId = (SELECT id FROM users WHERE username = @username)
+       ORDER BY j.date DESC, j.id DESC`,
+    );
     this.stmGetJournal = this.db.prepare(
-      `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.createdAt, j.updatedAt,
+      `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.invoiceId, j.createdAt, j.updatedAt,
               je.debitAmount, je.creditAmount, je.accountId, a.name as accountName
        FROM journal j
        JOIN journal_entry je ON j.id = je.journalId
@@ -423,5 +509,22 @@ export class JournalService {
     this.stmUpdateJournalNarration = this.db.prepare(
       `UPDATE journal SET narration = @narration WHERE id = @journalId`,
     );
+    this.stmGetJournalIdsByInvoiceId = this.db.prepare(
+      'SELECT id FROM journal WHERE invoiceId = ?',
+    );
+
+    this.stmGetAccountIdsByJournalIdsJson = this.db.prepare(`
+      SELECT DISTINCT accountId
+      FROM journal_entry
+      WHERE journalId IN (SELECT value FROM json_each(@journalIdsJson))
+    `);
+    this.stmDeleteJournalEntriesByJournalIdsJson = this.db.prepare(`
+      DELETE FROM journal_entry
+      WHERE journalId IN (SELECT value FROM json_each(@journalIdsJson))
+    `);
+    this.stmDeleteJournalsByIdsJson = this.db.prepare(`
+      DELETE FROM journal
+      WHERE id IN (SELECT value FROM json_each(@journalIdsJson))
+    `);
   }
 }

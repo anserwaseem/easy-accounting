@@ -39,7 +39,7 @@ export function cast(value: boolean | Date | number) {
 }
 
 export function uncastBoolean(
-  value: SqliteBoolean | boolean | null | undefined,
+  value: SqliteBoolean | boolean | number | null | undefined,
 ) {
   if (value == null) return value;
   return value === true || value === 1;
@@ -50,12 +50,13 @@ export function normalizeSqliteBooleanFields<T extends object>(
   keys: ReadonlyArray<keyof T>,
 ): T {
   const normalized = { ...row };
-  const mutableNormalized = normalized as Record<keyof T, unknown>;
+  const mutableNormalized = normalized as Record<
+    keyof T,
+    Parameters<typeof uncastBoolean>[0]
+  >;
 
   keys.forEach((key) => {
-    mutableNormalized[key] = uncastBoolean(
-      mutableNormalized[key] as SqliteBoolean | boolean | null | undefined,
-    );
+    mutableNormalized[key] = uncastBoolean(mutableNormalized[key]);
   });
 
   return normalized;

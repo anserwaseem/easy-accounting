@@ -525,6 +525,159 @@ describe('NewInvoice schema', () => {
 
     expect(result.success).toBe(true);
   });
+
+  it('sale: split-by-type accepts when multipleAccountIds aligns with each line', () => {
+    const schema = buildNewInvoiceFormSchema({
+      invoiceType: InvoiceType.Sale,
+      inventory: [inv({ id: 10, quantity: 10 }), inv({ id: 11, quantity: 10 })],
+      getUseSingleAccount: () => true,
+      getSplitByItemType: () => true,
+    });
+
+    const result = schema.safeParse({
+      id: -1,
+      date: new Date().toISOString(),
+      invoiceNumber: 1,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 10,
+      invoiceType: InvoiceType.Sale,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: 1, multipleAccountIds: [10, 20] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: 10,
+          quantity: 1,
+          discount: 0,
+          price: 100,
+          discountedPrice: 100,
+        },
+        {
+          id: 2,
+          inventoryId: 11,
+          quantity: 1,
+          discount: 0,
+          price: 50,
+          discountedPrice: 50,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('purchase: multi-account mode requires a vendor id per line', () => {
+    const schema = buildNewInvoiceFormSchema({
+      invoiceType: InvoiceType.Purchase,
+      inventory: [inv({ id: 10, quantity: 10 })],
+      getUseSingleAccount: () => false,
+      getSplitByItemType: () => false,
+    });
+
+    const result = schema.safeParse({
+      id: -1,
+      date: new Date().toISOString(),
+      invoiceNumber: 1,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 0,
+      invoiceType: InvoiceType.Purchase,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: undefined, multipleAccountIds: [0] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: 10,
+          quantity: 1,
+          discount: 0,
+          price: 0,
+          discountedPrice: 0,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    expect(
+      result.error?.issues.some(
+        (i) =>
+          i.path.join('.') === 'accountMapping.multipleAccountIds.0' &&
+          i.message.toLowerCase().includes('select'),
+      ),
+    ).toBe(true);
+  });
+
+  it('quotation flow: allows negative placeholder invoice numbers', () => {
+    const schema = buildNewInvoiceFormSchema({
+      invoiceType: InvoiceType.Sale,
+      inventory: [inv({ id: 10, quantity: 100 })],
+      getUseSingleAccount: () => true,
+      getSplitByItemType: () => false,
+      getIsQuotationFlow: () => true,
+    });
+
+    const result = schema.safeParse({
+      id: 5,
+      date: new Date().toISOString(),
+      invoiceNumber: -42,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 100,
+      invoiceType: InvoiceType.Sale,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: 123, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: 10,
+          quantity: 1,
+          discount: 0,
+          price: 100,
+          discountedPrice: 100,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('non-quotation flow: rejects negative invoice numbers', () => {
+    const schema = buildNewInvoiceFormSchema({
+      invoiceType: InvoiceType.Sale,
+      inventory: [inv({ id: 10, quantity: 100 })],
+      getUseSingleAccount: () => true,
+      getSplitByItemType: () => false,
+      getIsQuotationFlow: () => false,
+    });
+
+    const result = schema.safeParse({
+      id: 5,
+      date: new Date().toISOString(),
+      invoiceNumber: -42,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 100,
+      invoiceType: InvoiceType.Sale,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: 123, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: 10,
+          quantity: 1,
+          discount: 0,
+          price: 100,
+          discountedPrice: 100,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('getDefaultFormValues', () => {

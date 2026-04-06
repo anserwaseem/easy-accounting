@@ -1,4 +1,3 @@
-import { PenBox } from 'lucide-react';
 import {
   Dialog,
   DialogTrigger,
@@ -6,6 +5,7 @@ import {
   DialogTitle,
   DialogHeader,
 } from 'renderer/shad/ui/dialog';
+import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateInventoryItem, ItemType } from '@/types';
 import { useEffect, useState } from 'react';
@@ -64,12 +64,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <PenBox
-          size={16}
-          onClick={() => setIsOpen(true)}
-          cursor="pointer"
-          className="py-0"
-        />
+        <EditActionButton aria-label="Edit inventory item" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

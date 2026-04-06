@@ -23,6 +23,7 @@ import type {
   UpdateJournalFields,
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
+  ReturnSaleInvoicePayload,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -226,6 +227,9 @@ app
       },
     );
     ipcMain.handle('account:getAll', async () => accountService.getAccounts());
+    ipcMain.handle('account:getByIds', (_, ids: number[]) =>
+      accountService.getAccountsByIds(ids),
+    );
     ipcMain.handle('account:getByName', (_, name: string) =>
       accountService.getAccountByName(name),
     );
@@ -268,6 +272,16 @@ app
     ipcMain.handle('ledger:get', async (_, accountId: number) =>
       ledgerService.getLedger(accountId),
     );
+    ipcMain.handle(
+      'ledger:getBalance',
+      async (_, accountId: number) =>
+        ledgerService.getBalance(accountId) ?? null,
+    );
+    ipcMain.handle(
+      'ledger:getBalancesForAccountIds',
+      async (_, accountIds: number[]) =>
+        ledgerService.getBalancesForAccountIds(accountIds),
+    );
     ipcMain.handle('journal:getNextId', async () =>
       journalService.getNextJournalId(),
     );
@@ -277,6 +291,9 @@ app
     ipcMain.handle('journal:getAll', async () => journalService.getJournals());
     ipcMain.handle('journal:get', async (_, journalId: number) =>
       journalService.getJournal(journalId),
+    );
+    ipcMain.handle('journal:getByInvoiceId', async (_, invoiceId: number) =>
+      journalService.getJournalsByInvoiceId(invoiceId),
     );
     ipcMain.handle(
       'journal:updateNarration',
@@ -391,11 +408,51 @@ app
       (_, invoiceType: InvoiceType, invoice: Invoice) =>
         invoiceService.insertInvoice(invoiceType, invoice),
     );
+    ipcMain.handle(
+      'invoice:update',
+      (_, invoiceType: InvoiceType, invoiceId: number, invoice: Invoice) =>
+        invoiceService.updateInvoice(invoiceType, invoiceId, invoice),
+    );
     ipcMain.handle('invoice:getAll', (_, invoiceType: InvoiceType) =>
       invoiceService.getInvoices(invoiceType),
     );
     ipcMain.handle('invoice:get', (_, invoiceId: number) =>
       invoiceService.getInvoice(invoiceId),
+    );
+    ipcMain.handle(
+      'invoice:insertQuotation',
+      (_, invoiceType: InvoiceType, invoice: Invoice) =>
+        invoiceService.insertQuotationInvoice(invoiceType, invoice),
+    );
+    ipcMain.handle('invoice:getQuotations', (_, invoiceType: InvoiceType) =>
+      invoiceService.getQuotationInvoices(invoiceType),
+    );
+    ipcMain.handle(
+      'invoice:updateQuotation',
+      (_, invoiceId: number, invoice: Invoice) =>
+        invoiceService.updateQuotationInvoice(invoiceId, invoice),
+    );
+    ipcMain.handle('invoice:convertQuotation', (_, invoiceId: number) =>
+      invoiceService.convertQuotationInvoice(invoiceId),
+    );
+    ipcMain.handle(
+      'invoice:returnSale',
+      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
+        invoiceService.returnSaleInvoice(invoiceId, payload),
+    );
+    ipcMain.handle(
+      'invoice:returnPurchase',
+      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
+        invoiceService.returnPurchaseInvoice(invoiceId, payload),
+    );
+    ipcMain.handle(
+      'invoice:getSaleEditDateBounds',
+      (_, invoiceId: number, accountId: number, invoiceNumber: number) =>
+        invoiceService.getSaleInvoiceEditDateBounds(
+          invoiceId,
+          accountId,
+          invoiceNumber,
+        ),
     );
     ipcMain.handle(
       'invoice:updateBiltyAndCartons',
@@ -428,24 +485,44 @@ app
         invoiceId: number,
         invoiceType: InvoiceType,
         direction: 'next' | 'previous',
+        scope?: 'posted' | 'quotation',
       ) =>
-        invoiceService.getAdjacentInvoiceId(invoiceId, invoiceType, direction),
+        invoiceService.getAdjacentInvoiceId(
+          invoiceId,
+          invoiceType,
+          direction,
+          scope ?? 'posted',
+        ),
     );
     ipcMain.handle('invoice:getLastNumber', (_, invoiceType: InvoiceType) =>
       invoiceService.getLastInvoiceNumber(invoiceType),
     );
     ipcMain.handle(
       'invoice:getIdsFromMinId',
-      (_, invoiceType: InvoiceType, fromInvoiceId: number) =>
-        invoiceService.getInvoiceIdsFromMinId(invoiceType, fromInvoiceId),
+      (
+        _,
+        invoiceType: InvoiceType,
+        fromInvoiceId: number,
+        scope?: 'posted' | 'quotation',
+      ) =>
+        invoiceService.getInvoiceIdsFromMinId(
+          invoiceType,
+          fromInvoiceId,
+          scope ?? 'posted',
+        ),
+    );
+    ipcMain.handle(
+      'invoice:getPdfOutputBaseName',
+      (_, invoiceId: number, invoiceType: InvoiceType) =>
+        invoiceService.getInvoicePdfOutputBaseName(invoiceId, invoiceType),
     );
     ipcMain.handle(
       'invoice:getAutoDiscount',
       (_, accountId: number, inventoryId: number) =>
         pricingService.getAutoDiscount(accountId, inventoryId),
     );
-    ipcMain.handle('print:toPDF', (_, invoiceNumber: number) =>
-      printService.printPDF(invoiceNumber),
+    ipcMain.handle('print:toPDF', (_, outputBaseName: string | number) =>
+      printService.printPDF(String(outputBaseName)),
     );
     ipcMain.handle('print:outputDir', () => printService.outputDirectory);
     ipcMain.handle('chart:insertCustomHead', (_, chart: InsertChart) =>

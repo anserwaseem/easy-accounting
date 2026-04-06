@@ -2,6 +2,7 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import type {
+  Account,
   UserCredentials,
   BalanceSheet,
   InsertAccount,
@@ -19,9 +20,11 @@ import type {
   InventoryOpeningStock,
   ApplyStockAdjustmentPayload,
   ApiResponse,
+  ReturnSaleInvoicePayload,
   ItemType,
   DiscountProfile,
   ProfileTypeDiscount,
+  BalanceType,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -217,11 +220,61 @@ const electronHandler = {
   insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) =>
     ipcRenderer.invoke('invoice:insert', invoiceType, invoice),
 
+  insertQuotation: (invoiceType: InvoiceType, invoice: Invoice) =>
+    ipcRenderer.invoke(
+      'invoice:insertQuotation',
+      invoiceType,
+      invoice,
+    ) as Promise<{
+      invoiceId: number;
+    }>,
+
+  getQuotations: (invoiceType: InvoiceType) =>
+    ipcRenderer.invoke('invoice:getQuotations', invoiceType),
+
+  updateQuotation: (invoiceId: number, invoice: Invoice) =>
+    ipcRenderer.invoke(
+      'invoice:updateQuotation',
+      invoiceId,
+      invoice,
+    ) as Promise<void>,
+
+  convertQuotation: (invoiceId: number) =>
+    ipcRenderer.invoke('invoice:convertQuotation', invoiceId) as Promise<{
+      invoiceNumber: number;
+    }>,
+
+  updateInvoice: (
+    invoiceType: InvoiceType,
+    invoiceId: number,
+    invoice: Invoice,
+  ) => ipcRenderer.invoke('invoice:update', invoiceType, invoiceId, invoice),
+
   getInvoices: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getAll', invoiceType),
 
   getInvoice: (invoiceId: number) =>
     ipcRenderer.invoke('invoice:get', invoiceId),
+
+  returnSaleInvoice: (invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
+    ipcRenderer.invoke('invoice:returnSale', invoiceId, payload),
+
+  returnPurchaseInvoice: (
+    invoiceId: number,
+    payload?: ReturnSaleInvoicePayload,
+  ) => ipcRenderer.invoke('invoice:returnPurchase', invoiceId, payload),
+
+  getSaleInvoiceEditDateBounds: (
+    invoiceId: number,
+    accountId: number,
+    invoiceNumber: number,
+  ) =>
+    ipcRenderer.invoke(
+      'invoice:getSaleEditDateBounds',
+      invoiceId,
+      accountId,
+      invoiceNumber,
+    ) as Promise<{ prevDate: string | null; nextDate: string | null }>,
 
   updateInvoiceBiltyAndCartons: (
     invoiceId: number,
@@ -245,23 +298,37 @@ const electronHandler = {
     invoiceId: number,
     invoiceType: InvoiceType,
     direction: 'next' | 'previous',
+    scope?: 'posted' | 'quotation',
   ) =>
     ipcRenderer.invoke(
       'invoice:getAdjacentId',
       invoiceId,
       invoiceType,
       direction,
+      scope,
     ),
 
   getLastInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getLastNumber', invoiceType),
 
-  getInvoiceIdsFromMinId: (invoiceType: InvoiceType, fromInvoiceId: number) =>
+  getInvoiceIdsFromMinId: (
+    invoiceType: InvoiceType,
+    fromInvoiceId: number,
+    scope?: 'posted' | 'quotation',
+  ) =>
     ipcRenderer.invoke(
       'invoice:getIdsFromMinId',
       invoiceType,
       fromInvoiceId,
+      scope,
     ) as Promise<number[]>,
+
+  getInvoicePdfOutputBaseName: (invoiceId: number, invoiceType: InvoiceType) =>
+    ipcRenderer.invoke(
+      'invoice:getPdfOutputBaseName',
+      invoiceId,
+      invoiceType,
+    ) as Promise<string | null>,
 
   getAutoDiscount: (accountId: number, inventoryId: number) =>
     ipcRenderer.invoke(
@@ -270,8 +337,8 @@ const electronHandler = {
       inventoryId,
     ) as Promise<number>,
 
-  printToPdf: (invoiceNumber: number) =>
-    ipcRenderer.invoke('print:toPDF', invoiceNumber),
+  printToPdf: (outputBaseName: string | number) =>
+    ipcRenderer.invoke('print:toPDF', outputBaseName),
 
   getOutputDir: () => ipcRenderer.invoke('print:outputDir'),
 
@@ -281,6 +348,8 @@ const electronHandler = {
    * @example const accounts = getAccounts();
    */
   getAccounts: () => ipcRenderer.invoke('account:getAll'),
+  getAccountsByIds: (ids: number[]) =>
+    ipcRenderer.invoke('account:getByIds', ids) as Promise<Account[]>,
   getAccountByName: (name: string) =>
     ipcRenderer.invoke('account:getByName', name),
   getAccountByNameAndCode: (name: string, code?: string) =>
@@ -361,6 +430,19 @@ const electronHandler = {
   getLedger: (accountId: number) =>
     ipcRenderer.invoke('ledger:get', accountId) as Promise<LedgerView[]>,
   /**
+   * Latest running balance for an account (same as last row on ledger screen), or null if no entries.
+   */
+  getLedgerBalance: (accountId: number) =>
+    ipcRenderer.invoke('ledger:getBalance', accountId) as Promise<{
+      balance: number;
+      balanceType: BalanceType;
+    } | null>,
+  getLedgerBalancesForAccountIds: (accountIds: number[]) =>
+    ipcRenderer.invoke(
+      'ledger:getBalancesForAccountIds',
+      accountIds,
+    ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
+  /**
    * Get the next journal id
    * @returns The next journal id
    * @example const journalId = getNextJournalId();
@@ -389,6 +471,8 @@ const electronHandler = {
    */
   getJournal: (journalId: number) =>
     ipcRenderer.invoke('journal:get', journalId),
+  getJournalsByInvoiceId: (invoiceId: number) =>
+    ipcRenderer.invoke('journal:getByInvoiceId', invoiceId),
   /**
    * Update a journal narration
    * @param journalId The journal id to update

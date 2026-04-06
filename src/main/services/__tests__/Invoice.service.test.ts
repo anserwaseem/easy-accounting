@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
+import { getQuotationDisplayNumber } from '@/lib/quotationDisplay';
 import type {
   InsertAccount,
   Invoice,
@@ -702,6 +703,85 @@ describe('InvoiceService.insertInvoice', () => {
     expect(purchaseLedger.at(-1)!.debit).toBe(uiTotal);
   });
 
+  it('purchase: update rejects when edit would drive inventory negative', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    db.prepare(`UPDATE inventory SET quantity = 1 WHERE id = ?`).run([
+      inv.primaryItemId,
+    ]);
+
+    const qtyLarge = 100;
+    const price = 10;
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: qtyLarge,
+        discount: 0,
+        price,
+        discountedPrice: qtyLarge * price,
+      },
+    ];
+
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-03-06T12:00:00.000Z').toISOString(),
+      invoiceNumber: 5002,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: qtyLarge * price,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+
+    // simulate other stock movements since the purchase (sales, adjustments) so
+    // reversing the large receipt before applying the smaller edit can go negative
+    db.prepare(`UPDATE inventory SET quantity = 50 WHERE id = ?`).run([
+      inv.primaryItemId,
+    ]);
+
+    const qtySmall = 1;
+    const updatedItems: InvoiceItem[] = [
+      {
+        ...items[0],
+        quantity: qtySmall,
+        discountedPrice: qtySmall * price,
+      },
+    ];
+    const updatedInvoice: Invoice = {
+      ...invoice,
+      id: invoiceId,
+      invoiceNumber: invoice.invoiceNumber,
+      totalAmount: qtySmall * price,
+      invoiceItems: updatedItems,
+    };
+
+    expect(() =>
+      invoiceService.updateInvoice(
+        'Purchase' as InvoiceType,
+        invoiceId,
+        updatedInvoice,
+      ),
+    ).toThrow(/Stock would go below zero for:.*ItemPrimary/);
+
+    const invRow = db
+      .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+      .get([inv.primaryItemId]) as { quantity: number };
+    expect(invRow.quantity).toBe(50);
+  });
+
   it('sale: invoices + invoice_items + journal + journal_entry + chart/account + inventory + item_types + discount_profiles + profile_type_discounts align', () => {
     const acc = seedBaseAccounts();
     const inv = seedInventoryAndTypes();
@@ -1159,6 +1239,7 @@ describe('InvoiceService.insertInvoice', () => {
     expect(Number(listRow!.totalAmount)).toBe(uiTotal);
     expect(Number(listRow!.biltyNumber)).toBe(55);
     expect(listRow!.cartons).toBe(2);
+    expect(Number(listRow!.linkedJournalCount)).toBeGreaterThan(0);
   });
 
   it('getInvoice shows per-line account names when invoice_items map to different parties', () => {
@@ -1215,7 +1296,13 @@ describe('InvoiceService.insertInvoice', () => {
     );
 
     const view = invoiceService.getInvoice(invoiceId);
-    expect(view.accountName).toBe('PrimaryParty');
+    expect(
+      String(view.accountName)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .sort(),
+    ).toEqual(['PrimaryParty', 'SectionParty']);
 
     const byInventoryId = new Map(
       view.invoiceItems.map((row) => [row.inventoryId, row]),
@@ -1236,5 +1323,977 @@ describe('InvoiceService.insertInvoice', () => {
       .filter(Boolean)
       .sort();
     expect(names).toEqual(['PrimaryParty', 'SectionParty']);
+  });
+
+  it('returnSaleInvoice: removes journals, restores inventory, stores trimmed reason, and marks returned', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    const profileId = seedDiscountProfileForAccount(
+      acc.primaryPartyId,
+      'DP-Primary',
+    );
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: inv.primaryTypeId, discountPercent: 10 },
+    ]);
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 2,
+        discount: 10,
+        price: 101,
+        discountedPrice: computeUiRowTotal({
+          quantity: 2,
+          price: 101,
+          discount: 10,
+        }),
+      },
+    ];
+
+    const uiTotal = computeUiTotal([items], 0);
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-03-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: 91001,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: uiTotal,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      invoice,
+    );
+
+    const qtyBeforeReturn = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+
+    const journalCountBefore = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+
+    expect(journalCountBefore).toBeGreaterThan(0);
+    expect(qtyBeforeReturn).toBe(48);
+
+    invoiceService.returnSaleInvoice(invoiceId, {
+      returnReason: '  customer changed mind  ',
+    });
+
+    const journalCountAfter = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountAfter).toBe(0);
+
+    const qtyAfterReturn = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+    expect(qtyAfterReturn).toBe(50);
+
+    const returnedRow = db
+      .prepare(`SELECT isReturned, returnReason FROM invoices WHERE id = ?`)
+      .get([invoiceId]) as { isReturned: number; returnReason: string | null };
+    expect(returnedRow.isReturned).toBe(1);
+    expect(returnedRow.returnReason).toBe('customer changed mind');
+
+    const view = invoiceService.getInvoice(invoiceId);
+    expect(view.isReturned).toBe(true);
+    expect(view.returnReason).toBe('customer changed mind');
+
+    expect(() => invoiceService.returnSaleInvoice(invoiceId)).toThrow();
+  });
+
+  it('returnPurchaseInvoice: removes journals, reduces inventory to pre-purchase level, stores reason, marks returned', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 2,
+        discount: 0,
+        price: 101,
+        discountedPrice: 0,
+      },
+    ];
+    const uiTotal = 202;
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-06-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: 93001,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: uiTotal,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+
+    const qtyAfterPurchase = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+    expect(qtyAfterPurchase).toBe(52);
+
+    const journalCountBefore = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountBefore).toBeGreaterThan(0);
+
+    invoiceService.returnPurchaseInvoice(invoiceId, {
+      returnReason: '  defective stock  ',
+    });
+
+    const journalCountAfter = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountAfter).toBe(0);
+
+    const qtyAfterReturn = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+    expect(qtyAfterReturn).toBe(50);
+
+    const returnedRow = db
+      .prepare(`SELECT isReturned, returnReason FROM invoices WHERE id = ?`)
+      .get([invoiceId]) as { isReturned: number; returnReason: string | null };
+    expect(returnedRow.isReturned).toBe(1);
+    expect(returnedRow.returnReason).toBe('defective stock');
+
+    const view = invoiceService.getInvoice(invoiceId);
+    expect(view.isReturned).toBe(true);
+    expect(view.returnReason).toBe('defective stock');
+
+    expect(() => invoiceService.returnPurchaseInvoice(invoiceId)).toThrow();
+  });
+
+  it('returnPurchaseInvoice: rejects when return would drive inventory negative', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    const qtyPurchase = 100;
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: qtyPurchase,
+        discount: 0,
+        price: 10,
+        discountedPrice: 0,
+      },
+    ];
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-06-03T12:00:00.000Z').toISOString(),
+      invoiceNumber: 93002,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: qtyPurchase * 10,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+
+    db.prepare(`UPDATE inventory SET quantity = 50 WHERE id = ?`).run([
+      inv.primaryItemId,
+    ]);
+
+    const journalCountBeforeReturn = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountBeforeReturn).toBeGreaterThan(0);
+
+    expect(() =>
+      invoiceService.returnPurchaseInvoice(invoiceId, {
+        returnReason: 'vendor credit',
+      }),
+    ).toThrow(/Stock would go below zero for:.*ItemPrimary/);
+
+    const returnedRow = db
+      .prepare(`SELECT isReturned FROM invoices WHERE id = ?`)
+      .get([invoiceId]) as { isReturned: number };
+    expect(returnedRow.isReturned).toBe(0);
+
+    const journalCountAfterFailed = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as { c: number }
+    ).c;
+    expect(journalCountAfterFailed).toBe(journalCountBeforeReturn);
+
+    const qtyAfterFailedReturn = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([inv.primaryItemId]) as { quantity: number }
+    ).quantity;
+    expect(qtyAfterFailedReturn).toBe(50);
+  });
+
+  it('returnPurchaseInvoice: throws when invoice is a sale', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 1,
+        discount: 0,
+        price: 101,
+        discountedPrice: 101,
+      },
+    ];
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-06-02T12:00:00.000Z').toISOString(),
+      invoiceNumber: 94001,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 101,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      invoice,
+    );
+    expect(() => invoiceService.returnPurchaseInvoice(invoiceId, {})).toThrow();
+  });
+});
+
+describe('InvoiceService sale quotations', () => {
+  let db: Database.Database;
+  let invoiceService: InvoiceService;
+  let accountService: AccountService;
+  let authService: AuthService;
+  let pricingService: PricingService;
+
+  const seedMinimalSaleQuotationSetup = (): {
+    partyId: number;
+    itemId: number;
+    typeId: number;
+  } => {
+    accountService.insertAccount({
+      name: 'Sale',
+      headName: 'Revenue',
+      ...defaultAccountFields,
+    });
+    accountService.insertAccount({
+      name: 'Purchase',
+      headName: 'Expense',
+      ...defaultAccountFields,
+    });
+    accountService.insertAccount({
+      name: 'QuoteParty',
+      headName: 'Current Asset',
+      code: 501,
+      ...defaultAccountFields,
+    });
+    const partyId = getAccountIdByName(db, 'QuoteParty');
+    const typeInsert = db.prepare(
+      `INSERT INTO item_types (name) VALUES ('QType')`,
+    );
+    typeInsert.run();
+    const primaryTypeId = getSingleNumber(
+      db,
+      `SELECT id FROM item_types WHERE TRIM(name) = TRIM(?) LIMIT 1`,
+      ['QType'],
+    );
+    const insert = db.prepare(
+      `INSERT INTO inventory (name, description, price, quantity, itemTypeId) VALUES (?, ?, ?, ?, ?)`,
+    );
+    insert.run('QuoteItem', null, 50, 10, primaryTypeId);
+    const itemId = getSingleNumber(
+      db,
+      `SELECT id FROM inventory WHERE TRIM(name) = TRIM(?) LIMIT 1`,
+      ['QuoteItem'],
+    );
+    return { partyId, itemId, typeId: primaryTypeId };
+  };
+
+  beforeEach(async () => {
+    db = new Database(':memory:');
+
+    jest.spyOn(DatabaseService, 'getInstance').mockImplementation(
+      () =>
+        ({
+          getDatabase: () => db,
+        }) as unknown as DatabaseService,
+    );
+
+    const schemaPath = path.join(__dirname, '../../../sql/schema.sql');
+    const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
+    db.exec(schemaSql);
+
+    const migrationRunner = new MigrationRunner();
+    await migrationRunner.waitForMigrations();
+
+    authService = new AuthService();
+    accountService = new AccountService();
+    pricingService = new PricingService();
+    invoiceService = new InvoiceService();
+
+    authService.register(TEST_DB_USER);
+    authService.login(TEST_DB_USER);
+  });
+
+  it('insertQuotationInvoice leaves inventory unchanged and creates no journals', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProf');
+      return getDiscountProfileIdByName(db, 'QProf');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: itemId,
+        quantity: 3,
+        discount: 0,
+        price: 50,
+        discountedPrice: 150,
+      },
+    ];
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-04-01T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 150,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      invoice,
+    );
+    expect(invoiceId).toBeGreaterThan(0);
+
+    const qty = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([itemId]) as { quantity: number }
+    ).quantity;
+    expect(qty).toBe(10);
+
+    const jCount = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as {
+        c: number;
+      }
+    ).c;
+    expect(jCount).toBe(0);
+
+    const row = db
+      .prepare(`SELECT invoiceNumber, isQuotation FROM invoices WHERE id = ?`)
+      .get([invoiceId]) as { invoiceNumber: number; isQuotation: number };
+    expect(row.isQuotation).toBe(1);
+    expect(row.invoiceNumber).toBeLessThan(0);
+  });
+
+  it('getNextInvoiceNumber ignores quotations when assigning next sale number', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProf2');
+      return getDiscountProfileIdByName(db, 'QProf2');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const mkInvoice = (n: number): Invoice => ({
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-04-02T12:00:00.000Z').toISOString(),
+      invoiceNumber: n,
+      extraDiscount: 0,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: itemId,
+          quantity: 1,
+          discount: 0,
+          price: 50,
+          discountedPrice: 50,
+        },
+      ],
+    });
+
+    invoiceService.insertInvoice('Sale' as InvoiceType, mkInvoice(7001));
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: itemId,
+        quantity: 1,
+        discount: 0,
+        price: 50,
+        discountedPrice: 50,
+      },
+    ];
+    const qInv: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-04-03T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: items,
+    };
+    invoiceService.insertQuotationInvoice('Sale' as InvoiceType, qInv);
+
+    const next = invoiceService.getNextInvoiceNumber('Sale' as InvoiceType);
+    expect(next).toBe(7002);
+  });
+
+  it('getAdjacentInvoiceId quotation scope walks only quotation rows by id', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProfAdj');
+      return getDiscountProfileIdByName(db, 'QProfAdj');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const mkPosted = (n: number): Invoice => ({
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-05-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: n,
+      extraDiscount: 0,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: itemId,
+          quantity: 1,
+          discount: 0,
+          price: 50,
+          discountedPrice: 50,
+        },
+      ],
+    });
+
+    const mkQuotation = (): Invoice => ({
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-05-02T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: itemId,
+          quantity: 1,
+          discount: 0,
+          price: 50,
+          discountedPrice: 50,
+        },
+      ],
+    });
+
+    const { invoiceId: posted1 } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      mkPosted(8001),
+    );
+    const { invoiceId: q1 } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      mkQuotation(),
+    );
+    const { invoiceId: q2 } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      mkQuotation(),
+    );
+    const { invoiceId: posted2 } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      mkPosted(8002),
+    );
+
+    expect(posted1).toBeLessThan(q1);
+    expect(q1).toBeLessThan(q2);
+    expect(q2).toBeLessThan(posted2);
+
+    expect(
+      invoiceService.getAdjacentInvoiceId(q1, 'Sale' as InvoiceType, 'next'),
+    ).toBe(posted2);
+    expect(
+      invoiceService.getAdjacentInvoiceId(
+        q1,
+        'Sale' as InvoiceType,
+        'next',
+        'posted',
+      ),
+    ).toBe(posted2);
+
+    expect(
+      invoiceService.getAdjacentInvoiceId(
+        q1,
+        'Sale' as InvoiceType,
+        'next',
+        'quotation',
+      ),
+    ).toBe(q2);
+    expect(
+      invoiceService.getAdjacentInvoiceId(
+        q2,
+        'Sale' as InvoiceType,
+        'previous',
+        'quotation',
+      ),
+    ).toBe(q1);
+    expect(
+      invoiceService.getAdjacentInvoiceId(
+        q1,
+        'Sale' as InvoiceType,
+        'previous',
+        'quotation',
+      ),
+    ).toBe(0);
+    expect(
+      invoiceService.getAdjacentInvoiceId(
+        q1,
+        'Sale' as InvoiceType,
+        'previous',
+        'posted',
+      ),
+    ).toBe(posted1);
+  });
+
+  it('getInvoiceIdsFromMinId quotation scope lists only quotations from min id onward', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProfBatchIds');
+      return getDiscountProfileIdByName(db, 'QProfBatchIds');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const mkPosted = (n: number): Invoice => ({
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-06-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: n,
+      extraDiscount: 0,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: itemId,
+          quantity: 1,
+          discount: 0,
+          price: 50,
+          discountedPrice: 50,
+        },
+      ],
+    });
+
+    const mkQuotation = (): Invoice => ({
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-06-02T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: itemId,
+          quantity: 1,
+          discount: 0,
+          price: 50,
+          discountedPrice: 50,
+        },
+      ],
+    });
+
+    const { invoiceId: posted1 } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      mkPosted(8101),
+    );
+    const { invoiceId: q1 } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      mkQuotation(),
+    );
+    const { invoiceId: q2 } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      mkQuotation(),
+    );
+    const { invoiceId: posted2 } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      mkPosted(8102),
+    );
+
+    expect(
+      invoiceService.getInvoiceIdsFromMinId(
+        'Sale' as InvoiceType,
+        q1,
+        'posted',
+      ),
+    ).toEqual([posted2]);
+    expect(
+      invoiceService.getInvoiceIdsFromMinId(
+        'Sale' as InvoiceType,
+        q1,
+        'quotation',
+      ),
+    ).toEqual([q1, q2]);
+    expect(
+      invoiceService.getInvoiceIdsFromMinId(
+        'Sale' as InvoiceType,
+        posted1,
+        'quotation',
+      ),
+    ).toEqual([q1, q2]);
+  });
+
+  it('getInvoicePdfOutputBaseName uses invoice number for posted and quotation-N for quotations', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProfPdfName');
+      return getDiscountProfileIdByName(db, 'QProfPdfName');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const posted: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-07-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: 9201,
+      extraDiscount: 0,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: itemId,
+          quantity: 1,
+          discount: 0,
+          price: 50,
+          discountedPrice: 50,
+        },
+      ],
+    };
+    const { invoiceId: postedId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      posted,
+    );
+
+    const qInv: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-07-02T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 50,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: itemId,
+          quantity: 1,
+          discount: 0,
+          price: 50,
+          discountedPrice: 50,
+        },
+      ],
+    };
+    const { invoiceId: qId } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      qInv,
+    );
+
+    const qRow = db
+      .prepare(`SELECT invoiceNumber FROM invoices WHERE id = ?`)
+      .get([qId]) as { invoiceNumber: number };
+
+    expect(
+      invoiceService.getInvoicePdfOutputBaseName(
+        postedId,
+        'Sale' as InvoiceType,
+      ),
+    ).toBe('9201');
+    expect(
+      invoiceService.getInvoicePdfOutputBaseName(qId, 'Sale' as InvoiceType),
+    ).toBe(`quotation-${getQuotationDisplayNumber(qRow.invoiceNumber)}`);
+    expect(
+      invoiceService.getInvoicePdfOutputBaseName(
+        999_999,
+        'Sale' as InvoiceType,
+      ),
+    ).toBeNull();
+  });
+
+  it('convertQuotationInvoice fails when stock is short', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProf3');
+      return getDiscountProfileIdByName(db, 'QProf3');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: itemId,
+        quantity: 50,
+        discount: 0,
+        price: 50,
+        discountedPrice: 2500,
+      },
+    ];
+    const qInv: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-04-04T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 2500,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: items,
+    };
+    const { invoiceId } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      qInv,
+    );
+
+    expect(() => invoiceService.convertQuotationInvoice(invoiceId)).toThrow(
+      /Not enough stock/,
+    );
+  });
+
+  it('convertQuotationInvoice assigns invoice number and appears in getInvoices', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProf4');
+      return getDiscountProfileIdByName(db, 'QProf4');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: itemId,
+        quantity: 2,
+        discount: 0,
+        price: 50,
+        discountedPrice: 100,
+      },
+    ];
+    const qInv: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-04-05T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 100,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: items,
+    };
+    const { invoiceId } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      qInv,
+    );
+
+    const { invoiceNumber } = invoiceService.convertQuotationInvoice(invoiceId);
+    expect(invoiceNumber).toBe(1);
+
+    const list = invoiceService.getInvoices('Sale' as InvoiceType);
+    expect(list.some((r) => r.id === invoiceId)).toBe(true);
+
+    const qList = invoiceService.getQuotationInvoices('Sale' as InvoiceType);
+    expect(qList.some((r) => r.id === invoiceId)).toBe(false);
+  });
+
+  it('insertQuotationInvoice Purchase leaves inventory unchanged and creates no journals', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProfP');
+      return getDiscountProfileIdByName(db, 'QProfP');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: itemId,
+        quantity: 4,
+        discount: 0,
+        price: 25,
+        discountedPrice: 0,
+      },
+    ];
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-04-06T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 100,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: items,
+    };
+
+    const { invoiceId } = invoiceService.insertQuotationInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+    expect(invoiceId).toBeGreaterThan(0);
+
+    const qty = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([itemId]) as { quantity: number }
+    ).quantity;
+    expect(qty).toBe(10);
+
+    const jCount = (
+      db.prepare(`SELECT COUNT(*) as c FROM journal`).get() as {
+        c: number;
+      }
+    ).c;
+    expect(jCount).toBe(0);
+  });
+
+  it('convertQuotationInvoice Purchase assigns number, increments stock, leaves quotation list', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProfP2');
+      return getDiscountProfileIdByName(db, 'QProfP2');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: itemId,
+        quantity: 3,
+        discount: 0,
+        price: 10,
+        discountedPrice: 0,
+      },
+    ];
+    const qInv: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-04-07T12:00:00.000Z').toISOString(),
+      extraDiscount: 0,
+      totalAmount: 30,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: items,
+    };
+    const { invoiceId } = invoiceService.insertQuotationInvoice(
+      'Purchase' as InvoiceType,
+      qInv,
+    );
+
+    const { invoiceNumber } = invoiceService.convertQuotationInvoice(invoiceId);
+    expect(invoiceNumber).toBe(1);
+
+    const qty = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get([itemId]) as { quantity: number }
+    ).quantity;
+    expect(qty).toBe(13);
+
+    const list = invoiceService.getInvoices('Purchase' as InvoiceType);
+    expect(list.some((r) => r.id === invoiceId)).toBe(true);
+
+    const qList = invoiceService.getQuotationInvoices(
+      'Purchase' as InvoiceType,
+    );
+    expect(qList.some((r) => r.id === invoiceId)).toBe(false);
   });
 });

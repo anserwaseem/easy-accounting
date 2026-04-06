@@ -1,9 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { format } from 'date-fns';
-import { get, isNil, toNumber, toString } from 'lodash';
+import { get, isNil, pick, toNumber, toString } from 'lodash';
 import {
-  AlertTriangle,
-  ArrowRight,
   Calendar as CalendarIcon,
   Plus,
   Printer,
@@ -12,14 +10,14 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { useFormState, useWatch } from 'react-hook-form';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   cn,
   defaultSortingFunctions,
   getFormattedCurrency,
   raise,
 } from 'renderer/lib/utils';
-import { Alert, AlertDescription, AlertTitle } from 'renderer/shad/ui/alert';
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { DataTable } from 'renderer/shad/ui/dataTable';
@@ -38,30 +36,50 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 import { toast } from 'renderer/shad/ui/use-toast';
-import { type InventoryItem, InvoiceType } from 'types';
+import { type Account, type InventoryItem, InvoiceType } from 'types';
 import { z } from 'zod';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
+import { toastContentFromInvoiceSaveError } from '@/renderer/lib/ipcUserMessage';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import {
   checkParsedItemsAvailability,
   parseInvoiceItems,
 } from '@/renderer/lib/parser';
+import {
+  ConfirmDialog,
+  type ConfirmDialogConfig,
+} from '@/renderer/components/ConfirmDialog';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
+import {
+  restoreSingleAccountIdFromSections,
+  shouldWarnWhenTurningSplitLedgerOff,
+} from '@/renderer/views/NewInvoice/lib/invoiceAccountMappingGuard';
+import {
+  buildTypingAndDetectSplitOffMismatches,
+  formatSplitOffMismatchToast,
+} from '@/renderer/views/NewInvoice/lib/invoiceSplitOffTypeWarnings';
+import { buildCustomerVendorSelectOptions } from '@/renderer/views/NewInvoice/lib/invoicePartySelect';
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
 import { DateConfirmationDialog } from './components/DateConfirmationDialog';
 import { useNewInvoiceColumns } from './hooks/useNewInvoiceColumns';
 import { useNewInvoiceDiscounts } from './hooks/useNewInvoiceDiscounts';
 import { useNewInvoiceFormCore } from './hooks/useNewInvoiceFormCore';
-import { useNewInvoiceInventory } from './hooks/useNewInvoiceInventory';
+import {
+  lineInventoryIdsKeyFromIds,
+  useInvoiceInventoryLoader,
+} from './hooks/useNewInvoiceInventory';
+import { useEditInvoiceHydration } from './hooks/useEditInvoiceHydration';
+import { useInvoiceDateValidation } from './hooks/useInvoiceDateValidation';
 import { useNewInvoiceNextNumber } from './hooks/useNewInvoiceNextNumber';
 import { useNewInvoiceParties } from './hooks/useNewInvoiceParties';
 import { useNewInvoiceResolution } from './hooks/useNewInvoiceResolution';
 import { useNewInvoiceSections } from './hooks/useNewInvoiceSections';
 import { useNewInvoiceTableInfo } from './hooks/useNewInvoiceTableInfo';
+import type { PartyAccount } from './hooks/useNewInvoiceParties';
 
 interface NewInvoiceProps {
   invoiceType: InvoiceType;
@@ -72,15 +90,59 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
   console.log('NewInvoicePage', invoiceType);
-  const [inventory] = useNewInvoiceInventory(invoiceType);
-  const [nextInvoiceNumber, setNextInvoiceNumber] =
-    useNewInvoiceNextNumber(invoiceType);
+  const params = useParams<{ id: string }>();
+  const location = useLocation();
+  const isPostedInvoiceEditPath = useMemo(
+    () =>
+      location.pathname.includes('/invoices/') &&
+      location.pathname.includes('/edit'),
+    [location.pathname],
+  );
+  const editInvoiceId = useMemo(() => {
+    if (!isPostedInvoiceEditPath) return undefined;
+    const n = toNumber(params.id);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }, [isPostedInvoiceEditPath, params.id]);
+
+  const [isEditingQuotation, setIsEditingQuotation] = useState(false);
+  const isQuotationFlowRef = useRef(false);
+  isQuotationFlowRef.current = isEditingQuotation;
+  const submitSaveKindRef = useRef<'invoice' | 'quotation'>('invoice');
+
+  const newInvoicePageHeading = useMemo(() => {
+    if (editInvoiceId != null && isEditingQuotation) {
+      return `Edit ${
+        invoiceType === InvoiceType.Sale ? 'sale' : 'purchase'
+      } quotation`;
+    }
+    if (editInvoiceId != null) return `Edit ${invoiceType} Invoice`;
+    return `New ${invoiceType} Invoice`;
+  }, [editInvoiceId, invoiceType, isEditingQuotation]);
+
+  const primarySubmitLabel = useMemo(() => {
+    if (editInvoiceId != null && isEditingQuotation) return 'Update quotation';
+    return 'Save';
+  }, [editInvoiceId, isEditingQuotation]);
+
+  const saleStockValidationBonusRef = useRef<Record<number, number>>({});
+  const [editHydrated, setEditHydrated] = useState(false);
+
+  const [inventory, setInventory] = useState<InventoryItem[] | undefined>();
+  const [nextInvoiceNumber, setNextInvoiceNumber] = useNewInvoiceNextNumber(
+    invoiceType,
+    editInvoiceId == null,
+  );
   const {
     parties,
+    partiesIncludingTyped,
     requiredAccountsExist,
     isRefreshingParties,
     refreshParties,
   } = useNewInvoiceParties(invoiceType);
+
+  const [missingPartyForSelect, setMissingPartyForSelect] = useState<
+    PartyAccount | undefined
+  >();
 
   const [useSingleAccount, setUseSingleAccount] = useState(true);
   const useSingleAccountRef = useRef(useSingleAccount);
@@ -88,12 +150,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [splitByItemType, setSplitByItemType] = useState(true);
   const splitByItemTypeRef = useRef(splitByItemType);
   splitByItemTypeRef.current = splitByItemType;
-  const [isPrimaryItemTypeMissing, setIsPrimaryItemTypeMissing] =
-    useState(false);
+  const [, setIsPrimaryItemTypeMissing] = useState(false);
   const primaryItemTypeWarnedRef = useRef(false);
+  const splitOffMismatchSigRef = useRef<string>('');
 
   const [isDateExplicitlySet, setIsDateExplicitlySet] = useState(false);
   const [showDateConfirmation, setShowDateConfirmation] = useState(false);
+  const [pendingConfirm, setPendingConfirm] =
+    useState<ConfirmDialogConfig | null>(null);
   const dateConfirmedInModalRef = useRef(false);
   const openPrintAfterSaveRef = useRef(false);
 
@@ -102,6 +166,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     inventory,
     useSingleAccountRef,
     splitByItemTypeRef,
+    splitByItemType,
+    saleStockValidationBonusRef,
+    isQuotationFlowRef,
   });
   const {
     form,
@@ -117,6 +184,35 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     resolutionTrigger,
     discountAccountExists,
   } = formCore;
+
+  const lineInventoryIdsKey = useMemo(
+    () =>
+      lineInventoryIdsKeyFromIds(
+        (watchedInvoiceItems ?? [])
+          .map((row) => toNumber(row?.inventoryId))
+          .filter((id) => id > 0),
+      ),
+    [watchedInvoiceItems],
+  );
+
+  useInvoiceInventoryLoader(invoiceType, lineInventoryIdsKey, setInventory);
+
+  const { isDirty, errors: formErrors } = useFormState({
+    control: form.control,
+  });
+
+  const accountMappingErrorMessage = useMemo(() => {
+    const msg =
+      get(formErrors, 'accountMapping.message') ??
+      get(formErrors, 'accountMapping.multipleAccountIds.message') ??
+      get(formErrors, 'accountMapping.singleAccountId.message');
+    return typeof msg === 'string' && msg.length > 0 ? msg : undefined;
+  }, [formErrors]);
+
+  const editHeadingInvoiceNumber = useWatch({
+    control: form.control,
+    name: 'invoiceNumber',
+  });
 
   const {
     sections,
@@ -164,18 +260,20 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     recalculateAutoDiscountsRef.current();
   }, [recalculateAutoDiscountsRef]);
 
-  const { resolvedRowLabels, resolutionFallbacks } = useNewInvoiceResolution({
-    invoiceType,
-    useSingleAccount,
-    splitByItemType,
-    form: form as unknown as UseFormReturn<Record<string, unknown>>,
-    parties,
-    inventory,
-    resolutionTrigger,
-    watchedSingleAccountId,
-    onResolved,
-  });
+  const { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks } =
+    useNewInvoiceResolution({
+      invoiceType,
+      useSingleAccount,
+      splitByItemType,
+      form: form as unknown as UseFormReturn<Record<string, unknown>>,
+      parties,
+      inventory,
+      resolutionTrigger,
+      watchedSingleAccountId,
+      onResolved,
+    });
 
+  // sale split-by-type needs a primary item type for typed ledgers; warn once if it is missing and reset flags when mode is off
   useEffect(() => {
     if (
       invoiceType !== InvoiceType.Sale ||
@@ -213,6 +311,95 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     };
   }, [invoiceType, splitByItemType, useSingleAccount]);
 
+  // sale + single account + split off: warn when header account typing vs line item types mismatch
+  useEffect(() => {
+    if (
+      invoiceType !== InvoiceType.Sale ||
+      !useSingleAccount ||
+      splitByItemType
+    ) {
+      splitOffMismatchSigRef.current = '';
+      return undefined;
+    }
+    const singleId = toNumber(watchedSingleAccountId);
+    if (singleId <= 0) {
+      splitOffMismatchSigRef.current = '';
+      return undefined;
+    }
+    if (!inventory?.length) return undefined;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      (async () => {
+        try {
+          const [allAccountsRaw, itemTypes, primaryRaw] = await Promise.all([
+            window.electron.getAccounts() as Promise<Account[]>,
+            window.electron.getItemTypes?.() ?? Promise.resolve([]),
+            window.electron.getPrimaryItemType?.().catch(() => undefined),
+          ]);
+          if (cancelled) return;
+
+          const headerAccount = allAccountsRaw.find(
+            (a) => toNumber(a.id) === singleId,
+          );
+          if (!headerAccount) return;
+
+          const latestRows = form.getValues('invoiceItems') as Array<{
+            inventoryId?: number;
+          }>;
+
+          const primaryId =
+            primaryRaw != null && Number.isFinite(toNumber(primaryRaw))
+              ? toNumber(primaryRaw)
+              : undefined;
+
+          const mismatches = buildTypingAndDetectSplitOffMismatches(
+            latestRows,
+            inventory,
+            itemTypes,
+            headerAccount,
+            allAccountsRaw,
+            primaryId,
+          );
+
+          if (cancelled) return;
+
+          if (mismatches.length === 0) {
+            splitOffMismatchSigRef.current = '';
+            return;
+          }
+
+          const key = `${singleId}:${mismatches
+            .map((m) => `${m.rowIndex}:${m.kind}`)
+            .join(',')}`;
+          if (splitOffMismatchSigRef.current === key) return;
+          splitOffMismatchSigRef.current = key;
+
+          toast({
+            variant: 'warning',
+            duration: 12000,
+            description: formatSplitOffMismatchToast(mismatches),
+          });
+        } catch {
+          if (!cancelled) splitOffMismatchSigRef.current = '';
+        }
+      })();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    invoiceType,
+    useSingleAccount,
+    splitByItemType,
+    watchedSingleAccountId,
+    watchedInvoiceItems,
+    inventory,
+    form,
+  ]);
+
   // derived layout flags
   const isSale = invoiceType === InvoiceType.Sale;
   const isPurchase = invoiceType === InvoiceType.Purchase;
@@ -221,6 +408,124 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const isSectionsView = !isSingleAccountOrPurchase;
 
   const navigate = useNavigate();
+
+  const showAddInvoiceNumberGate = false;
+
+  const showInvoiceForm = editInvoiceId == null || editHydrated;
+
+  useEditInvoiceHydration({
+    invoiceType,
+    editInvoiceId,
+    form,
+    setUseSingleAccount,
+    setSplitByItemType,
+    setNextInvoiceNumber,
+    setIsDateExplicitlySet,
+    setEditHydrated,
+    setIsEditingQuotation,
+    navigate,
+    saleStockValidationBonusRef,
+  });
+
+  // typed/suffixed accounts are omitted from parties; invoice header id may still reference them, so load that row for VirtualSelect label matching
+  useEffect(() => {
+    let cancelled = false;
+    const sid = toNumber(watchedSingleAccountId);
+    if (editInvoiceId == null || sid <= 0) {
+      setMissingPartyForSelect(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (parties === undefined) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (parties.some((p) => toNumber(p.id) === sid)) {
+      setMissingPartyForSelect(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+    (async () => {
+      try {
+        const all = (await window.electron.getAccounts()) as Account[];
+        if (cancelled) return;
+        const acc = all.find((a) => toNumber(a.id) === sid);
+        if (!acc) {
+          setMissingPartyForSelect(undefined);
+          return;
+        }
+        setMissingPartyForSelect(
+          pick(acc, [
+            'id',
+            'name',
+            'type',
+            'code',
+            'chartId',
+            'discountProfileId',
+            'discountProfileIsActive',
+          ]) as PartyAccount,
+        );
+      } catch {
+        if (!cancelled) setMissingPartyForSelect(undefined);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editInvoiceId, parties, watchedSingleAccountId]);
+
+  const customerVendorSelectOptions = useMemo(
+    () =>
+      buildCustomerVendorSelectOptions({
+        invoiceType,
+        baseParties: parties ?? [],
+        extendedParties: partiesIncludingTyped ?? [],
+        useSingleAccount,
+        splitByItemType,
+        singleAccountId: toNumber(watchedSingleAccountId),
+        missingExtra: missingPartyForSelect,
+      }),
+    [
+      invoiceType,
+      missingPartyForSelect,
+      parties,
+      partiesIncludingTyped,
+      splitByItemType,
+      useSingleAccount,
+      watchedSingleAccountId,
+    ],
+  );
+
+  const onSplitByItemTypeCheckedChange = useCallback(
+    (checked: boolean | 'indeterminate') => {
+      if (checked === true) {
+        setSplitByItemType(true);
+        return;
+      }
+      if (checked === false) {
+        if (
+          shouldWarnWhenTurningSplitLedgerOff(
+            form.getValues('accountMapping.singleAccountId'),
+            form.getValues('accountMapping.multipleAccountIds'),
+          )
+        ) {
+          setPendingConfirm({
+            title: 'Turn off split ledger?',
+            description:
+              'Turning off split will save all line items to the single customer account above. Per-row typed ledgers will not be used.',
+            confirmLabel: 'Continue',
+            onConfirm: () => setSplitByItemType(false),
+          });
+          return;
+        }
+        setSplitByItemType(false);
+      }
+    },
+    [form],
+  );
 
   const getInitialEntry = useCallback(
     () => ({
@@ -286,7 +591,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedSingleAccountId,
   ]);
 
-  // when extra discount is set, clear or default extraDiscountAccountId; when options change, select first if none selected
+  // extra discount requires a credit account: clear the field when discount is zero; when discount is on and options load, pick the first valid account if none selected
   useEffect(() => {
     if (!(toNumber(watchedExtraDiscount) > 0)) {
       form.setValue('extraDiscountAccountId', undefined, {
@@ -339,8 +644,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [watchedInvoiceItems],
   );
 
-  // recompute totalAmount as sum of rounded section totals (F/T/TT) minus extra discount.
-  // each section total is rounded to nearest rupee first; grand total is not rounded again.
+  // keep form totalAmount aligned with line items: sum per-section amounts (rounded per section), optional cumulative discount path, minus extra discount — matches what we post and show
   useEffect(() => {
     if (!hasActiveInvoiceItem) {
       form.setValue('totalAmount', 0, {
@@ -507,6 +811,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       inventory,
       invoiceType,
       resolvedRowLabels,
+      resolvedRowCodes,
       splitByItemType,
       useSingleAccount,
       enableCumulativeDiscount,
@@ -531,6 +836,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       inventory,
       invoiceType,
       resolvedRowLabels,
+      resolvedRowCodes,
       splitByItemType,
       useSingleAccount,
       enableCumulativeDiscount,
@@ -574,34 +880,44 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
   ]);
 
-  const isSubmitDisabled = useMemo(() => {
-    if (form.formState.isSubmitting) return true;
+  const submitDisabledReason = useMemo((): string | undefined => {
+    if (form.formState.isSubmitting) {
+      return 'Saving invoice...';
+    }
+    if (
+      useSingleAccount &&
+      (watchedSingleAccountId == null || watchedSingleAccountId <= 0)
+    ) {
+      const partyLabel =
+        invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
+      return `Select a ${partyLabel}`;
+    }
+
     const total = watchedTotalAmount;
     if (
       invoiceType === InvoiceType.Sale &&
       (typeof total !== 'number' || total <= 0)
-    )
-      return true;
+    ) {
+      return 'Invoice total must be greater than 0';
+    }
     if (
       invoiceType === InvoiceType.Purchase &&
       typeof total === 'number' &&
       total < 0
-    )
-      return true;
-    if (
-      useSingleAccount &&
-      (watchedSingleAccountId == null || watchedSingleAccountId <= 0)
-    )
-      return true;
+    ) {
+      return 'Invoice total must not be negative';
+    }
+
     if (invoiceType === InvoiceType.Sale && !useSingleAccount) {
       const multipleAccountIds = watchedMultipleAccountIds || [];
-      if (
-        !multipleAccountIds.length ||
-        multipleAccountIds.some((id) => id <= 0)
-      )
-        return true;
+      if (!multipleAccountIds.length) {
+        return 'Add at least one customer section';
+      }
+      if (multipleAccountIds.some((id) => id <= 0)) {
+        return 'Select a customer for each section';
+      }
     }
-    return false;
+    return undefined;
   }, [
     form,
     invoiceType,
@@ -610,6 +926,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedSingleAccountId,
     watchedTotalAmount,
   ]);
+
+  const postedNextNumberBlocked = useMemo(
+    () =>
+      editInvoiceId == null &&
+      (isNil(nextInvoiceNumber) || toNumber(nextInvoiceNumber) < 1),
+    [editInvoiceId, nextInvoiceNumber],
+  );
+
+  const isSubmitDisabled = submitDisabledReason != null;
 
   const onCumulativeDiscountChange = useCallback(
     (value: string) => {
@@ -657,6 +982,59 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     values: z.infer<typeof formSchema>,
   ): Promise<number | undefined> => {
     try {
+      const showPostSaveToast = () => {
+        toast({
+          variant: 'success',
+          description: `${invoiceType} invoice ${
+            editInvoiceId != null ? 'updated' : 'saved successfully'
+          }`,
+        });
+      };
+      if (editInvoiceId != null && isEditingQuotation) {
+        const invoice = {
+          ...values,
+          invoiceNumber: values.invoiceNumber,
+        };
+        await window.electron.updateQuotation(editInvoiceId, invoice);
+        toast({
+          variant: 'success',
+          description: 'Quotation updated.',
+        });
+        return editInvoiceId;
+      }
+
+      if (editInvoiceId != null) {
+        const invoice = {
+          ...values,
+          invoiceNumber: values.invoiceNumber,
+        };
+        await window.electron.updateInvoice(
+          invoiceType,
+          editInvoiceId,
+          invoice,
+        );
+        showPostSaveToast();
+        return editInvoiceId;
+      }
+
+      if (submitSaveKindRef.current === 'quotation') {
+        const invoice = {
+          ...values,
+          invoiceNumber: -1,
+        };
+        const result = (await window.electron.insertQuotation(
+          invoiceType,
+          invoice,
+        )) as { invoiceId: number };
+        if (result.invoiceId > 0) {
+          toast({
+            variant: 'success',
+            description: 'Quotation saved.',
+          });
+        }
+        return result.invoiceId > 0 ? result.invoiceId : undefined;
+      }
+
       const invoice = {
         ...values,
         invoiceNumber: nextInvoiceNumber,
@@ -674,84 +1052,33 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         setActiveSectionId(null);
         setRowSectionMap({});
         setManualDiscountRows({});
-        toast({
-          description: `${invoiceType} invoice saved successfully`,
-          variant: 'success',
-        });
+        if (result.invoiceId > 0) showPostSaveToast();
         return result.invoiceId > 0 ? result.invoiceId : undefined;
       }
       raise(`Failed to save ${invoiceType} invoice`);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error(error);
+      const raw = error instanceof Error ? error.message : toString(error);
+      const { title, description } = toastContentFromInvoiceSaveError(raw, {
+        mode: editInvoiceId != null ? 'update' : 'create',
+      });
       toast({
-        description: toString(error),
+        title,
+        description,
         variant: 'destructive',
       });
     }
     return undefined;
   };
 
-  const validateInvoiceDateAgainstParties = useCallback(
-    async (values: z.infer<typeof formSchema>): Promise<string | null> => {
-      const dateStr = values.date;
-      if (!dateStr) return null;
-      const invoiceDate = new Date(dateStr);
-      invoiceDate.setHours(0, 0, 0, 0);
-
-      let accountIds: number[];
-      if (useSingleAccount) {
-        if (
-          invoiceType === InvoiceType.Sale &&
-          splitByItemType &&
-          Array.isArray(values.accountMapping.multipleAccountIds) &&
-          values.accountMapping.multipleAccountIds.length > 0
-        ) {
-          accountIds = [
-            ...new Set(
-              (values.accountMapping.multipleAccountIds || []).filter(
-                (id): id is number => typeof id === 'number' && id > 0,
-              ),
-            ),
-          ];
-        } else {
-          const sid = values.accountMapping.singleAccountId;
-          accountIds = typeof sid === 'number' && sid > 0 ? [sid] : [];
-        }
-      } else {
-        accountIds = (values.accountMapping.multipleAccountIds || []).filter(
-          (id): id is number => typeof id === 'number' && id > 0,
-        );
-      }
-      if (accountIds.length === 0) return null;
-
-      const lastDatesResults = await Promise.all(
-        accountIds.map((accountId) =>
-          window.electron.getLedger(accountId).then((ledger) => {
-            const latest = ledger.at(-1)?.date;
-            return latest ? new Date(latest) : null;
-          }),
-        ),
-      );
-      const lastDates = lastDatesResults.filter((d): d is Date => d != null);
-      if (lastDates.length === 0) return null;
-
-      const minRequired = new Date(
-        Math.max(...lastDates.map((d) => d.getTime())),
-      );
-      minRequired.setHours(0, 0, 0, 0);
-      if (invoiceDate >= minRequired) return null;
-      const partyLabel =
-        invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
-      return `Invoice date must be on or after ${format(
-        minRequired,
-        'PPP',
-      )} for the selected ${partyLabel}${
-        useSingleAccount && !splitByItemType ? '' : '(s)'
-      } (last ledger date).`;
-    },
-    [invoiceType, splitByItemType, useSingleAccount],
-  );
+  const { validateInvoiceDateAgainstParties } = useInvoiceDateValidation({
+    invoiceType,
+    editInvoiceId,
+    useSingleAccount,
+    splitByItemType,
+    formSchema,
+  });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // eslint-disable-next-line no-console
@@ -768,9 +1095,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       dateConfirmedInModalRef.current = false;
       setIsDateExplicitlySet(true);
       const invoiceId = await submitInvoice(values);
-      if (openPrintAfterSaveRef.current && invoiceId != null) {
-        openPrintAfterSaveRef.current = false;
-        navigate(`/invoices/${invoiceId}/print`);
+      if (invoiceId != null) {
+        if (openPrintAfterSaveRef.current) {
+          openPrintAfterSaveRef.current = false;
+          navigate(`/invoices/${invoiceId}/print`);
+          return;
+        }
+        navigate(`/${invoiceType.toLowerCase()}/invoices/${invoiceId}`);
       }
       return;
     }
@@ -781,10 +1112,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     }
 
     const invoiceId = await submitInvoice(values);
-    if (openPrintAfterSaveRef.current && invoiceId != null) {
+    if (invoiceId == null) return;
+
+    if (openPrintAfterSaveRef.current) {
       openPrintAfterSaveRef.current = false;
       navigate(`/invoices/${invoiceId}/print`);
+      return;
     }
+    navigate(`/${invoiceType.toLowerCase()}/invoices/${invoiceId}`);
   };
 
   const uploadInvoiceItems = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -868,6 +1203,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       setUseSingleAccount(isChecked);
       // clear the appropriate account mapping fields based on the toggle
       if (isChecked) {
+        const restored = restoreSingleAccountIdFromSections(
+          sections,
+          activeSectionId,
+        );
+        if (restored != null) {
+          form.setValue('accountMapping.singleAccountId', restored, {
+            shouldValidate: false,
+          });
+        }
         form.setValue('accountMapping.multipleAccountIds', [], {
           shouldValidate: false,
         });
@@ -929,13 +1273,42 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       }
     },
     [
+      activeSectionId,
       applyAutoDiscountForRow,
       form,
       invoiceType,
+      sections,
       setActiveSectionId,
       setRowSectionMap,
       setSections,
     ],
+  );
+
+  const onUseSingleAccountCheckedChange = useCallback(
+    (checked: boolean | 'indeterminate') => {
+      if (checked === 'indeterminate') return;
+      if (checked === false) {
+        if (invoiceType === InvoiceType.Sale && splitByItemTypeRef.current) {
+          if (
+            shouldWarnWhenTurningSplitLedgerOff(
+              form.getValues('accountMapping.singleAccountId'),
+              form.getValues('accountMapping.multipleAccountIds'),
+            )
+          ) {
+            setPendingConfirm({
+              title: 'Switch to multiple customers?',
+              description:
+                'Switching to multiple customers will drop per-row ledger accounts from split-by-type. Assign customers per section instead.',
+              confirmLabel: 'Continue',
+              onConfirm: () => onSingleAccountToggle(false),
+            });
+            return;
+          }
+        }
+      }
+      onSingleAccountToggle(checked);
+    },
+    [form, invoiceType, onSingleAccountToggle],
   );
 
   const addSection = useCallback(() => {
@@ -1052,17 +1425,97 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         }}
       />
 
+      <ConfirmDialog
+        open={pendingConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingConfirm(null);
+        }}
+        title={pendingConfirm?.title ?? ''}
+        description={pendingConfirm?.description ?? ''}
+        confirmLabel={pendingConfirm?.confirmLabel}
+        cancelLabel={pendingConfirm?.cancelLabel}
+        confirmVariant={pendingConfirm?.confirmVariant}
+        onConfirm={() => {
+          pendingConfirm?.onConfirm();
+        }}
+      />
+
       <div className="py-1 flex flex-col gap-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="title-new">{`New ${invoiceType} Invoice`}</h1>
           <div className="flex flex-wrap items-center gap-3">
-            {invoiceType === InvoiceType.Sale && !isNil(nextInvoiceNumber) && (
-              <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3">
+            {editInvoiceId != null && isEditingQuotation ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const back = () =>
+                    navigate(
+                      `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
+                    );
+                  if (isDirty) {
+                    setPendingConfirm({
+                      title: 'Discard unsaved changes?',
+                      description:
+                        'Discard unsaved changes and return to the quotation?',
+                      confirmLabel: 'Discard',
+                      confirmVariant: 'destructive',
+                      onConfirm: back,
+                    });
+                    return;
+                  }
+                  back();
+                }}
+              >
+                Back to quotation
+              </Button>
+            ) : null}
+            {editInvoiceId != null && !isEditingQuotation ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (isDirty) {
+                    setPendingConfirm({
+                      title: 'Discard unsaved changes?',
+                      description:
+                        'Discard unsaved changes and return to the invoice?',
+                      confirmLabel: 'Discard',
+                      confirmVariant: 'destructive',
+                      onConfirm: () =>
+                        navigate(
+                          `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
+                        ),
+                    });
+                    return;
+                  }
+                  navigate(
+                    `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
+                  );
+                }}
+              >
+                Back to invoice
+              </Button>
+            ) : null}
+            <h1 className="title-new flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span>{newInvoicePageHeading}</span>
+              {editInvoiceId != null &&
+              toNumber(editHeadingInvoiceNumber) > 0 ? (
+                <span className="text-lg font-normal text-muted-foreground">
+                  #{editHeadingInvoiceNumber}
+                </span>
+              ) : null}
+            </h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {invoiceType === InvoiceType.Sale && showInvoiceForm && (
+              <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3 py-2">
                 <div className="flex items-center gap-2 min-h-[44px]">
                   <Checkbox
                     id="useSingleAccount"
                     checked={useSingleAccount}
-                    onCheckedChange={onSingleAccountToggle}
+                    onCheckedChange={onUseSingleAccountCheckedChange}
                   />
                   <Label
                     htmlFor="useSingleAccount"
@@ -1076,9 +1529,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     <Checkbox
                       id="splitByItemType"
                       checked={splitByItemType}
-                      onCheckedChange={(checked) =>
-                        setSplitByItemType(checked === true)
-                      }
+                      onCheckedChange={onSplitByItemTypeCheckedChange}
                     />
                     <Label
                       htmlFor="splitByItemType"
@@ -1088,43 +1539,16 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     </Label>
                   </div>
                 )}
-                {useSingleAccount &&
-                  splitByItemType &&
-                  isPrimaryItemTypeMissing && (
-                    <div className="w-full -mt-2 pb-2">
-                      <Alert
-                        variant="warning"
-                        className="items-start py-2.5 sm:items-center"
-                      >
-                        <AlertTriangle aria-hidden />
-                        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
-                            <AlertTitle className="text-xs">
-                              Set a primary item type
-                            </AlertTitle>
-                            <AlertDescription className="text-xs text-amber-900/80 dark:text-amber-100/80">
-                              Required for split-by-type posting to typed
-                              ledgers.
-                            </AlertDescription>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 shrink-0 border-amber-600/35 bg-background hover:bg-amber-500/10 dark:border-amber-500/40"
-                            onClick={() =>
-                              navigate('/inventory', {
-                                state: { openManageItemTypes: true },
-                              })
-                            }
-                          >
-                            Set primary type
-                            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </Alert>
-                    </div>
-                  )}
+                {accountMappingErrorMessage ? (
+                  <div className="w-full min-w-0">
+                    <p
+                      role="alert"
+                      className="text-sm font-medium text-destructive"
+                    >
+                      {accountMappingErrorMessage}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             )}
             <Button
@@ -1141,12 +1565,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           </div>
         </div>
 
-        {isNil(nextInvoiceNumber) ? (
+        {showAddInvoiceNumberGate ? (
           <AddInvoiceNumber
             invoiceType={invoiceType}
             onInvoiceNumberSet={onInvoiceNumberSet}
           />
-        ) : (
+        ) : null}
+        {!showAddInvoiceNumberGate && showInvoiceForm ? (
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit, (errors) =>
@@ -1187,7 +1612,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   <span className="text-destructive"> *</span>
                                 </FormLabel>
                                 <VirtualSelect
-                                  options={parties || []}
+                                  options={customerVendorSelectOptions}
                                   value={field.value}
                                   onChange={(val) =>
                                     onAccountSelection(
@@ -1215,6 +1640,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button
+                                        type="button"
                                         variant="outline"
                                         className={cn(
                                           'w-full justify-start text-left font-normal min-w-0',
@@ -1328,7 +1754,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   <span className="text-destructive"> *</span>
                                 </FormLabel>
                                 <VirtualSelect
-                                  options={parties || []}
+                                  options={customerVendorSelectOptions}
                                   value={field.value}
                                   onChange={(val) =>
                                     onAccountSelection(
@@ -1356,6 +1782,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button
+                                        type="button"
                                         variant="outline"
                                         className={cn(
                                           'w-full justify-start text-left font-normal min-w-0',
@@ -1402,7 +1829,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       <CustomerSectionsBlock
                         sections={sections}
                         activeSectionId={activeSectionId}
-                        parties={parties || []}
+                        parties={partiesIncludingTyped ?? parties ?? []}
                         getSectionLabel={getSectionLabel}
                         onAddSection={addSection}
                         onRemoveSection={removeSection}
@@ -1435,6 +1862,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button
+                                      type="button"
                                       variant="outline"
                                       className={cn(
                                         'w-full justify-start text-left font-normal',
@@ -1556,6 +1984,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   data={fields}
                   sortingFns={defaultSortingFunctions}
                   infoData={tableInfoData}
+                  compact
                 />
                 {form.formState.errors.invoiceItems && (
                   <p className="text-sm font-medium text-destructive">
@@ -1580,6 +2009,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   }`}
                 >
                   <Button
+                    type="button"
                     variant="outline"
                     className="w-full"
                     onClick={() =>
@@ -1603,50 +2033,117 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
               <div className="flex justify-between items-center gap-4 pt-6 mt-2 border-t border-border min-h-[44px]">
                 <div className="flex gap-3 flex-wrap">
-                  <Button
-                    type="submit"
-                    variant="default"
-                    disabled={isSubmitDisabled}
-                    className="min-h-[44px]"
-                  >
-                    Save
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isSubmitDisabled}
-                    className="min-h-[44px]"
-                    onClick={() => {
-                      openPrintAfterSaveRef.current = true;
-                      form.handleSubmit(onSubmit)();
-                    }}
-                  >
-                    <Printer size={16} className="mr-2" />
-                    Save and Print
-                  </Button>
+                  <div>
+                    <Button
+                      type="button"
+                      variant="default"
+                      disabled={
+                        isSubmitDisabled ||
+                        (editInvoiceId == null && postedNextNumberBlocked)
+                      }
+                      className="min-h-[44px]"
+                      title={
+                        postedNextNumberBlocked && editInvoiceId == null
+                          ? 'Loading next invoice number…'
+                          : submitDisabledReason ?? ''
+                      }
+                      onClick={() => {
+                        submitSaveKindRef.current = 'invoice';
+                        form.handleSubmit(onSubmit)();
+                      }}
+                    >
+                      {primarySubmitLabel}
+                    </Button>
+                    {postedNextNumberBlocked && editInvoiceId == null ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Loading next invoice number for posted save…
+                      </p>
+                    ) : null}
+                  </div>
+                  {editInvoiceId == null ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitDisabled}
+                      className="min-h-[44px]"
+                      onClick={() => {
+                        submitSaveKindRef.current = 'quotation';
+                        form.handleSubmit(onSubmit)();
+                      }}
+                    >
+                      Save as quotation
+                    </Button>
+                  ) : null}
+                  {editInvoiceId == null ||
+                  (editInvoiceId != null && !isEditingQuotation) ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitDisabled || postedNextNumberBlocked}
+                      className="min-h-[44px]"
+                      onClick={() => {
+                        submitSaveKindRef.current = 'invoice';
+                        openPrintAfterSaveRef.current = true;
+                        form.handleSubmit(onSubmit)();
+                      }}
+                    >
+                      <Printer size={16} className="mr-2" />
+                      Save and Print
+                    </Button>
+                  ) : null}
                   <Button type="reset" variant="ghost" className="min-h-[44px]">
                     Clear
                   </Button>
                 </div>
 
                 <Button
+                  type="button"
                   variant="secondary"
                   className="min-h-[44px]"
                   onClick={() => {
-                    form.reset(defaultFormValues);
-                    setIsDateExplicitlySet(false);
-                    setSections([]);
-                    setActiveSectionId(null);
-                    setRowSectionMap({});
-                    navigate(-1);
+                    const leave = () => {
+                      form.reset(defaultFormValues);
+                      setIsDateExplicitlySet(false);
+                      setSections([]);
+                      setActiveSectionId(null);
+                      setRowSectionMap({});
+                      if (editInvoiceId != null) {
+                        navigate(
+                          `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
+                        );
+                      } else {
+                        navigate(-1);
+                      }
+                    };
+                    if (isDirty) {
+                      setPendingConfirm({
+                        title: 'Leave this screen?',
+                        description:
+                          'Discard unsaved changes and leave this screen?',
+                        confirmLabel: 'Discard',
+                        confirmVariant: 'destructive',
+                        onConfirm: leave,
+                      });
+                      return;
+                    }
+                    leave();
                   }}
                 >
                   Cancel
                 </Button>
               </div>
+
+              {submitDisabledReason && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {submitDisabledReason}
+                </p>
+              )}
             </form>
           </Form>
-        )}
+        ) : null}
+        {!showAddInvoiceNumberGate && !showInvoiceForm ? (
+          <p className="text-muted-foreground py-8">Loading invoice…</p>
+        ) : null}
       </div>
     </>
   );

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toNumber } from 'lodash';
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { DISCOUNT_ACCOUNT_NAME } from 'renderer/lib/constants';
 import type { InventoryItem } from 'types';
@@ -13,12 +13,30 @@ export interface UseNewInvoiceFormCoreParams {
   inventory: InventoryItem[] | undefined;
   useSingleAccountRef: React.MutableRefObject<boolean>;
   splitByItemTypeRef: React.MutableRefObject<boolean>;
+  /** drives resolutionTrigger when split toggles without line-item identity changes */
+  splitByItemType: boolean;
+  /** sale edit: bonus quantities per inventory id for max-stock validation */
+  saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
+  /** when true, invoiceNumber may be a negative quotation placeholder */
+  isQuotationFlowRef?: React.MutableRefObject<boolean>;
 }
 
 /** owns form instance, schema, default values, field array, watched values, and discount-account-exists check */
 export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
-  const { invoiceType, inventory, useSingleAccountRef, splitByItemTypeRef } =
-    params;
+  const {
+    invoiceType,
+    inventory,
+    useSingleAccountRef,
+    splitByItemTypeRef,
+    splitByItemType,
+    saleStockValidationBonusRef,
+    isQuotationFlowRef,
+  } = params;
+
+  const internalBonusRef = useRef<Record<number, number>>({});
+  const bonusRef = saleStockValidationBonusRef ?? internalBonusRef;
+  const internalQuotationRef = useRef(false);
+  const quotationFlowRef = isQuotationFlowRef ?? internalQuotationRef;
 
   const defaultFormValues = useMemo(
     () => getDefaultFormValues(invoiceType),
@@ -32,8 +50,17 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
         inventory: inventory ?? [],
         getUseSingleAccount: () => useSingleAccountRef.current,
         getSplitByItemType: () => splitByItemTypeRef.current,
+        getSaleStockValidationBonus: () => ({ ...bonusRef.current }),
+        getIsQuotationFlow: () => quotationFlowRef.current,
       }),
-    [invoiceType, inventory, useSingleAccountRef, splitByItemTypeRef],
+    [
+      invoiceType,
+      inventory,
+      useSingleAccountRef,
+      splitByItemTypeRef,
+      bonusRef,
+      quotationFlowRef,
+    ],
   );
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -49,8 +76,10 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
 
   const resolutionTrigger = useMemo(() => {
     const items = Array.isArray(watchedInvoiceItems) ? watchedInvoiceItems : [];
-    return `${items.length}-${items.map((i) => i?.inventoryId ?? 0).join(',')}`;
-  }, [watchedInvoiceItems]);
+    return `${splitByItemType ? 1 : 0}-${items.length}-${items
+      .map((i) => i?.inventoryId ?? 0)
+      .join(',')}`;
+  }, [watchedInvoiceItems, splitByItemType]);
 
   const watchedExtraDiscount = useWatch({
     control: form.control,

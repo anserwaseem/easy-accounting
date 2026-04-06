@@ -12,6 +12,7 @@ import {
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
+import { Button } from '@/renderer/shad/ui/button';
 
 interface JournalTableProps {
   journalId: number;
@@ -77,6 +78,27 @@ export const JournalTable: React.FC<JournalTableProps> = ({
           {/* <p className="font-extrabold">#{journal?.id}</p> */}
 
           <div className="flex flex-col gap-2 mt-8">
+            {journal?.invoiceId != null && journal.invoiceId > 0 ? (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px]">Invoice:</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const inv = await window.electron.getInvoice(
+                      journal.invoiceId!,
+                    );
+                    if (!inv?.id) return;
+                    navigate(
+                      `/${inv.invoiceType?.toLowerCase()}/invoices/${inv.id}`,
+                    );
+                  }}
+                >
+                  Open invoice
+                </Button>
+              </div>
+            ) : null}
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Date:</p>
               <p>

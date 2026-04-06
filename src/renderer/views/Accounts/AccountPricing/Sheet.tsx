@@ -9,6 +9,7 @@ import {
 } from '@/renderer/shad/ui/sheet';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { getFixedNumber } from '@/renderer/lib/utils';
+import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import type {
   AssignmentProps,
   BusyAction,
@@ -49,6 +50,7 @@ export const AccountPricingSheet: React.FC<AccountPricingSheetProps> = ({
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
   const [showPolicyTools, setShowPolicyTools] = useState(false);
   const [assignmentNotice, setAssignmentNotice] = useState('');
+  const [showDeletePolicyConfirm, setShowDeletePolicyConfirm] = useState(false);
   const firstDiscountInputRef = useRef<HTMLInputElement>(null);
 
   const selectedPolicy = useMemo(
@@ -388,14 +390,8 @@ export const AccountPricingSheet: React.FC<AccountPricingSheetProps> = ({
     }
   };
 
-  const handleDeletePolicy = async () => {
+  const performDeletePolicy = async () => {
     if (!account || !selectedPolicy || selectedPolicyAccountCount !== 1) return;
-
-    // eslint-disable-next-line no-alert
-    const confirmed = window.confirm(
-      `Delete policy "${selectedPolicy.name}"? This will also remove it from "${account.name}". This cannot be undone.`,
-    );
-    if (!confirmed) return;
 
     try {
       setBusyAction('delete');
@@ -429,6 +425,11 @@ export const AccountPricingSheet: React.FC<AccountPricingSheetProps> = ({
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const handleDeletePolicy = () => {
+    if (!account || !selectedPolicy || selectedPolicyAccountCount !== 1) return;
+    setShowDeletePolicyConfirm(true);
   };
 
   const handleSavePolicyDetails = async () => {
@@ -577,59 +578,81 @@ export const AccountPricingSheet: React.FC<AccountPricingSheetProps> = ({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
-        <SheetHeader className="pr-10">
-          <SheetTitle>Policy</SheetTitle>
-          <SheetDescription>
-            Manage discount policy by item type for this account.
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <ConfirmDialog
+        open={showDeletePolicyConfirm}
+        onOpenChange={setShowDeletePolicyConfirm}
+        title={
+          selectedPolicy && account
+            ? `Delete policy "${selectedPolicy.name}"?`
+            : 'Delete policy?'
+        }
+        description={
+          account && selectedPolicy
+            ? `This will also remove it from "${account.name}". This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={() => {
+          performDeletePolicy();
+        }}
+      />
 
-        {account ? (
-          <div className="mt-6 space-y-5">
-            <AccountPricingHeaderCard
-              account={account}
-              selectedPolicy={selectedPolicy}
-              selectedPolicyAccountCount={selectedPolicyAccountCount}
-              isSharedPolicy={isSharedPolicy}
-              assignmentNotice={assignmentNotice}
-              showPolicyTools={showPolicyTools}
-              onTogglePolicyTools={() =>
-                setShowPolicyTools((previous) => !previous)
-              }
-            />
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
+          <SheetHeader className="pr-10">
+            <SheetTitle>Policy</SheetTitle>
+            <SheetDescription>
+              Manage discount policy by item type for this account.
+            </SheetDescription>
+          </SheetHeader>
 
-            <AccountPricingDiscountsCard
-              selectedPolicy={selectedPolicy}
-              isSharedPolicy={isSharedPolicy}
-              selectedPolicyAccountCount={selectedPolicyAccountCount}
-              itemTypes={itemTypes}
-              discountDrafts={discountDrafts}
-              busyAction={busyAction}
-              onChangeDiscountDraft={(itemTypeId, value) =>
-                setDiscountDrafts((previous) => ({
-                  ...previous,
-                  [itemTypeId]: value,
-                }))
-              }
-              onSaveDiscounts={handleSaveDiscounts}
-              firstDiscountInputRef={firstDiscountInputRef}
-            />
-
-            {shouldShowPolicyToolsCard ? (
-              <AccountPricingToolsCard
-                hasSelectedPolicy={!!selectedPolicy}
+          {account ? (
+            <div className="mt-6 space-y-5">
+              <AccountPricingHeaderCard
+                account={account}
+                selectedPolicy={selectedPolicy}
+                selectedPolicyAccountCount={selectedPolicyAccountCount}
                 isSharedPolicy={isSharedPolicy}
-                policyDetails={policyDetailsProps}
-                createPolicy={createPolicyProps}
-                existingPolicy={existingPolicyProps}
-                assignment={assignmentProps}
+                assignmentNotice={assignmentNotice}
+                showPolicyTools={showPolicyTools}
+                onTogglePolicyTools={() =>
+                  setShowPolicyTools((previous) => !previous)
+                }
               />
-            ) : null}
-          </div>
-        ) : null}
-      </SheetContent>
-    </Sheet>
+
+              <AccountPricingDiscountsCard
+                selectedPolicy={selectedPolicy}
+                isSharedPolicy={isSharedPolicy}
+                selectedPolicyAccountCount={selectedPolicyAccountCount}
+                itemTypes={itemTypes}
+                discountDrafts={discountDrafts}
+                busyAction={busyAction}
+                onChangeDiscountDraft={(itemTypeId, value) =>
+                  setDiscountDrafts((previous) => ({
+                    ...previous,
+                    [itemTypeId]: value,
+                  }))
+                }
+                onSaveDiscounts={handleSaveDiscounts}
+                firstDiscountInputRef={firstDiscountInputRef}
+              />
+
+              {shouldShowPolicyToolsCard ? (
+                <AccountPricingToolsCard
+                  hasSelectedPolicy={!!selectedPolicy}
+                  isSharedPolicy={isSharedPolicy}
+                  policyDetails={policyDetailsProps}
+                  createPolicy={createPolicyProps}
+                  existingPolicy={existingPolicyProps}
+                  assignment={assignmentProps}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 };

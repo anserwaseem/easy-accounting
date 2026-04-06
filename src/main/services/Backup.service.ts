@@ -224,7 +224,7 @@ export class BackupService {
         'download',
       );
       const localPath = path.join(this.backupDir, backup.filename);
-      fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer())); // failing here
+      fs.writeFileSync(localPath, new Uint8Array(await data.arrayBuffer()));
 
       this.emitProgress(
         'completed',

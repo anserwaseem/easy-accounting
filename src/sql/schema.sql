@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS "journal" (
   "isPosted" BOOLEAN NOT NULL DEFAULT 0,
   -- "billNumber" INTEGER, -- "013 migration"
   -- "discountPercentage" DECIMAL(5, 2), -- "013 migration"
+  -- "invoiceId" INTEGER REFERENCES "invoices"("id"), -- "016 migration" nullable for manual journals
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME
 );
@@ -144,6 +145,11 @@ CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
     -- "extraDiscount" DECIMAL(10, 4) NOT NULL DEFAULT 0, -- "005 migration"
     -- "biltyNumber" INTEGER, -- "009 migration"
     -- "cartons" INTEGER, -- "009 migration"
+    -- "extraDiscountAccountId" INTEGER REFERENCES "account"("id"), -- "016 migration"
+    -- "isReturned" BOOLEAN NOT NULL DEFAULT 0, -- "017 migration"
+    -- "returnedAt" DATETIME, -- "017 migration"
+    -- "returnReason" TEXT, -- "017 migration"
+    -- "isQuotation" BOOLEAN NOT NULL DEFAULT 0, -- "018 migration"
 
     UNIQUE("invoiceNumber", "invoiceType"),
     FOREIGN KEY ("accountId") REFERENCES "account"("id")

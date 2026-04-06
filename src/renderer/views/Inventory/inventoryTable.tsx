@@ -200,6 +200,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         data={getInventory()}
         sortingFns={defaultSortingFunctions}
         virtual
+        searchPersistenceKey="datatable:inventory:search"
         searchPlaceholder="Search inventory..."
         searchFields={[
           'name',

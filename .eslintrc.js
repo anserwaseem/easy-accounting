@@ -39,6 +39,38 @@ module.exports = {
         unnamedComponents: 'arrow-function',
       },
     ],
+    // airbnb ignores `tr` but not `td`/`th`; data-table cells are not labeled controls (e.g. printable invoice).
+    'jsx-a11y/control-has-associated-label': [
+      'error',
+      {
+        labelAttributes: ['label'],
+        controlComponents: [],
+        ignoreElements: [
+          'audio',
+          'canvas',
+          'embed',
+          'input',
+          'textarea',
+          'tr',
+          'td',
+          'th',
+          'video',
+        ],
+        ignoreRoles: [
+          'grid',
+          'listbox',
+          'menu',
+          'menubar',
+          'radiogroup',
+          'row',
+          'tablist',
+          'toolbar',
+          'tree',
+          'treegrid',
+        ],
+        depth: 5,
+      },
+    ],
   },
   ignorePatterns: ['.eslintrc.js'],
   parserOptions: {

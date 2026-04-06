@@ -9,6 +9,10 @@ export interface NewInvoiceSchemaOptions {
   inventory: InventoryItem[];
   getUseSingleAccount: () => boolean;
   getSplitByItemType: () => boolean;
+  /** sale edit: quantities still tied to this invoice (add to on-hand for max-qty validation) */
+  getSaleStockValidationBonus?: () => Readonly<Record<number, number>>;
+  /** persisted quotations use negative placeholder invoice numbers */
+  getIsQuotationFlow?: () => boolean;
 }
 
 export const getDefaultFormValues = (invoiceType: InvoiceType): Invoice => ({
@@ -32,13 +36,30 @@ export const getDefaultFormValues = (invoiceType: InvoiceType): Invoice => ({
 export const buildNewInvoiceFormSchema = (
   opts: NewInvoiceSchemaOptions,
 ): z.ZodType<Invoice> => {
-  const { invoiceType, inventory, getUseSingleAccount, getSplitByItemType } =
-    opts;
+  const {
+    invoiceType,
+    inventory,
+    getUseSingleAccount,
+    getSplitByItemType,
+    getSaleStockValidationBonus,
+    getIsQuotationFlow,
+  } = opts;
 
   return (
     z
       .object({
         id: z.number(),
+        invoiceNumber: z.coerce.number().refine(
+          (n) => {
+            const quotationFlow = getIsQuotationFlow?.() ?? false;
+            if (quotationFlow) {
+              return n === -1 || n < 0 || n > 0; // allow negative invoice numbers
+            }
+            return n === -1 || n > 0; // allow positive invoice numbers
+          }, // -1 is a placeholder invoice number, hence allow it
+          { message: 'Invalid invoice number' },
+        ),
+        invoiceType: z.nativeEnum(InvoiceType).optional(),
         date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
           message: 'Select a valid date',
         }),
@@ -103,13 +124,18 @@ export const buildNewInvoiceFormSchema = (
           .superRefine((items, ctx) => {
             if (invoiceType !== InvoiceType.Sale) return;
             if (!inventory?.length) return;
+            if (invoiceType !== InvoiceType.Sale) return;
+            const bonus = getSaleStockValidationBonus?.() ?? {};
             items.forEach((item, idx) => {
               if (item.inventoryId <= 0) return;
               const inv = inventory.find((i) => i.id === item.inventoryId);
-              if (!inv || item.quantity <= inv.quantity) return;
+              if (!inv) return;
+              const effectiveOnHand =
+                inv.quantity + (bonus[item.inventoryId] ?? 0);
+              if (item.quantity <= effectiveOnHand) return;
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: `Max ${inv.quantity} available`,
+                message: `Max ${effectiveOnHand} available`,
                 path: [idx, 'quantity'],
               });
             });

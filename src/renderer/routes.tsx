@@ -28,6 +28,7 @@ import AccountBalancesPage from './views/Reports/AccountBalances';
 import LedgerReportPage from './views/Reports/LedgerReport';
 import AverageEquityBalancesPage from './views/Reports/AverageEquityBalances';
 import BillsAgingPage from './views/Reports/BillsAging';
+import QuotationsPage from './views/Quotations';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -76,6 +77,12 @@ const AppRoutes: React.FC = () => (
                   }
                 />
                 <Route
+                  path=":id/edit"
+                  element={
+                    <NewInvoicePage invoiceType={InvoiceType.Purchase} />
+                  }
+                />
+                <Route
                   path=":id"
                   element={
                     <InvoicePage
@@ -100,10 +107,27 @@ const AppRoutes: React.FC = () => (
                   }
                 />
                 <Route
+                  path=":id/edit"
+                  element={
+                    <NewInvoicePage
+                      invoiceType={InvoiceType.Sale}
+                      key={`${InvoiceType.Sale}-edit`}
+                    />
+                  }
+                />
+                <Route
                   path=":id"
                   element={<InvoicePage invoiceType={InvoiceType.Sale} />}
                 />
               </Route>
+              <Route
+                path="sale/quotations"
+                element={<QuotationsPage invoiceType={InvoiceType.Sale} />}
+              />
+              <Route
+                path="purchase/quotations"
+                element={<QuotationsPage invoiceType={InvoiceType.Purchase} />}
+              />
               <Route path="reports" element={<ReportsPage />} />
             </Route>
             <Route

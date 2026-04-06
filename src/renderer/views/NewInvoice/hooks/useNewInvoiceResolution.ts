@@ -1,9 +1,31 @@
-import { toNumber, toString } from 'lodash';
+import { pick, toNumber, toString, trim } from 'lodash';
 import { useEffect, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import type { InventoryItem } from 'types';
+import type { Account, InventoryItem } from 'types';
 import { InvoiceType } from 'types';
+import {
+  buildPartyTypingContext,
+  getHeaderTypedSuffixFromCode,
+  resolvePartyRowForSplitByType,
+} from '@/renderer/views/NewInvoice/lib/partyAccountTyping';
+import {
+  buildInventoryById,
+  buildItemTypeNameById,
+  buildSplitRowPlans,
+  findBasePartyRowInPicked,
+  type SplitRowResolutionKind,
+} from '../lib/splitInvoiceRowResolution';
 import type { PartyAccount } from './useNewInvoiceParties';
+
+const PARTY_PICK = [
+  'id',
+  'name',
+  'type',
+  'code',
+  'chartId',
+  'discountProfileId',
+  'discountProfileIsActive',
+] as const;
 
 export interface ResolutionFallback {
   rowIndex: number;
@@ -22,11 +44,20 @@ export interface UseNewInvoiceResolutionParams {
   onResolved?: () => void;
 }
 
-/** when split by item type is on, resolves each row to party or suffixed account and sets multipleAccountIds + resolvedRowLabels */
+interface LookupRowResult {
+  rowIndex: number;
+  accountId: number;
+  label: string;
+  code: string;
+  fallback?: { expectedSuffixedName: string };
+}
+
+/** when split by item type is on, resolves each row to party or suffixed account and sets multipleAccountIds + resolvedRowLabels + resolvedRowCodes */
 export function useNewInvoiceResolution(
   params: UseNewInvoiceResolutionParams,
 ): {
   resolvedRowLabels: string[];
+  resolvedRowCodes: string[];
   resolutionFallbacks: ResolutionFallback[];
 } {
   const {
@@ -42,6 +73,7 @@ export function useNewInvoiceResolution(
   } = params;
 
   const [resolvedRowLabels, setResolvedRowLabels] = useState<string[]>([]);
+  const [resolvedRowCodes, setResolvedRowCodes] = useState<string[]>([]);
   const [resolutionFallbacks, setResolutionFallbacks] = useState<
     ResolutionFallback[]
   >([]);
@@ -56,120 +88,172 @@ export function useNewInvoiceResolution(
     ) {
       setResolutionFallbacks([]);
       setResolvedRowLabels([]);
-      return;
+      setResolvedRowCodes([]);
+      return undefined;
     }
     const singleId = toNumber(form.getValues('accountMapping.singleAccountId'));
     if (singleId <= 0) {
       setResolutionFallbacks([]);
       setResolvedRowLabels([]);
-      return;
+      setResolvedRowCodes([]);
+      return undefined;
     }
 
-    const party = parties.find((p) => p.id === singleId);
-    if (!party?.chartId) {
-      setResolutionFallbacks([]);
-      setResolvedRowLabels([]);
-      return;
-    }
+    let cancelled = false;
 
     const runResolution = async () => {
+      const [allAccountsRaw, itemTypes] = await Promise.all([
+        window.electron.getAccounts(),
+        window.electron.getItemTypes?.() ?? Promise.resolve([]),
+      ]);
+      if (cancelled) return;
+
+      const picked = allAccountsRaw.map((account: Account) =>
+        pick(account, [...PARTY_PICK]),
+      ) as PartyAccount[];
+      const itemTypeNameList = (itemTypes ?? [])
+        .map((it) => trim(it.name ?? ''))
+        .filter((n) => n.length > 0);
+      const itemTypeNameById = buildItemTypeNameById(itemTypes);
+      const typingCtx = buildPartyTypingContext(picked, itemTypeNameList);
+
+      const party = resolvePartyRowForSplitByType(
+        singleId,
+        parties,
+        picked,
+        typingCtx,
+      );
+
+      if (!party?.chartId) {
+        if (!cancelled) {
+          setResolutionFallbacks([]);
+          setResolvedRowLabels([]);
+          setResolvedRowCodes([]);
+        }
+        return;
+      }
+
       const primaryId = await window.electron.getPrimaryItemType?.();
+      if (cancelled) return;
+
       const rows = form.getValues('invoiceItems') as Array<{
         inventoryId?: number;
         [key: string]: unknown;
       }>;
       const partyName = (party.name ?? '').trim();
       const partyCode = toString(party.code ?? '').trim();
+      const headerAccount = picked.find((a) => a.id === singleId);
+      const primaryRowLabel = trim(headerAccount?.name ?? '') || partyName;
+      const { headerIsTyped, headerSuffix } = getHeaderTypedSuffixFromCode(
+        headerAccount,
+        typingCtx,
+      );
+      const primaryNum = primaryId != null ? toNumber(primaryId) : Number.NaN;
 
-      const needLookup: Array<{ rowIndex: number; suffixedName: string }> = [];
+      const invById = buildInventoryById(inventory);
+      const plans = buildSplitRowPlans(
+        rows,
+        invById,
+        itemTypeNameById,
+        partyName,
+        primaryId,
+        primaryNum,
+        headerIsTyped,
+        headerSuffix,
+      );
 
-      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-        const invId = toNumber(rows[rowIndex]?.inventoryId);
-        const invItem = inventory?.find((i) => i.id === invId);
-        const itemTypeId = invItem?.itemTypeId ?? null;
-        const itemTypeName = invItem?.itemTypeName?.trim() ?? null;
-
-        if (
-          primaryId == null ||
-          itemTypeId == null ||
-          itemTypeName == null ||
-          itemTypeId === primaryId
-        ) {
-          needLookup.push({ rowIndex, suffixedName: '' });
-          continue;
+      const resolveOne = async (
+        plan: SplitRowResolutionKind,
+        rowIndex: number,
+      ): Promise<LookupRowResult> => {
+        if (plan.kind === 'header') {
+          return {
+            rowIndex,
+            accountId: singleId,
+            label: primaryRowLabel,
+            code: trim(toString(headerAccount?.code ?? partyCode ?? '')),
+          };
         }
-        needLookup.push({
+        if (plan.kind === 'base') {
+          const baseRow = findBasePartyRowInPicked(
+            picked,
+            partyName,
+            partyCode,
+          );
+          const baseId = toNumber(baseRow?.id ?? 0);
+          return {
+            rowIndex,
+            accountId: baseId > 0 ? baseId : singleId,
+            label: trim(baseRow?.name ?? '') || partyName,
+            code: trim(toString(baseRow?.code ?? partyCode ?? '')),
+          };
+        }
+
+        const expectedTypeSuffix = plan.suffixedName.replace(
+          `${partyName}-`,
+          '',
+        );
+        const expectedCode =
+          partyCode.length > 0 ? `${partyCode}-${expectedTypeSuffix}` : '';
+
+        const suffixedAccount =
+          expectedCode.length > 0
+            ? await window.electron.getAccountByNameAndCode(
+                partyName,
+                expectedCode,
+              )
+            : undefined;
+        const chartId = toNumber(party.chartId);
+        const fallbackSuffixedAccount =
+          suffixedAccount?.id == null && chartId > 0
+            ? await window.electron.getAccountByNameAndChart(
+                chartId,
+                plan.suffixedName,
+              )
+            : undefined;
+        const resolved = suffixedAccount ?? fallbackSuffixedAccount;
+
+        if (resolved?.id) {
+          return {
+            rowIndex,
+            accountId: resolved.id,
+            label: resolved.name ?? plan.suffixedName,
+            code: trim(toString(resolved.code ?? '')),
+          };
+        }
+        const notFoundCode =
+          expectedCode.length > 0 ? expectedCode : trim(toString(partyCode));
+        return {
           rowIndex,
-          suffixedName: `${partyName}-${itemTypeName}`,
-        });
-      }
+          accountId: singleId,
+          label: `${partyName} (expected ${
+            expectedCode.length > 0 ? expectedCode : plan.suffixedName
+          } – not found)`,
+          code: notFoundCode,
+          fallback: {
+            expectedSuffixedName:
+              expectedCode.length > 0 ? expectedCode : plan.suffixedName,
+          },
+        };
+      };
 
       const lookupResults = await Promise.all(
-        needLookup.map(async (item) => {
-          if (!item.suffixedName) {
-            return {
-              rowIndex: item.rowIndex,
-              accountId: singleId,
-              label: partyName,
-              fallback: undefined as
-                | { expectedSuffixedName: string }
-                | undefined,
-            };
-          }
-          const expectedTypeSuffix = item.suffixedName.replace(
-            `${partyName}-`,
-            '',
-          );
-          const expectedCode =
-            partyCode.length > 0 ? `${partyCode}-${expectedTypeSuffix}` : '';
-
-          const suffixedAccount =
-            expectedCode.length > 0
-              ? await window.electron.getAccountByNameAndCode(
-                  partyName,
-                  expectedCode,
-                )
-              : undefined;
-          const fallbackSuffixedAccount =
-            suffixedAccount?.id == null
-              ? await window.electron.getAccountByNameAndChart(
-                  party.chartId,
-                  item.suffixedName,
-                )
-              : undefined;
-          const resolved = suffixedAccount ?? fallbackSuffixedAccount;
-
-          if (resolved?.id) {
-            return {
-              rowIndex: item.rowIndex,
-              accountId: resolved.id,
-              label: resolved.name ?? item.suffixedName,
-              fallback: undefined as
-                | { expectedSuffixedName: string }
-                | undefined,
-            };
-          }
-          return {
-            rowIndex: item.rowIndex,
-            accountId: singleId,
-            label: `${partyName} (expected ${
-              expectedCode.length > 0 ? expectedCode : item.suffixedName
-            } – not found)`,
-            fallback: {
-              expectedSuffixedName:
-                expectedCode.length > 0 ? expectedCode : item.suffixedName,
-            },
-          };
-        }),
+        plans.map((plan, rowIndex) => resolveOne(plan, rowIndex)),
       );
+
+      if (cancelled) return;
 
       const accountIds: number[] = new Array(rows.length);
       const labels: string[] = new Array(rows.length);
+      const codes: string[] = new Array(rows.length);
       const fallbacks: ResolutionFallback[] = [];
       lookupResults.forEach((r) => {
         accountIds[r.rowIndex] = r.accountId;
         labels[r.rowIndex] = r.label;
-        if (r.fallback) fallbacks.push({ rowIndex: r.rowIndex, ...r.fallback });
+        codes[r.rowIndex] = r.code;
+        if (r.fallback) {
+          fallbacks.push({ rowIndex: r.rowIndex, ...r.fallback });
+        }
       });
 
       (form.setValue as (name: string, value: number[], opts?: object) => void)(
@@ -179,10 +263,15 @@ export function useNewInvoiceResolution(
       );
       setResolutionFallbacks(fallbacks);
       setResolvedRowLabels(labels);
+      setResolvedRowCodes(codes);
       onResolved?.();
     };
 
     runResolution();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     form,
     invoiceType,
@@ -195,5 +284,5 @@ export function useNewInvoiceResolution(
     watchedSingleAccountId,
   ]);
 
-  return { resolvedRowLabels, resolutionFallbacks };
+  return { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks };
 }

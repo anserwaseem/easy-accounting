@@ -1,7 +1,7 @@
 import { debounce, sortBy, toString } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Virtuoso } from 'react-virtuoso';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
   Select,
@@ -35,6 +35,11 @@ type VirtualSelectProps<T extends BaseOption> = {
   /** when provided, options are shown in sections with sticky section headers (e.g. group by itemTypeName) */
   groupBy?: (item: T) => string;
   renderSelectItem?: (item: T) => ReactNode;
+  /** custom closed-state trigger content (e.g. name + trailing meta on the right); default is selected option name */
+  renderTriggerValue?: (params: {
+    selected: T | undefined;
+    placeholder: string;
+  }) => ReactNode;
 };
 
 const VirtualSelect = <T extends BaseOption = Account>({
@@ -48,6 +53,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   triggerClassName,
   groupBy,
   renderSelectItem,
+  renderTriggerValue,
 }: VirtualSelectProps<T>) => {
   const [searchInputValue, setSearchInputValue] = useState('');
   const [filteredSearchValue, setFilteredSearchValue] = useState('');
@@ -60,6 +66,15 @@ const VirtualSelect = <T extends BaseOption = Account>({
   );
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+
+  const scrollVirtuosoToTop = useCallback(() => {
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start' });
+      });
+    });
+  }, []);
 
   // auto focus the search input when the select dropdown is opened
   useEffect(() => {
@@ -128,14 +143,24 @@ const VirtualSelect = <T extends BaseOption = Account>({
     );
   }, [filteredSearchValue, options, searchFields]);
 
+  const selectedOption = useMemo(
+    () => options.find((opt) => opt.id?.toString() === value?.toString()),
+    [options, value],
+  );
+
   const isSearching = filteredSearchValue.trim().length > 0;
 
-  const toggleSectionCollapsed = useCallback((label: string) => {
-    setCollapsedSections((prev) => ({
-      ...prev,
-      [label]: !prev[label],
-    }));
-  }, []);
+  const toggleSectionCollapsed = useCallback(
+    (label: string) => {
+      setCollapsedSections((prev) => ({
+        ...prev,
+        [label]: !prev[label],
+      }));
+      // list height changes; reset scroll so user is not stuck mid-list after collapse/expand
+      scrollVirtuosoToTop();
+    },
+    [scrollVirtuosoToTop],
+  );
 
   const defaultRenderSelectItem = useCallback(
     (item: T) => (
@@ -232,7 +257,8 @@ const VirtualSelect = <T extends BaseOption = Account>({
 
   const handleExpandAllSections = useCallback(() => {
     setCollapsedSections({});
-  }, []);
+    scrollVirtuosoToTop();
+  }, [scrollVirtuosoToTop]);
 
   const handleCollapseAllSections = useCallback(() => {
     if (!sortedGroupLabels.length) return;
@@ -242,7 +268,8 @@ const VirtualSelect = <T extends BaseOption = Account>({
         return acc;
       }, {}),
     );
-  }, [sortedGroupLabels]);
+    scrollVirtuosoToTop();
+  }, [scrollVirtuosoToTop, sortedGroupLabels]);
 
   const sectionHeaderClassName = useMemo(
     () =>
@@ -436,10 +463,11 @@ const VirtualSelect = <T extends BaseOption = Account>({
       open={isOpen}
       disabled={disabled}
     >
-      <SelectTrigger className={triggerClassName}>
+      <SelectTrigger className={cn(triggerClassName)}>
         <SelectValue placeholder={placeholder}>
-          {options.find((opt) => opt.id?.toString() === value?.toString())
-            ?.name || placeholder}
+          {renderTriggerValue
+            ? renderTriggerValue({ selected: selectedOption, placeholder })
+            : selectedOption?.name || placeholder}
         </SelectValue>
       </SelectTrigger>
       <SelectContent className="overflow-hidden">
@@ -487,6 +515,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
           )}
           {hasOptions ? (
             <Virtuoso
+              ref={virtuosoRef}
               data={virtuosoData}
               style={{ height: listWithSections ? 368 : 400 }}
               itemContent={listContentRenderer}

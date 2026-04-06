@@ -23,12 +23,13 @@ export class PrintService {
     }
   }
 
-  async printPDF(invoiceNumber: number) {
+  async printPDF(outputBaseName: string) {
     this.setOutputDir();
     try {
       const win = BrowserWindow.getFocusedWindow() ?? raise('No active window');
 
-      const outputPath = path.join(this.outputDir, `${invoiceNumber}.pdf`);
+      const safeBase = outputBaseName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const outputPath = path.join(this.outputDir, `${safeBase}.pdf`);
 
       const data = await win.webContents.printToPDF({
         printBackground: true,
@@ -37,7 +38,7 @@ export class PrintService {
         },
       });
 
-      fs.writeFileSync(outputPath, data);
+      fs.writeFileSync(outputPath, Uint8Array.from(data));
 
       return { success: true, path: outputPath };
     } catch (error: unknown) {
