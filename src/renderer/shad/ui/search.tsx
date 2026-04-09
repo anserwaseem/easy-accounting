@@ -7,6 +7,7 @@ interface SearchProps {
   value?: string;
   onChange?: (value: string) => void;
   className?: string;
+  autoFocus?: boolean;
 }
 
 export const Search = ({
@@ -14,6 +15,7 @@ export const Search = ({
   value,
   onChange,
   className,
+  autoFocus = false,
 }: SearchProps) => (
   <div className="relative min-w-0">
     <SearchIcon
@@ -29,6 +31,7 @@ export const Search = ({
       }
       aria-label={placeholder}
       autoComplete="off"
+      autoFocus={autoFocus}
       spellCheck={false}
       className={`h-10 pl-9 pr-3 text-sm ${className}`}
     />

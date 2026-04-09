@@ -485,6 +485,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
               'totalAmount',
             ]}
             searchPersistenceKey={`datatable:${invoiceType.toLowerCase()}:invoices:search`}
+            autoFocusSearch
           />
         )}
       </div>

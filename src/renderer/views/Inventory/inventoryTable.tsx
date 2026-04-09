@@ -209,6 +209,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           'price',
           'quantity',
         ]}
+        autoFocusSearch
       />
       <StockHistoryDialog
         open={historyOpen}
