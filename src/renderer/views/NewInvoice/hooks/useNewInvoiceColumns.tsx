@@ -3,7 +3,12 @@ import { getFormattedCurrency } from 'renderer/lib/utils';
 import { toNumber, toString } from 'lodash';
 import { X } from 'lucide-react';
 import { useMemo } from 'react';
-import type { Control, FieldValues, Path } from 'react-hook-form';
+import {
+  useWatch,
+  type Control,
+  type FieldValues,
+  type Path,
+} from 'react-hook-form';
 import {
   FormControl,
   FormField,
@@ -19,9 +24,9 @@ import type { ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InvoiceItem, InventoryItem } from 'types';
 import type { CustomerSection } from '../components/CustomerSectionsBlock';
 
-/** shorter select trigger + inputs in line-item rows (see Input default my-2) */
+/** line-item row height; child input/button fill shell so empty + selected states match customer control proportions */
 const compactLineSelectTrigger =
-  'h-8 min-h-8 py-0 text-sm leading-tight [&>svg]:h-3.5 [&>svg]:w-3.5';
+  'h-8 min-h-8 max-h-8 [&_input]:my-0 [&_input]:h-full [&_input]:min-h-0 [&_input]:border-0 [&_input]:py-0 [&_input]:text-sm [&_input]:leading-tight [&_button]:h-full [&_button]:min-h-0';
 
 interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
   form: {
@@ -70,7 +75,97 @@ interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
     forcedAccountId?: number,
   ) => Promise<void>;
   getSectionLabel: (section: CustomerSection, index: number) => string;
+  /** sale edit: add back line qty already on invoice so displayed avail matches validation */
+  saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
 }
+
+/**
+ * must watch inventoryId here: table data is useFieldArray `fields`, which does not reliably
+ * mirror nested setValue updates, so row.original.inventoryId stays stale until append/remove.
+ */
+interface InvoiceLineQuantityCellProps<T extends FieldValues> {
+  form: { control: Control<T> };
+  rowIndex: number;
+  inventory: InventoryItem[] | undefined;
+  invoiceType: InvoiceType;
+  saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
+  onQuantityChange: (
+    rowIndex: number,
+    value: string,
+    onChange: (value: unknown) => void,
+  ) => void;
+}
+
+const InvoiceLineQuantityCell = <T extends FieldValues>({
+  form,
+  rowIndex,
+  inventory,
+  invoiceType,
+  saleStockValidationBonusRef,
+  onQuantityChange,
+}: InvoiceLineQuantityCellProps<T>) => {
+  const inventoryIdWatched = useWatch({
+    control: form.control,
+    name: `invoiceItems.${rowIndex}.inventoryId` as Path<T>,
+  });
+  const invId = toNumber(inventoryIdWatched);
+  const inv = (inventory || []).find((i) => i.id === invId);
+  const bonus =
+    invoiceType === InvoiceType.Sale
+      ? saleStockValidationBonusRef?.current[invId] ?? 0
+      : 0;
+  const availableQty = inv && invId > 0 ? inv.quantity + bonus : undefined;
+  let stockTitle = 'No item selected; stock not shown.';
+  if (availableQty !== undefined) {
+    stockTitle =
+      invoiceType === InvoiceType.Sale
+        ? `Available quantity: ${availableQty}.`
+        : `On hand: ${availableQty}.`;
+  }
+
+  return (
+    <FormField
+      control={form.control}
+      name={`invoiceItems.${rowIndex}.quantity` as Path<T>}
+      render={({ field }) => (
+        <FormItem className="space-y-0">
+          <div className="flex h-8 min-h-8 max-h-8 w-full items-center gap-1.5">
+            <FormControl className="m-0 flex min-w-0 flex-1">
+              <Input
+                {...field}
+                className="my-0 h-8 w-full min-w-0"
+                type="number"
+                step={1}
+                min={0}
+                onBlur={(e) => field.onChange(toNumber(e.target.value))}
+                onChange={(e) =>
+                  onQuantityChange(rowIndex, e.target.value, field.onChange)
+                }
+              />
+            </FormControl>
+
+            <span
+              className="flex shrink-0 items-center gap-1 tabular-nums leading-none"
+              title={stockTitle}
+            >
+              {availableQty && (
+                <>
+                  <span className="text-xs font-extralight text-muted-foreground mb-0.5">
+                    /
+                  </span>
+                  <span className="text-xs text-muted-foreground/70">
+                    {availableQty}
+                  </span>
+                </>
+              )}
+            </span>
+          </div>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+};
 
 export function useNewInvoiceColumns<T extends FieldValues>(
   params: UseNewInvoiceColumnsParams<T>,
@@ -98,17 +193,19 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     onResetDiscountToAuto,
     applyAutoDiscountForRow,
     getSectionLabel,
+    saleStockValidationBonusRef,
   } = params;
 
   return useMemo(() => {
     const getItemOptionsForRow = (rowIndex: number) => {
       const items = (form.getValues('invoiceItems') as InvoiceItem[]) || [];
-      const selectedElsewhere = items
-        .filter((item, idx) => idx !== rowIndex && item.inventoryId > 0)
-        .map((item) => item.inventoryId);
-      return (inventory || []).filter(
-        (inv) => !selectedElsewhere.includes(inv.id),
-      );
+      const selectedElsewhere = new Set<number>();
+      for (let i = 0; i < items.length; i++) {
+        if (i !== rowIndex && items[i].inventoryId > 0) {
+          selectedElsewhere.add(items[i].inventoryId);
+        }
+      }
+      return (inventory || []).filter((inv) => !selectedElsewhere.has(inv.id));
     };
 
     const baseColumns: ColumnDef<InvoiceItem>[] = [
@@ -136,18 +233,18 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                   groupBy={(item) => item.itemTypeName?.trim() || 'Other'}
                   renderTriggerValue={({ selected, placeholder: ph }) =>
                     selected ? (
-                      <span className="flex w-full min-w-0 items-center gap-2 pr-2">
-                        <span className="min-w-0 flex-1 truncate text-left font-medium">
+                      <span className="flex w-full min-w-0 items-center gap-2 px-3 py-0 text-left text-sm font-normal">
+                        <span className="min-w-0 flex-1 truncate">
                           {selected.name}
                         </span>
                         {selected.itemTypeName?.trim() ? (
-                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                          <span className="shrink-0 text-xs text-muted-foreground">
                             {selected.itemTypeName.trim()}
                           </span>
                         ) : null}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">{ph}</span>
+                      <span className="px-3 text-muted-foreground">{ph}</span>
                     )
                   }
                   renderSelectItem={(item) => (
@@ -175,34 +272,16 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       },
       {
         header: 'Quantity',
-        size: 150,
-        minSize: 120,
+        size: 200,
+        minSize: 158,
         cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`invoiceItems.${row.index}.quantity` as Path<T>}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <Input
-                    {...field}
-                    className="my-0 h-8"
-                    type="number"
-                    step={1}
-                    min={0}
-                    onBlur={(e) => field.onChange(toNumber(e.target.value))}
-                    onChange={(e) =>
-                      onQuantityChange(
-                        row.index,
-                        e.target.value,
-                        field.onChange,
-                      )
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+          <InvoiceLineQuantityCell<T>
+            form={form}
+            rowIndex={row.index}
+            inventory={inventory}
+            invoiceType={invoiceType}
+            saleStockValidationBonusRef={saleStockValidationBonusRef}
+            onQuantityChange={onQuantityChange}
           />
         ),
       },
@@ -434,5 +513,6 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     onResetDiscountToAuto,
     applyAutoDiscountForRow,
     getSectionLabel,
+    saleStockValidationBonusRef,
   ]);
 }

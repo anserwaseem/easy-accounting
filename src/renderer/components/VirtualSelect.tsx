@@ -1,17 +1,26 @@
 import { debounce, sortBy, toString } from 'lodash';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/renderer/shad/ui/select';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/renderer/shad/ui/popover';
 import { cn } from '@/renderer/lib/utils';
 import type { Account } from 'types';
+
+const SEARCH_DEBOUNCE_MS = 300;
+/** after choosing a value, block radix from refocusing the trigger for a while (onCloseAutoFocus can fire more than once) */
+const SUPPRESS_POPOVER_REFOCUS_MS = 550;
 
 type SectionOrItem<T> =
   | { type: 'header'; label: string }
@@ -40,7 +49,53 @@ type VirtualSelectProps<T extends BaseOption> = {
     selected: T | undefined;
     placeholder: string;
   }) => ReactNode;
+  /** when empty, focus trigger input on mount (e.g. new invoice party field) */
+  autoFocusTrigger?: boolean;
 };
+
+/** next/prev keyboard row; skips section headers so arrows move item-to-item */
+const getAdjacentSelectableIndex = <T extends BaseOption>(
+  virtuosoData: readonly (SectionOrItem<T> | T)[],
+  fromIndex: number,
+  direction: 1 | -1,
+  grouped: boolean,
+): number => {
+  if (!grouped) {
+    const next = fromIndex + direction;
+    if (direction === 1) {
+      return Math.min(next, Math.max(0, virtuosoData.length - 1));
+    }
+    return Math.max(next, 0);
+  }
+  const list = virtuosoData as SectionOrItem<T>[];
+  if (direction === 1) {
+    for (let i = fromIndex + 1; i < list.length; i += 1) {
+      if (list[i].type === 'item') return i;
+    }
+    return fromIndex;
+  }
+  for (let i = fromIndex - 1; i >= 0; i -= 1) {
+    if (list[i].type === 'item') return i;
+  }
+  return fromIndex;
+};
+
+const scheduleVirtuosoScrollToTop = (
+  virtuosoRef: RefObject<VirtuosoHandle | null>,
+) =>
+  queueMicrotask(() => {
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start' });
+    });
+  });
+
+const scheduleVirtuosoItemIntoView = (
+  virtuosoRef: RefObject<VirtuosoHandle | null>,
+  index: number,
+) =>
+  queueMicrotask(() => {
+    virtuosoRef.current?.scrollIntoView({ index, behavior: 'auto' });
+  });
 
 const VirtualSelect = <T extends BaseOption = Account>({
   options,
@@ -54,6 +109,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   groupBy,
   renderSelectItem,
   renderTriggerValue,
+  autoFocusTrigger = false,
 }: VirtualSelectProps<T>) => {
   const [searchInputValue, setSearchInputValue] = useState('');
   const [filteredSearchValue, setFilteredSearchValue] = useState('');
@@ -64,34 +120,34 @@ const VirtualSelect = <T extends BaseOption = Account>({
   const [stickySectionLabel, setStickySectionLabel] = useState<string | null>(
     null,
   );
+  const [keyboardSelectedIndex, setKeyboardSelectedIndex] = useState(0);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const prevIsOpenForKeyboardRef = useRef(false);
+  const prevFilteredSearchForKeyboardRef = useRef(filteredSearchValue);
+  const firstSelectableRowIndexRef = useRef(0);
+  /** radix may fire onCloseAutoFocus more than once; time window blocks all trigger refocus after a value pick */
+  const suppressCloseFocusUntilRef = useRef(0);
+
+  const commitSelectionAndClose = useCallback(
+    (nextValue: string | number) => {
+      suppressCloseFocusUntilRef.current =
+        Date.now() + SUPPRESS_POPOVER_REFOCUS_MS;
+      onChange(nextValue);
+      setIsOpen(false);
+    },
+    [onChange],
+  );
 
   const scrollVirtuosoToTop = useCallback(() => {
-    queueMicrotask(() => {
-      requestAnimationFrame(() => {
-        virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start' });
-      });
-    });
+    scheduleVirtuosoScrollToTop(virtuosoRef);
   }, []);
-
-  // auto focus the search input when the select dropdown is opened
-  useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      // use a small timeout to ensure the input is in the DOM
-      const timer = setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 10);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
 
   // maintain focus on input while typing
   useEffect(() => {
     if (!isOpen) return undefined;
-
-    // function to refocus the input if it loses focus while typing
     const handleFocusOut = () => {
       if (isTypingRef.current) {
         if (document.activeElement !== searchInputRef.current) {
@@ -101,36 +157,33 @@ const VirtualSelect = <T extends BaseOption = Account>({
         }
       }
     };
-
     document.addEventListener('focusin', handleFocusOut);
     return () => {
       document.removeEventListener('focusin', handleFocusOut);
     };
   }, [isOpen]);
 
-  // debounced search handler with timeout
   const debouncedSetFilteredValue = useMemo(
     () =>
       debounce((search: string) => {
         setFilteredSearchValue(search);
         isTypingRef.current = false;
-      }, 300),
+      }, SEARCH_DEBOUNCE_MS),
     [],
   );
 
-  // handle input changes without debounce for immediate input feedback
   const handleSearchInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       isTypingRef.current = true;
       setSearchInputValue(e.target.value);
       debouncedSetFilteredValue(e.target.value);
+      if (!isOpen) setIsOpen(true);
     },
-    [debouncedSetFilteredValue],
+    [debouncedSetFilteredValue, isOpen],
   );
 
   const filteredOptions = useMemo(() => {
     if (!filteredSearchValue) return options;
-
     const lowerSearch = filteredSearchValue.toLowerCase();
     return options.filter((opt) =>
       searchFields.some((field) => {
@@ -144,7 +197,10 @@ const VirtualSelect = <T extends BaseOption = Account>({
   }, [filteredSearchValue, options, searchFields]);
 
   const selectedOption = useMemo(
-    () => options.find((opt) => opt.id?.toString() === value?.toString()),
+    () =>
+      options.find(
+        (opt) => opt.id?.toString() === value?.toString() && value !== '0',
+      ),
     [options, value],
   );
 
@@ -156,7 +212,6 @@ const VirtualSelect = <T extends BaseOption = Account>({
         ...prev,
         [label]: !prev[label],
       }));
-      // list height changes; reset scroll so user is not stuck mid-list after collapse/expand
       scrollVirtuosoToTop();
     },
     [scrollVirtuosoToTop],
@@ -180,41 +235,9 @@ const VirtualSelect = <T extends BaseOption = Account>({
       setCollapsedSections({});
       setStickySectionLabel(null);
       isTypingRef.current = false;
+      setKeyboardSelectedIndex(0);
     }
   }, []);
-
-  // handle key down events in the input to prevent focus loss on arrow keys
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        // prevent default behavior which might cause focus loss
-        e.preventDefault();
-      }
-    },
-    [],
-  );
-
-  // memoize item renderer to prevent re-renders
-  const itemRenderer = useCallback(
-    (_: number, item: T) => (
-      <SelectItem
-        value={item?.id?.toString() || crypto.randomUUID()}
-        key={item?.id?.toString() || crypto.randomUUID()}
-        onMouseDown={(e) => {
-          // prevent mousedown from stealing focus from input
-          if (isTypingRef.current) {
-            e.preventDefault();
-          }
-        }}
-        className="transition-colors duration-150 ease-in-out"
-      >
-        {renderSelectItem
-          ? renderSelectItem(item)
-          : defaultRenderSelectItem(item)}
-      </SelectItem>
-    ),
-    [renderSelectItem, defaultRenderSelectItem],
-  );
 
   const groupCountsByLabel = useMemo(() => {
     if (!groupBy) return null;
@@ -231,8 +254,6 @@ const VirtualSelect = <T extends BaseOption = Account>({
     return { totalByLabel, matchByLabel };
   }, [filteredOptions, groupBy, options]);
 
-  // when user starts searching, auto-expand groups that contain matches
-  // but preserve any manual collapses the user has applied during this search session.
   useEffect(() => {
     if (!groupBy || !isSearching || !groupCountsByLabel) return;
     setCollapsedSections((prev) => {
@@ -240,7 +261,6 @@ const VirtualSelect = <T extends BaseOption = Account>({
       for (const label of Object.keys(groupCountsByLabel.matchByLabel)) {
         const matches = groupCountsByLabel.matchByLabel[label] ?? 0;
         if (matches <= 0) continue;
-        // if user explicitly collapsed this label, keep it collapsed
         if (next[label] === true) continue;
         next[label] = false;
       }
@@ -281,20 +301,16 @@ const VirtualSelect = <T extends BaseOption = Account>({
   );
 
   const sectionHeaderRenderer = useCallback(
-    (label: string) => {
+    (label: string, isSpacer = false) => {
       const isCollapsed = collapsedSections[label] === true;
       const totalCount = groupCountsByLabel?.totalByLabel[label] ?? 0;
       const matchCount = groupCountsByLabel?.matchByLabel[label] ?? 0;
       const countLabel = isSearching
         ? `${matchCount}/${totalCount}`
         : `${totalCount}`;
-      return (
-        <button
-          type="button"
-          className={sectionHeaderClassName}
-          onClick={() => toggleSectionCollapsed(label)}
-          aria-expanded={!isCollapsed}
-        >
+
+      const content = (
+        <>
           <span className="flex items-center gap-2">
             <span
               className={cn(
@@ -315,6 +331,31 @@ const VirtualSelect = <T extends BaseOption = Account>({
           <span className="text-[10px] font-medium normal-case opacity-70">
             {isCollapsed ? 'collapsed' : 'expanded'}
           </span>
+        </>
+      );
+
+      if (isSpacer) {
+        return (
+          <div
+            className={cn(
+              sectionHeaderClassName,
+              'opacity-0 select-none pointer-events-none',
+            )}
+            aria-hidden
+          >
+            {content}
+          </div>
+        );
+      }
+
+      return (
+        <button
+          type="button"
+          className={sectionHeaderClassName}
+          onClick={() => toggleSectionCollapsed(label)}
+          aria-expanded={!isCollapsed}
+        >
+          {content}
         </button>
       );
     },
@@ -327,78 +368,6 @@ const VirtualSelect = <T extends BaseOption = Account>({
     ],
   );
 
-  const sectionHeaderSpacerRenderer = useCallback(
-    (label: string) => {
-      const isCollapsed = collapsedSections[label] === true;
-      const totalCount = groupCountsByLabel?.totalByLabel[label] ?? 0;
-      const matchCount = groupCountsByLabel?.matchByLabel[label] ?? 0;
-      const countLabel = isSearching
-        ? `${matchCount}/${totalCount}`
-        : `${totalCount}`;
-      return (
-        <div
-          className={cn(
-            sectionHeaderClassName,
-            'opacity-0 select-none pointer-events-none',
-          )}
-          aria-hidden
-        >
-          <span className="flex items-center gap-2">
-            <span
-              className={cn(
-                'inline-block transition-transform duration-150 ease-in-out',
-                isCollapsed ? '-rotate-90' : 'rotate-0',
-              )}
-              aria-hidden
-            >
-              ▾
-            </span>
-            <span className="flex items-baseline gap-2">
-              <span>{label}</span>
-              <span className="text-[10px] font-medium normal-case opacity-70">
-                ({countLabel})
-              </span>
-            </span>
-          </span>
-          <span className="text-[10px] font-medium normal-case opacity-70">
-            {isCollapsed ? 'collapsed' : 'expanded'}
-          </span>
-        </div>
-      );
-    },
-    [
-      collapsedSections,
-      groupCountsByLabel,
-      isSearching,
-      sectionHeaderClassName,
-    ],
-  );
-
-  const listContentRenderer = useCallback(
-    (index: number, entry: SectionOrItem<T> | T) => {
-      if (!groupBy) {
-        return itemRenderer(index, entry as T);
-      }
-      const row = entry as SectionOrItem<T>;
-      if (row.type === 'item') {
-        return itemRenderer(index, row.item);
-      }
-      // when this header is the one shown sticky above, render same-height spacer to avoid duplicate label
-      if (row.label === stickySectionLabel) {
-        return sectionHeaderSpacerRenderer(row.label);
-      }
-      return sectionHeaderRenderer(row.label);
-    },
-    [
-      groupBy,
-      itemRenderer,
-      sectionHeaderRenderer,
-      sectionHeaderSpacerRenderer,
-      stickySectionLabel,
-    ],
-  );
-
-  // when groupBy is provided: build flat list of section headers + items (single Virtuoso, reliable in portal)
   const listWithSections = useMemo((): SectionOrItem<T>[] | null => {
     if (!groupBy || !filteredOptions.length) return null;
     const byKey = new Map<string, T[]>();
@@ -415,6 +384,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
       ...sortBy(rest, (k) => k),
       ...(otherKey ? [otherKey] : []),
     ];
+
     const flat: SectionOrItem<T>[] = [];
     for (const key of sortedKeys) {
       flat.push({ type: 'header', label: key });
@@ -429,7 +399,175 @@ const VirtualSelect = <T extends BaseOption = Account>({
   const virtuosoData = listWithSections ?? filteredOptions;
   const hasOptions = virtuosoData.length > 0;
 
-  // set initial sticky section when list with sections is shown
+  // with groupBy, row 0 is often a section header — keyboard selection must start on first real option so Enter matches party selector behavior
+  const firstSelectableRowIndex = useMemo(() => {
+    if (!groupBy) return 0;
+    const list = virtuosoData as SectionOrItem<T>[];
+    const idx = list.findIndex((row) => row.type === 'item');
+    return idx === -1 ? 0 : idx;
+  }, [groupBy, virtuosoData]);
+
+  firstSelectableRowIndexRef.current = firstSelectableRowIndex;
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      prevIsOpenForKeyboardRef.current = false;
+      prevFilteredSearchForKeyboardRef.current = filteredSearchValue;
+      return;
+    }
+    const openedNow = !prevIsOpenForKeyboardRef.current;
+    const searchChanged =
+      prevFilteredSearchForKeyboardRef.current !== filteredSearchValue;
+    prevIsOpenForKeyboardRef.current = true;
+    prevFilteredSearchForKeyboardRef.current = filteredSearchValue;
+    if (openedNow || searchChanged) {
+      const idx = firstSelectableRowIndexRef.current;
+      setKeyboardSelectedIndex(idx);
+      scheduleVirtuosoItemIntoView(virtuosoRef, idx);
+    }
+  }, [isOpen, filteredSearchValue]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement>) => {
+      if (!isOpen) {
+        if (e.key === 'ArrowDown' || e.key === 'Enter') {
+          e.preventDefault();
+          setIsOpen(true);
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setKeyboardSelectedIndex((prev) => {
+          const next = getAdjacentSelectableIndex(
+            virtuosoData,
+            prev,
+            1,
+            !!groupBy,
+          );
+          scheduleVirtuosoItemIntoView(virtuosoRef, next);
+          return next;
+        });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setKeyboardSelectedIndex((prev) => {
+          const next = getAdjacentSelectableIndex(
+            virtuosoData,
+            prev,
+            -1,
+            !!groupBy,
+          );
+          scheduleVirtuosoItemIntoView(virtuosoRef, next);
+          return next;
+        });
+      } else if (e.key === 'Enter' && hasOptions) {
+        e.preventDefault();
+        const current = virtuosoData[keyboardSelectedIndex];
+        if (current) {
+          if (groupBy && 'type' in current) {
+            if (current.type === 'item') {
+              commitSelectionAndClose(
+                (current.item as T).id as string | number,
+              );
+            } else {
+              toggleSectionCollapsed(current.label);
+            }
+          } else {
+            commitSelectionAndClose((current as T).id as string | number);
+          }
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsOpen(false);
+      }
+    },
+    [
+      isOpen,
+      virtuosoData,
+      keyboardSelectedIndex,
+      hasOptions,
+      groupBy,
+      commitSelectionAndClose,
+      toggleSectionCollapsed,
+    ],
+  );
+
+  const itemRenderer = useCallback(
+    (index: number, item: T) => {
+      const isSelected = index === keyboardSelectedIndex;
+      return (
+        <div
+          role="option"
+          aria-selected={isSelected}
+          tabIndex={-1}
+          key={item?.id?.toString() || crypto.randomUUID()}
+          onMouseDown={(e) => {
+            if (isTypingRef.current) e.preventDefault();
+          }}
+          onClick={() => {
+            commitSelectionAndClose(item.id as string | number);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              commitSelectionAndClose(item.id as string | number);
+            }
+          }}
+          onMouseEnter={() => setKeyboardSelectedIndex(index)}
+          className={cn(
+            'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors',
+            isSelected
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-accent/50',
+          )}
+        >
+          {renderSelectItem
+            ? renderSelectItem(item)
+            : defaultRenderSelectItem(item)}
+        </div>
+      );
+    },
+    [
+      keyboardSelectedIndex,
+      commitSelectionAndClose,
+      renderSelectItem,
+      defaultRenderSelectItem,
+    ],
+  );
+
+  const listContentRenderer = useCallback(
+    (index: number, entry: SectionOrItem<T> | T) => {
+      if (!groupBy) {
+        return itemRenderer(index, entry as T);
+      }
+      const row = entry as SectionOrItem<T>;
+      if (row.type === 'item') {
+        return itemRenderer(index, row.item);
+      }
+      if (row.label === stickySectionLabel) {
+        return sectionHeaderRenderer(row.label, true);
+      }
+      // otherwise, it's a section header; we wrap it to allow highlighting when selected
+      const isSelected = index === keyboardSelectedIndex;
+      return (
+        <div
+          onMouseEnter={() => setKeyboardSelectedIndex(index)}
+          className={cn(isSelected && 'ring-2 ring-inset ring-ring')}
+        >
+          {sectionHeaderRenderer(row.label, false)}
+        </div>
+      );
+    },
+    [
+      groupBy,
+      itemRenderer,
+      sectionHeaderRenderer,
+      stickySectionLabel,
+      keyboardSelectedIndex,
+    ],
+  );
+
   useEffect(() => {
     if (!listWithSections?.length || !isOpen) return;
     const first = listWithSections[0];
@@ -438,7 +576,6 @@ const VirtualSelect = <T extends BaseOption = Account>({
     }
   }, [listWithSections, isOpen]);
 
-  // update sticky section label from visible range (section at top of viewport)
   const handleRangeChanged = useCallback(
     (range: { startIndex: number; endIndex: number }) => {
       if (!listWithSections?.length) return;
@@ -455,34 +592,88 @@ const VirtualSelect = <T extends BaseOption = Account>({
     [listWithSections],
   );
 
+  // focus effect when opening: if we started with the unselected input, the input retains focus
+  // if we used the button, we should focus the inner search input inside PopoverContent
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      // avoid stealing focus from the trigger input if it's already focused
+      if (
+        document.activeElement !== searchInputRef.current &&
+        !!selectedOption
+      ) {
+        searchInputRef.current.focus();
+      }
+    }
+  }, [isOpen, selectedOption]);
+
   return (
-    <Select
-      value={value?.toString()}
-      onValueChange={(val) => onChange(val)}
-      onOpenChange={handleOpenChange}
-      open={isOpen}
-      disabled={disabled}
-    >
-      <SelectTrigger className={cn(triggerClassName)}>
-        <SelectValue placeholder={placeholder}>
-          {renderTriggerValue
-            ? renderTriggerValue({ selected: selectedOption, placeholder })
-            : selectedOption?.name || placeholder}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent className="overflow-hidden">
-        <div className="p-2">
-          <Input
-            ref={searchInputRef}
-            value={searchInputValue}
-            onChange={handleSearchInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder={searchPlaceholder || 'Search...'}
-            className="w-full"
-          />
+    <Popover open={isOpen} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <div
+          className={cn(
+            'relative flex w-full min-h-10 items-stretch rounded-md border border-input bg-background text-sm shadow-sm focus-within:ring-1 focus-within:ring-ring',
+            triggerClassName,
+          )}
+        >
+          {!selectedOption ? (
+            <Input
+              value={searchInputValue}
+              onChange={handleSearchInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              disabled={disabled}
+              className="my-0 h-10 min-h-10 w-full flex-1 border-0 bg-transparent px-3 py-2 text-sm shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+              autoComplete="off"
+              autoCapitalize="off"
+              autoFocus={autoFocusTrigger}
+            />
+          ) : (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setIsOpen(true)}
+              onKeyDown={handleKeyDown}
+              className="flex w-full flex-1 items-center self-stretch bg-transparent px-0 py-0 text-left text-sm font-normal outline-none"
+            >
+              {renderTriggerValue ? (
+                renderTriggerValue({ selected: selectedOption, placeholder })
+              ) : (
+                <span className="block w-full truncate px-3 py-2 text-left">
+                  {selectedOption?.name || placeholder}
+                </span>
+              )}
+            </button>
+          )}
         </div>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+        onOpenAutoFocus={(e) => {
+          // We do not want popover to auto focus and blur our Trigger Input if we didn't have an option selected
+          if (!selectedOption) e.preventDefault();
+        }}
+        onCloseAutoFocus={(e) => {
+          if (Date.now() < suppressCloseFocusUntilRef.current) {
+            e.preventDefault();
+          }
+        }}
+      >
+        {!!selectedOption && (
+          <div className="p-2 border-b border-border">
+            <Input
+              ref={searchInputRef}
+              value={searchInputValue}
+              onChange={handleSearchInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder={searchPlaceholder || 'Search...'}
+              className="w-full"
+              autoComplete="off"
+            />
+          </div>
+        )}
         {groupBy && !isSearching && sortedGroupLabels.length > 0 && (
-          <div className="px-2 pb-2">
+          <div className="px-2 pb-2 mt-2">
             <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-1">
               <span className="text-xs text-muted-foreground">Sections</span>
               <div className="flex gap-2">
@@ -505,12 +696,12 @@ const VirtualSelect = <T extends BaseOption = Account>({
           </div>
         )}
         <div
-          className="transition-opacity duration-150 ease-in-out min-h-[320px] relative"
+          className="transition-opacity duration-150 ease-in-out min-h-[320px] relative mt-1"
           style={{ height: hasOptions ? 400 : undefined }}
         >
           {listWithSections && stickySectionLabel && hasOptions && (
             <div className="absolute left-0 right-0 top-0 z-20">
-              {sectionHeaderRenderer(stickySectionLabel)}
+              {sectionHeaderRenderer(stickySectionLabel, false)}
             </div>
           )}
           {hasOptions ? (
@@ -529,8 +720,8 @@ const VirtualSelect = <T extends BaseOption = Account>({
             </div>
           )}
         </div>
-      </SelectContent>
-    </Select>
+      </PopoverContent>
+    </Popover>
   );
 };
 

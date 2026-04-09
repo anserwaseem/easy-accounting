@@ -586,6 +586,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             'discountProfileName',
           ]}
           searchPersistenceKey="datatable:accounts:search"
+          autoFocusSearch
         />
       </div>
       <AccountPricingSheet

@@ -7,6 +7,12 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
+import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from 'renderer/shad/ui/tooltip';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
 import { get, toNumber, toString } from 'lodash';
@@ -46,6 +52,7 @@ import {
   type JournalEntry,
 } from 'types';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { useCmdOrCtrlNShortcut } from '@/renderer/hooks/useCmdOrCtrlNShortcut';
 import { convertFileToJson } from 'renderer/lib/lib';
 import { parseJournalImportSheet } from 'renderer/lib/parser';
 import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
@@ -76,6 +83,7 @@ const NewJournalPage: React.FC = () => {
   >({});
   const entryInputValuesRef = useRef<Record<string, string>>({});
   const importInputRef = useRef<HTMLInputElement>(null);
+  const narrationInputRef = useRef<HTMLInputElement>(null);
 
   const getInitialEntry = useCallback(
     () => ({
@@ -144,6 +152,15 @@ const NewJournalPage: React.FC = () => {
       setAccounts(allAccounts.filter((account: Account) => account.isActive));
     })();
   }, []);
+
+  // focus narration once account list has loaded so the field is ready for typing
+  useEffect(() => {
+    if (accounts === undefined) return undefined;
+    const id = requestAnimationFrame(() => {
+      narrationInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [accounts]);
 
   // Refresh accounts
   const refreshAccounts = useCallback(async () => {
@@ -545,6 +562,8 @@ const NewJournalPage: React.FC = () => {
     [append, getInitialEntry],
   );
 
+  useCmdOrCtrlNShortcut(handleAddNewRow);
+
   const normalizeAccountCode = useCallback(
     (value: unknown) => toString(value).trim().toLowerCase(),
     [],
@@ -911,7 +930,14 @@ const NewJournalPage: React.FC = () => {
                     <FormItem labelPosition="start" className="space-y-0">
                       <FormLabel className="text-base">Narration</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input
+                          {...field}
+                          ref={(node) => {
+                            // @ts-expect-error - we want to set the ref to the input element
+                            narrationInputRef.current = node;
+                            field.ref(node);
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -995,14 +1021,27 @@ const NewJournalPage: React.FC = () => {
 
             <div className="flex justify-between pr-4 gap-20 pb-20">
               <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
-                  onClick={() => handleAddNewRow()}
-                >
-                  <Plus size={20} />
-                  <span className="w-max">Add New Row</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
+                      aria-label={`Add new row, shortcut ${getOsModifierLabel()}+N`}
+                      onClick={() => handleAddNewRow()}
+                    >
+                      <Plus size={20} />
+                      <span className="w-max">Add New Row</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p className="text-sm">
+                      Add new row{' '}
+                      <span className="text-muted-foreground">
+                        ({getOsModifierLabel()}+N)
+                      </span>
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
                 <Button
                   type="button"
                   variant="outline"

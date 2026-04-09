@@ -135,6 +135,7 @@ const LedgerReportPage = () => {
                     onChange={(value) => setSelectedAccount(Number(value))}
                     placeholder="Select account"
                     searchPlaceholder="Search accounts..."
+                    autoFocusTrigger={selectedAccount == null}
                   />
                 </div>
               </div>

@@ -51,6 +51,8 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   searchFields?: string[];
   isMini?: boolean;
   searchPersistenceKey?: string;
+  /** focus the table search field when the page mounts (listing screens) */
+  autoFocusSearch?: boolean;
 }
 
 const TableComponent = forwardRef<
@@ -220,6 +222,7 @@ const DataTable = <TData, TValue>({
   searchFields,
   isMini = false,
   searchPersistenceKey,
+  autoFocusSearch = false,
   ...props
 }: DataTableProps<TData, TValue>) => {
   const [sorting, setSorting] = useState<SortingState>(() => {
@@ -369,6 +372,7 @@ const DataTable = <TData, TValue>({
                   filteredCount={recordCount.filtered}
                   totalCount={recordCount.total}
                   className="w-full"
+                  autoFocus={autoFocusSearch}
                 />
               ) : (
                 <>
@@ -377,6 +381,7 @@ const DataTable = <TData, TValue>({
                     value={searchInputValue}
                     onChange={handleSearchInputChange}
                     className={searchClassName}
+                    autoFocus={autoFocusSearch}
                   />
                   <RecordCount {...recordCount} />
                 </>
@@ -446,6 +451,7 @@ const DataTable = <TData, TValue>({
                 filteredCount={recordCount.filtered}
                 totalCount={recordCount.total}
                 className="w-full"
+                autoFocus={autoFocusSearch}
               />
             ) : (
               <>
@@ -454,6 +460,7 @@ const DataTable = <TData, TValue>({
                   value={searchInputValue}
                   onChange={handleSearchInputChange}
                   className={searchClassName}
+                  autoFocus={autoFocusSearch}
                 />
                 <RecordCount {...recordCount} />
               </>

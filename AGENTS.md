@@ -1,3 +1,106 @@
+# AGENTS.md
+
+This file provides guidance to LLM when working with code in this repository.
+
+## Architecture Overview
+
+**Electron + React + better-sqlite3** accounting app built on Electron React Boilerplate. Two-process architecture:
+
+```
+src/main/                  ← Main process (Node/Electron)
+├── services/              ← Business logic classes with prepared statements
+│   ├── Database.service    ← SQLite singleton (better-sqlite3)
+│   ├── Auth.service        ← User login/logout
+│   ├── Account.service     ← Chart of accounts CRUD
+│   ├── Invoice.service     ← Full invoice lifecycle (sale/purchase, return, quotation)
+│   ├── Inventory.service   ← Stock management + adjustments
+│   ├── Ledger.service      ← Per-account ledger entries
+│   ├── Journal.service     ← Journal entries
+│   ├── Chart.service       ← Chart/account hierarchy
+│   ├── Print.service       ← HTML-to-PDF via webContents.printToPDF()
+│   ├── Pricing.service     ← Pricing logic
+│   └── Backup.service      ← Database backup
+├── migrations/            ← JS migration files (002, 003, … 018)
+├── errorLogger.ts
+├── main.ts                ← IPC handler registration (ipcMain.handle('domain:method', …))
+└── preload.ts             ← Exposes window.electron.* to renderer
+
+src/renderer/              ← Renderer process (React 18)
+├── views/                 ← Feature pages (Accounts, Invoices, Inventory, Journals, Reports, Settings)
+├── components/            ← Shared UI components
+├── hooks/                 ← Custom React hooks
+├── lib/                   ← Utilities (reportExport.ts, utils.ts)
+├── shad/ui/               ← shadcn-style components (buttons, dialogs, dataTable, datePicker, calendar, etc.)
+├── routes.tsx             ← MemoryRouter-based routing
+└── preload.d.ts           ← Type declarations for window.electron
+
+src/sql/schema.sql         ← Full schema baseline (migrations add ALTER TABLE to it)
+src/types/                  ← Shared TypeScript types
+```
+
+## IPC Pattern
+
+All main-process calls go through `window.electron.*` (defined in `preload.ts`, typed in `preload.d.ts`):
+
+- Pattern: `ipcMain.handle('domain:method', ...)` → `ipcRenderer.invoke('domain:method', ...)` → `window.electron.someMethod(...)`
+- When adding new IPCs: add handler in `main.ts`, add method in `preload.ts`, add type in `preload.d.ts`
+
+## Commands
+
+```bash
+npm start          # Dev: launches main + renderer concurrently
+npm test           # Test: runs jest via electron as runtime
+npm run build      # Production build (main + renderer)
+npm run lint       # ESLint
+npm run package    # Electron builder package
+npm run patch      # Bump version (patch increment, no git tag)
+```
+
+To run a single test file:
+
+```bash
+npm test -- -- --testPathPattern="path/to/file.test.ts"
+```
+
+To run sql cmds directly on .db:
+
+```bash
+sqlite3 release/app/database.db "SELECT * FROM migrations"
+```
+
+## Cursor Rules (from `.cursor/rules/lint.mdc`)
+
+- Always import toast from `use-toast` directly, not via a hook
+- Setup new migration whenever schema changes (new table or column changes)
+- New migrations must also be reflected in `schema.sql` (comment each new column with migration name)
+- Use functional React components only
+- Import type if possible
+- Never leave unused imports
+- Write comments starting from a lowercase letter
+- Use lodash builtin methods where possible
+- NEVER touch \*.db files — always ignore them
+- Always use minimum re-renders (memoization, virtualization, splitting)
+- Always write prop types for components
+- Don't comment out to pass tests
+- Never use `any` — always use types
+- Don't use raw SQL directly in service methods — use prepared statements
+- Always follow ESLint rules (extends `erb` config with typescript-eslint)
+- `@typescript-eslint/no-shadow: error`, `@typescript-eslint/no-unused-vars: error`
+- `no-use-before-define: [error, { functions: false }]`
+- Named components: arrow functions
+
+## Important Conventions
+
+- **Class-based services** with prepared statements initialized in constructor
+- **`@logErrors` decorator** for error logging on all services
+- **SQLite date columns stored as TEXT**, compared with `datetime()` in SQL
+- **Boolean SQLite values** use 0/1 with `SqliteBoolean` type wrapper (`src/main/utils/sqlite.ts`)
+- **Exports** use `xlsx` library, report exports go through `src/renderer/lib/reportExport.ts`
+- **Print** uses `PrintService.printPDF()` which calls `webContents.printToPDF()` — reports print from current window, no dedicated print routes
+- **Database** lives at `release/app/database.db` — never modify it from code
+- **Reports** use `ReportLayout` component with fixed header + scrollable body, `print:hidden` on toolbar
+- **Tests** use Jest with real SQLite database (in-memory or temp file), mocking `electron-log` and `electron-store`
+
 # Agent memory
 
 ## Learned User Preferences

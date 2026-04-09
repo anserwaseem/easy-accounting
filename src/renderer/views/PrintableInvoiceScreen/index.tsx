@@ -10,7 +10,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { format, isValid } from 'date-fns';
 import { InvoiceType, type InvoiceView } from 'types';
 import { Button } from 'renderer/shad/ui/button';
-import { Kbd, KbdGroup } from 'renderer/shad/ui/kbd';
+import { getOsModifierLabel, Kbd, KbdGroup } from 'renderer/shad/ui/kbd';
 import {
   Tooltip,
   TooltipContent,
@@ -27,10 +27,6 @@ import {
   groupInvoiceItemsByType,
 } from '@/renderer/lib/invoiceUtils';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
-
-const isAppleLikePlatform = () =>
-  typeof navigator !== 'undefined' &&
-  /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
@@ -101,8 +97,6 @@ const PrintableInvoiceScreen = () => {
     (theme === 'system' &&
       typeof document !== 'undefined' &&
       document.documentElement.classList.contains('dark'));
-
-  const showAppleKbdHints = useMemo(() => isAppleLikePlatform(), []);
 
   const biltyGoodsText = useMemo(() => {
     if (!invoice) return '';
@@ -574,7 +568,7 @@ const PrintableInvoiceScreen = () => {
               Print
               <KbdGroup className="hidden sm:inline-flex">
                 <Kbd className={printToolbarKbdOnPrimaryClass}>
-                  {showAppleKbdHints ? '⌘' : 'Ctrl'}
+                  {getOsModifierLabel()}
                 </Kbd>
                 <Kbd className={printToolbarKbdOnPrimaryClass}>P</Kbd>
               </KbdGroup>

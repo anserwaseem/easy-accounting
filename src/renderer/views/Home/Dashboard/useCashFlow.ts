@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { get, isEmpty } from 'lodash';
 import { AccountType, type Account, type LedgerView } from '@/types';
+import { toLowerString } from '@/renderer/lib/utils';
 import type { CashFlow } from './types';
 
 export const useCashFlow = () => {
@@ -61,7 +62,7 @@ export const useCashFlow = () => {
         const heads = [headName, parentHeadName];
         // calculate cash flow from sales
         if (
-          account.name.toLowerCase().includes('sale') &&
+          toLowerString(account.name).includes('sale') &&
           heads.includes(AccountType.Revenue)
         ) {
           const latestEntry = ledger[ledger.length - 1];
@@ -70,7 +71,7 @@ export const useCashFlow = () => {
         }
 
         // calculate cash flow from purchases
-        if (account.name.toLowerCase().includes('purchase')) {
+        if (toLowerString(account.name).includes('purchase')) {
           const latestEntry = ledger[ledger.length - 1];
           const { balance, balanceType } = latestEntry;
           cashFlowFromPurchases += balanceType === 'Dr' ? balance : -balance;

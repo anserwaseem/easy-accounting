@@ -18,7 +18,7 @@ export function mergePartyOptionForSelect(
   return parties;
 }
 
-export interface BuildCustomerVendorSelectOptionsParams {
+interface BuildCustomerVendorSelectOptionsParams {
   invoiceType: InvoiceType;
   baseParties: PartyAccount[];
   extendedParties: PartyAccount[];
