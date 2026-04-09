@@ -41,6 +41,7 @@ src/types/                  ← Shared TypeScript types
 ## IPC Pattern
 
 All main-process calls go through `window.electron.*` (defined in `preload.ts`, typed in `preload.d.ts`):
+
 - Pattern: `ipcMain.handle('domain:method', ...)` → `ipcRenderer.invoke('domain:method', ...)` → `window.electron.someMethod(...)`
 - When adding new IPCs: add handler in `main.ts`, add method in `preload.ts`, add type in `preload.d.ts`
 
@@ -56,11 +57,13 @@ npm run patch      # Bump version (patch increment, no git tag)
 ```
 
 To run a single test file:
+
 ```bash
 npm test -- -- --testPathPattern="path/to/file.test.ts"
 ```
 
 To run sql cmds directly on .db:
+
 ```bash
 sqlite3 release/app/database.db "SELECT * FROM migrations"
 ```
@@ -75,7 +78,7 @@ sqlite3 release/app/database.db "SELECT * FROM migrations"
 - Never leave unused imports
 - Write comments starting from a lowercase letter
 - Use lodash builtin methods where possible
-- NEVER touch *.db files — always ignore them
+- NEVER touch \*.db files — always ignore them
 - Always use minimum re-renders (memoization, virtualization, splitting)
 - Always write prop types for components
 - Don't comment out to pass tests
@@ -97,7 +100,6 @@ sqlite3 release/app/database.db "SELECT * FROM migrations"
 - **Database** lives at `release/app/database.db` — never modify it from code
 - **Reports** use `ReportLayout` component with fixed header + scrollable body, `print:hidden` on toolbar
 - **Tests** use Jest with real SQLite database (in-memory or temp file), mocking `electron-log` and `electron-store`
-
 
 # Agent memory
 

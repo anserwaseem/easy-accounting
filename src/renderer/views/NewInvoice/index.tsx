@@ -1,20 +1,8 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { format } from 'date-fns';
 import { get, isNil, pick, toNumber, toString } from 'lodash';
-import {
-  Calendar as CalendarIcon,
-  Plus,
-  Printer,
-  RefreshCw,
-  Upload,
-} from 'lucide-react';
+import { Plus, Printer, RefreshCw, Upload } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  ControllerRenderProps,
-  FieldPath,
-  FieldValues,
-  UseFormReturn,
-} from 'react-hook-form';
+import type { UseFormReturn } from 'react-hook-form';
 import { useFormState, useWatch } from 'react-hook-form';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -24,7 +12,6 @@ import {
   raise,
 } from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
-import { Calendar } from 'renderer/shad/ui/calendar';
 import { DataTable } from 'renderer/shad/ui/dataTable';
 import {
   Form,
@@ -35,11 +22,6 @@ import {
   FormMessage,
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from 'renderer/shad/ui/popover';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { type Account, type InventoryItem, InvoiceType } from 'types';
 import { z } from 'zod';
@@ -70,6 +52,12 @@ import { buildCustomerVendorSelectOptions } from '@/renderer/views/NewInvoice/li
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
 import { DateConfirmationDialog } from './components/DateConfirmationDialog';
+import { InvoiceDateFormField } from './components/InvoiceDateFormField';
+import { handleInvoiceFormEnterKeyDown } from './lib/invoiceFormEnter';
+import {
+  scheduleDateFieldFocusAfterPartySelect,
+  scheduleQuantityFocusAfterItemSelect,
+} from './lib/invoiceFormFocus';
 import { useNewInvoiceColumns } from './hooks/useNewInvoiceColumns';
 import { useNewInvoiceDiscounts } from './hooks/useNewInvoiceDiscounts';
 import { useNewInvoiceFormCore } from './hooks/useNewInvoiceFormCore';
@@ -89,66 +77,6 @@ import type { PartyAccount } from './hooks/useNewInvoiceParties';
 interface NewInvoiceProps {
   invoiceType: InvoiceType;
 }
-
-/** date popover trigger must own field.ref so setFocus('date') targets the button after customer/item selection */
-interface InvoiceDateFormFieldProps<
-  TFieldValues extends FieldValues,
-  TName extends FieldPath<TFieldValues>,
-> {
-  field: ControllerRenderProps<TFieldValues, TName>;
-  onDateSelection: (date?: Date) => void;
-  formItemClassName?: string;
-  buttonClassName: string;
-  calendarIconClassName?: string;
-}
-
-const InvoiceDateFormField = <
-  TFieldValues extends FieldValues,
-  TName extends FieldPath<TFieldValues>,
->({
-  field,
-  onDateSelection,
-  formItemClassName,
-  buttonClassName,
-  calendarIconClassName = 'mr-2 h-4 w-4 shrink-0',
-}: InvoiceDateFormFieldProps<TFieldValues, TName>) => (
-  <FormItem labelPosition="top" className={formItemClassName}>
-    <FormLabel className="text-base">
-      Date
-      <span className="text-destructive"> *</span>
-    </FormLabel>
-    <Popover>
-      <PopoverTrigger asChild>
-        <FormControl>
-          <Button
-            type="button"
-            variant="outline"
-            ref={field.ref}
-            onBlur={field.onBlur}
-            name={field.name}
-            className={buttonClassName}
-          >
-            <CalendarIcon className={calendarIconClassName} />
-            {field.value ? (
-              format(new Date(field.value as string), 'PPP')
-            ) : (
-              <span>Pick a date</span>
-            )}
-          </Button>
-        </FormControl>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
-        <Calendar
-          mode="single"
-          selected={field.value ? new Date(field.value as string) : undefined}
-          onSelect={onDateSelection}
-          initialFocus
-        />
-      </PopoverContent>
-    </Popover>
-    <FormMessage />
-  </FormItem>
-);
 
 // TODO: improve performance, check states: remove unnecessary data
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
@@ -783,17 +711,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         );
       }
 
-      const focusQuantity = () => {
-        form.setFocus(
-          `invoiceItems.${rowIndex}.quantity` as Parameters<
-            typeof form.setFocus
-          >[0],
-          { shouldSelect: true },
-        );
-      };
-      // first pass after paint; second pass ~150ms later — radix close + item cell input→button + discount re-render can still steal focus after a single rAF
-      requestAnimationFrame(focusQuantity);
-      window.setTimeout(focusQuantity, 150);
+      scheduleQuantityFocusAfterItemSelect(form, rowIndex);
     },
     [applyAutoDiscountForRow, form, getSelectedItem, invoiceType],
   );
@@ -871,26 +789,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [cumulativeDiscount, enableCumulativeDiscount, form],
   );
 
-  const focusInvoiceDateField = useCallback(() => {
-    queueMicrotask(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // button trigger has no .select(); shouldSelect would throw in react-hook-form
-          form.setFocus('date');
-        });
-      });
-    });
-  }, [form]);
-
   const onAccountSelection = useCallback(
     async (accountId: string, onChange: Function) => {
       onChange(toNumber(accountId));
       if (invoiceType === InvoiceType.Sale && useSingleAccountRef.current) {
         await recalculateAutoDiscounts();
       }
-      focusInvoiceDateField();
+      scheduleDateFieldFocusAfterPartySelect(form);
     },
-    [focusInvoiceDateField, invoiceType, recalculateAutoDiscounts],
+    [form, invoiceType, recalculateAutoDiscounts],
   );
 
   const columnsParams = useMemo(
@@ -1266,33 +1173,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     }
   };
 
-  const checkKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLFormElement> | undefined) => {
-      if (!e || e.key !== 'Enter') return;
-      const target = e.target as HTMLElement;
-      // allow native activation for buttons/links so keyboard users can trigger actions
-      if (target.closest('button')) return;
-      if (target.closest('[role="button"]')) return;
-      if (target instanceof HTMLAnchorElement && target.getAttribute('href'))
-        return;
-      if (target instanceof HTMLTextAreaElement) return;
-      if (target instanceof HTMLInputElement) {
-        const t = target.type;
-        if (
-          t === 'submit' ||
-          t === 'button' ||
-          t === 'reset' ||
-          t === 'checkbox' ||
-          t === 'radio'
-        ) {
-          return;
-        }
-      }
-      e.preventDefault();
-    },
-    [],
-  );
-
   const onInvoiceNumberSet = (invoiceNumber: number) =>
     setNextInvoiceNumber(invoiceNumber);
 
@@ -1486,11 +1366,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         // eslint-disable-next-line no-await-in-loop
         await applyAutoDiscountForRow(rowIndex, row.inventoryId, accountId);
       }
-      focusInvoiceDateField();
+      scheduleDateFieldFocusAfterPartySelect(form);
     },
     [
       applyAutoDiscountForRow,
-      focusInvoiceDateField,
       form,
       isDiscountEditEnabled,
       invoiceType,
@@ -1696,7 +1575,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 setRowSectionMap({});
                 setManualDiscountRows({});
               }}
-              onKeyDown={checkKeyDown}
+              onKeyDown={handleInvoiceFormEnterKeyDown}
               role="presentation"
             >
               <div className="flex flex-col gap-6">

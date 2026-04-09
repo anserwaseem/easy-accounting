@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
@@ -17,6 +17,10 @@ import {
 } from '@/renderer/shad/ui/popover';
 import { cn } from '@/renderer/lib/utils';
 import type { Account } from 'types';
+
+const SEARCH_DEBOUNCE_MS = 300;
+/** after choosing a value, block radix from refocusing the trigger for a while (onCloseAutoFocus can fire more than once) */
+const SUPPRESS_POPOVER_REFOCUS_MS = 550;
 
 type SectionOrItem<T> =
   | { type: 'header'; label: string }
@@ -76,6 +80,23 @@ const getAdjacentSelectableIndex = <T extends BaseOption>(
   return fromIndex;
 };
 
+const scheduleVirtuosoScrollToTop = (
+  virtuosoRef: RefObject<VirtuosoHandle | null>,
+) =>
+  queueMicrotask(() => {
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start' });
+    });
+  });
+
+const scheduleVirtuosoItemIntoView = (
+  virtuosoRef: RefObject<VirtuosoHandle | null>,
+  index: number,
+) =>
+  queueMicrotask(() => {
+    virtuosoRef.current?.scrollIntoView({ index, behavior: 'auto' });
+  });
+
 const VirtualSelect = <T extends BaseOption = Account>({
   options,
   value,
@@ -112,7 +133,8 @@ const VirtualSelect = <T extends BaseOption = Account>({
 
   const commitSelectionAndClose = useCallback(
     (nextValue: string | number) => {
-      suppressCloseFocusUntilRef.current = Date.now() + 550;
+      suppressCloseFocusUntilRef.current =
+        Date.now() + SUPPRESS_POPOVER_REFOCUS_MS;
       onChange(nextValue);
       setIsOpen(false);
     },
@@ -120,11 +142,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   );
 
   const scrollVirtuosoToTop = useCallback(() => {
-    queueMicrotask(() => {
-      requestAnimationFrame(() => {
-        virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start' });
-      });
-    });
+    scheduleVirtuosoScrollToTop(virtuosoRef);
   }, []);
 
   // maintain focus on input while typing
@@ -150,7 +168,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
       debounce((search: string) => {
         setFilteredSearchValue(search);
         isTypingRef.current = false;
-      }, 300),
+      }, SEARCH_DEBOUNCE_MS),
     [],
   );
 
@@ -405,17 +423,10 @@ const VirtualSelect = <T extends BaseOption = Account>({
     if (openedNow || searchChanged) {
       const idx = firstSelectableRowIndexRef.current;
       setKeyboardSelectedIndex(idx);
-      queueMicrotask(() => {
-        // omit align so virtuoso only scrolls when the row is outside the viewport (default calculateViewLocation)
-        virtuosoRef.current?.scrollIntoView({
-          index: idx,
-          behavior: 'auto',
-        });
-      });
+      scheduleVirtuosoItemIntoView(virtuosoRef, idx);
     }
   }, [isOpen, filteredSearchValue]);
 
-  // Key navigation logic
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement>) => {
       if (!isOpen) {
@@ -435,12 +446,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
             1,
             !!groupBy,
           );
-          queueMicrotask(() => {
-            virtuosoRef.current?.scrollIntoView({
-              index: next,
-              behavior: 'auto',
-            });
-          });
+          scheduleVirtuosoItemIntoView(virtuosoRef, next);
           return next;
         });
       } else if (e.key === 'ArrowUp') {
@@ -452,12 +458,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
             -1,
             !!groupBy,
           );
-          queueMicrotask(() => {
-            virtuosoRef.current?.scrollIntoView({
-              index: next,
-              behavior: 'auto',
-            });
-          });
+          scheduleVirtuosoItemIntoView(virtuosoRef, next);
           return next;
         });
       } else if (e.key === 'Enter' && hasOptions) {
@@ -470,7 +471,6 @@ const VirtualSelect = <T extends BaseOption = Account>({
                 (current.item as T).id as string | number,
               );
             } else {
-              // toggling section
               toggleSectionCollapsed(current.label);
             }
           } else {
@@ -548,7 +548,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
       if (row.label === stickySectionLabel) {
         return sectionHeaderRenderer(row.label, true);
       }
-      // if it's a section header, we wrap it to allow highlighting maybe?
+      // otherwise, it's a section header; we wrap it to allow highlighting when selected
       const isSelected = index === keyboardSelectedIndex;
       return (
         <div
