@@ -13,6 +13,11 @@ import {
 } from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
 import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from 'renderer/shad/ui/tooltip';
 import { DataTable } from 'renderer/shad/ui/dataTable';
 import {
   Form,
@@ -1894,16 +1899,28 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
 
               <div className="flex justify-between gap-6 pb-6">
-                <Button
-                  type="button"
-                  variant="default"
-                  className="gap-2 px-6 py-3 min-h-[44px] rounded-lg"
-                  title={`Add new item (${getOsModifierLabel()}+N)`}
-                  onClick={() => handleAddNewRow()}
-                >
-                  <Plus size={20} />
-                  <span className="w-max">Add New Item</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="gap-2 px-6 py-3 min-h-[44px] rounded-lg"
+                      aria-label={`Add new item, shortcut ${getOsModifierLabel()}+N`}
+                      onClick={() => handleAddNewRow()}
+                    >
+                      <Plus size={20} />
+                      <span className="w-max">Add New Item</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p className="text-sm">
+                      Add new item{' '}
+                      <span className="text-muted-foreground">
+                        ({getOsModifierLabel()}+N)
+                      </span>
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
                 <div
                   className={`flex flex-row gap-4 ${
                     invoiceType === InvoiceType.Sale ? 'hidden' : ''

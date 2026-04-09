@@ -8,6 +8,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from 'renderer/shad/ui/tooltip';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
 import { get, toNumber, toString } from 'lodash';
@@ -1016,15 +1021,27 @@ const NewJournalPage: React.FC = () => {
 
             <div className="flex justify-between pr-4 gap-20 pb-20">
               <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
-                  title={`Add new row (${getOsModifierLabel()}+N)`}
-                  onClick={() => handleAddNewRow()}
-                >
-                  <Plus size={20} />
-                  <span className="w-max">Add New Row</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
+                      aria-label={`Add new row, shortcut ${getOsModifierLabel()}+N`}
+                      onClick={() => handleAddNewRow()}
+                    >
+                      <Plus size={20} />
+                      <span className="w-max">Add New Row</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p className="text-sm">
+                      Add new row{' '}
+                      <span className="text-muted-foreground">
+                        ({getOsModifierLabel()}+N)
+                      </span>
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
                 <Button
                   type="button"
                   variant="outline"
