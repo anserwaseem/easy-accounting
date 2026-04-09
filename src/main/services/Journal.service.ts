@@ -1,5 +1,11 @@
 /* eslint-disable no-lonely-if */
-import type { Journal, JournalEntry, Ledger, UpdateJournalFields } from 'types';
+import type {
+  Journal,
+  JournalEntry,
+  JournalNarrationSummary,
+  Ledger,
+  UpdateJournalFields,
+} from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { compact, get, has, omit } from 'lodash';
 import { cast } from '../utils/sqlite';
@@ -41,6 +47,8 @@ export class JournalService {
   private stmDeleteJournalEntriesByJournalIdsJson!: Statement;
 
   private stmDeleteJournalsByIdsJson!: Statement;
+
+  private stmGetJournalNarrationSummariesByIdsJson!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -142,6 +150,44 @@ export class JournalService {
     }, {} as Journal);
 
     return journal;
+  }
+
+  /**
+   * one query for many ids — used to hydrate ledger narration column without per-row getJournal.
+   */
+  getJournalNarrationSummariesByIds(
+    journalIds: number[],
+  ): Record<number, JournalNarrationSummary> {
+    const unique = [
+      ...new Set(journalIds.filter((id) => Number.isInteger(id) && id > 0)),
+    ];
+    if (unique.length === 0) return {};
+
+    const username = store.get('username');
+    const rows = this.stmGetJournalNarrationSummariesByIdsJson.all({
+      journalIdsJson: JSON.stringify(unique),
+      username,
+    }) as Array<{
+      id: number;
+      narration: string | null;
+      billNumber: number | null;
+      discountPercentage: number | null;
+    }>;
+
+    const out: Record<number, JournalNarrationSummary> = {};
+    for (const row of rows) {
+      const summary: JournalNarrationSummary = {
+        narration: row.narration ?? '',
+      };
+      if (row.billNumber != null) {
+        summary.billNumber = row.billNumber;
+      }
+      if (row.discountPercentage != null) {
+        summary.discountPercentage = row.discountPercentage;
+      }
+      out[row.id] = summary;
+    }
+    return out;
   }
 
   insertJournal(journalToBeInserted: Journal) {
@@ -525,6 +571,20 @@ export class JournalService {
     this.stmDeleteJournalsByIdsJson = this.db.prepare(`
       DELETE FROM journal
       WHERE id IN (SELECT value FROM json_each(@journalIdsJson))
+    `);
+
+    this.stmGetJournalNarrationSummariesByIdsJson = this.db.prepare(`
+      SELECT DISTINCT
+        j.id,
+        j.narration,
+        j.billNumber,
+        j.discountPercentage
+      FROM journal j
+      JOIN journal_entry je ON j.id = je.journalId
+      JOIN account a ON a.id = je.accountId
+      JOIN chart c ON c.id = a.chartId
+      WHERE j.id IN (SELECT value FROM json_each(@journalIdsJson))
+        AND c.userId = (SELECT id FROM users WHERE username = @username)
     `);
   }
 }

@@ -31,6 +31,7 @@ import { isNil } from 'lodash';
 import { addDays, format, parse } from 'date-fns';
 import MenuBuilder from './menu';
 import { formatString, resolveHtmlPath, raise } from './utils/general';
+import { enrichLedgerRowsWithJournalSummaries } from './utils/ledgerJournalEnrichment';
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
 import { MigrationRunner } from './migrations/index';
@@ -270,9 +271,10 @@ app
         accountService.toggleAccountActive(accountId, isActive),
     );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
-    ipcMain.handle('ledger:get', async (_, accountId: number) =>
-      ledgerService.getLedger(accountId),
-    );
+    ipcMain.handle('ledger:get', async (_, accountId: number) => {
+      const rows = ledgerService.getLedger(accountId);
+      return enrichLedgerRowsWithJournalSummaries(rows, journalService);
+    });
     ipcMain.handle(
       'ledger:getBalance',
       async (_, accountId: number) =>
@@ -554,7 +556,15 @@ app
             closingExclusiveDate,
           ),
         ]);
-        return { openingBalance: open, entries, closingBalance: close };
+        const enrichedEntries = enrichLedgerRowsWithJournalSummaries(
+          entries,
+          journalService,
+        );
+        return {
+          openingBalance: open,
+          entries: enrichedEntries,
+          closingBalance: close,
+        };
       },
     );
 

@@ -8,6 +8,7 @@ import {
 } from '@/renderer/lib/reportFilters';
 import { addDays, format } from 'date-fns';
 import { REPORT_FILTER_KEYS } from 'types';
+import { printLedgerReportIframe } from './printLedgerReport';
 
 export const useLedgerReport = () => {
   const saved = useMemo(() => loadSavedFilters(REPORT_FILTER_KEYS.ledger), []);
@@ -127,7 +128,10 @@ export const useLedgerReport = () => {
     fetchLedgerRange();
   }, [fetchAccounts, fetchLedgerRange]);
 
-  const handlePrint = useCallback(() => window.print(), []);
+  const printDateSubtitle = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return '';
+    return `${format(dateRange.from, 'PP')} – ${format(dateRange.to, 'PP')}`;
+  }, [dateRange]);
 
   // merged entries: opening balance row (synthetic) + in-range entries + closing summary
   const displayedEntries = useMemo<LedgerView[]>(() => {
@@ -164,11 +168,21 @@ export const useLedgerReport = () => {
         balanceType: entry.balanceType,
         linkedAccountId: entry.linkedAccountId,
         linkedAccountName: entry.linkedAccountName ?? undefined,
+        journalSummary: entry.journalSummary,
       });
     }
 
     return rows;
   }, [rangeResponse, dateRange, selectedAccount]);
+
+  const handlePrint = useCallback(() => {
+    if (!displayedEntries.length) return;
+    printLedgerReportIframe({
+      rows: displayedEntries,
+      accountName: selectedAccountName,
+      dateSubtitle: printDateSubtitle,
+    });
+  }, [displayedEntries, selectedAccountName, printDateSubtitle]);
 
   return {
     accounts,

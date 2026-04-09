@@ -38,7 +38,12 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
       </div>
 
       {/* Table - styled for both screen and print */}
-      <LedgerTableBase ledger={ledger} className="print-table" printMode />
+      <LedgerTableBase
+        ledger={ledger}
+        className="print-table"
+        printMode
+        useNativePrintExpansion={false}
+      />
     </>
   );
 };

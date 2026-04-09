@@ -116,12 +116,15 @@ export const getFormattedCurrencySafe = (value: unknown): string => {
 /** formats a debit/credit table cell without currency symbol; uses debitCreditDefaultLabel when amount is zero */
 export const getFormattedDebitCreditWithoutCurrency = (
   value: number,
+  /** when provided, avoids reading from store (e.g. on every cell in large tables) */
+  zeroLabel?: string,
 ): string => {
-  if (value === 0) {
-    return toString(
-      window.electron.store.get('debitCreditDefaultLabel') ?? ' ',
+  if (value === 0)
+    return (
+      zeroLabel ??
+      toString(window.electron.store.get('debitCreditDefaultLabel') ?? ' ')
     );
-  }
+
   return getFormattedCurrency(value).replace(currency, '').trim();
 };
 
