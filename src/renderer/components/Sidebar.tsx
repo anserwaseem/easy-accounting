@@ -15,13 +15,14 @@ import {
   TextQuote,
 } from 'lucide-react';
 import type { FC, PropsWithChildren, ReactNode } from 'react';
+import { cn } from 'renderer/lib/utils';
 
-const sidebarLinkButtonClass = 'w-full md:w-[225px] gap-2 justify-start';
+const ITEM_BUTTON_CLASSNAME = 'px-3';
 
-const sidebarSplitRowButtonClass = 'w-full md:w-[225px] pl-2';
-
-const sidebarNewShortcutIconClass =
-  'p-1 rounded-full font-black dark:bg-gray-300 dark:text-black bg-gray-500 text-white';
+const sidebarPlusIconButtonClassName = cn(
+  'shrink-0 bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-150 hover:scale-105 active:scale-95',
+  ITEM_BUTTON_CLASSNAME,
+);
 
 interface SidebarOutlineLinkProps {
   to: string;
@@ -35,7 +36,13 @@ const SidebarOutlineLink: FC<SidebarOutlineLinkProps> = ({
   label,
 }: SidebarOutlineLinkProps) => (
   <Link to={to}>
-    <Button variant="outline" className={sidebarLinkButtonClass}>
+    <Button
+      variant="outline"
+      className={cn(
+        'w-full md:w-[225px] gap-2 justify-start',
+        ITEM_BUTTON_CLASSNAME,
+      )}
+    >
       {icon}
       <span>{label}</span>
     </Button>
@@ -48,7 +55,7 @@ interface SidebarListPlusNewRowProps {
   icon: ReactNode;
   label: string;
   /** e.g. clear cached generated invoice numbers when opening purchase/sale lists */
-  onOuterButtonClick?: () => void;
+  onListButtonClick?: () => void;
 }
 
 const SidebarListPlusNewRow: FC<SidebarListPlusNewRowProps> = ({
@@ -56,24 +63,28 @@ const SidebarListPlusNewRow: FC<SidebarListPlusNewRowProps> = ({
   newTo,
   icon,
   label,
-  onOuterButtonClick,
+  onListButtonClick,
 }: SidebarListPlusNewRowProps) => (
-  <div className="flex flex-row">
+  <div className="flex flex-row w-full md:w-[225px]">
     <Button
+      asChild
       variant="outline"
-      className={sidebarSplitRowButtonClass}
-      onClick={onOuterButtonClick}
+      className={cn('flex-1 justify-start gap-2', ITEM_BUTTON_CLASSNAME)}
+      onClick={onListButtonClick}
     >
-      <Link to={listTo} className="w-5/6 flex items-center justify-start gap-2">
+      <Link to={listTo}>
         {icon}
         <span>{label}</span>
       </Link>
+    </Button>
+    <Button
+      asChild
+      size="icon"
+      variant="outline"
+      className={sidebarPlusIconButtonClassName}
+    >
       <Link to={newTo}>
-        <Plus
-          size={20}
-          strokeWidth={4}
-          className={sidebarNewShortcutIconClass}
-        />
+        <Plus size={18} strokeWidth={2.5} />
       </Link>
     </Button>
   </div>
@@ -117,7 +128,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             newTo="/purchase/invoices/new"
             icon={<FileInput />}
             label="Purchase Invoices"
-            onOuterButtonClick={clearGeneratedInvoicesFromStore}
+            onListButtonClick={clearGeneratedInvoicesFromStore}
           />,
           <SidebarOutlineLink
             key="purchase-quotations"
@@ -131,7 +142,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             newTo="/sale/invoices/new"
             icon={<FileOutput />}
             label="Sale Invoices"
-            onOuterButtonClick={clearGeneratedInvoicesFromStore}
+            onListButtonClick={clearGeneratedInvoicesFromStore}
           />,
           <SidebarOutlineLink
             key="sale-quotations"
