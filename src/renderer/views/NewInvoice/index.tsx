@@ -12,6 +12,7 @@ import {
   raise,
 } from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
+import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
 import { DataTable } from 'renderer/shad/ui/dataTable';
 import {
   Form,
@@ -49,6 +50,7 @@ import {
   formatSplitOffMismatchToast,
 } from '@/renderer/views/NewInvoice/lib/invoiceSplitOffTypeWarnings';
 import { buildCustomerVendorSelectOptions } from '@/renderer/views/NewInvoice/lib/invoicePartySelect';
+import { useCmdOrCtrlNShortcut } from '@/renderer/hooks/useCmdOrCtrlNShortcut';
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
 import { DateConfirmationDialog } from './components/DateConfirmationDialog';
@@ -876,6 +878,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     setRowSectionMap,
     useSingleAccount,
   ]);
+
+  useCmdOrCtrlNShortcut(handleAddNewRow);
 
   const submitDisabledReason = useMemo((): string | undefined => {
     if (form.formState.isSubmitting) {
@@ -1894,6 +1898,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   type="button"
                   variant="default"
                   className="gap-2 px-6 py-3 min-h-[44px] rounded-lg"
+                  title={`Add new item (${getOsModifierLabel()}+N)`}
                   onClick={() => handleAddNewRow()}
                 >
                   <Plus size={20} />

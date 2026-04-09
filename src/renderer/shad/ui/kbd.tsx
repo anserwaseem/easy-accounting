@@ -1,6 +1,13 @@
 import type { ComponentProps } from 'react';
 import { cn } from 'renderer/lib/utils';
 
+/** label for primary OS shortcut modifier (⌘ on Apple platforms, Ctrl elsewhere) */
+export const getOsModifierLabel = (): string =>
+  typeof navigator !== 'undefined' &&
+  /Mac|iPhone|iPad/i.test(navigator.userAgent)
+    ? '⌘'
+    : 'Ctrl';
+
 const Kbd = ({ className, ...props }: ComponentProps<'kbd'>) => (
   <kbd
     data-slot="kbd"

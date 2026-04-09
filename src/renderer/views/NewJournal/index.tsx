@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
+import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
 import { get, toNumber, toString } from 'lodash';
@@ -46,6 +47,7 @@ import {
   type JournalEntry,
 } from 'types';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { useCmdOrCtrlNShortcut } from '@/renderer/hooks/useCmdOrCtrlNShortcut';
 import { convertFileToJson } from 'renderer/lib/lib';
 import { parseJournalImportSheet } from 'renderer/lib/parser';
 import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
@@ -555,6 +557,8 @@ const NewJournalPage: React.FC = () => {
     [append, getInitialEntry],
   );
 
+  useCmdOrCtrlNShortcut(handleAddNewRow);
+
   const normalizeAccountCode = useCallback(
     (value: unknown) => toString(value).trim().toLowerCase(),
     [],
@@ -1015,6 +1019,7 @@ const NewJournalPage: React.FC = () => {
                 <Button
                   type="button"
                   className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
+                  title={`Add new row (${getOsModifierLabel()}+N)`}
                   onClick={() => handleAddNewRow()}
                 >
                   <Plus size={20} />
