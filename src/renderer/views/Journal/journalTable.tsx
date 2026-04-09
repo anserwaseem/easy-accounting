@@ -70,10 +70,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({
     <div>
       <div className="flex">
         <div className="w-3/4">
-          <h1 className="text-4xl font-light">JOURNAL</h1>
-          {/* <p className="font-extrabold">#{journal?.id}</p> */}
+          <h1 className="min-w-0 shrink text-4xl font-light">JOURNAL</h1>
 
           <div className="flex flex-col gap-2 mt-8">
+            <div className="flex gap-8 items-center">
+              <p className="font-extrabold text-md w-[160px]">Journal #:</p>
+              <p className="tabular-nums">{journal?.id ?? journalId}</p>
+            </div>
             {journal?.invoiceId != null && journal.invoiceId > 0 ? (
               <div className="flex gap-8">
                 <p className="font-medium text-md w-[160px]">Invoice:</p>
