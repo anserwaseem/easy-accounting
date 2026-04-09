@@ -9,7 +9,12 @@ import {
   Upload,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { UseFormReturn } from 'react-hook-form';
+import type {
+  ControllerRenderProps,
+  FieldPath,
+  FieldValues,
+  UseFormReturn,
+} from 'react-hook-form';
 import { useFormState, useWatch } from 'react-hook-form';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -84,6 +89,66 @@ import type { PartyAccount } from './hooks/useNewInvoiceParties';
 interface NewInvoiceProps {
   invoiceType: InvoiceType;
 }
+
+/** date popover trigger must own field.ref so setFocus('date') targets the button after customer/item selection */
+interface InvoiceDateFormFieldProps<
+  TFieldValues extends FieldValues,
+  TName extends FieldPath<TFieldValues>,
+> {
+  field: ControllerRenderProps<TFieldValues, TName>;
+  onDateSelection: (date?: Date) => void;
+  formItemClassName?: string;
+  buttonClassName: string;
+  calendarIconClassName?: string;
+}
+
+const InvoiceDateFormField = <
+  TFieldValues extends FieldValues,
+  TName extends FieldPath<TFieldValues>,
+>({
+  field,
+  onDateSelection,
+  formItemClassName,
+  buttonClassName,
+  calendarIconClassName = 'mr-2 h-4 w-4 shrink-0',
+}: InvoiceDateFormFieldProps<TFieldValues, TName>) => (
+  <FormItem labelPosition="top" className={formItemClassName}>
+    <FormLabel className="text-base">
+      Date
+      <span className="text-destructive"> *</span>
+    </FormLabel>
+    <Popover>
+      <PopoverTrigger asChild>
+        <FormControl>
+          <Button
+            type="button"
+            variant="outline"
+            ref={field.ref}
+            onBlur={field.onBlur}
+            name={field.name}
+            className={buttonClassName}
+          >
+            <CalendarIcon className={calendarIconClassName} />
+            {field.value ? (
+              format(new Date(field.value as string), 'PPP')
+            ) : (
+              <span>Pick a date</span>
+            )}
+          </Button>
+        </FormControl>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0">
+        <Calendar
+          mode="single"
+          selected={field.value ? new Date(field.value as string) : undefined}
+          onSelect={onDateSelection}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+    <FormMessage />
+  </FormItem>
+);
 
 // TODO: improve performance, check states: remove unnecessary data
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
@@ -703,21 +768,32 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
       if (invoiceType === InvoiceType.Sale) {
         await applyAutoDiscountForRow(rowIndex, toNumber(val));
-        return;
+      } else {
+        form.setValue(
+          `invoiceItems.${rowIndex}.discountedPrice`,
+          computeInvoiceItemTotal(
+            form.getValues(`invoiceItems.${rowIndex}.quantity`),
+            form.getValues(`invoiceItems.${rowIndex}.discount`),
+            item?.price,
+          ),
+          {
+            shouldValidate: false,
+            shouldDirty: true,
+          },
+        );
       }
 
-      form.setValue(
-        `invoiceItems.${rowIndex}.discountedPrice`,
-        computeInvoiceItemTotal(
-          form.getValues(`invoiceItems.${rowIndex}.quantity`),
-          form.getValues(`invoiceItems.${rowIndex}.discount`),
-          item?.price,
-        ),
-        {
-          shouldValidate: false,
-          shouldDirty: true,
-        },
-      );
+      const focusQuantity = () => {
+        form.setFocus(
+          `invoiceItems.${rowIndex}.quantity` as Parameters<
+            typeof form.setFocus
+          >[0],
+          { shouldSelect: true },
+        );
+      };
+      // first pass after paint; second pass ~150ms later — radix close + item cell input→button + discount re-render can still steal focus after a single rAF
+      requestAnimationFrame(focusQuantity);
+      window.setTimeout(focusQuantity, 150);
     },
     [applyAutoDiscountForRow, form, getSelectedItem, invoiceType],
   );
@@ -795,14 +871,26 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [cumulativeDiscount, enableCumulativeDiscount, form],
   );
 
+  const focusInvoiceDateField = useCallback(() => {
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // button trigger has no .select(); shouldSelect would throw in react-hook-form
+          form.setFocus('date');
+        });
+      });
+    });
+  }, [form]);
+
   const onAccountSelection = useCallback(
     async (accountId: string, onChange: Function) => {
       onChange(toNumber(accountId));
       if (invoiceType === InvoiceType.Sale && useSingleAccountRef.current) {
         await recalculateAutoDiscounts();
       }
+      focusInvoiceDateField();
     },
-    [invoiceType, recalculateAutoDiscounts],
+    [focusInvoiceDateField, invoiceType, recalculateAutoDiscounts],
   );
 
   const columnsParams = useMemo(
@@ -1179,8 +1267,29 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   };
 
   const checkKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLFormElement> | undefined) =>
-      e?.key === 'Enter' && e.preventDefault(),
+    (e: React.KeyboardEvent<HTMLFormElement> | undefined) => {
+      if (!e || e.key !== 'Enter') return;
+      const target = e.target as HTMLElement;
+      // allow native activation for buttons/links so keyboard users can trigger actions
+      if (target.closest('button')) return;
+      if (target.closest('[role="button"]')) return;
+      if (target instanceof HTMLAnchorElement && target.getAttribute('href'))
+        return;
+      if (target instanceof HTMLTextAreaElement) return;
+      if (target instanceof HTMLInputElement) {
+        const t = target.type;
+        if (
+          t === 'submit' ||
+          t === 'button' ||
+          t === 'reset' ||
+          t === 'checkbox' ||
+          t === 'radio'
+        ) {
+          return;
+        }
+      }
+      e.preventDefault();
+    },
     [],
   );
 
@@ -1377,9 +1486,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         // eslint-disable-next-line no-await-in-loop
         await applyAutoDiscountForRow(rowIndex, row.inventoryId, accountId);
       }
+      focusInvoiceDateField();
     },
     [
       applyAutoDiscountForRow,
+      focusInvoiceDateField,
       form,
       isDiscountEditEnabled,
       invoiceType,
@@ -1622,6 +1733,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   }
                                   placeholder="Select a party"
                                   searchPlaceholder="Search parties..."
+                                  autoFocusTrigger={editInvoiceId == null}
                                 />
                                 <FormMessage />
                               </FormItem>
@@ -1631,48 +1743,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                             control={form.control}
                             name="date"
                             render={({ field }) => (
-                              <FormItem labelPosition="top" className="min-w-0">
-                                <FormLabel className="text-base">
-                                  Date
-                                  <span className="text-destructive"> *</span>
-                                </FormLabel>
-                                <FormControl>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        className={cn(
-                                          'w-full justify-start text-left font-normal min-w-0',
-                                          !field.value &&
-                                            'text-muted-foreground',
-                                        )}
-                                      >
-                                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                                        {field.value ? (
-                                          format(new Date(field.value), 'PPP')
-                                        ) : (
-                                          <span>Pick a date</span>
-                                        )}
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                      <Calendar
-                                        {...field}
-                                        mode="single"
-                                        selected={
-                                          field.value
-                                            ? new Date(field.value)
-                                            : undefined
-                                        }
-                                        onSelect={onDateSelection}
-                                        initialFocus
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
+                              <InvoiceDateFormField
+                                field={field}
+                                onDateSelection={onDateSelection}
+                                formItemClassName="min-w-0"
+                                buttonClassName={cn(
+                                  'w-full justify-start text-left font-normal min-w-0',
+                                  !field.value && 'text-muted-foreground',
+                                )}
+                              />
                             )}
                           />
                           <FormField
@@ -1764,6 +1843,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   }
                                   placeholder="Select a party"
                                   searchPlaceholder="Search parties..."
+                                  autoFocusTrigger={editInvoiceId == null}
                                 />
                                 <FormMessage />
                               </FormItem>
@@ -1773,48 +1853,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                             control={form.control}
                             name="date"
                             render={({ field }) => (
-                              <FormItem labelPosition="top" className="min-w-0">
-                                <FormLabel className="text-base">
-                                  Date
-                                  <span className="text-destructive"> *</span>
-                                </FormLabel>
-                                <FormControl>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        className={cn(
-                                          'w-full justify-start text-left font-normal min-w-0',
-                                          !field.value &&
-                                            'text-muted-foreground',
-                                        )}
-                                      >
-                                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                                        {field.value ? (
-                                          format(new Date(field.value), 'PPP')
-                                        ) : (
-                                          <span>Pick a date</span>
-                                        )}
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                      <Calendar
-                                        {...field}
-                                        mode="single"
-                                        selected={
-                                          field.value
-                                            ? new Date(field.value)
-                                            : undefined
-                                        }
-                                        onSelect={onDateSelection}
-                                        initialFocus
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
+                              <InvoiceDateFormField
+                                field={field}
+                                onDateSelection={onDateSelection}
+                                formItemClassName="min-w-0"
+                                buttonClassName={cn(
+                                  'w-full justify-start text-left font-normal min-w-0',
+                                  !field.value && 'text-muted-foreground',
+                                )}
+                              />
                             )}
                           />
                         </div>
@@ -1853,47 +1900,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           control={form.control}
                           name="date"
                           render={({ field }) => (
-                            <FormItem labelPosition="top">
-                              <FormLabel className="text-base">
-                                Date
-                                <span className="text-destructive"> *</span>
-                              </FormLabel>
-                              <FormControl>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      className={cn(
-                                        'w-full justify-start text-left font-normal',
-                                        !field.value && 'text-muted-foreground',
-                                      )}
-                                    >
-                                      <CalendarIcon className="mr-2 h-4 w-4" />
-                                      {field.value ? (
-                                        format(new Date(field.value), 'PPP')
-                                      ) : (
-                                        <span>Pick a date</span>
-                                      )}
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0">
-                                    <Calendar
-                                      {...field}
-                                      mode="single"
-                                      selected={
-                                        field.value
-                                          ? new Date(field.value)
-                                          : undefined
-                                      }
-                                      onSelect={onDateSelection}
-                                      initialFocus
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
+                            <InvoiceDateFormField
+                              field={field}
+                              onDateSelection={onDateSelection}
+                              buttonClassName={cn(
+                                'w-full justify-start text-left font-normal',
+                                !field.value && 'text-muted-foreground',
+                              )}
+                              calendarIconClassName="mr-2 h-4 w-4"
+                            />
                           )}
                         />
                         {isSale && (
@@ -1958,7 +1973,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
 
               <div className="flex flex-col gap-4 mt-8">
-                <h2 className="text-sm font-medium text-muted-foreground">
+                <h2 className="text-sm font-medium text-muted-foreground w-max mb-1">
                   Line items
                 </h2>
                 {invoiceType === InvoiceType.Sale &&

@@ -19,9 +19,9 @@ import type { ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InvoiceItem, InventoryItem } from 'types';
 import type { CustomerSection } from '../components/CustomerSectionsBlock';
 
-/** shorter select trigger + inputs in line-item rows (see Input default my-2) */
+/** line-item row height; child input/button fill shell so empty + selected states match customer control proportions */
 const compactLineSelectTrigger =
-  'h-8 min-h-8 py-0 text-sm leading-tight [&>svg]:h-3.5 [&>svg]:w-3.5';
+  'h-8 min-h-8 max-h-8 [&_input]:my-0 [&_input]:h-full [&_input]:min-h-0 [&_input]:border-0 [&_input]:py-0 [&_input]:text-sm [&_input]:leading-tight [&_button]:h-full [&_button]:min-h-0';
 
 interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
   form: {
@@ -103,12 +103,13 @@ export function useNewInvoiceColumns<T extends FieldValues>(
   return useMemo(() => {
     const getItemOptionsForRow = (rowIndex: number) => {
       const items = (form.getValues('invoiceItems') as InvoiceItem[]) || [];
-      const selectedElsewhere = items
-        .filter((item, idx) => idx !== rowIndex && item.inventoryId > 0)
-        .map((item) => item.inventoryId);
-      return (inventory || []).filter(
-        (inv) => !selectedElsewhere.includes(inv.id),
-      );
+      const selectedElsewhere = new Set<number>();
+      for (let i = 0; i < items.length; i++) {
+        if (i !== rowIndex && items[i].inventoryId > 0) {
+          selectedElsewhere.add(items[i].inventoryId);
+        }
+      }
+      return (inventory || []).filter((inv) => !selectedElsewhere.has(inv.id));
     };
 
     const baseColumns: ColumnDef<InvoiceItem>[] = [
@@ -136,18 +137,18 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                   groupBy={(item) => item.itemTypeName?.trim() || 'Other'}
                   renderTriggerValue={({ selected, placeholder: ph }) =>
                     selected ? (
-                      <span className="flex w-full min-w-0 items-center gap-2 pr-2">
-                        <span className="min-w-0 flex-1 truncate text-left font-medium">
+                      <span className="flex w-full min-w-0 items-center gap-2 px-3 py-0 text-left text-sm font-normal">
+                        <span className="min-w-0 flex-1 truncate">
                           {selected.name}
                         </span>
                         {selected.itemTypeName?.trim() ? (
-                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                          <span className="shrink-0 text-xs text-muted-foreground">
                             {selected.itemTypeName.trim()}
                           </span>
                         ) : null}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">{ph}</span>
+                      <span className="px-3 text-muted-foreground">{ph}</span>
                     )
                   }
                   renderSelectItem={(item) => (
