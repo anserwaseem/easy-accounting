@@ -12,6 +12,7 @@ import {
 } from 'lodash';
 import { twMerge } from 'tailwind-merge';
 import {
+  currency,
   currencyFormatOptions,
   currencyFormatter,
   currencyIntFormatter,
@@ -110,6 +111,18 @@ export const getFormattedCurrencySafe = (value: unknown): string => {
   const n = typeof value === 'number' ? value : toNumber(value);
   if (!Number.isFinite(n)) return '—';
   return getFormattedCurrency(n);
+};
+
+/** formats a debit/credit table cell without currency symbol; uses debitCreditDefaultLabel when amount is zero */
+export const getFormattedDebitCreditWithoutCurrency = (
+  value: number,
+): string => {
+  if (value === 0) {
+    return toString(
+      window.electron.store.get('debitCreditDefaultLabel') ?? ' ',
+    );
+  }
+  return getFormattedCurrency(value).replace(currency, '').trim();
 };
 
 /**

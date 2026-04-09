@@ -19,6 +19,10 @@ export class LedgerService {
 
   private stmGetBalance!: Statement;
 
+  private stmGetBalanceAtDate!: Statement;
+
+  private stmGetLedgerRange!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -84,6 +88,30 @@ export class LedgerService {
     return out;
   }
 
+  /** get the running balance as of a given date (last ledger entry on or before that date). */
+  getBalanceAtDate(
+    accountId: number,
+    date: string,
+  ): { balance: number; balanceType: string; date: string } | null {
+    const row = this.stmGetBalanceAtDate.get({ accountId, date }) as
+      | { balance: number; balanceType: string; date: string }
+      | undefined;
+    return row ?? null;
+  }
+
+  /** get ledger entries within a date range (inclusive). */
+  getLedgerRange(
+    accountId: number,
+    startDate: string,
+    endDate: string,
+  ): Ledger[] {
+    return this.stmGetLedgerRange.all({
+      accountId,
+      startDate,
+      endDate,
+    }) as Ledger[];
+  }
+
   insertLedger(ledger: Omit<Ledger, 'id'>): RunResult {
     return this.stmLedger.run({
       date: ledger.date,
@@ -106,7 +134,7 @@ export class LedgerService {
       FROM ledger l
       LEFT JOIN account a ON l.linkedAccountId = a.id
       WHERE l.accountId = @accountId
-      ORDER BY datetime(l.date) ASC, l.id ASC
+      ORDER BY datetime(l.date, 'localtime') ASC, l.id ASC
     `);
     this.stmDeleteLedgerEntries = this.db.prepare(
       'DELETE FROM ledger WHERE accountId = @accountId',
@@ -127,6 +155,48 @@ export class LedgerService {
        WHERE accountId = @accountId
        ORDER BY date DESC, id DESC
        LIMIT 1`,
+    );
+
+    this.stmGetBalanceAtDate = this.db.prepare(
+      `SELECT balance, balanceType, date
+       FROM ledger
+       WHERE accountId = @accountId
+         AND (
+           CASE
+             WHEN length(date) = 10 THEN date
+             ELSE date(datetime(date, 'localtime'))
+           END
+         ) < @date
+       ORDER BY
+         (
+           CASE
+             WHEN length(date) = 10 THEN date
+             ELSE date(datetime(date, 'localtime'))
+           END
+         ) DESC,
+         datetime(date, 'localtime') DESC,
+         id DESC
+       LIMIT 1`,
+    );
+
+    this.stmGetLedgerRange = this.db.prepare(
+      `SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, l.createdAt, l.updatedAt
+       FROM ledger l
+       LEFT JOIN account a ON l.linkedAccountId = a.id
+       WHERE l.accountId = @accountId
+         AND (
+           CASE
+             WHEN length(l.date) = 10 THEN l.date
+             ELSE date(datetime(l.date, 'localtime'))
+           END
+         ) >= @startDate
+         AND (
+           CASE
+             WHEN length(l.date) = 10 THEN l.date
+             ELSE date(datetime(l.date, 'localtime'))
+           END
+         ) <= @endDate
+       ORDER BY datetime(l.date, 'localtime') ASC, l.id ASC`,
     );
   }
 }

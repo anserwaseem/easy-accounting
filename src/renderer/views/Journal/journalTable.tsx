@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  currency,
   dateFormatOptions,
   datetimeFormatOptions,
 } from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
+  getFormattedDebitCreditWithoutCurrency,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
@@ -54,18 +54,14 @@ export const JournalTable: React.FC<JournalTableProps> = ({
         header: 'Debit',
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
         cell: ({ row }) =>
-          getFormattedCurrency(row.original.debitAmount)
-            .replace(currency, '')
-            .trim(),
+          getFormattedDebitCreditWithoutCurrency(row.original.debitAmount),
       },
       {
         accessorKey: 'creditAmount',
         header: 'Credit',
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
         cell: ({ row }) =>
-          getFormattedCurrency(row.original.creditAmount)
-            .replace(currency, '')
-            .trim(),
+          getFormattedDebitCreditWithoutCurrency(row.original.creditAmount),
       },
     ];
   }, [navigate]);

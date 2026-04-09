@@ -1,5 +1,4 @@
 import type { LedgerView } from '@/types';
-import { format } from 'date-fns';
 import { Card } from '@/renderer/shad/ui/card';
 import { LedgerTableBase } from '@/renderer/components/ledger/LedgerTableBase';
 import { EmptyState, LoadingState } from '../components';
@@ -7,14 +6,14 @@ import { EmptyState, LoadingState } from '../components';
 interface LedgerReportTableProps {
   ledger: LedgerView[];
   isLoading: boolean;
-  selectedDate: Date;
+  dateSubtitle: string;
   accountName: string;
 }
 
 export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
   ledger,
   isLoading,
-  selectedDate,
+  dateSubtitle,
   accountName,
 }: LedgerReportTableProps) => {
   if (isLoading) {
@@ -34,13 +33,12 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
       {/* Print-only report header */}
       <div className="hidden print:block print:mb-4">
         <h1 className="text-center font-bold text-lg">
-          Ledger Report for {accountName} as of{' '}
-          {format(selectedDate, 'MMMM do, yyyy')}
+          Ledger Report for {accountName} - {dateSubtitle}
         </h1>
       </div>
 
       {/* Table - styled for both screen and print */}
-      <LedgerTableBase ledger={ledger} printMode className="print-table" />
+      <LedgerTableBase ledger={ledger} className="print-table" printMode />
     </>
   );
 };

@@ -25,6 +25,7 @@ import type {
   DiscountProfile,
   ProfileTypeDiscount,
   BalanceType,
+  LedgerRangeResponse,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -336,6 +337,16 @@ const electronHandler = {
       accountId,
       inventoryId,
     ) as Promise<number>,
+
+  reportGetLedgerRange: (params: {
+    accountId: number;
+    startDate: string;
+    endDate: string;
+  }) =>
+    ipcRenderer.invoke(
+      'report:getLedgerRange',
+      params,
+    ) as Promise<LedgerRangeResponse>,
 
   printToPdf: (outputBaseName: string | number) =>
     ipcRenderer.invoke('print:toPDF', outputBaseName),

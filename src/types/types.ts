@@ -390,3 +390,29 @@ export type BackupOperationProgressEvent = {
   type: BackupOperationTransferType;
   message: string;
 };
+
+/** Reports */
+
+export interface LedgerRangeResponse {
+  openingBalance: {
+    balance: number;
+    balanceType: import('./types').BalanceType;
+    date: string;
+  } | null;
+  entries: Array<{
+    id: number;
+    date: string;
+    accountId: number;
+    particulars: string;
+    debit: number;
+    credit: number;
+    balance: number;
+    balanceType: import('./types').BalanceType;
+    linkedAccountId?: number;
+    linkedAccountName: string | null;
+  }>;
+  closingBalance: {
+    balance: number;
+    balanceType: import('./types').BalanceType;
+  } | null;
+}

@@ -3,6 +3,7 @@ import { currency, dateFormatOptions } from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
+  getFormattedDebitCreditWithoutCurrency,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { LedgerView } from '@/types';
@@ -47,16 +48,14 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         accessorKey: 'debit',
         header: 'Debit',
         cell: ({ row }) =>
-          getFormattedCurrency(row.original.debit).replace(currency, '').trim(),
+          getFormattedDebitCreditWithoutCurrency(row.original.debit),
         size: 60,
       },
       {
         accessorKey: 'credit',
         header: 'Credit',
         cell: ({ row }) =>
-          getFormattedCurrency(row.original.credit)
-            .replace(currency, '')
-            .trim(),
+          getFormattedDebitCreditWithoutCurrency(row.original.credit),
         size: 60,
       },
       {
@@ -83,6 +82,8 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         columns={columns}
         data={ledger}
         sortingFns={defaultSortingFunctions}
+        enableSorting={false}
+        compact
       />
     </div>
   );

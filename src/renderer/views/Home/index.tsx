@@ -8,7 +8,7 @@ import { GettingStarted } from './GettingStarted';
 import { Dashboard } from './Dashboard';
 
 const Home: React.FC = () => (
-  <Tabs defaultValue="dashboard">
+  <Tabs defaultValue="getting-started">
     <TabsList>
       <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
       <TabsTrigger value="getting-started">Getting Started</TabsTrigger>

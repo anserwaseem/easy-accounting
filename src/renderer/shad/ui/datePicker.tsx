@@ -168,6 +168,16 @@ const DEFAULT_PRESETS = [
   { label: 'Last Year', value: 'last-year' },
 ];
 
+/** Merge presets: defaults + extras, removing duplicate values (prefers custom label) */
+const mergePresets = (
+  customPresets: { label: string; value: string }[],
+): { label: string; value: string }[] => {
+  const map = new Map<string, { label: string; value: string }>();
+  for (const p of DEFAULT_PRESETS) map.set(p.value, p);
+  for (const p of customPresets) map.set(p.value, p);
+  return Array.from(map.values());
+};
+
 export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   className,
   $onSelect,
@@ -203,7 +213,9 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   const onValueChange = useCallback((value: string) => {
     setSelectValue(value);
 
-    if (value === 'current-month') {
+    if (value === 'all') {
+      setDate({ from: subYears(new Date(), 100), to: new Date() });
+    } else if (value === 'current-month') {
       setDate({
         from: startOfMonth(new Date()),
         to: new Date(),
@@ -290,7 +302,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent position="popper">
-              {DEFAULT_PRESETS.concat(presets).map((preset) => (
+              {mergePresets(presets).map((preset) => (
                 <SelectItem key={preset.value} value={preset.value}>
                   {preset.label}
                 </SelectItem>
