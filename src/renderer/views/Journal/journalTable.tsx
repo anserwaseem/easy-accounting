@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  currency,
   dateFormatOptions,
   datetimeFormatOptions,
 } from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
+  getFormattedDebitCreditWithoutCurrency,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
@@ -54,18 +54,14 @@ export const JournalTable: React.FC<JournalTableProps> = ({
         header: 'Debit',
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
         cell: ({ row }) =>
-          getFormattedCurrency(row.original.debitAmount)
-            .replace(currency, '')
-            .trim(),
+          getFormattedDebitCreditWithoutCurrency(row.original.debitAmount),
       },
       {
         accessorKey: 'creditAmount',
         header: 'Credit',
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
         cell: ({ row }) =>
-          getFormattedCurrency(row.original.creditAmount)
-            .replace(currency, '')
-            .trim(),
+          getFormattedDebitCreditWithoutCurrency(row.original.creditAmount),
       },
     ];
   }, [navigate]);
@@ -74,10 +70,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({
     <div>
       <div className="flex">
         <div className="w-3/4">
-          <h1 className="text-4xl font-light">JOURNAL</h1>
-          {/* <p className="font-extrabold">#{journal?.id}</p> */}
+          <h1 className="min-w-0 shrink text-4xl font-light">JOURNAL</h1>
 
           <div className="flex flex-col gap-2 mt-8">
+            <div className="flex gap-8 items-center">
+              <p className="font-extrabold text-md w-[160px]">Journal #:</p>
+              <p className="tabular-nums">{journal?.id ?? journalId}</p>
+            </div>
             {journal?.invoiceId != null && journal.invoiceId > 0 ? (
               <div className="flex gap-8">
                 <p className="font-medium text-md w-[160px]">Invoice:</p>

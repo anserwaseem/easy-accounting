@@ -1,5 +1,5 @@
 {
-  "version": "0.1.34",
+  "version": "0.1.35",
   "description": "Easy Accounting is a simple accounting software for SMEs.",
   "keywords": [
     "easyAccounting",
@@ -44,7 +44,8 @@
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
     "start:renderer": "cross-env PORT=3001 NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
     "test": "ELECTRON_RUN_AS_NODE=true ./node_modules/.bin/electron ./node_modules/.bin/jest --watchAll=false",
-    "lint": "eslint .",
+    "lint": "eslint \"**/*.{js,jsx,ts,tsx}\"",
+    "lint:fix": "eslint \"**/*.{js,jsx,ts,tsx}\" --fix",
     "prepare": "husky",
     "patch": "npm version patch --no-git-tag-version",
     "patch:release": "npm run patch && cd release/app && npm run patch && cd ../.."

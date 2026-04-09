@@ -175,6 +175,13 @@ export type UpdateJournalFields = Pick<
   'narration' | 'billNumber' | 'discountPercentage'
 >;
 
+/** header fields batch-loaded for ledger narration column (avoids per-row getJournal IPC) */
+export type JournalNarrationSummary = {
+  narration: string;
+  billNumber?: number;
+  discountPercentage?: number;
+};
+
 export type HasMiniView = {
   isMini?: boolean;
 };
@@ -281,7 +288,12 @@ export type Invoice = Prettify<
 >;
 
 /** DTO */
-export type LedgerView = Prettify<Ledger & { linkedAccountName?: string }>;
+export type LedgerView = Prettify<
+  Ledger & {
+    linkedAccountName?: string;
+    journalSummary?: JournalNarrationSummary | null;
+  }
+>;
 export type JournalView = Prettify<Journal & { amount: number }>;
 export type InvoicesView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {
@@ -390,3 +402,30 @@ export type BackupOperationProgressEvent = {
   type: BackupOperationTransferType;
   message: string;
 };
+
+/** Reports */
+
+export interface LedgerRangeResponse {
+  openingBalance: {
+    balance: number;
+    balanceType: import('./types').BalanceType;
+    date: string;
+  } | null;
+  entries: Array<{
+    id: number;
+    date: string;
+    accountId: number;
+    particulars: string;
+    debit: number;
+    credit: number;
+    balance: number;
+    balanceType: import('./types').BalanceType;
+    linkedAccountId?: number;
+    linkedAccountName: string | null;
+    journalSummary?: JournalNarrationSummary | null;
+  }>;
+  closingBalance: {
+    balance: number;
+    balanceType: import('./types').BalanceType;
+  } | null;
+}

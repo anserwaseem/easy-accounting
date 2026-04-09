@@ -241,6 +241,12 @@ const DataTable = <TData, TValue>({
   const containerRef = useRef<HTMLDivElement>(null);
   const isSearchHydratedRef = useRef(false);
 
+  // when virtual toggles on, seed height so virtuoso is usable before layout measure runs
+  useEffect(() => {
+    if (!virtual) return;
+    setHeight((h) => (h > 0 ? h : 480));
+  }, [virtual]);
+
   // calculate height of the table based for virtual table
   useEffect(() => {
     const calculateHeight = () => {

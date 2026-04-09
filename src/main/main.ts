@@ -28,8 +28,10 @@ import type {
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
 import { isNil } from 'lodash';
+import { addDays, format, parse } from 'date-fns';
 import MenuBuilder from './menu';
 import { formatString, resolveHtmlPath, raise } from './utils/general';
+import { enrichLedgerRowsWithJournalSummaries } from './utils/ledgerJournalEnrichment';
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
 import { MigrationRunner } from './migrations/index';
@@ -269,9 +271,10 @@ app
         accountService.toggleAccountActive(accountId, isActive),
     );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
-    ipcMain.handle('ledger:get', async (_, accountId: number) =>
-      ledgerService.getLedger(accountId),
-    );
+    ipcMain.handle('ledger:get', async (_, accountId: number) => {
+      const rows = ledgerService.getLedger(accountId);
+      return enrichLedgerRowsWithJournalSummaries(rows, journalService);
+    });
     ipcMain.handle(
       'ledger:getBalance',
       async (_, accountId: number) =>
@@ -527,6 +530,42 @@ app
     ipcMain.handle('print:outputDir', () => printService.outputDirectory);
     ipcMain.handle('chart:insertCustomHead', (_, chart: InsertChart) =>
       chartService.insertCustomHead(chart),
+    );
+
+    ipcMain.handle(
+      'report:getLedgerRange',
+      async (
+        _,
+        params: { accountId: number; startDate: string; endDate: string },
+      ) => {
+        // opening balance should be "as of before startDate"
+        // closing balance should include endDate (use endDate + 1 day with the existing "< date" query)
+        const closingExclusiveDate = format(
+          addDays(parse(params.endDate, 'yyyy-MM-dd', new Date()), 1),
+          'yyyy-MM-dd',
+        );
+        const [open, entries, close] = await Promise.all([
+          ledgerService.getBalanceAtDate(params.accountId, params.startDate),
+          ledgerService.getLedgerRange(
+            params.accountId,
+            params.startDate,
+            params.endDate,
+          ),
+          ledgerService.getBalanceAtDate(
+            params.accountId,
+            closingExclusiveDate,
+          ),
+        ]);
+        const enrichedEntries = enrichLedgerRowsWithJournalSummaries(
+          entries,
+          journalService,
+        );
+        return {
+          openingBalance: open,
+          entries: enrichedEntries,
+          closingBalance: close,
+        };
+      },
     );
 
     createWindow();

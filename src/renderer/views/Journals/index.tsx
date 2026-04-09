@@ -91,11 +91,9 @@ const JournalsPage: React.FC<HasMiniView> = ({
                       {row.original.narration}
                     </p>
                   </div>
-                  <div className="flex flex-col text-end">
+                  <div className="flex flex-col text-end tabular-nums">
+                    <p className="font-bold">{row.original.id}</p>
                     <p>{getFormattedCurrency(row.original.amount)}</p>
-                    <p className="text-green-600">
-                      {row.original.isPosted ? 'Posted' : 'Draft'}
-                    </p>
                   </div>
                 </div>
               ),
@@ -103,6 +101,18 @@ const JournalsPage: React.FC<HasMiniView> = ({
             },
           ]
         : [
+            {
+              accessorKey: 'id',
+              header: <span className="whitespace-nowrap">Journal #</span>,
+              onClick: (row) => navigate(`/journals/${row.original.id}`),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => (
+                <span className="whitespace-nowrap tabular-nums">
+                  {row.original.id}
+                </span>
+              ),
+              size: 40,
+            },
             {
               accessorKey: 'date',
               header: DateHeader,
@@ -118,7 +128,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
               accessorKey: 'narration',
               header: 'Narration',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 400,
+              size: 360,
             },
             {
               accessorKey: 'billNumber',
@@ -284,7 +294,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
           virtual
           isMini={isMini}
           searchPlaceholder="Search journals…"
-          searchFields={['narration', 'date', 'amount', 'billNumber']}
+          searchFields={['id', 'narration', 'date', 'amount', 'billNumber']}
           searchPersistenceKey="datatable:journals:search"
           autoFocusSearch
         />
