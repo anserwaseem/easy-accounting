@@ -824,6 +824,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       onResetDiscountToAuto,
       applyAutoDiscountForRow,
       getSectionLabel,
+      saleStockValidationBonusRef,
     }),
     [
       form.control,
@@ -849,6 +850,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       onResetDiscountToAuto,
       applyAutoDiscountForRow,
       getSectionLabel,
+      saleStockValidationBonusRef,
     ],
   );
   const columns = useNewInvoiceColumns(columnsParams);

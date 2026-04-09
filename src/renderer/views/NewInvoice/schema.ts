@@ -135,7 +135,9 @@ export const buildNewInvoiceFormSchema = (
               if (item.quantity <= effectiveOnHand) return;
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: `Max ${effectiveOnHand} available`,
+                message: `Max ${effectiveOnHand} item${
+                  effectiveOnHand < 2 ? '' : 's'
+                } available`,
                 path: [idx, 'quantity'],
               });
             });
