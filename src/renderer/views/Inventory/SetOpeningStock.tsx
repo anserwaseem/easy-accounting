@@ -18,7 +18,7 @@ import { PackageOpen } from 'lucide-react';
 import { toLocalDateInputValue } from '@/renderer/lib/localDate';
 
 interface SetOpeningStockProps {
-  refetchInventory: () => void;
+  refetchInventory?: () => void;
 }
 
 export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
@@ -81,7 +81,7 @@ export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
         resetOthersToZero,
       );
       if (result.success) {
-        refetchInventory();
+        refetchInventory?.();
         setOpen(false);
         toast({
           description: `Opening stock set for ${items.length} items.${

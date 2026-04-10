@@ -11,7 +11,6 @@ import { Upload } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
-import { SetOpeningStock } from './SetOpeningStock';
 import { ManageItemTypes } from './ManageItemTypes';
 
 const InventoryPage: React.FC = () => {
@@ -89,7 +88,6 @@ const InventoryPage: React.FC = () => {
             className="hidden"
             onChange={uploadInventory}
           />
-          <SetOpeningStock refetchInventory={refetchInventory} />
           <ManageItemTypes
             onUpdated={refetchInventory}
             initialOpen={openManageItemTypesFromNav}
