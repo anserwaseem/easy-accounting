@@ -30,7 +30,7 @@ import { getFormattedCurrency } from '@/renderer/lib/utils';
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
-  'min-h-screen bg-white p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:p-0 print:text-black';
+  'min-h-screen bg-white p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:pl-8 print:pr-0 print:pt-0 print:pb-0 print:text-black';
 
 /** lock controls to light surfaces so shadcn tokens (bg-background, accent) never go dark-on-dark */
 const printToolbarPanelClass =
@@ -665,7 +665,7 @@ const PrintableInvoiceScreen = () => {
         ) : null}
         {invoice.isReturned ? (
           <div
-            className="mb-4 rounded-md border-2 border-red-600 bg-red-50 px-4 py-3 text-center print:border-black print:bg-white print:text-black"
+            className="mb-4 rounded-md border-2 border-red-600 bg-red-50 px-4 py-3 text-center print:border-gray-400 print:bg-white print:text-black"
             role="status"
           >
             <p className="text-lg font-bold uppercase tracking-wide text-red-800 print:text-black">
@@ -683,7 +683,7 @@ const PrintableInvoiceScreen = () => {
         ) : null}
         {invoice.isQuotation ? (
           <div
-            className="mb-4 rounded-md border-2 border-amber-600 bg-amber-50 px-4 py-3 text-center print:border-black print:bg-white print:text-black"
+            className="mb-4 rounded-md border-2 border-amber-600 bg-amber-50 px-4 py-3 text-center print:border-gray-400 print:bg-white print:text-black"
             role="status"
           >
             <p className="text-lg font-bold uppercase tracking-wide text-amber-950 print:text-black">
@@ -692,8 +692,8 @@ const PrintableInvoiceScreen = () => {
           </div>
         ) : null}
         <div className="flex justify-between items-center">
-          <div className="w-full text-[13px]">
-            <h1 className="text-3xl font-bold text-center font-mono">
+          <div className="w-full">
+            <h1 className="text-[26px] leading-6 font-bold text-center font-mono">
               {printCompanyHeading}
             </h1>
             {[
@@ -718,7 +718,7 @@ const PrintableInvoiceScreen = () => {
           </div>
         </div>
 
-        <div className="flex flex-col">
+        <div className="flex flex-col text-base leading-none gap-2 my-1">
           <div className="flex justify-between gap-4">
             <div className="flex gap-1 whitespace-nowrap">
               <p>{invoice.isQuotation ? 'Quotation #:' : 'Invoice No:'}</p>
@@ -745,34 +745,31 @@ const PrintableInvoiceScreen = () => {
               <p>{invoice.cartons ?? ''}</p>
             </div>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 -mt-1">
             <p className="whitespace-nowrap">Bill To:</p>
             <p className="whitespace-nowrap">{billToName}</p>
             <p className="pl-2">{billToAddress}</p>
           </div>
         </div>
 
-        <table className="w-full mt-2">
+        <table className="w-full text-base leading-tight [&_th]:px-1 [&_td]:px-1 [&_td]:py-0 border-[0.5px] border-gray-400 border-collapse [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400">
           <thead>
-            <tr className="border-y-2 border-black">
-              <th className="text-left py-2">S.No. </th>
-              <th className="py-2">Item Code</th>
-              <th className="text-left py-2">Item Description</th>
-              <th className="text-right py-2">Issue Qty</th>
-              <th className="text-right py-2">Price</th>
-              <th className="text-right py-2">Discount</th>
-              <th className="text-right py-2 pr-4">Amount</th>
+            <tr className="[&_th]:font-semibold">
+              <th className="text-left">#</th>
+              <th>Item</th>
+              <th className="text-left">Item Description</th>
+              <th className="text-right">Qty</th>
+              <th className="text-right w-[4.75rem]">Price</th>
+              <th className="text-right">Discount</th>
+              <th className="text-right pr-2 w-[7.25rem]">Amount</th>
             </tr>
           </thead>
           <tbody>
             {sectionedRows.map((row) => {
               if (row.kind === 'header') {
                 return (
-                  <tr
-                    key={row.key}
-                    className="border-b border-gray-300 bg-gray-100"
-                  >
-                    <td className="py-1 font-semibold" colSpan={7}>
+                  <tr key={row.key} className="bg-gray-100">
+                    <td className="font-semibold" colSpan={7}>
                       {row.sectionName}
                     </td>
                   </tr>
@@ -781,17 +778,14 @@ const PrintableInvoiceScreen = () => {
 
               if (row.kind === 'subtotal') {
                 return (
-                  <tr
-                    key={row.key}
-                    className="border-b border-gray-300 bg-gray-50"
-                  >
+                  <tr key={row.key} className="bg-gray-50">
                     <td colSpan={3} />
                     <td className="text-right font-semibold">
                       {row.totalQuantity}
                     </td>
                     <td />
                     <td />
-                    <td className="text-right pr-4 font-semibold">
+                    <td className="text-right pr-2 w-[7.25rem] font-semibold">
                       {toNumber(row.totalAmount).toFixed(2)}
                     </td>
                   </tr>
@@ -799,70 +793,65 @@ const PrintableInvoiceScreen = () => {
               }
 
               return (
-                <tr key={row.key} className="border-b border-gray-300">
+                <tr key={row.key}>
                   <td>{row.serialNumber}</td>
                   <td className="text-center">{row.item.inventoryItemName}</td>
                   <td>{row.item.inventoryItemDescription}</td>
                   <td className="text-right">{row.item.quantity}</td>
-                  <td className="text-right">
+                  <td className="text-right w-[4.75rem]">
                     {toNumber(row.item.price).toFixed(0)}
                   </td>
                   <td className="text-right">{row.item.discount.toFixed(2)}</td>
-                  <td className="text-right pr-4">
+                  <td className="text-right pr-2 w-[7.25rem]">
                     {toNumber(row.item.discountedPrice).toFixed(2)}
                   </td>
                 </tr>
               );
             })}
-            <tr className="py-2">
-              <td className="italic absolute">
+
+            {/* Total Quantity */}
+            <tr className="[&_td]:border-0">
+              <td
+                colSpan={3}
+                className="italic !border-y-[0.5px] !border-gray-400"
+              >
                 {invoicePrintSettings.totalQuantityLabel.trim() ||
                   defaults.totalQuantityLabel}
               </td>
-              <td />
-              <td />
-              <td className="text-right">{totalQuantity}</td>
-              <td />
-              <td />
+              <td className="text-right !border-[0.5px] !border-gray-400">
+                {totalQuantity}
+              </td>
+              <td colSpan={3} />
             </tr>
+            {/* Extra Discount */}
             {invoice.extraDiscount ? (
-              <tr>
-                <td>Extra Discount:</td>
-                <td />
-                <td />
-                <td />
-                <td />
-                <td />
-                <td className="pr-4 text-right">
+              <tr className="[&_td]:border-0">
+                <td colSpan={6} className="!border-y-[0.5px] !border-gray-400">
+                  Extra Discount:
+                </td>
+                <td className="pr-2 w-[7.25rem] text-right !border-[0.5px] !border-gray-400">
                   {getFormattedCurrency(toNumber(invoice.extraDiscount))}
                 </td>
               </tr>
             ) : null}
-            <tr>
-              <td />
-              <td />
-              <td />
-              <td />
-              <td />
-              <td />
-              <td className="pr-4 font-bold text-right">
+            {/* Total Amount */}
+            <tr className="[&_td]:border-0">
+              <td
+                colSpan={6}
+                className="italic !border-y-[0.5px] !border-gray-400"
+              >
+                Total: Rs.{' '}
+                {toWords(invoice.totalAmount || 0)
+                  .split(' ')
+                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' ')}
+              </td>
+              <td className="pr-2 w-[7.25rem] font-bold text-right !border-[0.5px] !border-gray-400">
                 {getFormattedCurrency(toNumber(invoice?.totalAmount))}
               </td>
             </tr>
           </tbody>
         </table>
-
-        <div>
-          <div className="flex flex-col w-[75%] -mt-8">
-            <h3 className="italic">
-              Total: Rs.{' '}
-              {toWords(invoice.totalAmount || 0)
-                .split(' ')
-                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ')}
-            </h3>
-          </div>
-        </div>
       </div>
     </div>
   );
