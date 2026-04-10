@@ -22,6 +22,25 @@ const narrationTextForRow = (row: LedgerView): string => {
   return '';
 };
 
+const narrationLinesForRow = (row: LedgerView): string[] => {
+  const base = narrationTextForRow(row);
+  if (!row.journalSummary) return base ? [base] : [];
+
+  const isSaleInvoice =
+    typeof row.journalSummary.narration === 'string' &&
+    /^sale invoice\b/i.test(row.journalSummary.narration);
+
+  const lines: string[] = [];
+  if (base) lines.push(base);
+  if (!isSaleInvoice && row.journalSummary.billNumber != null) {
+    lines.push(`Bill#: ${row.journalSummary.billNumber}`);
+  }
+  if (row.journalSummary.discountPercentage != null) {
+    lines.push(`Discount: ${row.journalSummary.discountPercentage}%`);
+  }
+  return lines;
+};
+
 const buildLedgerTableBodyHtml = (
   rows: LedgerView[],
   debitCreditZeroLabel: string,
@@ -29,7 +48,9 @@ const buildLedgerTableBodyHtml = (
   return rows
     .map((row) => {
       const particulars = escape(row.linkedAccountName ?? row.particulars);
-      const narration = escape(narrationTextForRow(row));
+      const narration = narrationLinesForRow(row)
+        .map((l) => escape(l))
+        .join(' | ');
       const dateStr = row.date
         ? escape(new Date(row.date).toLocaleString('en-US', dateFormatOptions))
         : '';

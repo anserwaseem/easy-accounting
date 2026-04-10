@@ -1,10 +1,10 @@
+import type { InventoryItem } from 'types';
+import { InvoiceType } from 'types';
 import {
   lineInventoryIdsKeyFromIds,
   mergeInventoryForInvoice,
   parseLineInventoryIdsKey,
 } from '../useNewInvoiceInventory';
-import { InvoiceType } from 'types';
-import type { InventoryItem } from 'types';
 
 describe('lineInventoryIdsKeyFromIds / parseLineInventoryIdsKey', () => {
   it('roundtrips sorted unique ids', () => {

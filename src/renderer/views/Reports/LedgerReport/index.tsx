@@ -15,6 +15,8 @@ import {
   DateRangePickerWithPresets,
   type DateRange,
 } from '@/renderer/shad/ui/datePicker';
+import type { LedgerView } from '@/types';
+import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
 import { printStyles } from '../components';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
 import { LedgerReportTable } from './LedgerReportTable';
@@ -23,6 +25,7 @@ import { useLedgerReport } from './useLedgerReport';
 type LedgerReportRow = {
   date: string | Date;
   particulars: string;
+  narration: string;
   debit: number;
   credit: number;
   balance: number;
@@ -54,6 +57,12 @@ const buildLedgerReportPayload = (
         format: 'string',
         width: 36,
       },
+      {
+        key: 'narration',
+        header: 'Narration',
+        format: 'string',
+        width: 44,
+      },
       { key: 'debit', header: 'Debit', format: 'currency', width: 14 },
       { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
       { key: 'balance', header: 'Balance', format: 'currency', width: 14 },
@@ -62,6 +71,39 @@ const buildLedgerReportPayload = (
     rows: ledgerEntries,
   };
 };
+
+const buildNarrationForExport = (row: LedgerView): string => {
+  const jid = extractJournalIdFromParticulars(row.particulars);
+  const narrationBase =
+    row.journalSummary?.narration ||
+    (jid != null ? `View Journal #${jid}` : '');
+  if (!row.journalSummary) return narrationBase;
+
+  const isSaleInvoice =
+    typeof row.journalSummary.narration === 'string' &&
+    /^sale invoice\b/i.test(row.journalSummary.narration);
+
+  const parts: string[] = [narrationBase];
+  if (!isSaleInvoice && row.journalSummary.billNumber != null) {
+    parts.push(`Bill#: ${row.journalSummary.billNumber}`);
+  }
+  if (row.journalSummary.discountPercentage != null) {
+    parts.push(`Discount: ${row.journalSummary.discountPercentage}%`);
+  }
+  // keep it one-line so it shows well in excel without special cell wrapping
+  return parts.filter(Boolean).join(' | ');
+};
+
+const buildLedgerReportExportRows = (rows: LedgerView[]): LedgerReportRow[] =>
+  rows.map((row) => ({
+    date: row.date,
+    particulars: row.linkedAccountName ?? row.particulars,
+    narration: buildNarrationForExport(row),
+    debit: row.debit,
+    credit: row.credit,
+    balance: row.balance,
+    balanceType: row.balanceType,
+  }));
 
 const LedgerReportPage = () => {
   const {
@@ -88,8 +130,9 @@ const LedgerReportPage = () => {
   const handleExportExcel = useCallback(() => {
     if (!ledgerEntries.length) return;
     try {
+      const exportRows = buildLedgerReportExportRows(ledgerEntries);
       const payload = buildLedgerReportPayload(
-        ledgerEntries,
+        exportRows,
         selectedAccountName,
         dateRange ?? undefined,
       );
