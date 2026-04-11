@@ -179,6 +179,12 @@ export const printStyles = `
       border-bottom: 1px solid #e5e7eb !important; /* very light grey */
     }
 
+    /* no line under totals row (tfoot + black border-color override made this harsh in pdf) */
+    .print-table tfoot td,
+    .print-table tfoot th {
+      border-bottom: none !important;
+    }
+
     /* Ensure text doesn't wrap in print mode for better layout */
     .print-table td,
     .print-table th {

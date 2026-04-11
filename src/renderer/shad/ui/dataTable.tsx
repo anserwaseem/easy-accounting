@@ -14,6 +14,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -47,6 +48,11 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   virtual?: boolean;
   /** tighter row/header/cell padding for dense grids (e.g. invoice line items) */
   compact?: boolean;
+  /**
+   * one cell per visible column; widths match tanstack column sizes.
+   * stays aligned with virtual + non-virtual tables; hidden when printing.
+   */
+  stickyFooterRow?: React.ReactNode[];
   searchPlaceholder?: string;
   searchFields?: string[];
   isMini?: boolean;
@@ -218,6 +224,7 @@ const DataTable = <TData, TValue>({
   infoData,
   virtual = false,
   compact = false,
+  stickyFooterRow,
   searchPlaceholder,
   searchFields,
   isMini = false,
@@ -356,14 +363,131 @@ const DataTable = <TData, TValue>({
 
   const cellPad = compact ? 'py-1 px-2' : 'py-2 px-4';
 
+  const hasStickyFooter = Boolean(
+    stickyFooterRow && stickyFooterRow.length > 0,
+  );
+
+  const leafHeaders =
+    table.getHeaderGroups()[0]?.headers.filter((h) => !h.isPlaceholder) ?? [];
+
+  const renderStickyFooterTableRow = () => {
+    if (!hasStickyFooter || !stickyFooterRow) return null;
+    return (
+      <TableRow className="print:hidden border-t bg-background hover:bg-background [&>td]:bg-background">
+        {leafHeaders.map((header, i) => {
+          const w = header.column.getSize();
+          return (
+            <TableCell
+              key={header.id}
+              className={cn(
+                cellPad,
+                'align-middle whitespace-nowrap bg-background',
+              )}
+              style={{
+                width: w,
+                minWidth: w,
+                maxWidth: w,
+              }}
+            >
+              {stickyFooterRow[i] ?? null}
+            </TableCell>
+          );
+        })}
+      </TableRow>
+    );
+  };
+
   if (virtual) {
+    const renderVirtualMain = () => {
+      if (!rows.length) {
+        return (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <HeaderRow
+                  key={headerGroup.id}
+                  headerGroup={headerGroup}
+                  compact={compact}
+                />
+              ))}
+            </TableHeader>
+            <TableBody>
+              <NoResultsRow
+                columns={columns}
+                searchFields={searchFields}
+                searchValue={searchValue}
+              />
+            </TableBody>
+          </Table>
+        );
+      }
+
+      if (hasStickyFooter) {
+        return (
+          <div className="flex flex-col flex-1 min-h-0 min-w-0">
+            <div className="overflow-x-auto flex-1 min-h-0">
+              <div
+                className="flex flex-col min-h-0"
+                style={{ minWidth: table.getTotalSize() }}
+              >
+                <TableVirtuoso
+                  style={{ height }}
+                  totalCount={rows.length}
+                  components={{
+                    Table: TableComponent,
+                    TableRow: TableRowComponent(rows, compact),
+                  }}
+                  fixedHeaderContent={() =>
+                    table
+                      .getHeaderGroups()
+                      .map((headerGroup) => (
+                        <HeaderRow
+                          key={headerGroup.id}
+                          headerGroup={headerGroup}
+                          compact={compact}
+                        />
+                      ))
+                  }
+                  fixedFooterContent={() => renderStickyFooterTableRow()}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="overflow-x-auto">
+          <TableVirtuoso
+            style={{ height }}
+            totalCount={rows.length}
+            components={{
+              Table: TableComponent,
+              TableRow: TableRowComponent(rows, compact),
+            }}
+            fixedHeaderContent={() =>
+              table
+                .getHeaderGroups()
+                .map((headerGroup) => (
+                  <HeaderRow
+                    key={headerGroup.id}
+                    headerGroup={headerGroup}
+                    compact={compact}
+                  />
+                ))
+            }
+          />
+        </div>
+      );
+    };
+
     return (
       <div
         ref={containerRef}
-        className="rounded-md border w-full min-w-0 max-w-full overflow-x-auto"
+        className="rounded-md border w-full min-w-0 max-w-full flex flex-col"
       >
         {searchFields?.length ? (
-          <div className="search-container border-b">
+          <div className="search-container border-b shrink-0">
             <div
               className={cn(
                 'gap-2 flex justify-between items-center',
@@ -395,46 +519,7 @@ const DataTable = <TData, TValue>({
             </div>
           </div>
         ) : null}
-        {rows.length ? (
-          <TableVirtuoso
-            style={{ height }}
-            totalCount={rows.length}
-            components={{
-              Table: TableComponent,
-              TableRow: TableRowComponent(rows, compact),
-            }}
-            fixedHeaderContent={() =>
-              table
-                .getHeaderGroups()
-                .map((headerGroup) => (
-                  <HeaderRow
-                    key={headerGroup.id}
-                    headerGroup={headerGroup}
-                    compact={compact}
-                  />
-                ))
-            }
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <HeaderRow
-                  key={headerGroup.id}
-                  headerGroup={headerGroup}
-                  compact={compact}
-                />
-              ))}
-            </TableHeader>
-            <TableBody>
-              <NoResultsRow
-                columns={columns}
-                searchFields={searchFields}
-                searchValue={searchValue}
-              />
-            </TableBody>
-          </Table>
-        )}
+        {renderVirtualMain()}
       </div>
     );
   }
@@ -474,7 +559,14 @@ const DataTable = <TData, TValue>({
           </div>
         </div>
       ) : null}
-      <Table>
+      <Table className={hasStickyFooter ? 'table-fixed' : undefined}>
+        {hasStickyFooter ? (
+          <colgroup>
+            {leafHeaders.map((header) => (
+              <col key={header.id} style={{ width: header.column.getSize() }} />
+            ))}
+          </colgroup>
+        ) : null}
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <HeaderRow
@@ -505,6 +597,15 @@ const DataTable = <TData, TValue>({
                         (cell.column.columnDef as ColumnDef<TData, TValue>)
                           ?.onClick && 'cursor-pointer',
                       )}
+                      style={
+                        hasStickyFooter
+                          ? {
+                              width: cell.column.getSize(),
+                              minWidth: cell.column.getSize(),
+                              maxWidth: cell.column.getSize(),
+                            }
+                          : undefined
+                      }
                     >
                       {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
                       <div key={toString(get(cell.row.original, 'id'))}>
@@ -540,6 +641,28 @@ const DataTable = <TData, TValue>({
             <NoResultsRow columns={columns} />
           )}
         </TableBody>
+        {hasStickyFooter ? (
+          <TableFooter className="sticky bottom-0 z-10 border-t bg-background print:hidden [&>tr]:bg-background">
+            <TableRow className="border-t bg-background hover:bg-background font-semibold [&>td]:bg-background">
+              {leafHeaders.map((header, i) => {
+                const w = header.column.getSize();
+                return (
+                  <TableCell
+                    key={header.id}
+                    className={cn(cellPad, 'whitespace-nowrap bg-background')}
+                    style={{
+                      width: w,
+                      minWidth: w,
+                      maxWidth: w,
+                    }}
+                  >
+                    {stickyFooterRow![i] ?? null}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          </TableFooter>
+        ) : null}
       </Table>
     </div>
   );

@@ -13,6 +13,12 @@ interface LedgerReportPrintOptions {
   rows: LedgerView[];
   accountName: string;
   dateSubtitle: string;
+  totals: {
+    totalDebit: number;
+    totalCredit: number;
+    totalDifference: number;
+    totalType: string;
+  };
 }
 
 const narrationTextForRow = (row: LedgerView): string => {
@@ -76,7 +82,7 @@ const buildLedgerTableBodyHtml = (
  * prints ledger in a hidden iframe so the main window keeps the virtual table (no flash, no multi‑second freeze).
  */
 export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
-  const { rows, accountName, dateSubtitle } = options;
+  const { rows, accountName, dateSubtitle, totals } = options;
   if (rows.length === 0) return;
 
   const debitCreditZeroLabel = toString(
@@ -85,6 +91,16 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
 
   const title = escape(`Ledger Report for ${accountName}: ${dateSubtitle}`);
   const bodyHtml = buildLedgerTableBodyHtml(rows, debitCreditZeroLabel);
+  const footerDebit = escape(
+    getFormattedCurrency(totals.totalDebit).replace(currency, '').trim(),
+  );
+  const footerCredit = escape(
+    getFormattedCurrency(totals.totalCredit).replace(currency, '').trim(),
+  );
+  const footerDiff = escape(
+    getFormattedCurrency(totals.totalDifference).replace(currency, '').trim(),
+  );
+  const footerType = escape(toString(totals.totalType));
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
@@ -117,6 +133,10 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   <style>
     body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; font-size: 10px; color: #000; }
     .ledger-print-title { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 8px; page-break-after: avoid; }
+    /* totals as last tbody row — not tfoot — so print engines do not repeat it on every page */
+    @media print {
+      .ledger-print-totals-row { page-break-inside: avoid !important; }
+    }
   </style>
 </head>
 <body>
@@ -133,7 +153,17 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
         <th>Type</th>
       </tr>
     </thead>
-    <tbody>${bodyHtml}</tbody>
+    <tbody>${bodyHtml}
+      <tr class="ledger-print-totals-row">
+        <td></td>
+        <td></td>
+        <td></td>
+        <td style="text-align:right"><strong>${footerDebit}</strong></td>
+        <td style="text-align:right"><strong>${footerCredit}</strong></td>
+        <td style="text-align:right"><strong>${footerDiff}</strong></td>
+        <td><strong>${footerType}</strong></td>
+      </tr>
+    </tbody>
   </table>
 </body>
 </html>`);

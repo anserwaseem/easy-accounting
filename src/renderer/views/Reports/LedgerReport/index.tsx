@@ -119,6 +119,7 @@ const LedgerReportPage = () => {
     handlePrint,
     presetValue,
     rangeResponse,
+    totals,
   } = useLedgerReport();
 
   const latestBalance = rangeResponse?.closingBalance
@@ -136,6 +137,15 @@ const LedgerReportPage = () => {
         selectedAccountName,
         dateRange ?? undefined,
       );
+      payload.footerRow = {
+        date: '',
+        particulars: '',
+        narration: '',
+        debit: totals.totalDebit,
+        credit: totals.totalCredit,
+        balance: totals.totalDifference,
+        balanceType: totals.totalType,
+      };
       exportReportToExcel(payload);
       toast({
         title: 'Success',
@@ -150,7 +160,7 @@ const LedgerReportPage = () => {
         variant: 'destructive',
       });
     }
-  }, [ledgerEntries, selectedAccountName, dateRange]);
+  }, [ledgerEntries, selectedAccountName, dateRange, totals]);
 
   const canExport =
     !isLoading && selectedAccount != null && ledgerEntries.length > 0;
@@ -236,6 +246,7 @@ const LedgerReportPage = () => {
           isLoading={isLoading}
           accountName={selectedAccountName}
           dateSubtitle={dateSubtitle}
+          totals={totals}
         />
       )}
       {!selectedAccount && !isLoading && (

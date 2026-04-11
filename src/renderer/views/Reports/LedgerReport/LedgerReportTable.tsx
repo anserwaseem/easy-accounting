@@ -1,6 +1,9 @@
+import { useMemo } from 'react';
 import type { LedgerView } from '@/types';
 import { Card } from '@/renderer/shad/ui/card';
 import { LedgerTableBase } from '@/renderer/components/ledger/LedgerTableBase';
+import { currency } from '@/renderer/lib/constants';
+import { getFormattedCurrency } from '@/renderer/lib/utils';
 import { EmptyState, LoadingState } from '../components';
 
 interface LedgerReportTableProps {
@@ -8,6 +11,12 @@ interface LedgerReportTableProps {
   isLoading: boolean;
   dateSubtitle: string;
   accountName: string;
+  totals: {
+    totalDebit: number;
+    totalCredit: number;
+    totalDifference: number;
+    totalType: string;
+  };
 }
 
 export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
@@ -15,7 +24,31 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
   isLoading,
   dateSubtitle,
   accountName,
+  totals,
 }: LedgerReportTableProps) => {
+  const stickyFooterRow = useMemo(
+    () => [
+      null,
+      null,
+      null,
+      <span className="block font-semibold whitespace-nowrap">
+        {getFormattedCurrency(totals.totalDebit).replace(currency, '').trim()}
+      </span>,
+      <span className="block font-semibold whitespace-nowrap">
+        {getFormattedCurrency(totals.totalCredit).replace(currency, '').trim()}
+      </span>,
+      <span className="block font-semibold whitespace-nowrap">
+        {getFormattedCurrency(totals.totalDifference)
+          .replace(currency, '')
+          .trim()}
+      </span>,
+      <span className="block font-semibold whitespace-nowrap">
+        {totals.totalType}
+      </span>,
+    ],
+    [totals],
+  );
+
   if (isLoading) {
     return <LoadingState message="Loading ledger entries..." />;
   }
@@ -37,12 +70,11 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
         </h1>
       </div>
 
-      {/* Table - styled for both screen and print */}
       <LedgerTableBase
         ledger={ledger}
         className="print-table"
         printMode
-        useNativePrintExpansion={false}
+        stickyFooterRow={stickyFooterRow}
       />
     </>
   );

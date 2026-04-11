@@ -7,8 +7,17 @@ import {
   makeSavedState,
 } from '@/renderer/lib/reportFilters';
 import { addDays, format } from 'date-fns';
-import { REPORT_FILTER_KEYS } from 'types';
+import { BalanceType, REPORT_FILTER_KEYS } from 'types';
 import { printLedgerReportIframe } from './printLedgerReport';
+
+type LedgerReportTotals = {
+  totalDebit: number;
+  totalCredit: number;
+  /** absolute difference (closing - opening) in signed-balance space */
+  totalDifference: number;
+  /** Cr/Dr for totalDifference */
+  totalType: BalanceType | '';
+};
 
 export const useLedgerReport = () => {
   const saved = useMemo(() => loadSavedFilters(REPORT_FILTER_KEYS.ledger), []);
@@ -133,6 +142,48 @@ export const useLedgerReport = () => {
     return `${format(dateRange.from, 'PP')} – ${format(dateRange.to, 'PP')}`;
   }, [dateRange]);
 
+  const totals = useMemo<LedgerReportTotals>(() => {
+    if (!rangeResponse) {
+      return {
+        totalDebit: 0,
+        totalCredit: 0,
+        totalDifference: 0,
+        totalType: '',
+      };
+    }
+
+    const totalDebit = rangeResponse.entries.reduce(
+      (acc, e) => acc + e.debit,
+      0,
+    );
+    const totalCredit = rangeResponse.entries.reduce(
+      (acc, e) => acc + e.credit,
+      0,
+    );
+
+    const opening = rangeResponse.openingBalance;
+    const closing = rangeResponse.closingBalance;
+
+    const toSigned = (
+      b: { balance: number; balanceType: BalanceType } | null,
+    ): number => {
+      if (!b) return 0;
+      return b.balanceType === BalanceType.Cr ? b.balance : -b.balance;
+    };
+
+    const diffSigned = toSigned(closing) - toSigned(opening);
+    let totalType: BalanceType | '' = '';
+    if (diffSigned > 0) totalType = BalanceType.Cr;
+    if (diffSigned < 0) totalType = BalanceType.Dr;
+
+    return {
+      totalDebit,
+      totalCredit,
+      totalDifference: Math.abs(diffSigned),
+      totalType,
+    };
+  }, [rangeResponse]);
+
   // merged entries: opening balance row (synthetic) + in-range entries + closing summary
   const displayedEntries = useMemo<LedgerView[]>(() => {
     if (!rangeResponse) return [];
@@ -181,8 +232,9 @@ export const useLedgerReport = () => {
       rows: displayedEntries,
       accountName: selectedAccountName,
       dateSubtitle: printDateSubtitle,
+      totals,
     });
-  }, [displayedEntries, selectedAccountName, printDateSubtitle]);
+  }, [displayedEntries, selectedAccountName, printDateSubtitle, totals]);
 
   return {
     accounts,
@@ -198,5 +250,6 @@ export const useLedgerReport = () => {
     refreshData,
     handlePrint,
     rangeResponse,
+    totals,
   };
 };
