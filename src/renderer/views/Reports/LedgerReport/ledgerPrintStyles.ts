@@ -26,17 +26,17 @@ export const ledgerPrintStyles = `
     /* Optimize column widths for print - use more space */
     .data-table-wrapper th:nth-child(1),
     .data-table-wrapper td:nth-child(1) {
-      width: 10% !important; /* Date column */
+      width: 8% !important; /* Date column */
     }
 
     .data-table-wrapper th:nth-child(2),
     .data-table-wrapper td:nth-child(2) {
-      width: 20% !important; /* Particulars column */
+      width: 32% !important; /* particulars (name + code) needs more room */
     }
 
     .data-table-wrapper th:nth-child(3),
     .data-table-wrapper td:nth-child(3) {
-      width: 35% !important; /* Narration column - largest */
+      width: 25% !important; /* narration — trimmed to fund particulars */
     }
 
     .data-table-wrapper th:nth-child(4),
