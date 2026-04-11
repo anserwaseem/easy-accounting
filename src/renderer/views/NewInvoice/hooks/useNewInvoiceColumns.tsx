@@ -156,9 +156,7 @@ const InvoiceLineQuantityCell = <T extends FieldValues>({
                   ) {
                     e.preventDefault();
                     onQuantityEnterAddRow(rowIndex);
-                    return;
                   }
-                  field.onKeyDown?.(e);
                 }}
               />
             </FormControl>

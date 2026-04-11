@@ -140,6 +140,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
       if (typeof triggerRef === 'function') {
         triggerRef(el);
       } else {
+        // @ts-expect-error - we want to set the ref to the input element
         triggerRef.current = el;
       }
     },

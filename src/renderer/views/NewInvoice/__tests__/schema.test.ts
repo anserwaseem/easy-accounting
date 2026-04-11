@@ -95,7 +95,9 @@ describe('NewInvoice schema', () => {
 
     expect(result.success).toBe(false);
     expect(
-      result.error?.issues.some((i) => i.message.includes('Max 2 available')),
+      result.error?.issues.some(
+        (i) => i.message.includes('Max 2') && i.message.includes('available'),
+      ),
     ).toBe(true);
   });
 

@@ -11,10 +11,20 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { TooltipProvider } from '@/renderer/shad/ui/tooltip';
+import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
 import { AccountType, InvoiceType } from 'types';
 import type { InvoiceView } from 'types';
 
 import NewInvoicePage from '../index';
+
+const mockElectronStore = {
+  get: jest.fn((key: string) =>
+    key === BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY ? false : undefined,
+  ),
+  set: jest.fn(),
+  delete: jest.fn(),
+};
 
 jest.mock('@/renderer/components/VirtualSelect', () => ({
   __esModule: true,
@@ -122,8 +132,13 @@ function makeSaleInvoiceView(
 
 function setupElectronForSaleEdit(inv: InvoiceView, overrides: any = {}) {
   const getInvoice = jest.fn(async () => inv);
-  (window as unknown as { electron: Record<string, jest.Mock> }).electron = {
+  (
+    window as unknown as {
+      electron: Record<string, jest.Mock | typeof mockElectronStore>;
+    }
+  ).electron = {
     getInvoice,
+    store: mockElectronStore,
     getJournalsByInvoiceId: jest.fn(async () => [{ id: 1 }]),
     getAccounts: jest.fn(async () => [
       saleAccount,
@@ -154,12 +169,14 @@ function renderSaleEdit(path: string, inv: InvoiceView, overrides: any = {}) {
   const { getInvoice } = setupElectronForSaleEdit(inv, overrides);
   const view = render(
     <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route
-          path="/sale/invoices/:id/edit"
-          element={<NewInvoicePage invoiceType={InvoiceType.Sale} />}
-        />
-      </Routes>
+      <TooltipProvider>
+        <Routes>
+          <Route
+            path="/sale/invoices/:id/edit"
+            element={<NewInvoicePage invoiceType={InvoiceType.Sale} />}
+          />
+        </Routes>
+      </TooltipProvider>
     </MemoryRouter>,
   );
   return { ...view, getInvoice };
@@ -170,8 +187,13 @@ function renderPurchaseEdit(
   inv: InvoiceView,
   overrides: any = {},
 ) {
-  (window as unknown as { electron: Record<string, jest.Mock> }).electron = {
+  (
+    window as unknown as {
+      electron: Record<string, jest.Mock | typeof mockElectronStore>;
+    }
+  ).electron = {
     getInvoice: jest.fn(async () => inv),
+    store: mockElectronStore,
     getJournalsByInvoiceId: jest.fn(async () => [{ id: 1 }]),
     getAccounts: jest.fn(async () => [
       saleAccount,
@@ -202,12 +224,14 @@ function renderPurchaseEdit(
   };
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route
-          path="/purchase/invoices/:id/edit"
-          element={<NewInvoicePage invoiceType={InvoiceType.Purchase} />}
-        />
-      </Routes>
+      <TooltipProvider>
+        <Routes>
+          <Route
+            path="/purchase/invoices/:id/edit"
+            element={<NewInvoicePage invoiceType={InvoiceType.Purchase} />}
+          />
+        </Routes>
+      </TooltipProvider>
     </MemoryRouter>,
   );
 }
@@ -301,8 +325,13 @@ describe('NewInvoicePage edit integration', () => {
       ],
     };
 
-    (window as unknown as { electron: Record<string, jest.Mock> }).electron = {
+    (
+      window as unknown as {
+        electron: Record<string, jest.Mock | typeof mockElectronStore>;
+      }
+    ).electron = {
       getInvoice: jest.fn(async () => inv),
+      store: mockElectronStore,
       getJournalsByInvoiceId: jest.fn(async () => [{ id: 1 }]),
       getAccounts: jest.fn(async () => [
         saleAccount,
@@ -337,16 +366,19 @@ describe('NewInvoicePage edit integration', () => {
       updateInvoice: jest.fn(async () => ({ success: true })),
       insertInvoice: jest.fn(),
       getNextInvoiceNumber: jest.fn(),
+      getAutoDiscount: jest.fn(async () => 0),
     };
 
     render(
       <MemoryRouter initialEntries={['/purchase/invoices/7/edit']}>
-        <Routes>
-          <Route
-            path="/purchase/invoices/:id/edit"
-            element={<NewInvoicePage invoiceType={InvoiceType.Purchase} />}
-          />
-        </Routes>
+        <TooltipProvider>
+          <Routes>
+            <Route
+              path="/purchase/invoices/:id/edit"
+              element={<NewInvoicePage invoiceType={InvoiceType.Purchase} />}
+            />
+          </Routes>
+        </TooltipProvider>
       </MemoryRouter>,
     );
 
