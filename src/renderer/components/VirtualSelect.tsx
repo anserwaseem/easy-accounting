@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ReactNode, RefObject } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
@@ -399,6 +399,21 @@ const VirtualSelect = <T extends BaseOption = Account>({
   const virtuosoData = listWithSections ?? filteredOptions;
   const hasOptions = virtuosoData.length > 0;
 
+  /** px to subtract from radix available height so list + headers stay in viewport when popover flips */
+  const listShellChromeReservePx = useMemo(() => {
+    let reservePx = 20; // borders, spacing
+    if (selectedOption) reservePx += 64; // search row (p-2 + input)
+    if (groupBy && !isSearching && sortedGroupLabels.length > 0)
+      reservePx += 80; // sections toolbar block
+    return reservePx;
+  }, [selectedOption, groupBy, isSearching, sortedGroupLabels.length]);
+
+  const listShellStyle = useMemo((): CSSProperties | undefined => {
+    if (!hasOptions) return undefined;
+    const cap = `min(400px, max(120px, calc(var(--radix-popper-available-height, 100dvh) - ${listShellChromeReservePx}px)))`;
+    return { height: cap, maxHeight: cap };
+  }, [hasOptions, listShellChromeReservePx]);
+
   // with groupBy, row 0 is often a section header — keyboard selection must start on first real option so Enter matches party selector behavior
   const firstSelectableRowIndex = useMemo(() => {
     if (!groupBy) return 0;
@@ -647,7 +662,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
         </div>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0"
+        className="flex max-h-[min(520px,var(--radix-popper-available-height,100dvh))] w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden p-0"
         align="start"
         onOpenAutoFocus={(e) => {
           // We do not want popover to auto focus and blur our Trigger Input if we didn't have an option selected
@@ -660,7 +675,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
         }}
       >
         {!!selectedOption && (
-          <div className="p-2 border-b border-border">
+          <div className="shrink-0 border-b border-border p-2">
             <Input
               ref={searchInputRef}
               value={searchInputValue}
@@ -673,7 +688,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
           </div>
         )}
         {groupBy && !isSearching && sortedGroupLabels.length > 0 && (
-          <div className="px-2 pb-2 mt-2">
+          <div className="mt-2 shrink-0 px-2 pb-2">
             <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-1">
               <span className="text-xs text-muted-foreground">Sections</span>
               <div className="flex gap-2">
@@ -696,8 +711,11 @@ const VirtualSelect = <T extends BaseOption = Account>({
           </div>
         )}
         <div
-          className="transition-opacity duration-150 ease-in-out min-h-[320px] relative mt-1"
-          style={{ height: hasOptions ? 400 : undefined }}
+          className={cn(
+            'relative mt-1 flex min-h-0 flex-col transition-opacity duration-150 ease-in-out',
+            !hasOptions && 'min-h-[8rem]',
+          )}
+          style={listShellStyle}
         >
           {listWithSections && stickySectionLabel && hasOptions && (
             <div className="absolute left-0 right-0 top-0 z-20">
@@ -708,7 +726,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
             <Virtuoso
               ref={virtuosoRef}
               data={virtuosoData}
-              style={{ height: listWithSections ? 368 : 400 }}
+              style={{ height: '100%' }}
               itemContent={listContentRenderer}
               rangeChanged={handleRangeChanged}
             />
