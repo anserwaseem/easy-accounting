@@ -39,6 +39,11 @@ import { z } from 'zod';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
+import {
+  isSplitTypedAccountResolutionSubmitBlocked,
+  readBlockSaveWhenSplitTypedAccountMissing,
+  splitTypedAccountMissingSubmitBlockedReason,
+} from '@/renderer/lib/invoiceBehaviorStore';
 import { toastContentFromInvoiceSaveError } from '@/renderer/lib/ipcUserMessage';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import {
@@ -958,11 +963,24 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         return 'Select a customer for each section';
       }
     }
+
+    if (
+      isSplitTypedAccountResolutionSubmitBlocked({
+        invoiceType,
+        useSingleAccount,
+        splitByItemType,
+        resolutionFallbackCount: resolutionFallbacks.length,
+      })
+    ) {
+      return splitTypedAccountMissingSubmitBlockedReason;
+    }
     return undefined;
   }, [
     form,
     invoiceType,
     useSingleAccount,
+    splitByItemType,
+    resolutionFallbacks.length,
     watchedMultipleAccountIds,
     watchedSingleAccountId,
     watchedTotalAmount,
@@ -1124,6 +1142,21 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // eslint-disable-next-line no-console
     console.log('onSubmit invoice:', values);
+
+    if (
+      isSplitTypedAccountResolutionSubmitBlocked({
+        invoiceType,
+        useSingleAccount,
+        splitByItemType,
+        resolutionFallbackCount: resolutionFallbacks.length,
+      })
+    ) {
+      toast({
+        variant: 'destructive',
+        description: splitTypedAccountMissingSubmitBlockedReason,
+      });
+      return;
+    }
 
     const dateError = await validateInvoiceDateAgainstParties(values);
     if (dateError) {
@@ -1448,6 +1481,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       </div>
     );
   }
+
+  const splitTypedAccountStrictBlock =
+    readBlockSaveWhenSplitTypedAccountMissing();
 
   return (
     <>
@@ -1905,18 +1941,58 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   useSingleAccount &&
                   splitByItemType &&
                   resolutionFallbacks.length > 0 && (
-                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
-                      Account(s) not found:{' '}
-                      {[
-                        ...new Set(
-                          resolutionFallbacks.map(
-                            (f) => f.expectedSuffixedName,
+                    <div
+                      className={cn(
+                        'rounded-md border px-3 py-2 text-sm',
+                        splitTypedAccountStrictBlock
+                          ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200'
+                          : 'border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100',
+                      )}
+                    >
+                      {!splitTypedAccountStrictBlock ? (
+                        <p className="mb-2 font-medium">
+                          Typed accounts missing - saving is allowed (strict
+                          blocking off in Settings).
+                        </p>
+                      ) : null}
+                      <p className="mb-2">
+                        Account(s) not found:&nbsp;
+                        {[
+                          ...new Set(
+                            resolutionFallbacks.map(
+                              (f) => f.expectedSuffixedName,
+                            ),
                           ),
-                        ),
-                      ].join(', ')}
-                      . These rows use the selected party. Create the account in
-                      another window and click <strong>Refresh accounts</strong>{' '}
-                      to link.
+                        ].map((name, i) => (
+                          <span key={name}>
+                            {i > 0 ? ', ' : null}
+                            <em>{name}</em>
+                          </span>
+                        ))}
+                        . Some rows use non existing typed accounts. Create the
+                        account in another window and click&nbsp;
+                        <strong>Refresh accounts</strong> to link.
+                      </p>
+                      {splitTypedAccountStrictBlock ? (
+                        <p>
+                          Saving the invoice or quotation is blocked until those
+                          accounts exist. To change this behavior, turn on&nbsp;
+                          <strong>
+                            Allow saving when typed customer accounts are
+                            missing
+                          </strong>
+                          &nbsp; under Settings → Invoices, then save and turn
+                          it off again if you want strict blocking.
+                        </p>
+                      ) : (
+                        <p>
+                          Strict blocking is off, so you can save but postings
+                          will use the header customer account as above until
+                          you create the typed accounts. Turn strict blocking
+                          back on under Settings → Invoices when you want saves
+                          prevented in this situation.
+                        </p>
+                      )}
                     </div>
                   )}
                 <DataTable

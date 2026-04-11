@@ -404,7 +404,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 </Button>
                 <Button
                   type="button"
-                  variant="default"
+                  variant="success"
                   size="sm"
                   className="h-9 md:h-10"
                   disabled={isConvertingQuotation}

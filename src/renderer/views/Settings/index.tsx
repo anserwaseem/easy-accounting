@@ -5,6 +5,8 @@ import { Input } from 'renderer/shad/ui/input';
 import { useCallback, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
+import { Checkbox } from '@/renderer/shad/ui/checkbox';
+import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
 import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
 
 const SettingsPage: React.FC = () => {
@@ -36,6 +38,16 @@ const SettingsPage: React.FC = () => {
     invoicePrintSettings.totalQuantityLabel,
   );
 
+  const [
+    allowSaveWhenSplitTypedAccountMissing,
+    setAllowSaveWhenSplitTypedAccountMissing,
+  ] = useState(
+    () =>
+      window.electron.store.get(
+        BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY,
+      ) === false,
+  );
+
   const handleSaveSettings = useCallback(() => {
     window.electron.store.set(
       'debitCreditDefaultLabel',
@@ -54,10 +66,17 @@ const SettingsPage: React.FC = () => {
         draftTotalQuantityLabel.trim() || defaults.totalQuantityLabel,
     });
 
+    window.electron.store.set(
+      BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY,
+      !allowSaveWhenSplitTypedAccountMissing,
+    );
+
     toast({
       description: 'Settings saved',
+      variant: 'success',
     });
   }, [
+    allowSaveWhenSplitTypedAccountMissing,
     debitCreditDefaultLabel,
     saveCompanyProfile,
     draftCompanyName,
@@ -169,6 +188,36 @@ const SettingsPage: React.FC = () => {
             placeholder="e.g., accounts@company.com"
             onChange={(e) => setDraftCompanyEmail(e.target.value)}
           />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 mt-8">
+        <h2 className="text-2xl font-medium">New Invoice</h2>
+        <Separator />
+      </div>
+      <div className="flex items-start gap-3 mt-4 max-w-xl">
+        <Checkbox
+          id="allowSaveWhenSplitTypedAccountMissing"
+          checked={allowSaveWhenSplitTypedAccountMissing}
+          onCheckedChange={(v) =>
+            setAllowSaveWhenSplitTypedAccountMissing(v === true)
+          }
+          className="mt-1"
+        />
+        <div className="flex flex-col gap-1">
+          <Label
+            htmlFor="allowSaveWhenSplitTypedAccountMissing"
+            className="font-normal cursor-pointer"
+          >
+            Allow saving when typed customer account is missing
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Off by default: on New Invoice (sale, single customer, split by item
+            type), Save is blocked while a line still needs a suffixed account
+            that does not exist. Turn this on only to save a draft without
+            creating those accounts first; turn it off again for strict
+            blocking.
+          </p>
         </div>
       </div>
 

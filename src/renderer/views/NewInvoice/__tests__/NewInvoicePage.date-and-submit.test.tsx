@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 
+import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
 import React from 'react';
 import {
   act,
@@ -9,12 +10,21 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { TooltipProvider } from '@/renderer/shad/ui/tooltip';
 import { InvoiceType } from 'types';
 
 // component under test (after mocks)
 import NewInvoicePage from '../index';
 
 const navigateMock = jest.fn();
+
+const NewInvoiceSaleTestHarness: React.FC = () => (
+  <MemoryRouter initialEntries={['/invoices/new']}>
+    <TooltipProvider>
+      <NewInvoicePage invoiceType={InvoiceType.Sale} />
+    </TooltipProvider>
+  </MemoryRouter>
+);
 
 jest.mock('react-router-dom', () => ({
   ...(jest.requireActual('react-router-dom') as object),
@@ -204,15 +214,20 @@ describe('NewInvoicePage date confirmation + submit', () => {
         },
       ]),
       getPrimaryItemType: jest.fn(async () => 1),
+      store: {
+        get: jest.fn((key: string) =>
+          key === BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY
+            ? false
+            : undefined,
+        ),
+        set: jest.fn(),
+        delete: jest.fn(),
+      },
     };
   });
 
   it('Save and Print: opens date modal first, then submits and navigates to print after modal confirm', async () => {
-    render(
-      <MemoryRouter initialEntries={['/invoices/new']}>
-        <NewInvoicePage invoiceType={InvoiceType.Sale} />
-      </MemoryRouter>,
-    );
+    render(<NewInvoiceSaleTestHarness />);
 
     const saveAndPrint = await screen.findByRole('button', {
       name: /save and print/i,
@@ -234,11 +249,7 @@ describe('NewInvoicePage date confirmation + submit', () => {
   });
 
   it('Save: opens date modal, then submits and navigates to invoice detail', async () => {
-    render(
-      <MemoryRouter initialEntries={['/invoices/new']}>
-        <NewInvoicePage invoiceType={InvoiceType.Sale} />
-      </MemoryRouter>,
-    );
+    render(<NewInvoiceSaleTestHarness />);
 
     const saveBtn = await screen.findByRole('button', { name: /^save$/i });
     await act(async () => {
@@ -266,11 +277,7 @@ describe('NewInvoicePage date confirmation + submit', () => {
       insertInvoice,
     };
 
-    render(
-      <MemoryRouter initialEntries={['/invoices/new']}>
-        <NewInvoicePage invoiceType={InvoiceType.Sale} />
-      </MemoryRouter>,
-    );
+    render(<NewInvoiceSaleTestHarness />);
 
     const saveBtn = await screen.findByRole('button', { name: /^save$/i });
     await act(async () => {
@@ -300,11 +307,7 @@ describe('NewInvoicePage date confirmation + submit', () => {
     // The component implementation: onSubmit checks isDateExplicitlySet first,
     // shows modal, and only proceeds via modal's onUseCurrentDate callback.
     // Without that callback firing, submit never runs.
-    render(
-      <MemoryRouter initialEntries={['/invoices/new']}>
-        <NewInvoicePage invoiceType={InvoiceType.Sale} />
-      </MemoryRouter>,
-    );
+    render(<NewInvoiceSaleTestHarness />);
 
     // Just verify modal opens and without confirming, insertInvoice is untouched
     const saveBtn = await screen.findByRole('button', { name: /^save$/i });
@@ -317,11 +320,7 @@ describe('NewInvoicePage date confirmation + submit', () => {
   });
 
   it('Clear button: resets form without errors', async () => {
-    render(
-      <MemoryRouter initialEntries={['/invoices/new']}>
-        <NewInvoicePage invoiceType={InvoiceType.Sale} />
-      </MemoryRouter>,
-    );
+    render(<NewInvoiceSaleTestHarness />);
 
     await screen.findByRole('heading', {
       name: /New Sale Invoice/i,
@@ -339,11 +338,7 @@ describe('NewInvoicePage date confirmation + submit', () => {
   it('totalAmount <= 0: Save button is disabled', async () => {
     submitValues.totalAmount = 0;
     submitValues.accountMapping.singleAccountId = 10;
-    render(
-      <MemoryRouter initialEntries={['/invoices/new']}>
-        <NewInvoicePage invoiceType={InvoiceType.Sale} />
-      </MemoryRouter>,
-    );
+    render(<NewInvoiceSaleTestHarness />);
 
     await screen.findByRole('heading', { name: /New Sale Invoice/i });
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
@@ -352,11 +347,7 @@ describe('NewInvoicePage date confirmation + submit', () => {
   it('singleAccountId <= 0: Save button is disabled', async () => {
     submitValues.totalAmount = 10;
     submitValues.accountMapping.singleAccountId = 0;
-    render(
-      <MemoryRouter initialEntries={['/invoices/new']}>
-        <NewInvoicePage invoiceType={InvoiceType.Sale} />
-      </MemoryRouter>,
-    );
+    render(<NewInvoiceSaleTestHarness />);
 
     await screen.findByRole('heading', { name: /New Sale Invoice/i });
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
