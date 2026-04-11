@@ -291,6 +291,7 @@ export type Invoice = Prettify<
 export type LedgerView = Prettify<
   Ledger & {
     linkedAccountName?: string;
+    linkedAccountCode?: number | string | null;
     journalSummary?: JournalNarrationSummary | null;
   }
 >;
@@ -422,6 +423,7 @@ export interface LedgerRangeResponse {
     balanceType: import('./types').BalanceType;
     linkedAccountId?: number;
     linkedAccountName: string | null;
+    linkedAccountCode?: number | string | null;
     journalSummary?: JournalNarrationSummary | null;
   }>;
   closingBalance: {

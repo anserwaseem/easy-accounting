@@ -23,6 +23,9 @@ export interface ReportExportPayload<T = Record<string, unknown>> {
 /** sort order for export when report has debit/credit columns */
 export type DebitCreditExportSortOrder = 'unsorted' | 'amount';
 
+/** ledger report excel: how to fill the particulars column */
+export type LedgerParticularsExportMode = 'name' | 'code' | 'both';
+
 /** sort rows by amount for export; no-op when unsorted.
  * when ordered by amount, all debit rows (debit > 0) come first, sorted by debit descending,
  * followed by all credit rows (credit > 0), sorted by credit descending.

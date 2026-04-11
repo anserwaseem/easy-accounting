@@ -7,6 +7,7 @@ import {
 import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
 import { printStyles } from '../components/printStyles';
+import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
 
 interface LedgerReportPrintOptions {
@@ -53,7 +54,7 @@ const buildLedgerTableBodyHtml = (
 ): string => {
   return rows
     .map((row) => {
-      const particulars = escape(row.linkedAccountName ?? row.particulars);
+      const particulars = escape(formatLedgerParticularsForExport(row, 'both'));
       const narration = narrationLinesForRow(row)
         .map((l) => escape(l))
         .join(' | ');

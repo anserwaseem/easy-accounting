@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
+import type { CellContext } from '@tanstack/react-table';
 import { toString } from 'lodash';
 import { currency, dateFormatOptions } from 'renderer/lib/constants';
 import {
@@ -8,9 +9,41 @@ import {
   getFormattedDebitCreditWithoutCurrency,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
+import { Badge } from 'renderer/shad/ui/badge';
 import type { LedgerView } from '@/types';
 import { renderJournalCell } from '@/renderer/components/journal/NarrationCell';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
+
+interface LedgerParticularsCellProps {
+  row: LedgerView;
+}
+
+const LedgerParticularsCell: React.FC<LedgerParticularsCellProps> = ({
+  row,
+}: LedgerParticularsCellProps) => {
+  const name = row.linkedAccountName ?? row.particulars;
+  const codeRaw = row.linkedAccountCode;
+  const code = codeRaw != null && codeRaw !== '' ? String(codeRaw) : null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+      <span className="min-w-0 break-words">{name}</span>
+      {code != null ? (
+        <Badge
+          variant="secondary"
+          className="shrink-0 font-mono text-[10px] px-1.5 py-0"
+        >
+          {code}
+        </Badge>
+      ) : null}
+    </div>
+  );
+};
+
+const renderLedgerParticularsCell = ({
+  row,
+}: CellContext<LedgerView, unknown>) => (
+  <LedgerParticularsCell row={row.original} />
+);
 
 interface LedgerTableBaseProps {
   ledger: LedgerView[];
@@ -51,8 +84,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         header: 'Particulars',
-        cell: ({ row }) =>
-          row.original.linkedAccountName ?? row.original.particulars,
+        cell: renderLedgerParticularsCell,
         size: 100,
       },
       {

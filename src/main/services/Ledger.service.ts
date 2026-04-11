@@ -130,7 +130,7 @@ export class LedgerService {
     // The results are ordered by date in ascending order to ensure past dates are on top.
     // If multiple entries have the same date, they are further ordered by id in descending order to show the latest entries first.
     this.stmGetLedger = this.db.prepare(`
-      SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, l.createdAt, l.updatedAt
+      SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode, l.createdAt, l.updatedAt
       FROM ledger l
       LEFT JOIN account a ON l.linkedAccountId = a.id
       WHERE l.accountId = @accountId
@@ -180,7 +180,7 @@ export class LedgerService {
     );
 
     this.stmGetLedgerRange = this.db.prepare(
-      `SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, l.createdAt, l.updatedAt
+      `SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode, l.createdAt, l.updatedAt
        FROM ledger l
        LEFT JOIN account a ON l.linkedAccountId = a.id
        WHERE l.accountId = @accountId

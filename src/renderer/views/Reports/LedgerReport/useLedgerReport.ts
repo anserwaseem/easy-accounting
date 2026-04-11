@@ -219,6 +219,7 @@ export const useLedgerReport = () => {
         balanceType: entry.balanceType,
         linkedAccountId: entry.linkedAccountId,
         linkedAccountName: entry.linkedAccountName ?? undefined,
+        linkedAccountCode: entry.linkedAccountCode ?? undefined,
         journalSummary: entry.journalSummary,
       });
     }

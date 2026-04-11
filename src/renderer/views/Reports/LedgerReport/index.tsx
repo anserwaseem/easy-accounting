@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Download, Printer, RefreshCw } from 'lucide-react';
@@ -8,6 +8,7 @@ import { ReportLayout } from 'renderer/components/ReportLayout';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import {
   exportReportToExcel,
+  type LedgerParticularsExportMode,
   type ReportExportPayload,
 } from 'renderer/lib/reportExport';
 import { toast } from 'renderer/shad/ui/use-toast';
@@ -17,7 +18,8 @@ import {
 } from '@/renderer/shad/ui/datePicker';
 import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
-import { printStyles } from '../components';
+import { LedgerParticularsExportDialog, printStyles } from '../components';
+import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
 import { LedgerReportTable } from './LedgerReportTable';
 import { useLedgerReport } from './useLedgerReport';
@@ -94,10 +96,13 @@ const buildNarrationForExport = (row: LedgerView): string => {
   return parts.filter(Boolean).join(' | ');
 };
 
-const buildLedgerReportExportRows = (rows: LedgerView[]): LedgerReportRow[] =>
+const buildLedgerReportExportRows = (
+  rows: LedgerView[],
+  particularsMode: LedgerParticularsExportMode,
+): LedgerReportRow[] =>
   rows.map((row) => ({
     date: row.date,
-    particulars: row.linkedAccountName ?? row.particulars,
+    particulars: formatLedgerParticularsForExport(row, particularsMode),
     narration: buildNarrationForExport(row),
     debit: row.debit,
     credit: row.credit,
@@ -122,45 +127,53 @@ const LedgerReportPage = () => {
     totals,
   } = useLedgerReport();
 
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
   const latestBalance = rangeResponse?.closingBalance
     ? `${getFormattedCurrency(rangeResponse.closingBalance.balance).trim()} ${
         rangeResponse.closingBalance.balanceType
       }`
     : '';
 
-  const handleExportExcel = useCallback(() => {
-    if (!ledgerEntries.length) return;
-    try {
-      const exportRows = buildLedgerReportExportRows(ledgerEntries);
-      const payload = buildLedgerReportPayload(
-        exportRows,
-        selectedAccountName,
-        dateRange ?? undefined,
-      );
-      payload.footerRow = {
-        date: '',
-        particulars: '',
-        narration: '',
-        debit: totals.totalDebit,
-        credit: totals.totalCredit,
-        balance: totals.totalDifference,
-        balanceType: totals.totalType,
-      };
-      exportReportToExcel(payload);
-      toast({
-        title: 'Success',
-        description: 'Ledger report exported to Excel.',
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Export error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to export ledger report to Excel.',
-        variant: 'destructive',
-      });
-    }
-  }, [ledgerEntries, selectedAccountName, dateRange, totals]);
+  const runLedgerExcelExport = useCallback(
+    (particularsMode: LedgerParticularsExportMode) => {
+      if (!ledgerEntries.length) return;
+      try {
+        const exportRows = buildLedgerReportExportRows(
+          ledgerEntries,
+          particularsMode,
+        );
+        const payload = buildLedgerReportPayload(
+          exportRows,
+          selectedAccountName,
+          dateRange ?? undefined,
+        );
+        payload.footerRow = {
+          date: '',
+          particulars: '',
+          narration: '',
+          debit: totals.totalDebit,
+          credit: totals.totalCredit,
+          balance: totals.totalDifference,
+          balanceType: totals.totalType,
+        };
+        exportReportToExcel(payload);
+        toast({
+          title: 'Success',
+          description: 'Ledger report exported to Excel.',
+          variant: 'success',
+        });
+      } catch (error) {
+        console.error('Export error:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to export ledger report to Excel.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [ledgerEntries, selectedAccountName, dateRange, totals],
+  );
 
   const canExport =
     !isLoading && selectedAccount != null && ledgerEntries.length > 0;
@@ -214,7 +227,7 @@ const LedgerReportPage = () => {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={handleExportExcel}
+                onClick={() => setExportDialogOpen(true)}
                 title="Export to Excel"
                 disabled={!canExport}
               >
@@ -240,6 +253,12 @@ const LedgerReportPage = () => {
         </div>
       }
     >
+      <LedgerParticularsExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        onConfirm={runLedgerExcelExport}
+        title="Export ledger to Excel"
+      />
       {selectedAccount && !isLoading && (
         <LedgerReportTable
           ledger={ledgerEntries}
