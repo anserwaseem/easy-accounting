@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CSSProperties, ReactNode, RefObject } from 'react';
+import type { CSSProperties, ReactNode, Ref, RefObject } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
@@ -51,6 +51,8 @@ type VirtualSelectProps<T extends BaseOption> = {
   }) => ReactNode;
   /** when empty, focus trigger input on mount (e.g. new invoice party field) */
   autoFocusTrigger?: boolean;
+  /** forwarded to empty-state input or selected-state button (react-hook-form setFocus) */
+  triggerRef?: Ref<HTMLInputElement | HTMLButtonElement | null>;
 };
 
 /** next/prev keyboard row; skips section headers so arrows move item-to-item */
@@ -110,6 +112,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   renderSelectItem,
   renderTriggerValue,
   autoFocusTrigger = false,
+  triggerRef,
 }: VirtualSelectProps<T>) => {
   const [searchInputValue, setSearchInputValue] = useState('');
   const [filteredSearchValue, setFilteredSearchValue] = useState('');
@@ -130,6 +133,18 @@ const VirtualSelect = <T extends BaseOption = Account>({
   const firstSelectableRowIndexRef = useRef(0);
   /** radix may fire onCloseAutoFocus more than once; time window blocks all trigger refocus after a value pick */
   const suppressCloseFocusUntilRef = useRef(0);
+
+  const assignTriggerRef = useCallback(
+    (el: HTMLInputElement | HTMLButtonElement | null) => {
+      if (!triggerRef) return;
+      if (typeof triggerRef === 'function') {
+        triggerRef(el);
+      } else {
+        triggerRef.current = el;
+      }
+    },
+    [triggerRef],
+  );
 
   const commitSelectionAndClose = useCallback(
     (nextValue: string | number) => {
@@ -632,6 +647,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
         >
           {!selectedOption ? (
             <Input
+              ref={assignTriggerRef}
               value={searchInputValue}
               onChange={handleSearchInputChange}
               onKeyDown={handleKeyDown}
@@ -644,6 +660,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
             />
           ) : (
             <button
+              ref={assignTriggerRef}
               type="button"
               disabled={disabled}
               onClick={() => setIsOpen(true)}

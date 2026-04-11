@@ -2,7 +2,7 @@
 import { get, isNil, pick, toNumber, toString } from 'lodash';
 import { Plus, Printer, RefreshCw, Upload } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { UseFormReturn } from 'react-hook-form';
+import type { Path, UseFormReturn } from 'react-hook-form';
 import { useFormState, useWatch } from 'react-hook-form';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -29,7 +29,12 @@ import {
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
 import { toast } from 'renderer/shad/ui/use-toast';
-import { type Account, type InventoryItem, InvoiceType } from 'types';
+import {
+  type Account,
+  type InventoryItem,
+  type Invoice,
+  InvoiceType,
+} from 'types';
 import { z } from 'zod';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
@@ -63,6 +68,7 @@ import { InvoiceDateFormField } from './components/InvoiceDateFormField';
 import { handleInvoiceFormEnterKeyDown } from './lib/invoiceFormEnter';
 import {
   scheduleDateFieldFocusAfterPartySelect,
+  scheduleItemFieldFocusAfterNewRow,
   scheduleQuantityFocusAfterItemSelect,
 } from './lib/invoiceFormFocus';
 import { useNewInvoiceColumns } from './hooks/useNewInvoiceColumns';
@@ -807,6 +813,57 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [form, invoiceType, recalculateAutoDiscounts],
   );
 
+  const handleAddNewRow = useCallback(() => {
+    const entry = getInitialEntry();
+    append({ ...entry });
+    if (
+      invoiceType === InvoiceType.Sale &&
+      !useSingleAccount &&
+      activeSectionId
+    ) {
+      setRowSectionMap((prev) => ({
+        ...prev,
+        [entry.id]: activeSectionId,
+      }));
+    }
+  }, [
+    activeSectionId,
+    append,
+    getInitialEntry,
+    invoiceType,
+    setRowSectionMap,
+    useSingleAccount,
+  ]);
+
+  const onQuantityEnterAddRow = useCallback(
+    (rowIndex: number) => {
+      const qPath = `invoiceItems.${rowIndex}.quantity` as Path<Invoice>;
+      const qty = toNumber(form.getValues(qPath));
+      form.setValue(qPath, qty, { shouldValidate: true, shouldDirty: true });
+      form.setValue(
+        `invoiceItems.${rowIndex}.discountedPrice` as Path<Invoice>,
+        computeInvoiceItemTotal(
+          qty,
+          toNumber(
+            form.getValues(
+              `invoiceItems.${rowIndex}.discount` as Path<Invoice>,
+            ),
+          ),
+          toNumber(
+            form.getValues(`invoiceItems.${rowIndex}.price` as Path<Invoice>),
+          ),
+        ),
+        { shouldValidate: false, shouldDirty: true },
+      );
+      const newRowIndex = fields.length;
+      handleAddNewRow();
+      scheduleItemFieldFocusAfterNewRow(form, newRowIndex);
+    },
+    [fields.length, form, handleAddNewRow],
+  );
+
+  useCmdOrCtrlNShortcut(handleAddNewRow);
+
   const columnsParams = useMemo(
     () => ({
       form: { control: form.control, getValues: form.getValues },
@@ -824,6 +881,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       setRowSectionMap,
       onItemSelectionChange,
       onQuantityChange,
+      onQuantityEnterAddRow,
       handleRemoveRow,
       getDiscountValue,
       onDiscountChange,
@@ -850,6 +908,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       setRowSectionMap,
       onItemSelectionChange,
       onQuantityChange,
+      onQuantityEnterAddRow,
       handleRemoveRow,
       getDiscountValue,
       onDiscountChange,
@@ -861,30 +920,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     ],
   );
   const columns = useNewInvoiceColumns(columnsParams);
-
-  const handleAddNewRow = useCallback(() => {
-    const entry = getInitialEntry();
-    append({ ...entry });
-    if (
-      invoiceType === InvoiceType.Sale &&
-      !useSingleAccount &&
-      activeSectionId
-    ) {
-      setRowSectionMap((prev) => ({
-        ...prev,
-        [entry.id]: activeSectionId,
-      }));
-    }
-  }, [
-    activeSectionId,
-    append,
-    getInitialEntry,
-    invoiceType,
-    setRowSectionMap,
-    useSingleAccount,
-  ]);
-
-  useCmdOrCtrlNShortcut(handleAddNewRow);
 
   const submitDisabledReason = useMemo((): string | undefined => {
     if (form.formState.isSubmitting) {
@@ -1905,7 +1940,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       type="button"
                       variant="default"
                       className="gap-2 px-6 py-3 min-h-[44px] rounded-lg"
-                      aria-label={`Add new item, shortcut ${getOsModifierLabel()}+N`}
+                      aria-label={`Add new item, shortcut ${getOsModifierLabel()}+N or Enter in quantity`}
                       onClick={() => handleAddNewRow()}
                     >
                       <Plus size={20} />
@@ -1916,7 +1951,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     <p className="text-sm">
                       Add new item{' '}
                       <span className="text-muted-foreground">
-                        ({getOsModifierLabel()}+N)
+                        ({getOsModifierLabel()}+N or Enter in quantity)
                       </span>
                     </p>
                   </TooltipContent>

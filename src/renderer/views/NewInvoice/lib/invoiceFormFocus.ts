@@ -3,6 +3,8 @@ import type { FieldValues, UseFormReturn } from 'react-hook-form';
 /** second pass: radix + item cell re-render can steal focus after one rAF */
 const QUANTITY_FOCUS_RETRY_MS = 150;
 
+const ITEM_FIELD_FOCUS_RETRY_MS = 150;
+
 type SetFocusPath<T extends FieldValues> = Parameters<
   UseFormReturn<T>['setFocus']
 >[0];
@@ -18,6 +20,19 @@ export function scheduleQuantityFocusAfterItemSelect<T extends FieldValues>(
   };
   requestAnimationFrame(run);
   window.setTimeout(run, QUANTITY_FOCUS_RETRY_MS);
+}
+
+/** focus item VirtualSelect on a new row after append (field ref on trigger; timing matches quantity focus) */
+export function scheduleItemFieldFocusAfterNewRow<T extends FieldValues>(
+  form: UseFormReturn<T>,
+  rowIndex: number,
+): void {
+  const path = `invoiceItems.${rowIndex}.inventoryId` as SetFocusPath<T>;
+  const run = () => {
+    form.setFocus(path, { shouldSelect: true });
+  };
+  requestAnimationFrame(run);
+  window.setTimeout(run, ITEM_FIELD_FOCUS_RETRY_MS);
 }
 
 /** focus date after party/section customer pick; no shouldSelect — trigger is a button */

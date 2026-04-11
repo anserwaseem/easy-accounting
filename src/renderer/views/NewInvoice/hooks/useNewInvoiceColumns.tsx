@@ -57,6 +57,8 @@ interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
     value: string,
     onChange: (value: unknown) => void,
   ) => void;
+  /** Enter in quantity appends a line and focuses the new row item field */
+  onQuantityEnterAddRow: (rowIndex: number) => void;
   handleRemoveRow: (rowIndex: number) => void;
   getDiscountValue: (fieldValue: number) => number;
   onDiscountChange: (
@@ -94,6 +96,7 @@ interface InvoiceLineQuantityCellProps<T extends FieldValues> {
     value: string,
     onChange: (value: unknown) => void,
   ) => void;
+  onQuantityEnterAddRow: (rowIndex: number) => void;
 }
 
 const InvoiceLineQuantityCell = <T extends FieldValues>({
@@ -103,6 +106,7 @@ const InvoiceLineQuantityCell = <T extends FieldValues>({
   invoiceType,
   saleStockValidationBonusRef,
   onQuantityChange,
+  onQuantityEnterAddRow,
 }: InvoiceLineQuantityCellProps<T>) => {
   const inventoryIdWatched = useWatch({
     control: form.control,
@@ -141,6 +145,21 @@ const InvoiceLineQuantityCell = <T extends FieldValues>({
                 onChange={(e) =>
                   onQuantityChange(rowIndex, e.target.value, field.onChange)
                 }
+                onKeyDown={(e) => {
+                  if (
+                    e.key === 'Enter' &&
+                    !e.shiftKey &&
+                    !e.nativeEvent.isComposing &&
+                    !e.ctrlKey &&
+                    !e.altKey &&
+                    !e.metaKey
+                  ) {
+                    e.preventDefault();
+                    onQuantityEnterAddRow(rowIndex);
+                    return;
+                  }
+                  field.onKeyDown?.(e);
+                }}
               />
             </FormControl>
 
@@ -186,6 +205,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     setRowSectionMap,
     onItemSelectionChange,
     onQuantityChange,
+    onQuantityEnterAddRow,
     handleRemoveRow,
     getDiscountValue,
     onDiscountChange,
@@ -227,6 +247,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                       field.onChange,
                     )
                   }
+                  triggerRef={field.ref}
                   placeholder="Select item"
                   searchPlaceholder="Search items..."
                   triggerClassName={compactLineSelectTrigger}
@@ -282,6 +303,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
             invoiceType={invoiceType}
             saleStockValidationBonusRef={saleStockValidationBonusRef}
             onQuantityChange={onQuantityChange}
+            onQuantityEnterAddRow={onQuantityEnterAddRow}
           />
         ),
       },
@@ -506,6 +528,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     setRowSectionMap,
     onItemSelectionChange,
     onQuantityChange,
+    onQuantityEnterAddRow,
     handleRemoveRow,
     getDiscountValue,
     onDiscountChange,
