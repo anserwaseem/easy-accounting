@@ -89,11 +89,11 @@ const HEALTH_ISSUE_LABELS: Record<
 // longer help for anomaly chips only (small info icon + tooltip)
 const HEALTH_ISSUE_TOOLTIPS: Record<string, string> = {
   'dead-stock':
-    'You still have quantity on hand, but this SKU had no sale, purchase, or stock adjustment in the selected date range, or its last movement was at least 90 days ago. Usually worth reviewing as slow-moving or stale stock.',
+    'On-hand quantity but no sale, purchase, or adjustment has ever been recorded for this Item, or the last such movement was at least 90 days ago (measured from today). Worth reviewing as slow-moving or stale stock.',
   'low-coverage':
-    'Days of cover (on-hand quantity divided by average daily sales in the selected range) is below 14. Plan replenishment so you do not run out if sales continue at this pace.',
+    'Days of cover from on-hand quantity and average daily sales in the selected range is at least 7 but below 14. Does not apply when coverage is critical (<7). Plan replenishment if sales continue at this pace.',
   'critical-coverage':
-    'Days of cover is below 7 at the sales rate in the selected range. High risk of stocking out soon unless you restock or demand drops.',
+    'Days of cover is below 7 at the sales rate in the selected range. High risk of stocking out soon unless you restock or demand drops. Rows with critical coverage are not also counted as low coverage.',
 };
 
 const rowHasIssueFlag = (flags: string, flag: string): boolean =>
@@ -551,7 +551,7 @@ const InventoryHealthPage: React.FC = () => {
         header: 'Days Movement',
         size: 90,
         headerTooltip:
-          'Days since last stock movement (sale, purchase, or adjustment). ≥90 days is considered dead stock.',
+          'Days since last stock movement ever (sale, purchase, or adjustment), measured from today — not limited to the selected date range. ≥90 days contributes to dead stock.',
         cell: ({ row }) =>
           row.original.daysSinceMovement != null
             ? String(row.original.daysSinceMovement)
@@ -562,7 +562,7 @@ const InventoryHealthPage: React.FC = () => {
         header: 'Days Cover',
         size: 80,
         headerTooltip:
-          'Estimated days current stock will last at the average sales rate. <14 = low coverage, <7 = critical.',
+          'Estimated days current stock will last at average daily sales in the selected range. Below 7 = critical only; 7 up to (but not including) 14 = low coverage.',
         cell: ({ row }) =>
           row.original.daysOfCover != null
             ? String(row.original.daysOfCover)

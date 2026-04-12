@@ -62,6 +62,15 @@ export class InventoryService {
 
   private stmGetAdjustmentAggregate!: Statement;
 
+  /** last sale invoice date per Item (all time; same filters as health aggregates) */
+  private stmGetSaleLastDateEver!: Statement;
+
+  /** last purchase invoice date per Item (all time) */
+  private stmGetPurchaseLastDateEver!: Statement;
+
+  /** last stock adjustment date per Item (all time) */
+  private stmGetAdjustmentLastDateEver!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -360,6 +369,29 @@ export class InventoryService {
       };
     }
 
+    // last movement date per Item across all history (for days since movement + dead stock)
+    const lastSaleEverDate: Record<number, string> = {};
+    for (const row of this.stmGetSaleLastDateEver.all() as Array<{
+      inventoryId: number;
+      lastDate: string;
+    }>) {
+      lastSaleEverDate[row.inventoryId] = row.lastDate;
+    }
+    const lastPurchaseEverDate: Record<number, string> = {};
+    for (const row of this.stmGetPurchaseLastDateEver.all() as Array<{
+      inventoryId: number;
+      lastDate: string;
+    }>) {
+      lastPurchaseEverDate[row.inventoryId] = row.lastDate;
+    }
+    const lastAdjEverDate: Record<number, string> = {};
+    for (const row of this.stmGetAdjustmentLastDateEver.all() as Array<{
+      inventoryId: number;
+      lastDate: string;
+    }>) {
+      lastAdjEverDate[row.inventoryId] = row.lastDate;
+    }
+
     // build rows + compute flags
     const rows: Array<Record<string, unknown>> = [];
     let deadStockCount = 0;
@@ -386,14 +418,14 @@ export class InventoryService {
       const adjQty = adjustmentInDate[item.id]?.qty ?? 0;
       const lastAdjDate = adjustmentInDate[item.id]?.lastDate ?? null;
 
-      // last movement date: max of sale, purchase, adjustment dates
-      const movementDates = [
-        lastSaleDate,
-        lastPurchaseDate,
-        lastAdjDate,
+      // last movement ever (not limited to report range): max of sale / purchase / adjustment
+      const movementDatesEver = [
+        lastSaleEverDate[item.id],
+        lastPurchaseEverDate[item.id],
+        lastAdjEverDate[item.id],
       ].filter(Boolean) as string[];
       const lastMovementDate =
-        movementDates.length > 0 ? movementDates.sort().at(-1)! : null;
+        movementDatesEver.length > 0 ? movementDatesEver.sort().at(-1)! : null;
 
       const daysSinceMovement = lastMovementDate
         ? Math.floor(
@@ -420,8 +452,7 @@ export class InventoryService {
       }
       if (daysOfCover != null && daysOfCover < 7) {
         flags.push('critical-coverage');
-      }
-      if (daysOfCover != null && daysOfCover < 14) {
+      } else if (daysOfCover != null && daysOfCover < 14) {
         flags.push('low-coverage');
         lowCoverageCount++;
       }
@@ -487,8 +518,14 @@ export class InventoryService {
         ['zero-stock', 'Out of stock'],
         ['negative-stock', 'Negative stock'],
         ['critical-coverage', 'Critical coverage (< 7 days)'],
-        ['low-coverage', 'Low coverage (< 14 days)'],
-        ['dead-stock', 'Dead stock (no movement ≥ 90 days)'],
+        [
+          'low-coverage',
+          'Low coverage (7–14 days at period sales rate; excludes critical)',
+        ],
+        [
+          'dead-stock',
+          'Dead stock (on hand, no movement ever or last movement ≥ 90 days ago)',
+        ],
         ['no-type', 'No item type assigned'],
         ['zero-price', 'Zero price'],
       ] as const
@@ -686,6 +723,32 @@ export class InventoryService {
       SELECT inventoryId, SUM(quantityDelta) AS totalDelta, MAX(date) AS lastDate
       FROM stock_adjustments
       WHERE date >= ? AND date <= ?
+      GROUP BY inventoryId
+    `);
+
+    this.stmGetSaleLastDateEver = this.db.prepare(`
+      SELECT ii.inventoryId, MAX(i.date) AS lastDate
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Sale'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+      GROUP BY ii.inventoryId
+    `);
+
+    this.stmGetPurchaseLastDateEver = this.db.prepare(`
+      SELECT ii.inventoryId, MAX(i.date) AS lastDate
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Purchase'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+      GROUP BY ii.inventoryId
+    `);
+
+    this.stmGetAdjustmentLastDateEver = this.db.prepare(`
+      SELECT inventoryId, MAX(date) AS lastDate
+      FROM stock_adjustments
       GROUP BY inventoryId
     `);
   }

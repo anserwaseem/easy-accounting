@@ -223,4 +223,41 @@ describe('InventoryService.getInventoryHealth', () => {
     expect(row.lastPurchaseInvoiceNumber).toBe(88);
     db.close();
   });
+
+  it('uses last movement ever for daysSinceMovement when report range has no activity', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const invId = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 50)',
+      )
+      .run('SlowMover', t1).lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (name) VALUES (?)')
+      .run('Cust').lastInsertRowid as number;
+    const saleInvId = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES ('Sale', 0, 0, '2024-06-01T12:00:00.000Z', ?, 100)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 1, 10)',
+    ).run(saleInvId, invId);
+
+    const service = createTestDb(db);
+    const response = service.getInventoryHealth({
+      startDate: '2025-01-01',
+      endDate: '2025-01-31',
+    });
+    const row = response.rows[0] as Record<string, unknown>;
+    expect(row.lastSaleDate).toBeNull();
+    expect(row.lastMovementDate).toBe('2024-06-01T12:00:00.000Z');
+    expect(typeof row.daysSinceMovement).toBe('number');
+    expect((row.daysSinceMovement as number) > 90).toBe(true);
+    db.close();
+  });
 });
