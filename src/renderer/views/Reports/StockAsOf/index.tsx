@@ -194,8 +194,7 @@ const StockAsOfReportPage: React.FC = () => {
       {
         accessorKey: 'listPosition',
         header: 'List #',
-        size: 64,
-        headerTooltip: 'Catalog list order (nulls sort last).',
+        size: 24,
         sortingFn: createListPositionSortingFn<StockAsOfTableRow>(
           (r) => r.itemId,
         ),

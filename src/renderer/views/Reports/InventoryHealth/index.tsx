@@ -484,8 +484,7 @@ const InventoryHealthPage: React.FC = () => {
       {
         accessorKey: 'listPosition',
         header: 'List #',
-        size: 84,
-        headerTooltip: 'Catalog list order (nulls sort last).',
+        size: 68,
         sortingFn: createListPositionSortingFn<InventoryHealthRow>(
           (r) => r.itemId,
         ),
