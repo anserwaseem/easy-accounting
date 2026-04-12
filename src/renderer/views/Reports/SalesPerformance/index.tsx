@@ -39,7 +39,6 @@ import {
   loadSavedFilters,
   saveSavedFilters,
   makeSavedState,
-  LAST_30_DAYS_PRESETS,
   LAST_30_DAYS_PRESET,
 } from '@/renderer/lib/reportFilters';
 import {
@@ -794,10 +793,7 @@ const SalesPerformanceReportPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <DateRangePickerWithPresets
                 $onSelect={handleDateChange}
-                presets={[
-                  { label: 'All', value: 'all' },
-                  ...LAST_30_DAYS_PRESETS,
-                ]}
+                presets={[{ label: 'All', value: 'all' }]}
                 initialRange={defaultDateRange}
                 initialSelectValue={presetValue}
               />

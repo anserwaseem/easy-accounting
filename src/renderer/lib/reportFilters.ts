@@ -104,12 +104,5 @@ export function makeSavedState(
   return state;
 }
 
-/** default presets for reports that default to "Last 30 Days" */
-export const LAST_30_DAYS_PRESETS: { label: string; value: string }[] = [
-  { label: 'This Month', value: 'current-month' },
-  { label: 'Last Month', value: 'last-month' },
-  { label: 'This Year', value: 'current-year' },
-];
-
 /** default preset value for "Last 30 Days" */
 export const LAST_30_DAYS_PRESET = '-30';

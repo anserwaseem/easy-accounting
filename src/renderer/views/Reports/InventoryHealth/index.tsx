@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import { sumBy } from 'lodash';
 import { format, subDays } from 'date-fns';
 import {
   Download,
@@ -21,7 +22,6 @@ import {
   loadSavedFilters,
   saveSavedFilters,
   makeSavedState,
-  LAST_30_DAYS_PRESETS,
   LAST_30_DAYS_PRESET,
 } from '@/renderer/lib/reportFilters';
 import {
@@ -315,6 +315,32 @@ const InventoryHealthPage: React.FC = () => {
     [tableData],
   );
 
+  // sums match visible grid rows (search + sort + hide + chip), same basis as export
+  const inventoryHealthStickyFooterRow = useMemo(() => {
+    const rows = exportPrintRows;
+    const totalOnHand = sumBy(rows, (r) => r.onHandQty ?? 0);
+    const totalSold = sumBy(rows, (r) => r.soldQtyInDate ?? 0);
+    const totalPurchased = sumBy(rows, (r) => r.purchasedQtyInDate ?? 0);
+    const qtyCell = (n: number) => (
+      <span className="block font-semibold tabular-nums whitespace-nowrap">
+        {String(n)}
+      </span>
+    );
+    const cells: React.ReactNode[] = [
+      null,
+      null,
+      null,
+      qtyCell(totalOnHand),
+      qtyCell(totalSold),
+      qtyCell(totalPurchased),
+    ];
+    if (showAdjustedColumn) {
+      cells.push(null);
+    }
+    cells.push(null, null, null, null, null);
+    return cells;
+  }, [exportPrintRows, showAdjustedColumn]);
+
   const handlePrint = useCallback(() => {
     if (!exportPrintRows.length || !dateRange?.from || !dateRange?.to) return;
     printInventoryHealthReportIframe({
@@ -593,7 +619,7 @@ const InventoryHealthPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <DateRangePickerWithPresets
                 $onSelect={handleDateChange}
-                presets={LAST_30_DAYS_PRESETS}
+                presets={[{ label: 'All', value: 'all' }]}
                 initialRange={defaultDateRange}
                 initialSelectValue={presetValue}
               />
@@ -827,6 +853,7 @@ const InventoryHealthPage: React.FC = () => {
               searchFields={['item', 'itemType', 'price', 'flags']}
               searchPlaceholder="Search items, types, price, issues..."
               searchPersistenceKey="inventory-health-search"
+              stickyFooterRow={inventoryHealthStickyFooterRow}
               onViewModelChange={handleGridViewModelChange}
             />
           )}
