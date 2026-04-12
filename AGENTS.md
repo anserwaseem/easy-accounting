@@ -96,7 +96,8 @@ sqlite3 release/app/database.db "SELECT * FROM migrations"
 - **SQLite date columns stored as TEXT**, compared with `datetime()` in SQL
 - **Boolean SQLite values** use 0/1 with `SqliteBoolean` type wrapper (`src/main/utils/sqlite.ts`)
 - **Exports** use `xlsx` library, report exports go through `src/renderer/lib/reportExport.ts`
-- **Print** uses `PrintService.printPDF()` which calls `webContents.printToPDF()` — reports print from current window, no dedicated print routes
+- **Print** uses `PrintService.printPDF()` which calls `webContents.printToPDF()` for some flows; many reports instead open a **hidden iframe** with HTML + `contentWindow.print()` (save as PDF in the dialog) so virtualized tables and `print:hidden` chrome do not strip rows.
+- **DataTable export/print parity:** `DataTable` exposes `onViewModelChange(rows)` — current rows **after search + column sort** (`useLayoutEffect` in `src/renderer/shad/ui/dataTable.tsx`). Reports that search/sort in `DataTable` must feed Excel + iframe print from `gridViewRows ?? sourceRows` (see `handleGridViewModelChange` + `exportPrintRows` in `src/renderer/views/Reports/InventoryHealth/index.tsx`). Do not export raw API rows if the grid filters. Ledger is different: it renders `LedgerTableBase` with the full fetched entry list for that account, not a searched subset.
 - **Database** lives at `release/app/database.db` — never modify it from code
 - **Reports** use `ReportLayout` component with fixed header + scrollable body, `print:hidden` on toolbar
 - **Tests** use Jest with real SQLite database (in-memory or temp file), mocking `electron-log` and `electron-store`

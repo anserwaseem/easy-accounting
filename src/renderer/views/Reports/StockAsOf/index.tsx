@@ -37,6 +37,8 @@ import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { REPORT_FILTER_KEYS } from 'types';
 import type { StockAsOfReportResponse, StockAsOfRow } from 'types';
 import { printStyles } from '../components/printStyles';
+import { printStockAsOfReportIframe } from './printStockAsOfReport';
+import { stockAsOfPrintStyles } from './stockAsOfPrintStyles';
 
 type StockAsOfTableRow = StockAsOfRow & {
   quantityDiff: number;
@@ -64,6 +66,10 @@ const StockAsOfReportPage: React.FC = () => {
     null,
   );
   const [isLoading, setIsLoading] = useState(false);
+  /** rows after grid search + sort; null until DataTable syncs (export/print parity) */
+  const [gridViewRows, setGridViewRows] = useState<StockAsOfTableRow[] | null>(
+    null,
+  );
 
   const fetchItemTypes = useCallback(async () => {
     try {
@@ -146,6 +152,43 @@ const StockAsOfReportPage: React.FC = () => {
     }));
   }, [response?.rows]);
 
+  useEffect(() => {
+    setGridViewRows(null);
+  }, [response]);
+
+  useEffect(() => {
+    if (tableRows.length === 0) {
+      setGridViewRows([]);
+    }
+  }, [tableRows.length]);
+
+  const handleTableViewModelChange = useCallback(
+    (next: StockAsOfTableRow[]) => {
+      setGridViewRows((prev) => {
+        if (
+          prev &&
+          prev.length === next.length &&
+          next.every((r, i) => r.itemId === prev[i]?.itemId)
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const exportPrintRows = useMemo(
+    () => gridViewRows ?? tableRows,
+    [gridViewRows, tableRows],
+  );
+
+  const reportSubtitle = useMemo(() => {
+    const asOf = format(selectedDate, 'PPP');
+    if (filterItemType === 'all') return asOf;
+    return `${asOf} — Type: ${filterItemType}`;
+  }, [filterItemType, selectedDate]);
+
   const columns = useMemo<ColumnDef<StockAsOfTableRow, unknown>[]>(
     () => [
       {
@@ -193,29 +236,24 @@ const StockAsOfReportPage: React.FC = () => {
   );
 
   const handleExport = useCallback(() => {
-    if (!response?.rows.length) return;
+    if (!exportPrintRows.length) return;
     try {
-      const exportRows = response.rows.map((r) => ({
+      const exportRows = exportPrintRows.map((r) => ({
         item: r.item,
         itemType: r.itemType ?? '',
-        quantityAsOf: r.quantityAsOf,
+        unitPrice: r.unitPrice ?? 0,
         currentQuantity: r.currentQuantity,
-        quantityDiff: r.currentQuantity - r.quantityAsOf,
-        unitPrice: r.unitPrice,
+        quantityAsOf: r.quantityAsOf,
+        quantityDiff: r.quantityDiff,
       }));
       const payload: ReportExportPayload<Record<string, unknown>> = {
         title: 'Stock as of date',
-        subtitle: `As of ${format(selectedDate, 'PPP')}`,
+        subtitle: `As of ${reportSubtitle}`,
         sheetName: 'Stock as of',
         columns: [
           { key: 'item', header: 'Item', format: 'string', width: 28 },
           { key: 'itemType', header: 'Type', format: 'string', width: 14 },
-          {
-            key: 'quantityAsOf',
-            header: 'Qty (as of)',
-            format: 'number',
-            width: 12,
-          },
+          { key: 'unitPrice', header: 'Price', format: 'number', width: 10 },
           {
             key: 'currentQuantity',
             header: 'Current',
@@ -223,12 +261,17 @@ const StockAsOfReportPage: React.FC = () => {
             width: 10,
           },
           {
+            key: 'quantityAsOf',
+            header: 'Qty (as of)',
+            format: 'number',
+            width: 12,
+          },
+          {
             key: 'quantityDiff',
             header: 'Delta vs as of',
             format: 'number',
             width: 12,
           },
-          { key: 'unitPrice', header: 'Price', format: 'number', width: 10 },
         ],
         rows: exportRows,
         suggestedFileName: `Stock_As_Of_${format(
@@ -239,26 +282,37 @@ const StockAsOfReportPage: React.FC = () => {
       exportReportToExcel(payload);
       toast({
         title: 'Success',
-        description: 'Exported to Excel.',
+        description: 'Stock as of exported to Excel.',
         variant: 'success',
       });
     } catch (e) {
       console.error(e);
       toast({
         title: 'Error',
-        description: 'Export failed.',
+        description: 'Failed to export stock as of to Excel.',
         variant: 'destructive',
       });
     }
-  }, [response?.rows, selectedDate]);
+  }, [exportPrintRows, reportSubtitle, selectedDate]);
 
   const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
+    if (!exportPrintRows.length) return;
+    printStockAsOfReportIframe({
+      rows: exportPrintRows.map((r) => ({
+        item: r.item,
+        itemType: r.itemType,
+        unitPrice: r.unitPrice ?? 0,
+        currentQuantity: r.currentQuantity,
+        quantityAsOf: r.quantityAsOf,
+        quantityDiff: r.quantityDiff,
+      })),
+      subtitle: reportSubtitle,
+    });
+  }, [exportPrintRows, reportSubtitle]);
 
   return (
     <ReportLayout
-      printStyles={printStyles}
+      printStyles={`${printStyles}${stockAsOfPrintStyles}`}
       header={
         <div className="flex flex-col gap-3 pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -323,8 +377,8 @@ const StockAsOfReportPage: React.FC = () => {
                 variant="outline"
                 size="icon"
                 onClick={handleExport}
-                title="Export"
-                disabled={!response?.rows.length}
+                title="Export to Excel"
+                disabled={!exportPrintRows.length}
               >
                 <Download className="h-4 w-4" />
               </Button>
@@ -332,7 +386,8 @@ const StockAsOfReportPage: React.FC = () => {
                 variant="outline"
                 size="icon"
                 onClick={handlePrint}
-                title="Print"
+                title="Print stock as of (PDF)"
+                disabled={!exportPrintRows.length}
               >
                 <Printer className="h-4 w-4" />
               </Button>
@@ -349,12 +404,6 @@ const StockAsOfReportPage: React.FC = () => {
         </div>
       }
     >
-      <div className="hidden print:block print:mb-4 text-center">
-        <h2 className="text-lg font-semibold">
-          Stock as of {format(selectedDate, 'PPP')}
-        </h2>
-      </div>
-
       {isLoading && (
         <Card className="p-6 text-center text-muted-foreground">Loading…</Card>
       )}
@@ -370,6 +419,7 @@ const StockAsOfReportPage: React.FC = () => {
           searchFields={['item', 'itemType']}
           searchPlaceholder="Search items or types…"
           searchPersistenceKey="stock-as-of-search"
+          onViewModelChange={handleTableViewModelChange}
         />
       )}
 
