@@ -484,6 +484,16 @@ const electronHandler = {
       'ledger:getBalancesForAccountIds',
       accountIds,
     ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
+  /** balances as of inclusive calendar day (yyyy-MM-dd), single round-trip */
+  getLedgerBalancesForAccountIdsAsOfDate: (
+    accountIds: number[],
+    asOfDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'ledger:getBalancesForAccountIdsAsOfDate',
+      accountIds,
+      asOfDate,
+    ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
   /**
    * Get the next journal id
    * @returns The next journal id

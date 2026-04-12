@@ -66,6 +66,11 @@ export const printStyles = `
       display: table-footer-group !important;
     }
 
+    /* totals row only once at end (table-footer-group repeats on every pdf page) */
+    .print-table.print-tfoot-no-repeat tfoot {
+      display: table-row-group !important;
+    }
+
     /* allow rows to break across pages, but try to keep them together */
     .print-table tr {
       page-break-inside: avoid !important;

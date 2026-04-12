@@ -88,6 +88,57 @@ export class LedgerService {
     return out;
   }
 
+  /**
+   * running balance as of inclusive calendar day (yyyy-MM-dd), one query.
+   * matches last ledger row that falls on or before that day (same ordering as getLedger).
+   */
+  getBalancesForAccountIdsAsOfDate(
+    accountIds: number[],
+    asOfDate: string,
+  ): Record<number, GetBalance> {
+    const unique = [
+      ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
+    ];
+    if (unique.length === 0) return {};
+    const placeholders = unique.map(() => '?').join(',');
+    const sql = `
+      SELECT t.accountId, t.balance, t.balanceType
+      FROM (
+        SELECT
+          l.accountId,
+          l.balance,
+          l.balanceType,
+          ROW_NUMBER() OVER (
+            PARTITION BY l.accountId
+            ORDER BY datetime(l.date, 'localtime') DESC, l.id DESC
+          ) AS rn
+        FROM ledger l
+        WHERE l.accountId IN (${placeholders})
+          AND (
+            CASE
+              WHEN length(l.date) = 10 THEN l.date
+              ELSE date(datetime(l.date, 'localtime'))
+            END
+          ) <= ?
+      ) t
+      WHERE t.rn = 1
+    `;
+    const stmt = this.db.prepare(sql);
+    const rows = stmt.all(...unique, asOfDate) as Array<{
+      accountId: number;
+      balance: number;
+      balanceType: BalanceType;
+    }>;
+    const out: Record<number, GetBalance> = {};
+    for (const row of rows) {
+      out[row.accountId] = {
+        balance: row.balance,
+        balanceType: row.balanceType,
+      };
+    }
+    return out;
+  }
+
   /** get the running balance as of a given date (last ledger entry on or before that date). */
   getBalanceAtDate(
     accountId: number,

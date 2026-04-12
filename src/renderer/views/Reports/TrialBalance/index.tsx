@@ -134,6 +134,7 @@ const TrialBalancePage = () => {
   return (
     <ReportLayout
       printStyles={printStyles}
+      bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden print:overflow-visible"
       header={
         <div className="flex justify-between items-center pb-2 print-header">
           <h1 className="title-new">Trial Balance</h1>
@@ -191,7 +192,7 @@ const TrialBalancePage = () => {
         </div>
       }
     >
-      <Card className="p-6 shadow-md print-card">
+      <Card className="flex min-h-0 flex-1 flex-col p-6 shadow-md print-card print:flex-none">
         {!trialBalance.isBalanced && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md text-sm text-destructive print:hidden">
             Trial balance is not balanced! Difference:{' '}

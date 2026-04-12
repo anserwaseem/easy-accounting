@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { isEmpty, sum, orderBy } from 'lodash';
-import type { Account, LedgerView } from '@/types';
+import { format } from 'date-fns';
+import { sum, orderBy } from 'lodash';
+import type { Account } from '@/types';
 import { getFixedNumber } from '@/renderer/lib/utils';
 import type { TrialBalance, TrialBalanceItem } from './types';
 
@@ -18,59 +19,31 @@ export const useTrialBalance = () => {
   const fetchTrialBalance = useCallback(async (date: Date) => {
     setIsLoading(true);
     try {
-      // fetch all accounts with their balances
       const rawAccounts = (await window.electron.getAccounts()) as Account[];
 
-      // convert raw accounts to our expected type with string type
       const accounts = rawAccounts.map((account) => ({
         ...account,
         type: String(account.type || ''),
       })) as Account[];
 
-      // get all account IDs
       const accountIds = accounts.map((account) => account.id);
+      const asOfDay = format(date, 'yyyy-MM-dd');
 
-      // fetch all ledgers in a single batch operation
-      const ledgersPromises = accountIds.map((id: number) =>
-        window.electron.getLedger(id),
-      );
-      const ledgersResults = await Promise.all(ledgersPromises);
-
-      // map accounts to ledgers
-      const accountLedgers = accounts.reduce(
-        (
-          acc: Record<number, LedgerView[]>,
-          account: Account,
-          index: number,
-        ) => {
-          acc[account.id] = ledgersResults[index];
-          return acc;
-        },
-        {} as Record<number, LedgerView[]>,
-      );
-
-      // transform accounts into trial balance format
-      const trialBalanceItems: TrialBalanceItem[] = [];
-      const selectedDateEnd = new Date(date);
-      selectedDateEnd.setHours(23, 59, 59, 999); // set to end of day for comparison
-
-      for (const account of accounts) {
-        const ledger = accountLedgers[account.id];
-
-        if (isEmpty(ledger)) continue;
-
-        // filter ledger entries up to the selected date
-        const entriesUpToSelectedDate = ledger.filter(
-          (entry) => new Date(entry.date) <= selectedDateEnd,
+      const balanceByAccountId =
+        await window.electron.getLedgerBalancesForAccountIdsAsOfDate(
+          accountIds,
+          asOfDay,
         );
 
-        if (isEmpty(entriesUpToSelectedDate)) continue;
+      const trialBalanceItems: TrialBalanceItem[] = [];
 
-        const latestEntry =
-          entriesUpToSelectedDate[entriesUpToSelectedDate.length - 1];
-        const { balance, balanceType } = latestEntry;
+      for (const account of accounts) {
+        const row = balanceByAccountId[account.id];
+        if (!row) continue;
 
-        if (getFixedNumber(balance) <= 0) continue; // skip accounts with zero balance
+        const { balance, balanceType } = row;
+
+        if (getFixedNumber(balance) <= 0) continue;
 
         trialBalanceItems.push({
           id: account.id,
@@ -85,7 +58,6 @@ export const useTrialBalance = () => {
       const totalDebit = sum(trialBalanceItems.map((item) => item.debit));
       const totalCredit = sum(trialBalanceItems.map((item) => item.credit));
 
-      // Sort trial balance items by account code
       const sortedTrialBalanceItems = orderBy(
         trialBalanceItems,
         ['code'],

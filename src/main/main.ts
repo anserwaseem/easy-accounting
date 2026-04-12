@@ -285,6 +285,11 @@ app
       async (_, accountIds: number[]) =>
         ledgerService.getBalancesForAccountIds(accountIds),
     );
+    ipcMain.handle(
+      'ledger:getBalancesForAccountIdsAsOfDate',
+      async (_, accountIds: number[], asOfDate: string) =>
+        ledgerService.getBalancesForAccountIdsAsOfDate(accountIds, asOfDate),
+    );
     ipcMain.handle('journal:getNextId', async () =>
       journalService.getNextJournalId(),
     );
