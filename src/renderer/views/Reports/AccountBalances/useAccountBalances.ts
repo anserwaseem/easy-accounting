@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { format } from 'date-fns';
 import { isEmpty, sumBy } from 'lodash';
-import type { Account, Chart, LedgerView } from '@/types';
+import type { Account, Chart } from '@/types';
 import { getFixedNumber } from '@/renderer/lib/utils';
 import type { AccountBalances, AccountBalanceItem } from './types';
 
@@ -56,51 +57,25 @@ export const useAccountBalances = () => {
           return;
         }
 
-        // get all account IDs
         const accountIds = filteredAccounts.map(
           (account: Account) => account.id,
         );
 
-        // fetch all ledgers in a single batch operation
-        const ledgersPromises = accountIds.map((id: number) =>
-          window.electron.getLedger(id),
-        );
-        const ledgersResults = await Promise.all(ledgersPromises);
-
-        // map accounts to ledgers
-        const accountLedgers = filteredAccounts.reduce(
-          (
-            acc: Record<number, LedgerView[]>,
-            account: Account,
-            index: number,
-          ) => {
-            acc[account.id] = ledgersResults[index];
-            return acc;
-          },
-          {} as Record<number, LedgerView[]>,
-        );
+        const asOfDay = format(date, 'yyyy-MM-dd');
+        const balanceByAccountId =
+          await window.electron.getLedgerBalancesForAccountIdsAsOfDate(
+            accountIds,
+            asOfDay,
+          );
 
         // transform accounts into balance items format
         const balanceItems: AccountBalanceItem[] = [];
-        const selectedDateEnd = new Date(date);
-        selectedDateEnd.setHours(23, 59, 59, 999);
 
         for (const account of filteredAccounts) {
-          const ledger = accountLedgers[account.id];
+          const row = balanceByAccountId[account.id];
+          if (!row) continue;
 
-          if (isEmpty(ledger)) continue;
-
-          // filter ledger entries up to the selected date
-          const entriesUpToSelectedDate = ledger.filter(
-            (entry: LedgerView) => new Date(entry.date) <= selectedDateEnd,
-          );
-
-          if (isEmpty(entriesUpToSelectedDate)) continue;
-
-          // get the latest entry up to selected date
-          const latestEntry =
-            entriesUpToSelectedDate[entriesUpToSelectedDate.length - 1];
-          const { balance, balanceType } = latestEntry;
+          const { balance, balanceType } = row;
 
           if (getFixedNumber(balance) <= 0) continue; // skip accounts with zero balance
 

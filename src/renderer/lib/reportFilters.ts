@@ -1,5 +1,5 @@
 import { type DateRange } from '@/renderer/shad/ui/datePicker';
-import type { SavedFilterState } from 'types';
+import type { ReportFilters, SavedFilterState } from 'types';
 import { REPORT_FILTER_KEYS } from 'types';
 
 type StoreKey = (typeof REPORT_FILTER_KEYS)[keyof typeof REPORT_FILTER_KEYS];
@@ -22,6 +22,34 @@ export function saveSavedFilters(key: StoreKey, state: SavedFilterState): void {
   } catch {
     console.warn(`Error saving filters for key: ${key}`, state);
   }
+}
+
+/** build ReportFilters from a saved state + default dates */
+export function buildFilters(
+  saved: SavedFilterState,
+  defaults: { startDate: string; endDate: string },
+  extra?: {
+    itemTypeIds?: number[];
+    accountIds?: number[];
+    inventoryIds?: number[];
+  },
+): ReportFilters {
+  return {
+    startDate: saved.dateRange?.from ?? defaults.startDate,
+    endDate: saved.dateRange?.to ?? defaults.endDate,
+    groupBy: saved.groupBy ?? 'day',
+    ...(saved.groupByPolicy !== undefined
+      ? { groupByPolicy: saved.groupByPolicy }
+      : {}),
+    ...(saved.compareStartDate
+      ? { compareStartDate: saved.compareStartDate }
+      : {}),
+    ...(saved.compareEndDate ? { compareEndDate: saved.compareEndDate } : {}),
+    ...(saved.itemTypeIds ? { itemTypeIds: saved.itemTypeIds } : {}),
+    ...(saved.accountIds ? { accountIds: saved.accountIds } : {}),
+    ...(saved.inventoryIds ? { inventoryIds: saved.inventoryIds } : {}),
+    ...extra,
+  };
 }
 
 /** extract a SavedFilterState from the current report data */
@@ -75,3 +103,6 @@ export function makeSavedState(
   }
   return state;
 }
+
+/** default preset value for "Last 30 Days" */
+export const LAST_30_DAYS_PRESET = '-30';

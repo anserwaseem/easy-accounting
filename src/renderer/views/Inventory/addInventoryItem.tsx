@@ -28,6 +28,7 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
     description: undefined,
     price: 0,
     itemTypeId: undefined,
+    listPosition: undefined as number | undefined,
   };
 
   // load active item types each time create dialog opens.

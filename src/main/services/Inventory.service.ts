@@ -2,12 +2,16 @@ import type { Database, Statement } from 'better-sqlite3';
 import { get } from 'lodash';
 import type {
   ApiResponse,
+  ApplyListPositionsResult,
   ApplyStockAdjustmentPayload,
   InsertInventoryItem,
   InventoryItem,
   InventoryOpeningStock,
+  ReportResponse,
   SetOpeningStockItem,
   StockAdjustment,
+  StockAsOfReportResponse,
+  StockAsOfRow,
   UpdateInventoryItem,
 } from 'types';
 import { logErrors } from '../errorLogger';
@@ -47,6 +51,39 @@ export class InventoryService {
 
   private stmGetInventoryIdsWithHistory!: Statement;
 
+  private stmGetAllInventory!: Statement;
+
+  private stmGetAllInventoryByItemTypes!: Statement;
+
+  private stmGetSaleAggregateHealth!: Statement;
+
+  private stmGetPurchaseAggregateHealth!: Statement;
+
+  private stmGetSaleLastInvoiceHealth!: Statement;
+
+  private stmGetPurchaseLastInvoiceHealth!: Statement;
+
+  private stmGetAdjustmentAggregate!: Statement;
+
+  /** last sale invoice date per Item (all time; same filters as health aggregates) */
+  private stmGetSaleLastDateEver!: Statement;
+
+  /** last purchase invoice date per Item (all time) */
+  private stmGetPurchaseLastDateEver!: Statement;
+
+  /** last stock adjustment date per Item (all time) */
+  private stmGetAdjustmentLastDateEver!: Statement;
+
+  /** posted invoice lines: net inventory change strictly after as-of end (sales −, purchases +, returns) */
+  private stmStockAsOfInvoiceDeltaAfter!: Statement;
+
+  /** stock adjustments strictly after as-of end */
+  private stmStockAsOfAdjustmentDeltaAfter!: Statement;
+
+  private stmGetInventoryIdsByTrimName!: Statement;
+
+  private stmUpdateInventoryListPositionById!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -67,29 +104,33 @@ export class InventoryService {
       return false;
     }
 
-    const placeholders = inventory.map(() => '(?, ?, ?, ?)').join(', ');
-    const sql = `INSERT INTO inventory (name, description, price, itemTypeId) VALUES ${placeholders}`;
+    let success = true;
+    this.db.transaction(() => {
+      for (const item of inventory) {
+        const result = this.stmInsertItem.run({
+          name: item.name,
+          description: item.description ?? null,
+          price: item.price,
+          itemTypeId: item.itemTypeId ?? null,
+          listPosition: item.listPosition ?? null,
+        });
+        if (!result.changes) {
+          success = false;
+          throw new Error(`Failed to insert inventory item: ${item.name}`);
+        }
+      }
+    })();
 
-    const stmInsertInventory = this.db.prepare(sql);
-
-    const values = inventory.flatMap((item) => [
-      item.name,
-      item.description,
-      item.price,
-      item.itemTypeId ?? null,
-    ]);
-
-    const result = stmInsertInventory.run(values);
-
-    if (result.changes === 0) {
-      return false;
-    }
-
-    return true;
+    return success;
   }
 
   insertItem(item: InsertInventoryItem): boolean {
-    const result = this.stmInsertItem.run({ ...item });
+    const result = this.stmInsertItem.run({
+      ...item,
+      description: item.description ?? null,
+      itemTypeId: item.itemTypeId ?? null,
+      listPosition: item.listPosition ?? null,
+    });
     return Boolean(result.changes);
   }
 
@@ -97,6 +138,9 @@ export class InventoryService {
     const result = this.stmUpdateItem.run({
       ...item,
       id: cast(item.id),
+      description: item.description ?? null,
+      itemTypeId: item.itemTypeId ?? null,
+      listPosition: item.listPosition ?? null,
     });
     return Boolean(result.changes);
   }
@@ -126,6 +170,7 @@ export class InventoryService {
               description: null,
               price: 0,
               itemTypeId: null,
+              listPosition: null,
             });
             inventoryId = Number(result.lastInsertRowid);
             if (!inventoryId) {
@@ -219,6 +264,435 @@ export class InventoryService {
     return rows.map((r) => r.id);
   }
 
+  /**
+   * sets listPosition for existing rows matched by TRIM(name); skips ambiguous duplicate names.
+   */
+  applyListPositions(
+    rows: Array<{ name: string; listPosition: number }>,
+  ): ApplyListPositionsResult {
+    let updated = 0;
+    const notFoundNames: string[] = [];
+    const ambiguousNames: string[] = [];
+    for (const r of rows) {
+      const name = r.name?.trim();
+      if (!name) {
+        continue;
+      }
+      const matches = this.stmGetInventoryIdsByTrimName.all(name) as Array<{
+        id: number;
+      }>;
+      if (matches.length === 0) {
+        notFoundNames.push(name);
+      } else if (matches.length > 1) {
+        ambiguousNames.push(name);
+      } else {
+        this.stmUpdateInventoryListPositionById.run(
+          r.listPosition,
+          cast(matches[0].id),
+        );
+        updated += 1;
+      }
+    }
+    return {
+      updated,
+      notFoundNames,
+      ambiguousNames,
+    };
+  }
+
+  /** Inventory Health report: snapshot KPIs + movement data for all inventory items. */
+  getInventoryHealth(
+    _filters: { startDate: string; endDate: string; itemTypeIds?: number[] } = {
+      startDate: new Date(Date.now() - 30 * 86400000)
+        .toISOString()
+        .split('T')[0],
+      endDate: new Date().toISOString().split('T')[0],
+    },
+  ): ReportResponse {
+    const { startDate, endDate, itemTypeIds } = _filters;
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+    const dayCount = Math.max(
+      1,
+      Math.ceil(
+        (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+          86400000,
+      ),
+    );
+
+    // get all inventory items with optional type name, filtered by type if specified
+    let allItems: Array<InventoryItem & { itemTypeName?: string | null }>;
+    if (itemTypeIds && itemTypeIds.length > 0) {
+      allItems = this.stmGetAllInventoryByItemTypes.all({
+        itemTypeIdsJson: JSON.stringify(itemTypeIds),
+      }) as Array<InventoryItem & { itemTypeName?: string | null }>;
+    } else {
+      allItems = this.stmGetAllInventory.all() as Array<
+        InventoryItem & { itemTypeName?: string | null }
+      >;
+    }
+
+    if (allItems.length === 0) {
+      return {
+        kpis: {
+          totalItems: 0,
+          inStockItems: 0,
+          zeroStockItems: 0,
+          negativeStockItems: 0,
+          lowCoverageItems: 0,
+          deadStockItems: 0,
+          noTypeItems: 0,
+          zeroPriceItems: 0,
+          itemsWithAnyIssue: 0,
+        },
+        series: [],
+        rows: [],
+        anomalies: [],
+        exportRows: [],
+      };
+    }
+
+    // aggregate movement data from sale invoices (posted, non-returned)
+    const soldInDate: Record<number, { qty: number; lastDate: string }> = {};
+    const saleQtyRows = this.stmGetSaleAggregateHealth.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{
+      inventoryId: number;
+      totalQty: number;
+      lastDate: string;
+    }>;
+
+    for (const row of saleQtyRows) {
+      soldInDate[row.inventoryId] = {
+        qty: row.totalQty,
+        lastDate: row.lastDate,
+      };
+    }
+
+    const lastSaleInvoiceByInventory: Record<number, number> = {};
+    const saleLastInvoiceRows = this.stmGetSaleLastInvoiceHealth.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{ inventoryId: number; invoiceNumber: number }>;
+    for (const row of saleLastInvoiceRows) {
+      lastSaleInvoiceByInventory[row.inventoryId] = row.invoiceNumber;
+    }
+
+    // aggregate movement data from purchase invoices (posted, non-returned)
+    const purchasedInDate: Record<number, { qty: number; lastDate: string }> =
+      {};
+    const purchaseQtyRows = this.stmGetPurchaseAggregateHealth.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{
+      inventoryId: number;
+      totalQty: number;
+      lastDate: string;
+    }>;
+
+    for (const row of purchaseQtyRows) {
+      purchasedInDate[row.inventoryId] = {
+        qty: row.totalQty,
+        lastDate: row.lastDate,
+      };
+    }
+
+    const lastPurchaseInvoiceByInventory: Record<number, number> = {};
+    const purchaseLastInvoiceRows = this.stmGetPurchaseLastInvoiceHealth.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{ inventoryId: number; invoiceNumber: number }>;
+    for (const row of purchaseLastInvoiceRows) {
+      lastPurchaseInvoiceByInventory[row.inventoryId] = row.invoiceNumber;
+    }
+
+    // aggregate stock adjustment movement
+    const adjustmentInDate: Record<number, { qty: number; lastDate: string }> =
+      {};
+    const adjQtyRows = this.stmGetAdjustmentAggregate.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{
+      inventoryId: number;
+      totalDelta: number;
+      lastDate: string;
+    }>;
+
+    for (const row of adjQtyRows) {
+      adjustmentInDate[row.inventoryId] = {
+        qty: row.totalDelta,
+        lastDate: row.lastDate,
+      };
+    }
+
+    // last movement date per Item across all history (for days since movement + dead stock)
+    const lastSaleEverDate: Record<number, string> = {};
+    for (const row of this.stmGetSaleLastDateEver.all() as Array<{
+      inventoryId: number;
+      lastDate: string;
+    }>) {
+      lastSaleEverDate[row.inventoryId] = row.lastDate;
+    }
+    const lastPurchaseEverDate: Record<number, string> = {};
+    for (const row of this.stmGetPurchaseLastDateEver.all() as Array<{
+      inventoryId: number;
+      lastDate: string;
+    }>) {
+      lastPurchaseEverDate[row.inventoryId] = row.lastDate;
+    }
+    const lastAdjEverDate: Record<number, string> = {};
+    for (const row of this.stmGetAdjustmentLastDateEver.all() as Array<{
+      inventoryId: number;
+      lastDate: string;
+    }>) {
+      lastAdjEverDate[row.inventoryId] = row.lastDate;
+    }
+
+    // build rows + compute flags
+    const rows: Array<Record<string, unknown>> = [];
+    let deadStockCount = 0;
+    let lowCoverageCount = 0;
+    let zeroStockCount = 0;
+    let negativeStockCount = 0;
+    let noTypeItemCount = 0;
+    let zeroPriceCount = 0;
+
+    for (const item of allItems) {
+      const onHand = get(item, 'quantity', 0);
+      const soldQty = soldInDate[item.id]?.qty ?? 0;
+      const lastSaleDate = soldInDate[item.id]?.lastDate ?? null;
+      const lastSaleInvoiceNumber =
+        lastSaleDate != null
+          ? lastSaleInvoiceByInventory[item.id] ?? null
+          : null;
+      const purchasedQty = purchasedInDate[item.id]?.qty ?? 0;
+      const lastPurchaseDate = purchasedInDate[item.id]?.lastDate ?? null;
+      const lastPurchaseInvoiceNumber =
+        lastPurchaseDate != null
+          ? lastPurchaseInvoiceByInventory[item.id] ?? null
+          : null;
+      const adjQty = adjustmentInDate[item.id]?.qty ?? 0;
+      const lastAdjDate = adjustmentInDate[item.id]?.lastDate ?? null;
+
+      // last movement ever (not limited to report range): max of sale / purchase / adjustment
+      const movementDatesEver = [
+        lastSaleEverDate[item.id],
+        lastPurchaseEverDate[item.id],
+        lastAdjEverDate[item.id],
+      ].filter(Boolean) as string[];
+      const lastMovementDate =
+        movementDatesEver.length > 0 ? movementDatesEver.sort().at(-1)! : null;
+
+      const daysSinceMovement = lastMovementDate
+        ? Math.floor(
+            (new Date().getTime() - new Date(lastMovementDate).getTime()) /
+              86400000,
+          )
+        : null;
+
+      const dailyVelocity = soldQty > 0 ? soldQty / dayCount : null;
+      const daysOfCover =
+        dailyVelocity != null && dailyVelocity > 0
+          ? onHand / dailyVelocity
+          : null;
+
+      // issue flags
+      const flags: string[] = [];
+      if (onHand === 0) {
+        flags.push('zero-stock');
+        zeroStockCount++;
+      }
+      if (onHand < 0) {
+        flags.push('negative-stock');
+        negativeStockCount++;
+      }
+      if (daysOfCover != null && daysOfCover < 7) {
+        flags.push('critical-coverage');
+      } else if (daysOfCover != null && daysOfCover < 14) {
+        flags.push('low-coverage');
+        lowCoverageCount++;
+      }
+      if (
+        onHand > 0 &&
+        (daysSinceMovement == null || daysSinceMovement >= 90)
+      ) {
+        flags.push('dead-stock');
+        deadStockCount++;
+      }
+      if (!item.itemTypeId && !item.itemTypeName) {
+        flags.push('no-type');
+        noTypeItemCount++;
+      }
+      const price = get(item, 'price', 0);
+      if (price === 0) {
+        flags.push('zero-price');
+        zeroPriceCount++;
+      }
+
+      rows.push({
+        itemId: item.id,
+        itemTypeId: item.itemTypeId ?? null,
+        item: get(item, 'name', ''),
+        itemType: item.itemTypeName ?? null,
+        listPosition:
+          item.listPosition == null ? null : Number(item.listPosition),
+        price,
+        onHandQty: onHand,
+        soldQtyInDate: soldQty,
+        purchasedQtyInDate: purchasedQty,
+        adjustmentQtyInDate: adjQty,
+        lastSaleDate,
+        lastSaleInvoiceNumber,
+        lastPurchaseDate,
+        lastPurchaseInvoiceNumber,
+        lastAdjustmentDate: lastAdjDate,
+        lastMovementDate,
+        daysSinceMovement,
+        daysOfCover:
+          daysOfCover != null ? Math.round(daysOfCover * 10) / 10 : null,
+        flags: flags.join(', '),
+      });
+    }
+
+    const inStockCount = allItems.filter(
+      (i) => get(i, 'quantity', 0) > 0,
+    ).length;
+
+    // one anomaly per row-level flag (same tokens as Issues column); counts can overlap across chips
+    const rowHasIssueFlag = (flagsStr: unknown, flag: string): boolean => {
+      const tokens = String(flagsStr ?? '')
+        .split(', ')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      return tokens.includes(flag);
+    };
+    const rowsForFlag = (flag: string) =>
+      rows.filter((r) =>
+        rowHasIssueFlag((r as { flags?: string }).flags, flag),
+      );
+
+    const anomalies = (
+      [
+        ['zero-stock', 'Out of stock'],
+        ['negative-stock', 'Negative stock'],
+        ['critical-coverage', 'Critical coverage (< 7 days)'],
+        [
+          'low-coverage',
+          'Low coverage (7–14 days at period sales rate; excludes critical)',
+        ],
+        [
+          'dead-stock',
+          'Dead stock (on hand, no movement ever or last movement ≥ 90 days ago)',
+        ],
+        ['no-type', 'No item type assigned'],
+        ['zero-price', 'Zero price'],
+      ] as const
+    ).map(([type, message]) => {
+      const matched = rowsForFlag(type);
+      return { type, message, count: matched.length, rows: matched };
+    });
+
+    const itemsWithAnyIssue = rows.filter(
+      (r) => String((r as { flags?: string }).flags ?? '').trim().length > 0,
+    ).length;
+
+    return {
+      kpis: {
+        totalItems: allItems.length,
+        inStockItems: inStockCount,
+        zeroStockItems: zeroStockCount,
+        negativeStockItems: negativeStockCount,
+        lowCoverageItems: lowCoverageCount,
+        deadStockItems: deadStockCount,
+        noTypeItems: noTypeItemCount,
+        zeroPriceItems: zeroPriceCount,
+        itemsWithAnyIssue,
+      },
+      series: [],
+      rows,
+      anomalies,
+      exportRows: rows,
+    };
+  }
+
+  /**
+   * On-hand at end of asOfDate (day end), rewound from current inventory.quantity.
+   * delta = posted purchases − sales + adjustments with timestamp strictly after as-of end;
+   * quantityAsOf = currentQuantity − delta. Trusts live quantity as anchor (matches invoice-driven stock).
+   * Quotations excluded; returned invoices apply sale/purchase reversal when returnedAt is after as-of end.
+   */
+  getStockAsOf(
+    filters: { asOfDate: string; itemTypeIds?: number[] } = {
+      asOfDate: new Date().toISOString().split('T')[0],
+    },
+  ): StockAsOfReportResponse {
+    const { asOfDate, itemTypeIds } = filters;
+    const sqlAsOfEnd =
+      asOfDate.length === 10 ? `${asOfDate}T23:59:59.999Z` : asOfDate;
+
+    let allItems: Array<InventoryItem & { itemTypeName?: string | null }>;
+    if (itemTypeIds && itemTypeIds.length > 0) {
+      allItems = this.stmGetAllInventoryByItemTypes.all({
+        itemTypeIdsJson: JSON.stringify(itemTypeIds),
+      }) as Array<InventoryItem & { itemTypeName?: string | null }>;
+    } else {
+      allItems = this.stmGetAllInventory.all() as Array<
+        InventoryItem & { itemTypeName?: string | null }
+      >;
+    }
+
+    const invoiceDeltaRows = this.stmStockAsOfInvoiceDeltaAfter.all(
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+    ) as Array<{ inventoryId: number; deltaQty: number }>;
+    const adjDeltaRows = this.stmStockAsOfAdjustmentDeltaAfter.all(
+      sqlAsOfEnd,
+    ) as Array<{ inventoryId: number; deltaQty: number }>;
+
+    const invoiceDelta = new Map<number, number>();
+    for (const r of invoiceDeltaRows) {
+      invoiceDelta.set(r.inventoryId, Number(r.deltaQty));
+    }
+    const adjDelta = new Map<number, number>();
+    for (const r of adjDeltaRows) {
+      adjDelta.set(r.inventoryId, Number(r.deltaQty));
+    }
+
+    const rows: StockAsOfRow[] = [];
+
+    for (const item of allItems) {
+      const { id } = item;
+
+      const currentQty = get(item, 'quantity', 0);
+      const deltaAfter = (invoiceDelta.get(id) ?? 0) + (adjDelta.get(id) ?? 0);
+      const qtyAsOf = currentQty - deltaAfter;
+
+      rows.push({
+        itemId: id,
+        itemTypeId: item.itemTypeId ?? null,
+        item: get(item, 'name', ''),
+        itemType: item.itemTypeName ?? null,
+        listPosition:
+          item.listPosition == null ? null : Number(item.listPosition),
+        quantityAsOf: qtyAsOf,
+        currentQuantity: currentQty,
+        unitPrice: get(item, 'price', 0),
+      });
+    }
+
+    return {
+      asOfDateEnd: sqlAsOfEnd,
+      rows,
+    };
+  }
+
   private initPreparedStatements() {
     this.stmInventoryExists = this.db.prepare(`
       SELECT COUNT(*) AS 'count' from inventory;
@@ -228,17 +702,20 @@ export class InventoryService {
       SELECT i.*, it.name AS itemTypeName
       FROM inventory i
       LEFT JOIN item_types it ON it.id = i.itemTypeId
-      ORDER BY i.id;
+      ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC;
     `);
 
     this.stmInsertItem = this.db.prepare(`
-      INSERT INTO inventory (name, description, price, itemTypeId)
-      VALUES (@name, @description, @price, @itemTypeId);
+      INSERT INTO inventory (name, description, price, itemTypeId, listPosition)
+      VALUES (@name, @description, @price, @itemTypeId, @listPosition);
     `);
 
     this.stmUpdateItem = this.db.prepare(`
       UPDATE inventory
-      SET price = @price, description = @description, itemTypeId = @itemTypeId
+      SET price = @price,
+          description = @description,
+          itemTypeId = @itemTypeId,
+          listPosition = @listPosition
       WHERE id = @id;
     `);
 
@@ -291,6 +768,178 @@ export class InventoryService {
         UNION ALL
         SELECT inventoryId FROM stock_adjustments
       );
+    `);
+
+    // Get all inventory items (unfiltered)
+    this.stmGetAllInventory = this.db.prepare(`
+      SELECT i.*, it.name AS itemTypeName
+      FROM inventory i
+      LEFT JOIN item_types it ON it.id = i.itemTypeId
+      ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC
+    `);
+
+    // Get all inventory items filtered by item type IDs using JSON1
+    this.stmGetAllInventoryByItemTypes = this.db.prepare(`
+      SELECT i.*, it.name AS itemTypeName
+      FROM inventory i
+      LEFT JOIN item_types it ON it.id = i.itemTypeId
+      WHERE i.itemTypeId IN (SELECT value FROM json_each(@itemTypeIdsJson))
+      ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC
+    `);
+
+    this.stmGetInventoryIdsByTrimName = this.db.prepare(`
+      SELECT id FROM inventory WHERE TRIM(name) = TRIM(?)
+    `);
+
+    this.stmUpdateInventoryListPositionById = this.db.prepare(`
+      UPDATE inventory SET listPosition = ? WHERE id = ?
+    `);
+
+    // Sale quantity aggregate WITH lastDate (for inventory health)
+    this.stmGetSaleAggregateHealth = this.db.prepare(`
+      SELECT ii.inventoryId, SUM(ii.quantity) AS totalQty, MAX(i.date) AS lastDate
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Sale'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+        AND i.date >= ?
+        AND i.date <= ?
+      GROUP BY ii.inventoryId
+    `);
+
+    // Purchase quantity aggregate WITH lastDate (for inventory health)
+    this.stmGetPurchaseAggregateHealth = this.db.prepare(`
+      SELECT ii.inventoryId, SUM(ii.quantity) AS totalQty, MAX(i.date) AS lastDate
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Purchase'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+        AND i.date >= ?
+        AND i.date <= ?
+      GROUP BY ii.inventoryId
+    `);
+
+    // invoice # for the latest sale line per inventory in range (tie-break: higher invoice id)
+    this.stmGetSaleLastInvoiceHealth = this.db.prepare(`
+      SELECT inventoryId, invoiceNumber
+      FROM (
+        SELECT
+          ii.inventoryId,
+          i.invoiceNumber,
+          ROW_NUMBER() OVER (
+            PARTITION BY ii.inventoryId
+            ORDER BY i.date DESC, i.id DESC
+          ) AS rn
+        FROM invoice_items ii
+        JOIN invoices i ON i.id = ii.invoiceId
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ?
+          AND i.date <= ?
+      )
+      WHERE rn = 1
+    `);
+
+    // invoice # for the latest purchase line per inventory in range
+    this.stmGetPurchaseLastInvoiceHealth = this.db.prepare(`
+      SELECT inventoryId, invoiceNumber
+      FROM (
+        SELECT
+          ii.inventoryId,
+          i.invoiceNumber,
+          ROW_NUMBER() OVER (
+            PARTITION BY ii.inventoryId
+            ORDER BY i.date DESC, i.id DESC
+          ) AS rn
+        FROM invoice_items ii
+        JOIN invoices i ON i.id = ii.invoiceId
+        WHERE i.invoiceType = 'Purchase'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ?
+          AND i.date <= ?
+      )
+      WHERE rn = 1
+    `);
+
+    // Stock adjustment aggregate
+    this.stmGetAdjustmentAggregate = this.db.prepare(`
+      SELECT inventoryId, SUM(quantityDelta) AS totalDelta, MAX(date) AS lastDate
+      FROM stock_adjustments
+      WHERE date >= ? AND date <= ?
+      GROUP BY inventoryId
+    `);
+
+    this.stmGetSaleLastDateEver = this.db.prepare(`
+      SELECT ii.inventoryId, MAX(i.date) AS lastDate
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Sale'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+      GROUP BY ii.inventoryId
+    `);
+
+    this.stmGetPurchaseLastDateEver = this.db.prepare(`
+      SELECT ii.inventoryId, MAX(i.date) AS lastDate
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Purchase'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+      GROUP BY ii.inventoryId
+    `);
+
+    this.stmGetAdjustmentLastDateEver = this.db.prepare(`
+      SELECT inventoryId, MAX(date) AS lastDate
+      FROM stock_adjustments
+      GROUP BY inventoryId
+    `);
+
+    this.stmStockAsOfInvoiceDeltaAfter = this.db.prepare(`
+      SELECT ii.inventoryId,
+        COALESCE(SUM(
+          CASE
+            WHEN COALESCE(i.isQuotation, 0) != 0 THEN 0
+            WHEN i.invoiceType = 'Sale' THEN
+              CASE WHEN COALESCE(i.isReturned, 0) = 0 THEN
+                CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END
+              ELSE
+                (CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END) +
+                (CASE
+                  WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
+                  THEN ii.quantity
+                  ELSE 0
+                END)
+              END
+            WHEN i.invoiceType = 'Purchase' THEN
+              CASE WHEN COALESCE(i.isReturned, 0) = 0 THEN
+                CASE WHEN i.date > ? THEN ii.quantity ELSE 0 END
+              ELSE
+                (CASE WHEN i.date > ? THEN ii.quantity ELSE 0 END) +
+                (CASE
+                  WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
+                  THEN -ii.quantity
+                  ELSE 0
+                END)
+              END
+            ELSE 0
+          END
+        ), 0) AS deltaQty
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      GROUP BY ii.inventoryId
+    `);
+
+    this.stmStockAsOfAdjustmentDeltaAfter = this.db.prepare(`
+      SELECT inventoryId,
+        COALESCE(SUM(quantityDelta), 0) AS deltaQty
+      FROM stock_adjustments
+      WHERE date > ?
+      GROUP BY inventoryId
     `);
   }
 }

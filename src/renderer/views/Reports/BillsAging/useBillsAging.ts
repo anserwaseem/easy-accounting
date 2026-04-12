@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isEmpty, sumBy } from 'lodash';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { getFixedNumber } from 'renderer/lib/utils';
-import type { Account, Chart, LedgerView, Journal } from '@/types';
+import type { Account, Chart, LedgerView } from '@/types';
 import type {
   BillsAging,
   BillsAgingAccount,
@@ -55,6 +55,8 @@ export const useBillsAging = () => {
 
       setIsLoading(true);
       try {
+        setInfoMessage('');
+
         // fetch all accounts for the selected head
         const rawAccounts: Account[] = await window.electron.getAccounts();
         const filteredAccounts = rawAccounts.filter(
@@ -70,64 +72,40 @@ export const useBillsAging = () => {
           return;
         }
 
-        // get all account IDs
         const accountIds = filteredAccounts.map(
           (account: Account) => account.id,
         );
 
-        // fetch all ledgers in a single batch operation
-        const ledgersPromises = accountIds.map((id: number) =>
-          window.electron.getLedger(id),
-        );
-        const ledgersResults = await Promise.all(ledgersPromises);
-
-        // map accounts to ledgers
-        const accountLedgers = filteredAccounts.reduce(
-          (
-            acc: Record<number, LedgerView[]>,
-            account: Account,
-            index: number,
-          ) => {
-            acc[account.id] = ledgersResults[index];
-            return acc;
-          },
-          {} as Record<number, LedgerView[]>,
-        );
-
-        // normalize dates to start/end of day for consistent comparison
-        const selectedDateEnd = new Date(end);
-        selectedDateEnd.setHours(23, 59, 59, 999);
         const selectedDateStart = new Date(start);
         selectedDateStart.setHours(0, 0, 0, 0);
+        const selectedDateEnd = new Date(end);
+        selectedDateEnd.setHours(0, 0, 0, 0);
 
-        // helper function to extract date components and compare by calendar date
-        const isDateInRange = (dateStr: string): boolean => {
-          const entryDate = new Date(dateStr);
-          // normalize entry date to midnight for day-based comparison
-          const normalizedEntry = new Date(entryDate);
-          normalizedEntry.setHours(0, 0, 0, 0);
-          const normalizedStart = new Date(selectedDateStart);
-          const normalizedEnd = new Date(selectedDateEnd);
-          normalizedEnd.setHours(0, 0, 0, 0); // compare at day level
+        const startStr = format(selectedDateStart, 'yyyy-MM-dd');
+        const endStr = format(selectedDateEnd, 'yyyy-MM-dd');
+        const asOfBeforeStartStr = format(
+          subDays(selectedDateStart, 1),
+          'yyyy-MM-dd',
+        );
 
-          return (
-            normalizedEntry.getTime() >= normalizedStart.getTime() &&
-            normalizedEntry.getTime() <= normalizedEnd.getTime()
-          );
-        };
+        const [openingByAccountId, rangeByAccountId] = await Promise.all([
+          window.electron.getLedgerBalancesForAccountIdsAsOfDate(
+            accountIds,
+            asOfBeforeStartStr,
+          ),
+          window.electron.getLedgerRangeForAccountIds(
+            accountIds,
+            startStr,
+            endStr,
+          ),
+        ]);
 
         // collect all journal IDs from all accounts first
         const allJournalIds = new Set<number>();
         const accountLedgersMap: Record<number, LedgerView[]> = {};
 
         for (const account of filteredAccounts) {
-          const ledger = accountLedgers[account.id];
-          if (isEmpty(ledger)) continue;
-
-          // filter ledger entries within the selected date range
-          const entriesInRange = ledger.filter((entry: LedgerView) =>
-            isDateInRange(entry.date),
-          );
+          const entriesInRange = rangeByAccountId[account.id] ?? [];
 
           if (isEmpty(entriesInRange)) continue;
 
@@ -152,7 +130,7 @@ export const useBillsAging = () => {
             `No entries found for ${headName} during period: ${format(
               selectedDateStart,
               'dd/MM/yyyy',
-            )} to ${format(selectedDateEnd, 'dd/MM/yyyy')}`,
+            )} to ${format(end, 'dd/MM/yyyy')}`,
           );
           setBillsAging({
             headName,
@@ -162,25 +140,13 @@ export const useBillsAging = () => {
           return;
         }
 
-        // fetch all journals at once (only if there are journal-referenced entries)
-        const journals: Record<number, Journal> = {};
-        const journalPromises = Array.from(allJournalIds).map(
-          async (journalId) => {
-            try {
-              const journal = await window.electron.getJournal(journalId);
-              return { journalId, journal };
-            } catch (error) {
-              console.error(`Error fetching journal ${journalId}:`, error);
-              return { journalId, journal: null };
-            }
-          },
-        );
-        const journalResults = await Promise.all(journalPromises);
-        journalResults.forEach(({ journalId, journal }) => {
-          if (journal) {
-            journals[journalId] = journal;
-          }
-        });
+        const journalIdList = Array.from(allJournalIds);
+        const journalSummariesById =
+          journalIdList.length > 0
+            ? await window.electron.getJournalNarrationSummariesByIds(
+                journalIdList,
+              )
+            : {};
 
         const accounts: BillsAgingAccount[] = [];
 
@@ -188,13 +154,8 @@ export const useBillsAging = () => {
           const entriesInRange = accountLedgersMap[account.id];
           if (!entriesInRange) continue;
 
-          // treat opening balance as first bill (carry-forward) if start-date balance is Dr
-          const fullLedger = accountLedgers[account.id] || [];
-          const lastBeforeStart = fullLedger
-            .filter(
-              (l) => new Date(l.date).getTime() < selectedDateStart.getTime(),
-            )
-            .at(-1);
+          // treat opening balance as first bill (carry-forward) if balance before period start is Dr
+          const openingBeforeStart = openingByAccountId[account.id];
 
           // separate debit and credit entries
           const debitEntries = entriesInRange.filter(
@@ -210,11 +171,11 @@ export const useBillsAging = () => {
 
           // create opening balance bill from last balance before start (if Dr)
           if (
-            lastBeforeStart &&
-            lastBeforeStart.balanceType === 'Dr' &&
-            lastBeforeStart.balance > 0
+            openingBeforeStart &&
+            openingBeforeStart.balanceType === 'Dr' &&
+            openingBeforeStart.balance > 0
           ) {
-            const openingAmount = lastBeforeStart.balance;
+            const openingAmount = openingBeforeStart.balance;
             bills.push({
               billNumber: 'Opening Balance',
               billPercentage: '-',
@@ -247,11 +208,10 @@ export const useBillsAging = () => {
 
           // create bills from debit entries with journal references
           for (const [journalId, entries] of Object.entries(debitByJournal)) {
-            const journal = journals[parseInt(journalId, 10)];
-            const billNumber = journal?.billNumber
-              ? journal.billNumber.toString()
-              : '-';
-            const billPercentage = journal?.discountPercentage ?? '-';
+            const summary = journalSummariesById[parseInt(journalId, 10)];
+            const billNumber =
+              summary?.billNumber != null ? String(summary.billNumber) : '-';
+            const billPercentage = summary?.discountPercentage ?? '-';
             const billDate = (entries as LedgerView[])[0].date; // use first entry date
             const billAmount = sumBy(entries as LedgerView[], 'debit');
 

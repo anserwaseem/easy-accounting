@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { format } from 'date-fns';
 import { isEmpty } from 'lodash';
 import { AccountType, type Account, type LedgerView } from '@/types';
 import { getFixedNumber } from '@/renderer/lib/utils';
@@ -127,25 +128,24 @@ export const useAverageEquityBalances = () => {
           return;
         }
 
-        const ledgerPromises = equityAccounts.map((acc) =>
-          window.electron.getLedger(acc.id),
-        );
-        const ledgersResults = <LedgerView[][]>(
-          await Promise.all(ledgerPromises)
-        );
+        const equityIds = equityAccounts.map((acc) => acc.id);
+        const endDay = format(e, 'yyyy-MM-dd');
+        const ledgersByAccountId =
+          await window.electron.getLedgersUpToDateForAccountIds(
+            equityIds,
+            endDay,
+          );
 
-        const items: AverageEquityBalanceItem[] = equityAccounts.map(
-          (acc, idx) => {
-            const ledger = ledgersResults[idx] || [];
-            const avg = computeTimeWeightedAverage(ledger, s, e);
-            return {
-              id: acc.id,
-              name: acc.name,
-              code: acc.code,
-              averageBalance: avg,
-            };
-          },
-        );
+        const items: AverageEquityBalanceItem[] = equityAccounts.map((acc) => {
+          const ledger = ledgersByAccountId[acc.id] ?? [];
+          const avg = computeTimeWeightedAverage(ledger, s, e);
+          return {
+            id: acc.id,
+            name: acc.name,
+            code: acc.code,
+            averageBalance: avg,
+          };
+        });
 
         const nonZeroItems = items.filter(
           (it) => getFixedNumber(it.averageBalance) > 0,

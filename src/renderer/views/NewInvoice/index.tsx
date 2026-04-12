@@ -45,6 +45,8 @@ import {
   splitTypedAccountMissingSubmitBlockedReason,
 } from '@/renderer/lib/invoiceBehaviorStore';
 import { toastContentFromInvoiceSaveError } from '@/renderer/lib/ipcUserMessage';
+import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
+import { FILE_UPLOAD_HINT_INVOICE_ITEMS } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import {
   checkParsedItemsAvailability,
@@ -1200,7 +1202,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     const file = e.target.files?.[0];
 
     try {
-      const json = await convertFileToJson(file);
+      const json = await convertFileToJson(file, { preferDisplayText: true });
       const parsedItems = parseInvoiceItems(json);
       const items = (await window.electron.getInventory()) as InventoryItem[];
       const areItemsAvailable = checkParsedItemsAvailability(
@@ -2037,23 +2039,25 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     invoiceType === InvoiceType.Sale ? 'hidden' : ''
                   }`}
                 >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() =>
-                      document
-                        .getElementById('uploadInvoiceItemsInput')
-                        ?.click()
-                    }
-                  >
-                    <Upload size={16} className="mr-2" />
-                    Upload Invoice Items
-                  </Button>
+                  <FileUploadTooltip content={FILE_UPLOAD_HINT_INVOICE_ITEMS}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() =>
+                        document
+                          .getElementById('uploadInvoiceItemsInput')
+                          ?.click()
+                      }
+                    >
+                      <Upload size={16} className="mr-2" />
+                      Upload Invoice Items
+                    </Button>
+                  </FileUploadTooltip>
                   <Input
                     id="uploadInvoiceItemsInput"
                     type="file"
-                    accept=".xlsx, .xls"
+                    accept=".xlsx, .xls, .csv"
                     className="hidden"
                     onChange={uploadInvoiceItems}
                   />

@@ -29,6 +29,9 @@ import LedgerReportPage from './views/Reports/LedgerReport';
 import AverageEquityBalancesPage from './views/Reports/AverageEquityBalances';
 import BillsAgingPage from './views/Reports/BillsAging';
 import QuotationsPage from './views/Quotations';
+import InventoryHealthReportPage from './views/Reports/InventoryHealth';
+import StockAsOfReportPage from './views/Reports/StockAsOf';
+import SalesPerformanceReportPage from './views/Reports/SalesPerformance';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -64,6 +67,15 @@ const AppRoutes: React.FC = () => (
                   element={<AverageEquityBalancesPage />}
                 />
                 <Route path="bills-aging" element={<BillsAgingPage />} />
+                <Route
+                  path="inventory-health"
+                  element={<InventoryHealthReportPage />}
+                />
+                <Route path="stock-as-of" element={<StockAsOfReportPage />} />
+                <Route
+                  path="sales-performance"
+                  element={<SalesPerformanceReportPage />}
+                />
               </Route>
               <Route path="purchase/invoices">
                 <Route

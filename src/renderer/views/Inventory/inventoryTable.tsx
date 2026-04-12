@@ -1,16 +1,27 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { isNil } from 'lodash';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
+import {
+  createListPositionSortingFn,
+  defaultSortingFunctions,
+} from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InventoryItem, ItemType } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
-import VirtualSelect from '@/renderer/components/VirtualSelect';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/renderer/shad/ui/select';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
 
-const NO_ITEM_TYPE_OPTION = { id: 0, name: 'No type' };
+const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
+  (r) => r.id,
+);
 
 interface InventoryTableProps {
   refetchInventory: () => void;
@@ -50,11 +61,6 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     fetchInventory();
   }, [options?.refresh]);
 
-  const itemTypeOptions = useMemo(
-    () => [NO_ITEM_TYPE_OPTION, ...itemTypes],
-    [itemTypes],
-  );
-
   const updateItemType = async (
     row: InventoryItem,
     selectedTypeId: string | number,
@@ -67,6 +73,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       price: row.price,
       description: row.description,
       itemTypeId: nextItemTypeId,
+      listPosition: row.listPosition ?? null,
     });
 
     if (!updated) {
@@ -114,38 +121,72 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
   const columns: ColumnDef<InventoryItem>[] = [
     {
+      accessorKey: 'listPosition',
+      header: 'List #',
+      headerTooltip: 'Catalog list order (nulls sort last).',
+      size: 40,
+      sortingFn: listPositionSortingFn,
+      // eslint-disable-next-line react/no-unstable-nested-components
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {row.original.listPosition != null ? row.original.listPosition : '—'}
+        </span>
+      ),
+    },
+    {
       accessorKey: 'name',
       header: 'Name',
+      size: 102,
     },
     {
       accessorKey: 'description',
       header: 'Description',
+      size: 240,
     },
     {
       accessorKey: 'itemTypeName',
       header: 'Type',
+      size: 92,
       // eslint-disable-next-line react/no-unstable-nested-components
-      cell: ({ row }) => (
-        <div className="min-w-[160px]">
-          <VirtualSelect
-            options={itemTypeOptions}
-            value={row.original.itemTypeId ?? 0}
-            onChange={(value) => {
-              updateItemType(row.original, value);
-            }}
-            placeholder="Select type"
-            searchPlaceholder="Search types..."
-          />
-        </div>
-      ),
+      cell: ({ row }) => {
+        const typeId = row.original.itemTypeId ?? 0;
+        const hasOrphanType =
+          typeId > 0 && !itemTypes.some((t) => t.id === typeId);
+
+        return (
+          <Select
+            value={String(typeId)}
+            onValueChange={(v) => updateItemType(row.original, v)}
+          >
+            <SelectTrigger className="h-9 w-[180px] max-w-full">
+              <SelectValue placeholder="No type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">No type</SelectItem>
+              {hasOrphanType ? (
+                <SelectItem value={String(typeId)}>
+                  {row.original.itemTypeName ?? `Type #${typeId}`}
+                </SelectItem>
+              ) : null}
+              {itemTypes.map((t) => (
+                <SelectItem key={t.id} value={String(t.id)}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      },
     },
     {
       accessorKey: 'price',
       header: 'Price',
+      size: 72,
     },
     {
       accessorKey: 'quantity',
       header: 'Quantity',
+      size: 80,
       // eslint-disable-next-line react/no-unstable-nested-components
       cell: ({ row }) => {
         const hasHistory = itemsWithHistory.includes(row.original.id);
@@ -198,14 +239,20 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       <DataTable
         columns={columns}
         data={getInventory()}
-        sortingFns={defaultSortingFunctions}
+        sortingFns={{
+          ...defaultSortingFunctions,
+          listPosition: listPositionSortingFn,
+        }}
         virtual
+        compact
+        defaultSortField="listPosition"
         searchPersistenceKey="datatable:inventory:search"
         searchPlaceholder="Search inventory..."
         searchFields={[
           'name',
           'description',
           'itemTypeName',
+          'listPosition',
           'price',
           'quantity',
         ]}

@@ -136,6 +136,8 @@ export class InvoiceService {
 
   private stmAggregateInvoiceStockByLine!: Statement;
 
+  private stmGetInvoicesInDateRange!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.journalService = new JournalService();
@@ -769,22 +771,9 @@ export class InvoiceService {
     startDate?: string,
     endDate?: string,
   ): InvoicesExport[] {
-    const stmGetInvoicesInDateRange = this.db.prepare(`
-      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName', i.biltyNumber, i.cartons,
-             SUM(ii.quantity) AS 'totalQuantity'
-      FROM invoices i
-      JOIN account a ON i.accountId = a.id
-      JOIN invoice_items ii ON i.id = ii.invoiceId
-      WHERE i.invoiceType = 'Sale' AND COALESCE(i.isQuotation, 0) = 0 ${
-        startDate && endDate ? 'AND i.date BETWEEN @startDate AND @endDate' : ''
-      }
-      GROUP BY i.id
-      ORDER BY i.invoiceNumber
-    `);
-
-    const result = stmGetInvoicesInDateRange.all({
-      startDate,
-      endDate,
+    const result = this.stmGetInvoicesInDateRange.all({
+      startDate: startDate ?? null,
+      endDate: endDate ?? null,
     }) as InvoicesExport[];
 
     return result;
@@ -1500,36 +1489,6 @@ export class InvoiceService {
     });
   }
 
-  private getTotalAmount(items: InvoiceItem[]): number {
-    const stmGetInventoryPrices = this.db.prepare(`
-      SELECT id, price
-      FROM inventory
-      WHERE id IN (${items.map((item) => item.inventoryId).join(', ')})
-    `);
-
-    const results = <{ id: number; price: number }[]>(
-      stmGetInventoryPrices.all()
-    );
-
-    // let totalAmount = 0;
-    // items.forEach((item) => {
-    //   const price = results.find((r) => r.id === item.inventoryId)?.price ?? 0;
-    //   const { quantity, discount } = item;
-    //   totalAmount += quantity * price * (1 - discount / 100);
-    // });
-
-    const totalAmount = items.reduce(
-      (total, item) =>
-        total +
-        InvoiceService.getInvoiceItemTotal(
-          item,
-          results.find((r) => r.id === item.inventoryId)?.price ?? 0,
-        ),
-      0,
-    );
-    return totalAmount;
-  }
-
   private getTransactionAccounts(
     invoiceType: InvoiceType,
     accountId: number,
@@ -1573,6 +1532,583 @@ export class InvoiceService {
     const { quantity, discount } = item;
     return quantity * price * (1 - discount / 100);
   };
+
+  /** Sales Performance report: posted sales behavior, trends, returns, and quotation backlog. */
+  getSalesPerformance(filters: {
+    startDate: string;
+    endDate: string;
+    groupBy?: 'day' | 'week' | 'month';
+    groupByPolicy?: boolean;
+    compareStartDate?: string;
+    compareEndDate?: string;
+  }): Record<string, unknown> {
+    const {
+      startDate,
+      endDate,
+      groupBy: timeGroup = 'day',
+      groupByPolicy = false,
+      compareStartDate,
+      compareEndDate,
+    } = filters;
+
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+    const sqlCompareStart =
+      compareStartDate && compareStartDate.length === 10
+        ? `${compareStartDate}T00:00:00.000Z`
+        : compareStartDate;
+    const sqlCompareEnd =
+      compareEndDate && compareEndDate.length === 10
+        ? `${compareEndDate}T23:59:59.999Z`
+        : compareEndDate;
+
+    let groupExpr: string;
+    if (timeGroup === 'month') {
+      groupExpr = "strftime('%Y-%m', i.date)";
+    } else if (timeGroup === 'week') {
+      groupExpr = "strftime('%Y-%W', i.date)";
+    } else {
+      groupExpr = 'date(i.date)';
+    }
+
+    // posted sale invoices (isQuotation=0, isReturned=0)
+    const postedMetrics = {
+      ...(this.db
+        .prepare(
+          `
+        SELECT
+          COUNT(id) AS invoiceCount,
+          COALESCE(SUM(totalAmount), 0) AS totalAmount,
+          COALESCE(AVG(totalAmount), 0) AS avgAmount
+        FROM invoices
+        WHERE invoiceType = 'Sale'
+          AND isQuotation = 0
+          AND isReturned = 0
+          AND date >= ? AND date <= ?
+      `,
+        )
+        .get(sqlStartDate, sqlEndDate) as Record<string, number>),
+      ...(this.db
+        .prepare(
+          `
+        SELECT
+          COALESCE(SUM(ii.quantity), 0) AS totalQty,
+          COALESCE(AVG(ii.discount), 0) AS avgDiscount
+        FROM invoices i
+        JOIN invoice_items ii ON ii.invoiceId = i.id
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ? AND i.date <= ?
+      `,
+        )
+        .get(sqlStartDate, sqlEndDate) as Record<string, number>),
+    };
+
+    // returned sale invoices (isReturned=1)
+    const returnMetrics = this.db
+      .prepare(
+        `
+      SELECT
+        COUNT(*) AS returnCount,
+        COALESCE(SUM(i.totalAmount), 0) AS returnAmount
+      FROM invoices i
+      WHERE i.invoiceType = 'Sale'
+        AND i.isReturned = 1
+        AND i.returnedAt >= ? AND i.returnedAt <= ?
+    `,
+      )
+      .get(sqlStartDate, sqlEndDate) as Record<string, number>;
+
+    // quotation backlog (isQuotation=1)
+    const quotationMetrics = this.db
+      .prepare(
+        `
+      SELECT
+        COUNT(*) AS quotationCount,
+        COALESCE(SUM(i.totalAmount), 0) AS quotationAmount
+      FROM invoices i
+      WHERE i.invoiceType = 'Sale'
+        AND i.isQuotation = 1
+        AND i.isReturned = 0
+    `,
+      )
+      .get() as Record<string, number>;
+
+    // time series
+    const seriesRaw = this.db
+      .prepare(
+        `
+      SELECT
+        ${groupExpr} AS period,
+        COALESCE(SUM(i.totalAmount), 0) AS amount,
+        COALESCE(SUM(qty_table.qty), 0) AS qty,
+        COUNT(i.id) AS invoiceCount
+      FROM invoices i
+      LEFT JOIN (
+        SELECT invoiceId, SUM(quantity) AS qty
+        FROM invoice_items
+        GROUP BY invoiceId
+      ) qty_table ON qty_table.invoiceId = i.id
+      WHERE i.invoiceType = 'Sale'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+        AND i.date >= ? AND i.date <= ?
+      GROUP BY ${groupExpr}
+      ORDER BY period
+    `,
+      )
+      .all(sqlStartDate, sqlEndDate) as Array<{
+      period: string;
+      amount: number;
+      qty: number;
+      invoiceCount: number;
+    }>;
+
+    const series = [
+      {
+        dataPoints: seriesRaw.map((r) => ({ date: r.period, value: r.amount })),
+        granularity: timeGroup,
+      },
+      {
+        dataPoints: seriesRaw.map((r) => ({ date: r.period, value: r.qty })),
+        granularity: timeGroup,
+      },
+      {
+        dataPoints: seriesRaw.map((r) => ({
+          date: r.period,
+          value: r.invoiceCount,
+        })),
+        granularity: timeGroup,
+      },
+    ];
+
+    // top customers or policies (unified shape)
+    let topGroups: Array<{
+      groupId: number;
+      groupName: string;
+      totalAmount: number;
+      invoiceCount: number;
+      customerCount?: number; // only present when groupByPolicy = true
+    }>;
+
+    if (groupByPolicy) {
+      // Group by discount profile (policy). Handle NULL profiles as "No Policy"
+      const rows = this.db
+        .prepare(
+          `
+        SELECT
+          COALESCE(dp.name, 'No Policy') AS groupName,
+          COALESCE(dp.id, -1) AS groupId,
+          COALESCE(SUM(ii.quantity * ii.price * (1 - ii.discount / 100)), 0) AS totalAmount,
+          COUNT(DISTINCT i.id) AS invoiceCount,
+          COUNT(DISTINCT ii.accountId) AS customerCount
+        FROM invoices i
+        JOIN invoice_items ii ON ii.invoiceId = i.id
+        JOIN account a ON a.id = ii.accountId
+        LEFT JOIN discount_profiles dp ON dp.id = a.discountProfileId
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ? AND i.date <= ?
+        GROUP BY a.discountProfileId
+        ORDER BY totalAmount DESC
+
+      `,
+        )
+        .all(sqlStartDate, sqlEndDate) as Array<{
+        groupName: string;
+        groupId: number;
+        totalAmount: number;
+        invoiceCount: number;
+        customerCount: number;
+      }>;
+      topGroups = rows.map((r) => ({
+        groupId: r.groupId,
+        groupName: r.groupName,
+        totalAmount: r.totalAmount,
+        invoiceCount: r.invoiceCount,
+        customerCount: r.customerCount,
+      }));
+    } else {
+      // Group by individual customer account (original behavior)
+      const rows = this.db
+        .prepare(
+          `
+        SELECT
+          a.name AS groupName, a.id AS groupId, a.code AS groupCode,
+          COALESCE(SUM(ii.quantity * ii.price * (1 - ii.discount / 100)), 0) AS totalAmount,
+          COUNT(DISTINCT i.id) AS invoiceCount
+        FROM invoices i
+        JOIN invoice_items ii ON ii.invoiceId = i.id
+        JOIN account a ON a.id = ii.accountId
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ? AND i.date <= ?
+        GROUP BY ii.accountId
+        ORDER BY totalAmount DESC
+
+      `,
+        )
+        .all(sqlStartDate, sqlEndDate) as Array<{
+        groupName: string;
+        groupId: number;
+        groupCode: number | null;
+        totalAmount: number;
+        invoiceCount: number;
+      }>;
+      topGroups = rows.map((r) => ({
+        groupId: r.groupId,
+        groupName: r.groupName,
+        groupCode: r.groupCode,
+        totalAmount: r.totalAmount,
+        invoiceCount: r.invoiceCount,
+      }));
+    }
+
+    // top items
+    const topItems = this.db
+      .prepare(
+        `
+      SELECT
+        inv.name AS itemName, inv.id AS itemId,
+        COALESCE(SUM(ii.quantity), 0) AS totalQty,
+        COALESCE(SUM(ii.quantity * ii.price * (1 - ii.discount / 100)), 0) AS totalAmount
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoiceId = i.id
+      JOIN inventory inv ON inv.id = ii.inventoryId
+      WHERE i.invoiceType = 'Sale'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+        AND i.date >= ? AND i.date <= ?
+      GROUP BY ii.inventoryId
+      ORDER BY totalAmount DESC
+
+    `,
+      )
+      .all(sqlStartDate, sqlEndDate) as Array<{
+      itemName: string;
+      itemId: number;
+      totalQty: number;
+      totalAmount: number;
+    }>;
+
+    // returns detail
+    const returnsDetail = this.db
+      .prepare(
+        `
+      SELECT
+        i.id, i.invoiceNumber, i.date, i.totalAmount, a.name AS customerName
+      FROM invoices i
+      JOIN account a ON a.id = i.accountId
+      WHERE i.invoiceType = 'Sale'
+        AND i.isReturned = 1
+        AND i.returnedAt >= ? AND i.returnedAt <= ?
+      ORDER BY i.returnedAt DESC
+    `,
+      )
+      .all(sqlStartDate, sqlEndDate) as Array<{
+      id: number;
+      invoiceNumber: number;
+      date: string;
+      totalAmount: number;
+      customerName: string;
+    }>;
+
+    // quotation backlog detail
+    const quotationDetail = this.db
+      .prepare(
+        `
+      SELECT
+        i.id, i.invoiceNumber, i.date, i.totalAmount, a.name AS customerName
+      FROM invoices i
+      JOIN account a ON a.id = i.accountId
+      WHERE i.invoiceType = 'Sale'
+        AND i.isQuotation = 1
+        AND i.isReturned = 0
+      ORDER BY i.date DESC
+    `,
+      )
+      .all() as Array<{
+      id: number;
+      invoiceNumber: number;
+      date: string;
+      totalAmount: number;
+      customerName: string;
+    }>;
+
+    // rows for the report (top groups: either customers or policies)
+    const rows = topGroups;
+
+    const kpis = {
+      postedSalesAmount: postedMetrics.totalAmount,
+      qtySold: postedMetrics.totalQty,
+      invoiceCount: postedMetrics.invoiceCount,
+      avgInvoiceAmount: postedMetrics.avgAmount,
+      avgDiscountPercent: postedMetrics.avgDiscount,
+      returnedInvoiceCount: returnMetrics.returnCount,
+      returnedAmount: returnMetrics.returnAmount,
+      activeQuotationCount: quotationMetrics.quotationCount,
+      activeQuotationAmount: quotationMetrics.quotationAmount,
+    };
+
+    // Comparison data
+    const hasComparison =
+      typeof compareStartDate === 'string' &&
+      typeof compareEndDate === 'string' &&
+      compareStartDate.length > 0 &&
+      compareEndDate.length > 0;
+
+    let comparisonKpis: Record<string, number> | undefined;
+    let comparisonSeries: typeof series | undefined;
+    let comparisonTopGroups: typeof topGroups | undefined;
+
+    if (hasComparison) {
+      const postedCompare = this.db
+        .prepare(
+          `
+        SELECT
+          COUNT(*) AS invoiceCount,
+          COALESCE(SUM(i.totalAmount), 0) AS totalAmount,
+          COALESCE(SUM(ii.quantity), 0) AS totalQty,
+          COALESCE(AVG(i.totalAmount), 0) AS avgAmount,
+          COALESCE(AVG(ii.discount), 0) AS avgDiscount
+        FROM invoices i
+        JOIN invoice_items ii ON ii.invoiceId = i.id
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ? AND i.date <= ?
+      `,
+        )
+        .get(sqlCompareStart, sqlCompareEnd) as Record<string, number>;
+
+      const returnCompare = this.db
+        .prepare(
+          `
+        SELECT
+          COUNT(*) AS returnCount,
+          COALESCE(SUM(i.totalAmount), 0) AS returnAmount
+        FROM invoices i
+        WHERE i.invoiceType = 'Sale'
+          AND i.isReturned = 1
+          AND i.returnedAt >= ? AND i.returnedAt <= ?
+      `,
+        )
+        .get(sqlCompareStart, sqlCompareEnd) as Record<string, number>;
+
+      comparisonKpis = {
+        postedSalesAmount: postedCompare.totalAmount,
+        qtySold: postedCompare.totalQty,
+        invoiceCount: postedCompare.invoiceCount,
+        avgInvoiceAmount: postedCompare.avgAmount,
+        avgDiscountPercent: postedCompare.avgDiscount,
+        returnedInvoiceCount: returnCompare.returnCount,
+        returnedAmount: returnCompare.returnAmount,
+      };
+
+      // comparison series
+      const seriesRawCompare = this.db
+        .prepare(
+          `
+        SELECT
+          ${groupExpr} AS period,
+          COALESCE(SUM(i.totalAmount), 0) AS amount,
+          COALESCE(SUM(ii.quantity), 0) AS qty,
+          COUNT(DISTINCT i.id) AS invoiceCount
+        FROM invoices i
+        JOIN invoice_items ii ON ii.invoiceId = i.id
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ? AND i.date <= ?
+        GROUP BY ${groupExpr}
+        ORDER BY period
+      `,
+        )
+        .all(sqlCompareStart, sqlCompareEnd) as Array<{
+        period: string;
+        amount: number;
+        qty: number;
+        invoiceCount: number;
+      }>;
+
+      comparisonSeries = [
+        {
+          dataPoints: seriesRawCompare.map((r) => ({
+            date: r.period,
+            value: r.amount,
+          })),
+          granularity: timeGroup,
+        },
+        {
+          dataPoints: seriesRawCompare.map((r) => ({
+            date: r.period,
+            value: r.qty,
+          })),
+          granularity: timeGroup,
+        },
+        {
+          dataPoints: seriesRawCompare.map((r) => ({
+            date: r.period,
+            value: r.invoiceCount,
+          })),
+          granularity: timeGroup,
+        },
+      ];
+
+      // comparison top groups
+      if (groupByPolicy) {
+        const compareRows = this.db
+          .prepare(
+            `
+          SELECT
+            COALESCE(dp.name, 'No Policy') AS groupName,
+            COALESCE(dp.id, -1) AS groupId,
+            COALESCE(SUM(i.totalAmount), 0) AS totalAmount,
+            COUNT(DISTINCT i.id) AS invoiceCount,
+            COUNT(DISTINCT i.accountId) AS customerCount
+          FROM invoices i
+          JOIN account a ON a.id = i.accountId
+          LEFT JOIN discount_profiles dp ON dp.id = a.discountProfileId
+          JOIN invoice_items ii ON ii.invoiceId = i.id
+          WHERE i.invoiceType = 'Sale'
+            AND i.isQuotation = 0
+            AND i.isReturned = 0
+            AND i.date >= ? AND i.date <= ?
+          GROUP BY a.discountProfileId
+          ORDER BY totalAmount DESC
+
+        `,
+          )
+          .all(sqlCompareStart, sqlCompareEnd) as Array<{
+          groupName: string;
+          groupId: number;
+          totalAmount: number;
+          invoiceCount: number;
+          customerCount: number;
+        }>;
+        comparisonTopGroups = compareRows.map((r) => ({
+          groupId: r.groupId,
+          groupName: r.groupName,
+          totalAmount: r.totalAmount,
+          invoiceCount: r.invoiceCount,
+          customerCount: r.customerCount,
+        }));
+      } else {
+        const compareRows = this.db
+          .prepare(
+            `
+          SELECT
+            a.name AS groupName, a.id AS groupId, a.code AS groupCode,
+            COALESCE(SUM(i.totalAmount), 0) AS totalAmount,
+            COUNT(DISTINCT i.id) AS invoiceCount
+          FROM invoices i
+          JOIN account a ON a.id = i.accountId
+          JOIN invoice_items ii ON ii.invoiceId = i.id
+          WHERE i.invoiceType = 'Sale'
+            AND i.isQuotation = 0
+            AND i.isReturned = 0
+            AND i.date >= ? AND i.date <= ?
+          GROUP BY i.accountId
+          ORDER BY totalAmount DESC
+
+        `,
+          )
+          .all(sqlCompareStart, sqlCompareEnd) as Array<{
+          groupName: string;
+          groupId: number;
+          groupCode: number | null;
+          totalAmount: number;
+          invoiceCount: number;
+        }>;
+        comparisonTopGroups = compareRows.map((r) => ({
+          groupId: r.groupId,
+          groupName: r.groupName,
+          groupCode: r.groupCode,
+          totalAmount: r.totalAmount,
+          invoiceCount: r.invoiceCount,
+        }));
+      }
+    }
+
+    const currentTopItems = topItems.map((t) => ({
+      itemId: t.itemId,
+      itemName: t.itemName,
+      totalQty: t.totalQty,
+      totalAmount: t.totalAmount,
+    }));
+
+    // comparison top items with same keys
+    let comparisonTopItems: typeof currentTopItems | undefined;
+    if (hasComparison) {
+      const compareItems = this.db
+        .prepare(
+          `
+        SELECT
+          inv.name AS itemName, inv.id AS itemId,
+          COALESCE(SUM(ii.quantity), 0) AS totalQty,
+          COALESCE(SUM(ii.quantity * ii.price * (1 - ii.discount / 100)), 0) AS totalAmount
+        FROM invoices i
+        JOIN invoice_items ii ON ii.invoiceId = i.id
+        JOIN inventory inv ON inv.id = ii.inventoryId
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ? AND i.date <= ?
+        GROUP BY ii.inventoryId
+        ORDER BY totalAmount DESC
+
+      `,
+        )
+        .all(sqlCompareStart!, sqlCompareEnd!) as Array<{
+        itemName: string;
+        itemId: number;
+        totalQty: number;
+        totalAmount: number;
+      }>;
+      comparisonTopItems = compareItems.map((t) => ({
+        itemId: t.itemId,
+        itemName: t.itemName,
+        totalQty: t.totalQty,
+        totalAmount: t.totalAmount,
+      }));
+    }
+
+    return {
+      kpis,
+      series,
+      rows,
+      topItems: currentTopItems,
+      returns: returnsDetail.map((r) => ({
+        invoiceId: r.id,
+        invoiceNumber: r.invoiceNumber,
+        date: r.date,
+        customerName: r.customerName,
+        amount: r.totalAmount,
+      })),
+      quotationBacklog: quotationDetail.map((q) => ({
+        invoiceId: q.id,
+        invoiceNumber: q.invoiceNumber,
+        date: q.date,
+        customerName: q.customerName,
+        amount: q.totalAmount,
+      })),
+      anomalies: [],
+      exportRows: rows,
+      ...(hasComparison && comparisonKpis
+        ? {
+            comparisonKpis,
+            comparisonSeries: comparisonSeries ?? [],
+            comparisonRows: comparisonTopGroups ?? [],
+            comparisonTopItems: comparisonTopItems ?? [],
+          }
+        : {}),
+    };
+  }
 
   private initPreparedStatements() {
     this.stmGetNextInvoiceNumber = this.db.prepare(`
@@ -1883,6 +2419,18 @@ export class InvoiceService {
         returnedAt = datetime('now', 'localtime'),
         returnReason = @returnReason
       WHERE id = @invoiceId
+    `);
+
+    this.stmGetInvoicesInDateRange = this.db.prepare(`
+      SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName', i.biltyNumber, i.cartons,
+             SUM(ii.quantity) AS 'totalQuantity'
+      FROM invoices i
+      JOIN account a ON i.accountId = a.id
+      JOIN invoice_items ii ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Sale' AND COALESCE(i.isQuotation, 0) = 0
+        AND ( @startDate IS NULL OR @endDate IS NULL OR i.date BETWEEN @startDate AND @endDate )
+      GROUP BY i.id
+      ORDER BY i.invoiceNumber
     `);
   }
 }

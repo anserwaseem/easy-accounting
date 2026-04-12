@@ -1,7 +1,12 @@
 import { toString } from 'lodash';
 import { Info } from 'lucide-react';
+import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
+import {
+  FILE_UPLOAD_HINT_BALANCE_SHEET,
+  FILE_UPLOAD_HINT_INVENTORY_CATALOG,
+} from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from 'renderer/lib/lib';
-import { parseBalanceSheet } from 'renderer/lib/parser';
+import { parseBalanceSheet, parseInventory } from 'renderer/lib/parser';
 import { Button } from 'renderer/shad/ui/button';
 import {
   Card,
@@ -54,6 +59,36 @@ export const GettingStarted: React.FC = () => {
       }
     },
     [],
+  );
+
+  const uploadInventoryCatalog = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      try {
+        const json = await convertFileToJson(file, {
+          preferDisplayText: true,
+        });
+        const inventory = parseInventory(json);
+        const result = await window.electron.saveInventory(inventory);
+        // eslint-disable-next-line no-console
+        console.log('saveInventory result', result);
+        toast({
+          description: 'Inventory catalog uploaded successfully.',
+          variant: 'success',
+        });
+        navigate('/inventory');
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error(error);
+        toast({
+          description: toString(error),
+          variant: 'destructive',
+        });
+      } finally {
+        e.target.value = '';
+      }
+    },
+    [navigate],
   );
 
   if (!shouldShow) {
@@ -129,23 +164,55 @@ export const GettingStarted: React.FC = () => {
               Recommended: upload your balance sheet first, then set opening
               stock as of the same date.
             </div>
+            <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">
+                Inventory catalog (one-time):
+              </span>{' '}
+              include a header row with <strong>name</strong> and{' '}
+              <strong>price</strong> (any column order); optional{' '}
+              <strong>description</strong> and <strong>list #</strong> for
+              display order.
+            </div>
           </CardContent>
           <CardFooter className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() =>
-                document.getElementById('uploadBalanceSheetInput')?.click()
-              }
-            >
-              Upload balance sheet
-            </Button>
+            <FileUploadTooltip content={FILE_UPLOAD_HINT_BALANCE_SHEET}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() =>
+                  document.getElementById('uploadBalanceSheetInput')?.click()
+                }
+              >
+                Upload balance sheet
+              </Button>
+            </FileUploadTooltip>
+            <FileUploadTooltip content={FILE_UPLOAD_HINT_INVENTORY_CATALOG}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById('uploadInventoryCatalogInput')
+                    ?.click()
+                }
+              >
+                Upload inventory catalog
+              </Button>
+            </FileUploadTooltip>
             <SetOpeningStock />
             <Input
               id="uploadBalanceSheetInput"
               type="file"
-              accept=".xlsx, .xls"
+              accept=".xlsx, .xls, .csv"
               className="hidden"
               onChange={uploadBalanceSheet}
+            />
+            <Input
+              id="uploadInventoryCatalogInput"
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              className="hidden"
+              onChange={uploadInventoryCatalog}
             />
           </CardFooter>
         </Card>

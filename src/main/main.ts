@@ -15,6 +15,7 @@ import type {
   InsertAccount,
   UpdateAccount,
   Journal,
+  LedgerView,
   InventoryItem,
   Invoice,
   UpdateInventoryItem,
@@ -285,6 +286,42 @@ app
       async (_, accountIds: number[]) =>
         ledgerService.getBalancesForAccountIds(accountIds),
     );
+    ipcMain.handle(
+      'ledger:getBalancesForAccountIdsAsOfDate',
+      async (_, accountIds: number[], asOfDate: string) =>
+        ledgerService.getBalancesForAccountIdsAsOfDate(accountIds, asOfDate),
+    );
+    ipcMain.handle(
+      'ledger:getLedgerRangeForAccountIds',
+      async (_, accountIds: number[], startDate: string, endDate: string) => {
+        const map = ledgerService.getLedgerRangeForAccountIds(
+          accountIds,
+          startDate,
+          endDate,
+        );
+        const unique = [
+          ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
+        ].sort((a, b) => a - b);
+        const flat = unique.flatMap((id) => map[id] ?? []);
+        const enriched = enrichLedgerRowsWithJournalSummaries(
+          flat,
+          journalService,
+        );
+        const result: Record<number, LedgerView[]> = {};
+        for (const id of unique) {
+          result[id] = [];
+        }
+        for (const row of enriched) {
+          result[row.accountId].push(row);
+        }
+        return result;
+      },
+    );
+    ipcMain.handle(
+      'ledger:getLedgersUpToDateForAccountIds',
+      async (_, accountIds: number[], endDate: string) =>
+        ledgerService.getLedgersUpToDateForAccountIds(accountIds, endDate),
+    );
     ipcMain.handle('journal:getNextId', async () =>
       journalService.getNextJournalId(),
     );
@@ -294,6 +331,11 @@ app
     ipcMain.handle('journal:getAll', async () => journalService.getJournals());
     ipcMain.handle('journal:get', async (_, journalId: number) =>
       journalService.getJournal(journalId),
+    );
+    ipcMain.handle(
+      'journal:getNarrationSummariesByIds',
+      async (_, journalIds: number[]) =>
+        journalService.getJournalNarrationSummariesByIds(journalIds),
     );
     ipcMain.handle('journal:getByInvoiceId', async (_, invoiceId: number) =>
       journalService.getJournalsByInvoiceId(invoiceId),
@@ -320,6 +362,11 @@ app
     );
     ipcMain.handle('inventory:update', (_, item: UpdateInventoryItem) =>
       inventoryService.updateItem(item),
+    );
+    ipcMain.handle(
+      'inventory:applyListPositions',
+      (_, rows: Array<{ name: string; listPosition: number }>) =>
+        inventoryService.applyListPositions(rows),
     );
     ipcMain.handle('inventory:getOpeningStock', () =>
       inventoryService.getOpeningStock(),
@@ -566,6 +613,26 @@ app
           closingBalance: close,
         };
       },
+    );
+
+    ipcMain.handle(
+      'report:getInventoryHealth',
+      async (
+        _,
+        filters: { startDate: string; endDate: string; itemTypeIds?: number[] },
+      ) => inventoryService.getInventoryHealth(filters),
+    );
+
+    ipcMain.handle(
+      'report:getStockAsOf',
+      async (_, filters: { asOfDate: string; itemTypeIds?: number[] }) =>
+        inventoryService.getStockAsOf(filters),
+    );
+
+    ipcMain.handle(
+      'report:getSalesPerformance',
+      async (_, filters: { startDate: string; endDate: string }) =>
+        invoiceService.getSalesPerformance(filters),
     );
 
     createWindow();

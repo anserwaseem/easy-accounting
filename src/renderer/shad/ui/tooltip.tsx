@@ -4,6 +4,7 @@ import {
   Tooltip,
   TooltipTrigger,
   Content,
+  type TooltipContentProps,
 } from '@radix-ui/react-tooltip';
 
 import { cn } from 'renderer/lib/utils';
@@ -45,4 +46,5 @@ export {
   TooltipTrigger,
   TooltipContent,
   TooltipProviderWrapper as TooltipProvider,
+  type TooltipContentProps,
 };

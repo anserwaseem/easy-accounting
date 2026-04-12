@@ -23,6 +23,14 @@ export class LedgerService {
 
   private stmGetLedgerRange!: Statement;
 
+  private stmGetBalancesForAccountIds!: Statement;
+
+  private stmGetBalancesForAccountIdsAsOfDate!: Statement;
+
+  private stmGetLedgerRangeForAccountIds!: Statement;
+
+  private stmGetLedgerUpToDateForAccountIds!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -55,37 +63,37 @@ export class LedgerService {
       ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
     ];
     if (unique.length === 0) return {};
-    const placeholders = unique.map(() => '?').join(',');
-    const sql = `
-      SELECT t.accountId, t.balance, t.balanceType
-      FROM (
-        SELECT
-          l.accountId,
-          l.balance,
-          l.balanceType,
-          ROW_NUMBER() OVER (
-            PARTITION BY l.accountId
-            ORDER BY l.date DESC, l.id DESC
-          ) AS rn
-        FROM ledger l
-        WHERE l.accountId IN (${placeholders})
-      ) t
-      WHERE t.rn = 1
-    `;
-    const stmt = this.db.prepare(sql);
-    const rows = stmt.all(...unique) as Array<{
+    const rows = this.stmGetBalancesForAccountIds.all({
+      accountIdsJson: JSON.stringify(unique),
+    }) as Array<{
       accountId: number;
       balance: number;
       balanceType: BalanceType;
     }>;
-    const out: Record<number, GetBalance> = {};
-    for (const row of rows) {
-      out[row.accountId] = {
-        balance: row.balance,
-        balanceType: row.balanceType,
-      };
-    }
-    return out;
+    return LedgerService.balanceRowsToMap(rows);
+  }
+
+  /**
+   * running balance as of inclusive calendar day (yyyy-MM-dd), one query.
+   * matches last ledger row that falls on or before that day (same ordering as getLedger).
+   */
+  getBalancesForAccountIdsAsOfDate(
+    accountIds: number[],
+    asOfDate: string,
+  ): Record<number, GetBalance> {
+    const unique = [
+      ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
+    ];
+    if (unique.length === 0) return {};
+    const rows = this.stmGetBalancesForAccountIdsAsOfDate.all({
+      accountIdsJson: JSON.stringify(unique),
+      asOfDate,
+    }) as Array<{
+      accountId: number;
+      balance: number;
+      balanceType: BalanceType;
+    }>;
+    return LedgerService.balanceRowsToMap(rows);
   }
 
   /** get the running balance as of a given date (last ledger entry on or before that date). */
@@ -112,6 +120,36 @@ export class LedgerService {
     }) as Ledger[];
   }
 
+  /** inclusive calendar range, multiple accounts, rows ordered per account like getLedgerRange. */
+  getLedgerRangeForAccountIds(
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ): Record<number, Ledger[]> {
+    const unique = LedgerService.uniqueSortedAccountIds(accountIds);
+    if (unique.length === 0) return {};
+    const rows = this.stmGetLedgerRangeForAccountIds.all({
+      accountIdsJson: JSON.stringify(unique),
+      startDate,
+      endDate,
+    }) as Ledger[];
+    return LedgerService.ledgerRowsToAccountMap(rows, unique);
+  }
+
+  /** all ledger rows on or before endDate (yyyy-MM-dd), ascending per account. */
+  getLedgersUpToDateForAccountIds(
+    accountIds: number[],
+    endDate: string,
+  ): Record<number, Ledger[]> {
+    const unique = LedgerService.uniqueSortedAccountIds(accountIds);
+    if (unique.length === 0) return {};
+    const rows = this.stmGetLedgerUpToDateForAccountIds.all({
+      accountIdsJson: JSON.stringify(unique),
+      endDate,
+    }) as Ledger[];
+    return LedgerService.ledgerRowsToAccountMap(rows, unique);
+  }
+
   insertLedger(ledger: Omit<Ledger, 'id'>): RunResult {
     return this.stmLedger.run({
       date: ledger.date,
@@ -123,6 +161,46 @@ export class LedgerService {
       particulars: ledger.particulars,
       linkedAccountId: ledger.linkedAccountId,
     });
+  }
+
+  private static balanceRowsToMap(
+    rows: Array<{
+      accountId: number;
+      balance: number;
+      balanceType: BalanceType;
+    }>,
+  ): Record<number, GetBalance> {
+    const out: Record<number, GetBalance> = {};
+    for (const row of rows) {
+      out[row.accountId] = {
+        balance: row.balance,
+        balanceType: row.balanceType,
+      };
+    }
+    return out;
+  }
+
+  private static uniqueSortedAccountIds(accountIds: number[]): number[] {
+    return [
+      ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
+    ].sort((a, b) => a - b);
+  }
+
+  private static ledgerRowsToAccountMap(
+    rows: Ledger[],
+    orderedIds: number[],
+  ): Record<number, Ledger[]> {
+    const out: Record<number, Ledger[]> = {};
+    for (const id of orderedIds) {
+      out[id] = [];
+    }
+    for (const row of rows) {
+      const bucket = out[row.accountId];
+      if (bucket) {
+        bucket.push(row);
+      }
+    }
+    return out;
   }
 
   private initPreparedStatements() {
@@ -198,5 +276,91 @@ export class LedgerService {
          ) <= @endDate
        ORDER BY datetime(l.date, 'localtime') ASC, l.id ASC`,
     );
+
+    this.stmGetBalancesForAccountIds = this.db.prepare(`
+      SELECT t.accountId, t.balance, t.balanceType
+      FROM (
+        SELECT
+          l.accountId,
+          l.balance,
+          l.balanceType,
+          ROW_NUMBER() OVER (
+            PARTITION BY l.accountId
+            ORDER BY l.date DESC, l.id DESC
+          ) AS rn
+        FROM ledger l
+        WHERE l.accountId IN (
+          SELECT CAST(j.value AS INTEGER)
+          FROM json_each(@accountIdsJson) AS j
+        )
+      ) t
+      WHERE t.rn = 1
+    `);
+
+    this.stmGetBalancesForAccountIdsAsOfDate = this.db.prepare(`
+      SELECT t.accountId, t.balance, t.balanceType
+      FROM (
+        SELECT
+          l.accountId,
+          l.balance,
+          l.balanceType,
+          ROW_NUMBER() OVER (
+            PARTITION BY l.accountId
+            ORDER BY datetime(l.date, 'localtime') DESC, l.id DESC
+          ) AS rn
+        FROM ledger l
+        WHERE l.accountId IN (
+          SELECT CAST(j.value AS INTEGER)
+          FROM json_each(@accountIdsJson) AS j
+        )
+          AND (
+            CASE
+              WHEN length(l.date) = 10 THEN l.date
+              ELSE date(datetime(l.date, 'localtime'))
+            END
+          ) <= @asOfDate
+      ) t
+      WHERE t.rn = 1
+    `);
+
+    this.stmGetLedgerRangeForAccountIds = this.db.prepare(`
+      SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode, l.createdAt, l.updatedAt
+      FROM ledger l
+      LEFT JOIN account a ON l.linkedAccountId = a.id
+      WHERE l.accountId IN (
+        SELECT CAST(j.value AS INTEGER)
+        FROM json_each(@accountIdsJson) AS j
+      )
+        AND (
+          CASE
+            WHEN length(l.date) = 10 THEN l.date
+            ELSE date(datetime(l.date, 'localtime'))
+          END
+        ) >= @startDate
+        AND (
+          CASE
+            WHEN length(l.date) = 10 THEN l.date
+            ELSE date(datetime(l.date, 'localtime'))
+          END
+        ) <= @endDate
+      ORDER BY l.accountId ASC, datetime(l.date, 'localtime') ASC, l.id ASC
+    `);
+
+    this.stmGetLedgerUpToDateForAccountIds = this.db.prepare(`
+      SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode, l.createdAt, l.updatedAt
+      FROM ledger l
+      LEFT JOIN account a ON l.linkedAccountId = a.id
+      WHERE l.accountId IN (
+        SELECT CAST(j.value AS INTEGER)
+        FROM json_each(@accountIdsJson) AS j
+      )
+        AND (
+          CASE
+            WHEN length(l.date) = 10 THEN l.date
+            ELSE date(datetime(l.date, 'localtime'))
+          END
+        ) <= @endDate
+      ORDER BY l.accountId ASC, datetime(l.date, 'localtime') ASC, l.id ASC
+    `);
   }
 }

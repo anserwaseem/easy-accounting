@@ -8,6 +8,7 @@ import type {
   InsertAccount,
   UpdateAccount,
   Journal,
+  JournalNarrationSummary,
   LedgerView,
   InventoryItem,
   Invoice,
@@ -26,6 +27,11 @@ import type {
   ProfileTypeDiscount,
   BalanceType,
   LedgerRangeResponse,
+  ReportFilters,
+  ReportResponse,
+  StockAsOfReportFilters,
+  StockAsOfReportResponse,
+  ApplyListPositionsResult,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -107,6 +113,14 @@ const electronHandler = {
 
   updateInventoryItem: (item: UpdateInventoryItem) =>
     ipcRenderer.invoke('inventory:update', item),
+
+  applyInventoryListPositions: (
+    rows: Array<{ name: string; listPosition: number }>,
+  ) =>
+    ipcRenderer.invoke(
+      'inventory:applyListPositions',
+      rows,
+    ) as Promise<ApplyListPositionsResult>,
 
   getOpeningStock: () =>
     ipcRenderer.invoke('inventory:getOpeningStock') as Promise<
@@ -348,6 +362,24 @@ const electronHandler = {
       params,
     ) as Promise<LedgerRangeResponse>,
 
+  reportGetInventoryHealth: (filters: ReportFilters) =>
+    ipcRenderer.invoke(
+      'report:getInventoryHealth',
+      filters,
+    ) as Promise<ReportResponse>,
+
+  reportGetStockAsOf: (filters: StockAsOfReportFilters) =>
+    ipcRenderer.invoke(
+      'report:getStockAsOf',
+      filters,
+    ) as Promise<StockAsOfReportResponse>,
+
+  reportGetSalesPerformance: (filters: ReportFilters) =>
+    ipcRenderer.invoke(
+      'report:getSalesPerformance',
+      filters,
+    ) as Promise<ReportResponse>,
+
   printToPdf: (outputBaseName: string | number) =>
     ipcRenderer.invoke('print:toPDF', outputBaseName),
 
@@ -453,6 +485,35 @@ const electronHandler = {
       'ledger:getBalancesForAccountIds',
       accountIds,
     ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
+  /** balances as of inclusive calendar day (yyyy-MM-dd), single round-trip */
+  getLedgerBalancesForAccountIdsAsOfDate: (
+    accountIds: number[],
+    asOfDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'ledger:getBalancesForAccountIdsAsOfDate',
+      accountIds,
+      asOfDate,
+    ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
+  /** inclusive calendar range per account; rows enriched like getLedger */
+  getLedgerRangeForAccountIds: (
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'ledger:getLedgerRangeForAccountIds',
+      accountIds,
+      startDate,
+      endDate,
+    ) as Promise<Record<number, LedgerView[]>>,
+  /** all rows through end date (yyyy-MM-dd), ascending; no journal enrichment */
+  getLedgersUpToDateForAccountIds: (accountIds: number[], endDate: string) =>
+    ipcRenderer.invoke(
+      'ledger:getLedgersUpToDateForAccountIds',
+      accountIds,
+      endDate,
+    ) as Promise<Record<number, LedgerView[]>>,
   /**
    * Get the next journal id
    * @returns The next journal id
@@ -482,6 +543,11 @@ const electronHandler = {
    */
   getJournal: (journalId: number) =>
     ipcRenderer.invoke('journal:get', journalId),
+  getJournalNarrationSummariesByIds: (journalIds: number[]) =>
+    ipcRenderer.invoke(
+      'journal:getNarrationSummariesByIds',
+      journalIds,
+    ) as Promise<Record<number, JournalNarrationSummary>>,
   getJournalsByInvoiceId: (invoiceId: number) =>
     ipcRenderer.invoke('journal:getByInvoiceId', invoiceId),
   /**

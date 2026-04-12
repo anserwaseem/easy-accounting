@@ -194,6 +194,7 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   description?: string;
   itemTypeId?: number | null;
   itemTypeName?: string | null;
+  listPosition?: number | null;
 }
 export interface UpdateInventoryItem {
   id: number;
@@ -202,12 +203,21 @@ export interface UpdateInventoryItem {
   quantity?: number;
   description?: string;
   itemTypeId?: number | null;
+  listPosition?: number | null;
 }
 export interface InsertInventoryItem {
   name: string;
   price: number;
   description?: string;
   itemTypeId?: number | null;
+  listPosition?: number | null;
+}
+
+/** summary after applying list # rows matched by trimmed item name */
+export interface ApplyListPositionsResult {
+  updated: number;
+  notFoundNames: string[];
+  ambiguousNames: string[];
 }
 
 export interface ItemType extends Omit<BaseEntity, 'date'> {
@@ -403,31 +413,3 @@ export type BackupOperationProgressEvent = {
   type: BackupOperationTransferType;
   message: string;
 };
-
-/** Reports */
-
-export interface LedgerRangeResponse {
-  openingBalance: {
-    balance: number;
-    balanceType: import('./types').BalanceType;
-    date: string;
-  } | null;
-  entries: Array<{
-    id: number;
-    date: string;
-    accountId: number;
-    particulars: string;
-    debit: number;
-    credit: number;
-    balance: number;
-    balanceType: import('./types').BalanceType;
-    linkedAccountId?: number;
-    linkedAccountName: string | null;
-    linkedAccountCode?: number | string | null;
-    journalSummary?: JournalNarrationSummary | null;
-  }>;
-  closingBalance: {
-    balance: number;
-    balanceType: import('./types').BalanceType;
-  } | null;
-}

@@ -40,4 +40,38 @@ describe('mergeInventoryForInvoice', () => {
     expect(line?.quantity).toBe(0);
     expect(line?.itemTypeId).toBe(2);
   });
+
+  it('sorts merged sale inventory by listPosition then id', () => {
+    const raw: InventoryItem[] = [
+      {
+        id: 3,
+        name: 'C',
+        price: 10,
+        quantity: 5,
+        itemTypeId: 1,
+        itemTypeName: 'A',
+        listPosition: 30,
+      },
+      {
+        id: 1,
+        name: 'A',
+        price: 10,
+        quantity: 5,
+        itemTypeId: 1,
+        itemTypeName: 'A',
+        listPosition: 10,
+      },
+      {
+        id: 2,
+        name: 'B',
+        price: 10,
+        quantity: 5,
+        itemTypeId: 1,
+        itemTypeName: 'A',
+        listPosition: null,
+      },
+    ];
+    const merged = mergeInventoryForInvoice(raw, InvoiceType.Sale, []);
+    expect(merged.map((i) => i.id)).toEqual([1, 3, 2]);
+  });
 });
