@@ -72,10 +72,35 @@ export interface SavedFilterState {
   presetValue?: string;
 }
 
+/** stock as-of report input */
+export interface StockAsOfReportFilters {
+  asOfDate: string;
+  itemTypeIds?: number[];
+}
+
+/** one row of the stock as-of report */
+export interface StockAsOfRow {
+  itemId: number;
+  itemTypeId: number | null;
+  item: string;
+  itemType: string | null;
+  quantityAsOf: number;
+  currentQuantity: number;
+  unitPrice: number;
+}
+
+/** stock as-of report payload */
+export interface StockAsOfReportResponse {
+  /** inclusive end instant used for invoice/adjustment comparison */
+  asOfDateEnd: string;
+  rows: StockAsOfRow[];
+}
+
 /** report keys for store persistence */
 export const REPORT_FILTER_KEYS = {
   inventoryHealth: 'reports.inventoryHealth.filters',
   salesPerformance: 'reports.salesPerformance.filters',
   receivables: 'reports.receivables.filters',
   ledger: 'reports.ledger.filters',
+  stockAsOf: 'reports.stockAsOf.filters',
 } as const;

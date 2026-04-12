@@ -9,6 +9,8 @@ import type {
   ReportResponse,
   SetOpeningStockItem,
   StockAdjustment,
+  StockAsOfReportResponse,
+  StockAsOfRow,
   UpdateInventoryItem,
 } from 'types';
 import { logErrors } from '../errorLogger';
@@ -70,6 +72,12 @@ export class InventoryService {
 
   /** last stock adjustment date per Item (all time) */
   private stmGetAdjustmentLastDateEver!: Statement;
+
+  /** posted invoice lines: net inventory change strictly after as-of end (sales −, purchases +, returns) */
+  private stmStockAsOfInvoiceDeltaAfter!: Statement;
+
+  /** stock adjustments strictly after as-of end */
+  private stmStockAsOfAdjustmentDeltaAfter!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -557,6 +565,79 @@ export class InventoryService {
     };
   }
 
+  /**
+   * On-hand at end of asOfDate (day end), rewound from current inventory.quantity.
+   * delta = posted purchases − sales + adjustments with timestamp strictly after as-of end;
+   * quantityAsOf = currentQuantity − delta. Trusts live quantity as anchor (matches invoice-driven stock).
+   * Quotations excluded; returned invoices apply sale/purchase reversal when returnedAt is after as-of end.
+   */
+  getStockAsOf(
+    filters: { asOfDate: string; itemTypeIds?: number[] } = {
+      asOfDate: new Date().toISOString().split('T')[0],
+    },
+  ): StockAsOfReportResponse {
+    const { asOfDate, itemTypeIds } = filters;
+    const sqlAsOfEnd =
+      asOfDate.length === 10 ? `${asOfDate}T23:59:59.999Z` : asOfDate;
+
+    let allItems: Array<InventoryItem & { itemTypeName?: string | null }>;
+    if (itemTypeIds && itemTypeIds.length > 0) {
+      allItems = this.stmGetAllInventoryByItemTypes.all({
+        itemTypeIdsJson: JSON.stringify(itemTypeIds),
+      }) as Array<InventoryItem & { itemTypeName?: string | null }>;
+    } else {
+      allItems = this.stmGetAllInventory.all() as Array<
+        InventoryItem & { itemTypeName?: string | null }
+      >;
+    }
+
+    const invoiceDeltaRows = this.stmStockAsOfInvoiceDeltaAfter.all(
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+      sqlAsOfEnd,
+    ) as Array<{ inventoryId: number; deltaQty: number }>;
+    const adjDeltaRows = this.stmStockAsOfAdjustmentDeltaAfter.all(
+      sqlAsOfEnd,
+    ) as Array<{ inventoryId: number; deltaQty: number }>;
+
+    const invoiceDelta = new Map<number, number>();
+    for (const r of invoiceDeltaRows) {
+      invoiceDelta.set(r.inventoryId, Number(r.deltaQty));
+    }
+    const adjDelta = new Map<number, number>();
+    for (const r of adjDeltaRows) {
+      adjDelta.set(r.inventoryId, Number(r.deltaQty));
+    }
+
+    const rows: StockAsOfRow[] = [];
+
+    for (const item of allItems) {
+      const { id } = item;
+
+      const currentQty = get(item, 'quantity', 0);
+      const deltaAfter = (invoiceDelta.get(id) ?? 0) + (adjDelta.get(id) ?? 0);
+      const qtyAsOf = currentQty - deltaAfter;
+
+      rows.push({
+        itemId: id,
+        itemTypeId: item.itemTypeId ?? null,
+        item: get(item, 'name', ''),
+        itemType: item.itemTypeName ?? null,
+        quantityAsOf: qtyAsOf,
+        currentQuantity: currentQty,
+        unitPrice: get(item, 'price', 0),
+      });
+    }
+
+    return {
+      asOfDateEnd: sqlAsOfEnd,
+      rows,
+    };
+  }
+
   private initPreparedStatements() {
     this.stmInventoryExists = this.db.prepare(`
       SELECT COUNT(*) AS 'count' from inventory;
@@ -749,6 +830,49 @@ export class InventoryService {
     this.stmGetAdjustmentLastDateEver = this.db.prepare(`
       SELECT inventoryId, MAX(date) AS lastDate
       FROM stock_adjustments
+      GROUP BY inventoryId
+    `);
+
+    this.stmStockAsOfInvoiceDeltaAfter = this.db.prepare(`
+      SELECT ii.inventoryId,
+        COALESCE(SUM(
+          CASE
+            WHEN COALESCE(i.isQuotation, 0) != 0 THEN 0
+            WHEN i.invoiceType = 'Sale' THEN
+              CASE WHEN COALESCE(i.isReturned, 0) = 0 THEN
+                CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END
+              ELSE
+                (CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END) +
+                (CASE
+                  WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
+                  THEN ii.quantity
+                  ELSE 0
+                END)
+              END
+            WHEN i.invoiceType = 'Purchase' THEN
+              CASE WHEN COALESCE(i.isReturned, 0) = 0 THEN
+                CASE WHEN i.date > ? THEN ii.quantity ELSE 0 END
+              ELSE
+                (CASE WHEN i.date > ? THEN ii.quantity ELSE 0 END) +
+                (CASE
+                  WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
+                  THEN -ii.quantity
+                  ELSE 0
+                END)
+              END
+            ELSE 0
+          END
+        ), 0) AS deltaQty
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      GROUP BY ii.inventoryId
+    `);
+
+    this.stmStockAsOfAdjustmentDeltaAfter = this.db.prepare(`
+      SELECT inventoryId,
+        COALESCE(SUM(quantityDelta), 0) AS deltaQty
+      FROM stock_adjustments
+      WHERE date > ?
       GROUP BY inventoryId
     `);
   }

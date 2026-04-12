@@ -51,6 +51,7 @@ function seedBasicSchema(db: Database.Database) {
       invoiceType TEXT NOT NULL,
       isQuotation INTEGER DEFAULT 0,
       isReturned INTEGER DEFAULT 0,
+      returnedAt TEXT,
       date TEXT NOT NULL,
       accountId INTEGER,
       referenceNumber TEXT,
@@ -258,6 +259,168 @@ describe('InventoryService.getInventoryHealth', () => {
     expect(row.lastMovementDate).toBe('2024-06-01T12:00:00.000Z');
     expect(typeof row.daysSinceMovement).toBe('number');
     expect((row.daysSinceMovement as number) > 90).toBe(true);
+    db.close();
+  });
+});
+
+describe('InventoryService.getStockAsOf', () => {
+  it('returns zero quantity when no invoices apply and inventory is zero', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 0)',
+    ).run('Widget', t1);
+
+    const service = createTestDb(db);
+    const res = service.getStockAsOf({ asOfDate: '2025-01-15' });
+    expect(res.rows).toHaveLength(1);
+    const row = res.rows[0];
+    expect(row.quantityAsOf).toBe(0);
+    db.close();
+  });
+
+  it('rewinds from current quantity when no movement after as-of', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const invId = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 10)',
+      )
+      .run('Widget', t1).lastInsertRowid as number;
+    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('V')
+      .lastInsertRowid as number;
+    const inv = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES ('Purchase', 0, 0, '2025-06-01T12:00:00.000Z', ?, 1)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 10, 8)',
+    ).run(inv, invId);
+
+    const service = createTestDb(db);
+    const res = service.getStockAsOf({ asOfDate: '2025-06-15' });
+    const row = res.rows.find((r) => r.itemId === invId);
+    expect(row?.quantityAsOf).toBe(10);
+    db.close();
+  });
+
+  it('subtracts purchases after as-of from current to get historical qty', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const invId = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 12)',
+      )
+      .run('Widget', t1).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate) VALUES (?, 5, ?)',
+    ).run(invId, '2025-01-01');
+    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('V')
+      .lastInsertRowid as number;
+    const purchSameDay = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES ('Purchase', 0, 0, '2025-01-01T10:00:00.000Z', ?, 1)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 3, 8)',
+    ).run(purchSameDay, invId);
+    const purchLater = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES ('Purchase', 0, 0, '2025-02-01T12:00:00.000Z', ?, 2)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 7, 8)',
+    ).run(purchLater, invId);
+
+    const service = createTestDb(db);
+    const resMar = service.getStockAsOf({ asOfDate: '2025-03-01' });
+    expect(resMar.rows.find((r) => r.itemId === invId)?.quantityAsOf).toBe(12);
+    const resJan = service.getStockAsOf({ asOfDate: '2025-01-15' });
+    expect(resJan.rows.find((r) => r.itemId === invId)?.quantityAsOf).toBe(5);
+    db.close();
+  });
+
+  it('matches current when return predates as-of (no delta after as-of end)', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const invId = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 20)',
+      )
+      .run('Widget', t1).lastInsertRowid as number;
+    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('C')
+      .lastInsertRowid as number;
+    const purch = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES ('Purchase', 0, 0, '2025-05-01T12:00:00.000Z', ?, 1)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 20, 8)',
+    ).run(purch, invId);
+    const sale = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, returnedAt, date, accountId, invoiceNumber)
+         VALUES ('Sale', 0, 1, '2025-05-10T12:00:00.000Z', '2025-05-05T12:00:00.000Z', ?, 2)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 6, 10)',
+    ).run(sale, invId);
+
+    const service = createTestDb(db);
+    const res = service.getStockAsOf({ asOfDate: '2025-05-15' });
+    const row = res.rows.find((r) => r.itemId === invId);
+    expect(row?.quantityAsOf).toBe(20);
+    db.close();
+  });
+
+  it('adds back sales that occur strictly after as-of (rewind)', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const invId = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 5)',
+      )
+      .run('Widget', t1).lastInsertRowid as number;
+    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('C')
+      .lastInsertRowid as number;
+    const sale = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES ('Sale', 0, 0, '2025-06-20T12:00:00.000Z', ?, 1)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 3, 10)',
+    ).run(sale, invId);
+
+    const service = createTestDb(db);
+    const res = service.getStockAsOf({ asOfDate: '2025-06-10' });
+    const row = res.rows.find((r) => r.itemId === invId);
+    expect(row?.quantityAsOf).toBe(8);
     db.close();
   });
 });

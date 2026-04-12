@@ -28,6 +28,8 @@ import type {
   LedgerRangeResponse,
   ReportFilters,
   ReportResponse,
+  StockAsOfReportFilters,
+  StockAsOfReportResponse,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -355,6 +357,12 @@ const electronHandler = {
       'report:getInventoryHealth',
       filters,
     ) as Promise<ReportResponse>,
+
+  reportGetStockAsOf: (filters: StockAsOfReportFilters) =>
+    ipcRenderer.invoke(
+      'report:getStockAsOf',
+      filters,
+    ) as Promise<StockAsOfReportResponse>,
 
   reportGetSalesPerformance: (filters: ReportFilters) =>
     ipcRenderer.invoke(

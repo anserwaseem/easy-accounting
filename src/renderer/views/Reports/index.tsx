@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   BarChart3,
   Book,
+  CalendarDays,
   Clock,
   DollarSign,
   Package,
@@ -61,6 +62,13 @@ const operationsReports: ReportOption[] = [
     description: 'See which inventory items need attention right now.',
     path: '/reports/inventory-health',
     icon: <Package className="h-6 w-6" />,
+  },
+  {
+    title: 'Stock as of date',
+    description:
+      'Rewind current stock using posted movements after a past date (no opening balance required).',
+    path: '/reports/stock-as-of',
+    icon: <CalendarDays className="h-6 w-6" />,
   },
   {
     title: 'Sales Performance',

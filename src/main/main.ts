@@ -577,6 +577,12 @@ app
     );
 
     ipcMain.handle(
+      'report:getStockAsOf',
+      async (_, filters: { asOfDate: string; itemTypeIds?: number[] }) =>
+        inventoryService.getStockAsOf(filters),
+    );
+
+    ipcMain.handle(
       'report:getSalesPerformance',
       async (_, filters: { startDate: string; endDate: string }) =>
         invoiceService.getSalesPerformance(filters),
