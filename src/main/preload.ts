@@ -8,6 +8,7 @@ import type {
   InsertAccount,
   UpdateAccount,
   Journal,
+  JournalNarrationSummary,
   LedgerView,
   InventoryItem,
   Invoice,
@@ -542,6 +543,11 @@ const electronHandler = {
    */
   getJournal: (journalId: number) =>
     ipcRenderer.invoke('journal:get', journalId),
+  getJournalNarrationSummariesByIds: (journalIds: number[]) =>
+    ipcRenderer.invoke(
+      'journal:getNarrationSummariesByIds',
+      journalIds,
+    ) as Promise<Record<number, JournalNarrationSummary>>,
   getJournalsByInvoiceId: (invoiceId: number) =>
     ipcRenderer.invoke('journal:getByInvoiceId', invoiceId),
   /**

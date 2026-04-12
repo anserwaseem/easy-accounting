@@ -332,6 +332,11 @@ app
     ipcMain.handle('journal:get', async (_, journalId: number) =>
       journalService.getJournal(journalId),
     );
+    ipcMain.handle(
+      'journal:getNarrationSummariesByIds',
+      async (_, journalIds: number[]) =>
+        journalService.getJournalNarrationSummariesByIds(journalIds),
+    );
     ipcMain.handle('journal:getByInvoiceId', async (_, invoiceId: number) =>
       journalService.getJournalsByInvoiceId(invoiceId),
     );

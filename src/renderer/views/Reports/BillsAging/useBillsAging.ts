@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { isEmpty, sumBy } from 'lodash';
 import { format, subDays } from 'date-fns';
 import { getFixedNumber } from 'renderer/lib/utils';
-import type { Account, Chart, LedgerView, Journal } from '@/types';
+import type { Account, Chart, LedgerView } from '@/types';
 import type {
   BillsAging,
   BillsAgingAccount,
@@ -140,25 +140,13 @@ export const useBillsAging = () => {
           return;
         }
 
-        // fetch all journals at once (only if there are journal-referenced entries)
-        const journals: Record<number, Journal> = {};
-        const journalPromises = Array.from(allJournalIds).map(
-          async (journalId) => {
-            try {
-              const journal = await window.electron.getJournal(journalId);
-              return { journalId, journal };
-            } catch (error) {
-              console.error(`Error fetching journal ${journalId}:`, error);
-              return { journalId, journal: null };
-            }
-          },
-        );
-        const journalResults = await Promise.all(journalPromises);
-        journalResults.forEach(({ journalId, journal }) => {
-          if (journal) {
-            journals[journalId] = journal;
-          }
-        });
+        const journalIdList = Array.from(allJournalIds);
+        const journalSummariesById =
+          journalIdList.length > 0
+            ? await window.electron.getJournalNarrationSummariesByIds(
+                journalIdList,
+              )
+            : {};
 
         const accounts: BillsAgingAccount[] = [];
 
@@ -220,11 +208,10 @@ export const useBillsAging = () => {
 
           // create bills from debit entries with journal references
           for (const [journalId, entries] of Object.entries(debitByJournal)) {
-            const journal = journals[parseInt(journalId, 10)];
-            const billNumber = journal?.billNumber
-              ? journal.billNumber.toString()
-              : '-';
-            const billPercentage = journal?.discountPercentage ?? '-';
+            const summary = journalSummariesById[parseInt(journalId, 10)];
+            const billNumber =
+              summary?.billNumber != null ? String(summary.billNumber) : '-';
+            const billPercentage = summary?.discountPercentage ?? '-';
             const billDate = (entries as LedgerView[])[0].date; // use first entry date
             const billAmount = sumBy(entries as LedgerView[], 'debit');
 
