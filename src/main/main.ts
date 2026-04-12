@@ -15,6 +15,7 @@ import type {
   InsertAccount,
   UpdateAccount,
   Journal,
+  LedgerView,
   InventoryItem,
   Invoice,
   UpdateInventoryItem,
@@ -289,6 +290,37 @@ app
       'ledger:getBalancesForAccountIdsAsOfDate',
       async (_, accountIds: number[], asOfDate: string) =>
         ledgerService.getBalancesForAccountIdsAsOfDate(accountIds, asOfDate),
+    );
+    ipcMain.handle(
+      'ledger:getLedgerRangeForAccountIds',
+      async (_, accountIds: number[], startDate: string, endDate: string) => {
+        const map = ledgerService.getLedgerRangeForAccountIds(
+          accountIds,
+          startDate,
+          endDate,
+        );
+        const unique = [
+          ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
+        ].sort((a, b) => a - b);
+        const flat = unique.flatMap((id) => map[id] ?? []);
+        const enriched = enrichLedgerRowsWithJournalSummaries(
+          flat,
+          journalService,
+        );
+        const result: Record<number, LedgerView[]> = {};
+        for (const id of unique) {
+          result[id] = [];
+        }
+        for (const row of enriched) {
+          result[row.accountId].push(row);
+        }
+        return result;
+      },
+    );
+    ipcMain.handle(
+      'ledger:getLedgersUpToDateForAccountIds',
+      async (_, accountIds: number[], endDate: string) =>
+        ledgerService.getLedgersUpToDateForAccountIds(accountIds, endDate),
     );
     ipcMain.handle('journal:getNextId', async () =>
       journalService.getNextJournalId(),

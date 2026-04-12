@@ -494,6 +494,25 @@ const electronHandler = {
       accountIds,
       asOfDate,
     ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
+  /** inclusive calendar range per account; rows enriched like getLedger */
+  getLedgerRangeForAccountIds: (
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'ledger:getLedgerRangeForAccountIds',
+      accountIds,
+      startDate,
+      endDate,
+    ) as Promise<Record<number, LedgerView[]>>,
+  /** all rows through end date (yyyy-MM-dd), ascending; no journal enrichment */
+  getLedgersUpToDateForAccountIds: (accountIds: number[], endDate: string) =>
+    ipcRenderer.invoke(
+      'ledger:getLedgersUpToDateForAccountIds',
+      accountIds,
+      endDate,
+    ) as Promise<Record<number, LedgerView[]>>,
   /**
    * Get the next journal id
    * @returns The next journal id

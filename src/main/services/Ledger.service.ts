@@ -27,6 +27,10 @@ export class LedgerService {
 
   private stmGetBalancesForAccountIdsAsOfDate!: Statement;
 
+  private stmGetLedgerRangeForAccountIds!: Statement;
+
+  private stmGetLedgerUpToDateForAccountIds!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -116,6 +120,36 @@ export class LedgerService {
     }) as Ledger[];
   }
 
+  /** inclusive calendar range, multiple accounts, rows ordered per account like getLedgerRange. */
+  getLedgerRangeForAccountIds(
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ): Record<number, Ledger[]> {
+    const unique = LedgerService.uniqueSortedAccountIds(accountIds);
+    if (unique.length === 0) return {};
+    const rows = this.stmGetLedgerRangeForAccountIds.all({
+      accountIdsJson: JSON.stringify(unique),
+      startDate,
+      endDate,
+    }) as Ledger[];
+    return LedgerService.ledgerRowsToAccountMap(rows, unique);
+  }
+
+  /** all ledger rows on or before endDate (yyyy-MM-dd), ascending per account. */
+  getLedgersUpToDateForAccountIds(
+    accountIds: number[],
+    endDate: string,
+  ): Record<number, Ledger[]> {
+    const unique = LedgerService.uniqueSortedAccountIds(accountIds);
+    if (unique.length === 0) return {};
+    const rows = this.stmGetLedgerUpToDateForAccountIds.all({
+      accountIdsJson: JSON.stringify(unique),
+      endDate,
+    }) as Ledger[];
+    return LedgerService.ledgerRowsToAccountMap(rows, unique);
+  }
+
   insertLedger(ledger: Omit<Ledger, 'id'>): RunResult {
     return this.stmLedger.run({
       date: ledger.date,
@@ -142,6 +176,29 @@ export class LedgerService {
         balance: row.balance,
         balanceType: row.balanceType,
       };
+    }
+    return out;
+  }
+
+  private static uniqueSortedAccountIds(accountIds: number[]): number[] {
+    return [
+      ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
+    ].sort((a, b) => a - b);
+  }
+
+  private static ledgerRowsToAccountMap(
+    rows: Ledger[],
+    orderedIds: number[],
+  ): Record<number, Ledger[]> {
+    const out: Record<number, Ledger[]> = {};
+    for (const id of orderedIds) {
+      out[id] = [];
+    }
+    for (const row of rows) {
+      const bucket = out[row.accountId];
+      if (bucket) {
+        bucket.push(row);
+      }
     }
     return out;
   }
@@ -264,6 +321,46 @@ export class LedgerService {
           ) <= @asOfDate
       ) t
       WHERE t.rn = 1
+    `);
+
+    this.stmGetLedgerRangeForAccountIds = this.db.prepare(`
+      SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode, l.createdAt, l.updatedAt
+      FROM ledger l
+      LEFT JOIN account a ON l.linkedAccountId = a.id
+      WHERE l.accountId IN (
+        SELECT CAST(j.value AS INTEGER)
+        FROM json_each(@accountIdsJson) AS j
+      )
+        AND (
+          CASE
+            WHEN length(l.date) = 10 THEN l.date
+            ELSE date(datetime(l.date, 'localtime'))
+          END
+        ) >= @startDate
+        AND (
+          CASE
+            WHEN length(l.date) = 10 THEN l.date
+            ELSE date(datetime(l.date, 'localtime'))
+          END
+        ) <= @endDate
+      ORDER BY l.accountId ASC, datetime(l.date, 'localtime') ASC, l.id ASC
+    `);
+
+    this.stmGetLedgerUpToDateForAccountIds = this.db.prepare(`
+      SELECT l.id, l.date, l.accountId, l.particulars, l.debit, l.credit, l.balance, l.balanceType, l.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode, l.createdAt, l.updatedAt
+      FROM ledger l
+      LEFT JOIN account a ON l.linkedAccountId = a.id
+      WHERE l.accountId IN (
+        SELECT CAST(j.value AS INTEGER)
+        FROM json_each(@accountIdsJson) AS j
+      )
+        AND (
+          CASE
+            WHEN length(l.date) = 10 THEN l.date
+            ELSE date(datetime(l.date, 'localtime'))
+          END
+        ) <= @endDate
+      ORDER BY l.accountId ASC, datetime(l.date, 'localtime') ASC, l.id ASC
     `);
   }
 }
