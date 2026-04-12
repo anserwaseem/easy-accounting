@@ -246,8 +246,9 @@ const SalesPerformanceReportPage: React.FC = () => {
       filterRef.current += 1;
       const thisFilter = filterRef.current;
 
-      const startDate = range.from.toISOString().split('T')[0];
-      const endDate = range.to.toISOString().split('T')[0];
+      // local calendar day — toISOString().split would use UTC and shift dates east of UTC
+      const startDate = format(range.from, 'yyyy-MM-dd');
+      const endDate = format(range.to, 'yyyy-MM-dd');
 
       const { compareStart, compareEnd } = comparisonEnabled
         ? computeComparisonDates(range, comparisonModeParam)
