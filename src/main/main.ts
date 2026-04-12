@@ -568,6 +568,36 @@ app
       },
     );
 
+    ipcMain.handle(
+      'report:getInventoryHealth',
+      async (
+        _,
+        filters: { startDate: string; endDate: string; itemTypeIds?: number[] },
+      ) => inventoryService.getInventoryHealth(filters),
+    );
+
+    ipcMain.handle(
+      'report:getSalesPerformance',
+      async (_, filters: { startDate: string; endDate: string }) =>
+        invoiceService.getSalesPerformance(filters),
+    );
+
+    ipcMain.handle(
+      'report:getReceivables',
+      async (
+        _,
+        {
+          headName,
+          startDate,
+          endDate,
+        }: {
+          headName: string;
+          startDate: string;
+          endDate: string;
+        },
+      ) => accountService.getReceivables(headName, startDate, endDate),
+    );
+
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the

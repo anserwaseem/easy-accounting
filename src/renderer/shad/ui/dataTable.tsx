@@ -31,11 +31,20 @@ import {
   useMemo,
 } from 'react';
 import { TableVirtuoso } from 'react-virtuoso';
-import { Search } from './search';
+import { HelpCircle } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/renderer/shad/ui/tooltip';
 import { CompactSearchBar } from './compactSearchBar';
+import { Search } from './search';
 
 export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
+  /** explanatory text shown as a tooltip on the column header */
+  headerTooltip?: string;
 };
 
 // TODO: search by field(s)
@@ -59,6 +68,11 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   searchPersistenceKey?: string;
   /** focus the table search field when the page mounts (listing screens) */
   autoFocusSearch?: boolean;
+  /**
+   * current visible rows after search + sort (for export/print parity with grid).
+   * parent should keep callback ref-stable (useCallback) to avoid extra runs.
+   */
+  onViewModelChange?: (rows: TData[]) => void;
 }
 
 const TableComponent = forwardRef<
@@ -129,24 +143,39 @@ const SortingIndicator = ({ isSorted }: { isSorted: string | false }) => {
   );
 };
 
-const HeaderCellContent = ({ header }: { header: any }) => (
-  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-  <div
-    className="flex items-center"
-    {...{
-      style: header.column.getCanSort()
-        ? {
-            cursor: 'pointer',
-            userSelect: 'none',
-          }
-        : {},
-      onClick: header.column.getToggleSortingHandler(),
-    }}
-  >
-    {flexRender(header.column.columnDef.header, header.getContext())}
-    <SortingIndicator isSorted={header.column.getIsSorted()} />
-  </div>
-);
+const HeaderCellContent = ({ header }: { header: any }) => {
+  const tooltip = header.column.columnDef.headerTooltip as string | undefined;
+  return (
+    <div className="flex items-center gap-1">
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
+      <div
+        className="flex items-center gap-1"
+        {...{
+          style: header.column.getCanSort()
+            ? {
+                cursor: 'pointer',
+                userSelect: 'none',
+              }
+            : {},
+          onClick: header.column.getToggleSortingHandler(),
+        }}
+      >
+        {flexRender(header.column.columnDef.header, header.getContext())}
+        <SortingIndicator isSorted={header.column.getIsSorted()} />
+      </div>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger type="button" asChild>
+            <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help flex-shrink-0" />
+          </TooltipTrigger>
+          <TooltipContent side="top" align="start" className="max-w-xs text-xs">
+            {tooltip}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+    </div>
+  );
+};
 
 const HeaderRow = ({
   headerGroup,
@@ -156,23 +185,25 @@ const HeaderRow = ({
   compact?: boolean;
 }) => (
   <TableRow className="bg-card hover:bg-muted" key={headerGroup.id}>
-    {headerGroup.headers.map((header: any) => (
-      <TableHead
-        key={header.id}
-        colSpan={header.colSpan}
-        className={cn(
-          header.column.getIsSorted()
-            ? 'bg-gray-300 dark:bg-gray-800'
-            : 'bg-gray-200 dark:bg-gray-900',
-          compact ? 'h-7 px-2 py-1 text-xs' : 'h-8',
-        )}
-        style={{
-          width: header.getSize(),
-        }}
-      >
-        {header.isPlaceholder ? null : <HeaderCellContent header={header} />}
-      </TableHead>
-    ))}
+    <TooltipProvider>
+      {headerGroup.headers.map((header: any) => (
+        <TableHead
+          key={header.id}
+          colSpan={header.colSpan}
+          className={cn(
+            header.column.getIsSorted()
+              ? 'bg-gray-300 dark:bg-gray-800'
+              : 'bg-gray-200 dark:bg-gray-900',
+            compact ? 'h-7 px-2 py-1 text-xs' : 'h-8',
+          )}
+          style={{
+            width: header.getSize(),
+          }}
+        >
+          {header.isPlaceholder ? null : <HeaderCellContent header={header} />}
+        </TableHead>
+      ))}
+    </TooltipProvider>
   </TableRow>
 );
 
@@ -230,6 +261,7 @@ const DataTable = <TData, TValue>({
   isMini = false,
   searchPersistenceKey,
   autoFocusSearch = false,
+  onViewModelChange,
   ...props
 }: DataTableProps<TData, TValue>) => {
   const [sorting, setSorting] = useState<SortingState>(() => {
@@ -353,6 +385,17 @@ const DataTable = <TData, TValue>({
   });
 
   const { rows } = table.getRowModel();
+
+  const tableRef = useRef(table);
+  tableRef.current = table;
+  const onViewModelChangeRef = useRef(onViewModelChange);
+  onViewModelChangeRef.current = onViewModelChange;
+
+  useLayoutEffect(() => {
+    onViewModelChangeRef.current?.(
+      tableRef.current.getRowModel().rows.map((r) => r.original),
+    );
+  }, [filteredData, sorting, searchValue]);
 
   const recordCount = {
     filtered: rows.length,

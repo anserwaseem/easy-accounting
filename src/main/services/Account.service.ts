@@ -1,5 +1,6 @@
 import type { Account, InsertAccount, UpdateAccount } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
+import { get, isEmpty, sumBy } from 'lodash';
 import { store } from '../store';
 import { DatabaseService } from './Database.service';
 import {
@@ -10,6 +11,27 @@ import {
 import { logErrors } from '../errorLogger';
 
 const ACCOUNT_BOOLEAN_FIELDS = ['isActive', 'discountProfileIsActive'] as const;
+
+/** Compute last receipt date from unallocated credits or bill receipts. */
+function getLastReceiptDate(
+  unallocated: Array<Record<string, unknown>>,
+  bills: Array<{
+    receipts: Array<{ date: string; amount: number; balance: number }>;
+  }>,
+): string | null {
+  if (unallocated.length > 0) return unallocated.at(-1)!.date as string;
+  return bills.reduce(
+    (latest, b) => {
+      if (b.receipts.length === 0) return latest;
+      const lastReceiptDateValue = b.receipts[b.receipts.length - 1].date;
+      if (latest == null) return lastReceiptDateValue;
+      return lastReceiptDateValue > (latest as string)
+        ? lastReceiptDateValue
+        : latest;
+    },
+    null as string | null,
+  );
+}
 
 @logErrors
 export class AccountService {
@@ -223,6 +245,335 @@ export class AccountService {
     return first
       ? (normalizeSqliteBooleanFields(first, ACCOUNT_BOOLEAN_FIELDS) as Account)
       : undefined;
+  }
+
+  // Receivables report: FIFO allocation per account under a head
+  getReceivables(
+    headName: string,
+    startDate: string,
+    endDate: string,
+  ): Record<string, unknown> {
+    // get all accounts under the head
+    const headAccounts = this.db
+      .prepare(
+        `
+          SELECT a.id, a.name, a.code
+          FROM account a
+          LEFT JOIN chart c ON c.id = a.chartId
+          WHERE LOWER(c.name) = LOWER(?)
+          ORDER BY a.id
+        `,
+      )
+      .all(headName) as Array<{
+      id: number;
+      name: string;
+      code: string | null;
+    }>;
+
+    if (isEmpty(headAccounts)) {
+      return { kpis: {}, series: [], rows: [], anomalies: [], exportRows: [] };
+    }
+
+    const rows: Array<Record<string, unknown>> = [];
+    let totalOutstanding = 0;
+    let totalOverdue = 0;
+    let overdueAccounts = 0;
+    let totalUnallocatedReceipts = 0;
+    let fullPaidBillCount = 0;
+    const clearedDays: number[] = [];
+
+    const selectedDateStart = new Date(startDate);
+    selectedDateStart.setHours(0, 0, 0, 0);
+    const selectedDateEnd = new Date(endDate);
+    selectedDateEnd.setHours(23, 59, 59, 999);
+
+    for (const account of Array.from(headAccounts)) {
+      // get all ledger entries for account
+      const fullLedger = this.db
+        .prepare(
+          `SELECT * FROM ledger WHERE accountId = ? ORDER BY datetime(date) ASC, id ASC`,
+        )
+        .all(account.id) as Array<Record<string, unknown>>;
+
+      if (isEmpty(fullLedger)) continue;
+
+      // opening balance: last entry before startDate
+      let openingBalance = 0;
+      let openingBalanceType = 'Dr';
+      const entriesBeforeStart = fullLedger.filter(
+        (l) => new Date(l.date as string) < selectedDateStart,
+      );
+      if (entriesBeforeStart.length > 0) {
+        const last = entriesBeforeStart.at(-1)!;
+        openingBalance = last.balance as number;
+        openingBalanceType = last.balanceType as string;
+      }
+
+      // entries within range
+      const entriesInRange = fullLedger.filter((l) => {
+        const d = new Date(l.date as string);
+        return d >= selectedDateStart && d <= selectedDateEnd;
+      });
+
+      if (isEmpty(entriesInRange) && openingBalance === 0) continue;
+
+      // separate debit/credit entries in range
+      const debitEntries = entriesInRange.filter(
+        (e) => (e.debit as number) > 0,
+      );
+      const creditEntries = entriesInRange.filter(
+        (e) => (e.credit as number) > 0,
+      );
+
+      // build bills from debit entries; opening balance as first bill
+      const bills: Array<{
+        billNumber: string;
+        billDate: string;
+        billAmount: number;
+        receipts: Array<{ date: string; amount: number; balance: number }>;
+        remainingBalance: number;
+      }> = [];
+
+      if (openingBalance > 0 && openingBalanceType === 'Dr') {
+        bills.push({
+          billNumber: 'Opening Balance',
+          billDate: startDate,
+          billAmount: openingBalance,
+          receipts: [],
+          remainingBalance: openingBalance,
+        });
+      }
+
+      for (const d of debitEntries) {
+        const journalMatch = String(d.particulars).match(/Journal #(\d+)/);
+        let billNumber = '-';
+
+        if (journalMatch) {
+          try {
+            const journal = this.db
+              .prepare(`SELECT billNumber FROM journal WHERE id = ?`)
+              .get(journalMatch[1]) as
+              | { billNumber: string | null }
+              | undefined;
+            if (journal?.billNumber) {
+              billNumber = String(journal.billNumber);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        bills.push({
+          billNumber,
+          billDate: d.date as string,
+          billAmount: d.debit as number,
+          receipts: [],
+          remainingBalance: d.debit as number,
+        });
+      }
+
+      // allocate credits FIFO
+      let creditIdx = 0;
+      for (const bill of bills) {
+        while (bill.remainingBalance > 0 && creditIdx < creditEntries.length) {
+          const credit = creditEntries[creditIdx];
+          const creditAmount = credit.credit as number;
+
+          if (creditAmount <= bill.remainingBalance) {
+            bill.remainingBalance = get(bill, 'remainingBalance', 0);
+            bill.remainingBalance -= creditAmount;
+            bill.receipts.push({
+              date: credit.date as string,
+              amount: creditAmount,
+              balance: bill.remainingBalance,
+            });
+            creditIdx++;
+          } else {
+            const applied = bill.remainingBalance;
+            bill.remainingBalance = 0;
+            bill.receipts.push({
+              date: credit.date as string,
+              amount: applied,
+              balance: 0,
+            });
+            creditEntries[creditIdx] = {
+              ...credit,
+              credit: creditAmount - applied,
+            };
+          }
+        }
+      }
+
+      // account totals
+      const totalBilled = sumBy(bills, 'billAmount');
+      const totalCollected = sumBy(bills, (b) => sumBy(b.receipts, 'amount'));
+      const totalOutstandingForAccount = totalBilled - totalCollected;
+      const isOverdue = totalOutstandingForAccount > 0;
+
+      // avg days to clear
+      const clearedBills = bills.filter((b) => b.remainingBalance === 0);
+      const clearedDaysSum = clearedBills.reduce((sum, bill) => {
+        const billDate = new Date(bill.billDate).getTime();
+        const lastPaymentDate = new Date(
+          bill.receipts[bill.receipts.length - 1]?.date ?? bill.billDate,
+        ).getTime();
+        return sum + Math.ceil((lastPaymentDate - billDate) / 86400000);
+      }, 0);
+      const avgDaysToClear =
+        clearedBills.length > 0
+          ? Math.round((clearedDaysSum / clearedBills.length) * 10) / 10
+          : null;
+
+      // unallocated receipts
+      const unallocated = creditEntries
+        .slice(creditIdx)
+        .filter((c) => (c.credit as number) > 0);
+      const unallocatedAmount = sumBy(unallocated, 'credit');
+
+      totalOutstanding += totalOutstandingForAccount;
+      if (isOverdue) {
+        totalOverdue += totalOutstandingForAccount;
+        overdueAccounts++;
+      }
+      totalUnallocatedReceipts += unallocatedAmount;
+
+      // build per-bill detail rows for expanded view
+      const today = Math.floor(Date.now() / 86400000);
+      const billDetails = bills.map((bill) => {
+        // compute discount %
+        let discountPercent: number | null = null;
+        if (bill.billNumber !== 'Opening Balance' && bill.billNumber !== '-') {
+          try {
+            const inv = this.db
+              .prepare(
+                `SELECT id FROM invoices WHERE accountId = ? AND CAST(invoiceNumber AS TEXT) = ? AND date(date) = date(?) LIMIT 1`,
+              )
+              .get(account.id, bill.billNumber, bill.billDate) as
+              | { id: number }
+              | undefined;
+            if (!inv) {
+              // fallback: match by account + date only
+              const invByDate = this.db
+                .prepare(
+                  `SELECT id FROM invoices WHERE accountId = ? AND date(date) = date(?) AND invoiceType = 'Sale' LIMIT 1`,
+                )
+                .get(account.id, bill.billDate) as { id: number } | undefined;
+              if (invByDate) {
+                const items = this.db
+                  .prepare(
+                    `SELECT price, discount, quantity FROM invoice_items WHERE invoiceId = ?`,
+                  )
+                  .all(invByDate.id) as Array<{
+                  price: number;
+                  discount: number;
+                  quantity: number;
+                }>;
+                if (items.length > 0) {
+                  const gross = sumBy(items, (i) => i.price * i.quantity);
+                  const disc = sumBy(items, (i) => i.discount * i.quantity);
+                  if (gross > 0) {
+                    discountPercent = Math.round((disc / gross) * 10000) / 100;
+                  }
+                }
+              }
+            } else {
+              const items = this.db
+                .prepare(
+                  `SELECT price, discount, quantity FROM invoice_items WHERE invoiceId = ?`,
+                )
+                .all(inv.id) as Array<{
+                price: number;
+                discount: number;
+                quantity: number;
+              }>;
+              if (items.length > 0) {
+                const gross = sumBy(items, (i) => i.price * i.quantity);
+                const disc = sumBy(items, (i) => i.discount * i.quantity);
+                if (gross > 0) {
+                  discountPercent = Math.round((disc / gross) * 10000) / 100;
+                }
+              }
+            }
+          } catch {
+            // ignore — discount% stays null
+          }
+        }
+
+        // compute days status
+        let daysStatus: string;
+        if (bill.remainingBalance <= 0) {
+          daysStatus = 'Cleared';
+        } else {
+          const lastRcpt = bill.receipts[bill.receipts.length - 1];
+          const anchorDate = lastRcpt ? lastRcpt.date : bill.billDate;
+          const anchorDay = Math.floor(
+            new Date(anchorDate).getTime() / 86400000,
+          );
+          const daysPending = Math.max(today - anchorDay, 0);
+          daysStatus = `${daysPending} days pending`;
+        }
+
+        return {
+          billNumber: bill.billNumber,
+          billDate: bill.billDate,
+          discountPercent,
+          billAmount: bill.billAmount,
+          receipts: bill.receipts,
+          remainingBalance: bill.remainingBalance,
+          daysStatus,
+        };
+      });
+
+      rows.push({
+        accountId: account.id,
+        accountName: account.name,
+        accountCode: account.code ?? '',
+        billedAmount: totalBilled,
+        collectedAmount: totalCollected,
+        outstandingAmount: totalOutstandingForAccount,
+        overdueAmount: isOverdue ? totalOutstandingForAccount : 0,
+        billCount: bills.length,
+        lastBillDate: bills.length > 0 ? bills.at(-1)!.billDate : null,
+        lastReceiptDate: getLastReceiptDate(unallocated, bills),
+        avgDaysToClear,
+        unallocatedReceipts: unallocatedAmount,
+        bills: billDetails,
+      });
+
+      fullPaidBillCount += clearedBills.length;
+      if (clearedBills.length > 0)
+        clearedDays.push(clearedDaysSum / clearedBills.length);
+    }
+
+    const anomalies = [
+      {
+        type: 'overdue',
+        message: 'Accounts with overdue balances',
+        count: overdueAccounts,
+        rows: rows.filter((r) => (r.overdueAmount as number) > 0),
+      },
+    ];
+
+    return {
+      kpis: {
+        totalOutstanding,
+        overdueOutstanding: totalOverdue,
+        overdueAccounts,
+        fullyUnpaidBillCount: fullPaidBillCount,
+        unallocatedReceipts: totalUnallocatedReceipts,
+        avgDaysToClear:
+          clearedDays.length > 0
+            ? Math.round(
+                (sumBy(clearedDays, (d: number) => d) / clearedDays.length) *
+                  10,
+              ) / 10
+            : null,
+      },
+      series: [],
+      rows,
+      anomalies,
+      exportRows: rows,
+    };
   }
 
   private initPreparedStatements() {

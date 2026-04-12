@@ -6,6 +6,7 @@ import type {
   InsertInventoryItem,
   InventoryItem,
   InventoryOpeningStock,
+  ReportResponse,
   SetOpeningStockItem,
   StockAdjustment,
   UpdateInventoryItem,
@@ -47,6 +48,16 @@ export class InventoryService {
 
   private stmGetInventoryIdsWithHistory!: Statement;
 
+  private stmGetAllInventory!: Statement;
+
+  private stmGetAllInventoryByItemTypes!: Statement;
+
+  private stmGetSaleAggregateHealth!: Statement;
+
+  private stmGetPurchaseAggregateHealth!: Statement;
+
+  private stmGetAdjustmentAggregate!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -67,25 +78,23 @@ export class InventoryService {
       return false;
     }
 
-    const placeholders = inventory.map(() => '(?, ?, ?, ?)').join(', ');
-    const sql = `INSERT INTO inventory (name, description, price, itemTypeId) VALUES ${placeholders}`;
+    let success = true;
+    this.db.transaction(() => {
+      for (const item of inventory) {
+        const result = this.stmInsertItem.run({
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          itemTypeId: item.itemTypeId ?? null,
+        });
+        if (!result.changes) {
+          success = false;
+          throw new Error(`Failed to insert inventory item: ${item.name}`);
+        }
+      }
+    })();
 
-    const stmInsertInventory = this.db.prepare(sql);
-
-    const values = inventory.flatMap((item) => [
-      item.name,
-      item.description,
-      item.price,
-      item.itemTypeId ?? null,
-    ]);
-
-    const result = stmInsertInventory.run(values);
-
-    if (result.changes === 0) {
-      return false;
-    }
-
-    return true;
+    return success;
   }
 
   insertItem(item: InsertInventoryItem): boolean {
@@ -219,6 +228,266 @@ export class InventoryService {
     return rows.map((r) => r.id);
   }
 
+  /** Inventory Health report: snapshot KPIs + movement data for all inventory items. */
+  getInventoryHealth(
+    _filters: { startDate: string; endDate: string; itemTypeIds?: number[] } = {
+      startDate: new Date(Date.now() - 30 * 86400000)
+        .toISOString()
+        .split('T')[0],
+      endDate: new Date().toISOString().split('T')[0],
+    },
+  ): ReportResponse {
+    const { startDate, endDate, itemTypeIds } = _filters;
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+    const dayCount = Math.max(
+      1,
+      Math.ceil(
+        (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+          86400000,
+      ),
+    );
+
+    // get all inventory items with optional type name, filtered by type if specified
+    let allItems: Array<InventoryItem & { itemTypeName?: string | null }>;
+    if (itemTypeIds && itemTypeIds.length > 0) {
+      allItems = this.stmGetAllInventoryByItemTypes.all({
+        itemTypeIdsJson: JSON.stringify(itemTypeIds),
+      }) as Array<InventoryItem & { itemTypeName?: string | null }>;
+    } else {
+      allItems = this.stmGetAllInventory.all() as Array<
+        InventoryItem & { itemTypeName?: string | null }
+      >;
+    }
+
+    if (allItems.length === 0) {
+      return {
+        kpis: {
+          totalItems: 0,
+          inStockItems: 0,
+          zeroStockItems: 0,
+          negativeStockItems: 0,
+          lowCoverageItems: 0,
+          deadStockItems: 0,
+          noTypeItems: 0,
+          zeroPriceItems: 0,
+          itemsWithAnyIssue: 0,
+        },
+        series: [],
+        rows: [],
+        anomalies: [],
+        exportRows: [],
+      };
+    }
+
+    // aggregate movement data from sale invoices (posted, non-returned)
+    const soldInDate: Record<number, { qty: number; lastDate: string }> = {};
+    const saleQtyRows = this.stmGetSaleAggregateHealth.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{
+      inventoryId: number;
+      totalQty: number;
+      lastDate: string;
+    }>;
+
+    for (const row of saleQtyRows) {
+      soldInDate[row.inventoryId] = {
+        qty: row.totalQty,
+        lastDate: row.lastDate,
+      };
+    }
+
+    // aggregate movement data from purchase invoices (posted, non-returned)
+    const purchasedInDate: Record<number, { qty: number; lastDate: string }> =
+      {};
+    const purchaseQtyRows = this.stmGetPurchaseAggregateHealth.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{
+      inventoryId: number;
+      totalQty: number;
+      lastDate: string;
+    }>;
+
+    for (const row of purchaseQtyRows) {
+      purchasedInDate[row.inventoryId] = {
+        qty: row.totalQty,
+        lastDate: row.lastDate,
+      };
+    }
+
+    // aggregate stock adjustment movement
+    const adjustmentInDate: Record<number, { qty: number; lastDate: string }> =
+      {};
+    const adjQtyRows = this.stmGetAdjustmentAggregate.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{
+      inventoryId: number;
+      totalDelta: number;
+      lastDate: string;
+    }>;
+
+    for (const row of adjQtyRows) {
+      adjustmentInDate[row.inventoryId] = {
+        qty: row.totalDelta,
+        lastDate: row.lastDate,
+      };
+    }
+
+    // build rows + compute flags
+    const rows: Array<Record<string, unknown>> = [];
+    let deadStockCount = 0;
+    let lowCoverageCount = 0;
+    let zeroStockCount = 0;
+    let negativeStockCount = 0;
+    let noTypeItemCount = 0;
+    let zeroPriceCount = 0;
+
+    for (const item of allItems) {
+      const onHand = get(item, 'quantity', 0);
+      const soldQty = soldInDate[item.id]?.qty ?? 0;
+      const lastSaleDate = soldInDate[item.id]?.lastDate ?? null;
+      const purchasedQty = purchasedInDate[item.id]?.qty ?? 0;
+      const lastPurchaseDate = purchasedInDate[item.id]?.lastDate ?? null;
+      const adjQty = adjustmentInDate[item.id]?.qty ?? 0;
+      const lastAdjDate = adjustmentInDate[item.id]?.lastDate ?? null;
+
+      // last movement date: max of sale, purchase, adjustment dates
+      const movementDates = [
+        lastSaleDate,
+        lastPurchaseDate,
+        lastAdjDate,
+      ].filter(Boolean) as string[];
+      const lastMovementDate =
+        movementDates.length > 0 ? movementDates.sort().at(-1)! : null;
+
+      const daysSinceMovement = lastMovementDate
+        ? Math.floor(
+            (new Date().getTime() - new Date(lastMovementDate).getTime()) /
+              86400000,
+          )
+        : null;
+
+      const dailyVelocity = soldQty > 0 ? soldQty / dayCount : null;
+      const daysOfCover =
+        dailyVelocity != null && dailyVelocity > 0
+          ? onHand / dailyVelocity
+          : null;
+
+      // issue flags
+      const flags: string[] = [];
+      if (onHand === 0) {
+        flags.push('zero-stock');
+        zeroStockCount++;
+      }
+      if (onHand < 0) {
+        flags.push('negative-stock');
+        negativeStockCount++;
+      }
+      if (daysOfCover != null && daysOfCover < 7) {
+        flags.push('critical-coverage');
+      }
+      if (daysOfCover != null && daysOfCover < 14) {
+        flags.push('low-coverage');
+        lowCoverageCount++;
+      }
+      if (
+        onHand > 0 &&
+        (daysSinceMovement == null || daysSinceMovement >= 90)
+      ) {
+        flags.push('dead-stock');
+        deadStockCount++;
+      }
+      if (!item.itemTypeId && !item.itemTypeName) {
+        flags.push('no-type');
+        noTypeItemCount++;
+      }
+      const price = get(item, 'price', 0);
+      if (price === 0) {
+        flags.push('zero-price');
+        zeroPriceCount++;
+      }
+
+      rows.push({
+        itemId: item.id,
+        itemTypeId: item.itemTypeId ?? null,
+        item: get(item, 'name', ''),
+        itemType: item.itemTypeName ?? null,
+        price,
+        onHandQty: onHand,
+        soldQtyInDate: soldQty,
+        purchasedQtyInDate: purchasedQty,
+        adjustmentQtyInDate: adjQty,
+        lastSaleDate,
+        lastPurchaseDate,
+        lastAdjustmentDate: lastAdjDate,
+        lastMovementDate,
+        daysSinceMovement,
+        daysOfCover:
+          daysOfCover != null ? Math.round(daysOfCover * 10) / 10 : null,
+        flags: flags.join(', '),
+      });
+    }
+
+    const inStockCount = allItems.filter(
+      (i) => get(i, 'quantity', 0) > 0,
+    ).length;
+
+    // one anomaly per row-level flag (same tokens as Issues column); counts can overlap across chips
+    const rowHasIssueFlag = (flagsStr: unknown, flag: string): boolean => {
+      const tokens = String(flagsStr ?? '')
+        .split(', ')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      return tokens.includes(flag);
+    };
+    const rowsForFlag = (flag: string) =>
+      rows.filter((r) =>
+        rowHasIssueFlag((r as { flags?: string }).flags, flag),
+      );
+
+    const anomalies = (
+      [
+        ['zero-stock', 'Out of stock'],
+        ['negative-stock', 'Negative stock'],
+        ['critical-coverage', 'Critical coverage (< 7 days)'],
+        ['low-coverage', 'Low coverage (< 14 days)'],
+        ['dead-stock', 'Dead stock (no movement ≥ 90 days)'],
+        ['no-type', 'No item type assigned'],
+        ['zero-price', 'Zero price'],
+      ] as const
+    ).map(([type, message]) => {
+      const matched = rowsForFlag(type);
+      return { type, message, count: matched.length, rows: matched };
+    });
+
+    const itemsWithAnyIssue = rows.filter(
+      (r) => String((r as { flags?: string }).flags ?? '').trim().length > 0,
+    ).length;
+
+    return {
+      kpis: {
+        totalItems: allItems.length,
+        inStockItems: inStockCount,
+        zeroStockItems: zeroStockCount,
+        negativeStockItems: negativeStockCount,
+        lowCoverageItems: lowCoverageCount,
+        deadStockItems: deadStockCount,
+        noTypeItems: noTypeItemCount,
+        zeroPriceItems: zeroPriceCount,
+        itemsWithAnyIssue,
+      },
+      series: [],
+      rows,
+      anomalies,
+      exportRows: rows,
+    };
+  }
+
   private initPreparedStatements() {
     this.stmInventoryExists = this.db.prepare(`
       SELECT COUNT(*) AS 'count' from inventory;
@@ -291,6 +560,57 @@ export class InventoryService {
         UNION ALL
         SELECT inventoryId FROM stock_adjustments
       );
+    `);
+
+    // Get all inventory items (unfiltered)
+    this.stmGetAllInventory = this.db.prepare(`
+      SELECT i.*, it.name AS itemTypeName
+      FROM inventory i
+      LEFT JOIN item_types it ON it.id = i.itemTypeId
+      ORDER BY i.id
+    `);
+
+    // Get all inventory items filtered by item type IDs using JSON1
+    this.stmGetAllInventoryByItemTypes = this.db.prepare(`
+      SELECT i.*, it.name AS itemTypeName
+      FROM inventory i
+      LEFT JOIN item_types it ON it.id = i.itemTypeId
+      WHERE i.itemTypeId IN (SELECT value FROM json_each(@itemTypeIdsJson))
+      ORDER BY i.id
+    `);
+
+    // Sale quantity aggregate WITH lastDate (for inventory health)
+    this.stmGetSaleAggregateHealth = this.db.prepare(`
+      SELECT ii.inventoryId, SUM(ii.quantity) AS totalQty, MAX(i.date) AS lastDate
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Sale'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+        AND i.date >= ?
+        AND i.date <= ?
+      GROUP BY ii.inventoryId
+    `);
+
+    // Purchase quantity aggregate WITH lastDate (for inventory health)
+    this.stmGetPurchaseAggregateHealth = this.db.prepare(`
+      SELECT ii.inventoryId, SUM(ii.quantity) AS totalQty, MAX(i.date) AS lastDate
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE i.invoiceType = 'Purchase'
+        AND i.isQuotation = 0
+        AND i.isReturned = 0
+        AND i.date >= ?
+        AND i.date <= ?
+      GROUP BY ii.inventoryId
+    `);
+
+    // Stock adjustment aggregate
+    this.stmGetAdjustmentAggregate = this.db.prepare(`
+      SELECT inventoryId, SUM(quantityDelta) AS totalDelta, MAX(date) AS lastDate
+      FROM stock_adjustments
+      WHERE date >= ? AND date <= ?
+      GROUP BY inventoryId
     `);
   }
 }
