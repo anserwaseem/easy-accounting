@@ -22,6 +22,7 @@ import {
 import { get, toString, debounce } from 'lodash';
 import { cn } from '@/renderer/lib/utils';
 import {
+  type MutableRefObject,
   HTMLAttributes,
   forwardRef,
   useEffect,
@@ -55,7 +56,7 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   defaultSortDirection?: SortDirection;
   infoData?: React.ReactNode[][];
   virtual?: boolean;
-  /** tighter row/header/cell padding for dense grids (e.g. invoice line items) */
+  /** tighter row/header/cell padding for dense grids */
   compact?: boolean;
   /**
    * one cell per visible column; widths match tanstack column sizes.
@@ -87,27 +88,32 @@ const TableComponent = forwardRef<
 ));
 TableComponent.displayName = 'TableComponent';
 
-const TableRowComponent = <TData,>(rows: Row<TData>[], compact: boolean) =>
-  function getTableRow(props: HTMLAttributes<HTMLTableRowElement>) {
-    // @ts-expect-error data-index is a valid attribute
-    const index = props['data-index'];
-    const row = rows[index];
-
+/** virtuoso TableRow: stable when memoized with same `cellPad`; reads row from ref each paint. must forwardRef — virtuoso measures `<tr>`; missing ref breaks updates (sort looked dead). */
+const createDataTableVirtualTableRow = <TData,>(
+  rowsRef: MutableRefObject<Row<TData>[]>,
+  cellPadLocal: string,
+) => {
+  const VirtTableRow = forwardRef<
+    HTMLTableRowElement,
+    HTMLAttributes<HTMLTableRowElement>
+  >((rowProps, ref) => {
+    const { className: trClassName, style: trStyle, ...trRest } = rowProps;
+    const index = (trRest as Record<string, unknown>)['data-index'] as number;
+    const row = rowsRef.current[index];
     if (!row) return null;
-
-    const cellPad = compact ? 'py-1 px-2' : 'py-2 px-4';
-
     return (
       <TableRow
-        key={row.id}
+        ref={ref}
+        className={trClassName}
+        style={trStyle}
         data-state={row.getIsSelected() && 'selected'}
-        {...props}
+        {...trRest}
       >
         {row.getVisibleCells().map((cell) => (
           <TableCell
             key={cell.id}
             className={cn(
-              cellPad,
+              cellPadLocal,
               (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick &&
                 'cursor-pointer',
             )}
@@ -127,7 +133,10 @@ const TableRowComponent = <TData,>(rows: Row<TData>[], compact: boolean) =>
         ))}
       </TableRow>
     );
-  };
+  });
+  VirtTableRow.displayName = 'VirtTableRow';
+  return VirtTableRow;
+};
 
 const SortingIndicator = ({ isSorted }: { isSorted: string | false }) => {
   if (!isSorted) return null;
@@ -262,7 +271,9 @@ const DataTable = <TData, TValue>({
   searchPersistenceKey,
   autoFocusSearch = false,
   onViewModelChange,
-  ...props
+  state: userTableState,
+  onSortingChange: userOnSortingChange,
+  ...restTableOptions
 }: DataTableProps<TData, TValue>) => {
   const [sorting, setSorting] = useState<SortingState>(() => {
     if (!defaultSortField) return [];
@@ -373,18 +384,33 @@ const DataTable = <TData, TValue>({
   }, [searchPersistenceKey, searchInputValue]);
 
   const table = useReactTable({
+    ...restTableOptions,
     data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     state: {
+      ...userTableState,
       sorting,
     },
-    onSortingChange: setSorting,
-    ...props,
+    onSortingChange: (updater) => {
+      setSorting(updater);
+      userOnSortingChange?.(updater);
+    },
   });
 
   const { rows } = table.getRowModel();
+
+  const virtualRowsRef = useRef(rows);
+  virtualRowsRef.current = rows;
+  const VirtualTableRow = useMemo(
+    () =>
+      createDataTableVirtualTableRow<TData>(
+        virtualRowsRef,
+        compact ? 'py-1 px-2' : 'py-2 px-4',
+      ),
+    [compact],
+  );
 
   const tableRef = useRef(table);
   tableRef.current = table;
@@ -476,9 +502,10 @@ const DataTable = <TData, TValue>({
                 <TableVirtuoso
                   style={{ height }}
                   totalCount={rows.length}
+                  computeItemKey={(index) => rows[index]?.id ?? index}
                   components={{
                     Table: TableComponent,
-                    TableRow: TableRowComponent(rows, compact),
+                    TableRow: VirtualTableRow,
                   }}
                   fixedHeaderContent={() =>
                     table
@@ -504,9 +531,10 @@ const DataTable = <TData, TValue>({
           <TableVirtuoso
             style={{ height }}
             totalCount={rows.length}
+            computeItemKey={(index) => rows[index]?.id ?? index}
             components={{
               Table: TableComponent,
-              TableRow: TableRowComponent(rows, compact),
+              TableRow: VirtualTableRow,
             }}
             fixedHeaderContent={() =>
               table

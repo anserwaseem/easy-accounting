@@ -144,7 +144,18 @@ const InventoryHealthPage: React.FC = () => {
   const filterRef = useRef(0);
 
   const handleGridViewModelChange = useCallback(
-    (rows: InventoryHealthRow[]) => setGridViewRows(rows),
+    (next: InventoryHealthRow[]) => {
+      setGridViewRows((prev) => {
+        if (
+          prev &&
+          prev.length === next.length &&
+          next.every((r, i) => r.itemId === prev[i]?.itemId)
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    },
     [],
   );
 
