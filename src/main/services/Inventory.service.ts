@@ -537,6 +537,8 @@ export class InventoryService {
         itemTypeId: item.itemTypeId ?? null,
         item: get(item, 'name', ''),
         itemType: item.itemTypeName ?? null,
+        listPosition:
+          item.listPosition == null ? null : Number(item.listPosition),
         price,
         onHandQty: onHand,
         soldQtyInDate: soldQty,
@@ -677,6 +679,8 @@ export class InventoryService {
         itemTypeId: item.itemTypeId ?? null,
         item: get(item, 'name', ''),
         itemType: item.itemTypeName ?? null,
+        listPosition:
+          item.listPosition == null ? null : Number(item.listPosition),
         quantityAsOf: qtyAsOf,
         currentQuantity: currentQty,
         unitPrice: get(item, 'price', 0),

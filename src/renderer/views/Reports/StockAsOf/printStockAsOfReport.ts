@@ -3,6 +3,7 @@ import { printStyles } from '../components/printStyles';
 import { stockAsOfPrintStyles } from './stockAsOfPrintStyles';
 
 export interface StockAsOfPrintRow {
+  listPosition: number | null;
   item: string;
   itemType: string | null;
   unitPrice: number;
@@ -21,6 +22,9 @@ const buildBodyHtml = (rows: StockAsOfPrintRow[]): string =>
   rows
     .map(
       (row) => `<tr>
+  <td class="num">${
+    row.listPosition != null ? escape(String(row.listPosition)) : escape('—')
+  }</td>
   <td>${escape(row.item)}</td>
   <td>${escape(row.itemType || '—')}</td>
   <td class="num">${escape(String(row.unitPrice ?? 0))}</td>
@@ -79,6 +83,7 @@ export const printStockAsOfReportIframe = (options: PrintStockAsOfOptions) => {
   <table class="data-table-wrapper print-table" style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
+        <th class="num">List #</th>
         <th>Item</th>
         <th>Type</th>
         <th class="num">Price</th>

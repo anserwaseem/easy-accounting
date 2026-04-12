@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { isNil } from 'lodash';
-import type { Row, SortingFn } from '@tanstack/react-table';
-import { defaultSortingFunctions } from 'renderer/lib/utils';
+import {
+  createListPositionSortingFn,
+  defaultSortingFunctions,
+} from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InventoryItem, ItemType } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
@@ -13,20 +15,9 @@ import { StockHistoryDialog } from './StockHistoryDialog';
 
 const NO_ITEM_TYPE_OPTION = { id: 0, name: 'No type' };
 
-const listPositionSortingFn: SortingFn<InventoryItem> = (
-  rowA: Row<InventoryItem>,
-  rowB: Row<InventoryItem>,
-): number => {
-  const a = rowA.original.listPosition;
-  const b = rowB.original.listPosition;
-  const aNull = a == null;
-  const bNull = b == null;
-  if (aNull && bNull) return rowA.original.id - rowB.original.id;
-  if (aNull) return 1;
-  if (bNull) return -1;
-  if (a !== b) return a - b;
-  return rowA.original.id - rowB.original.id;
-};
+const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
+  (r) => r.id,
+);
 
 interface InventoryTableProps {
   refetchInventory: () => void;

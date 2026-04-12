@@ -84,6 +84,7 @@ export interface StockAsOfRow {
   itemTypeId: number | null;
   item: string;
   itemType: string | null;
+  listPosition: number | null;
   quantityAsOf: number;
   currentQuantity: number;
   unitPrice: number;

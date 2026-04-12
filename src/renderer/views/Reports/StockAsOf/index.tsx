@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/renderer/shad/ui/select';
-import { cn } from '@/renderer/lib/utils';
+import { cn, createListPositionSortingFn } from '@/renderer/lib/utils';
 import {
   exportReportToExcel,
   type ReportExportPayload,
@@ -192,6 +192,23 @@ const StockAsOfReportPage: React.FC = () => {
   const columns = useMemo<ColumnDef<StockAsOfTableRow, unknown>[]>(
     () => [
       {
+        accessorKey: 'listPosition',
+        header: 'List #',
+        size: 64,
+        headerTooltip: 'Catalog list order (nulls sort last).',
+        sortingFn: createListPositionSortingFn<StockAsOfTableRow>(
+          (r) => r.itemId,
+        ),
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.original.listPosition != null
+              ? String(row.original.listPosition)
+              : '—'}
+          </span>
+        ),
+      },
+      {
         accessorKey: 'item',
         header: 'Item',
         size: 160,
@@ -200,14 +217,24 @@ const StockAsOfReportPage: React.FC = () => {
         accessorKey: 'itemType',
         header: 'Type',
         size: 72,
-        cell: ({ row }) => row.original.itemType || '—',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.original.itemType || '—'}
+          </span>
+        ),
       },
       {
         accessorKey: 'unitPrice',
         header: 'Price',
         size: 72,
-        headerTooltip: 'Current master price (not historical).',
-        cell: ({ row }) => String(row.original.unitPrice ?? 0),
+        headerTooltip: 'Current price (not historical).',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {String(row.original.unitPrice ?? 0)}
+          </span>
+        ),
       },
       {
         accessorKey: 'currentQuantity',
@@ -221,7 +248,7 @@ const StockAsOfReportPage: React.FC = () => {
         header: 'Qty (as of)',
         size: 96,
         headerTooltip:
-          'Starts from current inventory.quantity, then undoes posted purchases, sales, and stock adjustments with timestamps strictly after the end of the selected day. Returned invoices undo the line when returnedAt is after that moment too. Requires current quantity to match posted movements.',
+          'On-hand at the end of your selected day (backward from today using posted activity). See "How the numbers are built" in the header.',
         cell: ({ row }) => String(row.original.quantityAsOf),
       },
       {
@@ -239,6 +266,7 @@ const StockAsOfReportPage: React.FC = () => {
     if (!exportPrintRows.length) return;
     try {
       const exportRows = exportPrintRows.map((r) => ({
+        listPosition: r.listPosition == null ? '' : String(r.listPosition),
         item: r.item,
         itemType: r.itemType ?? '',
         unitPrice: r.unitPrice ?? 0,
@@ -251,6 +279,7 @@ const StockAsOfReportPage: React.FC = () => {
         subtitle: `As of ${reportSubtitle}`,
         sheetName: 'Stock as of',
         columns: [
+          { key: 'listPosition', header: 'List #', format: 'string', width: 8 },
           { key: 'item', header: 'Item', format: 'string', width: 28 },
           { key: 'itemType', header: 'Type', format: 'string', width: 14 },
           { key: 'unitPrice', header: 'Price', format: 'number', width: 10 },
@@ -299,6 +328,7 @@ const StockAsOfReportPage: React.FC = () => {
     if (!exportPrintRows.length) return;
     printStockAsOfReportIframe({
       rows: exportPrintRows.map((r) => ({
+        listPosition: r.listPosition,
         item: r.item,
         itemType: r.itemType,
         unitPrice: r.unitPrice ?? 0,
@@ -393,14 +423,39 @@ const StockAsOfReportPage: React.FC = () => {
               </Button>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground max-w-3xl">
-            Quantity as of the selected day is derived by starting from current
-            stock and reversing every posted purchase, sale, and adjustment
-            dated strictly after the end of that day. Quotations are excluded;
-            for returned invoices, the return leg is reversed only if its
-            timestamp is after that moment. Current price is from the item
-            master, not historical.
-          </p>
+          <div className="max-w-3xl space-y-2">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              <span className="font-medium text-foreground">
+                What this report shows:{' '}
+              </span>
+              For each item, on-hand quantity at the end of the day you pick.
+              The figure starts from{' '}
+              <span className="font-medium text-foreground">today&apos;s</span>{' '}
+              recorded stock, then steps backward through posted sales,
+              purchases, and stock adjustments.
+            </p>
+            <details className="group text-xs text-muted-foreground [&_summary::-webkit-details-marker]:hidden">
+              <summary className="cursor-pointer list-none font-medium text-foreground underline-offset-2 hover:underline">
+                How the numbers are built
+              </summary>
+              <ul className="mt-2 ml-4 list-disc space-y-1.5 leading-relaxed">
+                <li>
+                  Posted sales, purchases, and stock changes that fall after the
+                  end of the day you picked are backed out of today&apos;s
+                  quantity.
+                </li>
+                <li>Quotations are not counted.</li>
+                <li>
+                  For returned invoices, the return date/time matters as well as
+                  the original invoice date.
+                </li>
+                <li>
+                  The price column is each item&apos;s current sale price, not
+                  historical price.
+                </li>
+              </ul>
+            </details>
+          </div>
         </div>
       }
     >
@@ -414,9 +469,9 @@ const StockAsOfReportPage: React.FC = () => {
           data={tableRows}
           virtual
           compact
-          defaultSortField="quantityAsOf"
-          defaultSortDirection="desc"
-          searchFields={['item', 'itemType']}
+          defaultSortField="listPosition"
+          defaultSortDirection="asc"
+          searchFields={['listPosition', 'item', 'itemType']}
           searchPlaceholder="Search items or types…"
           searchPersistenceKey="stock-as-of-search"
           onViewModelChange={handleTableViewModelChange}

@@ -5,6 +5,7 @@ import { formatInventoryHealthLastInvoiceCell } from './formatInventoryHealthLas
 
 /** row shape for print (no issues column; matches inventory health table minus flags) */
 export interface InventoryHealthPrintRow {
+  listPosition: number | null;
   item: string;
   itemType: string | null;
   price: number;
@@ -53,7 +54,12 @@ const buildBodyHtml = (
           : '';
       const daysC =
         row.daysOfCover != null ? escape(String(row.daysOfCover)) : '';
+      const listCell =
+        row.listPosition != null
+          ? escape(String(row.listPosition))
+          : escape('—');
       return `<tr>
+  <td class="num">${listCell}</td>
   <td>${escape(row.item)}</td>
   <td>${escape(row.itemType ?? '')}</td>
   <td class="num">${escape(String(row.price ?? 0))}</td>
@@ -122,6 +128,7 @@ export const printInventoryHealthReportIframe = (
   <table class="data-table-wrapper print-table" style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
+        <th class="num">List #</th>
         <th>Item</th>
         <th>Type</th>
         <th class="num">Price</th>

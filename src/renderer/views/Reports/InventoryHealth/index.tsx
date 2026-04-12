@@ -44,7 +44,7 @@ import {
   TooltipTrigger,
 } from '@/renderer/shad/ui/tooltip';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
-import { cn } from '@/renderer/lib/utils';
+import { cn, createListPositionSortingFn } from '@/renderer/lib/utils';
 import { printStyles } from '../components/printStyles';
 import { inventoryHealthPrintStyles } from './inventoryHealthPrintStyles';
 import { printInventoryHealthReportIframe } from './printInventoryHealthReport';
@@ -53,6 +53,7 @@ import { formatInventoryHealthLastInvoiceCell } from './formatInventoryHealthLas
 interface InventoryHealthRow {
   itemId: number;
   itemTypeId: number | null;
+  listPosition: number | null;
   item: string;
   itemType: string | null;
   price: number;
@@ -331,6 +332,7 @@ const InventoryHealthPage: React.FC = () => {
       null,
       null,
       null,
+      null,
       qtyCell(totalOnHand),
       qtyCell(totalSold),
       qtyCell(totalPurchased),
@@ -358,6 +360,12 @@ const InventoryHealthPage: React.FC = () => {
     if (!response || !exportPrintRows.length) return;
     try {
       const exportCols: ReportExportPayload['columns'] = [
+        {
+          key: 'listPosition',
+          header: 'List #',
+          format: 'string' as const,
+          width: 8,
+        },
         { key: 'item', header: 'Item', format: 'string' as const, width: 24 },
         {
           key: 'itemType',
@@ -439,6 +447,7 @@ const InventoryHealthPage: React.FC = () => {
         columns: exportCols,
         rows: exportPrintRows.map((r) => ({
           ...(r as unknown as Record<string, unknown>),
+          listPosition: r.listPosition == null ? '' : String(r.listPosition),
           lastSaleDate:
             formatInventoryHealthLastInvoiceCell(
               r.lastSaleDate,
@@ -473,6 +482,23 @@ const InventoryHealthPage: React.FC = () => {
   const columns = useMemo<ColumnDef<InventoryHealthRow, unknown>[]>(() => {
     const base: ColumnDef<InventoryHealthRow, unknown>[] = [
       {
+        accessorKey: 'listPosition',
+        header: 'List #',
+        size: 84,
+        headerTooltip: 'Catalog list order (nulls sort last).',
+        sortingFn: createListPositionSortingFn<InventoryHealthRow>(
+          (r) => r.itemId,
+        ),
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.original.listPosition != null
+              ? String(row.original.listPosition)
+              : '—'}
+          </span>
+        ),
+      },
+      {
         accessorKey: 'item',
         header: 'Item',
         size: 120,
@@ -481,7 +507,12 @@ const InventoryHealthPage: React.FC = () => {
         accessorKey: 'itemType',
         header: 'Type',
         size: 40,
-        cell: ({ row }) => row.original.itemType || '—',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.original.itemType || '—'}
+          </span>
+        ),
       },
       {
         accessorKey: 'price',
@@ -849,10 +880,16 @@ const InventoryHealthPage: React.FC = () => {
               data={filteredTableData}
               virtual
               compact
-              defaultSortField="onHandQty"
-              defaultSortDirection="desc"
-              searchFields={['item', 'itemType', 'price', 'flags']}
-              searchPlaceholder="Search items, types, price, issues..."
+              defaultSortField="listPosition"
+              defaultSortDirection="asc"
+              searchFields={[
+                'listPosition',
+                'item',
+                'itemType',
+                'price',
+                'flags',
+              ]}
+              searchPlaceholder="Search list #, items, types, price, issues..."
               searchPersistenceKey="inventory-health-search"
               stickyFooterRow={inventoryHealthStickyFooterRow}
               onViewModelChange={handleGridViewModelChange}

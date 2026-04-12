@@ -96,6 +96,24 @@ export const defaultSortingFunctions: Record<string, SortingFn<any>> = {
   updatedAt: dateComparator,
 };
 
+/** sort by list # ascending; null/undefined last; tie-break via stable id */
+export const createListPositionSortingFn =
+  <T extends { listPosition?: number | null }>(
+    tieBreak: (row: T) => number,
+  ): SortingFn<T> =>
+  (rowA, rowB) => {
+    const a = rowA.original.listPosition;
+    const b = rowB.original.listPosition;
+    const aNull = a == null;
+    const bNull = b == null;
+    if (aNull && bNull)
+      return tieBreak(rowA.original) - tieBreak(rowB.original);
+    if (aNull) return 1;
+    if (bNull) return -1;
+    if (a !== b) return a - b;
+    return tieBreak(rowA.original) - tieBreak(rowB.original);
+  };
+
 /**
  * Returns formatted currency
  * @param value - The number to format
