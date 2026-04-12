@@ -181,4 +181,46 @@ describe('InventoryService.getInventoryHealth', () => {
     expect(negChip?.count).toBe(0);
     db.close();
   });
+
+  it('should attach last sale and last purchase invoice numbers in range', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const invId = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 5)',
+      )
+      .run('Widget', t1).lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (name) VALUES (?)')
+      .run('Cust').lastInsertRowid as number;
+    const saleInvId = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES ('Sale', 0, 0, '2025-06-10T12:00:00.000Z', ?, 2390)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 2, 10)',
+    ).run(saleInvId, invId);
+    const purchInvId = db
+      .prepare(
+        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES ('Purchase', 0, 0, '2025-06-15T12:00:00.000Z', ?, 88)`,
+      )
+      .run(accId).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 5, 8)',
+    ).run(purchInvId, invId);
+
+    const service = createTestDb(db);
+    const response = service.getInventoryHealth(DATES);
+    const row = response.rows[0] as Record<string, unknown>;
+    expect(row.item).toBe('Widget');
+    expect(row.lastSaleInvoiceNumber).toBe(2390);
+    expect(row.lastPurchaseInvoiceNumber).toBe(88);
+    db.close();
+  });
 });

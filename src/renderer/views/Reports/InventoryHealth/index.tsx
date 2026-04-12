@@ -48,6 +48,7 @@ import { cn } from '@/renderer/lib/utils';
 import { printStyles } from '../components/printStyles';
 import { inventoryHealthPrintStyles } from './inventoryHealthPrintStyles';
 import { printInventoryHealthReportIframe } from './printInventoryHealthReport';
+import { formatInventoryHealthLastInvoiceCell } from './formatInventoryHealthLastInvoiceCell';
 
 interface InventoryHealthRow {
   itemId: number;
@@ -60,7 +61,9 @@ interface InventoryHealthRow {
   purchasedQtyInDate: number;
   adjustmentQtyInDate: number;
   lastSaleDate: string | null;
+  lastSaleInvoiceNumber: number | null;
   lastPurchaseDate: string | null;
+  lastPurchaseInvoiceNumber: number | null;
   daysSinceMovement: number | null;
   daysOfCover: number | null;
   flags: string;
@@ -356,14 +359,14 @@ const InventoryHealthPage: React.FC = () => {
         {
           key: 'lastSaleDate',
           header: 'Last Sale',
-          format: 'date' as const,
-          width: 12,
+          format: 'string' as const,
+          width: 28,
         },
         {
           key: 'lastPurchaseDate',
           header: 'Last Purchase',
-          format: 'date' as const,
-          width: 14,
+          format: 'string' as const,
+          width: 28,
         },
         {
           key: 'daysSinceMovement',
@@ -396,7 +399,19 @@ const InventoryHealthPage: React.FC = () => {
             : '',
         sheetName: 'Inventory Health',
         columns: exportCols,
-        rows: exportPrintRows as unknown as Record<string, unknown>[],
+        rows: exportPrintRows.map((r) => ({
+          ...(r as unknown as Record<string, unknown>),
+          lastSaleDate:
+            formatInventoryHealthLastInvoiceCell(
+              r.lastSaleDate,
+              r.lastSaleInvoiceNumber ?? null,
+            ) || '—',
+          lastPurchaseDate:
+            formatInventoryHealthLastInvoiceCell(
+              r.lastPurchaseDate,
+              r.lastPurchaseInvoiceNumber ?? null,
+            ) || '—',
+        })),
         suggestedFileName: `Inventory_Health_${format(
           new Date(),
           'yyyy-MM-dd',
@@ -439,7 +454,7 @@ const InventoryHealthPage: React.FC = () => {
       {
         accessorKey: 'onHandQty',
         header: 'On Hand',
-        size: 76,
+        size: 84,
         cell: ({ row }) => String(row.original.onHandQty ?? 0),
       },
       {
@@ -467,28 +482,30 @@ const InventoryHealthPage: React.FC = () => {
       {
         accessorKey: 'lastSaleDate',
         header: 'Last Sale',
-        size: 100,
+        size: 160,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
-          const v = row.original.lastSaleDate;
+          const t = formatInventoryHealthLastInvoiceCell(
+            row.original.lastSaleDate,
+            row.original.lastSaleInvoiceNumber ?? null,
+          );
           return (
-            <span className="text-xs text-muted-foreground">
-              {v ? format(new Date(v), 'PP') : '—'}
-            </span>
+            <span className="text-xs text-muted-foreground">{t || '—'}</span>
           );
         },
       },
       {
         accessorKey: 'lastPurchaseDate',
         header: 'Last Purchase',
-        size: 110,
+        size: 160,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
-          const v = row.original.lastPurchaseDate;
+          const t = formatInventoryHealthLastInvoiceCell(
+            row.original.lastPurchaseDate,
+            row.original.lastPurchaseInvoiceNumber ?? null,
+          );
           return (
-            <span className="text-xs text-muted-foreground">
-              {v ? format(new Date(v), 'PP') : '—'}
-            </span>
+            <span className="text-xs text-muted-foreground">{t || '—'}</span>
           );
         },
       },

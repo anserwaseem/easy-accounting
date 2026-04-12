@@ -56,6 +56,10 @@ export class InventoryService {
 
   private stmGetPurchaseAggregateHealth!: Statement;
 
+  private stmGetSaleLastInvoiceHealth!: Statement;
+
+  private stmGetPurchaseLastInvoiceHealth!: Statement;
+
   private stmGetAdjustmentAggregate!: Statement;
 
   constructor() {
@@ -300,6 +304,15 @@ export class InventoryService {
       };
     }
 
+    const lastSaleInvoiceByInventory: Record<number, number> = {};
+    const saleLastInvoiceRows = this.stmGetSaleLastInvoiceHealth.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{ inventoryId: number; invoiceNumber: number }>;
+    for (const row of saleLastInvoiceRows) {
+      lastSaleInvoiceByInventory[row.inventoryId] = row.invoiceNumber;
+    }
+
     // aggregate movement data from purchase invoices (posted, non-returned)
     const purchasedInDate: Record<number, { qty: number; lastDate: string }> =
       {};
@@ -317,6 +330,15 @@ export class InventoryService {
         qty: row.totalQty,
         lastDate: row.lastDate,
       };
+    }
+
+    const lastPurchaseInvoiceByInventory: Record<number, number> = {};
+    const purchaseLastInvoiceRows = this.stmGetPurchaseLastInvoiceHealth.all(
+      sqlStartDate,
+      sqlEndDate,
+    ) as Array<{ inventoryId: number; invoiceNumber: number }>;
+    for (const row of purchaseLastInvoiceRows) {
+      lastPurchaseInvoiceByInventory[row.inventoryId] = row.invoiceNumber;
     }
 
     // aggregate stock adjustment movement
@@ -351,8 +373,16 @@ export class InventoryService {
       const onHand = get(item, 'quantity', 0);
       const soldQty = soldInDate[item.id]?.qty ?? 0;
       const lastSaleDate = soldInDate[item.id]?.lastDate ?? null;
+      const lastSaleInvoiceNumber =
+        lastSaleDate != null
+          ? lastSaleInvoiceByInventory[item.id] ?? null
+          : null;
       const purchasedQty = purchasedInDate[item.id]?.qty ?? 0;
       const lastPurchaseDate = purchasedInDate[item.id]?.lastDate ?? null;
+      const lastPurchaseInvoiceNumber =
+        lastPurchaseDate != null
+          ? lastPurchaseInvoiceByInventory[item.id] ?? null
+          : null;
       const adjQty = adjustmentInDate[item.id]?.qty ?? 0;
       const lastAdjDate = adjustmentInDate[item.id]?.lastDate ?? null;
 
@@ -423,7 +453,9 @@ export class InventoryService {
         purchasedQtyInDate: purchasedQty,
         adjustmentQtyInDate: adjQty,
         lastSaleDate,
+        lastSaleInvoiceNumber,
         lastPurchaseDate,
+        lastPurchaseInvoiceNumber,
         lastAdjustmentDate: lastAdjDate,
         lastMovementDate,
         daysSinceMovement,
@@ -603,6 +635,50 @@ export class InventoryService {
         AND i.date >= ?
         AND i.date <= ?
       GROUP BY ii.inventoryId
+    `);
+
+    // invoice # for the latest sale line per inventory in range (tie-break: higher invoice id)
+    this.stmGetSaleLastInvoiceHealth = this.db.prepare(`
+      SELECT inventoryId, invoiceNumber
+      FROM (
+        SELECT
+          ii.inventoryId,
+          i.invoiceNumber,
+          ROW_NUMBER() OVER (
+            PARTITION BY ii.inventoryId
+            ORDER BY i.date DESC, i.id DESC
+          ) AS rn
+        FROM invoice_items ii
+        JOIN invoices i ON i.id = ii.invoiceId
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ?
+          AND i.date <= ?
+      )
+      WHERE rn = 1
+    `);
+
+    // invoice # for the latest purchase line per inventory in range
+    this.stmGetPurchaseLastInvoiceHealth = this.db.prepare(`
+      SELECT inventoryId, invoiceNumber
+      FROM (
+        SELECT
+          ii.inventoryId,
+          i.invoiceNumber,
+          ROW_NUMBER() OVER (
+            PARTITION BY ii.inventoryId
+            ORDER BY i.date DESC, i.id DESC
+          ) AS rn
+        FROM invoice_items ii
+        JOIN invoices i ON i.id = ii.invoiceId
+        WHERE i.invoiceType = 'Purchase'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ?
+          AND i.date <= ?
+      )
+      WHERE rn = 1
     `);
 
     // Stock adjustment aggregate

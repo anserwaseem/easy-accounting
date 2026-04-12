@@ -1,7 +1,7 @@
 import { escape } from 'lodash';
-import { format } from 'date-fns';
 import { printStyles } from '../components/printStyles';
 import { inventoryHealthPrintStyles } from './inventoryHealthPrintStyles';
+import { formatInventoryHealthLastInvoiceCell } from './formatInventoryHealthLastInvoiceCell';
 
 /** row shape for print (no issues column; matches inventory health table minus flags) */
 export interface InventoryHealthPrintRow {
@@ -13,7 +13,9 @@ export interface InventoryHealthPrintRow {
   purchasedQtyInDate: number;
   adjustmentQtyInDate: number;
   lastSaleDate: string | null;
+  lastSaleInvoiceNumber: number | null;
   lastPurchaseDate: string | null;
+  lastPurchaseInvoiceNumber: number | null;
   daysSinceMovement: number | null;
   daysOfCover: number | null;
 }
@@ -24,15 +26,6 @@ interface PrintInventoryHealthOptions {
   showAdjustedColumn: boolean;
 }
 
-const formatDateCell = (v: string | null): string => {
-  if (!v) return '';
-  try {
-    return escape(format(new Date(v), 'PP'));
-  } catch {
-    return '';
-  }
-};
-
 const buildBodyHtml = (
   rows: InventoryHealthPrintRow[],
   showAdjusted: boolean,
@@ -42,8 +35,18 @@ const buildBodyHtml = (
       const adjCell = showAdjusted
         ? `<td class="num">${escape(String(row.adjustmentQtyInDate ?? 0))}</td>`
         : '';
-      const lastSale = formatDateCell(row.lastSaleDate);
-      const lastPurch = formatDateCell(row.lastPurchaseDate);
+      const lastSale = escape(
+        formatInventoryHealthLastInvoiceCell(
+          row.lastSaleDate,
+          row.lastSaleInvoiceNumber ?? null,
+        ) || '—',
+      );
+      const lastPurch = escape(
+        formatInventoryHealthLastInvoiceCell(
+          row.lastPurchaseDate,
+          row.lastPurchaseInvoiceNumber ?? null,
+        ) || '—',
+      );
       const daysM =
         row.daysSinceMovement != null
           ? escape(String(row.daysSinceMovement))
