@@ -32,7 +32,6 @@ import QuotationsPage from './views/Quotations';
 import InventoryHealthReportPage from './views/Reports/InventoryHealth';
 import StockAsOfReportPage from './views/Reports/StockAsOf';
 import SalesPerformanceReportPage from './views/Reports/SalesPerformance';
-import ReceivablesReportPage from './views/Reports/Receivables';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -77,7 +76,6 @@ const AppRoutes: React.FC = () => (
                   path="sales-performance"
                   element={<SalesPerformanceReportPage />}
                 />
-                <Route path="receivables" element={<ReceivablesReportPage />} />
               </Route>
               <Route path="purchase/invoices">
                 <Route

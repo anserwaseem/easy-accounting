@@ -588,22 +588,6 @@ app
         invoiceService.getSalesPerformance(filters),
     );
 
-    ipcMain.handle(
-      'report:getReceivables',
-      async (
-        _,
-        {
-          headName,
-          startDate,
-          endDate,
-        }: {
-          headName: string;
-          startDate: string;
-          endDate: string;
-        },
-      ) => accountService.getReceivables(headName, startDate, endDate),
-    );
-
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the

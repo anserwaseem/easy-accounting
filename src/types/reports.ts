@@ -100,7 +100,6 @@ export interface StockAsOfReportResponse {
 export const REPORT_FILTER_KEYS = {
   inventoryHealth: 'reports.inventoryHealth.filters',
   salesPerformance: 'reports.salesPerformance.filters',
-  receivables: 'reports.receivables.filters',
   ledger: 'reports.ledger.filters',
   stockAsOf: 'reports.stockAsOf.filters',
 } as const;

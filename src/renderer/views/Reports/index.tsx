@@ -76,13 +76,6 @@ const operationsReports: ReportOption[] = [
     path: '/reports/sales-performance',
     icon: <TrendingUp className="h-6 w-6" />,
   },
-  {
-    title: 'Receivables',
-    description:
-      'Collections reporting with bill-level detail and FIFO allocation.',
-    path: '/reports/receivables',
-    icon: <DollarSign className="h-6 w-6" />,
-  },
 ];
 
 interface ReportCardProps {

@@ -370,16 +370,6 @@ const electronHandler = {
       filters,
     ) as Promise<ReportResponse>,
 
-  reportGetReceivables: (params: {
-    headName: string;
-    startDate: string;
-    endDate: string;
-  }) =>
-    ipcRenderer.invoke(
-      'report:getReceivables',
-      params,
-    ) as Promise<ReportResponse>,
-
   printToPdf: (outputBaseName: string | number) =>
     ipcRenderer.invoke('print:toPDF', outputBaseName),
 
