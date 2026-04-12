@@ -23,6 +23,8 @@ export class LedgerService {
 
   private stmGetLedgerRange!: Statement;
 
+  private stmGetBalancesForAccountIdsAsOfDate!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -100,31 +102,10 @@ export class LedgerService {
       ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
     ];
     if (unique.length === 0) return {};
-    const placeholders = unique.map(() => '?').join(',');
-    const sql = `
-      SELECT t.accountId, t.balance, t.balanceType
-      FROM (
-        SELECT
-          l.accountId,
-          l.balance,
-          l.balanceType,
-          ROW_NUMBER() OVER (
-            PARTITION BY l.accountId
-            ORDER BY datetime(l.date, 'localtime') DESC, l.id DESC
-          ) AS rn
-        FROM ledger l
-        WHERE l.accountId IN (${placeholders})
-          AND (
-            CASE
-              WHEN length(l.date) = 10 THEN l.date
-              ELSE date(datetime(l.date, 'localtime'))
-            END
-          ) <= ?
-      ) t
-      WHERE t.rn = 1
-    `;
-    const stmt = this.db.prepare(sql);
-    const rows = stmt.all(...unique, asOfDate) as Array<{
+    const rows = this.stmGetBalancesForAccountIdsAsOfDate.all({
+      accountIdsJson: JSON.stringify(unique),
+      asOfDate,
+    }) as Array<{
       accountId: number;
       balance: number;
       balanceType: BalanceType;
@@ -249,5 +230,31 @@ export class LedgerService {
          ) <= @endDate
        ORDER BY datetime(l.date, 'localtime') ASC, l.id ASC`,
     );
+
+    this.stmGetBalancesForAccountIdsAsOfDate = this.db.prepare(`
+      SELECT t.accountId, t.balance, t.balanceType
+      FROM (
+        SELECT
+          l.accountId,
+          l.balance,
+          l.balanceType,
+          ROW_NUMBER() OVER (
+            PARTITION BY l.accountId
+            ORDER BY datetime(l.date, 'localtime') DESC, l.id DESC
+          ) AS rn
+        FROM ledger l
+        WHERE l.accountId IN (
+          SELECT CAST(j.value AS INTEGER)
+          FROM json_each(@accountIdsJson) AS j
+        )
+          AND (
+            CASE
+              WHEN length(l.date) = 10 THEN l.date
+              ELSE date(datetime(l.date, 'localtime'))
+            END
+          ) <= @asOfDate
+      ) t
+      WHERE t.rn = 1
+    `);
   }
 }
