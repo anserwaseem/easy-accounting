@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { get, includes, isEmpty, some, toLower } from 'lodash';
-import {
-  type Account,
-  type LedgerView,
-  type InventoryItem,
-  AccountType,
-} from '@/types';
+import { get, includes, some, toLower } from 'lodash';
+import { type Account, type InventoryItem, AccountType } from '@/types';
 import type { FinancialOverview } from './types';
 
 export const useFinancialOverview = () => {
@@ -28,30 +23,11 @@ export const useFinancialOverview = () => {
   const fetchFinancialOverview = useCallback(async () => {
     setIsLoading(true);
     try {
-      // fetch all accounts
       const accounts: Account[] = await window.electron.getAccounts();
-
-      // get all account IDs
       const accountIds = accounts.map((account: Account) => account.id);
 
-      // fetch all ledgers in a single batch operation
-      const ledgersPromises = accountIds.map((id: number) =>
-        window.electron.getLedger(id),
-      );
-      const ledgersResults = await Promise.all(ledgersPromises);
-
-      // map accounts to ledgers
-      const accountLedgers = accounts.reduce(
-        (
-          acc: Record<number, LedgerView[]>,
-          account: Account,
-          index: number,
-        ) => {
-          acc[account.id] = ledgersResults[index];
-          return acc;
-        },
-        {} as Record<number, LedgerView[]>,
-      );
+      const balanceByAccountId =
+        await window.electron.getLedgerBalancesForAccountIds(accountIds);
 
       // calculate totals by account type
       let totalAssets = 0;
@@ -63,11 +39,10 @@ export const useFinancialOverview = () => {
       let accountsPayable = 0;
 
       for (const account of accounts) {
-        const ledger = accountLedgers[account.id];
-        if (isEmpty(ledger)) continue;
+        const latest = balanceByAccountId[account.id];
+        if (!latest) continue;
 
-        const latestEntry = ledger[ledger.length - 1];
-        const { balance, balanceType } = latestEntry;
+        const { balance, balanceType } = latest;
         const amount = balanceType === 'Dr' ? balance : -balance;
 
         const { headName } = account;
