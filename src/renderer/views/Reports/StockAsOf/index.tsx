@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { Card } from '@/renderer/shad/ui/card';
+import { Checkbox } from '@/renderer/shad/ui/checkbox';
+import { Label } from '@/renderer/shad/ui/label';
 import { Calendar } from '@/renderer/shad/ui/calendar';
 import {
   Popover,
@@ -66,6 +68,10 @@ const StockAsOfReportPage: React.FC = () => {
     null,
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [hideZeroQuantity, setHideZeroQuantity] = useState(true);
+  const [hideZeroPrice, setHideZeroPrice] = useState(true);
+  const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
+  const [hideNoType, setHideNoType] = useState(true);
   /** rows after grid search + sort; null until DataTable syncs (export/print parity) */
   const [gridViewRows, setGridViewRows] = useState<StockAsOfTableRow[] | null>(
     null,
@@ -152,15 +158,37 @@ const StockAsOfReportPage: React.FC = () => {
     }));
   }, [response?.rows]);
 
+  const filteredTableData = useMemo(() => {
+    if (!tableRows.length) return undefined;
+    return tableRows.filter((r) => {
+      if (hideNegativeQuantity && r.currentQuantity < 0) return false;
+      if (hideZeroQuantity && r.currentQuantity === 0) return false;
+      if (hideZeroPrice && (r.unitPrice ?? 0) === 0) return false;
+      if (hideNoType && (r.itemTypeId == null || r.itemTypeId === 0))
+        return false;
+      return true;
+    });
+  }, [
+    tableRows,
+    hideNegativeQuantity,
+    hideZeroQuantity,
+    hideZeroPrice,
+    hideNoType,
+  ]);
+
   useEffect(() => {
     setGridViewRows(null);
   }, [response]);
 
   useEffect(() => {
-    if (tableRows.length === 0) {
+    if (filteredTableData == null) {
+      setGridViewRows(null);
+      return;
+    }
+    if (filteredTableData.length === 0) {
       setGridViewRows([]);
     }
-  }, [tableRows.length]);
+  }, [filteredTableData]);
 
   const handleTableViewModelChange = useCallback(
     (next: StockAsOfTableRow[]) => {
@@ -179,8 +207,8 @@ const StockAsOfReportPage: React.FC = () => {
   );
 
   const exportPrintRows = useMemo(
-    () => gridViewRows ?? tableRows,
-    [gridViewRows, tableRows],
+    () => gridViewRows ?? filteredTableData ?? [],
+    [gridViewRows, filteredTableData],
   );
 
   const reportSubtitle = useMemo(() => {
@@ -462,20 +490,107 @@ const StockAsOfReportPage: React.FC = () => {
         <Card className="p-6 text-center text-muted-foreground">Loading…</Card>
       )}
 
-      {!isLoading && response && tableRows.length > 0 && (
+      {!isLoading && tableRows.length > 0 && (
+        <div className="print:hidden flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3 mb-3">
+          <span className="text-sm font-medium text-muted-foreground">
+            Hide items:
+          </span>
+          <Label
+            htmlFor="sa-filter-hide-all"
+            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          >
+            <Checkbox
+              id="sa-filter-hide-all"
+              checked={
+                hideNegativeQuantity &&
+                hideZeroQuantity &&
+                hideZeroPrice &&
+                hideNoType
+              }
+              onCheckedChange={(checked) => {
+                const value = checked === true;
+                setHideNegativeQuantity(value);
+                setHideZeroQuantity(value);
+                setHideZeroPrice(value);
+                setHideNoType(value);
+              }}
+            />
+            <span>All</span>
+          </Label>
+          <Label
+            htmlFor="sa-filter-hide-negative-qty"
+            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          >
+            <Checkbox
+              id="sa-filter-hide-negative-qty"
+              checked={hideNegativeQuantity}
+              onCheckedChange={(checked) =>
+                setHideNegativeQuantity(checked === true)
+              }
+            />
+            <span>Negative quantity</span>
+          </Label>
+          <Label
+            htmlFor="sa-filter-hide-zero-qty"
+            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          >
+            <Checkbox
+              id="sa-filter-hide-zero-qty"
+              checked={hideZeroQuantity}
+              onCheckedChange={(checked) =>
+                setHideZeroQuantity(checked === true)
+              }
+            />
+            <span>Zero quantity</span>
+          </Label>
+          <Label
+            htmlFor="sa-filter-hide-zero-price"
+            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          >
+            <Checkbox
+              id="sa-filter-hide-zero-price"
+              checked={hideZeroPrice}
+              onCheckedChange={(checked) => setHideZeroPrice(checked === true)}
+            />
+            <span>Zero price</span>
+          </Label>
+          <Label
+            htmlFor="sa-filter-hide-no-type"
+            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          >
+            <Checkbox
+              id="sa-filter-hide-no-type"
+              checked={hideNoType}
+              onCheckedChange={(checked) => setHideNoType(checked === true)}
+            />
+            <span>No type</span>
+          </Label>
+        </div>
+      )}
+
+      {!isLoading && filteredTableData && filteredTableData.length > 0 && (
         <DataTable<StockAsOfTableRow, unknown>
           columns={columns}
-          data={tableRows}
+          data={filteredTableData}
           virtual
           compact
           defaultSortField="listPosition"
           defaultSortDirection="asc"
           searchFields={['listPosition', 'item', 'itemType']}
-          searchPlaceholder="Search items or types…"
+          searchPlaceholder="Search list #, items, types…"
           searchPersistenceKey="stock-as-of-search"
           onViewModelChange={handleTableViewModelChange}
         />
       )}
+
+      {!isLoading &&
+        tableRows.length > 0 &&
+        filteredTableData &&
+        filteredTableData.length === 0 && (
+          <Card className="p-6 text-center text-muted-foreground">
+            No rows match your hide filters. Uncheck some options above.
+          </Card>
+        )}
 
       {!isLoading && response && tableRows.length === 0 && (
         <Card className="p-6 text-center text-muted-foreground">

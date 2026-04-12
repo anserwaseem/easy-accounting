@@ -132,10 +132,10 @@ const InventoryHealthPage: React.FC = () => {
   const [itemTypes, setItemTypes] = useState<
     Array<{ id: number; name: string }>
   >([]);
-  const [hideZeroQuantity, setHideZeroQuantity] = useState(false);
-  const [hideZeroPrice, setHideZeroPrice] = useState(false);
-  const [hideNegativeQuantity, setHideNegativeQuantity] = useState(false);
-  const [hideNoType, setHideNoType] = useState(false);
+  const [hideZeroQuantity, setHideZeroQuantity] = useState(true);
+  const [hideZeroPrice, setHideZeroPrice] = useState(true);
+  const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
+  const [hideNoType, setHideNoType] = useState(true);
   /** click anomaly chip → table shows only rows with that flag; stacks with hide checkboxes */
   const [issueChipFilter, setIssueChipFilter] = useState<string | null>(null);
   /** rows as shown in grid (hide + chip + search + column sort); null until table syncs */
@@ -791,7 +791,7 @@ const InventoryHealthPage: React.FC = () => {
             </Card>
           )}
 
-          {/* hide rows (same idea as inventory list; default off so issues stay visible) */}
+          {/* hide rows (same idea as inventory list; default on = in-stock, priced, typed items) */}
           {!isLoading && tableData && tableData.length > 0 && (
             <div className="print:hidden flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3">
               <span className="text-sm font-medium text-muted-foreground">
