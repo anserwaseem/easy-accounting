@@ -44,7 +44,8 @@ function seedBasicSchema(db: Database.Database) {
       price REAL DEFAULT 0,
       itemTypeId INTEGER REFERENCES item_types(id),
       isActive INTEGER DEFAULT 1,
-      quantity REAL DEFAULT 0
+      quantity REAL DEFAULT 0,
+      listPosition INTEGER
     );
     CREATE TABLE IF NOT EXISTS invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -421,6 +422,64 @@ describe('InventoryService.getStockAsOf', () => {
     const res = service.getStockAsOf({ asOfDate: '2025-06-10' });
     const row = res.rows.find((r) => r.itemId === invId);
     expect(row?.quantityAsOf).toBe(8);
+    db.close();
+  });
+});
+
+describe('InventoryService.getInventory list order', () => {
+  it('orders by listPosition then id, nulls last', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, 1, ?, 0, ?)',
+    ).run('B', t1, 20);
+    db.prepare(
+      'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, 1, ?, 0, ?)',
+    ).run('A', t1, 10);
+    db.prepare(
+      'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, 1, ?, 0, NULL)',
+    ).run('Z', t1);
+
+    const service = createTestDb(db);
+    const rows = service.getInventory();
+    expect(rows.map((r) => r.name)).toEqual(['A', 'B', 'Z']);
+    db.close();
+  });
+});
+
+describe('InventoryService.applyListPositions', () => {
+  it('updates by trimmed name and reports not found / ambiguous', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, 1, ?, 0, NULL)',
+    ).run('Only', t1);
+    db.prepare(
+      'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, 1, ?, 0, NULL)',
+    ).run('Dup', t1);
+    db.prepare(
+      'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, 1, ?, 0, NULL)',
+    ).run('Dup', t1);
+
+    const service = createTestDb(db);
+    const res = service.applyListPositions([
+      { name: '  Only  ', listPosition: 5 },
+      { name: 'Missing', listPosition: 1 },
+      { name: 'Dup', listPosition: 9 },
+    ]);
+    expect(res).toEqual({
+      updated: 1,
+      notFoundNames: ['Missing'],
+      ambiguousNames: ['Dup'],
+    });
+    const only = service.getInventory().find((r) => r.name === 'Only');
+    expect(only?.listPosition).toBe(5);
     db.close();
   });
 });

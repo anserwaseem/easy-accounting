@@ -1,4 +1,4 @@
-import { pick, toNumber } from 'lodash';
+import { orderBy, pick, toNumber } from 'lodash';
 import type { Dispatch, SetStateAction } from 'react';
 import { useEffect } from 'react';
 import type { InventoryItem } from 'types';
@@ -12,6 +12,7 @@ const INVENTORY_PICK = [
   'description',
   'itemTypeId',
   'itemTypeName',
+  'listPosition',
 ] as const;
 
 function filterInventoryForInvoice(
@@ -47,7 +48,15 @@ export function mergeInventoryForInvoice(
       byId.set(row.id, pick(row, INVENTORY_PICK));
     }
   });
-  return Array.from(byId.values());
+  return orderBy(
+    Array.from(byId.values()),
+    [
+      (i) =>
+        i.listPosition == null ? Number.POSITIVE_INFINITY : i.listPosition,
+      'id',
+    ],
+    ['asc', 'asc'],
+  );
 }
 
 /** stable key for effect deps when line ids set changes */

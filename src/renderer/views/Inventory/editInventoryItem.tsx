@@ -32,6 +32,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
     price: row.original.price,
     description: row.original.description,
     itemTypeId: row.original.itemTypeId,
+    listPosition: row.original.listPosition ?? null,
   };
 
   // load active item types each time edit dialog opens.

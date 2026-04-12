@@ -553,15 +553,132 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
 
 // #region inventory
 
+/** maps spreadsheet headers to canonical keys; unknown labels ignored */
+function normalizeInventoryHeaderCellToKey(
+  raw: string,
+): 'name' | 'price' | 'description' | 'list' | null {
+  const s = raw.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (s === 'name' || s === 'item' || s === 'item code') return 'name';
+  if (s === 'price') return 'price';
+  if (s === 'description') return 'description';
+  const noHash = s.replace(/#/g, '').trim();
+  if (noHash === 'list' || noHash === 'list no' || noHash === 'list number') {
+    return 'list';
+  }
+  return null;
+}
+
+function buildInventoryCatalogHeaderMap(
+  row: unknown[],
+): Map<'name' | 'price' | 'description' | 'list', number> | null {
+  if (!Array.isArray(row)) return null;
+  const m = new Map<'name' | 'price' | 'description' | 'list', number>();
+  row.forEach((cell, i) => {
+    if (typeof cell !== 'string') return;
+    const k = normalizeInventoryHeaderCellToKey(cell);
+    if (k != null && !m.has(k)) m.set(k, i);
+  });
+  if (m.has('name') && m.has('price')) return m;
+  return null;
+}
+
+function buildListPositionImportHeaderMap(
+  row: unknown[],
+): Map<'name' | 'list', number> | null {
+  if (!Array.isArray(row)) return null;
+  const m = new Map<'name' | 'list', number>();
+  row.forEach((cell, i) => {
+    if (typeof cell !== 'string') return;
+    const k = normalizeInventoryHeaderCellToKey(cell);
+    if (k === 'name' || k === 'list') {
+      if (!m.has(k)) m.set(k, i);
+    }
+  });
+  if (m.has('name') && m.has('list')) return m;
+  return null;
+}
+
+function cellToTrimmedName(value: unknown, rowNumber: number): string {
+  let raw: string;
+  if (typeof value === 'number') {
+    raw = String(value);
+  } else if (typeof value === 'string') {
+    raw = value;
+  } else {
+    raise(`Invalid name at row ${rowNumber}: Name must be non-empty`);
+  }
+  const trimmed = raw!.trim();
+  if (trimmed === '') {
+    raise(`Invalid name at row ${rowNumber}: Name must be non-empty`);
+  }
+  return trimmed;
+}
+
+function cellToNonNegativePrice(value: unknown, rowNumber: number): number {
+  const n =
+    typeof value === 'number'
+      ? value
+      : parseCurrencyLikeAmount(value) ??
+        parseFloat(toString(value).replace(/,/g, ''));
+  if (Number.isNaN(n) || n < 0) {
+    raise(
+      `Invalid price at row ${rowNumber}: Price must be a non-negative number`,
+    );
+  }
+  return n;
+}
+
+function cellToOptionalDescription(
+  value: unknown,
+  rowNumber: number,
+): string | undefined {
+  if (isNil(value) || value === '') return undefined;
+  const desc =
+    typeof value === 'string'
+      ? value
+      : raise(
+          `Invalid description at row ${rowNumber}: Description must be a string or empty`,
+        );
+  const t = desc.trim();
+  return t === '' ? undefined : t;
+}
+
+function cellToOptionalListPosition(
+  value: unknown,
+  rowNumber: number,
+): number | null {
+  if (isNil(value) || value === '') return null;
+  const n =
+    typeof value === 'number' ? value : parseFloat(toString(value).trim());
+  if (Number.isNaN(n) || n < 0 || !Number.isFinite(n)) {
+    raise(
+      `Invalid list at row ${rowNumber}: List must be a non-negative number or empty`,
+    );
+  }
+  if (!Number.isInteger(n)) {
+    raise(`Invalid list at row ${rowNumber}: List must be a whole number`);
+  }
+  return n;
+}
+
 export const parseInventory = (obj: unknown): InventoryItem[] => {
   if (!isTwoDimensionalArray(obj)) raise('Invalid format for inventory');
 
   const inventoryItems = obj as unknown[][];
+  const first = inventoryItems[0];
+  if (!Array.isArray(first)) {
+    raise('Invalid format for inventory');
+  }
+  const headerMap =
+    buildInventoryCatalogHeaderMap(first) ??
+    raise(
+      'Inventory catalog requires a header row with name (or item / item code) and price columns',
+    );
 
-  // Skip the header row if it exists
-  const startIndex = isHeaderRow(inventoryItems[0]) ? 1 : 0;
-
+  const startIndex = 1;
   return inventoryItems.slice(startIndex).map((row, index) => {
+    const rowNumber = index + startIndex + 1;
+
     if (!Array.isArray(row) || row.length < 2) {
       raise(
         `Invalid row at index ${
@@ -570,62 +687,72 @@ export const parseInventory = (obj: unknown): InventoryItem[] => {
       );
     }
 
-    // eslint-disable-next-line one-var
-    let name, description, price;
-
-    if (row.length === 2) [name, price] = row;
-    if (row.length === 3) [name, description, price] = row;
-
-    if (typeof name === 'number') {
-      name = name.toString();
-    }
-
-    if (typeof name !== 'string' || name.trim() === '') {
-      raise(
-        `Invalid name at row ${
-          index + startIndex + 1
-        }: Name must be a non-empty string`,
-      );
-    }
-
-    if (
-      row.length === 3 &&
-      !isNil(description) &&
-      typeof description !== 'string'
-    ) {
-      raise(
-        `Invalid description at row ${
-          index + startIndex + 1
-        }: Description must be a string or empty`,
-      );
-    }
-
-    const parsedPrice = parseFloat(price as string);
-    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
-      raise(
-        `Invalid price at row ${
-          index + startIndex + 1
-        }: Price must be a non-negative number`,
-      );
-    }
+    const ni = headerMap.get('name')!;
+    const pi = headerMap.get('price')!;
+    const name = cellToTrimmedName(row[ni], rowNumber);
+    const price = cellToNonNegativePrice(row[pi], rowNumber);
+    const di = headerMap.get('description');
+    const description =
+      di !== undefined
+        ? cellToOptionalDescription(row[di], rowNumber)
+        : undefined;
+    const li = headerMap.get('list');
+    const listPosition =
+      li !== undefined ? cellToOptionalListPosition(row[li], rowNumber) : null;
 
     return {
-      name: (name as string).trim(),
-      // ...(description && { description: description.trim() }),
-      description: 'The Holy Quran',
-      price: parsedPrice,
+      name,
+      description,
+      price,
       quantity: 0,
       id: -1,
+      listPosition: listPosition ?? undefined,
     };
   });
+};
 
-  function isHeaderRow(row: unknown[]): boolean {
-    return row.some(
-      (cell) =>
-        typeof cell === 'string' &&
-        ['name', 'description', 'price'].includes(cell.toLowerCase().trim()),
-    );
+interface InventoryListPositionRow {
+  name: string;
+  listPosition: number;
+}
+
+/** requires header row with name (or item / item code) and list columns; order-independent */
+export const parseInventoryListPositionRows = (
+  obj: unknown,
+): InventoryListPositionRow[] => {
+  if (!isTwoDimensionalArray(obj)) {
+    raise('Invalid format for list position import');
   }
+  const rows = obj as unknown[][];
+  const first = rows[0];
+  if (!Array.isArray(first)) {
+    raise('Invalid format for list position import');
+  }
+  const listCol =
+    buildListPositionImportHeaderMap(first) ??
+    raise(
+      'List import requires a header row with name (or item / item code) and list columns',
+    );
+  const ni = listCol.get('name')!;
+  const li = listCol.get('list')!;
+
+  const out: InventoryListPositionRow[] = [];
+  rows.slice(1).forEach((row, index) => {
+    const rowNumber = index + 2;
+    if (!Array.isArray(row) || row.length < Math.max(ni, li) + 1) {
+      raise(`Invalid row at row ${rowNumber}: missing cells`);
+    }
+    const name = cellToTrimmedName(row[ni], rowNumber);
+    const listCell = row[li];
+    if (isNil(listCell) || listCell === '') {
+      raise(`Invalid list at row ${rowNumber}: List value is required`);
+    }
+    const parsedList =
+      cellToOptionalListPosition(listCell, rowNumber) ??
+      raise(`Invalid list at row ${rowNumber}: List value is required`);
+    out.push({ name, listPosition: parsedList });
+  });
+  return out;
 };
 
 // #endregion
@@ -674,7 +801,12 @@ export const parseInvoiceItems = (
         );
       }
 
-      if (typeof quantity !== 'number' || quantity < 0) {
+      const qtyParsed =
+        typeof quantity === 'number'
+          ? quantity
+          : parseCurrencyLikeAmount(quantity) ??
+            parseFloat(toString(quantity).replace(/,/g, ''));
+      if (Number.isNaN(qtyParsed) || qtyParsed < 0) {
         raise(
           `Invalid quantity at row ${
             index + startIndex + 1
@@ -684,7 +816,7 @@ export const parseInvoiceItems = (
 
       return {
         name: (name as string).trim(),
-        quantity: quantity as number,
+        quantity: qtyParsed,
       };
     }),
   );

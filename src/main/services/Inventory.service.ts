@@ -2,6 +2,7 @@ import type { Database, Statement } from 'better-sqlite3';
 import { get } from 'lodash';
 import type {
   ApiResponse,
+  ApplyListPositionsResult,
   ApplyStockAdjustmentPayload,
   InsertInventoryItem,
   InventoryItem,
@@ -79,6 +80,10 @@ export class InventoryService {
   /** stock adjustments strictly after as-of end */
   private stmStockAsOfAdjustmentDeltaAfter!: Statement;
 
+  private stmGetInventoryIdsByTrimName!: Statement;
+
+  private stmUpdateInventoryListPositionById!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -104,9 +109,10 @@ export class InventoryService {
       for (const item of inventory) {
         const result = this.stmInsertItem.run({
           name: item.name,
-          description: item.description,
+          description: item.description ?? null,
           price: item.price,
           itemTypeId: item.itemTypeId ?? null,
+          listPosition: item.listPosition ?? null,
         });
         if (!result.changes) {
           success = false;
@@ -119,7 +125,12 @@ export class InventoryService {
   }
 
   insertItem(item: InsertInventoryItem): boolean {
-    const result = this.stmInsertItem.run({ ...item });
+    const result = this.stmInsertItem.run({
+      ...item,
+      description: item.description ?? null,
+      itemTypeId: item.itemTypeId ?? null,
+      listPosition: item.listPosition ?? null,
+    });
     return Boolean(result.changes);
   }
 
@@ -127,6 +138,9 @@ export class InventoryService {
     const result = this.stmUpdateItem.run({
       ...item,
       id: cast(item.id),
+      description: item.description ?? null,
+      itemTypeId: item.itemTypeId ?? null,
+      listPosition: item.listPosition ?? null,
     });
     return Boolean(result.changes);
   }
@@ -156,6 +170,7 @@ export class InventoryService {
               description: null,
               price: 0,
               itemTypeId: null,
+              listPosition: null,
             });
             inventoryId = Number(result.lastInsertRowid);
             if (!inventoryId) {
@@ -247,6 +262,42 @@ export class InventoryService {
   getInventoryIdsWithHistory(): number[] {
     const rows = <{ id: number }[]>this.stmGetInventoryIdsWithHistory.all();
     return rows.map((r) => r.id);
+  }
+
+  /**
+   * sets listPosition for existing rows matched by TRIM(name); skips ambiguous duplicate names.
+   */
+  applyListPositions(
+    rows: Array<{ name: string; listPosition: number }>,
+  ): ApplyListPositionsResult {
+    let updated = 0;
+    const notFoundNames: string[] = [];
+    const ambiguousNames: string[] = [];
+    for (const r of rows) {
+      const name = r.name?.trim();
+      if (!name) {
+        continue;
+      }
+      const matches = this.stmGetInventoryIdsByTrimName.all(name) as Array<{
+        id: number;
+      }>;
+      if (matches.length === 0) {
+        notFoundNames.push(name);
+      } else if (matches.length > 1) {
+        ambiguousNames.push(name);
+      } else {
+        this.stmUpdateInventoryListPositionById.run(
+          r.listPosition,
+          cast(matches[0].id),
+        );
+        updated += 1;
+      }
+    }
+    return {
+      updated,
+      notFoundNames,
+      ambiguousNames,
+    };
   }
 
   /** Inventory Health report: snapshot KPIs + movement data for all inventory items. */
@@ -647,17 +698,20 @@ export class InventoryService {
       SELECT i.*, it.name AS itemTypeName
       FROM inventory i
       LEFT JOIN item_types it ON it.id = i.itemTypeId
-      ORDER BY i.id;
+      ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC;
     `);
 
     this.stmInsertItem = this.db.prepare(`
-      INSERT INTO inventory (name, description, price, itemTypeId)
-      VALUES (@name, @description, @price, @itemTypeId);
+      INSERT INTO inventory (name, description, price, itemTypeId, listPosition)
+      VALUES (@name, @description, @price, @itemTypeId, @listPosition);
     `);
 
     this.stmUpdateItem = this.db.prepare(`
       UPDATE inventory
-      SET price = @price, description = @description, itemTypeId = @itemTypeId
+      SET price = @price,
+          description = @description,
+          itemTypeId = @itemTypeId,
+          listPosition = @listPosition
       WHERE id = @id;
     `);
 
@@ -717,7 +771,7 @@ export class InventoryService {
       SELECT i.*, it.name AS itemTypeName
       FROM inventory i
       LEFT JOIN item_types it ON it.id = i.itemTypeId
-      ORDER BY i.id
+      ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC
     `);
 
     // Get all inventory items filtered by item type IDs using JSON1
@@ -726,7 +780,15 @@ export class InventoryService {
       FROM inventory i
       LEFT JOIN item_types it ON it.id = i.itemTypeId
       WHERE i.itemTypeId IN (SELECT value FROM json_each(@itemTypeIdsJson))
-      ORDER BY i.id
+      ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC
+    `);
+
+    this.stmGetInventoryIdsByTrimName = this.db.prepare(`
+      SELECT id FROM inventory WHERE TRIM(name) = TRIM(?)
+    `);
+
+    this.stmUpdateInventoryListPositionById = this.db.prepare(`
+      UPDATE inventory SET listPosition = ? WHERE id = ?
     `);
 
     // Sale quantity aggregate WITH lastDate (for inventory health)

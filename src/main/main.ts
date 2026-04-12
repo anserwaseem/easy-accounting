@@ -321,6 +321,11 @@ app
     ipcMain.handle('inventory:update', (_, item: UpdateInventoryItem) =>
       inventoryService.updateItem(item),
     );
+    ipcMain.handle(
+      'inventory:applyListPositions',
+      (_, rows: Array<{ name: string; listPosition: number }>) =>
+        inventoryService.applyListPositions(rows),
+    );
     ipcMain.handle('inventory:getOpeningStock', () =>
       inventoryService.getOpeningStock(),
     );

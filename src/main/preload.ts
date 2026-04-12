@@ -30,6 +30,7 @@ import type {
   ReportResponse,
   StockAsOfReportFilters,
   StockAsOfReportResponse,
+  ApplyListPositionsResult,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -111,6 +112,14 @@ const electronHandler = {
 
   updateInventoryItem: (item: UpdateInventoryItem) =>
     ipcRenderer.invoke('inventory:update', item),
+
+  applyInventoryListPositions: (
+    rows: Array<{ name: string; listPosition: number }>,
+  ) =>
+    ipcRenderer.invoke(
+      'inventory:applyListPositions',
+      rows,
+    ) as Promise<ApplyListPositionsResult>,
 
   getOpeningStock: () =>
     ipcRenderer.invoke('inventory:getOpeningStock') as Promise<

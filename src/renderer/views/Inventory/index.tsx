@@ -1,17 +1,11 @@
-import { convertFileToJson } from '@/renderer/lib/lib';
-import { parseInventory } from '@/renderer/lib/parser';
-import { Button } from '@/renderer/shad/ui/button';
-import { Input } from '@/renderer/shad/ui/input';
-import { toast } from '@/renderer/shad/ui/use-toast';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
-import { isNil, toString } from 'lodash';
-import { useEffect, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
 import { ManageItemTypes } from './ManageItemTypes';
+import { ImportListNumbers } from './ImportListNumbers';
 
 const InventoryPage: React.FC = () => {
   const location = useLocation();
@@ -19,75 +13,20 @@ const InventoryPage: React.FC = () => {
     (location.state as { openManageItemTypes?: boolean } | null)
       ?.openManageItemTypes === true;
 
-  const [doesInventoryExist, setDoesInventoryExist] = useState<Boolean>();
   const [refresh, setRefresh] = useState(false);
   const [hideZeroQuantity, setHideZeroQuantity] = useState(true);
   const [hideZeroPrice, setHideZeroPrice] = useState(true);
   const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
   const [hideNoType, setHideNoType] = useState(true);
 
-  useEffect(() => {
-    const checkInventoryExists = async () => {
-      const result = await window.electron.doesInventoryExist();
-      setDoesInventoryExist(result);
-    };
-    checkInventoryExists();
-  }, []);
-
   const refetchInventory = () => setRefresh(!refresh);
-
-  const uploadInventory = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-
-    try {
-      const json = await convertFileToJson(file);
-      const inventory = parseInventory(json);
-      const result = await window.electron.saveInventory(inventory);
-      // eslint-disable-next-line no-console
-      console.log('saveInventory result', result);
-      refetchInventory();
-      setDoesInventoryExist(result);
-      toast({
-        description: 'Inventory uploaded successfully.',
-        variant: 'success',
-      });
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error(error);
-      toast({
-        description: toString(error),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  if (isNil(doesInventoryExist)) {
-    return null;
-  }
 
   return (
     <div className="space-y-4">
-      {/* page header: title + primary actions */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="title-new">Inventory</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              document.getElementById('uploadInventoryInput')?.click()
-            }
-          >
-            <Upload size={16} className="mr-1.5" />
-            Upload items
-          </Button>
-          <Input
-            id="uploadInventoryInput"
-            type="file"
-            accept=".xlsx, .xls"
-            className="hidden"
-            onChange={uploadInventory}
-          />
+          <ImportListNumbers refetchInventory={refetchInventory} />
           <ManageItemTypes
             onUpdated={refetchInventory}
             initialOpen={openManageItemTypesFromNav}
@@ -96,7 +35,6 @@ const InventoryPage: React.FC = () => {
         </div>
       </header>
 
-      {/* filters: single compact row */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3">
         <span className="text-sm font-medium text-muted-foreground">
           Hide items:

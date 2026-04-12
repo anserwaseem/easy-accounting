@@ -9,6 +9,12 @@ export const addInventorySchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val > 0 ? val : undefined)),
+  listPosition: z.preprocess((v) => {
+    if (v === '' || v == null) return undefined;
+    if (typeof v === 'number') return v;
+    const n = Number(String(v).trim());
+    return Number.isFinite(n) ? n : undefined;
+  }, z.number().int().nonnegative('List # must be a non-negative whole number').optional()),
 });
 
 export const editInventorySchema = z.object({
@@ -22,6 +28,12 @@ export const editInventorySchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val > 0 ? val : undefined)),
+  listPosition: z.preprocess((v) => {
+    if (v === '' || v == null) return null;
+    if (typeof v === 'number') return v;
+    const n = Number(String(v).trim());
+    return Number.isFinite(n) ? n : null;
+  }, z.number().int().nonnegative('List # must be a non-negative whole number').nullable()),
 });
 
 export type AddInventorySchema = z.infer<typeof addInventorySchema>;

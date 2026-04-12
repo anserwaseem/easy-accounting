@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { isNil } from 'lodash';
+import type { Row, SortingFn } from '@tanstack/react-table';
 import { defaultSortingFunctions } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InventoryItem, ItemType } from 'types';
@@ -11,6 +12,21 @@ import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
 
 const NO_ITEM_TYPE_OPTION = { id: 0, name: 'No type' };
+
+const listPositionSortingFn: SortingFn<InventoryItem> = (
+  rowA: Row<InventoryItem>,
+  rowB: Row<InventoryItem>,
+): number => {
+  const a = rowA.original.listPosition;
+  const b = rowB.original.listPosition;
+  const aNull = a == null;
+  const bNull = b == null;
+  if (aNull && bNull) return rowA.original.id - rowB.original.id;
+  if (aNull) return 1;
+  if (bNull) return -1;
+  if (a !== b) return a - b;
+  return rowA.original.id - rowB.original.id;
+};
 
 interface InventoryTableProps {
   refetchInventory: () => void;
@@ -67,6 +83,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       price: row.price,
       description: row.description,
       itemTypeId: nextItemTypeId,
+      listPosition: row.listPosition ?? null,
     });
 
     if (!updated) {
@@ -140,6 +157,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       ),
     },
     {
+      accessorKey: 'listPosition',
+      header: 'List #',
+      sortingFn: listPositionSortingFn,
+      // eslint-disable-next-line react/no-unstable-nested-components
+      cell: ({ row }) =>
+        row.original.listPosition != null ? row.original.listPosition : '—',
+    },
+    {
       accessorKey: 'price',
       header: 'Price',
     },
@@ -198,14 +223,19 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       <DataTable
         columns={columns}
         data={getInventory()}
-        sortingFns={defaultSortingFunctions}
+        sortingFns={{
+          ...defaultSortingFunctions,
+          listPosition: listPositionSortingFn,
+        }}
         virtual
+        defaultSortField="listPosition"
         searchPersistenceKey="datatable:inventory:search"
         searchPlaceholder="Search inventory..."
         searchFields={[
           'name',
           'description',
           'itemTypeName',
+          'listPosition',
           'price',
           'quantity',
         ]}

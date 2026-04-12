@@ -53,6 +53,8 @@ import {
 } from 'types';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { useCmdOrCtrlNShortcut } from '@/renderer/hooks/useCmdOrCtrlNShortcut';
+import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
+import { FILE_UPLOAD_HINT_JOURNAL_ENTRIES } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from 'renderer/lib/lib';
 import { parseJournalImportSheet } from 'renderer/lib/parser';
 import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
@@ -581,7 +583,9 @@ const NewJournalPage: React.FC = () => {
       }
 
       try {
-        const json = await convertFileToJson(file);
+        const json = await convertFileToJson(file, {
+          preferDisplayText: true,
+        });
         const parsed = parseJournalImportSheet(json);
         const accountsByCode = new Map<string, Account[]>();
         const accountsByName = new Map<string, Account[]>();
@@ -1042,20 +1046,24 @@ const NewJournalPage: React.FC = () => {
                     </p>
                   </TooltipContent>
                 </Tooltip>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => importInputRef.current?.click()}
-                  title="Import Entries from Excel"
+                <FileUploadTooltip
+                  content={FILE_UPLOAD_HINT_JOURNAL_ENTRIES}
+                  side="bottom"
                 >
-                  <Upload className="h-4 w-4" />
-                  Import Entries
-                </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => importInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Import Entries
+                  </Button>
+                </FileUploadTooltip>
                 <Input
                   ref={importInputRef}
                   type="file"
-                  accept=".xlsx, .xls"
+                  accept=".xlsx, .xls, .csv"
                   className="hidden"
                   onChange={handleImportJournalEntries}
                 />

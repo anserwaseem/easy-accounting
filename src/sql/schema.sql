@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS "inventory" ( -- "002 migration"
     "price" DECIMAL(10, 2) NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 0,
     -- "itemTypeId" INTEGER REFERENCES "item_types"("id"), -- "015 migration"
+    -- "listPosition" INTEGER, -- "019 migration"
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -65,13 +65,22 @@ export const InventoryForm = <
   const schemaKeys = keys(schema.shape);
   const baseEntityKeyNames = baseEntityKeys.map((key) => String(key));
 
+  const inventoryFieldLabel = (key: string): string => {
+    if (key === 'itemTypeId') return 'Type';
+    if (key === 'listPosition') return 'List #';
+    return key;
+  };
+
   const fields = map(
     schemaKeys.filter((key) => !baseEntityKeyNames.includes(key)),
     (key) => ({
       name: key as Path<T>,
-      label: key === 'itemTypeId' ? 'Type' : key,
+      label: inventoryFieldLabel(key),
       type:
-        typeof defaultValues[key as keyof T] === 'number' ? 'number' : 'text',
+        key === 'listPosition' ||
+        typeof defaultValues[key as keyof T] === 'number'
+          ? 'number'
+          : 'text',
     }),
   );
 

@@ -194,6 +194,7 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   description?: string;
   itemTypeId?: number | null;
   itemTypeName?: string | null;
+  listPosition?: number | null;
 }
 export interface UpdateInventoryItem {
   id: number;
@@ -202,12 +203,21 @@ export interface UpdateInventoryItem {
   quantity?: number;
   description?: string;
   itemTypeId?: number | null;
+  listPosition?: number | null;
 }
 export interface InsertInventoryItem {
   name: string;
   price: number;
   description?: string;
   itemTypeId?: number | null;
+  listPosition?: number | null;
+}
+
+/** summary after applying list # rows matched by trimmed item name */
+export interface ApplyListPositionsResult {
+  updated: number;
+  notFoundNames: string[];
+  ambiguousNames: string[];
 }
 
 export interface ItemType extends Omit<BaseEntity, 'date'> {

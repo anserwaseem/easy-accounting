@@ -1,3 +1,5 @@
+import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
+import { FILE_UPLOAD_HINT_OPENING_STOCK } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import { parseOpeningStock } from '@/renderer/lib/parser';
 import { Button } from '@/renderer/shad/ui/button';
@@ -66,7 +68,7 @@ export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
     if (!file) return;
 
     try {
-      const json = await convertFileToJson(file);
+      const json = await convertFileToJson(file, { preferDisplayText: true });
       const items = parseOpeningStock(json);
       if (items.length === 0) {
         toast({
@@ -162,18 +164,21 @@ export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
           </Label>
         </div>
         <div className="ml-auto">
-          <Button
-            className="w-fit"
-            onClick={() =>
-              document.getElementById('setOpeningStockInput')?.click()
-            }
-          >
-            Choose file
-          </Button>
+          <FileUploadTooltip content={FILE_UPLOAD_HINT_OPENING_STOCK}>
+            <Button
+              type="button"
+              className="w-fit"
+              onClick={() =>
+                document.getElementById('setOpeningStockInput')?.click()
+              }
+            >
+              Choose file
+            </Button>
+          </FileUploadTooltip>
           <Input
             id="setOpeningStockInput"
             type="file"
-            accept=".xlsx, .xls"
+            accept=".xlsx, .xls, .csv"
             className="hidden"
             onChange={handleFileChange}
           />
