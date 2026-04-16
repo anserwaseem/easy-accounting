@@ -27,12 +27,12 @@ const PARTY_PICK = [
   'discountProfileIsActive',
 ] as const;
 
-export interface ResolutionFallback {
+interface ResolutionFallback {
   rowIndex: number;
   expectedSuffixedName: string;
 }
 
-export interface UseNewInvoiceResolutionParams {
+interface UseNewInvoiceResolutionParams {
   invoiceType: InvoiceType;
   useSingleAccount: boolean;
   splitByItemType: boolean;
@@ -91,6 +91,10 @@ export function useNewInvoiceResolution(
   const primaryItemTypeRef = useRef<number | undefined>(undefined);
   const primaryItemTypeLoadedRef = useRef(false);
 
+  // Resolve each line-item row to a typed/suffixed customer account when split-by-item-type is on.
+  // Runs when resolutionTrigger changes (item added/removed/selected, split toggled, or header customer changes).
+  // Resolves entirely in-memory from the cached account list to avoid per-row IPC.
+  // Writes multipleAccountIds to form and fires onResolved for auto-discount.
   useEffect(() => {
     if (
       invoiceType !== InvoiceType.Sale ||

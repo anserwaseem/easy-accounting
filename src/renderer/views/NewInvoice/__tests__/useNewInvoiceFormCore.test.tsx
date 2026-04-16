@@ -4,7 +4,7 @@
  * Coverage:
  *  - form instantiation with zod resolver for Sale & Purchase
  *  - watched invoice items, extra discount, total, account IDs
- *  - resolutionTrigger recomputes on items / split toggle
+ *  - resolutionTrigger moved to index.tsx (computed from itemStructureKey)
  *  - discountAccountExists null / true / false paths
  *  - field array append / removal
  *  - validation errors cleared on invoiceType change
@@ -158,7 +158,6 @@ describe('useNewInvoiceFormCore', () => {
       });
 
       expect(result.current.fields).toHaveLength(1);
-      expect(result.current.watchedInvoiceItems).toHaveLength(1);
     });
 
     it('append adds multiple rows', () => {
@@ -229,12 +228,13 @@ describe('useNewInvoiceFormCore', () => {
       });
 
       expect(result.current.fields).toHaveLength(1);
-      expect(result.current.watchedInvoiceItems).toEqual([
-        expect.objectContaining({ id: 2, inventoryId: 20 }),
-      ]);
+      expect(result.current.fields[0]).toMatchObject({
+        id: 2,
+        inventoryId: 20,
+      });
     });
 
-    it('replace updates the full row set while preserving watched invoice items', () => {
+    it('replace updates the full row set', () => {
       const refs = makeRefs();
       const { result } = renderHook(() =>
         useNewInvoiceFormCore({
@@ -259,45 +259,10 @@ describe('useNewInvoiceFormCore', () => {
       });
 
       expect(result.current.fields).toHaveLength(1);
-      expect(result.current.watchedInvoiceItems).toEqual([
-        expect.objectContaining({
-          id: 10,
-          inventoryId: 10,
-          quantity: 5,
-          discountedPrice: 450,
-        }),
-      ]);
     });
   });
 
   describe('watched values', () => {
-    it('watchedInvoiceItems reflects appended rows', () => {
-      const refs = makeRefs();
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Purchase,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: false,
-        }),
-      );
-
-      act(() => {
-        result.current.append({
-          id: 99,
-          inventoryId: 10,
-          quantity: 5,
-          discount: 5,
-          price: 100,
-          discountedPrice: 475,
-        });
-      });
-
-      expect(result.current.watchedInvoiceItems).toMatchObject([
-        { id: 99, inventoryId: 10 },
-      ]);
-    });
-
     it('watchedExtraDiscount defaults to 0', () => {
       const refs = makeRefs();
       const { result } = renderHook(() =>
@@ -339,78 +304,6 @@ describe('useNewInvoiceFormCore', () => {
 
       // zod default for optional array
       expect(result.current.watchedMultipleAccountIds).toEqual([]);
-    });
-  });
-
-  describe('resolutionTrigger', () => {
-    it('initially reflects empty items', () => {
-      const refs = makeRefs({ splitByItemType: true });
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Sale,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: true,
-        }),
-      );
-
-      expect(result.current.resolutionTrigger).toBe('1-0-');
-    });
-
-    it('updates when items change', () => {
-      const refs = makeRefs({ splitByItemType: true });
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Sale,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: true,
-        }),
-      );
-
-      act(() => {
-        result.current.append({
-          id: 1,
-          inventoryId: 10,
-          quantity: 1,
-          discount: 0,
-          price: 100,
-          discountedPrice: 100,
-        });
-        result.current.append({
-          id: 2,
-          inventoryId: 20,
-          quantity: 1,
-          discount: 0,
-          price: 200,
-          discountedPrice: 200,
-        });
-      });
-
-      expect(result.current.resolutionTrigger).toBe('1-2-10,20');
-    });
-
-    it('reflects split toggle even when items unchanged', () => {
-      const refs = makeRefs({ splitByItemType: false });
-      const { result, rerender } = renderHook(
-        ({ splitOff }) =>
-          useNewInvoiceFormCore({
-            invoiceType: InvoiceType.Sale,
-            inventory: sampleInventory,
-            useSingleAccountRef: refs.useSingleAccountRef,
-            splitByItemTypeRef: refs.splitByItemTypeRef,
-            splitByItemType: splitOff,
-            saleStockValidationBonusRef: refs.saleStockValidationBonusRef,
-          }),
-        { initialProps: { splitOff: false } },
-      );
-
-      const initial = result.current.resolutionTrigger;
-      rerender({ splitOff: true });
-
-      // prefix changes from 0- to 1-
-      expect(result.current.resolutionTrigger).not.toBe(initial);
-      expect(result.current.resolutionTrigger.startsWith('1-')).toBe(true);
     });
   });
 

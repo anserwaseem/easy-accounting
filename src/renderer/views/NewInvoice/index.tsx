@@ -108,7 +108,6 @@ interface NewInvoiceProps {
   invoiceType: InvoiceType;
 }
 
-// TODO: improve performance, check states: remove unnecessary data
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
 }: NewInvoiceProps) => {
@@ -199,29 +198,31 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     formSchema,
     fields,
     append,
-    remove,
     replace,
-    watchedInvoiceItems,
     watchedExtraDiscount,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
-    resolutionTrigger,
     discountAccountExists,
   } = formCore;
 
-  const normalizedInvoiceItems = useMemo(
-    () => (Array.isArray(watchedInvoiceItems) ? watchedInvoiceItems : []),
-    [watchedInvoiceItems],
-  );
+  // ── Derived invoice-item state via form.watch() callback ──
+  // Replaces useWatch('invoiceItems') which caused full page re-renders on every keystroke.
+  // form.watch callback fires WITHOUT re-rendering; we only setState when a derived value actually changes, so the page re-renders only when structure or total changes.
+  const [itemStructureKey, setItemStructureKey] = useState('');
+  const [computedTotalAmount, setComputedTotalAmount] = useState(0);
 
+  // sorted+deduped key for the inventory loader; derived from itemStructureKey so it only triggers a fetch when the set of selected items changes, not on qty/price edits
   const lineInventoryIdsKey = useMemo(
     () =>
       lineInventoryIdsKeyFromIds(
-        normalizedInvoiceItems
-          .map((row) => toNumber(row?.inventoryId))
-          .filter((id) => id > 0),
+        itemStructureKey
+          ? itemStructureKey
+              .split(',')
+              .map(Number)
+              .filter((id) => id > 0)
+          : [],
       ),
-    [normalizedInvoiceItems],
+    [itemStructureKey],
   );
 
   useInvoiceInventoryLoader(invoiceType, lineInventoryIdsKey, setInventory);
@@ -234,26 +235,24 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     return next;
   }, [inventory]);
 
-  // string-stable key: only changes when which items are selected changes, not on quantity/price edits.
-  // useMemo recalculates every render but the primitive string output is compared by value downstream,
-  // so selectedInventoryCounts stays ref-stable across quantity edits → columns stay stable → focus preserved.
-  const inventorySelectionKey = useMemo(
-    () =>
-      normalizedInvoiceItems.map((row) => toNumber(row?.inventoryId)).join(','),
-    [normalizedInvoiceItems],
-  );
-
+  // how many times each inventory item is used across rows; drives available-item filtering in the item selector so the same item can't be picked twice
   const selectedInventoryCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    normalizedInvoiceItems.forEach((row) => {
-      const inventoryId = toNumber(row?.inventoryId);
-      if (inventoryId <= 0) return;
-      counts.set(inventoryId, (counts.get(inventoryId) ?? 0) + 1);
+    if (!itemStructureKey) return counts;
+    itemStructureKey.split(',').forEach((idStr) => {
+      const id = Number(idStr);
+      if (id > 0) counts.set(id, (counts.get(id) ?? 0) + 1);
     });
     return counts;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventorySelectionKey]);
+  }, [itemStructureKey]);
 
+  // encodes split mode + item count + inventoryIds; useNewInvoiceResolution re-runs only when this string changes, avoiding per-keystroke IPC fan-out
+  const resolutionTrigger = useMemo(
+    () => `${splitByItemType ? 1 : 0}-${fields.length}-${itemStructureKey}`,
+    [splitByItemType, fields.length, itemStructureKey],
+  );
+
+  // business row IDs (not fieldKeys) for section-mapping sync in useNewInvoiceSections
   const lineItemIds = useMemo(
     () =>
       fields
@@ -319,6 +318,104 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     sectionAutoDiscountOffCount,
     getSectionLabel,
   } = discounts;
+
+  // ── derived invoice-item state via form.watch() ──
+  // WHY form.watch instead of useWatch? useWatch('invoiceItems') re-renders the entire page on every field change across all rows (qty, price, discount, etc.).
+  // form.watch fires a callback WITHOUT re-rendering.
+  // We only setState when a derived value actually changes, and debounce total updates so fast typing batches into one re-render.
+  // IMPORTANT: the callback is suppressed during useFieldArray.remove() via suppressWatchRef to prevent form.getValues reading stale _formValues that RHF hasn't finished shifting yet.
+  const totalDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const suppressWatchRef = useRef(false);
+
+  const recomputeDerivedState = useCallback(
+    (immediate = false) => {
+      const raw = form.getValues('invoiceItems');
+      const items = (Array.isArray(raw) ? raw : []) as Array<{
+        id?: number;
+        inventoryId?: number;
+        quantity?: number;
+        price?: number;
+        discount?: number;
+        discountedPrice?: number;
+      }>;
+
+      const newKey = items.map((i) => toNumber(i?.inventoryId)).join(',');
+      setItemStructureKey((prev) => (prev === newKey ? prev : newKey));
+
+      const hasActive = items.some((i) => toNumber(i?.quantity) > 0);
+
+      let newTotal = 0;
+      if (hasActive) {
+        const sectionSums = items.reduce(
+          (acc, item) => {
+            const sectionKey = rowSectionMap[toNumber(item?.id)] || 'No Type';
+            const amount =
+              enableCumulativeDiscount && cumulativeDiscount
+                ? computeInvoiceItemTotal(
+                    toNumber(item?.quantity),
+                    cumulativeDiscount,
+                    toNumber(item?.price),
+                  )
+                : toNumber(item?.discountedPrice);
+            acc[sectionKey] =
+              (acc[sectionKey] ?? 0) + (Number.isFinite(amount) ? amount : 0);
+            return acc;
+          },
+          {} as Record<string, number>,
+        );
+        const grossRounded = Object.values(sectionSums).reduce(
+          (sum, s) => sum + Math.round(toNumber(s)),
+          0,
+        );
+        newTotal = grossRounded - toNumber(watchedExtraDiscount ?? 0);
+      }
+
+      const syncTotal = () => {
+        form.setValue('totalAmount', newTotal, {
+          shouldValidate: false,
+          shouldDirty: true,
+        });
+        setComputedTotalAmount((prev) => (prev === newTotal ? prev : newTotal));
+      };
+      if (immediate) {
+        syncTotal();
+      } else {
+        clearTimeout(totalDebounceRef.current);
+        totalDebounceRef.current = setTimeout(syncTotal, 150);
+      }
+    },
+    [
+      form,
+      enableCumulativeDiscount,
+      cumulativeDiscount,
+      watchedExtraDiscount,
+      rowSectionMap,
+    ],
+  );
+
+  // subscribe to invoiceItems changes
+  useEffect(() => {
+    recomputeDerivedState(true);
+    const sub = form.watch((_values, { name }) => {
+      // suppressWatchRef is set during replace() in handleRemoveRow to avoid reading RHF's transitional _formValues.
+      if (suppressWatchRef.current) {
+        return;
+      }
+      // fires on form.reset (Clear button)
+      if (name == null) {
+        recomputeDerivedState(true);
+        return;
+      }
+      // fires on field edits
+      if (name.startsWith('invoiceItems')) {
+        recomputeDerivedState(false);
+      }
+    });
+    return () => {
+      sub.unsubscribe();
+      clearTimeout(totalDebounceRef.current);
+    };
+  }, [form, recomputeDerivedState]);
 
   const onResolved = useCallback(
     (changedRowIndexes: number[]) => {
@@ -467,7 +564,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
     splitByItemType,
     watchedSingleAccountId,
-    watchedInvoiceItems,
+    itemStructureKey,
     inventory,
     form,
   ]);
@@ -695,81 +792,47 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const handleRemoveRow = useCallback(
     (rowIndex: number) => {
-      const invoiceItems = form.getValues('invoiceItems');
-      const removedRow = invoiceItems[rowIndex];
-      if (!removedRow || fields.length === 0) return;
+      if (rowIndex >= fields.length || fields.length === 0) return;
+      const removedRow = fields[rowIndex];
+      const removedId = toNumber(get(removedRow, 'id'));
 
+      // Use replace() instead of remove(). RHF's remove() updates _fields
+      // before _formValues, and virtualized (non-mounted) FormFields don't
+      // re-register after index shifts — leaving _formValues permanently stale.
+      // replace() writes the full array atomically, bypassing both issues.
+      suppressWatchRef.current = true;
+      const kept = [];
+      for (let i = 0; i < fields.length; i += 1) {
+        if (i !== rowIndex) kept.push(form.getValues(`invoiceItems.${i}`));
+      }
       form.clearErrors(`invoiceItems.${rowIndex}` as const);
-      remove(rowIndex);
-      if (removedRow.id) {
+      replace(kept);
+      suppressWatchRef.current = false;
+
+      requestAnimationFrame(() => recomputeDerivedState(true));
+
+      if (removedId > 0) {
         setRowSectionMap((prev) => {
           const next = { ...prev };
-          delete next[removedRow.id];
+          delete next[removedId];
           return next;
         });
         setManualDiscountRows((prev) => {
           const next = { ...prev };
-          delete next[removedRow.id];
+          delete next[removedId];
           return next;
         });
       }
     },
-    [fields.length, form, remove, setManualDiscountRows, setRowSectionMap],
+    [
+      fields,
+      form,
+      recomputeDerivedState,
+      replace,
+      setManualDiscountRows,
+      setRowSectionMap,
+    ],
   );
-
-  /** has item + its quantity selected */
-  const hasActiveInvoiceItem = useMemo(
-    () => normalizedInvoiceItems.some((item) => toNumber(item?.quantity) > 0),
-    [normalizedInvoiceItems],
-  );
-
-  // compute total synchronously (useMemo) so the display updates in the SAME render cycle
-  // instead of useEffect → form.setValue → useWatch → second render.
-  const computedTotalAmount = useMemo(() => {
-    if (!hasActiveInvoiceItem) return 0;
-
-    const sectionSums = normalizedInvoiceItems.reduce(
-      (acc, item) => {
-        const key = rowSectionMap[item.id] || 'No Type';
-        const amount =
-          enableCumulativeDiscount && cumulativeDiscount
-            ? computeInvoiceItemTotal(
-                item.quantity,
-                cumulativeDiscount,
-                item.price,
-              )
-            : toNumber(item.discountedPrice);
-        const safeAmount = Number.isFinite(amount) ? amount : 0;
-        acc[key] = (acc[key] ?? 0) + safeAmount;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
-
-    const grossRounded = Object.values(sectionSums).reduce((sumRupees, s) => {
-      return sumRupees + Math.round(toNumber(s));
-    }, 0);
-    return grossRounded - toNumber(watchedExtraDiscount ?? 0);
-  }, [
-    cumulativeDiscount,
-    enableCumulativeDiscount,
-    hasActiveInvoiceItem,
-    watchedExtraDiscount,
-    normalizedInvoiceItems,
-    rowSectionMap,
-  ]);
-
-  // sync computed total to form field for validation/submission; this does NOT trigger a
-  // re-render via useWatch because we removed the watchedTotalAmount subscription.
-  const prevTotalRef = useRef<number>(0);
-  useEffect(() => {
-    if (computedTotalAmount === prevTotalRef.current) return;
-    prevTotalRef.current = computedTotalAmount;
-    form.setValue('totalAmount', computedTotalAmount, {
-      shouldValidate: false,
-      shouldDirty: true,
-    });
-  }, [computedTotalAmount, form]);
 
   const getSelectedItem = useCallback(
     (fieldValue: number) => inventoryById.get(toNumber(fieldValue)),
@@ -887,13 +950,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [form, invoiceType, recalculateAutoDiscounts],
   );
 
-  // focus intent: set before append, consumed by useLayoutEffect AFTER React mounts new row
+  // ── new-row focus + scroll ──
+  // WHY refs+layoutEffect instead of direct focus: append() triggers React state updates;
+  // the new row's DOM doesn't exist yet when append returns. pendingItemFocusRef stores
+  // the target index, and the useLayoutEffect below fires AFTER React commits the new row
+  // to DOM, at which point the VirtualSelect trigger input can be found and focused.
   const pendingItemFocusRef = useRef<number | null>(null);
-  // scroll virtualized table to newly added row so it mounts before focus
+  // scroll virtuoso to the new row so it mounts in the visible range before focus
   const [virtualScrollToIndex, setVirtualScrollToIndex] = useState<
     number | null
   >(null);
 
+  // sets pendingItemFocusRef for auto-focus
   const handleAddNewRow = useCallback(() => {
     const entry = getInitialEntry();
     const newRowIndex = fields.length;
@@ -920,16 +988,17 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
   ]);
 
-  // after React commits new row to DOM, schedule focus on its item field
+  // fires after React commits the new row — runs before paint (useLayoutEffect) so the focus schedule starts as early as possible
+  // fields.length changes on append/remove.
   useLayoutEffect(() => {
     const rowIndex = pendingItemFocusRef.current;
     if (rowIndex == null) return;
     pendingItemFocusRef.current = null;
     scheduleItemFieldFocusAfterNewRow(form, rowIndex);
-    // clear scroll-to so it doesn't re-trigger on unrelated re-renders
     setVirtualScrollToIndex(null);
   }, [fields.length, form]);
 
+  // `enter` in quantity: commit the current value, recalculate discountedPrice, then append a new row
   const onQuantityEnterAddRow = useCallback(
     (rowIndex: number) => {
       const qPath = `invoiceItems.${rowIndex}.quantity` as Path<Invoice>;
@@ -1021,10 +1090,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [],
   );
 
-  // Memoize DataTable element so React skips its entire reconciliation subtree
-  // when the page re-renders due to watchedInvoiceItems/total changes.
-  // During typing: columns (stable), fields (stable from useFieldArray),
-  // virtualScrollToIndex (null) are unchanged → memo reused → zero DataTable cost.
+  // memoize DataTable element so React skips its entire reconciliation subtree when the page re-renders due to total/structural changes.
+  // during typing: columns (stable), fields (stable from useFieldArray), virtualScrollToIndex (null) are unchanged → memo reused → zero DataTable cost.
   const lineItemTableElement = useMemo(
     () => (
       <DataTable

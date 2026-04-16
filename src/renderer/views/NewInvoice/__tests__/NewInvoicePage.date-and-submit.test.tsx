@@ -167,8 +167,12 @@ jest.mock('../hooks/useNewInvoiceFormCore', () => ({
     const form = {
       control: {},
       formState: { isSubmitting: false, errors: {} },
-      getValues: jest.fn(() => ref),
+      getValues: jest.fn((path?: string) => {
+        if (!path) return ref;
+        return path.split('.').reduce((o: any, k: string) => o?.[k], ref);
+      }),
       setValue: jest.fn(),
+      watch: jest.fn(() => ({ unsubscribe: jest.fn() })),
       reset: jest.fn(),
       clearErrors: jest.fn(),
       handleSubmit: (onValid: (values: any) => void) => () => onValid(ref),
@@ -181,12 +185,9 @@ jest.mock('../hooks/useNewInvoiceFormCore', () => ({
       formSchema: {} as any,
       fields: ref.invoiceItems,
       append: jest.fn(),
-      watchedInvoiceItems: ref.invoiceItems,
       watchedExtraDiscount: 0,
-      watchedTotalAmount: ref.totalAmount,
       watchedSingleAccountId: ref.accountMapping?.singleAccountId,
       watchedMultipleAccountIds: [],
-      resolutionTrigger: 'x',
       discountAccountExists: true,
     };
   },

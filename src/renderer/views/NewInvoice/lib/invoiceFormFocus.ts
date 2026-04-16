@@ -1,6 +1,19 @@
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
-/** low-end machines and virtual rows can need several retries before the target field is mounted and stable */
+/**
+ * Focus scheduling for the new-invoice line-item grid.
+ *
+ * WHY retries: after append(), React re-renders asynchronously and the new row's
+ * VirtualSelect trigger may not be in the DOM yet. Retries cover the mounting window.
+ *
+ * WHY DOM fallback (scheduleItemFieldFocusAfterNewRow): form.setFocus relies on RHF's
+ * _fields registry. With virtualization, non-visible FormFields aren't mounted, so
+ * setFocus often can't find the ref. The DOM query finds the input directly.
+ *
+ * WHY focus guard (re-acquire disconnected element): post-append re-renders can unmount
+ * and remount the VirtualSelect trigger input. The guard detects when the focused element
+ * is disconnected and re-queries the DOM for the replacement.
+ */
 const FOCUS_RETRY_DELAYS_MS = [0, 80, 200, 400, 650] as const;
 
 type SetFocusPath<T extends FieldValues> = Parameters<

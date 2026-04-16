@@ -113,6 +113,16 @@ sqlite3 release/app/database.db "SELECT * FROM migrations"
 - When refactoring large components: extract subcomponents and/or domain hooks first; optionally group related files in a folder with a barrel export.
 - Prefer a skeptical, high-standards approach: double check assumptions and call out issues rather than agreeing by default.
 
+## react-hook-form + Virtualization Rules
+
+The invoice line-item table uses `useFieldArray` with `react-virtuoso` (virtual rendering). This combination has critical pitfalls:
+
+1. **Never use `remove()` from useFieldArray with virtualized tables.** RHF's `remove()` updates `_fields` before `_formValues`; non-mounted FormFields (outside viewport) don't re-register after index shifts, leaving `_formValues` permanently stale. **Use `replace(filteredArray)` instead** — it atomically overwrites the full array.
+2. **`form.getValues('invoiceItems')` returns stale ARRAY after structural ops.** Per-field reads `form.getValues('invoiceItems.${i}')` are correct. Build filtered arrays by iterating `fields` (from useFieldArray) and reading each item individually.
+3. **`form.watch()` callbacks fire during useFieldArray's transitional state.** Guard structural operations (replace/append) with a `suppressWatchRef` flag so the callback doesn't read half-updated form values.
+4. **Never use `useWatch('invoiceItems')` at page level.** It subscribes to ALL field changes across ALL rows → full page re-render on every keystroke. Use `form.watch()` callback (no re-render) + selective `setState` with functional updates that skip when value unchanged.
+5. **Virtual cell keys must not include `row.index` on the outer element.** Use `key="${fieldKey}:${columnId}"` on `<TableCell>`. Put `row.index` only on the inner `<div>` (forces `useController` re-registration without full cell remount).
+
 ## Learned Workspace Facts
 
 - New Invoice screen uses domain-split hooks (inventory, next number, parties, form core, sections, resolution, discounts) rather than one useNewInvoiceForm.

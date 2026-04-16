@@ -463,10 +463,13 @@ const DataTable = <TData, TValue>({
 
   const renderVirtualItemCells = (row: Row<TData>) => {
     const rowKey = toString(resolveRowKey(row.original, row.index));
+    // Cell key: stable (fieldKey + column) — React reuses the <td> across index shifts.
+    // Inner div key: fieldKey + index — forces useController re-registration when a row
+    // shifts position after a middle deletion (matches non-virtual path behavior).
     const rowFormKey = `${rowKey}:${row.index}`;
     return row.getVisibleCells().map((cell) => (
       <TableCell
-        key={`${rowFormKey}:${cell.column.id}`}
+        key={`${rowKey}:${cell.column.id}`}
         className={cn(
           cellPad,
           (cell.column.columnDef as ColumnDef<TData, TValue>)?.onClick &&
