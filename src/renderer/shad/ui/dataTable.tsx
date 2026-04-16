@@ -22,16 +22,15 @@ import {
 import { get, toString, debounce } from 'lodash';
 import { cn } from '@/renderer/lib/utils';
 import {
-  type MutableRefObject,
-  HTMLAttributes,
   forwardRef,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
-  useState,
   useMemo,
+  useState,
 } from 'react';
-import { TableVirtuoso } from 'react-virtuoso';
+import { TableVirtuoso, type TableVirtuosoHandle } from 'react-virtuoso';
 import { HelpCircle } from 'lucide-react';
 import {
   Tooltip,
@@ -52,6 +51,8 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
 interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   columns: ColDef<TData, TValue>[];
   data: TData[];
+  className?: string;
+  getRowKey?: (row: TData, index: number) => string | number;
   defaultSortField?: keyof TData;
   defaultSortDirection?: SortDirection;
   infoData?: React.ReactNode[][];
@@ -63,6 +64,7 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
    * stays aligned with virtual + non-virtual tables; hidden when printing.
    */
   stickyFooterRow?: React.ReactNode[];
+  virtualScrollToIndex?: number | null;
   searchPlaceholder?: string;
   searchFields?: string[];
   isMini?: boolean;
@@ -87,56 +89,6 @@ const TableComponent = forwardRef<
   />
 ));
 TableComponent.displayName = 'TableComponent';
-
-/** virtuoso TableRow: stable when memoized with same `cellPad`; reads row from ref each paint. must forwardRef — virtuoso measures `<tr>`; missing ref breaks updates (sort looked dead). */
-const createDataTableVirtualTableRow = <TData,>(
-  rowsRef: MutableRefObject<Row<TData>[]>,
-  cellPadLocal: string,
-) => {
-  const VirtTableRow = forwardRef<
-    HTMLTableRowElement,
-    HTMLAttributes<HTMLTableRowElement>
-  >((rowProps, ref) => {
-    const { className: trClassName, style: trStyle, ...trRest } = rowProps;
-    const index = (trRest as Record<string, unknown>)['data-index'] as number;
-    const row = rowsRef.current[index];
-    if (!row) return null;
-    return (
-      <TableRow
-        ref={ref}
-        className={trClassName}
-        style={trStyle}
-        data-state={row.getIsSelected() && 'selected'}
-        {...trRest}
-      >
-        {row.getVisibleCells().map((cell) => (
-          <TableCell
-            key={cell.id}
-            className={cn(
-              cellPadLocal,
-              (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick &&
-                'cursor-pointer',
-            )}
-            style={{
-              width: cell.column.getSize(),
-              minWidth: cell.column.getSize(),
-              maxWidth: cell.column.getSize(),
-            }}
-            onClick={() =>
-              (cell.column.columnDef as ColumnDef<TData, unknown>)?.onClick?.(
-                cell.row,
-              )
-            }
-          >
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </TableCell>
-        ))}
-      </TableRow>
-    );
-  });
-  VirtTableRow.displayName = 'VirtTableRow';
-  return VirtTableRow;
-};
 
 const SortingIndicator = ({ isSorted }: { isSorted: string | false }) => {
   if (!isSorted) return null;
@@ -259,12 +211,15 @@ const RecordCount = ({
 const DataTable = <TData, TValue>({
   columns,
   data,
+  className,
+  getRowKey,
   defaultSortField,
   defaultSortDirection = 'asc',
   infoData,
   virtual = false,
   compact = false,
   stickyFooterRow,
+  virtualScrollToIndex = null,
   searchPlaceholder,
   searchFields,
   isMini = false,
@@ -286,7 +241,6 @@ const DataTable = <TData, TValue>({
   });
   const [searchValue, setSearchValue] = useState('');
   const [searchInputValue, setSearchInputValue] = useState('');
-  const [filteredData, setFilteredData] = useState(data);
   const [height, setHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const isSearchHydratedRef = useRef(false);
@@ -329,21 +283,18 @@ const DataTable = <TData, TValue>({
     return () => window.removeEventListener('resize', calculateHeight);
   }, [virtual]);
 
-  // update filtered data when search value or data changes
-  useEffect(() => {
+  const filteredData = useMemo(() => {
     if (!searchValue || !searchFields?.length) {
-      setFilteredData(data);
-      return;
+      return data;
     }
 
     const searchTerm = searchValue.toLowerCase();
-    const filtered = data.filter((item) =>
+    return data.filter((item) =>
       searchFields.some((field) => {
         const value = get(item, field);
         return toString(value).toLowerCase().includes(searchTerm);
       }),
     );
-    setFilteredData(filtered);
   }, [searchValue, data, searchFields]);
 
   // debounced search handler
@@ -383,10 +334,17 @@ const DataTable = <TData, TValue>({
     window.electron.store.set(searchPersistenceKey, searchInputValue);
   }, [searchPersistenceKey, searchInputValue]);
 
+  const resolveRowKey = useCallback(
+    (row: TData, index: number) => getRowKey?.(row, index) ?? index,
+    [getRowKey],
+  );
+
   const table = useReactTable({
     ...restTableOptions,
     data: filteredData,
     columns,
+    getRowId: (originalRow, index) =>
+      toString(resolveRowKey(originalRow, index)),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     state: {
@@ -401,16 +359,7 @@ const DataTable = <TData, TValue>({
 
   const { rows } = table.getRowModel();
 
-  const virtualRowsRef = useRef(rows);
-  virtualRowsRef.current = rows;
-  const VirtualTableRow = useMemo(
-    () =>
-      createDataTableVirtualTableRow<TData>(
-        virtualRowsRef,
-        compact ? 'py-1 px-2' : 'py-2 px-4',
-      ),
-    [compact],
-  );
+  const tableVirtuosoRef = useRef<TableVirtuosoHandle | null>(null);
 
   const tableRef = useRef(table);
   tableRef.current = table;
@@ -422,6 +371,18 @@ const DataTable = <TData, TValue>({
       tableRef.current.getRowModel().rows.map((r) => r.original),
     );
   }, [filteredData, sorting, searchValue]);
+
+  useEffect(() => {
+    if (!virtual) return;
+    if (virtualScrollToIndex == null || virtualScrollToIndex < 0) return;
+    requestAnimationFrame(() => {
+      tableVirtuosoRef.current?.scrollToIndex({
+        index: virtualScrollToIndex,
+        align: 'end',
+        behavior: 'auto',
+      });
+    });
+  }, [virtual, virtualScrollToIndex]);
 
   const recordCount = {
     filtered: rows.length,
@@ -466,6 +427,69 @@ const DataTable = <TData, TValue>({
     );
   };
 
+  const renderInfoRowsTable = () => {
+    if (!infoData?.length) return null;
+    return (
+      <div className="border-t overflow-x-auto">
+        <Table className="table-fixed">
+          <colgroup>
+            {leafHeaders.map((header) => (
+              <col key={header.id} style={{ width: header.column.getSize() }} />
+            ))}
+          </colgroup>
+          <TableBody>
+            {infoData.map((row, rowIndex) => (
+              <TableRow
+                // eslint-disable-next-line react/no-array-index-key
+                key={`virtual-info-row-${rowIndex}`}
+                className="bg-gray-50 dark:bg-gray-800 font-medium"
+              >
+                {row.map((cell, cellIndex) => (
+                  <TableCell
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`virtual-info-cell-${rowIndex}-${cellIndex}`}
+                    className={cellPad}
+                  >
+                    {cell}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const renderVirtualItemCells = (row: Row<TData>) => {
+    const rowKey = toString(resolveRowKey(row.original, row.index));
+    const rowFormKey = `${rowKey}:${row.index}`;
+    return row.getVisibleCells().map((cell) => (
+      <TableCell
+        key={`${rowFormKey}:${cell.column.id}`}
+        className={cn(
+          cellPad,
+          (cell.column.columnDef as ColumnDef<TData, TValue>)?.onClick &&
+            'cursor-pointer',
+        )}
+        style={{
+          width: cell.column.getSize(),
+          minWidth: cell.column.getSize(),
+          maxWidth: cell.column.getSize(),
+        }}
+        onClick={() =>
+          (cell.column.columnDef as ColumnDef<TData, TValue>)?.onClick?.(
+            cell.row,
+          )
+        }
+      >
+        <div key={rowFormKey}>
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </div>
+      </TableCell>
+    ));
+  };
+
   if (virtual) {
     const renderVirtualMain = () => {
       if (!rows.length) {
@@ -500,13 +524,16 @@ const DataTable = <TData, TValue>({
                 style={{ minWidth: table.getTotalSize() }}
               >
                 <TableVirtuoso
+                  ref={tableVirtuosoRef}
+                  data={rows}
                   style={{ height }}
-                  totalCount={rows.length}
-                  computeItemKey={(index) => rows[index]?.id ?? index}
+                  computeItemKey={(_, row) => (row as Row<TData>).id}
                   components={{
                     Table: TableComponent,
-                    TableRow: VirtualTableRow,
                   }}
+                  itemContent={(index, row) =>
+                    renderVirtualItemCells(row as Row<TData>)
+                  }
                   fixedHeaderContent={() =>
                     table
                       .getHeaderGroups()
@@ -529,13 +556,16 @@ const DataTable = <TData, TValue>({
       return (
         <div className="overflow-x-auto">
           <TableVirtuoso
+            ref={tableVirtuosoRef}
+            data={rows}
             style={{ height }}
-            totalCount={rows.length}
-            computeItemKey={(index) => rows[index]?.id ?? index}
+            computeItemKey={(_, row) => (row as Row<TData>).id}
             components={{
               Table: TableComponent,
-              TableRow: VirtualTableRow,
             }}
+            itemContent={(index, row) =>
+              renderVirtualItemCells(row as Row<TData>)
+            }
             fixedHeaderContent={() =>
               table
                 .getHeaderGroups()
@@ -555,7 +585,10 @@ const DataTable = <TData, TValue>({
     return (
       <div
         ref={containerRef}
-        className="rounded-md border w-full min-w-0 max-w-full flex flex-col"
+        className={cn(
+          'rounded-md border w-full min-w-0 max-w-full flex flex-col',
+          className,
+        )}
       >
         {searchFields?.length ? (
           <div className="search-container border-b shrink-0">
@@ -591,12 +624,13 @@ const DataTable = <TData, TValue>({
           </div>
         ) : null}
         {renderVirtualMain()}
+        {renderInfoRowsTable()}
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="rounded-md border">
+    <div ref={containerRef} className={cn('rounded-md border', className)}>
       {searchFields?.length ? (
         <div className="search-container border-b">
           <div
@@ -652,7 +686,7 @@ const DataTable = <TData, TValue>({
             <>
               {rows.map((row) => (
                 <TableRow
-                  key={row.id}
+                  key={resolveRowKey(row.original, row.index)}
                   data-state={row.getIsSelected() && 'selected'}
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -679,7 +713,14 @@ const DataTable = <TData, TValue>({
                       }
                     >
                       {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
-                      <div key={toString(get(cell.row.original, 'id'))}>
+                      <div
+                        key={toString(
+                          `${resolveRowKey(
+                            cell.row.original,
+                            cell.row.index,
+                          )}:${cell.row.index}`,
+                        )}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

@@ -193,6 +193,81 @@ describe('useNewInvoiceFormCore', () => {
 
       expect(result.current.fields).toHaveLength(2);
     });
+
+    it('remove deletes a row without replacing the full array', () => {
+      const refs = makeRefs();
+      const { result } = renderHook(() =>
+        useNewInvoiceFormCore({
+          invoiceType: InvoiceType.Sale,
+          inventory: sampleInventory,
+          ...refs,
+          splitByItemType: false,
+        }),
+      );
+
+      act(() => {
+        result.current.append({
+          id: 1,
+          inventoryId: 10,
+          quantity: 1,
+          discount: 0,
+          price: 100,
+          discountedPrice: 100,
+        });
+        result.current.append({
+          id: 2,
+          inventoryId: 20,
+          quantity: 3,
+          discount: 0,
+          price: 200,
+          discountedPrice: 600,
+        });
+      });
+
+      act(() => {
+        result.current.remove(0);
+      });
+
+      expect(result.current.fields).toHaveLength(1);
+      expect(result.current.watchedInvoiceItems).toEqual([
+        expect.objectContaining({ id: 2, inventoryId: 20 }),
+      ]);
+    });
+
+    it('replace updates the full row set while preserving watched invoice items', () => {
+      const refs = makeRefs();
+      const { result } = renderHook(() =>
+        useNewInvoiceFormCore({
+          invoiceType: InvoiceType.Sale,
+          inventory: sampleInventory,
+          ...refs,
+          splitByItemType: false,
+        }),
+      );
+
+      act(() => {
+        result.current.replace([
+          {
+            id: 10,
+            inventoryId: 10,
+            quantity: 5,
+            discount: 10,
+            price: 100,
+            discountedPrice: 450,
+          },
+        ]);
+      });
+
+      expect(result.current.fields).toHaveLength(1);
+      expect(result.current.watchedInvoiceItems).toEqual([
+        expect.objectContaining({
+          id: 10,
+          inventoryId: 10,
+          quantity: 5,
+          discountedPrice: 450,
+        }),
+      ]);
+    });
   });
 
   describe('watched values', () => {
@@ -235,20 +310,6 @@ describe('useNewInvoiceFormCore', () => {
       );
 
       expect(result.current.watchedExtraDiscount).toBe(0);
-    });
-
-    it('watchedTotalAmount defaults to 0', () => {
-      const refs = makeRefs();
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Sale,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: false,
-        }),
-      );
-
-      expect(result.current.watchedTotalAmount).toBe(0);
     });
 
     it('watchedSingleAccountId defaults to -1', () => {

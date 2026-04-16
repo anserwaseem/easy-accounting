@@ -1,7 +1,14 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { get, isNil, pick, toNumber, toString } from 'lodash';
 import { Plus, Printer, RefreshCw, Upload } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { Path, UseFormReturn } from 'react-hook-form';
 import { useFormState, useWatch } from 'react-hook-form';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -11,6 +18,10 @@ import {
   getFormattedCurrency,
   raise,
 } from 'renderer/lib/utils';
+import {
+  currencyFormatOptions,
+  DISCOUNT_ACCOUNT_NAME,
+} from 'renderer/lib/constants';
 import { Button } from 'renderer/shad/ui/button';
 import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
 import {
@@ -91,7 +102,6 @@ import { useNewInvoiceNextNumber } from './hooks/useNewInvoiceNextNumber';
 import { useNewInvoiceParties } from './hooks/useNewInvoiceParties';
 import { useNewInvoiceResolution } from './hooks/useNewInvoiceResolution';
 import { useNewInvoiceSections } from './hooks/useNewInvoiceSections';
-import { useNewInvoiceTableInfo } from './hooks/useNewInvoiceTableInfo';
 import type { PartyAccount } from './hooks/useNewInvoiceParties';
 
 interface NewInvoiceProps {
@@ -189,26 +199,68 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     formSchema,
     fields,
     append,
+    remove,
+    replace,
     watchedInvoiceItems,
     watchedExtraDiscount,
-    watchedTotalAmount,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
     resolutionTrigger,
     discountAccountExists,
   } = formCore;
 
-  const lineInventoryIdsKey = useMemo(
-    () =>
-      lineInventoryIdsKeyFromIds(
-        (watchedInvoiceItems ?? [])
-          .map((row) => toNumber(row?.inventoryId))
-          .filter((id) => id > 0),
-      ),
+  const normalizedInvoiceItems = useMemo(
+    () => (Array.isArray(watchedInvoiceItems) ? watchedInvoiceItems : []),
     [watchedInvoiceItems],
   );
 
+  const lineInventoryIdsKey = useMemo(
+    () =>
+      lineInventoryIdsKeyFromIds(
+        normalizedInvoiceItems
+          .map((row) => toNumber(row?.inventoryId))
+          .filter((id) => id > 0),
+      ),
+    [normalizedInvoiceItems],
+  );
+
   useInvoiceInventoryLoader(invoiceType, lineInventoryIdsKey, setInventory);
+
+  const inventoryById = useMemo(() => {
+    const next = new Map<number, InventoryItem>();
+    (inventory ?? []).forEach((item) => {
+      next.set(item.id, item);
+    });
+    return next;
+  }, [inventory]);
+
+  // string-stable key: only changes when which items are selected changes, not on quantity/price edits.
+  // useMemo recalculates every render but the primitive string output is compared by value downstream,
+  // so selectedInventoryCounts stays ref-stable across quantity edits → columns stay stable → focus preserved.
+  const inventorySelectionKey = useMemo(
+    () =>
+      normalizedInvoiceItems.map((row) => toNumber(row?.inventoryId)).join(','),
+    [normalizedInvoiceItems],
+  );
+
+  const selectedInventoryCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    normalizedInvoiceItems.forEach((row) => {
+      const inventoryId = toNumber(row?.inventoryId);
+      if (inventoryId <= 0) return;
+      counts.set(inventoryId, (counts.get(inventoryId) ?? 0) + 1);
+    });
+    return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventorySelectionKey]);
+
+  const lineItemIds = useMemo(
+    () =>
+      fields
+        .map((field) => toNumber(get(field, 'id')))
+        .filter((rowId) => rowId > 0),
+    [fields],
+  );
 
   const { isDirty, errors: formErrors } = useFormState({
     control: form.control,
@@ -239,7 +291,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
     splitByItemType,
     form: form as unknown as UseFormReturn<Record<string, unknown>>,
-    watchedInvoiceItems,
+    lineItemIds,
   });
 
   const discounts = useNewInvoiceDiscounts({
@@ -256,7 +308,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const {
     applyAutoDiscountForRow,
     recalculateAutoDiscounts,
-    recalculateAutoDiscountsRef,
     manualDiscountRows,
     setManualDiscountRows,
     enableCumulativeDiscount,
@@ -269,9 +320,17 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     getSectionLabel,
   } = discounts;
 
-  const onResolved = useCallback(() => {
-    recalculateAutoDiscountsRef.current();
-  }, [recalculateAutoDiscountsRef]);
+  const onResolved = useCallback(
+    (changedRowIndexes: number[]) => {
+      if (!changedRowIndexes.length) return;
+      Promise.all(
+        changedRowIndexes.map((rowIndex) => applyAutoDiscountForRow(rowIndex)),
+      ).catch((error) => {
+        console.error('Error applying auto discount after resolution', error);
+      });
+    },
+    [applyAutoDiscountForRow],
+  );
 
   const { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks } =
     useNewInvoiceResolution({
@@ -591,12 +650,23 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             ]
           : undefined) ??
         `Account ${id}`;
-      return { id, name: label };
+      const partyCode =
+        party?.code != null ? String(party.code).trim() : undefined;
+      const resolvedCode =
+        Array.isArray(resolvedRowCodes) &&
+        typeof watchedMultipleAccountIds?.indexOf === 'function'
+          ? resolvedRowCodes[
+              (watchedMultipleAccountIds as number[]).indexOf(id)
+            ]
+          : undefined;
+      const code = partyCode && partyCode.length > 0 ? partyCode : resolvedCode;
+      return { id, name: label, code };
     });
   }, [
     invoiceType,
     parties,
     resolvedRowLabels,
+    resolvedRowCodes,
     splitByItemType,
     useSingleAccount,
     watchedExtraDiscount,
@@ -625,49 +695,40 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const handleRemoveRow = useCallback(
     (rowIndex: number) => {
-      const latestInvoice = form.getValues();
-      const removedRow = latestInvoice.invoiceItems[rowIndex];
+      const invoiceItems = form.getValues('invoiceItems');
+      const removedRow = invoiceItems[rowIndex];
+      if (!removedRow || fields.length === 0) return;
 
-      if (fields.length > 0) {
-        form.clearErrors(`invoiceItems.${rowIndex}` as const);
-        form.setValue(
-          'invoiceItems',
-          latestInvoice.invoiceItems.filter((_, index) => index !== rowIndex),
-        );
-        if (removedRow?.id) {
-          setRowSectionMap((prev) => {
-            const next = { ...prev };
-            delete next[removedRow.id];
-            return next;
-          });
-          setManualDiscountRows((prev) => {
-            const next = { ...prev };
-            delete next[removedRow.id];
-            return next;
-          });
-        }
+      form.clearErrors(`invoiceItems.${rowIndex}` as const);
+      remove(rowIndex);
+      if (removedRow.id) {
+        setRowSectionMap((prev) => {
+          const next = { ...prev };
+          delete next[removedRow.id];
+          return next;
+        });
+        setManualDiscountRows((prev) => {
+          const next = { ...prev };
+          delete next[removedRow.id];
+          return next;
+        });
       }
     },
-    [fields.length, form, setManualDiscountRows, setRowSectionMap],
+    [fields.length, form, remove, setManualDiscountRows, setRowSectionMap],
   );
 
   /** has item + its quantity selected */
   const hasActiveInvoiceItem = useMemo(
-    () => !!watchedInvoiceItems.at(0)?.discountedPrice,
-    [watchedInvoiceItems],
+    () => normalizedInvoiceItems.some((item) => toNumber(item?.quantity) > 0),
+    [normalizedInvoiceItems],
   );
 
-  // keep form totalAmount aligned with line items: sum per-section amounts (rounded per section), optional cumulative discount path, minus extra discount — matches what we post and show
-  useEffect(() => {
-    if (!hasActiveInvoiceItem) {
-      form.setValue('totalAmount', 0, {
-        shouldValidate: false,
-        shouldDirty: true,
-      });
-      return;
-    }
+  // compute total synchronously (useMemo) so the display updates in the SAME render cycle
+  // instead of useEffect → form.setValue → useWatch → second render.
+  const computedTotalAmount = useMemo(() => {
+    if (!hasActiveInvoiceItem) return 0;
 
-    const sectionSums = watchedInvoiceItems.reduce(
+    const sectionSums = normalizedInvoiceItems.reduce(
       (acc, item) => {
         const key = rowSectionMap[item.id] || 'No Type';
         const amount =
@@ -678,7 +739,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 item.price,
               )
             : toNumber(item.discountedPrice);
-        acc[key] = (acc[key] ?? 0) + toNumber(amount);
+        const safeAmount = Number.isFinite(amount) ? amount : 0;
+        acc[key] = (acc[key] ?? 0) + safeAmount;
         return acc;
       },
       {} as Record<string, number>,
@@ -687,26 +749,31 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     const grossRounded = Object.values(sectionSums).reduce((sumRupees, s) => {
       return sumRupees + Math.round(toNumber(s));
     }, 0);
-    const total = grossRounded - toNumber(watchedExtraDiscount ?? 0);
-
-    form.setValue('totalAmount', total, {
-      shouldValidate: false,
-      shouldDirty: true,
-    });
+    return grossRounded - toNumber(watchedExtraDiscount ?? 0);
   }, [
     cumulativeDiscount,
     enableCumulativeDiscount,
-    form,
     hasActiveInvoiceItem,
     watchedExtraDiscount,
-    watchedInvoiceItems,
+    normalizedInvoiceItems,
     rowSectionMap,
   ]);
 
+  // sync computed total to form field for validation/submission; this does NOT trigger a
+  // re-render via useWatch because we removed the watchedTotalAmount subscription.
+  const prevTotalRef = useRef<number>(0);
+  useEffect(() => {
+    if (computedTotalAmount === prevTotalRef.current) return;
+    prevTotalRef.current = computedTotalAmount;
+    form.setValue('totalAmount', computedTotalAmount, {
+      shouldValidate: false,
+      shouldDirty: true,
+    });
+  }, [computedTotalAmount, form]);
+
   const getSelectedItem = useCallback(
-    (fieldValue: number) =>
-      inventory?.find((item) => item.id === toNumber(fieldValue)),
-    [inventory],
+    (fieldValue: number) => inventoryById.get(toNumber(fieldValue)),
+    [inventoryById],
   );
   const onItemSelectionChange = useCallback(
     async (rowIndex: number, val: string, onChange: Function) => {
@@ -820,9 +887,19 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [form, invoiceType, recalculateAutoDiscounts],
   );
 
+  // focus intent: set before append, consumed by useLayoutEffect AFTER React mounts new row
+  const pendingItemFocusRef = useRef<number | null>(null);
+  // scroll virtualized table to newly added row so it mounts before focus
+  const [virtualScrollToIndex, setVirtualScrollToIndex] = useState<
+    number | null
+  >(null);
+
   const handleAddNewRow = useCallback(() => {
     const entry = getInitialEntry();
+    const newRowIndex = fields.length;
     append({ ...entry });
+    pendingItemFocusRef.current = newRowIndex;
+    setVirtualScrollToIndex(newRowIndex);
     if (
       invoiceType === InvoiceType.Sale &&
       !useSingleAccount &&
@@ -836,17 +913,28 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   }, [
     activeSectionId,
     append,
+    fields.length,
     getInitialEntry,
     invoiceType,
     setRowSectionMap,
     useSingleAccount,
   ]);
 
+  // after React commits new row to DOM, schedule focus on its item field
+  useLayoutEffect(() => {
+    const rowIndex = pendingItemFocusRef.current;
+    if (rowIndex == null) return;
+    pendingItemFocusRef.current = null;
+    scheduleItemFieldFocusAfterNewRow(form, rowIndex);
+    // clear scroll-to so it doesn't re-trigger on unrelated re-renders
+    setVirtualScrollToIndex(null);
+  }, [fields.length, form]);
+
   const onQuantityEnterAddRow = useCallback(
     (rowIndex: number) => {
       const qPath = `invoiceItems.${rowIndex}.quantity` as Path<Invoice>;
       const qty = toNumber(form.getValues(qPath));
-      form.setValue(qPath, qty, { shouldValidate: true, shouldDirty: true });
+      form.setValue(qPath, qty, { shouldDirty: true });
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice` as Path<Invoice>,
         computeInvoiceItemTotal(
@@ -862,11 +950,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         ),
         { shouldValidate: false, shouldDirty: true },
       );
-      const newRowIndex = fields.length;
       handleAddNewRow();
-      scheduleItemFieldFocusAfterNewRow(form, newRowIndex);
     },
-    [fields.length, form, handleAddNewRow],
+    [form, handleAddNewRow],
   );
 
   useCmdOrCtrlNShortcut(handleAddNewRow);
@@ -875,6 +961,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     () => ({
       form: { control: form.control, getValues: form.getValues },
       inventory,
+      selectedInventoryCounts,
       invoiceType,
       resolvedRowLabels,
       resolvedRowCodes,
@@ -902,6 +989,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       form.control,
       form.getValues,
       inventory,
+      selectedInventoryCounts,
       invoiceType,
       resolvedRowLabels,
       resolvedRowCodes,
@@ -928,6 +1016,30 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   );
   const columns = useNewInvoiceColumns(columnsParams);
 
+  const getFieldRowKey = useCallback(
+    (row: unknown) => toString(get(row, 'fieldKey')),
+    [],
+  );
+
+  // Memoize DataTable element so React skips its entire reconciliation subtree
+  // when the page re-renders due to watchedInvoiceItems/total changes.
+  // During typing: columns (stable), fields (stable from useFieldArray),
+  // virtualScrollToIndex (null) are unchanged → memo reused → zero DataTable cost.
+  const lineItemTableElement = useMemo(
+    () => (
+      <DataTable
+        columns={columns}
+        data={fields}
+        getRowKey={getFieldRowKey}
+        sortingFns={defaultSortingFunctions}
+        compact
+        virtual
+        virtualScrollToIndex={virtualScrollToIndex}
+      />
+    ),
+    [columns, fields, getFieldRowKey, virtualScrollToIndex],
+  );
+
   const submitDisabledReason = useMemo((): string | undefined => {
     if (form.formState.isSubmitting) {
       return 'Saving invoice...';
@@ -941,18 +1053,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       return `Select a ${partyLabel}`;
     }
 
-    const total = watchedTotalAmount;
-    if (
-      invoiceType === InvoiceType.Sale &&
-      (typeof total !== 'number' || total <= 0)
-    ) {
+    if (invoiceType === InvoiceType.Sale && computedTotalAmount <= 0) {
       return 'Invoice total must be greater than 0';
     }
-    if (
-      invoiceType === InvoiceType.Purchase &&
-      typeof total === 'number' &&
-      total < 0
-    ) {
+    if (invoiceType === InvoiceType.Purchase && computedTotalAmount < 0) {
       return 'Invoice total must not be negative';
     }
 
@@ -978,6 +1082,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     }
     return undefined;
   }, [
+    computedTotalAmount,
     form,
     invoiceType,
     useSingleAccount,
@@ -985,7 +1090,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     resolutionFallbacks.length,
     watchedMultipleAccountIds,
     watchedSingleAccountId,
-    watchedTotalAmount,
   ]);
 
   const postedNextNumberBlocked = useMemo(
@@ -1015,29 +1119,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           ),
         }));
 
-      form.setValue('invoiceItems', updatedInvoiceItems, {
-        shouldValidate: false,
-        shouldDirty: true,
-      });
+      replace(updatedInvoiceItems);
     },
-    [form, isDiscountEditEnabled, setCumulativeDiscount],
+    [form, isDiscountEditEnabled, replace, setCumulativeDiscount],
   );
-
-  const tableInfoData = useNewInvoiceTableInfo({
-    control: form.control,
-    invoiceType,
-    watchedExtraDiscount,
-    watchedTotalAmount,
-    extraDiscountAccountOptions,
-    discountAccountExists,
-    enableCumulativeDiscount,
-    setEnableCumulativeDiscount,
-    cumulativeDiscount,
-    isDiscountEditEnabled,
-    onCumulativeDiscountChange,
-    useSingleAccount,
-    splitByItemType,
-  });
 
   const submitInvoice = async (
     values: z.infer<typeof formSchema>,
@@ -1142,9 +1227,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    // eslint-disable-next-line no-console
-    console.log('onSubmit invoice:', values);
-
     if (
       isSplitTypedAccountResolutionSubmitBlocked({
         invoiceType,
@@ -1648,9 +1730,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         {!showAddInvoiceNumberGate && showInvoiceForm ? (
           <Form {...form}>
             <form
-              onSubmit={form.handleSubmit(onSubmit, (errors) =>
-                console.log('onSubmit errors', errors),
-              )}
+              onSubmit={form.handleSubmit(onSubmit, () => undefined)}
               onReset={() => {
                 form.reset(defaultFormValues);
                 setIsDateExplicitlySet(false);
@@ -1997,19 +2077,170 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       )}
                     </div>
                   )}
-                <DataTable
-                  columns={columns}
-                  data={fields}
-                  sortingFns={defaultSortingFunctions}
-                  infoData={tableInfoData}
-                  compact
-                />
+                {lineItemTableElement}
                 {form.formState.errors.invoiceItems && (
                   <p className="text-sm font-medium text-destructive">
                     {get(form.formState.errors.invoiceItems, 'message', null)}
                   </p>
                 )}
               </div>
+
+              {/* Invoice summary — always visible while scrolling line items */}
+              {isSale && (
+                <section
+                  className="sticky bottom-0 z-10 mt-4 border-t bg-background/95 backdrop-blur-sm px-3 py-2 space-y-1.5"
+                  aria-label="Invoice summary"
+                >
+                  {isDiscountEditEnabled && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="w-44 shrink-0 text-xs font-medium text-muted-foreground">
+                        Cumulative Discount (%)
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={enableCumulativeDiscount}
+                          onCheckedChange={(checked) =>
+                            setEnableCumulativeDiscount(checked === true)
+                          }
+                        />
+                        <span className="text-xs">Enable</span>
+                      </div>
+                      <Input
+                        value={cumulativeDiscount}
+                        type="number"
+                        step="any"
+                        min={0}
+                        max={100}
+                        disabled={!enableCumulativeDiscount}
+                        onChange={(e) =>
+                          onCumulativeDiscountChange(e.target.value)
+                        }
+                        className="h-7 w-24 text-sm"
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="w-44 shrink-0 text-xs font-medium text-muted-foreground">
+                      Extra discount ({currencyFormatOptions.currency})
+                    </span>
+                    <FormField
+                      control={form.control}
+                      name="extraDiscount"
+                      render={({ field }) => (
+                        <FormItem className="min-w-0 flex-1 max-w-[200px] space-y-0">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              className="h-7 text-sm"
+                              type="number"
+                              step="any"
+                              min={0}
+                              onBlur={(e) =>
+                                field.onChange(toNumber(e.target.value))
+                              }
+                              onChange={(e) =>
+                                field.onChange(toNumber(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  {toNumber(watchedExtraDiscount) > 0 && splitByItemType && (
+                    <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+                      <span className="w-44 shrink-0 pt-1.5 text-xs font-medium text-muted-foreground">
+                        Extra discount from account
+                      </span>
+                      <FormField
+                        control={form.control}
+                        name="extraDiscountAccountId"
+                        render={({ field }) => (
+                          <FormItem className="min-w-[280px] flex-1 max-w-md space-y-0">
+                            <FormControl>
+                              <VirtualSelect<{
+                                id: number;
+                                name: string;
+                                code?: string;
+                              }>
+                                options={extraDiscountAccountOptions}
+                                value={field.value ?? null}
+                                onChange={(val) =>
+                                  field.onChange(
+                                    val ? toNumber(val) : undefined,
+                                  )
+                                }
+                                placeholder="Select account"
+                                searchPlaceholder="Search accounts..."
+                                disabled={
+                                  extraDiscountAccountOptions.length === 0
+                                }
+                                renderTriggerValue={({
+                                  selected,
+                                  placeholder,
+                                }) =>
+                                  selected ? (
+                                    <span className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-2 text-sm">
+                                      <span className="min-w-0 truncate">
+                                        {selected.name}
+                                      </span>
+                                      {selected.code ? (
+                                        <span className="shrink-0 text-xs font-mono text-muted-foreground">
+                                          {selected.code}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  ) : (
+                                    <span className="px-3 text-muted-foreground">
+                                      {placeholder}
+                                    </span>
+                                  )
+                                }
+                                renderSelectItem={(item) => (
+                                  <div className="flex min-w-[220px] items-center justify-between gap-2">
+                                    <span className="min-w-0 truncate text-sm">
+                                      {item.name}
+                                    </span>
+                                    {item.code ? (
+                                      <span className="shrink-0 text-xs font-mono text-muted-foreground">
+                                        {item.code}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                )}
+                              />
+                            </FormControl>
+                            {discountAccountExists === false && (
+                              <p className="text-sm text-destructive mt-1">
+                                Create a &quot;{DISCOUNT_ACCOUNT_NAME}&quot;
+                                expense account to use extra discount.
+                              </p>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-x-3 pt-1 border-t border-border/60">
+                    <span className="w-44 shrink-0 text-sm font-semibold text-primary">
+                      Total
+                    </span>
+                    <p
+                      className={cn(
+                        'text-sm font-semibold tabular-nums',
+                        typeof computedTotalAmount === 'number' &&
+                          'border border-primary rounded-md px-2 py-0.5',
+                      )}
+                    >
+                      {typeof computedTotalAmount === 'number'
+                        ? getFormattedCurrency(computedTotalAmount)
+                        : null}
+                    </p>
+                  </div>
+                </section>
+              )}
 
               <div className="flex justify-between gap-6 pb-6">
                 <Tooltip>

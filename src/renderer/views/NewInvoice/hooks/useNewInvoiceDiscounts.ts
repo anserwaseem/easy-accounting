@@ -162,6 +162,10 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
     ) => {
       if (invoiceType !== InvoiceType.Sale) return;
 
+      const expectedRowId = toNumber(
+        form.getValues(`invoiceItems.${rowIndex}.id`),
+      );
+
       const resolvedInventoryId = toNumber(
         inventoryId ?? form.getValues(`invoiceItems.${rowIndex}.inventoryId`),
       );
@@ -173,6 +177,15 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
           accountId,
           resolvedInventoryId,
         );
+      }
+
+      if (expectedRowId > 0) {
+        const currentRowId = toNumber(
+          form.getValues(`invoiceItems.${rowIndex}.id`),
+        );
+        if (currentRowId !== expectedRowId) {
+          return;
+        }
       }
 
       const setOpts = {

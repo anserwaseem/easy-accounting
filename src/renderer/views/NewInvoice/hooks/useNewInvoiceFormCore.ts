@@ -85,10 +85,6 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     control: form.control,
     name: 'extraDiscount',
   });
-  const watchedTotalAmount = useWatch({
-    control: form.control,
-    name: 'totalAmount',
-  });
   const watchedSingleAccountId = useWatch({
     control: form.control,
     name: 'accountMapping.singleAccountId',
@@ -119,9 +115,10 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
       .catch(() => setDiscountAccountExists(false));
   }, [watchedExtraDiscount]);
 
-  const { fields, append } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: 'invoiceItems',
+    keyName: 'fieldKey',
   });
 
   return {
@@ -130,9 +127,10 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     formSchema,
     fields,
     append,
+    remove,
+    replace,
     watchedInvoiceItems,
     watchedExtraDiscount,
-    watchedTotalAmount,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
     resolutionTrigger,

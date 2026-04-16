@@ -34,6 +34,7 @@ interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
     getValues: (name?: string) => unknown;
   };
   inventory: InventoryItem[] | undefined;
+  selectedInventoryCounts: Map<number, number>;
   invoiceType: InvoiceType;
   resolvedRowLabels: string[];
   resolvedRowCodes: string[];
@@ -88,7 +89,7 @@ interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
 interface InvoiceLineQuantityCellProps<T extends FieldValues> {
   form: { control: Control<T> };
   rowIndex: number;
-  inventory: InventoryItem[] | undefined;
+  inventoryById: Map<number, InventoryItem>;
   invoiceType: InvoiceType;
   saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
   onQuantityChange: (
@@ -102,7 +103,7 @@ interface InvoiceLineQuantityCellProps<T extends FieldValues> {
 const InvoiceLineQuantityCell = <T extends FieldValues>({
   form,
   rowIndex,
-  inventory,
+  inventoryById,
   invoiceType,
   saleStockValidationBonusRef,
   onQuantityChange,
@@ -113,7 +114,7 @@ const InvoiceLineQuantityCell = <T extends FieldValues>({
     name: `invoiceItems.${rowIndex}.inventoryId` as Path<T>,
   });
   const invId = toNumber(inventoryIdWatched);
-  const inv = (inventory || []).find((i) => i.id === invId);
+  const inv = inventoryById.get(invId);
   const bonus =
     invoiceType === InvoiceType.Sale
       ? saleStockValidationBonusRef?.current[invId] ?? 0
@@ -190,6 +191,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
   const {
     form,
     inventory,
+    selectedInventoryCounts,
     invoiceType,
     resolvedRowLabels,
     resolvedRowCodes,
@@ -215,26 +217,44 @@ export function useNewInvoiceColumns<T extends FieldValues>(
   } = params;
 
   return useMemo(() => {
+    const inventoryById = new Map<number, InventoryItem>();
+    (inventory ?? []).forEach((item) => {
+      inventoryById.set(item.id, item);
+    });
+
     const getItemOptionsForRow = (rowIndex: number) => {
-      const items = (form.getValues('invoiceItems') as InvoiceItem[]) || [];
-      const selectedElsewhere = new Set<number>();
-      for (let i = 0; i < items.length; i++) {
-        if (i !== rowIndex && items[i].inventoryId > 0) {
-          selectedElsewhere.add(items[i].inventoryId);
-        }
-      }
-      return (inventory || []).filter((inv) => !selectedElsewhere.has(inv.id));
+      const currentRow = form.getValues(`invoiceItems.${rowIndex}`) as
+        | InvoiceItem
+        | undefined;
+      const currentInventoryId = toNumber(currentRow?.inventoryId);
+      return (inventory ?? []).filter((item) => {
+        const selectedCount = selectedInventoryCounts.get(item.id) ?? 0;
+        return selectedCount === 0 || item.id === currentInventoryId;
+      });
     };
 
     const baseColumns: ColumnDef<InvoiceItem>[] = [
       {
+        id: 'lineNumber',
+        header: '#',
+        size: 44,
+        minSize: 44,
+        cell: ({ row }) => (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {row.index + 1}
+          </span>
+        ),
+      },
+      {
         header: 'Item',
+        size: 360,
+        minSize: 320,
         cell: ({ row }) => (
           <FormField
             control={form.control}
             name={`invoiceItems.${row.index}.inventoryId` as Path<T>}
             render={({ field }) => (
-              <FormItem className="w-max min-w-[300px] space-y-0">
+              <FormItem className="w-full min-w-0 max-w-full space-y-0">
                 <VirtualSelect<InventoryItem>
                   options={getItemOptionsForRow(row.index)}
                   value={field.value?.toString()}
@@ -297,7 +317,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
           <InvoiceLineQuantityCell<T>
             form={form}
             rowIndex={row.index}
-            inventory={inventory}
+            inventoryById={inventoryById}
             invoiceType={invoiceType}
             saleStockValidationBonusRef={saleStockValidationBonusRef}
             onQuantityChange={onQuantityChange}
@@ -513,6 +533,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
   }, [
     form,
     inventory,
+    selectedInventoryCounts,
     invoiceType,
     resolvedRowLabels,
     resolvedRowCodes,

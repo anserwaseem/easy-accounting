@@ -338,6 +338,17 @@ describe('NewInvoicePage date confirmation + submit', () => {
   it('totalAmount <= 0: Save button is disabled', async () => {
     submitValues.totalAmount = 0;
     submitValues.accountMapping.singleAccountId = 10;
+    // total is now computed from line items, not from the form field
+    submitValues.invoiceItems = [
+      {
+        id: 1,
+        inventoryId: 1,
+        quantity: 0,
+        discount: 0,
+        price: 10,
+        discountedPrice: 0,
+      },
+    ];
     render(<NewInvoiceSaleTestHarness />);
 
     await screen.findByRole('heading', { name: /New Sale Invoice/i });

@@ -20,7 +20,7 @@ describe('useNewInvoiceSections', () => {
         useSingleAccount: false,
         splitByItemType: false,
         form,
-        watchedInvoiceItems: [{ id: 1, inventoryId: 10 }],
+        lineItemIds: [1],
       });
       return { form, hook };
     });
@@ -50,10 +50,7 @@ describe('useNewInvoiceSections', () => {
         useSingleAccount: false,
         splitByItemType: false,
         form,
-        watchedInvoiceItems: [
-          { id: 10, inventoryId: 1 },
-          { id: 20, inventoryId: 2 },
-        ],
+        lineItemIds: [10, 20],
       });
       return { form, hook };
     });
@@ -97,7 +94,7 @@ describe('useNewInvoiceSections', () => {
         useSingleAccount: true,
         splitByItemType: false,
         form,
-        watchedInvoiceItems: [{ id: 1, inventoryId: 1 }],
+        lineItemIds: [1],
       });
       return { form, hook };
     });
