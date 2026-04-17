@@ -327,6 +327,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const totalDebounceRef = useRef<ReturnType<typeof setTimeout>>();
   const suppressWatchRef = useRef(false);
 
+  // live snapshot of invoiceItems — updated by every form.watch callback.
+  // used by handleRemoveRow to bypass form.getValues (stale after structural ops).
+  const liveItemsRef = useRef<Record<string, unknown>[]>([]);
+
   const recomputeDerivedState = useCallback(
     (immediate = false) => {
       const raw = form.getValues('invoiceItems');
@@ -338,6 +342,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         discount?: number;
         discountedPrice?: number;
       }>;
+
+      liveItemsRef.current = items;
 
       const newKey = items.map((i) => toNumber(i?.inventoryId)).join(',');
       setItemStructureKey((prev) => (prev === newKey ? prev : newKey));
@@ -796,17 +802,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       const removedRow = fields[rowIndex];
       const removedId = toNumber(get(removedRow, 'id'));
 
-      // Use replace() instead of remove(). RHF's remove() updates _fields
-      // before _formValues, and virtualized (non-mounted) FormFields don't
-      // re-register after index shifts — leaving _formValues permanently stale.
-      // replace() writes the full array atomically, bypassing both issues.
+      // Use replace() instead of remove() — see AGENTS.md "RHF + Virtualization Rules".
+      // Read from liveItemsRef (kept current by form.watch callback) instead of
+      // form.getValues('invoiceItems') which returns stale _formValues after structural ops.
       suppressWatchRef.current = true;
-      const kept = [];
-      for (let i = 0; i < fields.length; i += 1) {
-        if (i !== rowIndex) kept.push(form.getValues(`invoiceItems.${i}`));
-      }
-      form.clearErrors(`invoiceItems.${rowIndex}` as const);
-      replace(kept);
+      const kept = liveItemsRef.current.filter((_, i) => i !== rowIndex);
+      // clear entire invoiceItems error tree — array-level .refine() errors
+      // (e.g. "Each item can only be added once") live on 'invoiceItems', not indices
+      form.clearErrors('invoiceItems');
+      replace(kept as typeof fields);
       suppressWatchRef.current = false;
 
       requestAnimationFrame(() => recomputeDerivedState(true));
@@ -1293,6 +1297,17 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     formSchema,
   });
 
+  // shown when form.handleSubmit validation fails — prevents silent "nothing happens" on Save.
+  // schema's .superRefine sets per-row errors (highlighted in table) AND a root-level message with item names (shown here as toast).
+  const onValidationError = useCallback((errors: Record<string, unknown>) => {
+    const itemsMsg = get(errors, 'invoiceItems.message');
+    const rootMsg = get(errors, 'invoiceItems.root.message');
+    const msg = itemsMsg ?? rootMsg;
+    if (typeof msg === 'string' && msg.length > 0) {
+      toast({ variant: 'destructive', description: msg, duration: 8000 });
+    }
+  }, []);
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (
       isSplitTypedAccountResolutionSubmitBlocked({
@@ -1644,7 +1659,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         onUseCurrentDate={() => {
           form.setValue('date', toLocalNoonIsoString(new Date()));
           dateConfirmedInModalRef.current = true;
-          form.handleSubmit(onSubmit)();
+          form.handleSubmit(onSubmit, onValidationError)();
         }}
       />
 
@@ -1797,7 +1812,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         {!showAddInvoiceNumberGate && showInvoiceForm ? (
           <Form {...form}>
             <form
-              onSubmit={form.handleSubmit(onSubmit, () => undefined)}
+              onSubmit={form.handleSubmit(onSubmit, onValidationError)}
               onReset={() => {
                 form.reset(defaultFormValues);
                 setIsDateExplicitlySet(false);
@@ -2380,7 +2395,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       }
                       onClick={() => {
                         submitSaveKindRef.current = 'invoice';
-                        form.handleSubmit(onSubmit)();
+                        form.handleSubmit(onSubmit, onValidationError)();
                       }}
                     >
                       {primarySubmitLabel}
@@ -2399,7 +2414,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       className="min-h-[44px]"
                       onClick={() => {
                         submitSaveKindRef.current = 'quotation';
-                        form.handleSubmit(onSubmit)();
+                        form.handleSubmit(onSubmit, onValidationError)();
                       }}
                     >
                       Save as quotation
@@ -2415,7 +2430,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       onClick={() => {
                         submitSaveKindRef.current = 'invoice';
                         openPrintAfterSaveRef.current = true;
-                        form.handleSubmit(onSubmit)();
+                        form.handleSubmit(onSubmit, onValidationError)();
                       }}
                     >
                       <Printer size={16} className="mr-2" />

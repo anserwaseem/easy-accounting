@@ -110,16 +110,50 @@ export const buildNewInvoiceFormSchema = (
             }),
           )
           .min(1, 'Add at-least one invoice item')
-          // validate each item can only be added once
-          .refine(
-            (items) => {
-              const ids = items
-                .map((i) => i.inventoryId)
-                .filter((id) => id > 0);
-              return new Set(ids).size === ids.length;
-            },
-            { message: 'Each item can only be added once' },
-          )
+          // validate each item can only be added once — sets per-row errors
+          // so the duplicate rows are highlighted in the table, AND a root-level message for the validation toast with item names
+          .superRefine((items, ctx) => {
+            const seen = new Map<number, number[]>();
+            items.forEach((item, idx) => {
+              if (item.inventoryId <= 0) return;
+              const indices = seen.get(item.inventoryId) ?? [];
+              indices.push(idx);
+              seen.set(item.inventoryId, indices);
+            });
+            const dupes = [...seen.entries()].filter(
+              ([, indices]) => indices.length > 1,
+            );
+            if (dupes.length === 0) return;
+
+            const invById = new Map(
+              (inventory ?? []).map((inv) => [inv.id, inv]),
+            );
+            dupes.forEach(([inventoryId, indices]) => {
+              const name =
+                invById.get(inventoryId)?.name ?? `Item #${inventoryId}`;
+              indices.forEach((idx) => {
+                const otherRows = indices
+                  .filter((i) => i !== idx)
+                  .map((i) => i + 1)
+                  .join(', ');
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: `"${name}" already in row ${otherRows}`,
+                  path: [idx, 'inventoryId'],
+                });
+              });
+            });
+
+            const summaries = dupes.map(([id, indices]) => {
+              const name = invById.get(id)?.name ?? `#${id}`;
+              const rows = indices.map((i) => i + 1).join(', ');
+              return `${name} (rows ${rows})`;
+            });
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Duplicate items: ${summaries.join('; ')}`,
+            });
+          })
           // sale only: cannot invoice more than current stock; purchase has no on-hand cap
           .superRefine((items, ctx) => {
             if (invoiceType !== InvoiceType.Sale) return;

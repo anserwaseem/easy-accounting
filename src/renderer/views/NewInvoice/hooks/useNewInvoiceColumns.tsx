@@ -237,8 +237,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       {
         id: 'lineNumber',
         header: '#',
-        size: 44,
-        minSize: 44,
+        size: 30,
         cell: ({ row }) => (
           <span className="text-xs tabular-nums text-muted-foreground">
             {row.index + 1}
@@ -247,8 +246,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       },
       {
         header: 'Item',
-        size: 360,
-        minSize: 320,
+        size: 320,
+        minSize: 280,
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -311,8 +310,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       },
       {
         header: 'Quantity',
-        size: 200,
-        minSize: 158,
+        size: 180,
+        minSize: 132,
         cell: ({ row }) => (
           <InvoiceLineQuantityCell<T>
             form={form}
