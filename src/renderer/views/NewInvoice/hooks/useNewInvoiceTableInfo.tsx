@@ -22,7 +22,11 @@ interface UseNewInvoiceTableInfoParams<T extends FieldValues = FieldValues> {
   invoiceType: InvoiceType;
   watchedExtraDiscount: unknown;
   watchedTotalAmount: unknown;
-  extraDiscountAccountOptions: Array<{ id: number; name: string }>;
+  extraDiscountAccountOptions: Array<{
+    id: number;
+    name: string;
+    code?: string;
+  }>;
   discountAccountExists: boolean | null;
   enableCumulativeDiscount: boolean;
   setEnableCumulativeDiscount: (value: boolean) => void;
@@ -31,6 +35,7 @@ interface UseNewInvoiceTableInfoParams<T extends FieldValues = FieldValues> {
   onCumulativeDiscountChange: (value: string) => void;
   useSingleAccount: boolean;
   splitByItemType: boolean;
+  includeRowNumberColumn?: boolean;
 }
 
 /** returns table footer rows (extra discount, extra discount account, total; optionally cumulative discount) for the invoice DataTable infoData */
@@ -51,6 +56,7 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
     onCumulativeDiscountChange,
     useSingleAccount,
     splitByItemType,
+    includeRowNumberColumn = false,
   } = params;
 
   return useMemo(() => {
@@ -110,7 +116,11 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <VirtualSelect<{ id: number; name: string }>
+                      <VirtualSelect<{
+                        id: number;
+                        name: string;
+                        code?: string;
+                      }>
                         options={extraDiscountAccountOptions}
                         value={field.value ?? null}
                         onChange={(val) =>
@@ -119,6 +129,36 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
                         placeholder="Select account"
                         searchPlaceholder="Search accounts..."
                         disabled={extraDiscountAccountOptions.length === 0}
+                        renderTriggerValue={({ selected, placeholder }) =>
+                          selected ? (
+                            <span className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-2 text-sm">
+                              <span className="min-w-0 truncate">
+                                {selected.name}
+                              </span>
+                              {selected.code ? (
+                                <span className="shrink-0 text-xs font-mono text-muted-foreground">
+                                  {selected.code}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            <span className="px-3 text-muted-foreground">
+                              {placeholder}
+                            </span>
+                          )
+                        }
+                        renderSelectItem={(item) => (
+                          <div className="flex min-w-[220px] items-center justify-between gap-2">
+                            <span className="min-w-0 truncate text-sm">
+                              {item.name}
+                            </span>
+                            {item.code ? (
+                              <span className="shrink-0 text-xs font-mono text-muted-foreground">
+                                {item.code}
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
                       />
                     </FormControl>
                     {discountAccountExists === false && (
@@ -206,9 +246,11 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
       ]);
     }
 
-    return rows.map((row) =>
-      useSingleAccount && !splitByItemType ? row : [...row, null],
-    );
+    return rows.map((row) => {
+      const alignedRow =
+        useSingleAccount && !splitByItemType ? row : [...row, null];
+      return includeRowNumberColumn ? [null, ...alignedRow] : alignedRow;
+    });
   }, [
     control,
     invoiceType,
@@ -223,5 +265,6 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
     onCumulativeDiscountChange,
     useSingleAccount,
     splitByItemType,
+    includeRowNumberColumn,
   ]);
 }

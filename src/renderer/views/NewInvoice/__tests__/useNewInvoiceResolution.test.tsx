@@ -43,7 +43,7 @@ describe('useNewInvoiceResolution', () => {
     parties: PartyAccount[];
     inventory: InventoryItem[];
     primaryItemTypeId: number | undefined;
-    lookups: {
+    lookups?: {
       byNameAndCode?: (
         name: string,
         code?: string,
@@ -71,10 +71,10 @@ describe('useNewInvoiceResolution', () => {
     (window as any).electron = {
       getPrimaryItemType: jest.fn(async () => opts.primaryItemTypeId),
       getAccountByNameAndCode: jest.fn(
-        opts.lookups.byNameAndCode ?? (async () => undefined),
+        opts.lookups?.byNameAndCode ?? (async () => undefined),
       ),
       getAccountByNameAndChart: jest.fn(
-        opts.lookups.byNameAndChart ?? (async () => undefined),
+        opts.lookups?.byNameAndChart ?? (async () => undefined),
       ),
       getAccounts:
         opts.getAccounts ??
@@ -152,10 +152,26 @@ describe('useNewInvoiceResolution', () => {
       parties: [party],
       inventory,
       primaryItemTypeId: primaryTypeId,
-      lookups: {
-        byNameAndCode: async (_name, code) =>
-          code === 'AC-TT' ? { id: 999, name: 'Acme-TT' } : undefined,
-      },
+      getAccounts: async () => [
+        {
+          id: party.id,
+          name: party.name ?? '',
+          type: Number(party.type ?? 1),
+          code: String(party.code ?? ''),
+          chartId: party.chartId ?? 0,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+        {
+          id: 999,
+          name: 'Acme-TT',
+          type: 1,
+          code: 'AC-TT',
+          chartId: party.chartId ?? 0,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+      ],
       invoiceItems: [
         { id: 1, inventoryId: 100 }, // primary type => base party
         { id: 2, inventoryId: 200 }, // TT => suffixed
@@ -170,6 +186,12 @@ describe('useNewInvoiceResolution', () => {
     expect(hookResult.current.resolutionFallbacks).toEqual([]);
     expect(hookResult.current.resolvedRowLabels[0]).toBe('Acme');
     expect(hookResult.current.resolvedRowLabels[1]).toBe('Acme-TT');
+    expect(
+      (window as any).electron.getAccountByNameAndCode,
+    ).not.toHaveBeenCalled();
+    expect(
+      (window as any).electron.getAccountByNameAndChart,
+    ).not.toHaveBeenCalled();
   });
 
   it('resolves non-primary type using catalog name when inventory omits itemTypeName', async () => {
@@ -192,10 +214,26 @@ describe('useNewInvoiceResolution', () => {
         { id: 1, name: 'T' },
         { id: 2, name: 'X' },
       ],
-      lookups: {
-        byNameAndCode: async (_name, code) =>
-          code === 'AC-X' ? { id: 999, name: 'Acme-X' } : undefined,
-      },
+      getAccounts: async () => [
+        {
+          id: party.id,
+          name: party.name ?? '',
+          type: Number(party.type ?? 1),
+          code: String(party.code ?? ''),
+          chartId: party.chartId ?? 0,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+        {
+          id: 999,
+          name: 'Acme-X',
+          type: 1,
+          code: 'AC-X',
+          chartId: party.chartId ?? 0,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+      ],
       invoiceItems: [{ id: 1, inventoryId: 200 }],
     });
 
@@ -204,6 +242,9 @@ describe('useNewInvoiceResolution', () => {
     expect(form.getValues('accountMapping.multipleAccountIds')).toEqual([999]);
     expect(hookResult.current.resolutionFallbacks).toEqual([]);
     expect(hookResult.current.resolvedRowLabels[0]).toBe('Acme-X');
+    expect(
+      (window as any).electron.getAccountByNameAndCode,
+    ).not.toHaveBeenCalled();
   });
 
   it('falls back to chart+name lookup when name+code is not found', async () => {
@@ -217,11 +258,26 @@ describe('useNewInvoiceResolution', () => {
       parties: [party],
       inventory,
       primaryItemTypeId: 1,
-      lookups: {
-        byNameAndCode: async () => undefined,
-        byNameAndChart: async (_chartId, name) =>
-          name === 'Acme-TT' ? { id: 888, name: 'Acme-TT' } : undefined,
-      },
+      getAccounts: async () => [
+        {
+          id: party.id,
+          name: party.name ?? '',
+          type: Number(party.type ?? 1),
+          code: String(party.code ?? ''),
+          chartId: party.chartId ?? 0,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+        {
+          id: 888,
+          name: 'Acme-TT',
+          type: 1,
+          code: '',
+          chartId: party.chartId ?? 0,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+      ],
       invoiceItems: [{ id: 1, inventoryId: 200 }],
     });
 
@@ -230,6 +286,9 @@ describe('useNewInvoiceResolution', () => {
     expect(form.getValues('accountMapping.multipleAccountIds')).toEqual([888]);
     expect(hookResult.current.resolutionFallbacks).toEqual([]);
     expect(hookResult.current.resolvedRowLabels[0]).toBe('Acme-TT');
+    expect(
+      (window as any).electron.getAccountByNameAndChart,
+    ).not.toHaveBeenCalled();
   });
 
   it('when suffixed account is missing, falls back to base party and reports a fallback', async () => {

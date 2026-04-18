@@ -1,5 +1,5 @@
 import { pick, toNumber, toString, trim } from 'lodash';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { Account, InventoryItem } from 'types';
 import { InvoiceType } from 'types';
@@ -27,12 +27,12 @@ const PARTY_PICK = [
   'discountProfileIsActive',
 ] as const;
 
-export interface ResolutionFallback {
+interface ResolutionFallback {
   rowIndex: number;
   expectedSuffixedName: string;
 }
 
-export interface UseNewInvoiceResolutionParams {
+interface UseNewInvoiceResolutionParams {
   invoiceType: InvoiceType;
   useSingleAccount: boolean;
   splitByItemType: boolean;
@@ -41,7 +41,7 @@ export interface UseNewInvoiceResolutionParams {
   inventory: InventoryItem[] | undefined;
   resolutionTrigger: string;
   watchedSingleAccountId: unknown;
-  onResolved?: () => void;
+  onResolved?: (changedRowIndexes: number[]) => void;
 }
 
 interface LookupRowResult {
@@ -51,6 +51,14 @@ interface LookupRowResult {
   code: string;
   fallback?: { expectedSuffixedName: string };
 }
+
+interface ItemTypeOption {
+  id: number;
+  name?: string;
+}
+
+const normalizeLookupValue = (value: unknown): string =>
+  trim(toString(value ?? '')).toLowerCase();
 
 /** when split by item type is on, resolves each row to party or suffixed account and sets multipleAccountIds + resolvedRowLabels + resolvedRowCodes */
 export function useNewInvoiceResolution(
@@ -77,7 +85,16 @@ export function useNewInvoiceResolution(
   const [resolutionFallbacks, setResolutionFallbacks] = useState<
     ResolutionFallback[]
   >([]);
+  const previousResolvedAccountByRowIdRef = useRef<Record<number, number>>({});
+  const allAccountsRef = useRef<Account[] | null>(null);
+  const itemTypesRef = useRef<ItemTypeOption[] | null>(null);
+  const primaryItemTypeRef = useRef<number | undefined>(undefined);
+  const primaryItemTypeLoadedRef = useRef(false);
 
+  // Resolve each line-item row to a typed/suffixed customer account when split-by-item-type is on.
+  // Runs when resolutionTrigger changes (item added/removed/selected, split toggled, or header customer changes).
+  // Resolves entirely in-memory from the cached account list to avoid per-row IPC.
+  // Writes multipleAccountIds to form and fires onResolved for auto-discount.
   useEffect(() => {
     if (
       invoiceType !== InvoiceType.Sale ||
@@ -89,6 +106,7 @@ export function useNewInvoiceResolution(
       setResolutionFallbacks([]);
       setResolvedRowLabels([]);
       setResolvedRowCodes([]);
+      previousResolvedAccountByRowIdRef.current = {};
       return undefined;
     }
     const singleId = toNumber(form.getValues('accountMapping.singleAccountId'));
@@ -96,17 +114,27 @@ export function useNewInvoiceResolution(
       setResolutionFallbacks([]);
       setResolvedRowLabels([]);
       setResolvedRowCodes([]);
+      previousResolvedAccountByRowIdRef.current = {};
       return undefined;
     }
 
     let cancelled = false;
 
     const runResolution = async () => {
+      const accountsPromise = allAccountsRef.current
+        ? Promise.resolve(allAccountsRef.current)
+        : window.electron.getAccounts();
+      const itemTypesPromise = itemTypesRef.current
+        ? Promise.resolve(itemTypesRef.current)
+        : window.electron.getItemTypes?.() ?? Promise.resolve([]);
+
       const [allAccountsRaw, itemTypes] = await Promise.all([
-        window.electron.getAccounts(),
-        window.electron.getItemTypes?.() ?? Promise.resolve([]),
+        accountsPromise,
+        itemTypesPromise,
       ]);
       if (cancelled) return;
+      allAccountsRef.current = allAccountsRaw;
+      itemTypesRef.current = itemTypes;
 
       const picked = allAccountsRaw.map((account: Account) =>
         pick(account, [...PARTY_PICK]),
@@ -133,10 +161,17 @@ export function useNewInvoiceResolution(
         return;
       }
 
-      const primaryId = await window.electron.getPrimaryItemType?.();
+      let primaryId = primaryItemTypeRef.current;
+      if (!primaryItemTypeLoadedRef.current) {
+        primaryId = await window.electron.getPrimaryItemType?.();
+        if (cancelled) return;
+        primaryItemTypeRef.current = primaryId;
+        primaryItemTypeLoadedRef.current = true;
+      }
       if (cancelled) return;
 
       const rows = form.getValues('invoiceItems') as Array<{
+        id?: number;
         inventoryId?: number;
         [key: string]: unknown;
       }>;
@@ -162,10 +197,30 @@ export function useNewInvoiceResolution(
         headerSuffix,
       );
 
-      const resolveOne = async (
+      const accountByNameAndCode = new Map<string, Account>();
+      const accountByChartAndName = new Map<string, Account>();
+      allAccountsRaw.forEach((account: Account) => {
+        const normalizedName = normalizeLookupValue(account.name);
+        const normalizedCode = normalizeLookupValue(account.code);
+        if (normalizedName.length > 0 && normalizedCode.length > 0) {
+          accountByNameAndCode.set(
+            `${normalizedName}::${normalizedCode}`,
+            account,
+          );
+        }
+        const normalizedChartId = toNumber(account.chartId);
+        if (normalizedChartId > 0 && normalizedName.length > 0) {
+          accountByChartAndName.set(
+            `${normalizedChartId}::${normalizedName}`,
+            account,
+          );
+        }
+      });
+
+      const resolveOne = (
         plan: SplitRowResolutionKind,
         rowIndex: number,
-      ): Promise<LookupRowResult> => {
+      ): LookupRowResult => {
         if (plan.kind === 'header') {
           return {
             rowIndex,
@@ -198,17 +253,17 @@ export function useNewInvoiceResolution(
 
         const suffixedAccount =
           expectedCode.length > 0
-            ? await window.electron.getAccountByNameAndCode(
-                partyName,
-                expectedCode,
+            ? accountByNameAndCode.get(
+                `${normalizeLookupValue(partyName)}::${normalizeLookupValue(
+                  expectedCode,
+                )}`,
               )
             : undefined;
         const chartId = toNumber(party.chartId);
         const fallbackSuffixedAccount =
           suffixedAccount?.id == null && chartId > 0
-            ? await window.electron.getAccountByNameAndChart(
-                chartId,
-                plan.suffixedName,
+            ? accountByChartAndName.get(
+                `${chartId}::${normalizeLookupValue(plan.suffixedName)}`,
               )
             : undefined;
         const resolved = suffixedAccount ?? fallbackSuffixedAccount;
@@ -237,8 +292,8 @@ export function useNewInvoiceResolution(
         };
       };
 
-      const lookupResults = await Promise.all(
-        plans.map((plan, rowIndex) => resolveOne(plan, rowIndex)),
+      const lookupResults = plans.map((plan, rowIndex) =>
+        resolveOne(plan, rowIndex),
       );
 
       if (cancelled) return;
@@ -247,10 +302,23 @@ export function useNewInvoiceResolution(
       const labels: string[] = new Array(rows.length);
       const codes: string[] = new Array(rows.length);
       const fallbacks: ResolutionFallback[] = [];
+      const nextResolvedAccountByRowId: Record<number, number> = {};
+      const changedRowIndexes: number[] = [];
+      const previousResolvedAccountByRowId =
+        previousResolvedAccountByRowIdRef.current;
       lookupResults.forEach((r) => {
         accountIds[r.rowIndex] = r.accountId;
         labels[r.rowIndex] = r.label;
         codes[r.rowIndex] = r.code;
+        const rowId = toNumber(rows[r.rowIndex]?.id);
+        if (rowId > 0) {
+          nextResolvedAccountByRowId[rowId] = r.accountId;
+          if (previousResolvedAccountByRowId[rowId] !== r.accountId) {
+            changedRowIndexes.push(r.rowIndex);
+          }
+        } else if (previousResolvedAccountByRowId[r.rowIndex] !== r.accountId) {
+          changedRowIndexes.push(r.rowIndex);
+        }
         if (r.fallback) {
           fallbacks.push({ rowIndex: r.rowIndex, ...r.fallback });
         }
@@ -264,7 +332,10 @@ export function useNewInvoiceResolution(
       setResolutionFallbacks(fallbacks);
       setResolvedRowLabels(labels);
       setResolvedRowCodes(codes);
-      onResolved?.();
+      previousResolvedAccountByRowIdRef.current = nextResolvedAccountByRowId;
+      if (changedRowIndexes.length > 0) {
+        onResolved?.(changedRowIndexes);
+      }
     };
 
     runResolution();

@@ -1,19 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { toNumber } from 'lodash';
+import { useEffect, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { InvoiceType } from 'types';
 import type { CustomerSection } from '../components/CustomerSectionsBlock';
-
-interface InvoiceItemsWithId {
-  id: number;
-  [key: string]: unknown;
-}
 
 export interface UseNewInvoiceSectionsParams {
   invoiceType: InvoiceType;
   useSingleAccount: boolean;
   splitByItemType: boolean;
   form: UseFormReturn<Record<string, unknown>>;
-  watchedInvoiceItems: InvoiceItemsWithId[] | undefined;
+  lineItemIds: number[];
 }
 
 /** owns sections state and row-section mapping for multi-customer sale mode; syncs multipleAccountIds from section mapping */
@@ -27,23 +23,13 @@ export function useNewInvoiceSections(params: UseNewInvoiceSectionsParams): {
     React.SetStateAction<Record<number, string>>
   >;
 } {
-  const {
-    invoiceType,
-    useSingleAccount,
-    splitByItemType,
-    form,
-    watchedInvoiceItems,
-  } = params;
+  const { invoiceType, useSingleAccount, splitByItemType, form, lineItemIds } =
+    params;
 
   const [sections, setSections] = useState<CustomerSection[]>([]);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [rowSectionMap, setRowSectionMap] = useState<Record<number, string>>(
     {},
-  );
-
-  const items = useMemo(
-    () => (Array.isArray(watchedInvoiceItems) ? watchedInvoiceItems : []),
-    [watchedInvoiceItems],
   );
 
   // ensure multi-customer sale mode always starts with one section selected
@@ -66,16 +52,16 @@ export function useNewInvoiceSections(params: UseNewInvoiceSectionsParams): {
       let changed = false;
       const next: Record<number, string> = {};
 
-      items.forEach((item) => {
-        const assignedSectionId = prev[item.id];
+      lineItemIds.forEach((itemId) => {
+        const assignedSectionId = prev[itemId];
         const hasAssignedSection = sections.some(
           (section) => section.id === assignedSectionId,
         );
         const targetSectionId = hasAssignedSection
           ? assignedSectionId
           : fallbackSectionId;
-        next[item.id] = targetSectionId;
-        if (prev[item.id] !== targetSectionId) {
+        next[itemId] = targetSectionId;
+        if (prev[itemId] !== targetSectionId) {
           changed = true;
         }
       });
@@ -89,7 +75,7 @@ export function useNewInvoiceSections(params: UseNewInvoiceSectionsParams): {
 
       return changed ? next : prev;
     });
-  }, [activeSectionId, invoiceType, sections, useSingleAccount, items]);
+  }, [activeSectionId, invoiceType, lineItemIds, sections, useSingleAccount]);
 
   // derive multipleAccountIds from current row-to-section customer mapping (sections mode)
   useEffect(() => {
@@ -106,8 +92,12 @@ export function useNewInvoiceSections(params: UseNewInvoiceSectionsParams): {
       return;
     }
 
-    const multipleAccountIds = items.map((item) => {
-      const sectionId = rowSectionMap[item.id];
+    const currentItems = form.getValues('invoiceItems') as Array<{
+      id?: number;
+    }>;
+    const multipleAccountIds = currentItems.map((item, index) => {
+      const itemId = toNumber(item?.id ?? lineItemIds[index]);
+      const sectionId = rowSectionMap[itemId];
       const section = sections.find((entry) => entry.id === sectionId);
       return section?.accountId && section.accountId > 0
         ? section.accountId
@@ -128,7 +118,7 @@ export function useNewInvoiceSections(params: UseNewInvoiceSectionsParams): {
     sections,
     splitByItemType,
     useSingleAccount,
-    items,
+    lineItemIds,
   ]);
 
   return {

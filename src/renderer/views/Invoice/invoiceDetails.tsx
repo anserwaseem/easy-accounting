@@ -277,6 +277,15 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   const columns: ColumnDef<InvoiceItemView>[] = useMemo(() => {
     return [
       {
+        id: 'itemNumber',
+        header: '#',
+        size: 10,
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">{row.index + 1}</span>
+        ),
+      },
+      {
         accessorKey: 'inventoryItemName',
         header: 'Item',
       },

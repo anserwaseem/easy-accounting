@@ -55,10 +55,9 @@ describe('NewInvoice schema', () => {
     });
 
     expect(result.success).toBe(false);
+    // schema sets per-row errors ("X" already in row N) + root-level "Duplicate items: X"
     expect(
-      result.error?.issues.some((i) =>
-        i.message.includes('only be added once'),
-      ),
+      result.error?.issues.some((i) => i.message.includes('Duplicate items')),
     ).toBe(true);
   });
 

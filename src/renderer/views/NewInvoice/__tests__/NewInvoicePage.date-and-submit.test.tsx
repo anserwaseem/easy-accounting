@@ -167,8 +167,12 @@ jest.mock('../hooks/useNewInvoiceFormCore', () => ({
     const form = {
       control: {},
       formState: { isSubmitting: false, errors: {} },
-      getValues: jest.fn(() => ref),
+      getValues: jest.fn((path?: string) => {
+        if (!path) return ref;
+        return path.split('.').reduce((o: any, k: string) => o?.[k], ref);
+      }),
       setValue: jest.fn(),
+      watch: jest.fn(() => ({ unsubscribe: jest.fn() })),
       reset: jest.fn(),
       clearErrors: jest.fn(),
       handleSubmit: (onValid: (values: any) => void) => () => onValid(ref),
@@ -181,12 +185,9 @@ jest.mock('../hooks/useNewInvoiceFormCore', () => ({
       formSchema: {} as any,
       fields: ref.invoiceItems,
       append: jest.fn(),
-      watchedInvoiceItems: ref.invoiceItems,
       watchedExtraDiscount: 0,
-      watchedTotalAmount: ref.totalAmount,
       watchedSingleAccountId: ref.accountMapping?.singleAccountId,
       watchedMultipleAccountIds: [],
-      resolutionTrigger: 'x',
       discountAccountExists: true,
     };
   },
@@ -338,6 +339,17 @@ describe('NewInvoicePage date confirmation + submit', () => {
   it('totalAmount <= 0: Save button is disabled', async () => {
     submitValues.totalAmount = 0;
     submitValues.accountMapping.singleAccountId = 10;
+    // total is now computed from line items, not from the form field
+    submitValues.invoiceItems = [
+      {
+        id: 1,
+        inventoryId: 1,
+        quantity: 0,
+        discount: 0,
+        price: 10,
+        discountedPrice: 0,
+      },
+    ];
     render(<NewInvoiceSaleTestHarness />);
 
     await screen.findByRole('heading', { name: /New Sale Invoice/i });

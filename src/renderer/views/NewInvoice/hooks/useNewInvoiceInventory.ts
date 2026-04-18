@@ -1,6 +1,6 @@
 import { orderBy, pick, toNumber } from 'lodash';
 import type { Dispatch, SetStateAction } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { InventoryItem } from 'types';
 import { InvoiceType } from 'types';
 
@@ -87,15 +87,29 @@ export function useInvoiceInventoryLoader(
   lineInventoryIdsKey: string,
   setInventory: Dispatch<SetStateAction<InventoryItem[] | undefined>>,
 ): void {
+  const rawInventoryRef = useRef<InventoryItem[] | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     const lineInventoryIds = parseLineInventoryIdsKey(lineInventoryIdsKey);
-    (async () => {
-      const raw: InventoryItem[] = await window.electron.getInventory();
+
+    const applyMergedInventory = (raw: InventoryItem[]) => {
       if (cancelled) return;
       setInventory(
         mergeInventoryForInvoice(raw, invoiceType, lineInventoryIds),
       );
+    };
+
+    (async () => {
+      if (rawInventoryRef.current) {
+        applyMergedInventory(rawInventoryRef.current);
+        return;
+      }
+
+      const raw: InventoryItem[] = await window.electron.getInventory();
+      if (cancelled) return;
+      rawInventoryRef.current = raw;
+      applyMergedInventory(raw);
     })();
     return () => {
       cancelled = true;

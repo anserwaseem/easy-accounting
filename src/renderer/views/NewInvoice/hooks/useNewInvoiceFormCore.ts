@@ -28,7 +28,6 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     inventory,
     useSingleAccountRef,
     splitByItemTypeRef,
-    splitByItemType,
     saleStockValidationBonusRef,
     isQuotationFlowRef,
   } = params;
@@ -43,6 +42,9 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     [invoiceType],
   );
 
+  // rebuilds zod schema when invoice type or inventory changes; uses getter refs for
+  // runtime-only flags (single account, split-by-type, quotation) so schema doesn't
+  // recompute on every checkbox toggle — only on submit when the getter is called
   const formSchema = useMemo(
     () =>
       buildNewInvoiceFormSchema({
@@ -69,25 +71,9 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     mode: 'onSubmit',
   });
 
-  const watchedInvoiceItems = useWatch({
-    control: form.control,
-    name: 'invoiceItems',
-  });
-
-  const resolutionTrigger = useMemo(() => {
-    const items = Array.isArray(watchedInvoiceItems) ? watchedInvoiceItems : [];
-    return `${splitByItemType ? 1 : 0}-${items.length}-${items
-      .map((i) => i?.inventoryId ?? 0)
-      .join(',')}`;
-  }, [watchedInvoiceItems, splitByItemType]);
-
   const watchedExtraDiscount = useWatch({
     control: form.control,
     name: 'extraDiscount',
-  });
-  const watchedTotalAmount = useWatch({
-    control: form.control,
-    name: 'totalAmount',
   });
   const watchedSingleAccountId = useWatch({
     control: form.control,
@@ -119,9 +105,10 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
       .catch(() => setDiscountAccountExists(false));
   }, [watchedExtraDiscount]);
 
-  const { fields, append } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: 'invoiceItems',
+    keyName: 'fieldKey',
   });
 
   return {
@@ -130,12 +117,11 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     formSchema,
     fields,
     append,
-    watchedInvoiceItems,
+    remove,
+    replace,
     watchedExtraDiscount,
-    watchedTotalAmount,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
-    resolutionTrigger,
     discountAccountExists,
     setDiscountAccountExists,
   };
