@@ -573,6 +573,7 @@ const StockAsOfReportPage: React.FC = () => {
           columns={columns}
           data={filteredTableData}
           virtual
+          virtualHeightMode="fill"
           compact
           defaultSortField="listPosition"
           defaultSortDirection="asc"

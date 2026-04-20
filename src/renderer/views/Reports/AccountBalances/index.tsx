@@ -204,7 +204,7 @@ const AccountBalancesPage = () => {
         </h1>
       </div>
 
-      <Card className="p-6 shadow-md print-card">
+      <Card className="shadow-md print-card">
         <AccountBalancesTable
           accountBalances={accountBalances}
           isLoading={isLoading}

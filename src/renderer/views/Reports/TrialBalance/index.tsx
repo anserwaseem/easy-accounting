@@ -192,7 +192,7 @@ const TrialBalancePage = () => {
         </div>
       }
     >
-      <Card className="flex min-h-0 flex-1 flex-col p-6 shadow-md print-card print:flex-none">
+      <Card className="flex min-h-0 flex-1 flex-col shadow-md print-card print:flex-none">
         {!trialBalance.isBalanced && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md text-sm text-destructive print:hidden">
             Trial balance is not balanced! Difference:{' '}

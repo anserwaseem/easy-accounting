@@ -174,7 +174,7 @@ const AverageEquityBalancesPage = () => {
         </h1>
       </div>
 
-      <Card className="p-6 shadow-md print-card">
+      <Card className="shadow-md print-card">
         <AverageEquityBalancesTable
           items={sortedItems}
           totalAverage={state.totalAverage}
