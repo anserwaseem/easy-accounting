@@ -292,6 +292,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
           defaultSortField="date"
           defaultSortDirection="desc"
           virtual
+          virtualHeightMode={isMini ? 'content' : 'fill'}
           isMini={isMini}
           searchPlaceholder="Search journals…"
           searchFields={['id', 'narration', 'date', 'amount', 'billNumber']}

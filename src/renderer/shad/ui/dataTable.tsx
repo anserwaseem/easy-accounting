@@ -19,16 +19,16 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
-import { get, toString, debounce } from 'lodash';
+import { clamp, debounce, get, toString } from 'lodash';
 import { cn } from '@/renderer/lib/utils';
 import {
   forwardRef,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { TableVirtuoso, type TableVirtuosoHandle } from 'react-virtuoso';
 import { HelpCircle } from 'lucide-react';
@@ -60,6 +60,12 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   /** tighter row/header/cell padding for dense grids */
   compact?: boolean;
   /**
+   * controls how virtual table height is computed
+   * - content: shrink-to-rows (best for editors/forms; reduces wasted space)
+   * - fill: grow to available viewport space (best for reports/list screens)
+   */
+  virtualHeightMode?: 'content' | 'fill';
+  /**
    * one cell per visible column; widths match tanstack column sizes.
    * stays aligned with virtual + non-virtual tables; hidden when printing.
    */
@@ -77,6 +83,13 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
    */
   onViewModelChange?: (rows: TData[]) => void;
 }
+
+const subscribeWindowInnerHeight = (cb: () => void) => {
+  window.addEventListener('resize', cb);
+  return () => window.removeEventListener('resize', cb);
+};
+
+const getWindowInnerHeightSnapshot = () => window.innerHeight;
 
 const TableComponent = forwardRef<
   HTMLTableElement,
@@ -218,6 +231,7 @@ const DataTable = <TData, TValue>({
   infoData,
   virtual = false,
   compact = false,
+  virtualHeightMode = 'content',
   stickyFooterRow,
   virtualScrollToIndex = null,
   searchPlaceholder,
@@ -241,47 +255,14 @@ const DataTable = <TData, TValue>({
   });
   const [searchValue, setSearchValue] = useState('');
   const [searchInputValue, setSearchInputValue] = useState('');
-  const [height, setHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const isSearchHydratedRef = useRef(false);
 
-  // when virtual toggles on, seed height so virtuoso is usable before layout measure runs
-  useEffect(() => {
-    if (!virtual) return;
-    setHeight((h) => (h > 0 ? h : 480));
-  }, [virtual]);
-
-  // calculate height of the table based for virtual table
-  useEffect(() => {
-    const calculateHeight = () => {
-      if (!containerRef.current || !virtual) return;
-
-      const container = containerRef.current;
-      const rect = container.getBoundingClientRect();
-      const searchBarHeight =
-        container.querySelector('.search-container')?.getBoundingClientRect()
-          .height || 0;
-
-      // calculate available space from the container's top to the viewport bottom
-      // subtract search bar height and some padding to prevent scrollbar from appearing
-      const availableHeight =
-        window.innerHeight - rect.top - searchBarHeight - 50;
-
-      // ensure minimum height of 400px and maximum of available space
-      const newHeight = Math.max(
-        400,
-        Math.min(availableHeight, window.innerHeight - 100),
-      );
-
-      setHeight(newHeight);
-    };
-
-    calculateHeight();
-    // recalculate on window resize
-    window.addEventListener('resize', calculateHeight);
-
-    return () => window.removeEventListener('resize', calculateHeight);
-  }, [virtual]);
+  const windowInnerHeight = useSyncExternalStore(
+    subscribeWindowInnerHeight,
+    getWindowInnerHeightSnapshot,
+    () => 900,
+  );
 
   const filteredData = useMemo(() => {
     if (!searchValue || !searchFields?.length) {
@@ -305,7 +286,7 @@ const DataTable = <TData, TValue>({
       }, 300),
     [],
   );
-  useEffect(() => () => debounceSearch.cancel(), [debounceSearch]);
+  useLayoutEffect(() => () => debounceSearch.cancel(), [debounceSearch]);
 
   const handleSearchInputChange = (value: string) => {
     setSearchInputValue(value);
@@ -328,7 +309,7 @@ const DataTable = <TData, TValue>({
     isSearchHydratedRef.current = true;
   }, [searchPersistenceKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!searchPersistenceKey) return;
     if (!isSearchHydratedRef.current) return;
     window.electron.store.set(searchPersistenceKey, searchInputValue);
@@ -372,7 +353,7 @@ const DataTable = <TData, TValue>({
     );
   }, [filteredData, sorting, searchValue]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!virtual) return;
     if (virtualScrollToIndex == null || virtualScrollToIndex < 0) return;
     requestAnimationFrame(() => {
@@ -396,6 +377,47 @@ const DataTable = <TData, TValue>({
   const hasStickyFooter = Boolean(
     stickyFooterRow && stickyFooterRow.length > 0,
   );
+
+  const virtualTableHeight = useMemo(() => {
+    if (!virtual) return 0;
+
+    if (virtualHeightMode === 'fill') {
+      const container = containerRef.current;
+      const rectTop = container?.getBoundingClientRect().top ?? 0;
+      const searchBarHeight =
+        container?.querySelector('.search-container')?.getBoundingClientRect()
+          .height ?? 0;
+
+      // fill available space from table top to viewport bottom, minus search bar and padding.
+      const availablePx = windowInnerHeight - rectTop - searchBarHeight - 24;
+      const minPx = 240;
+      const maxPx = Math.max(320, windowInnerHeight - 120);
+      return clamp(availablePx, minPx, maxPx);
+    }
+
+    // compact grid: tighter row heights; estimate is only used to avoid large wasted space.
+    const headerRowPx = compact ? 28 : 32;
+    const bodyRowPx = compact ? 32 : 40;
+    const footerRowPx = hasStickyFooter ? bodyRowPx : 0;
+
+    // empty state needs breathing room for "No results" copy.
+    const emptyStatePx = rows.length ? 0 : 160;
+    const contentPx =
+      headerRowPx + footerRowPx + rows.length * bodyRowPx + emptyStatePx;
+
+    // keep table usable but avoid pushing totals/actions below fold on small invoices.
+    const minPx = 160;
+    const maxPx = Math.max(240, Math.floor(windowInnerHeight * 0.55));
+
+    return clamp(contentPx, minPx, maxPx);
+  }, [
+    compact,
+    hasStickyFooter,
+    rows.length,
+    virtual,
+    virtualHeightMode,
+    windowInnerHeight,
+  ]);
 
   const leafHeaders =
     table.getHeaderGroups()[0]?.headers.filter((h) => !h.isPlaceholder) ?? [];
@@ -529,7 +551,7 @@ const DataTable = <TData, TValue>({
                 <TableVirtuoso
                   ref={tableVirtuosoRef}
                   data={rows}
-                  style={{ height }}
+                  style={{ height: virtualTableHeight }}
                   computeItemKey={(_, row) => (row as Row<TData>).id}
                   components={{
                     Table: TableComponent,
@@ -561,7 +583,7 @@ const DataTable = <TData, TValue>({
           <TableVirtuoso
             ref={tableVirtuosoRef}
             data={rows}
-            style={{ height }}
+            style={{ height: virtualTableHeight }}
             computeItemKey={(_, row) => (row as Row<TData>).id}
             components={{
               Table: TableComponent,

@@ -244,6 +244,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           listPosition: listPositionSortingFn,
         }}
         virtual
+        virtualHeightMode="fill"
         compact
         defaultSortField="listPosition"
         searchPersistenceKey="datatable:inventory:search"

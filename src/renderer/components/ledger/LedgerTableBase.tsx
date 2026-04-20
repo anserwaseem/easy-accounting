@@ -131,6 +131,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         sortingFns={defaultSortingFunctions}
         enableSorting={false}
         compact
+        virtualHeightMode="fill"
         stickyFooterRow={stickyFooterRow}
       />
     </div>
