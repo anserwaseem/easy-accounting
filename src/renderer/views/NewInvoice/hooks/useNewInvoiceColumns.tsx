@@ -246,8 +246,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       },
       {
         header: 'Item',
-        size: 320,
-        minSize: 280,
+        size: 260,
+        minSize: 200,
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -310,7 +310,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       },
       {
         header: 'Quantity',
-        size: 180,
+        size: 140,
         minSize: 132,
         cell: ({ row }) => (
           <InvoiceLineQuantityCell<T>
@@ -367,9 +367,9 @@ export function useNewInvoiceColumns<T extends FieldValues>(
           ),
         },
         {
-          header: 'Discount',
-          size: isDiscountEditEnabled ? 150 : 75,
-          minSize: isDiscountEditEnabled ? 135 : 60,
+          header: 'Disc',
+          size: isDiscountEditEnabled ? 120 : 40,
+          minSize: isDiscountEditEnabled ? 102 : 36,
           cell: ({ row }) => (
             <FormField
               control={form.control}
@@ -429,6 +429,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
         },
         {
           header: 'Discounted Price',
+          size: 112,
+          minSize: 80,
           cell: ({ row }) => (
             <FormField
               control={form.control}
