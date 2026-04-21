@@ -1,10 +1,4 @@
-import {
-  Plus,
-  Calendar as CalendarIcon,
-  X,
-  RefreshCw,
-  Upload,
-} from 'lucide-react';
+import { Plus, X, RefreshCw, Upload, Equal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
@@ -17,11 +11,6 @@ import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
 import { get, toNumber, toString } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from 'renderer/shad/ui/popover';
 import { format } from 'date-fns';
 import {
   cn,
@@ -31,10 +20,9 @@ import {
   getFormattedCurrency,
   getFormattedCurrencyInt,
 } from 'renderer/lib/utils';
-import { Calendar } from 'renderer/shad/ui/calendar';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { useFieldArray, useForm } from 'react-hook-form';
 import {
   Form,
   FormControl,
@@ -45,14 +33,15 @@ import {
 } from 'renderer/shad/ui/form';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { FormDateSelector } from '@/renderer/components/FormDateSelector';
+import { handleFormEnterKeyDown } from '@/renderer/lib/formUtils';
 import {
   BalanceType,
   type Account,
   type Journal,
   type JournalEntry,
 } from 'types';
-import VirtualSelect from '@/renderer/components/VirtualSelect';
-import { useCmdOrCtrlNShortcut } from '@/renderer/hooks/useCmdOrCtrlNShortcut';
+import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
 import { FILE_UPLOAD_HINT_JOURNAL_ENTRIES } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from 'renderer/lib/lib';
@@ -67,6 +56,9 @@ import {
   DialogTitle,
 } from 'renderer/shad/ui/dialog';
 
+import { formSchema } from './schema';
+import { AccountCell, CreditCell, DebitCell } from './cells';
+
 const NewJournalPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[] | undefined>(undefined);
   const [nextId, setNextId] = useState<number>(-1);
@@ -79,13 +71,10 @@ const NewJournalPage: React.FC = () => {
   const [showDateConfirmation, setShowDateConfirmation] =
     useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [shouldShowFractions, setShouldShowFractions] =
+    useState<boolean>(false);
   const navigate = useNavigate();
-  const [entryInputValues, setEntryInputValues] = useState<
-    Record<string, string>
-  >({});
-  const entryInputValuesRef = useRef<Record<string, string>>({});
   const importInputRef = useRef<HTMLInputElement>(null);
-  const narrationInputRef = useRef<HTMLInputElement>(null);
 
   const getInitialEntry = useCallback(
     () => ({
@@ -109,32 +98,6 @@ const NewJournalPage: React.FC = () => {
 
   const [journal, setJournal] = useState<Journal>(defaultFormValues);
 
-  const formSchema = z.object({
-    id: z.number(),
-    date: z.string().datetime({ local: true, message: 'Select a valid date' }),
-    narration: z.string().optional(),
-    isPosted: z.boolean(),
-    billNumber: z.number().optional(),
-    discountPercentage: z.number().optional(),
-    journalEntries: z.array(
-      z
-        .object({
-          id: z.number(),
-          journalId: z.number(),
-          debitAmount: z.number(),
-          accountId: z.coerce.number().gt(0, 'Select an account'),
-          creditAmount: z.number(),
-        })
-        .refine(
-          (data) => !(data.debitAmount === 0 && data.creditAmount === 0),
-          {
-            message:
-              'Debit amount and credit amount cannot be zero at the same time',
-          },
-        ),
-    ),
-  });
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: defaultFormValues,
@@ -146,7 +109,42 @@ const NewJournalPage: React.FC = () => {
     name: 'journalEntries',
   });
 
-  // Fetch data for this page
+  // calculate totals via subscription
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      const entries = value.journalEntries || [];
+      let newTotalDebits = 0;
+      let newTotalCredits = 0;
+      let hasFraction = false;
+
+      for (const entry of entries) {
+        if (!entry) continue;
+        const d = toNumber(entry.debitAmount) || 0;
+        const c = toNumber(entry.creditAmount) || 0;
+        newTotalDebits += d;
+        newTotalCredits += c;
+        if (!Number.isInteger(d) || !Number.isInteger(c)) {
+          hasFraction = true;
+        }
+      }
+
+      newTotalDebits = getFixedNumber(newTotalDebits, 2);
+      newTotalCredits = getFixedNumber(newTotalCredits, 2);
+
+      setTotalDebits((prev) =>
+        prev !== newTotalDebits ? newTotalDebits : prev,
+      );
+      setTotalCredits((prev) =>
+        prev !== newTotalCredits ? newTotalCredits : prev,
+      );
+      setShouldShowFractions((prev) =>
+        prev !== hasFraction ? hasFraction : prev,
+      );
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+
+  // fetch data for this page
   useEffect(() => {
     (async () => {
       setNextId(await window.electron.getNextJournalId());
@@ -155,11 +153,18 @@ const NewJournalPage: React.FC = () => {
     })();
   }, []);
 
-  // focus narration once account list has loaded so the field is ready for typing
+  // focus the first account selector once account list has loaded so the user can start entry immediately
   useEffect(() => {
     if (accounts === undefined) return undefined;
     const id = requestAnimationFrame(() => {
-      narrationInputRef.current?.focus();
+      const cell = document.getElementById('account-cell-0');
+      const input = cell?.querySelector('input');
+      if (input) {
+        input.focus();
+      } else {
+        const button = cell?.querySelector('button');
+        button?.focus();
+      }
     });
     return () => cancelAnimationFrame(id);
   }, [accounts]);
@@ -185,7 +190,7 @@ const NewJournalPage: React.FC = () => {
     }
   }, []);
 
-  // Update the journal id when nextId is received
+  // update the journal id when nextId is received
   useEffect(
     () =>
       setJournal((prev) => {
@@ -200,7 +205,7 @@ const NewJournalPage: React.FC = () => {
     [nextId],
   );
 
-  // Calculate the total credits and debits
+  // calculate the difference credits and debits
   useEffect(() => {
     setDifferenceCredit(
       Math.max(getFixedNumber(totalDebits - totalCredits), 0),
@@ -208,86 +213,15 @@ const NewJournalPage: React.FC = () => {
     setDifferenceDebit(Math.max(getFixedNumber(totalCredits - totalDebits), 0));
   }, [totalCredits, totalDebits]);
 
-  const handleDebitBlur = useCallback(
-    (value: string, rowIndex: number) => {
-      const val = getFixedNumber(toNumber(value), 2);
-
-      const latestJournal = form.getValues();
-
-      setTotalDebits(
-        latestJournal.journalEntries
-          .map((entry) => entry.debitAmount)
-          .reduce((acc, curr) => getFixedNumber(acc + curr)),
-      );
-
-      if (
-        val > 0 &&
-        latestJournal.journalEntries[rowIndex]?.creditAmount !== 0
-      ) {
-        const newCreditsTotal =
-          latestJournal.journalEntries
-            .map((entry) => entry.creditAmount)
-            .reduce((acc, curr) => getFixedNumber(acc + curr)) -
-          latestJournal.journalEntries[rowIndex].creditAmount;
-        setTotalCredits(newCreditsTotal);
-
-        form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, 0);
-
-        form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, val);
-      }
-    },
-    [form],
-  );
-
-  const handleCreditBlur = useCallback(
-    (value: string, rowIndex: number) => {
-      const val = getFixedNumber(toNumber(value), 2);
-
-      const latestJournal = form.getValues();
-
-      setTotalCredits(
-        latestJournal.journalEntries
-          .map((entry) => entry.creditAmount)
-          .reduce((acc, curr) => getFixedNumber(acc + curr)),
-      );
-
-      if (
-        val > 0 &&
-        latestJournal.journalEntries[rowIndex]?.debitAmount !== 0
-      ) {
-        const newDebitsTotal =
-          latestJournal.journalEntries
-            .map((entry) => entry.debitAmount)
-            .reduce((acc, curr) => getFixedNumber(acc + curr)) -
-          latestJournal.journalEntries[rowIndex].debitAmount;
-        setTotalDebits(newDebitsTotal);
-
-        form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, 0);
-        form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, val);
-      }
-    },
-    [form],
-  );
-
-  // note: we only commit numeric values on blur to avoid focus loss during typing
-
   const handleRemoveRow = useCallback(
     (rowIndex: number) => {
       const latestJournal = form.getValues();
-      const removedRow = latestJournal.journalEntries[rowIndex];
-
       if (fields.length > 0) {
         form.setValue(
           'journalEntries',
           latestJournal.journalEntries.filter((_, index) => index !== rowIndex),
         );
         form.clearErrors(`journalEntries.${rowIndex}` as const);
-
-        setTotalCredits((prev) => prev - removedRow.creditAmount);
-        setTotalDebits((prev) => prev - removedRow.debitAmount);
-      } else {
-        setTotalCredits(0);
-        setTotalDebits(0);
       }
     },
     [fields.length, form],
@@ -363,33 +297,42 @@ const NewJournalPage: React.FC = () => {
     [intFormatter],
   );
 
-  const getCellKey = useCallback(
-    (rowId: number, type: 'debit' | 'credit') => `${rowId}-${type}`,
-    [],
-  );
+  const handleBalanceRow = useCallback(
+    (rowIndex: number) => {
+      const latestJournal = form.getValues();
+      let currentTotalDebits = 0;
+      let currentTotalCredits = 0;
 
-  const getDisplayAmountValue = useCallback(
-    (rowId: number, type: 'debit' | 'credit', numericValue: number) => {
-      const key = getCellKey(rowId, type);
-      const typed = entryInputValuesRef.current[key];
-      if (typed !== undefined) {
-        return typed === '' ? '' : formatStringWithGrouping(typed);
+      latestJournal.journalEntries.forEach((entry, i) => {
+        if (i === rowIndex) return;
+        currentTotalDebits += entry.debitAmount || 0;
+        currentTotalCredits += entry.creditAmount || 0;
+      });
+
+      currentTotalDebits = getFixedNumber(currentTotalDebits, 2);
+      currentTotalCredits = getFixedNumber(currentTotalCredits, 2);
+
+      if (currentTotalDebits > currentTotalCredits) {
+        const diff = getFixedNumber(
+          currentTotalDebits - currentTotalCredits,
+          2,
+        );
+        form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, 0);
+        form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, diff);
+      } else if (currentTotalCredits > currentTotalDebits) {
+        const diff = getFixedNumber(
+          currentTotalCredits - currentTotalDebits,
+          2,
+        );
+        form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, 0);
+        form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, diff);
+      } else {
+        form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, 0);
+        form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, 0);
       }
-      return numericValue === 0
-        ? getAmountDefaultLabel(numericValue)
-        : formatAmountForDisplay(numericValue);
     },
-    [
-      getCellKey,
-      formatStringWithGrouping,
-      getAmountDefaultLabel,
-      formatAmountForDisplay,
-    ],
+    [form],
   );
-
-  useEffect(() => {
-    entryInputValuesRef.current = entryInputValues;
-  }, [entryInputValues]);
 
   const columns: ColumnDef<JournalEntry>[] = useMemo(
     () => [
@@ -398,72 +341,20 @@ const NewJournalPage: React.FC = () => {
         size: 420,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`journalEntries.${row.index}.accountId` as const}
-            render={({ field }) => (
-              <FormItem className="w-full space-y-0">
-                <VirtualSelect
-                  options={accounts || []}
-                  value={field.value?.toString()}
-                  onChange={(val) => field.onChange(toString(val))}
-                  placeholder="Select account"
-                  searchPlaceholder="Search accounts..."
-                />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <AccountCell form={form} rowIndex={row.index} accounts={accounts} />
         ),
       },
       {
         header: 'Debit',
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`journalEntries.${row.index}.debitAmount` as const}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <Input
-                    {...field}
-                    value={getDisplayAmountValue(
-                      row.original.id,
-                      'debit',
-                      field.value,
-                    )}
-                    type="text"
-                    inputMode="decimal"
-                    onChange={(e) => {
-                      const key = getCellKey(row.original.id, 'debit');
-                      const sanitized = removeDefaultLabel(e.target.value);
-                      entryInputValuesRef.current[key] = sanitized;
-                      setEntryInputValues((prev) => ({
-                        ...prev,
-                        [key]: sanitized,
-                      }));
-                      form.setValue(
-                        `journalEntries.${row.index}.debitAmount` as const,
-                        toNumber(sanitized),
-                      );
-                    }}
-                    onBlur={(e) => {
-                      const key = getCellKey(row.original.id, 'debit');
-                      const sanitized = removeDefaultLabel(e.target.value);
-                      handleDebitBlur(sanitized, row.index);
-                      setEntryInputValues((prev) => {
-                        const next = { ...prev };
-                        delete next[key];
-                        return next;
-                      });
-                      delete entryInputValuesRef.current[key];
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+          <DebitCell
+            form={form}
+            rowIndex={row.index}
+            removeDefaultLabel={removeDefaultLabel}
+            getAmountDefaultLabel={getAmountDefaultLabel}
+            formatAmountForDisplay={formatAmountForDisplay}
+            formatStringWithGrouping={formatStringWithGrouping}
           />
         ),
       },
@@ -472,50 +363,13 @@ const NewJournalPage: React.FC = () => {
         size: 160,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <FormField
-            control={form.control}
-            name={`journalEntries.${row.index}.creditAmount` as const}
-            render={({ field }) => (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <Input
-                    {...field}
-                    value={getDisplayAmountValue(
-                      row.original.id,
-                      'credit',
-                      field.value,
-                    )}
-                    type="text"
-                    inputMode="decimal"
-                    onChange={(e) => {
-                      const key = getCellKey(row.original.id, 'credit');
-                      const sanitized = removeDefaultLabel(e.target.value);
-                      entryInputValuesRef.current[key] = sanitized;
-                      setEntryInputValues((prev) => ({
-                        ...prev,
-                        [key]: sanitized,
-                      }));
-                      form.setValue(
-                        `journalEntries.${row.index}.creditAmount` as const,
-                        toNumber(sanitized),
-                      );
-                    }}
-                    onBlur={(e) => {
-                      const key = getCellKey(row.original.id, 'credit');
-                      const sanitized = removeDefaultLabel(e.target.value);
-                      handleCreditBlur(sanitized, row.index);
-                      setEntryInputValues((prev) => {
-                        const next = { ...prev };
-                        delete next[key];
-                        return next;
-                      });
-                      delete entryInputValuesRef.current[key];
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+          <CreditCell
+            form={form}
+            rowIndex={row.index}
+            removeDefaultLabel={removeDefaultLabel}
+            getAmountDefaultLabel={getAmountDefaultLabel}
+            formatAmountForDisplay={formatAmountForDisplay}
+            formatStringWithGrouping={formatStringWithGrouping}
           />
         ),
       },
@@ -525,46 +379,60 @@ const NewJournalPage: React.FC = () => {
         size: 80,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <X
-            color="red"
-            size={16}
-            onClick={() => handleRemoveRow(row.index)}
-            cursor="pointer"
-          />
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              title="Fill balancing amount"
+              aria-label="Fill balancing amount"
+              onClick={() => handleBalanceRow(row.index)}
+              className="outline-none"
+            >
+              <Equal
+                size={16}
+                className="text-indigo-500 hover:text-indigo-600 cursor-pointer"
+              />
+            </button>
+            <button
+              type="button"
+              title="Remove row"
+              aria-label="Remove row"
+              onClick={() => handleRemoveRow(row.index)}
+              className="outline-none"
+            >
+              <X color="red" size={16} cursor="pointer" />
+            </button>
+          </div>
         ),
       },
     ],
     [
       accounts,
       form,
-      handleCreditBlur,
-      handleDebitBlur,
       handleRemoveRow,
+      handleBalanceRow,
       removeDefaultLabel,
-      getCellKey,
-      getDisplayAmountValue,
+      getAmountDefaultLabel,
+      formatAmountForDisplay,
+      formatStringWithGrouping,
     ],
   );
 
-  const journalEntriesForTotals = useWatch({
-    control: form.control,
-    name: 'journalEntries',
-  });
-  const shouldShowFractions = useMemo(
-    () =>
-      journalEntriesForTotals.some(
-        (e) =>
-          !Number.isInteger(e.debitAmount) || !Number.isInteger(e.creditAmount),
-      ),
-    [journalEntriesForTotals],
-  );
+  const handleAddNewRow = useCallback(() => {
+    const newIndex = form.getValues('journalEntries').length;
+    append({ ...getInitialEntry() });
+    setTimeout(() => {
+      const cell = document.getElementById(`account-cell-${newIndex}`);
+      const input = cell?.querySelector('input');
+      if (input) {
+        input.focus();
+      } else {
+        const button = cell?.querySelector('button');
+        button?.focus();
+      }
+    }, 50);
+  }, [append, getInitialEntry, form]);
 
-  const handleAddNewRow = useCallback(
-    () => append({ ...getInitialEntry() }),
-    [append, getInitialEntry],
-  );
-
-  useCmdOrCtrlNShortcut(handleAddNewRow);
+  useCmdOrCtrlShortcut('n', handleAddNewRow);
 
   const normalizeAccountCode = useCallback(
     (value: unknown) => toString(value).trim().toLowerCase(),
@@ -683,10 +551,6 @@ const NewJournalPage: React.FC = () => {
           ...prev,
           journalEntries: [...importedEntries, balancingEntry],
         }));
-        setEntryInputValues({});
-        entryInputValuesRef.current = {};
-        setTotalDebits(totalImportedAmount);
-        setTotalCredits(totalImportedAmount);
 
         const sideLabel =
           parsed.entrySide === BalanceType.Cr ? 'credit' : 'debit';
@@ -723,8 +587,6 @@ const NewJournalPage: React.FC = () => {
 
       if (!!isInserted) {
         form.reset(defaultFormValues);
-        setTotalCredits(0);
-        setTotalDebits(0);
         setNextId((prev) => prev + 1);
         setIsDateExplicitlySet(false);
 
@@ -770,15 +632,8 @@ const NewJournalPage: React.FC = () => {
       setShowDateConfirmation(true);
       return;
     }
-
     await submitJournal(values);
   };
-
-  const checkKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLFormElement> | undefined) =>
-      e?.key === 'Enter' && e.preventDefault(),
-    [],
-  );
 
   const isPublishDisabled = useMemo(
     () =>
@@ -787,6 +642,23 @@ const NewJournalPage: React.FC = () => {
       totalCredits === 0 ||
       totalDebits === 0,
     [form.formState.isSubmitting, totalCredits, totalDebits],
+  );
+
+  useCmdOrCtrlShortcut('s', () => {
+    if (!isPublishDisabled) {
+      form.handleSubmit(onSubmit)();
+    }
+  });
+
+  const memoizedDataTable = useMemo(
+    () => (
+      <DataTable
+        columns={columns}
+        data={fields}
+        sortingFns={defaultSortingFunctions}
+      />
+    ),
+    [columns, fields],
   );
 
   return (
@@ -857,162 +729,102 @@ const NewJournalPage: React.FC = () => {
               form.reset(defaultFormValues);
               setIsDateExplicitlySet(false);
             }}
-            onKeyDown={checkKeyDown}
+            onKeyDown={handleFormEnterKeyDown}
             role="presentation"
           >
-            <div>
+            <div className="grid grid-cols-[180px_1fr_120px_120px] gap-4 items-start">
               <FormField
                 control={form.control}
                 name="date"
                 render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
-                    <FormLabel className="text-base">Date</FormLabel>
+                  <FormDateSelector
+                    field={field}
+                    onDateSelection={(date) => {
+                      if (!date) return;
+                      form.setValue('date', toLocalNoonIsoString(date));
+                      setIsDateExplicitlySet(true);
+                    }}
+                    required={false}
+                    buttonClassName={cn(
+                      'w-full justify-start text-left font-normal',
+                      !field.value && 'text-muted-foreground',
+                    )}
+                  />
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="narration"
+                render={({ field }) => (
+                  <FormItem labelPosition="top" className="space-y-0">
+                    <FormLabel className="text-base font-medium">
+                      Narration
+                    </FormLabel>
                     <FormControl>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-[280px] justify-start text-left font-normal w-100',
-                              !field.value && 'text-muted-foreground',
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-12 w-4" />
-                            {field.value ? (
-                              format(new Date(field.value), 'PPP')
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            {...field}
-                            mode="single"
-                            selected={new Date(field.value)}
-                            onSelect={(date) => {
-                              if (!date) return;
-                              // date picker gives a day; store it as an ISO instant at local noon to avoid timezone shifts
-                              // (e.g., ISO midnight UTC can display as previous day in negative timezones).
-                              form.setValue('date', toLocalNoonIsoString(date));
-                              setIsDateExplicitlySet(true);
-                            }}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {/* <FormField
+              <FormField
                 control={form.control}
-                name="id"
+                name="discountPercentage"
                 render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
-                    <FormLabel className="text-base">Journal#</FormLabel>
+                  <FormItem labelPosition="top" className="space-y-0">
+                    <FormLabel className="text-base font-medium">
+                      Discount%
+                    </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
-                        disabled
-                        type={field.value === -1 ? 'text' : 'number'}
-                        value={field.value === -1 ? '' : field.value}
+                        type="number"
+                        step={0.1}
+                        min={0}
+                        max={100}
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const { value } = e.target;
+                          field.onChange(value ? parseFloat(value) : undefined);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
-              /> */}
+              />
 
-              <div className="gap-8 grid grid-cols-[50%_auto_auto] pr-4">
-                <FormField
-                  control={form.control}
-                  name="narration"
-                  render={({ field }) => (
-                    <FormItem labelPosition="start" className="space-y-0">
-                      <FormLabel className="text-base">Narration</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          ref={(node) => {
-                            // @ts-expect-error - we want to set the ref to the input element
-                            narrationInputRef.current = node;
-                            field.ref(node);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="billNumber"
-                  render={({ field }) => (
-                    <FormItem
-                      labelPosition="start"
-                      className="space-y-0 grid-cols-[auto_1fr] gap-x-3"
-                    >
-                      <FormLabel className="text-base">Bill#</FormLabel>
-                      <FormControl className="w-full">
-                        <Input
-                          {...field}
-                          type="number"
-                          value={field.value || ''}
-                          onChange={(e) => {
-                            const { value } = e.target;
-                            field.onChange(
-                              value ? parseInt(value, 10) : undefined,
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="discountPercentage"
-                  render={({ field }) => (
-                    <FormItem
-                      labelPosition="start"
-                      className="space-y-0 grid-cols-[auto_1fr] gap-x-3"
-                    >
-                      <FormLabel className="text-base">Discount%</FormLabel>
-                      <FormControl className="w-full">
-                        <Input
-                          {...field}
-                          type="number"
-                          step={0.1}
-                          min={0}
-                          max={100}
-                          value={field.value || ''}
-                          onChange={(e) => {
-                            const { value } = e.target;
-                            field.onChange(
-                              value ? parseFloat(value) : undefined,
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="billNumber"
+                render={({ field }) => (
+                  <FormItem labelPosition="top" className="space-y-0">
+                    <FormLabel className="text-base font-medium">
+                      Bill#
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const { value } = e.target;
+                          field.onChange(
+                            value ? parseInt(value, 10) : undefined,
+                          );
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            <div className="pt-4 pb-8 pr-4 flex flex-col gap-3">
-              <DataTable
-                columns={columns}
-                data={fields}
-                sortingFns={defaultSortingFunctions}
-              />
+            <div className="pt-4 pb-8 flex flex-col gap-3">
+              {memoizedDataTable}
               {form.formState.errors.journalEntries && (
                 <p className="text-sm font-medium text-destructive">
                   {get(
@@ -1023,7 +835,7 @@ const NewJournalPage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-between pr-4 gap-20 pb-20">
+            <div className="flex justify-between gap-20 pb-20">
               <div className="flex flex-col gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1112,13 +924,25 @@ const NewJournalPage: React.FC = () => {
 
             <div className="flex justify-between fixed bottom-6">
               <div className="flex gap-4">
-                <Button
-                  type="submit"
-                  variant="default"
-                  disabled={isPublishDisabled}
-                >
-                  Save and Publish
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="submit"
+                      variant="default"
+                      disabled={isPublishDisabled}
+                    >
+                      Save and Publish
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-sm">
+                      Save and Publish{' '}
+                      <span className="text-muted-foreground">
+                        ({getOsModifierLabel()}+S)
+                      </span>
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
                 {/* <Button type="button" variant={'secondary'} onClick={handleSaveDraft}>Save as Draft</Button> */}
                 <Button type="reset" variant="ghost">
                   Clear

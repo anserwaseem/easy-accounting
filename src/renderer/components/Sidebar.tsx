@@ -209,7 +209,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
         />
         <div className="flex flex-col flex-grow min-w-0 w-full mx-auto">
           <MainNav className="print:hidden flex-shrink-0" />
-          <div className="flex-grow overflow-y-auto p-4">
+          <div className="flex-grow overflow-y-auto p-4 pl-0">
             {children}
             <Outlet />
           </div>

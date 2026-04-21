@@ -19,32 +19,36 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 
-interface InvoiceDateFormFieldProps<
+interface FormDateSelectorProps<
   TFieldValues extends FieldValues,
   TName extends FieldPath<TFieldValues>,
 > {
   field: ControllerRenderProps<TFieldValues, TName>;
   onDateSelection: (date?: Date) => void;
+  label?: string;
+  required?: boolean;
   formItemClassName?: string;
   buttonClassName: string;
   calendarIconClassName?: string;
 }
 
 /** FormControl wraps the trigger button so field.ref targets a focusable control for setFocus('date') */
-export const InvoiceDateFormField = <
+export const FormDateSelector = <
   TFieldValues extends FieldValues,
   TName extends FieldPath<TFieldValues>,
 >({
   field,
   onDateSelection,
+  label = 'Date',
+  required = true,
   formItemClassName,
   buttonClassName,
   calendarIconClassName = 'mr-2 h-4 w-4 shrink-0',
-}: InvoiceDateFormFieldProps<TFieldValues, TName>) => (
+}: FormDateSelectorProps<TFieldValues, TName>) => (
   <FormItem labelPosition="top" className={formItemClassName}>
     <FormLabel className="text-base">
-      Date
-      <span className="text-destructive"> *</span>
+      {label}
+      {required && <span className="text-destructive"> *</span>}
     </FormLabel>
     <Popover>
       <PopoverTrigger asChild>

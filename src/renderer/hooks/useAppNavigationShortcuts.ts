@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useCmdOrCtrlShortcut } from './useCmdOrCtrlShortcut';
 
 /** ⌘/Ctrl+<number> shortcuts:
  * 1 new journal,
@@ -9,31 +9,7 @@ import { useNavigate } from 'react-router-dom';
 export const useAppNavigationShortcuts = (): void => {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!e.metaKey && !e.ctrlKey) {
-        return;
-      }
-      if (e.altKey || e.shiftKey) {
-        return;
-      }
-      if (e.key === '1') {
-        e.preventDefault();
-        navigate('/journals/new');
-        return;
-      }
-      if (e.key === '2') {
-        e.preventDefault();
-        navigate('/purchase/invoices/new');
-        return;
-      }
-      if (e.key === '3') {
-        e.preventDefault();
-        navigate('/sale/invoices/new');
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate]);
+  useCmdOrCtrlShortcut('1', () => navigate('/journals/new'));
+  useCmdOrCtrlShortcut('2', () => navigate('/purchase/invoices/new'));
+  useCmdOrCtrlShortcut('3', () => navigate('/sale/invoices/new'));
 };

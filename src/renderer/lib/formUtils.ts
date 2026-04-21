@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 
 /** block accidental form submit on Enter while keeping native behavior for real controls */
-export const handleInvoiceFormEnterKeyDown = (
+export const handleFormEnterKeyDown = (
   e: KeyboardEvent<HTMLFormElement> | undefined,
 ): void => {
   if (!e || e.key !== 'Enter') return;
