@@ -1,11 +1,4 @@
-import {
-  Plus,
-  Calendar as CalendarIcon,
-  X,
-  RefreshCw,
-  Upload,
-  Equal,
-} from 'lucide-react';
+import { Plus, X, RefreshCw, Upload, Equal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
 import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
@@ -18,11 +11,6 @@ import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
 import { get, toNumber, toString } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from 'renderer/shad/ui/popover';
 import { format } from 'date-fns';
 import {
   cn,
@@ -32,7 +20,6 @@ import {
   getFormattedCurrency,
   getFormattedCurrencyInt,
 } from 'renderer/lib/utils';
-import { Calendar } from 'renderer/shad/ui/calendar';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
@@ -46,6 +33,8 @@ import {
 } from 'renderer/shad/ui/form';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { FormDateSelector } from '@/renderer/components/FormDateSelector';
+import { handleFormEnterKeyDown } from '@/renderer/lib/formUtils';
 import {
   BalanceType,
   type Account,
@@ -643,15 +632,8 @@ const NewJournalPage: React.FC = () => {
       setShowDateConfirmation(true);
       return;
     }
-
     await submitJournal(values);
   };
-
-  const checkKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLFormElement> | undefined) =>
-      e?.key === 'Enter' && e.preventDefault(),
-    [],
-  );
 
   const isPublishDisabled = useMemo(
     () =>
@@ -747,7 +729,7 @@ const NewJournalPage: React.FC = () => {
               form.reset(defaultFormValues);
               setIsDateExplicitlySet(false);
             }}
-            onKeyDown={checkKeyDown}
+            onKeyDown={handleFormEnterKeyDown}
             role="presentation"
           >
             <div>
@@ -755,45 +737,19 @@ const NewJournalPage: React.FC = () => {
                 control={form.control}
                 name="date"
                 render={({ field }) => (
-                  <FormItem labelPosition="start" className="w-1/2 space-y-0">
-                    <FormLabel className="text-base">Date</FormLabel>
-                    <FormControl>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-[280px] justify-start text-left font-normal w-100',
-                              !field.value && 'text-muted-foreground',
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-12 w-4" />
-                            {field.value ? (
-                              format(new Date(field.value), 'PPP')
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            {...field}
-                            mode="single"
-                            selected={new Date(field.value)}
-                            onSelect={(date) => {
-                              if (!date) return;
-                              // date picker gives a day; store it as an ISO instant at local noon to avoid timezone shifts
-                              // (e.g., ISO midnight UTC can display as previous day in negative timezones).
-                              form.setValue('date', toLocalNoonIsoString(date));
-                              setIsDateExplicitlySet(true);
-                            }}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <FormDateSelector
+                    field={field}
+                    onDateSelection={(date) => {
+                      if (!date) return;
+                      form.setValue('date', toLocalNoonIsoString(date));
+                      setIsDateExplicitlySet(true);
+                    }}
+                    required={false}
+                    buttonClassName={cn(
+                      'w-[280px] justify-start text-left font-normal w-100',
+                      !field.value && 'text-muted-foreground',
+                    )}
+                  />
                 )}
               />
 

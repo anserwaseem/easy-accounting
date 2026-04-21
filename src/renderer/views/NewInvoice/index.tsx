@@ -79,11 +79,11 @@ import {
 } from '@/renderer/views/NewInvoice/lib/invoiceSplitOffTypeWarnings';
 import { buildCustomerVendorSelectOptions } from '@/renderer/views/NewInvoice/lib/invoicePartySelect';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
+import { FormDateSelector } from '@/renderer/components/FormDateSelector';
+import { handleFormEnterKeyDown } from '@/renderer/lib/formUtils';
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
 import { DateConfirmationDialog } from './components/DateConfirmationDialog';
-import { InvoiceDateFormField } from './components/InvoiceDateFormField';
-import { handleInvoiceFormEnterKeyDown } from './lib/invoiceFormEnter';
 import {
   scheduleDateFieldFocusAfterPartySelect,
   scheduleItemFieldFocusAfterNewRow,
@@ -1841,7 +1841,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 setRowSectionMap({});
                 setManualDiscountRows({});
               }}
-              onKeyDown={handleInvoiceFormEnterKeyDown}
+              onKeyDown={handleFormEnterKeyDown}
               role="presentation"
             >
               <div className="flex flex-col gap-6">
@@ -1888,7 +1888,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                             control={form.control}
                             name="date"
                             render={({ field }) => (
-                              <InvoiceDateFormField
+                              <FormDateSelector
                                 field={field}
                                 onDateSelection={onDateSelection}
                                 formItemClassName="min-w-0"
@@ -1998,7 +1998,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                             control={form.control}
                             name="date"
                             render={({ field }) => (
-                              <InvoiceDateFormField
+                              <FormDateSelector
                                 field={field}
                                 onDateSelection={onDateSelection}
                                 formItemClassName="min-w-0"
@@ -2045,7 +2045,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           control={form.control}
                           name="date"
                           render={({ field }) => (
-                            <InvoiceDateFormField
+                            <FormDateSelector
                               field={field}
                               onDateSelection={onDateSelection}
                               buttonClassName={cn(
