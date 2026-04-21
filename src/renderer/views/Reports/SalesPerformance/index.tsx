@@ -1045,6 +1045,7 @@ const SalesPerformanceReportPage: React.FC = () => {
             searchPlaceholder="Search customers..."
             searchPersistenceKey={`${REPORT_FILTER_KEYS.salesPerformance}.customersSearch`}
             virtual
+            virtualHeightMode="fill"
           />
         )}
 
@@ -1058,6 +1059,7 @@ const SalesPerformanceReportPage: React.FC = () => {
             searchPlaceholder="Search items..."
             searchPersistenceKey={`${REPORT_FILTER_KEYS.salesPerformance}.itemsSearch`}
             virtual
+            virtualHeightMode="fill"
           />
         )}
 
@@ -1074,6 +1076,7 @@ const SalesPerformanceReportPage: React.FC = () => {
               searchPlaceholder="Search returns..."
               searchPersistenceKey={`${REPORT_FILTER_KEYS.salesPerformance}.returnsSearch`}
               virtual
+              virtualHeightMode="fill"
             />
           )}
 
@@ -1090,6 +1093,7 @@ const SalesPerformanceReportPage: React.FC = () => {
               searchPlaceholder="Search quotations..."
               searchPersistenceKey={`${REPORT_FILTER_KEYS.salesPerformance}.quotationsSearch`}
               virtual
+              virtualHeightMode="fill"
             />
           )}
 

@@ -311,6 +311,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
         defaultSortField="invoiceNumber"
         defaultSortDirection="desc"
         virtual
+        virtualHeightMode="fill"
         searchPlaceholder={`Search ${invoiceType.toLowerCase()} quotations...`}
         searchFields={[
           'invoiceNumber',

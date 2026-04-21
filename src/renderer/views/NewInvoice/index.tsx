@@ -2097,8 +2097,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 </section>
               </div>
 
-              <div className="flex flex-col gap-4 mt-8">
-                <h2 className="text-sm font-medium text-muted-foreground w-max mb-1">
+              <div className="flex flex-col gap-2">
+                <h2 className="text-sm font-medium text-muted-foreground w-max">
                   Line items
                 </h2>
                 {invoiceType === InvoiceType.Sale &&
@@ -2170,7 +2170,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               {/* Invoice summary — always visible while scrolling line items */}
               {isSale && (
                 <section
-                  className="sticky bottom-0 z-10 mt-4 border-t bg-background/95 backdrop-blur-sm px-3 py-2 space-y-1.5"
+                  className="sticky -bottom-5 z-10 border-t bg-background/95 backdrop-blur-sm px-3 py-2 space-y-1.5"
                   aria-label="Invoice summary"
                 >
                   {isDiscountEditEnabled && (

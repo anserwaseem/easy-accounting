@@ -139,13 +139,13 @@ const JournalsPage: React.FC<HasMiniView> = ({
             },
             {
               accessorKey: 'discountPercentage',
-              header: 'Discount%',
+              header: 'Dis',
               cell: ({ row }) =>
                 row.original.discountPercentage
                   ? `${row.original.discountPercentage}%`
                   : '-',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 100,
+              size: 70,
             },
             {
               accessorKey: 'amount',
@@ -292,6 +292,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
           defaultSortField="date"
           defaultSortDirection="desc"
           virtual
+          virtualHeightMode={isMini ? 'content' : 'fill'}
           isMini={isMini}
           searchPlaceholder="Search journals…"
           searchFields={['id', 'narration', 'date', 'amount', 'billNumber']}

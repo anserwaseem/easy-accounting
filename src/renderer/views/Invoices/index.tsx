@@ -475,6 +475,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
             defaultSortField="invoiceNumber"
             defaultSortDirection="desc"
             virtual
+            virtualHeightMode={isMini ? 'content' : 'fill'}
             isMini={isMini}
             searchPlaceholder={`Search ${invoiceType.toLowerCase()} invoices...`}
             searchFields={[

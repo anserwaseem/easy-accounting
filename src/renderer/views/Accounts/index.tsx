@@ -573,6 +573,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           defaultSortField="id"
           sortingFns={defaultSortingFunctions}
           virtual
+          virtualHeightMode={isMini ? 'content' : 'fill'}
           isMini={isMini}
           searchPlaceholder="Search accounts..."
           searchFields={[
