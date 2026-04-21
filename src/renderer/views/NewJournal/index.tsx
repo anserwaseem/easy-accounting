@@ -86,7 +86,6 @@ const NewJournalPage: React.FC = () => {
     useState<boolean>(false);
   const navigate = useNavigate();
   const importInputRef = useRef<HTMLInputElement>(null);
-  const narrationInputRef = useRef<HTMLInputElement>(null);
 
   const getInitialEntry = useCallback(
     () => ({
@@ -165,11 +164,18 @@ const NewJournalPage: React.FC = () => {
     })();
   }, []);
 
-  // focus narration once account list has loaded so the field is ready for typing
+  // focus the first account selector once account list has loaded so the user can start entry immediately
   useEffect(() => {
     if (accounts === undefined) return undefined;
     const id = requestAnimationFrame(() => {
-      narrationInputRef.current?.focus();
+      const cell = document.getElementById('account-cell-0');
+      const input = cell?.querySelector('input');
+      if (input) {
+        input.focus();
+      } else {
+        const button = cell?.querySelector('button');
+        button?.focus();
+      }
     });
     return () => cancelAnimationFrame(id);
   }, [accounts]);
@@ -799,14 +805,7 @@ const NewJournalPage: React.FC = () => {
                     <FormItem labelPosition="start" className="space-y-0">
                       <FormLabel className="text-base">Narration</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          ref={(node) => {
-                            // @ts-expect-error - we want to set the ref to the input element
-                            narrationInputRef.current = node;
-                            field.ref(node);
-                          }}
-                        />
+                        <Input {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
