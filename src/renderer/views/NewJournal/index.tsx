@@ -732,7 +732,7 @@ const NewJournalPage: React.FC = () => {
             onKeyDown={handleFormEnterKeyDown}
             role="presentation"
           >
-            <div>
+            <div className="grid grid-cols-[180px_1fr_120px_120px] gap-4 items-start">
               <FormField
                 control={form.control}
                 name="date"
@@ -746,88 +746,84 @@ const NewJournalPage: React.FC = () => {
                     }}
                     required={false}
                     buttonClassName={cn(
-                      'w-[280px] justify-start text-left font-normal w-100',
+                      'w-full justify-start text-left font-normal',
                       !field.value && 'text-muted-foreground',
                     )}
                   />
                 )}
               />
 
-              <div className="gap-8 grid grid-cols-[50%_auto_auto] pr-4">
-                <FormField
-                  control={form.control}
-                  name="narration"
-                  render={({ field }) => (
-                    <FormItem labelPosition="start" className="space-y-0">
-                      <FormLabel className="text-base">Narration</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <FormField
+                control={form.control}
+                name="narration"
+                render={({ field }) => (
+                  <FormItem labelPosition="top" className="space-y-0">
+                    <FormLabel className="text-base font-medium">
+                      Narration
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="billNumber"
-                  render={({ field }) => (
-                    <FormItem
-                      labelPosition="start"
-                      className="space-y-0 grid-cols-[auto_1fr] gap-x-3"
-                    >
-                      <FormLabel className="text-base">Bill#</FormLabel>
-                      <FormControl className="w-full">
-                        <Input
-                          {...field}
-                          type="number"
-                          value={field.value || ''}
-                          onChange={(e) => {
-                            const { value } = e.target;
-                            field.onChange(
-                              value ? parseInt(value, 10) : undefined,
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <FormField
+                control={form.control}
+                name="discountPercentage"
+                render={({ field }) => (
+                  <FormItem labelPosition="top" className="space-y-0">
+                    <FormLabel className="text-base font-medium">
+                      Discount%
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        step={0.1}
+                        min={0}
+                        max={100}
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const { value } = e.target;
+                          field.onChange(value ? parseFloat(value) : undefined);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="discountPercentage"
-                  render={({ field }) => (
-                    <FormItem
-                      labelPosition="start"
-                      className="space-y-0 grid-cols-[auto_1fr] gap-x-3"
-                    >
-                      <FormLabel className="text-base">Discount%</FormLabel>
-                      <FormControl className="w-full">
-                        <Input
-                          {...field}
-                          type="number"
-                          step={0.1}
-                          min={0}
-                          max={100}
-                          value={field.value || ''}
-                          onChange={(e) => {
-                            const { value } = e.target;
-                            field.onChange(
-                              value ? parseFloat(value) : undefined,
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="billNumber"
+                render={({ field }) => (
+                  <FormItem labelPosition="top" className="space-y-0">
+                    <FormLabel className="text-base font-medium">
+                      Bill#
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const { value } = e.target;
+                          field.onChange(
+                            value ? parseInt(value, 10) : undefined,
+                          );
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            <div className="pt-4 pb-8 pr-4 flex flex-col gap-3">
+            <div className="pt-4 pb-8 flex flex-col gap-3">
               {memoizedDataTable}
               {form.formState.errors.journalEntries && (
                 <p className="text-sm font-medium text-destructive">
@@ -839,7 +835,7 @@ const NewJournalPage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-between pr-4 gap-20 pb-20">
+            <div className="flex justify-between gap-20 pb-20">
               <div className="flex flex-col gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
