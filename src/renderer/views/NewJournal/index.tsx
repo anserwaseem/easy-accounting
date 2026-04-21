@@ -4,6 +4,7 @@ import {
   X,
   RefreshCw,
   Upload,
+  Equal,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
@@ -301,6 +302,43 @@ const NewJournalPage: React.FC = () => {
     [intFormatter],
   );
 
+  const handleBalanceRow = useCallback(
+    (rowIndex: number) => {
+      const latestJournal = form.getValues();
+      let currentTotalDebits = 0;
+      let currentTotalCredits = 0;
+
+      latestJournal.journalEntries.forEach((entry, i) => {
+        if (i === rowIndex) return;
+        currentTotalDebits += entry.debitAmount || 0;
+        currentTotalCredits += entry.creditAmount || 0;
+      });
+
+      currentTotalDebits = getFixedNumber(currentTotalDebits, 2);
+      currentTotalCredits = getFixedNumber(currentTotalCredits, 2);
+
+      if (currentTotalDebits > currentTotalCredits) {
+        const diff = getFixedNumber(
+          currentTotalDebits - currentTotalCredits,
+          2,
+        );
+        form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, 0);
+        form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, diff);
+      } else if (currentTotalCredits > currentTotalDebits) {
+        const diff = getFixedNumber(
+          currentTotalCredits - currentTotalDebits,
+          2,
+        );
+        form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, 0);
+        form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, diff);
+      } else {
+        form.setValue(`journalEntries.${rowIndex}.creditAmount` as const, 0);
+        form.setValue(`journalEntries.${rowIndex}.debitAmount` as const, 0);
+      }
+    },
+    [form],
+  );
+
   const columns: ColumnDef<JournalEntry>[] = useMemo(
     () => [
       {
@@ -346,12 +384,29 @@ const NewJournalPage: React.FC = () => {
         size: 80,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <X
-            color="red"
-            size={16}
-            onClick={() => handleRemoveRow(row.index)}
-            cursor="pointer"
-          />
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              title="Fill balancing amount"
+              aria-label="Fill balancing amount"
+              onClick={() => handleBalanceRow(row.index)}
+              className="outline-none"
+            >
+              <Equal
+                size={16}
+                className="text-indigo-500 hover:text-indigo-600 cursor-pointer"
+              />
+            </button>
+            <button
+              type="button"
+              title="Remove row"
+              aria-label="Remove row"
+              onClick={() => handleRemoveRow(row.index)}
+              className="outline-none"
+            >
+              <X color="red" size={16} cursor="pointer" />
+            </button>
+          </div>
         ),
       },
     ],
@@ -359,6 +414,7 @@ const NewJournalPage: React.FC = () => {
       accounts,
       form,
       handleRemoveRow,
+      handleBalanceRow,
       removeDefaultLabel,
       getAmountDefaultLabel,
       formatAmountForDisplay,
@@ -917,13 +973,25 @@ const NewJournalPage: React.FC = () => {
 
             <div className="flex justify-between fixed bottom-6">
               <div className="flex gap-4">
-                <Button
-                  type="submit"
-                  variant="default"
-                  disabled={isPublishDisabled}
-                >
-                  Save and Publish
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="submit"
+                      variant="default"
+                      disabled={isPublishDisabled}
+                    >
+                      Save and Publish
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-sm">
+                      Save and Publish{' '}
+                      <span className="text-muted-foreground">
+                        ({getOsModifierLabel()}+S)
+                      </span>
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
                 {/* <Button type="button" variant={'secondary'} onClick={handleSaveDraft}>Save as Draft</Button> */}
                 <Button type="reset" variant="ghost">
                   Clear
