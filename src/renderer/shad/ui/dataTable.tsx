@@ -257,6 +257,10 @@ const DataTable = <TData, TValue>({
   const [searchInputValue, setSearchInputValue] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const isSearchHydratedRef = useRef(false);
+  const [fillMeasure, setFillMeasure] = useState<{
+    rectTop: number;
+    searchBarHeight: number;
+  } | null>(null);
 
   const windowInnerHeight = useSyncExternalStore(
     subscribeWindowInnerHeight,
@@ -378,18 +382,71 @@ const DataTable = <TData, TValue>({
     stickyFooterRow && stickyFooterRow.length > 0,
   );
 
+  const measureFill = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rectTop = container.getBoundingClientRect().top;
+    const searchBarHeight =
+      container.querySelector('.search-container')?.getBoundingClientRect()
+        .height ?? 0;
+
+    setFillMeasure((prev) => {
+      if (
+        prev &&
+        Math.abs(prev.rectTop - rectTop) < 0.5 &&
+        Math.abs(prev.searchBarHeight - searchBarHeight) < 0.5
+      ) {
+        return prev;
+      }
+      return { rectTop, searchBarHeight };
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!virtual) return;
+    if (virtualHeightMode !== 'fill') return;
+
+    // run once after mount/layout, then again on next frame to catch late layout shifts
+    measureFill();
+    const raf = requestAnimationFrame(measureFill);
+
+    // keep the measurement fresh as the table moves (scrolling) or resizes (layout shifts)
+    window.addEventListener('scroll', measureFill, true);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => measureFill());
+      const container = containerRef.current;
+      if (container) {
+        ro.observe(container);
+        const searchEl = container.querySelector('.search-container');
+        if (searchEl) ro.observe(searchEl);
+      }
+    }
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', measureFill, true);
+      ro?.disconnect();
+    };
+  }, [measureFill, virtual, virtualHeightMode, windowInnerHeight]);
+
   const virtualTableHeight = useMemo(() => {
     if (!virtual) return 0;
 
     if (virtualHeightMode === 'fill') {
-      const container = containerRef.current;
-      const rectTop = container?.getBoundingClientRect().top ?? 0;
-      const searchBarHeight =
-        container?.querySelector('.search-container')?.getBoundingClientRect()
-          .height ?? 0;
+      if (!fillMeasure) {
+        // avoid over-estimation before first layout measurement
+        return clamp(Math.floor(windowInnerHeight * 0.4), 240, 560);
+      }
 
       // fill available space from table top to viewport bottom, minus search bar and padding.
-      const availablePx = windowInnerHeight - rectTop - searchBarHeight - 24;
+      const availablePx =
+        windowInnerHeight -
+        fillMeasure.rectTop -
+        fillMeasure.searchBarHeight -
+        24;
       const minPx = 240;
       const maxPx = Math.max(320, windowInnerHeight - 120);
       return clamp(availablePx, minPx, maxPx);
@@ -412,6 +469,7 @@ const DataTable = <TData, TValue>({
     return clamp(contentPx, minPx, maxPx);
   }, [
     compact,
+    fillMeasure,
     hasStickyFooter,
     rows.length,
     virtual,
