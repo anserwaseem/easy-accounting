@@ -78,7 +78,7 @@ import {
   formatSplitOffMismatchToast,
 } from '@/renderer/views/NewInvoice/lib/invoiceSplitOffTypeWarnings';
 import { buildCustomerVendorSelectOptions } from '@/renderer/views/NewInvoice/lib/invoicePartySelect';
-import { useCmdOrCtrlNShortcut } from '@/renderer/hooks/useCmdOrCtrlNShortcut';
+import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { AddInvoiceNumber } from './components/addInvoiceNumber';
 import { CustomerSectionsBlock } from './components/CustomerSectionsBlock';
 import { DateConfirmationDialog } from './components/DateConfirmationDialog';
@@ -1028,7 +1028,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [form, handleAddNewRow],
   );
 
-  useCmdOrCtrlNShortcut(handleAddNewRow);
+  useCmdOrCtrlShortcut('n', handleAddNewRow);
 
   const columnsParams = useMemo(
     () => ({

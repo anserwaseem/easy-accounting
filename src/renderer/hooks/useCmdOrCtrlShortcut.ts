@@ -1,13 +1,17 @@
 import { useEffect } from 'react';
 
 /**
- * registers ⌘/Ctrl+N on window (fires even when an input is focused).
+ * registers ⌘/Ctrl + <key> on window (fires even when an input is focused).
  * ignores alt/shift combinations.
  */
-export const useCmdOrCtrlNShortcut = (onAction: () => void): void => {
+export const useCmdOrCtrlShortcut = (
+  key: string,
+  onAction: () => void,
+): void => {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'n' && e.key !== 'N') {
+      // support both lowercase and uppercase (e.g. 'n' or 'N')
+      if (e.key.toLowerCase() !== key.toLowerCase()) {
         return;
       }
       if (!e.metaKey && !e.ctrlKey) {
@@ -21,5 +25,5 @@ export const useCmdOrCtrlNShortcut = (onAction: () => void): void => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onAction]);
+  }, [key, onAction]);
 };

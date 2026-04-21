@@ -51,8 +51,7 @@ import {
   type Journal,
   type JournalEntry,
 } from 'types';
-import { useCmdOrCtrlNShortcut } from '@/renderer/hooks/useCmdOrCtrlNShortcut';
-import { useCmdOrCtrlSShortcut } from '@/renderer/hooks/useCmdOrCtrlSShortcut';
+import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
 import { FILE_UPLOAD_HINT_JOURNAL_ENTRIES } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from 'renderer/lib/lib';
@@ -382,7 +381,7 @@ const NewJournalPage: React.FC = () => {
     }, 50);
   }, [append, getInitialEntry, form]);
 
-  useCmdOrCtrlNShortcut(handleAddNewRow);
+  useCmdOrCtrlShortcut('n', handleAddNewRow);
 
   const normalizeAccountCode = useCallback(
     (value: unknown) => toString(value).trim().toLowerCase(),
@@ -601,7 +600,7 @@ const NewJournalPage: React.FC = () => {
     [form.formState.isSubmitting, totalCredits, totalDebits],
   );
 
-  useCmdOrCtrlSShortcut(() => {
+  useCmdOrCtrlShortcut('s', () => {
     if (!isPublishDisabled) {
       form.handleSubmit(onSubmit)();
     }
