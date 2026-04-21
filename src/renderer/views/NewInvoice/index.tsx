@@ -1362,6 +1362,26 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     navigate(`/${invoiceType.toLowerCase()}/invoices/${invoiceId}`);
   };
 
+  useCmdOrCtrlShortcut('s', () => {
+    const disabled =
+      isSubmitDisabled || (editInvoiceId == null && postedNextNumberBlocked);
+    if (!disabled) {
+      submitSaveKindRef.current = 'invoice';
+      form.handleSubmit(onSubmit, onValidationError)();
+    }
+  });
+
+  useCmdOrCtrlShortcut(
+    's',
+    () => {
+      if (editInvoiceId == null && !isSubmitDisabled) {
+        submitSaveKindRef.current = 'quotation';
+        form.handleSubmit(onSubmit, onValidationError)();
+      }
+    },
+    true,
+  );
+
   const uploadInvoiceItems = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
 
@@ -2340,7 +2360,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   </TooltipTrigger>
                   <TooltipContent side="right">
                     <p className="text-sm">
-                      Add new item{' '}
+                      Add new item&nbsp;
                       <span className="text-muted-foreground">
                         ({getOsModifierLabel()}+N or Enter in quantity)
                       </span>
@@ -2380,26 +2400,39 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               <div className="flex justify-between items-center gap-4 pt-6 mt-2 border-t border-border min-h-[44px]">
                 <div className="flex gap-3 flex-wrap">
                   <div>
-                    <Button
-                      type="button"
-                      variant="default"
-                      disabled={
-                        isSubmitDisabled ||
-                        (editInvoiceId == null && postedNextNumberBlocked)
-                      }
-                      className="min-h-[44px]"
-                      title={
-                        postedNextNumberBlocked && editInvoiceId == null
-                          ? 'Loading next invoice number…'
-                          : submitDisabledReason ?? ''
-                      }
-                      onClick={() => {
-                        submitSaveKindRef.current = 'invoice';
-                        form.handleSubmit(onSubmit, onValidationError)();
-                      }}
-                    >
-                      {primarySubmitLabel}
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="default"
+                          disabled={
+                            isSubmitDisabled ||
+                            (editInvoiceId == null && postedNextNumberBlocked)
+                          }
+                          className="min-h-[44px]"
+                          onClick={() => {
+                            submitSaveKindRef.current = 'invoice';
+                            form.handleSubmit(onSubmit, onValidationError)();
+                          }}
+                        >
+                          {primarySubmitLabel}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-sm">
+                          {postedNextNumberBlocked && editInvoiceId == null
+                            ? 'Loading next invoice number…'
+                            : submitDisabledReason ?? (
+                                <>
+                                  Save&nbsp;
+                                  <span className="text-muted-foreground">
+                                    ({getOsModifierLabel()}+S)
+                                  </span>
+                                </>
+                              )}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
                     {postedNextNumberBlocked && editInvoiceId == null ? (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Loading next invoice number for posted save…
@@ -2407,35 +2440,54 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     ) : null}
                   </div>
                   {editInvoiceId == null ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isSubmitDisabled}
-                      className="min-h-[44px]"
-                      onClick={() => {
-                        submitSaveKindRef.current = 'quotation';
-                        form.handleSubmit(onSubmit, onValidationError)();
-                      }}
-                    >
-                      Save as quotation
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={isSubmitDisabled}
+                          className="min-h-[44px]"
+                          onClick={() => {
+                            submitSaveKindRef.current = 'quotation';
+                            form.handleSubmit(onSubmit, onValidationError)();
+                          }}
+                        >
+                          Save as Quotation
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-sm">
+                          Save as Quotation&nbsp;
+                          <span className="text-muted-foreground">
+                            ({getOsModifierLabel()}+Shift+S)
+                          </span>
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
                   ) : null}
                   {editInvoiceId == null ||
                   (editInvoiceId != null && !isEditingQuotation) ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isSubmitDisabled || postedNextNumberBlocked}
-                      className="min-h-[44px]"
-                      onClick={() => {
-                        submitSaveKindRef.current = 'invoice';
-                        openPrintAfterSaveRef.current = true;
-                        form.handleSubmit(onSubmit, onValidationError)();
-                      }}
-                    >
-                      <Printer size={16} className="mr-2" />
-                      Save and Print
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={isSubmitDisabled || postedNextNumberBlocked}
+                          className="min-h-[44px]"
+                          onClick={() => {
+                            submitSaveKindRef.current = 'invoice';
+                            openPrintAfterSaveRef.current = true;
+                            form.handleSubmit(onSubmit, onValidationError)();
+                          }}
+                        >
+                          <Printer size={16} className="mr-2" />
+                          Save and Print
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-sm">Save and Print</p>
+                      </TooltipContent>
+                    </Tooltip>
                   ) : null}
                   <Button type="reset" variant="ghost" className="min-h-[44px]">
                     Clear

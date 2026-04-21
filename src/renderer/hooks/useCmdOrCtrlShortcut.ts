@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 export const useCmdOrCtrlShortcut = (
   key: string,
   onAction: () => void,
+  shiftKey = false,
 ): void => {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -17,7 +18,7 @@ export const useCmdOrCtrlShortcut = (
       if (!e.metaKey && !e.ctrlKey) {
         return;
       }
-      if (e.altKey || e.shiftKey) {
+      if (e.altKey || e.shiftKey !== shiftKey) {
         return;
       }
       e.preventDefault();
@@ -25,5 +26,5 @@ export const useCmdOrCtrlShortcut = (
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [key, onAction]);
+  }, [key, onAction, shiftKey]);
 };
