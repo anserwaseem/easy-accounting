@@ -1862,7 +1862,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                             control={form.control}
                             name="accountMapping.singleAccountId"
                             render={({ field }) => (
-                              <FormItem labelPosition="top" className="min-w-0">
+                              <FormItem
+                                labelPosition="top"
+                                className="min-w-0 ml-[1px]"
+                              >
                                 <FormLabel className="text-base">
                                   {isSale ? 'Customer' : 'Vendor'}
                                   <span className="text-destructive"> *</span>
@@ -1972,7 +1975,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                             control={form.control}
                             name="accountMapping.singleAccountId"
                             render={({ field }) => (
-                              <FormItem labelPosition="top" className="min-w-0">
+                              <FormItem
+                                labelPosition="top"
+                                className="min-w-0 ml-[1px]"
+                              >
                                 <FormLabel className="text-base">
                                   {isSale ? 'Customer' : 'Vendor'}
                                   <span className="text-destructive"> *</span>
