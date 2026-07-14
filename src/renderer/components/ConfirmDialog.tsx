@@ -1,4 +1,4 @@
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 
 import { Button } from 'renderer/shad/ui/button';
 import {
@@ -14,12 +14,14 @@ export interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
+  description: ReactNode;
   /** primary action (right / main CTA) */
   confirmLabel?: string;
   cancelLabel?: string;
   /** primary button style — use destructive for irreversible data loss */
   confirmVariant?: 'default' | 'destructive' | 'secondary' | 'outline';
+  /** optional DialogContent className (e.g. wider save review) */
+  contentClassName?: string;
   onConfirm: () => void;
 }
 
@@ -41,15 +43,23 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
   confirmLabel = 'Continue',
   cancelLabel = 'Cancel',
   confirmVariant = 'default',
+  contentClassName,
   onConfirm,
 }: ConfirmDialogProps) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent>
-      <DialogHeader>
+    <DialogContent className={contentClassName}>
+      <DialogHeader className="shrink-0">
         <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
+        {typeof description === 'string' ? (
+          <DialogDescription>{description}</DialogDescription>
+        ) : null}
       </DialogHeader>
-      <DialogFooter className="gap-2 sm:gap-0">
+      {typeof description === 'string' ? null : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden text-sm text-muted-foreground">
+          {description}
+        </div>
+      )}
+      <DialogFooter className="shrink-0 gap-2 sm:gap-0">
         <Button
           type="button"
           variant="outline"

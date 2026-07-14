@@ -4,6 +4,8 @@ import type {
   ApiResponse,
   ApplyListPositionsResult,
   ApplyStockAdjustmentPayload,
+  BulkPriceListPositionPatch,
+  BulkPriceListPositionResult,
   InsertInventoryItem,
   InventoryItem,
   InventoryOpeningStock,
@@ -83,6 +85,8 @@ export class InventoryService {
   private stmGetInventoryIdsByTrimName!: Statement;
 
   private stmUpdateInventoryListPositionById!: Statement;
+
+  private stmUpdatePriceAndListPositionById!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -262,6 +266,46 @@ export class InventoryService {
   getInventoryIdsWithHistory(): number[] {
     const rows = <{ id: number }[]>this.stmGetInventoryIdsWithHistory.all();
     return rows.map((r) => r.id);
+  }
+
+  /**
+   * updates price + listPosition for known inventory ids in one transaction.
+   * only dirty patches should be sent from the renderer.
+   */
+  bulkUpdatePricesAndListPositions(
+    patches: BulkPriceListPositionPatch[],
+  ): BulkPriceListPositionResult {
+    if (patches.length === 0) {
+      return { updated: 0 };
+    }
+
+    let updated = 0;
+    this.db.transaction(() => {
+      for (const patch of patches) {
+        if (!Number.isFinite(patch.id) || patch.id <= 0) {
+          raise(`Invalid inventory id: ${patch.id}`);
+        }
+        if (!Number.isFinite(patch.price) || patch.price < 0) {
+          raise(`Invalid price for inventory id ${patch.id}`);
+        }
+        if (
+          patch.listPosition != null &&
+          (!Number.isFinite(patch.listPosition) ||
+            !Number.isInteger(patch.listPosition) ||
+            patch.listPosition < 0)
+        ) {
+          raise(`Invalid list # for inventory id ${patch.id}`);
+        }
+        const result = this.stmUpdatePriceAndListPositionById.run({
+          id: cast(patch.id),
+          price: patch.price,
+          listPosition: patch.listPosition,
+        });
+        updated += result.changes;
+      }
+    })();
+
+    return { updated };
   }
 
   /**
@@ -793,6 +837,12 @@ export class InventoryService {
 
     this.stmUpdateInventoryListPositionById = this.db.prepare(`
       UPDATE inventory SET listPosition = ? WHERE id = ?
+    `);
+
+    this.stmUpdatePriceAndListPositionById = this.db.prepare(`
+      UPDATE inventory
+      SET price = @price, listPosition = @listPosition
+      WHERE id = @id
     `);
 
     // Sale quantity aggregate WITH lastDate (for inventory health)

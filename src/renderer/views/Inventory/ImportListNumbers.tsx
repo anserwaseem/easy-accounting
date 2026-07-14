@@ -89,12 +89,13 @@ export const ImportListNumbers: React.FC<ImportListNumbersProps> = ({
           variant="outline"
           size="sm"
           type="button"
+          title="Import list numbers from Excel"
           onClick={() =>
             document.getElementById('importListNumbersInput')?.click()
           }
         >
           <ListOrdered size={16} className="mr-1.5" />
-          Import list #
+          List #
         </Button>
       </FileUploadTooltip>
       <Input

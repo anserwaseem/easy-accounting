@@ -483,3 +483,81 @@ describe('InventoryService.applyListPositions', () => {
     db.close();
   });
 });
+
+describe('InventoryService.bulkUpdatePricesAndListPositions', () => {
+  it('updates only provided ids in one transaction', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const idA = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, ?, ?, 0, ?)',
+      )
+      .run('A', 10, t1, 1).lastInsertRowid as number;
+    const idB = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, ?, ?, 0, ?)',
+      )
+      .run('B', 20, t1, 2).lastInsertRowid as number;
+
+    const service = createTestDb(db);
+    const res = service.bulkUpdatePricesAndListPositions([
+      { id: idA, price: 15, listPosition: 9 },
+      { id: idB, price: 20, listPosition: null },
+    ]);
+    expect(res.updated).toBe(2);
+
+    const rows = service.getInventory();
+    const a = rows.find((r) => r.id === idA);
+    const b = rows.find((r) => r.id === idB);
+    expect(a?.price).toBe(15);
+    expect(a?.listPosition).toBe(9);
+    expect(b?.price).toBe(20);
+    expect(b?.listPosition).toBeNull();
+    db.close();
+  });
+
+  it('rejects invalid price', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const idA = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, ?, ?, 0, ?)',
+      )
+      .run('A', 10, t1, 1).lastInsertRowid as number;
+
+    const service = createTestDb(db);
+    expect(() =>
+      service.bulkUpdatePricesAndListPositions([
+        { id: idA, price: -1, listPosition: 1 },
+      ]),
+    ).toThrow(/Invalid price/);
+    db.close();
+  });
+
+  it('rejects negative list #', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const t1 = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    const idA = db
+      .prepare(
+        'INSERT INTO inventory (name, description, price, itemTypeId, quantity, listPosition) VALUES (?, NULL, ?, ?, 0, ?)',
+      )
+      .run('A', 10, t1, 1).lastInsertRowid as number;
+
+    const service = createTestDb(db);
+    expect(() =>
+      service.bulkUpdatePricesAndListPositions([
+        { id: idA, price: 10, listPosition: -1 },
+      ]),
+    ).toThrow(/Invalid list #/);
+    db.close();
+  });
+});

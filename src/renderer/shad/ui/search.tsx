@@ -8,6 +8,7 @@ interface SearchProps {
   onChange?: (value: string) => void;
   className?: string;
   autoFocus?: boolean;
+  disabled?: boolean;
 }
 
 export const Search = ({
@@ -16,6 +17,7 @@ export const Search = ({
   onChange,
   className,
   autoFocus = false,
+  disabled = false,
 }: SearchProps) => (
   <div className="relative min-w-0">
     <SearchIcon
@@ -33,6 +35,7 @@ export const Search = ({
       autoComplete="off"
       autoFocus={autoFocus}
       spellCheck={false}
+      disabled={disabled}
       className={`h-10 pl-9 pr-3 text-sm ${className}`}
     />
   </div>

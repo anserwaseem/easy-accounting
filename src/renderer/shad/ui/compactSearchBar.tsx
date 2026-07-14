@@ -12,6 +12,7 @@ interface CompactSearchBarProps {
   className?: string;
   inputClassName?: string;
   autoFocus?: boolean;
+  disabled?: boolean;
 }
 
 export const CompactSearchBar: React.FC<CompactSearchBarProps> = ({
@@ -24,6 +25,7 @@ export const CompactSearchBar: React.FC<CompactSearchBarProps> = ({
   className,
   inputClassName,
   autoFocus = false,
+  disabled = false,
 }: CompactSearchBarProps) => {
   const hasSearchTerm = Boolean(trim(value));
   const countLabel = hasSearchTerm
@@ -51,6 +53,7 @@ export const CompactSearchBar: React.FC<CompactSearchBarProps> = ({
           autoComplete="off"
           autoFocus={autoFocus}
           spellCheck={false}
+          disabled={disabled}
           className={`h-8 border-0 bg-transparent pl-7 pr-1 text-sm shadow-none focus-visible:ring-0 ${
             inputClassName || ''
           }`}

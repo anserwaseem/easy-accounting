@@ -1,7 +1,7 @@
+import { useCallback, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
-import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
 import { ManageItemTypes } from './ManageItemTypes';
@@ -18,20 +18,39 @@ const InventoryPage: React.FC = () => {
   const [hideZeroPrice, setHideZeroPrice] = useState(true);
   const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
   const [hideNoType, setHideNoType] = useState(true);
+  const [bulkEditActive, setBulkEditActive] = useState(false);
+  const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null);
 
   const refetchInventory = () => setRefresh(!refresh);
+
+  const handleBulkEditActiveChange = useCallback((active: boolean) => {
+    setBulkEditActive(active);
+  }, []);
+
+  const toolbarHostRef = useCallback((node: HTMLDivElement | null) => {
+    setToolbarHost(node);
+  }, []);
 
   return (
     <div className="space-y-4">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="title-new">Inventory</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <ImportListNumbers refetchInventory={refetchInventory} />
-          <ManageItemTypes
-            onUpdated={refetchInventory}
-            initialOpen={openManageItemTypesFromNav}
+          {/* bulk-edit toolbar portals here — state stays in InventoryTable */}
+          <div
+            ref={toolbarHostRef}
+            className="flex flex-wrap items-center gap-2"
           />
-          <AddInventoryItem refetchInventory={refetchInventory} />
+          {!bulkEditActive ? (
+            <>
+              <ImportListNumbers refetchInventory={refetchInventory} />
+              <ManageItemTypes
+                onUpdated={refetchInventory}
+                initialOpen={openManageItemTypesFromNav}
+              />
+              <AddInventoryItem refetchInventory={refetchInventory} />
+            </>
+          ) : null}
         </div>
       </header>
 
@@ -41,10 +60,13 @@ const InventoryPage: React.FC = () => {
         </span>
         <Label
           htmlFor="filter-hide-all"
-          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          className={`flex items-center gap-2 text-sm font-normal ${
+            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+          }`}
         >
           <Checkbox
             id="filter-hide-all"
+            disabled={bulkEditActive}
             checked={
               hideNegativeQuantity &&
               hideZeroQuantity &&
@@ -52,6 +74,7 @@ const InventoryPage: React.FC = () => {
               hideNoType
             }
             onCheckedChange={(checked) => {
+              if (bulkEditActive) return;
               const value = checked === true;
               setHideNegativeQuantity(value);
               setHideZeroQuantity(value);
@@ -63,54 +86,83 @@ const InventoryPage: React.FC = () => {
         </Label>
         <Label
           htmlFor="filter-hide-negative-qty"
-          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          className={`flex items-center gap-2 text-sm font-normal ${
+            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+          }`}
         >
           <Checkbox
             id="filter-hide-negative-qty"
+            disabled={bulkEditActive}
             checked={hideNegativeQuantity}
-            onCheckedChange={(checked) =>
-              setHideNegativeQuantity(checked === true)
-            }
+            onCheckedChange={(checked) => {
+              if (bulkEditActive) return;
+              setHideNegativeQuantity(checked === true);
+            }}
           />
           <span>Negative quantity</span>
         </Label>
         <Label
           htmlFor="filter-hide-zero-qty"
-          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          className={`flex items-center gap-2 text-sm font-normal ${
+            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+          }`}
         >
           <Checkbox
             id="filter-hide-zero-qty"
+            disabled={bulkEditActive}
             checked={hideZeroQuantity}
-            onCheckedChange={(checked) => setHideZeroQuantity(checked === true)}
+            onCheckedChange={(checked) => {
+              if (bulkEditActive) return;
+              setHideZeroQuantity(checked === true);
+            }}
           />
           <span>Zero quantity</span>
         </Label>
         <Label
           htmlFor="filter-hide-zero-price"
-          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          className={`flex items-center gap-2 text-sm font-normal ${
+            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+          }`}
         >
           <Checkbox
             id="filter-hide-zero-price"
+            disabled={bulkEditActive}
             checked={hideZeroPrice}
-            onCheckedChange={(checked) => setHideZeroPrice(checked === true)}
+            onCheckedChange={(checked) => {
+              if (bulkEditActive) return;
+              setHideZeroPrice(checked === true);
+            }}
           />
           <span>Zero price</span>
         </Label>
         <Label
           htmlFor="filter-hide-no-type"
-          className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+          className={`flex items-center gap-2 text-sm font-normal ${
+            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+          }`}
         >
           <Checkbox
             id="filter-hide-no-type"
+            disabled={bulkEditActive}
             checked={hideNoType}
-            onCheckedChange={(checked) => setHideNoType(checked === true)}
+            onCheckedChange={(checked) => {
+              if (bulkEditActive) return;
+              setHideNoType(checked === true);
+            }}
           />
           <span>No type</span>
         </Label>
+        {bulkEditActive ? (
+          <span className="text-xs text-muted-foreground">
+            Filters locked while editing prices
+          </span>
+        ) : null}
       </div>
 
       <InventoryTable
         refetchInventory={refetchInventory}
+        toolbarHost={toolbarHost}
+        onBulkEditActiveChange={handleBulkEditActiveChange}
         options={{
           refresh,
           hideZeroQuantity,
