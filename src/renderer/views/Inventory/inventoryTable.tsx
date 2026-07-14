@@ -29,6 +29,8 @@ import {
 } from '@/renderer/shad/ui/select';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
+import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
+import { useEscapeKey } from '@/renderer/hooks/useEscapeKey';
 import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
@@ -424,6 +426,19 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     setSaveSummary(summary);
     setShowSaveConfirm(true);
   }, [buildPatches, exitEditMode, flushDirtyCount]);
+
+  const handleShortcutSave = useCallback(() => {
+    if (!editMode || saving || showSaveConfirm || showDiscardConfirm) return;
+    handleSave();
+  }, [editMode, handleSave, saving, showDiscardConfirm, showSaveConfirm]);
+
+  const handleShortcutDiscard = useCallback(() => {
+    if (!editMode || saving || showSaveConfirm || showDiscardConfirm) return;
+    handleDiscard();
+  }, [editMode, handleDiscard, saving, showDiscardConfirm, showSaveConfirm]);
+
+  useCmdOrCtrlShortcut('s', handleShortcutSave);
+  useEscapeKey(handleShortcutDiscard, editMode);
 
   const columns: ColumnDef<InventoryItem>[] = useMemo(() => {
     return [

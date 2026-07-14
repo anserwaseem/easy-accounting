@@ -33,7 +33,7 @@ export const getDraftDisplayValue = (
     : formatListPositionDisplay(row.listPosition);
 };
 
-/** empty list # → null; otherwise must be finite integer */
+/** empty list # → null; otherwise non-negative whole number (matches inventorySchemas) */
 export const parseListPositionInput = (
   raw: string,
 ): { ok: true; value: number | null } | { ok: false; error: string } => {
@@ -42,8 +42,11 @@ export const parseListPositionInput = (
     return { ok: true, value: null };
   }
   const n = Number(trimmed);
-  if (!Number.isFinite(n) || !Number.isInteger(n)) {
-    return { ok: false, error: 'List # must be an integer' };
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+    return {
+      ok: false,
+      error: 'List # must be a non-negative whole number',
+    };
   }
   return { ok: true, value: n };
 };

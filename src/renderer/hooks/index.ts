@@ -4,3 +4,4 @@ export * from './usePrimaryItemType';
 export * from './useCompanyProfile';
 export * from './useInvoicePrintSettings';
 export * from './useCmdOrCtrlShortcut';
+export * from './useEscapeKey';

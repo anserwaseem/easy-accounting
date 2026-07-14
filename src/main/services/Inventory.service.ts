@@ -291,7 +291,8 @@ export class InventoryService {
         if (
           patch.listPosition != null &&
           (!Number.isFinite(patch.listPosition) ||
-            !Number.isInteger(patch.listPosition))
+            !Number.isInteger(patch.listPosition) ||
+            patch.listPosition < 0)
         ) {
           raise(`Invalid list # for inventory id ${patch.id}`);
         }

@@ -31,11 +31,19 @@ describe('inventoryBulkEdit parsers', () => {
     expect(parsePriceInput('-1').ok).toBe(false);
   });
 
-  it('parses list # empty as null', () => {
+  it('parses list # empty as null and rejects negatives', () => {
     expect(parseListPositionInput('')).toEqual({ ok: true, value: null });
     expect(parseListPositionInput('  ')).toEqual({ ok: true, value: null });
     expect(parseListPositionInput('3')).toEqual({ ok: true, value: 3 });
-    expect(parseListPositionInput('1.5').ok).toBe(false);
+    expect(parseListPositionInput('0')).toEqual({ ok: true, value: 0 });
+    expect(parseListPositionInput('1.5')).toEqual({
+      ok: false,
+      error: 'List # must be a non-negative whole number',
+    });
+    expect(parseListPositionInput('-1')).toEqual({
+      ok: false,
+      error: 'List # must be a non-negative whole number',
+    });
   });
 });
 
@@ -74,6 +82,16 @@ describe('inventoryBulkEdit draft dirty + patches', () => {
     const draft = new Map([[a.id, { price: 'nope' }]]);
     const built = buildBulkPriceListPatches(originals, draft);
     expect(built.ok).toBe(false);
+  });
+
+  it('rejects negative list # in patches', () => {
+    const originals = new Map([[a.id, a]]);
+    const draft = new Map([[a.id, { listPosition: '-3' }]]);
+    const built = buildBulkPriceListPatches(originals, draft);
+    expect(built).toEqual({
+      ok: false,
+      error: expect.stringMatching(/non-negative/),
+    });
   });
 
   it('builds one summary row per item with only changed fields', () => {
@@ -147,5 +165,14 @@ describe('resolveNextBulkEditTarget', () => {
       col: 'listPosition',
       rowIndex: 1,
     });
+  });
+
+  it('returns null at grid Tab / Shift+Tab edges', () => {
+    expect(
+      resolveNextBulkEditTarget(rows, 3, 'price', 'Tab', false),
+    ).toBeNull();
+    expect(
+      resolveNextBulkEditTarget(rows, 1, 'listPosition', 'Tab', true),
+    ).toBeNull();
   });
 });
