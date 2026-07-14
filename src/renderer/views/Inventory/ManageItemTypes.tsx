@@ -202,9 +202,9 @@ export const ManageItemTypes: React.FC<ManageItemTypesProps> = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" title="Manage item types">
           <Settings size={16} className="mr-1.5" />
-          Manage Item Types
+          Item types
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[560px]">

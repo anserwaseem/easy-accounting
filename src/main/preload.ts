@@ -32,6 +32,8 @@ import type {
   StockAsOfReportFilters,
   StockAsOfReportResponse,
   ApplyListPositionsResult,
+  BulkPriceListPositionPatch,
+  BulkPriceListPositionResult,
 } from 'types';
 import { InvoiceType } from 'types';
 
@@ -113,6 +115,14 @@ const electronHandler = {
 
   updateInventoryItem: (item: UpdateInventoryItem) =>
     ipcRenderer.invoke('inventory:update', item),
+
+  bulkUpdateInventoryPricesAndListPositions: (
+    patches: BulkPriceListPositionPatch[],
+  ) =>
+    ipcRenderer.invoke(
+      'inventory:bulkUpdatePricesAndListPositions',
+      patches,
+    ) as Promise<BulkPriceListPositionResult>,
 
   applyInventoryListPositions: (
     rows: Array<{ name: string; listPosition: number }>,

@@ -220,6 +220,17 @@ export interface ApplyListPositionsResult {
   ambiguousNames: string[];
 }
 
+/** one row patch for bulk price + list # save */
+export interface BulkPriceListPositionPatch {
+  id: number;
+  price: number;
+  listPosition: number | null;
+}
+
+export interface BulkPriceListPositionResult {
+  updated: number;
+}
+
 export interface ItemType extends Omit<BaseEntity, 'date'> {
   name: string;
   isActive: boolean;

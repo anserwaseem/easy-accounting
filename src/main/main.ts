@@ -25,6 +25,7 @@ import type {
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
   ReturnSaleInvoicePayload,
+  BulkPriceListPositionPatch,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -362,6 +363,11 @@ app
     );
     ipcMain.handle('inventory:update', (_, item: UpdateInventoryItem) =>
       inventoryService.updateItem(item),
+    );
+    ipcMain.handle(
+      'inventory:bulkUpdatePricesAndListPositions',
+      (_, patches: BulkPriceListPositionPatch[]) =>
+        inventoryService.bulkUpdatePricesAndListPositions(patches),
     );
     ipcMain.handle(
       'inventory:applyListPositions',

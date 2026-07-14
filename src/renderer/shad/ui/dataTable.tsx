@@ -77,6 +77,8 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   searchPersistenceKey?: string;
   /** focus the table search field when the page mounts (listing screens) */
   autoFocusSearch?: boolean;
+  /** disable search input (e.g. inventory bulk edit while dirty) */
+  searchDisabled?: boolean;
   /**
    * current visible rows after search + sort (for export/print parity with grid).
    * parent should keep callback ref-stable (useCallback) to avoid extra runs.
@@ -239,6 +241,7 @@ const DataTable = <TData, TValue>({
   isMini = false,
   searchPersistenceKey,
   autoFocusSearch = false,
+  searchDisabled = false,
   onViewModelChange,
   state: userTableState,
   onSortingChange: userOnSortingChange,
@@ -690,6 +693,7 @@ const DataTable = <TData, TValue>({
                   totalCount={recordCount.total}
                   className="w-full"
                   autoFocus={autoFocusSearch}
+                  disabled={searchDisabled}
                 />
               ) : (
                 <>
@@ -699,6 +703,7 @@ const DataTable = <TData, TValue>({
                     onChange={handleSearchInputChange}
                     className={searchClassName}
                     autoFocus={autoFocusSearch}
+                    disabled={searchDisabled}
                   />
                   <RecordCount {...recordCount} />
                 </>
@@ -731,6 +736,7 @@ const DataTable = <TData, TValue>({
                 totalCount={recordCount.total}
                 className="w-full"
                 autoFocus={autoFocusSearch}
+                disabled={searchDisabled}
               />
             ) : (
               <>
@@ -740,6 +746,7 @@ const DataTable = <TData, TValue>({
                   onChange={handleSearchInputChange}
                   className={searchClassName}
                   autoFocus={autoFocusSearch}
+                  disabled={searchDisabled}
                 />
                 <RecordCount {...recordCount} />
               </>
