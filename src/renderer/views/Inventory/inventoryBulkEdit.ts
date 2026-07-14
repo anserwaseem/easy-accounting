@@ -134,6 +134,85 @@ export const buildBulkPriceListPatches = (
   return { ok: true, patches };
 };
 
+export interface BulkEditChangeRow {
+  id: number;
+  name: string;
+  /** set only when price changed */
+  priceFrom?: number;
+  priceTo?: number;
+  /** set only when list # changed */
+  listFrom?: number | null;
+  listTo?: number | null;
+}
+
+export interface BulkEditChangeSummary {
+  rows: BulkEditChangeRow[];
+  /** how many item rows were omitted after maxRows */
+  truncatedCount: number;
+  /** distinct inventory rows in the patch set */
+  itemCount: number;
+  /** true if any row has a price change (for table column) */
+  hasPriceChanges: boolean;
+  /** true if any row has a list # change */
+  hasListChanges: boolean;
+}
+
+const formatListPosLabel = (value: number | null): string =>
+  value == null ? '—' : String(value);
+
+/**
+ * one row per item with only changed fields filled. call only on Save click.
+ * omit maxRows to show every item (dialog scrolls); pass maxRows to truncate.
+ */
+export const buildBulkEditChangeSummary = (
+  originalsById: Map<number, InventoryItem>,
+  patches: BulkPriceListPositionPatch[],
+  maxRows?: number,
+): BulkEditChangeSummary => {
+  const rows: BulkEditChangeRow[] = [];
+  let hasPriceChanges = false;
+  let hasListChanges = false;
+
+  for (const patch of patches) {
+    const original = originalsById.get(patch.id);
+    if (!original) continue;
+
+    const row: BulkEditChangeRow = {
+      id: patch.id,
+      name: original.name,
+    };
+
+    if (patch.price !== original.price) {
+      row.priceFrom = original.price;
+      row.priceTo = patch.price;
+      hasPriceChanges = true;
+    }
+
+    const oldList = original.listPosition ?? null;
+    if (patch.listPosition !== oldList) {
+      row.listFrom = oldList;
+      row.listTo = patch.listPosition;
+      hasListChanges = true;
+    }
+
+    if (row.priceTo !== undefined || row.listTo !== undefined) {
+      rows.push(row);
+    }
+  }
+
+  const limit = maxRows ?? rows.length;
+  const truncatedCount = Math.max(0, rows.length - limit);
+  return {
+    rows: rows.slice(0, limit),
+    truncatedCount,
+    itemCount: patches.length,
+    hasPriceChanges,
+    hasListChanges,
+  };
+};
+
+export { formatListPosLabel };
+
 export const focusInventoryBulkEditCell = (
   inventoryId: number,
   col: InventoryBulkEditCol,
@@ -142,7 +221,7 @@ export const focusInventoryBulkEditCell = (
     `input[data-inventory-id="${inventoryId}"][data-col="${col}"]`,
   );
   if (!el) return false;
-  el.focus();
+  el.focus({ preventScroll: true });
   el.select();
   return true;
 };
@@ -150,7 +229,7 @@ export const focusInventoryBulkEditCell = (
 export const scheduleFocusInventoryBulkEditCell = (
   inventoryId: number,
   col: InventoryBulkEditCol,
-  attempts = 8,
+  attempts = 24,
 ): void => {
   let left = attempts;
   const tryFocus = () => {

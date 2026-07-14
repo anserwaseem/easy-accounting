@@ -1,5 +1,6 @@
 import type { InventoryItem } from 'types';
 import {
+  buildBulkEditChangeSummary,
   buildBulkPriceListPatches,
   countDirtyDraftRows,
   getDraftDisplayValue,
@@ -73,6 +74,45 @@ describe('inventoryBulkEdit draft dirty + patches', () => {
     const draft = new Map([[a.id, { price: 'nope' }]]);
     const built = buildBulkPriceListPatches(originals, draft);
     expect(built.ok).toBe(false);
+  });
+
+  it('builds one summary row per item with only changed fields', () => {
+    const originals = new Map([
+      [a.id, a],
+      [b.id, b],
+    ]);
+    const summary = buildBulkEditChangeSummary(originals, [
+      { id: 1, price: 15, listPosition: 1 },
+      { id: 2, price: 20, listPosition: null },
+    ]);
+    expect(summary.itemCount).toBe(2);
+    expect(summary.hasPriceChanges).toBe(true);
+    expect(summary.hasListChanges).toBe(true);
+    expect(summary.rows).toEqual([
+      { id: 1, name: 'A', priceFrom: 10, priceTo: 15 },
+      { id: 2, name: 'B', listFrom: 2, listTo: null },
+    ]);
+    expect(summary.truncatedCount).toBe(0);
+  });
+
+  it('truncates long change summaries by item row', () => {
+    const originals = new Map<number, InventoryItem>();
+    const patches: Array<{
+      id: number;
+      price: number;
+      listPosition: number | null;
+    }> = [];
+    for (let i = 1; i <= 30; i++) {
+      originals.set(
+        i,
+        row({ id: i, name: `Item ${i}`, price: 1, listPosition: i }),
+      );
+      patches.push({ id: i, price: 2, listPosition: i });
+    }
+    const summary = buildBulkEditChangeSummary(originals, patches, 5);
+    expect(summary.rows).toHaveLength(5);
+    expect(summary.truncatedCount).toBe(25);
+    expect(summary.itemCount).toBe(30);
   });
 });
 

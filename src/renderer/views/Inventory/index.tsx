@@ -19,6 +19,7 @@ const InventoryPage: React.FC = () => {
   const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
   const [hideNoType, setHideNoType] = useState(true);
   const [bulkEditActive, setBulkEditActive] = useState(false);
+  const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null);
 
   const refetchInventory = () => setRefresh(!refresh);
 
@@ -26,17 +27,30 @@ const InventoryPage: React.FC = () => {
     setBulkEditActive(active);
   }, []);
 
+  const toolbarHostRef = useCallback((node: HTMLDivElement | null) => {
+    setToolbarHost(node);
+  }, []);
+
   return (
     <div className="space-y-4">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="title-new">Inventory</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <ImportListNumbers refetchInventory={refetchInventory} />
-          <ManageItemTypes
-            onUpdated={refetchInventory}
-            initialOpen={openManageItemTypesFromNav}
+          {/* bulk-edit toolbar portals here — state stays in InventoryTable */}
+          <div
+            ref={toolbarHostRef}
+            className="flex flex-wrap items-center gap-2"
           />
-          <AddInventoryItem refetchInventory={refetchInventory} />
+          {!bulkEditActive ? (
+            <>
+              <ImportListNumbers refetchInventory={refetchInventory} />
+              <ManageItemTypes
+                onUpdated={refetchInventory}
+                initialOpen={openManageItemTypesFromNav}
+              />
+              <AddInventoryItem refetchInventory={refetchInventory} />
+            </>
+          ) : null}
         </div>
       </header>
 
@@ -147,6 +161,7 @@ const InventoryPage: React.FC = () => {
 
       <InventoryTable
         refetchInventory={refetchInventory}
+        toolbarHost={toolbarHost}
         onBulkEditActiveChange={handleBulkEditActiveChange}
         options={{
           refresh,

@@ -11,12 +11,19 @@ import type { InventoryBulkEditCol } from './inventoryBulkEdit';
 interface InventoryBulkEditCellProps {
   inventoryId: number;
   col: InventoryBulkEditCol;
+  /** only used on mount / editSessionKey remount — not updated while typing */
   defaultValue: string;
   editSessionKey: number;
   onWrite: (
     inventoryId: number,
     col: InventoryBulkEditCol,
     raw: string,
+  ) => void;
+  onBlurCommit: (
+    inventoryId: number,
+    col: InventoryBulkEditCol,
+    raw: string,
+    relatedTarget: EventTarget | null,
   ) => void;
   onNavigate: (
     inventoryId: number,
@@ -42,6 +49,7 @@ const InventoryBulkEditCellComponent = ({
   defaultValue,
   editSessionKey,
   onWrite,
+  onBlurCommit,
   onNavigate,
 }: InventoryBulkEditCellProps) => {
   const handleChange = useCallback(
@@ -53,9 +61,9 @@ const InventoryBulkEditCellComponent = ({
 
   const handleBlur = useCallback(
     (e: FocusEvent<HTMLInputElement>) => {
-      onWrite(inventoryId, col, e.target.value);
+      onBlurCommit(inventoryId, col, e.target.value, e.relatedTarget);
     },
-    [col, inventoryId, onWrite],
+    [col, inventoryId, onBlurCommit],
   );
 
   const handleKeyDown = useCallback(
@@ -67,20 +75,22 @@ const InventoryBulkEditCellComponent = ({
     [col, inventoryId, onNavigate],
   );
 
+  // key on wrapper remounts input only when discard/enter edit resets session
   return (
-    <Input
-      key={`${inventoryId}-${col}-${editSessionKey}`}
-      type="text"
-      inputMode={col === 'price' ? 'decimal' : 'numeric'}
-      data-inventory-id={inventoryId}
-      data-col={col}
-      defaultValue={defaultValue}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
-      className="my-0 h-8 px-2 py-1 text-sm tabular-nums"
-      aria-label={col === 'price' ? 'Price' : 'List number'}
-    />
+    <span key={editSessionKey} className="block min-w-0">
+      <Input
+        type="text"
+        inputMode={col === 'price' ? 'decimal' : 'numeric'}
+        data-inventory-id={inventoryId}
+        data-col={col}
+        defaultValue={defaultValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        className="my-0 h-8 px-2 py-1 text-sm tabular-nums"
+        aria-label={col === 'price' ? 'Price' : 'List number'}
+      />
+    </span>
   );
 };
 

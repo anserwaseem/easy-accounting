@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type MutableRefObject } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { BulkPriceListPositionPatch, InventoryItem } from 'types';
 import {
   buildBulkPriceListPatches,
@@ -17,11 +17,14 @@ interface UseInventoryBulkEditDraftResult {
   enterEditMode: (inventory: InventoryItem[]) => void;
   exitEditMode: () => void;
   discardDraft: () => void;
+  /** write draft only — no React state (keeps focus while typing) */
   writeDraftField: (
     inventoryId: number,
     col: InventoryBulkEditCol,
     raw: string,
   ) => void;
+  /** push dirtyCount into React state (call on blur / navigate / before save) */
+  flushDirtyCount: () => number;
   getCellDefaultValue: (
     row: InventoryItem,
     col: InventoryBulkEditCol,
@@ -35,20 +38,9 @@ interface UseInventoryBulkEditDraftResult {
     inventory: InventoryItem[],
     patches: BulkPriceListPositionPatch[],
   ) => InventoryItem[];
+  /** sync check without setState — Save enable before blur flush */
+  getDirtyCountSnapshot: () => number;
 }
-
-const scheduleDirtyCount = (
-  draftRef: MutableRefObject<Map<number, InventoryBulkEditDraftFields>>,
-  originalsRef: MutableRefObject<Map<number, InventoryItem>>,
-  setDirtyCount: (n: number) => void,
-  rafRef: MutableRefObject<number | null>,
-) => {
-  if (rafRef.current != null) return;
-  rafRef.current = window.requestAnimationFrame(() => {
-    rafRef.current = null;
-    setDirtyCount(countDirtyDraftRows(originalsRef.current, draftRef.current));
-  });
-};
 
 export const useInventoryBulkEditDraft =
   (): UseInventoryBulkEditDraftResult => {
@@ -61,7 +53,7 @@ export const useInventoryBulkEditDraft =
       new Map(),
     );
     const originalsRef = useRef<Map<number, InventoryItem>>(new Map());
-    const dirtyRafRef = useRef<number | null>(null);
+    const dirtyCountRef = useRef(0);
 
     const syncOriginals = useCallback((inventory: InventoryItem[]) => {
       const next = new Map<number, InventoryItem>();
@@ -71,10 +63,23 @@ export const useInventoryBulkEditDraft =
       originalsRef.current = next;
     }, []);
 
+    const getDirtyCountSnapshot = useCallback(
+      () => countDirtyDraftRows(originalsRef.current, draftRef.current),
+      [],
+    );
+
+    const flushDirtyCount = useCallback(() => {
+      const next = countDirtyDraftRows(originalsRef.current, draftRef.current);
+      dirtyCountRef.current = next;
+      setDirtyCount((prev) => (prev === next ? prev : next));
+      return next;
+    }, []);
+
     const enterEditMode = useCallback(
       (inventoryRows: InventoryItem[]) => {
         syncOriginals(inventoryRows);
         draftRef.current = new Map();
+        dirtyCountRef.current = 0;
         setDirtyCount(0);
         setEditSessionKey((k) => k + 1);
         setEditMode(true);
@@ -84,6 +89,7 @@ export const useInventoryBulkEditDraft =
 
     const exitEditMode = useCallback(() => {
       draftRef.current = new Map();
+      dirtyCountRef.current = 0;
       setDirtyCount(0);
       setEditMode(false);
       setEditSessionKey((k) => k + 1);
@@ -91,6 +97,7 @@ export const useInventoryBulkEditDraft =
 
     const discardDraft = useCallback(() => {
       draftRef.current = new Map();
+      dirtyCountRef.current = 0;
       setDirtyCount(0);
       setEditSessionKey((k) => k + 1);
     }, []);
@@ -98,19 +105,21 @@ export const useInventoryBulkEditDraft =
     const writeDraftField = useCallback(
       (inventoryId: number, col: InventoryBulkEditCol, raw: string) => {
         const prev = draftRef.current.get(inventoryId) ?? {};
-        const next: InventoryBulkEditDraftFields = {
+        draftRef.current.set(inventoryId, {
           ...prev,
           [col]: raw,
-        };
-        draftRef.current.set(inventoryId, next);
-        scheduleDirtyCount(draftRef, originalsRef, setDirtyCount, dirtyRafRef);
+        });
+        // intentionally no setState — keystroke must not re-render virtualized rows
+        dirtyCountRef.current = countDirtyDraftRows(
+          originalsRef.current,
+          draftRef.current,
+        );
       },
       [],
     );
 
     const getCellDefaultValue = useCallback(
       (row: InventoryItem, col: InventoryBulkEditCol) => {
-        // keep originals map warm for dirty checks when rows first render in edit mode
         if (!originalsRef.current.has(row.id)) {
           originalsRef.current.set(row.id, row);
         }
@@ -157,8 +166,10 @@ export const useInventoryBulkEditDraft =
       exitEditMode,
       discardDraft,
       writeDraftField,
+      flushDirtyCount,
       getCellDefaultValue,
       buildPatches,
       applyPatchesLocally,
+      getDirtyCountSnapshot,
     };
   };

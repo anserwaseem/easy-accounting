@@ -4,15 +4,21 @@ import {
   useCallback,
   useMemo,
   useRef,
+  memo,
   type MutableRefObject,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { isNil, toString } from 'lodash';
 import {
   createListPositionSortingFn,
   defaultSortingFunctions,
 } from 'renderer/lib/utils';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import type { InventoryItem, ItemType } from 'types';
+import type {
+  InventoryItem,
+  ItemType,
+  BulkPriceListPositionPatch,
+} from 'types';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   Select,
@@ -22,15 +28,19 @@ import {
   SelectValue,
 } from '@/renderer/shad/ui/select';
 import { toast } from '@/renderer/shad/ui/use-toast';
-import { Loader2, Pencil, Save, X } from 'lucide-react';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
 import { InventoryBulkEditCell } from './InventoryBulkEditCell';
+import { InventoryBulkEditToolbar } from './InventoryBulkEditToolbar';
+import { InventoryBulkEditSaveSummary } from './InventoryBulkEditSaveSummary';
 import {
+  buildBulkEditChangeSummary,
+  focusInventoryBulkEditCell,
   resolveNextBulkEditTarget,
   scheduleFocusInventoryBulkEditCell,
+  type BulkEditChangeSummary,
   type InventoryBulkEditCol,
 } from './inventoryBulkEdit';
 import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
@@ -38,6 +48,54 @@ import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
 const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
   (r) => r.id,
 );
+
+interface InventoryVirtualGridProps {
+  columns: ColumnDef<InventoryItem>[];
+  data: InventoryItem[];
+  editMode: boolean;
+  virtualScrollToIndex: number | null;
+  onViewModelChange: (rows: InventoryItem[]) => void;
+}
+
+/** memoized so dirtyCount/saving toolbar updates do not remount Virtuoso cells */
+const InventoryVirtualGrid = memo(
+  ({
+    columns,
+    data,
+    editMode,
+    virtualScrollToIndex,
+    onViewModelChange,
+  }: InventoryVirtualGridProps) => (
+    <DataTable
+      columns={columns}
+      data={data}
+      sortingFns={{
+        ...defaultSortingFunctions,
+        listPosition: listPositionSortingFn,
+      }}
+      enableSorting={!editMode}
+      virtual
+      virtualHeightMode="fill"
+      compact
+      defaultSortField="listPosition"
+      searchPersistenceKey="datatable:inventory:search"
+      searchPlaceholder="Search inventory..."
+      searchFields={[
+        'name',
+        'description',
+        'itemTypeName',
+        'listPosition',
+        'price',
+        'quantity',
+      ]}
+      searchDisabled={editMode}
+      autoFocusSearch={!editMode}
+      virtualScrollToIndex={virtualScrollToIndex}
+      onViewModelChange={onViewModelChange}
+    />
+  ),
+);
+InventoryVirtualGrid.displayName = 'InventoryVirtualGrid';
 
 interface InventoryTableProps {
   refetchInventory: () => void;
@@ -48,13 +106,16 @@ interface InventoryTableProps {
     hideNegativeQuantity?: boolean;
     hideNoType?: boolean;
   };
-  /** notify parent so filters can lock during edit / dirty */
+  /** DOM node in page header — toolbar portals here (no chrome state lift) */
+  toolbarHost?: HTMLElement | null;
+  /** notify parent so filters can lock during edit session */
   onBulkEditActiveChange?: (active: boolean) => void;
 }
 
 export const InventoryTable: React.FC<InventoryTableProps> = ({
   options,
   refetchInventory,
+  toolbarHost = null,
   onBulkEditActiveChange,
 }: InventoryTableProps) => {
   // eslint-disable-next-line no-console
@@ -67,6 +128,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     number | null
   >(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [saveSummary, setSaveSummary] = useState<BulkEditChangeSummary | null>(
+    null,
+  );
+  const pendingSavePatchesRef = useRef<BulkPriceListPositionPatch[]>([]);
 
   const viewRowsRef = useRef<InventoryItem[]>([]);
   const inventoryRef = useRef<InventoryItem[] | undefined>(inventory);
@@ -83,6 +149,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     exitEditMode,
     discardDraft,
     writeDraftField,
+    flushDirtyCount,
     getCellDefaultValue,
     buildPatches,
     applyPatchesLocally,
@@ -91,8 +158,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   console.log('InventoryTable', inventory);
 
   useEffect(() => {
-    onBulkEditActiveChange?.(editMode || dirtyCount > 0);
-  }, [editMode, dirtyCount, onBulkEditActiveChange]);
+    // lock filters for whole edit session (not only after first dirty flush)
+    onBulkEditActiveChange?.(editMode);
+  }, [editMode, onBulkEditActiveChange]);
 
   useEffect(() => {
     const fetchInventory = async () => {
@@ -149,8 +217,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     });
   };
 
-  const getInventory = useCallback(() => {
-    const filteredInventory = inventory?.filter((i) => {
+  // stable reference unless inventory/filters change — new array each render remounts Virtuoso cells
+  const filteredInventory = useMemo(() => {
+    const rows = inventory?.filter((i) => {
       if (options?.hideNegativeQuantity && i.quantity < 0) {
         return false;
       }
@@ -166,7 +235,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       }
       return true;
     });
-    return filteredInventory || [];
+    return rows || [];
   }, [
     inventory,
     options?.hideNegativeQuantity,
@@ -181,6 +250,33 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const stableWriteDraft = useCallback(
     (inventoryId: number, col: InventoryBulkEditCol, raw: string) => {
       writeDraftFieldRef.current(inventoryId, col, raw);
+    },
+    [],
+  );
+
+  const flushDirtyCountRef = useRef(flushDirtyCount);
+  flushDirtyCountRef.current = flushDirtyCount;
+
+  /** true while arrow/tab navigation is moving focus — blur must not setState */
+  const gridNavLockRef = useRef(false);
+
+  const isBulkEditInput = (target: EventTarget | null): boolean =>
+    target instanceof HTMLElement &&
+    target.matches('input[data-inventory-id][data-col]');
+
+  const stableBlurCommit = useCallback(
+    (
+      inventoryId: number,
+      col: InventoryBulkEditCol,
+      raw: string,
+      relatedTarget: EventTarget | null,
+    ) => {
+      writeDraftFieldRef.current(inventoryId, col, raw);
+      // navigating to another cell: blur fires with null/body before focus lands —
+      // setState here remounts Virtuoso and kills the next focus.
+      if (gridNavLockRef.current) return;
+      if (isBulkEditInput(relatedTarget)) return;
+      flushDirtyCountRef.current();
     },
     [],
   );
@@ -210,6 +306,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
   navigateRef.current = (inventoryId, col, key, raw, shiftKey) => {
     writeDraftField(inventoryId, col, raw);
+    // do NOT flushDirtyCount here — setState remounts rows and steals focus
     const target = resolveNextBulkEditTarget(
       viewRowsRef.current,
       inventoryId,
@@ -219,14 +316,30 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     );
     if (!target) return;
 
+    gridNavLockRef.current = true;
+    const clearNavLock = () => {
+      window.setTimeout(() => {
+        gridNavLockRef.current = false;
+      }, 0);
+    };
+
     const mounted = document.querySelector(
       `input[data-inventory-id="${target.inventoryId}"][data-col="${target.col}"]`,
     );
-    if (!mounted) {
-      setVirtualScrollToIndex(target.rowIndex);
-      window.setTimeout(() => setVirtualScrollToIndex(null), 0);
+
+    if (mounted) {
+      focusInventoryBulkEditCell(target.inventoryId, target.col);
+      clearNavLock();
+      return;
     }
-    scheduleFocusInventoryBulkEditCell(target.inventoryId, target.col);
+
+    setVirtualScrollToIndex(target.rowIndex);
+    scheduleFocusInventoryBulkEditCell(target.inventoryId, target.col, 32);
+    // clear scroll token after focus attempts — not in the same tick as scroll
+    window.setTimeout(() => {
+      setVirtualScrollToIndex(null);
+      clearNavLock();
+    }, 120);
   };
 
   const handleViewModelChange = useCallback((rows: InventoryItem[]) => {
@@ -243,26 +356,16 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   }, [discardDraft, exitEditMode]);
 
   const handleDiscard = useCallback(() => {
-    if (dirtyCount > 0) {
+    if (flushDirtyCount() > 0) {
       setShowDiscardConfirm(true);
       return;
     }
     performDiscard();
-  }, [dirtyCount, performDiscard]);
+  }, [flushDirtyCount, performDiscard]);
 
-  const handleSave = useCallback(async () => {
-    const { current } = inventoryRef;
-    if (!current) return;
-
-    const built = buildPatches(current);
-    if (!built.ok) {
-      toast({
-        description: built.error,
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (built.patches.length === 0) {
+  const performSave = useCallback(async () => {
+    const patches = pendingSavePatchesRef.current;
+    if (patches.length === 0) {
       exitEditMode();
       return;
     }
@@ -271,10 +374,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     try {
       const result =
         await window.electron.bulkUpdateInventoryPricesAndListPositions(
-          built.patches,
+          patches,
         );
       setInventory((prev) =>
-        prev ? applyPatchesLocally(prev, built.patches) : prev,
+        prev ? applyPatchesLocally(prev, patches) : prev,
       );
       discardDraft();
       exitEditMode();
@@ -291,14 +394,36 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       });
     } finally {
       setSaving(false);
+      pendingSavePatchesRef.current = [];
+      setSaveSummary(null);
     }
-  }, [
-    applyPatchesLocally,
-    buildPatches,
-    discardDraft,
-    exitEditMode,
-    setSaving,
-  ]);
+  }, [applyPatchesLocally, discardDraft, exitEditMode, setSaving]);
+
+  const handleSave = useCallback(() => {
+    const { current } = inventoryRef;
+    if (!current) return;
+
+    flushDirtyCount();
+    const built = buildPatches(current);
+    if (!built.ok) {
+      toast({
+        description: built.error,
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (built.patches.length === 0) {
+      exitEditMode();
+      return;
+    }
+
+    // summary only on Save click — O(dirty), never during typing/nav
+    const originalsById = new Map(current.map((row) => [row.id, row]));
+    const summary = buildBulkEditChangeSummary(originalsById, built.patches);
+    pendingSavePatchesRef.current = built.patches;
+    setSaveSummary(summary);
+    setShowSaveConfirm(true);
+  }, [buildPatches, exitEditMode, flushDirtyCount]);
 
   const columns: ColumnDef<InventoryItem>[] = useMemo(() => {
     return [
@@ -327,6 +452,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               defaultValue={getCellDefaultValue(row.original, 'listPosition')}
               editSessionKey={editSessionKey}
               onWrite={stableWriteDraft}
+              onBlurCommit={stableBlurCommit}
               onNavigate={stableNavigate}
             />
           );
@@ -405,6 +531,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               defaultValue={getCellDefaultValue(row.original, 'price')}
               editSessionKey={editSessionKey}
               onWrite={stableWriteDraft}
+              onBlurCommit={stableBlurCommit}
               onNavigate={stableNavigate}
             />
           );
@@ -481,78 +608,29 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     itemTypes,
     itemsWithHistory,
     refetchInventory,
+    stableBlurCommit,
     stableNavigate,
     stableWriteDraft,
   ]);
 
+  const toolbar = (
+    <InventoryBulkEditToolbar
+      editMode={editMode}
+      dirtyCount={dirtyCount}
+      saving={saving}
+      onEnterEdit={handleEnterEdit}
+      onSave={handleSave}
+      onDiscard={handleDiscard}
+    />
+  );
+
   return (
-    <div className="space-y-2 pt-1">
-      <div className="flex flex-wrap items-center gap-2">
-        {!editMode ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleEnterEdit}
-          >
-            <Pencil className="mr-1.5 h-3.5 w-3.5" />
-            Edit prices
-          </Button>
-        ) : (
-          <>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSave}
-              disabled={saving || dirtyCount === 0}
-            >
-              {saving ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Save{dirtyCount > 0 ? ` (${dirtyCount})` : ''}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleDiscard}
-              disabled={saving}
-            >
-              <X className="mr-1.5 h-3.5 w-3.5" />
-              Discard
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              Arrow keys move cells. Changes stay until Save.
-            </span>
-          </>
-        )}
-      </div>
-      <DataTable
+    <div className="pt-1">
+      {toolbarHost ? createPortal(toolbar, toolbarHost) : null}
+      <InventoryVirtualGrid
         columns={columns}
-        data={getInventory()}
-        sortingFns={{
-          ...defaultSortingFunctions,
-          listPosition: listPositionSortingFn,
-        }}
-        enableSorting={!editMode}
-        virtual
-        virtualHeightMode="fill"
-        compact
-        defaultSortField="listPosition"
-        searchPersistenceKey="datatable:inventory:search"
-        searchPlaceholder="Search inventory..."
-        searchFields={[
-          'name',
-          'description',
-          'itemTypeName',
-          'listPosition',
-          'price',
-          'quantity',
-        ]}
-        searchDisabled={editMode && dirtyCount > 0}
-        autoFocusSearch={!editMode}
+        data={filteredInventory}
+        editMode={editMode}
         virtualScrollToIndex={virtualScrollToIndex}
         onViewModelChange={handleViewModelChange}
       />
@@ -574,6 +652,34 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         cancelLabel="Keep editing"
         confirmVariant="destructive"
         onConfirm={performDiscard}
+      />
+      <ConfirmDialog
+        open={showSaveConfirm}
+        onOpenChange={(open) => {
+          setShowSaveConfirm(open);
+          if (!open) {
+            pendingSavePatchesRef.current = [];
+            setSaveSummary(null);
+          }
+        }}
+        title={
+          saveSummary && saveSummary.itemCount === 1
+            ? 'Save changes to 1 item?'
+            : `Save changes to ${saveSummary?.itemCount ?? 0} items?`
+        }
+        description={
+          saveSummary ? (
+            <InventoryBulkEditSaveSummary summary={saveSummary} />
+          ) : (
+            'Save price and list # changes?'
+          )
+        }
+        contentClassName="flex max-h-[80vh] w-[min(48rem,80vw)] max-w-[80vw] flex-col gap-4 overflow-hidden sm:max-w-[80vw]"
+        confirmLabel="Save"
+        cancelLabel="Keep editing"
+        onConfirm={() => {
+          performSave().catch(() => undefined);
+        }}
       />
     </div>
   );
