@@ -16,6 +16,7 @@ const ready = {
   endpoint: 'https://example.r2.cloudflarestorage.com',
   region: 'auto',
   bucket: 'catalog',
+  privateBucket: '',
   accessKeyId: 'AKIA',
   publicBaseUrl: 'https://cdn.example.com',
   privatePrefix: 'catalog/private',

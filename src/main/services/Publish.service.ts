@@ -256,20 +256,25 @@ export class PublishService {
         // eslint-disable-next-line no-await-in-loop
         await client.send(
           new PutObjectCommand({
-            Bucket: config.bucket,
+            Bucket: target.bucket,
             Key: target.key,
             Body: fs.readFileSync(path.join(outDir, target.fileName)),
             ContentType: target.contentType,
           }),
         );
-        uploaded.push(target.key);
+        uploaded.push(`${target.bucket}/${target.key}`);
       }
 
+      // only meaningful when the private file shares the published bucket; a
+      // dedicated private bucket is not reachable via the public base URL
       const privateTarget = targets.find((t) => !t.isPublic);
-      const privateExposureWarning = await PublishService.checkPrivateExposure(
-        config.publicBaseUrl,
-        privateTarget?.key,
-      );
+      const sharesPublicBucket = privateTarget?.bucket === config.bucket;
+      const privateExposureWarning = sharesPublicBucket
+        ? await PublishService.checkPrivateExposure(
+            config.publicBaseUrl,
+            privateTarget?.key,
+          )
+        : undefined;
 
       const webhook = await PublishService.callWebhook(
         config.webhookUrl,

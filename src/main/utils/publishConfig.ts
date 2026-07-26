@@ -18,6 +18,7 @@ export const PUBLISH_KEYS = {
   endpoint: 'publish.endpoint',
   region: 'publish.region',
   bucket: 'publish.bucket',
+  privateBucket: 'publish.privateBucket',
   accessKeyId: 'publish.accessKeyId',
   secretAccessKeyEnc: 'publish.secretAccessKeyEnc',
   publicBaseUrl: 'publish.publicBaseUrl',
@@ -35,6 +36,12 @@ export interface PublishConfig {
   endpoint: string;
   region: string;
   bucket: string;
+  /**
+   * Optional separate bucket for the full (all-tiers) catalog. Set this when
+   * the main bucket is publicly readable, since public access on most object
+   * stores is bucket-wide and cannot be limited to a prefix. Empty = use `bucket`.
+   */
+  privateBucket: string;
   accessKeyId: string;
   publicBaseUrl: string;
   privatePrefix: string;
@@ -96,6 +103,7 @@ export function getPublishConfig(): PublishConfig {
     endpoint: str(PUBLISH_KEYS.endpoint),
     region: str(PUBLISH_KEYS.region, DEFAULTS.region),
     bucket: str(PUBLISH_KEYS.bucket),
+    privateBucket: str(PUBLISH_KEYS.privateBucket),
     accessKeyId: str(PUBLISH_KEYS.accessKeyId),
     publicBaseUrl: str(PUBLISH_KEYS.publicBaseUrl),
     privatePrefix: str(PUBLISH_KEYS.privatePrefix, DEFAULTS.privatePrefix),
@@ -138,6 +146,7 @@ export function savePublishConfig(input: PublishConfigInput): PublishConfig {
   setIfDefined(PUBLISH_KEYS.endpoint, input.endpoint?.trim());
   setIfDefined(PUBLISH_KEYS.region, input.region?.trim());
   setIfDefined(PUBLISH_KEYS.bucket, input.bucket?.trim());
+  setIfDefined(PUBLISH_KEYS.privateBucket, input.privateBucket?.trim());
   setIfDefined(PUBLISH_KEYS.accessKeyId, input.accessKeyId?.trim());
   setIfDefined(
     PUBLISH_KEYS.publicBaseUrl,

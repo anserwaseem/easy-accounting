@@ -13,11 +13,21 @@ export interface PublishTarget {
   kind: PublishFileKind;
   /** Local file name produced by the catalog generator. */
   fileName: string;
+  /** Destination bucket for this object. */
+  bucket: string;
   /** Destination object key within the bucket. */
   key: string;
   contentType: string;
   /** Whether this object is intended to be publicly readable. */
   isPublic: boolean;
+}
+
+export interface PublishTargetConfig {
+  bucket: string;
+  /** Optional separate bucket for the full catalog. Empty = use `bucket`. */
+  privateBucket?: string;
+  privatePrefix: string;
+  publicPrefix: string;
 }
 
 const trimSlashes = (value: string): string => value.replace(/^\/+|\/+$/g, '');
@@ -28,14 +38,17 @@ export function joinKey(prefix: string, fileName: string): string {
   return cleanPrefix ? `${cleanPrefix}/${fileName}` : fileName;
 }
 
-export function buildPublishTargets(config: {
-  privatePrefix: string;
-  publicPrefix: string;
-}): PublishTarget[] {
+export function buildPublishTargets(
+  config: PublishTargetConfig,
+): PublishTarget[] {
+  // a dedicated private bucket is preferred: public access on most object
+  // stores is bucket-wide, so a prefix alone cannot keep the full catalog private
+  const privateBucket = config.privateBucket?.trim() || config.bucket;
   return [
     {
       kind: 'full',
       fileName: 'catalog-full.json',
+      bucket: privateBucket,
       key: joinKey(config.privatePrefix, 'catalog-full.json'),
       contentType: 'application/json',
       isPublic: false,
@@ -43,6 +56,7 @@ export function buildPublishTargets(config: {
     {
       kind: 'public',
       fileName: 'catalog-public.json',
+      bucket: config.bucket,
       key: joinKey(config.publicPrefix, 'catalog-public.json'),
       contentType: 'application/json',
       isPublic: true,
@@ -50,6 +64,7 @@ export function buildPublishTargets(config: {
     {
       kind: 'csv',
       fileName: 'products.csv',
+      bucket: config.bucket,
       key: joinKey(config.publicPrefix, 'products.csv'),
       contentType: 'text/csv',
       isPublic: true,
@@ -62,10 +77,12 @@ export function buildPublishTargets(config: {
  * public location — e.g. both prefixes set to the same value. Returns a reason
  * when the layout is unsafe, otherwise null.
  */
-export function unsafeTargetReason(config: {
-  privatePrefix: string;
-  publicPrefix: string;
-}): string | null {
+export function unsafeTargetReason(config: PublishTargetConfig): string | null {
+  // a distinct private bucket makes prefix layout irrelevant: the full catalog
+  // lives in a bucket that is never published, so nothing can collide with it
+  const privateBucket = config.privateBucket?.trim();
+  if (privateBucket && privateBucket !== config.bucket.trim()) return null;
+
   const priv = trimSlashes(config.privatePrefix);
   const pub = trimSlashes(config.publicPrefix);
   if (priv === pub) {

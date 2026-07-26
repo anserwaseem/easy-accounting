@@ -5,9 +5,12 @@ import {
 } from '../publishTargets';
 
 const config = {
+  bucket: 'public-bucket',
   privatePrefix: 'catalog/private',
   publicPrefix: 'catalog/public',
 };
+
+const splitConfig = { ...config, privateBucket: 'private-bucket' };
 
 describe('joinKey', () => {
   it('joins prefix and file name', () => {
@@ -55,31 +58,96 @@ describe('buildPublishTargets', () => {
       csv: 'text/csv',
     });
   });
+
+  it('falls back to the main bucket when no private bucket is set', () => {
+    const buckets = Object.fromEntries(
+      buildPublishTargets(config).map((t) => [t.kind, t.bucket]),
+    );
+    expect(buckets).toEqual({
+      full: 'public-bucket',
+      public: 'public-bucket',
+      csv: 'public-bucket',
+    });
+  });
+
+  it('routes ONLY the full catalog to the private bucket when set', () => {
+    const buckets = Object.fromEntries(
+      buildPublishTargets(splitConfig).map((t) => [t.kind, t.bucket]),
+    );
+    expect(buckets).toEqual({
+      full: 'private-bucket',
+      public: 'public-bucket',
+      csv: 'public-bucket',
+    });
+  });
+
+  it('never routes a public file to the private bucket', () => {
+    const publicBuckets = buildPublishTargets(splitConfig)
+      .filter((t) => t.isPublic)
+      .map((t) => t.bucket);
+    expect(publicBuckets).toEqual(['public-bucket', 'public-bucket']);
+  });
+
+  it('ignores a blank private bucket', () => {
+    const full = buildPublishTargets({ ...config, privateBucket: '   ' }).find(
+      (t) => t.kind === 'full',
+    );
+    expect(full?.bucket).toBe('public-bucket');
+  });
 });
 
 describe('unsafeTargetReason', () => {
-  it('accepts a well-separated layout', () => {
+  it('accepts a well-separated prefix layout', () => {
     expect(unsafeTargetReason(config)).toBeNull();
   });
 
-  it('rejects identical prefixes', () => {
+  it('rejects identical prefixes in a shared bucket', () => {
     expect(
-      unsafeTargetReason({ privatePrefix: 'x', publicPrefix: 'x' }),
+      unsafeTargetReason({ ...config, privatePrefix: 'x', publicPrefix: 'x' }),
     ).toMatch(/same/i);
   });
 
   it('rejects a private prefix nested inside the public one', () => {
     expect(
       unsafeTargetReason({
+        ...config,
         privatePrefix: 'catalog/public/private',
         publicPrefix: 'catalog/public',
       }),
     ).toMatch(/inside/i);
   });
 
-  it('rejects a bucket-root public prefix', () => {
+  it('rejects a bucket-root public prefix in a shared bucket', () => {
     expect(
-      unsafeTargetReason({ privatePrefix: 'private', publicPrefix: '' }),
+      unsafeTargetReason({
+        ...config,
+        privatePrefix: 'private',
+        publicPrefix: '',
+      }),
     ).toMatch(/root/i);
+  });
+
+  it('accepts any prefix layout once a separate private bucket is used', () => {
+    // the full catalog lives in a bucket that is never published, so prefix
+    // collisions cannot expose it
+    expect(
+      unsafeTargetReason({
+        ...splitConfig,
+        privatePrefix: 'x',
+        publicPrefix: 'x',
+      }),
+    ).toBeNull();
+    expect(unsafeTargetReason({ ...splitConfig, publicPrefix: '' })).toBeNull();
+  });
+
+  it('still validates prefixes when the private bucket equals the main bucket', () => {
+    expect(
+      unsafeTargetReason({
+        ...config,
+        privateBucket: 'public-bucket',
+        privatePrefix: 'x',
+        publicPrefix: 'x',
+      }),
+    ).toMatch(/same/i);
   });
 });

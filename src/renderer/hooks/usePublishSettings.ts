@@ -5,6 +5,7 @@ export interface PublishConfig {
   endpoint: string;
   region: string;
   bucket: string;
+  privateBucket: string;
   accessKeyId: string;
   publicBaseUrl: string;
   privatePrefix: string;
@@ -80,6 +81,7 @@ const EMPTY_CONFIG: PublishConfig = {
   endpoint: '',
   region: 'auto',
   bucket: '',
+  privateBucket: '',
   accessKeyId: '',
   publicBaseUrl: '',
   privatePrefix: 'catalog/private',
