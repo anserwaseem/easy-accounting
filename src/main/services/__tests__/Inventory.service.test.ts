@@ -45,7 +45,21 @@ function seedBasicSchema(db: Database.Database) {
       itemTypeId INTEGER REFERENCES item_types(id),
       isActive INTEGER DEFAULT 1,
       quantity REAL DEFAULT 0,
-      listPosition INTEGER
+      listPosition INTEGER,
+      parentId INTEGER REFERENCES inventory(id),
+      attributes TEXT
+    );
+    CREATE TABLE IF NOT EXISTS price_lists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      isActive INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS inventory_prices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inventoryId INTEGER NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
+      priceListId INTEGER NOT NULL REFERENCES price_lists(id) ON DELETE CASCADE,
+      price REAL NOT NULL DEFAULT 0,
+      UNIQUE(inventoryId, priceListId)
     );
     CREATE TABLE IF NOT EXISTS invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

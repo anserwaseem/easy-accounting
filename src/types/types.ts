@@ -195,6 +195,12 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   itemTypeId?: number | null;
   itemTypeName?: string | null;
   listPosition?: number | null;
+  /** variant grouping: the head item of this item's family, if any (migration 020) */
+  parentId?: number | null;
+  /** custom attributes keyed by attribute_definitions.key (migration 020) */
+  attributes?: Record<string, unknown>;
+  /** price per named price list, keyed by price_lists.id (migration 020) */
+  listPrices?: Record<number, number>;
 }
 export interface UpdateInventoryItem {
   id: number;

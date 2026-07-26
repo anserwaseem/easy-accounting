@@ -19,6 +19,7 @@ import type {
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
 import { cast } from '../utils/sqlite';
+import { parseJsonRecord, parseListPrices } from '../utils/inventoryJson';
 import { raise } from '../utils/general';
 
 @logErrors
@@ -99,8 +100,17 @@ export class InventoryService {
   }
 
   getInventory(): InventoryItem[] {
-    const results = this.stmGetInventory.all() as InventoryItem[];
-    return results;
+    const results = this.stmGetInventory.all() as Array<
+      Omit<InventoryItem, 'attributes' | 'listPrices'> & {
+        attributes?: string | null;
+        listPricesJson?: string | null;
+      }
+    >;
+    return results.map(({ attributes, listPricesJson, ...item }) => ({
+      ...item,
+      attributes: parseJsonRecord(attributes),
+      listPrices: parseListPrices(listPricesJson),
+    }));
   }
 
   saveInventory(inventory: InventoryItem[]): boolean {
@@ -742,8 +752,15 @@ export class InventoryService {
       SELECT COUNT(*) AS 'count' from inventory;
     `);
 
+    // listPricesJson: { priceListId: price } for every list this item is priced
+    // on; parsed in getInventory so the renderer gets a plain object
     this.stmGetInventory = this.db.prepare(`
-      SELECT i.*, it.name AS itemTypeName
+      SELECT i.*, it.name AS itemTypeName,
+             (
+               SELECT json_group_object(ip.priceListId, ip.price)
+               FROM inventory_prices ip
+               WHERE ip.inventoryId = i.id
+             ) AS listPricesJson
       FROM inventory i
       LEFT JOIN item_types it ON it.id = i.itemTypeId
       ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC;
