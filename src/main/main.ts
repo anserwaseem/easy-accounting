@@ -48,7 +48,13 @@ import {
   InventoryService,
   PrintService,
   PricingService,
+  PublishService,
 } from './services';
+import {
+  getPublishConfig,
+  savePublishConfig,
+  type PublishConfigInput,
+} from './utils/publishConfig';
 import { ErrorManager } from './errorManager';
 import { DEFAULT_USER } from './utils/constants';
 
@@ -208,8 +214,24 @@ app
     const invoiceService = new InvoiceService();
     const printService = new PrintService();
     const pricingService = new PricingService();
+    const publishService = new PublishService();
 
     // setupUser(migrationRunner, authService);
+
+    ipcMain.handle('publish:getConfig', async () => getPublishConfig());
+    ipcMain.handle('publish:saveConfig', async (_, input: PublishConfigInput) =>
+      savePublishConfig(input),
+    );
+    ipcMain.handle('publish:getPriceListNames', async () =>
+      publishService.getPriceListNames(),
+    );
+    ipcMain.handle('publish:preview', async () => {
+      const config = getPublishConfig();
+      return publishService.previewCatalog({
+        publicPriceLists: config.publicPriceLists,
+        imagesManifestUrl: config.imagesManifestUrl,
+      });
+    });
 
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
       return authService.login(user);

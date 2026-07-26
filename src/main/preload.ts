@@ -36,6 +36,8 @@ import type {
   BulkPriceListPositionResult,
 } from 'types';
 import { InvoiceType } from 'types';
+import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
+import type { CatalogPreview } from './services/Publish.service';
 
 export type Channels = 'backup-operation-status' | 'backup-operation-progress';
 
@@ -575,6 +577,21 @@ const electronHandler = {
    */
   updateJournalInfo: (journalId: number, fields: UpdateJournalFields) =>
     ipcRenderer.invoke('journal:updateInfo', journalId, fields),
+
+  /** Publish configuration (secrets are write-only; never returned here). */
+  getPublishConfig: () =>
+    ipcRenderer.invoke('publish:getConfig') as Promise<PublishConfig>,
+
+  savePublishConfig: (input: PublishConfigInput) =>
+    ipcRenderer.invoke('publish:saveConfig', input) as Promise<PublishConfig>,
+
+  /** Active price list names — drives the public price list picker. */
+  getPriceListNames: () =>
+    ipcRenderer.invoke('publish:getPriceListNames') as Promise<string[]>,
+
+  /** Dry-run summary of what a publish would produce. */
+  previewCatalog: () =>
+    ipcRenderer.invoke('publish:preview') as Promise<CatalogPreview>,
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

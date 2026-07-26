@@ -8,6 +8,7 @@ import { toast } from 'renderer/shad/ui/use-toast';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
 import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
+import PublishSettings from './PublishSettings';
 
 const SettingsPage: React.FC = () => {
   // eslint-disable-next-line no-console
@@ -238,6 +239,14 @@ const SettingsPage: React.FC = () => {
             Shown above the total quantity row on printed invoices.
           </p>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2 mt-8">
+        <h2 className="text-2xl font-medium">Publish Catalog</h2>
+        <Separator />
+      </div>
+      <div className="mt-4 mb-24">
+        <PublishSettings />
       </div>
 
       <div className="fixed bottom-6 left-0 right-0 flex justify-end px-6">
