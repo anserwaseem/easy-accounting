@@ -4,6 +4,7 @@ import {
   buildBulkPriceListPatches,
   countDirtyDraftRows,
   getDraftDisplayValue,
+  priceListIdOfCol,
   type InventoryBulkEditCol,
   type InventoryBulkEditDraftFields,
 } from './inventoryBulkEdit';
@@ -105,10 +106,18 @@ export const useInventoryBulkEditDraft =
     const writeDraftField = useCallback(
       (inventoryId: number, col: InventoryBulkEditCol, raw: string) => {
         const prev = draftRef.current.get(inventoryId) ?? {};
-        draftRef.current.set(inventoryId, {
-          ...prev,
-          [col]: raw,
-        });
+        const priceListId = priceListIdOfCol(col);
+        // price-list columns nest under listPrices so the patch builder can
+        // tell them apart from the base price / list #
+        draftRef.current.set(
+          inventoryId,
+          priceListId !== null
+            ? {
+                ...prev,
+                listPrices: { ...(prev.listPrices ?? {}), [priceListId]: raw },
+              }
+            : { ...prev, [col]: raw },
+        );
         // intentionally no setState — keystroke must not re-render virtualized rows
         dirtyCountRef.current = countDirtyDraftRows(
           originalsRef.current,

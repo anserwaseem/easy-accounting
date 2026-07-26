@@ -89,6 +89,10 @@ export class InventoryService {
 
   private stmUpdatePriceAndListPositionById!: Statement;
 
+  private stmUpsertInventoryPrice!: Statement;
+
+  private stmDeleteInventoryPrice!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -312,6 +316,33 @@ export class InventoryService {
           listPosition: patch.listPosition,
         });
         updated += result.changes;
+
+        // named price lists: a null price removes the item from that list
+        for (const entry of patch.listPrices ?? []) {
+          if (!Number.isFinite(entry.priceListId) || entry.priceListId <= 0) {
+            raise(`Invalid price list id for inventory id ${patch.id}`);
+          }
+          if (
+            entry.price != null &&
+            (!Number.isFinite(entry.price) || entry.price < 0)
+          ) {
+            raise(
+              `Invalid ${entry.priceListId} list price for inventory id ${patch.id}`,
+            );
+          }
+          if (entry.price == null) {
+            this.stmDeleteInventoryPrice.run(
+              cast(patch.id),
+              cast(entry.priceListId),
+            );
+          } else {
+            this.stmUpsertInventoryPrice.run(
+              cast(patch.id),
+              cast(entry.priceListId),
+              entry.price,
+            );
+          }
+        }
       }
     })();
 
@@ -846,6 +877,16 @@ export class InventoryService {
       LEFT JOIN item_types it ON it.id = i.itemTypeId
       WHERE i.itemTypeId IN (SELECT value FROM json_each(@itemTypeIdsJson))
       ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC
+    `);
+
+    this.stmUpsertInventoryPrice = this.db.prepare(`
+      INSERT INTO inventory_prices (inventoryId, priceListId, price)
+      VALUES (?, ?, ?)
+      ON CONFLICT(inventoryId, priceListId) DO UPDATE SET price = excluded.price
+    `);
+
+    this.stmDeleteInventoryPrice = this.db.prepare(`
+      DELETE FROM inventory_prices WHERE inventoryId = ? AND priceListId = ?
     `);
 
     this.stmGetInventoryIdsByTrimName = this.db.prepare(`

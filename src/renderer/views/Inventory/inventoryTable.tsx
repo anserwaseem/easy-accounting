@@ -20,6 +20,8 @@ import type {
   BulkPriceListPositionPatch,
 } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
+import { Checkbox } from '@/renderer/shad/ui/checkbox';
+import { Label } from '@/renderer/shad/ui/label';
 import {
   Select,
   SelectContent,
@@ -31,6 +33,7 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { useEscapeKey } from '@/renderer/hooks/useEscapeKey';
+import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
@@ -42,10 +45,15 @@ import {
   focusInventoryBulkEditCell,
   resolveNextBulkEditTarget,
   scheduleFocusInventoryBulkEditCell,
+  getRowListPrice,
+  priceListCol,
   type BulkEditChangeSummary,
   type InventoryBulkEditCol,
 } from './inventoryBulkEdit';
 import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
+
+/** persisted visible price-list columns (mirrors the Accounts page approach) */
+const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
 
 const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
   (r) => r.id,
@@ -126,6 +134,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   // eslint-disable-next-line no-console
   const [inventory, setInventory] = useState<InventoryItem[]>();
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
+  const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
+  // which price-list columns are shown; persisted like the Accounts page does
+  const [visiblePriceListIds, setVisiblePriceListIds] = useState<number[]>(
+    () => {
+      const stored = window.electron.store.get(VISIBLE_PRICE_LIST_COLUMNS_KEY);
+      return Array.isArray(stored) ? (stored as number[]) : [];
+    },
+  );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [itemsWithHistory, setItemsWithHistory] = useState<number[]>([]);
@@ -248,6 +264,45 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     options?.hideZeroPrice,
     options?.hideNoType,
   ]);
+
+  // active price lists drive the optional price columns
+  useEffect(() => {
+    let cancelled = false;
+    window.electron
+      .getPriceLists()
+      .then((lists) => {
+        if (!cancelled) setPriceLists(lists.filter((l) => l.isActive));
+        return lists;
+      })
+      .catch(() => {
+        // price columns are optional; a failure here must not break the table
+        if (!cancelled) setPriceLists([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [options?.refresh]);
+
+  useEffect(() => {
+    window.electron.store.set(
+      VISIBLE_PRICE_LIST_COLUMNS_KEY,
+      visiblePriceListIds,
+    );
+  }, [visiblePriceListIds]);
+
+  const togglePriceListColumn = useCallback((priceListId: number) => {
+    setVisiblePriceListIds((prev) =>
+      prev.includes(priceListId)
+        ? prev.filter((id) => id !== priceListId)
+        : [...prev, priceListId],
+    );
+  }, []);
+
+  // only show columns for lists that still exist and are active
+  const shownPriceLists = useMemo(
+    () => priceLists.filter((l) => visiblePriceListIds.includes(l.id)),
+    [priceLists, visiblePriceListIds],
+  );
 
   // report the filtered id set upward; derived from the memoized rows so this
   // fires only when filtering actually changes, not on every render
@@ -561,6 +616,43 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           );
         },
       },
+      ...shownPriceLists.map<ColumnDef<InventoryItem>>((list) => {
+        const col = priceListCol(list.id);
+        return {
+          id: col,
+          header: list.name,
+          headerTooltip: `Price on the "${list.name}" price list. Blank means this item is not priced on it.`,
+          size: 96,
+          enableSorting: false,
+          accessorFn: (item) => getRowListPrice(item, list.id) ?? undefined,
+          // eslint-disable-next-line react/no-unstable-nested-components
+          cell: ({ row }) => {
+            const stored = getRowListPrice(row.original, list.id);
+            if (!editMode) {
+              return (
+                <span className="tabular-nums">
+                  {stored == null ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    stored
+                  )}
+                </span>
+              );
+            }
+            return (
+              <InventoryBulkEditCell
+                inventoryId={row.original.id}
+                col={col}
+                defaultValue={getCellDefaultValue(row.original, col)}
+                editSessionKey={editSessionKey}
+                onWrite={stableWriteDraft}
+                onBlurCommit={stableBlurCommit}
+                onNavigate={stableNavigate}
+              />
+            );
+          },
+        };
+      }),
       {
         accessorKey: 'quantity',
         header: 'Quantity',
@@ -635,7 +727,32 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     stableBlurCommit,
     stableNavigate,
     stableWriteDraft,
+    shownPriceLists,
   ]);
+
+  const priceListColumnToggles =
+    priceLists.length > 0 ? (
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm text-muted-foreground">Price columns:</span>
+        {priceLists.map((list) => (
+          <Label
+            key={list.id}
+            htmlFor={`show-price-list-${list.id}`}
+            className={`flex items-center gap-2 text-sm font-normal ${
+              editMode ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+            }`}
+          >
+            <Checkbox
+              id={`show-price-list-${list.id}`}
+              disabled={editMode}
+              checked={visiblePriceListIds.includes(list.id)}
+              onCheckedChange={() => togglePriceListColumn(list.id)}
+            />
+            <span>{list.name}</span>
+          </Label>
+        ))}
+      </div>
+    ) : null;
 
   const toolbar = (
     <InventoryBulkEditToolbar
@@ -651,6 +768,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   return (
     <div className="pt-1">
       {toolbarHost ? createPortal(toolbar, toolbarHost) : null}
+      {priceListColumnToggles ? (
+        <div className="pb-2">{priceListColumnToggles}</div>
+      ) : null}
       <InventoryVirtualGrid
         columns={columns}
         data={filteredInventory}

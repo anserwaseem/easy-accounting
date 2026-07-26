@@ -8,6 +8,9 @@ import {
   parseListPositionInput,
   parsePriceInput,
   resolveNextBulkEditTarget,
+  priceListCol,
+  priceListIdOfCol,
+  parseListPriceInput,
 } from '../inventoryBulkEdit';
 
 const row = (
@@ -174,5 +177,90 @@ describe('resolveNextBulkEditTarget', () => {
     expect(
       resolveNextBulkEditTarget(rows, 1, 'listPosition', 'Tab', true),
     ).toBeNull();
+  });
+});
+
+describe('price list columns', () => {
+  const priceRow = (over: Partial<InventoryItem> = {}): InventoryItem =>
+    ({
+      id: 1,
+      name: 'S-23-G',
+      price: 900,
+      quantity: 5,
+      listPosition: 3,
+      listPrices: { 1: 1080 },
+      ...over,
+    }) as InventoryItem;
+
+  it('builds and parses the column id', () => {
+    expect(priceListCol(7)).toBe('list:7');
+    expect(priceListIdOfCol('list:7')).toBe(7);
+    expect(priceListIdOfCol('price')).toBeNull();
+    expect(priceListIdOfCol('listPosition')).toBeNull();
+  });
+
+  it('shows the stored list price, or blank when unpriced', () => {
+    expect(getDraftDisplayValue(priceRow(), 'list:1', undefined)).toBe('1080');
+    expect(getDraftDisplayValue(priceRow(), 'list:2', undefined)).toBe('');
+  });
+
+  it('prefers the typed draft value over the stored one', () => {
+    expect(
+      getDraftDisplayValue(priceRow(), 'list:1', { listPrices: { 1: '1120' } }),
+    ).toBe('1120');
+  });
+
+  it('treats an empty list price as clearing it', () => {
+    expect(parseListPriceInput('')).toEqual({ ok: true, value: null });
+    expect(parseListPriceInput('1120')).toEqual({ ok: true, value: 1120 });
+    expect(parseListPriceInput('-5').ok).toBe(false);
+    expect(parseListPriceInput('abc').ok).toBe(false);
+  });
+
+  it('marks a row dirty only when a list price actually changes', () => {
+    expect(isDraftRowDirty(priceRow(), { listPrices: { 1: '1080' } })).toBe(
+      false,
+    );
+    expect(isDraftRowDirty(priceRow(), { listPrices: { 1: '1120' } })).toBe(
+      true,
+    );
+    expect(isDraftRowDirty(priceRow(), { listPrices: { 1: '' } })).toBe(true);
+    expect(isDraftRowDirty(priceRow(), { listPrices: { 2: '500' } })).toBe(
+      true,
+    );
+  });
+
+  it('emits only changed list prices in the patch', () => {
+    const originals = new Map([[1, priceRow()]]);
+    const drafts = new Map([[1, { listPrices: { 1: '1120', 2: '640' } }]]);
+    const built = buildBulkPriceListPatches(originals, drafts);
+    if (!built.ok) throw new Error(built.error);
+    expect(built.patches[0].listPrices).toEqual([
+      { priceListId: 1, price: 1120 },
+      { priceListId: 2, price: 640 },
+    ]);
+    // base price and list # are carried through unchanged
+    expect(built.patches[0].price).toBe(900);
+    expect(built.patches[0].listPosition).toBe(3);
+  });
+
+  it('emits a null price to clear an item from a list', () => {
+    const built = buildBulkPriceListPatches(
+      new Map([[1, priceRow()]]),
+      new Map([[1, { listPrices: { 1: '' } }]]),
+    );
+    if (!built.ok) throw new Error(built.error);
+    expect(built.patches[0].listPrices).toEqual([
+      { priceListId: 1, price: null },
+    ]);
+  });
+
+  it('reports an invalid list price with the item name', () => {
+    const built = buildBulkPriceListPatches(
+      new Map([[1, priceRow()]]),
+      new Map([[1, { listPrices: { 1: 'abc' } }]]),
+    );
+    expect(built.ok).toBe(false);
+    expect(built.ok ? '' : built.error).toContain('S-23-G');
   });
 });

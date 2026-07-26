@@ -231,6 +231,11 @@ export interface BulkPriceListPositionPatch {
   id: number;
   price: number;
   listPosition: number | null;
+  /**
+   * Prices on named price lists that changed for this item (migration 020).
+   * A null price removes the item from that list.
+   */
+  listPrices?: Array<{ priceListId: number; price: number | null }>;
 }
 
 export interface BulkPriceListPositionResult {
