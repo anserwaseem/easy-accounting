@@ -112,6 +112,8 @@ interface InventoryTableProps {
   toolbarHost?: HTMLElement | null;
   /** notify parent so filters can lock during edit session */
   onBulkEditActiveChange?: (active: boolean) => void;
+  /** notify parent which items survive the filters (scope for bulk price ops) */
+  onFilteredIdsChange?: (ids: number[]) => void;
 }
 
 export const InventoryTable: React.FC<InventoryTableProps> = ({
@@ -119,6 +121,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   refetchInventory,
   toolbarHost = null,
   onBulkEditActiveChange,
+  onFilteredIdsChange,
 }: InventoryTableProps) => {
   // eslint-disable-next-line no-console
   const [inventory, setInventory] = useState<InventoryItem[]>();
@@ -245,6 +248,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     options?.hideZeroPrice,
     options?.hideNoType,
   ]);
+
+  // report the filtered id set upward; derived from the memoized rows so this
+  // fires only when filtering actually changes, not on every render
+  useEffect(() => {
+    onFilteredIdsChange?.(filteredInventory.map((item) => item.id));
+  }, [filteredInventory, onFilteredIdsChange]);
 
   const writeDraftFieldRef = useRef(writeDraftField);
   writeDraftFieldRef.current = writeDraftField;

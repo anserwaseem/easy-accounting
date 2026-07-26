@@ -13,8 +13,15 @@ import {
 } from '../utils/publishConfig';
 import {
   buildPublishTargets,
+  contentFingerprint,
   unsafeTargetReason,
 } from '../utils/publishTargets';
+import {
+  buildSeedPlan,
+  type SeedInputRow,
+  type SeedOptions,
+  type SeedPlan,
+} from '../utils/priceSeeding';
 import { DatabaseService } from './Database.service';
 import {
   CATALOG_QUERY,
@@ -25,14 +32,14 @@ import {
   buildFullCatalog,
   buildPublicCatalog,
   isPublishable,
-  publicPricesOf,
+  publicPriceOf,
   toProductsCsv,
   type CatalogSourceRow,
 } from '../utils/catalog';
 
 interface GenerateCatalogOptions {
-  /** Names of price lists the business has marked public (e.g. ['Retail']). */
-  publicPriceLists: string[];
+  /** The price list published as the public price (e.g. 'Retail'). */
+  publicPriceList: string;
   /** SKUs known to have an image (from the images manifest). */
   imageSkus?: Set<string>;
   /** Overridable for deterministic output; defaults to now (ISO). */
@@ -44,6 +51,14 @@ interface GenerateCatalogResult {
   publicCount: number;
   publishableCount: number;
   files: { full: string; public: string; csv: string };
+}
+
+export interface PriceListSummary {
+  id: number;
+  name: string;
+  isActive: number;
+  /** How many items carry a price on this list — deleting would drop these. */
+  itemCount: number;
 }
 
 export interface CatalogPreview {
@@ -76,6 +91,10 @@ export interface PublishResult {
    * base URL — i.e. the storage bucket exposes more than the public prefix.
    */
   privateExposureWarning?: string;
+  /** Fingerprint of the uploaded content, ignoring the timestamp. */
+  fingerprint?: string;
+  /** True when the run found no changes and uploaded nothing. */
+  skipped?: boolean;
 }
 
 export type PublishProgressStatus =
@@ -107,19 +126,136 @@ export class PublishService {
 
   private stmGetPriceListNames!: Statement;
 
+  private stmGetPriceLists!: Statement;
+
+  private stmInsertPriceList!: Statement;
+
+  private stmRenamePriceList!: Statement;
+
+  private stmTogglePriceList!: Statement;
+
+  private stmGetSeedRows!: Statement;
+
+  private stmUpsertInventoryPrice!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.stmGetCatalogRows = this.db.prepare(CATALOG_QUERY);
     this.stmGetPriceListNames = this.db.prepare(
       `SELECT name FROM price_lists WHERE isActive = 1 ORDER BY name`,
     );
+    this.stmGetPriceLists = this.db.prepare(
+      `SELECT pl.id, pl.name, pl.isActive,
+              (SELECT COUNT(*) FROM inventory_prices ip
+                WHERE ip.priceListId = pl.id) AS itemCount
+         FROM price_lists pl ORDER BY pl.name`,
+    );
+    this.stmInsertPriceList = this.db.prepare(
+      `INSERT OR IGNORE INTO price_lists (name) VALUES (?)`,
+    );
+    this.stmRenamePriceList = this.db.prepare(
+      `UPDATE price_lists SET name = ? WHERE id = ?`,
+    );
+    this.stmTogglePriceList = this.db.prepare(
+      `UPDATE price_lists SET isActive = ? WHERE id = ?`,
+    );
+    this.stmGetSeedRows = this.db.prepare(
+      `SELECT i.id AS inventoryId, i.name AS name, i.price AS basePrice,
+              ip.price AS currentPrice
+         FROM inventory i
+         LEFT JOIN inventory_prices ip
+                ON ip.inventoryId = i.id AND ip.priceListId = ?
+        ORDER BY i.name`,
+    );
+    this.stmUpsertInventoryPrice = this.db.prepare(
+      `INSERT INTO inventory_prices (inventoryId, priceListId, price)
+       VALUES (?, ?, ?)
+       ON CONFLICT(inventoryId, priceListId)
+       DO UPDATE SET price = excluded.price`,
+    );
   }
 
-  /** Names of the active price lists — drives the "public price lists" picker. */
+  /** Names of the active price lists — drives the "public price list" picker. */
   public getPriceListNames(): string[] {
     return (this.stmGetPriceListNames.all() as Array<{ name: string }>).map(
       (r) => r.name,
     );
+  }
+
+  /** All price lists with their item counts, for the management screen. */
+  public getPriceLists(): PriceListSummary[] {
+    return this.stmGetPriceLists.all() as PriceListSummary[];
+  }
+
+  /** Creates a price list. Returns false when the name already exists. */
+  public createPriceList(name: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    const info = this.stmInsertPriceList.run(trimmed);
+    return info.changes > 0;
+  }
+
+  public renamePriceList(id: number, name: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    return this.stmRenamePriceList.run(trimmed, id).changes > 0;
+  }
+
+  public setPriceListActive(id: number, isActive: boolean): boolean {
+    return this.stmTogglePriceList.run(isActive ? 1 : 0, id).changes > 0;
+  }
+
+  /**
+   * Rows a seed/revision would consider: the base price plus the item's current
+   * price on the target list. Optionally narrowed to specific inventory ids so
+   * the caller can scope a revision to whatever the user has filtered to.
+   */
+  public getSeedRows(
+    priceListId: number,
+    inventoryIds?: number[],
+  ): SeedInputRow[] {
+    const rows = this.stmGetSeedRows.all(priceListId) as Array<{
+      inventoryId: number;
+      name: string;
+      basePrice: number;
+      currentPrice: number | null;
+    }>;
+    if (!inventoryIds || inventoryIds.length === 0) return rows;
+    const wanted = new Set(inventoryIds);
+    return rows.filter((r) => wanted.has(r.inventoryId));
+  }
+
+  /** Preview only — computes what a seed/revision would change. */
+  public previewSeed(
+    priceListId: number,
+    options: SeedOptions,
+    inventoryIds?: number[],
+  ): SeedPlan {
+    return buildSeedPlan(this.getSeedRows(priceListId, inventoryIds), options);
+  }
+
+  /**
+   * Applies a seed/revision. Recomputes the plan inside a transaction rather
+   * than trusting a plan passed from the renderer, so what is written always
+   * matches current data.
+   */
+  public applySeed(
+    priceListId: number,
+    options: SeedOptions,
+    inventoryIds?: number[],
+  ): { applied: number; plan: SeedPlan } {
+    const plan = this.previewSeed(priceListId, options, inventoryIds);
+    const write = this.db.transaction((changes: typeof plan.changes) => {
+      for (const change of changes) {
+        this.stmUpsertInventoryPrice.run(
+          change.inventoryId,
+          priceListId,
+          change.to,
+        );
+      }
+      return changes.length;
+    });
+    return { applied: write(plan.changes), plan };
   }
 
   public getCatalogRows(
@@ -135,7 +271,7 @@ export class PublishService {
   ): GenerateCatalogResult {
     const rows = this.getCatalogRows(options.imageSkus ?? new Set());
     const generatedAt = options.generatedAt ?? new Date().toISOString();
-    const opts = { publicPriceLists: options.publicPriceLists };
+    const opts = { publicPriceList: options.publicPriceList };
 
     const full = buildFullCatalog(rows, opts, generatedAt);
     const pub = buildPublicCatalog(rows, opts, generatedAt);
@@ -147,8 +283,11 @@ export class PublishService {
       public: path.join(outDir, 'catalog-public.json'),
       csv: path.join(outDir, 'products.csv'),
     };
+    // the full catalog stays indented: it is private and the one humans and
+    // downstream generators read. public files are minified because consumers
+    // (storefronts, ad feeds) refetch them repeatedly — ~33% smaller.
     fs.writeFileSync(files.full, JSON.stringify(full, null, 2));
-    fs.writeFileSync(files.public, JSON.stringify(pub, null, 2));
+    fs.writeFileSync(files.public, JSON.stringify(pub));
     fs.writeFileSync(files.csv, csv);
 
     return {
@@ -164,14 +303,14 @@ export class PublishService {
    * the readiness panel in Settings so the user can see why items are excluded.
    */
   public async previewCatalog(options: {
-    publicPriceLists: string[];
+    publicPriceList: string;
     imagesManifestUrl?: string;
   }): Promise<CatalogPreview> {
     const imageSkus = await PublishService.fetchImageSkus(
       options.imagesManifestUrl,
     );
     const rows = this.getCatalogRows(imageSkus);
-    const { publicPriceLists } = options;
+    const { publicPriceList } = options;
 
     let publicCount = 0;
     let publishableCount = 0;
@@ -180,14 +319,13 @@ export class PublishService {
     let missingPublicPrice = 0;
 
     for (const row of rows) {
-      const hasPublicPrice =
-        Object.keys(publicPricesOf(row, publicPriceLists)).length > 0;
+      const hasPublicPrice = publicPriceOf(row, publicPriceList) !== null;
       const hasAttrs = Object.keys(row.attributes ?? {}).length > 0;
       if (hasPublicPrice) publicCount += 1;
       else missingPublicPrice += 1;
       if (!hasAttrs) missingAttributes += 1;
       if (!row.hasImage) missingImage += 1;
-      if (isPublishable(row, publicPriceLists)) publishableCount += 1;
+      if (isPublishable(row, publicPriceList)) publishableCount += 1;
     }
 
     return {
@@ -206,7 +344,7 @@ export class PublishService {
    * public catalog + CSV to the public prefix), then optionally notify a
    * webhook. Progress is emitted to all windows as it goes.
    */
-  public async publish(): Promise<PublishResult> {
+  public async publish(force = false): Promise<PublishResult> {
     const generatedAt = new Date().toISOString();
     const config = getPublishConfig();
 
@@ -230,10 +368,32 @@ export class PublishService {
       );
       const outDir = path.join(app.getPath('userData'), 'publish');
       const generated = this.generateCatalogFiles(outDir, {
-        publicPriceLists: config.publicPriceLists,
+        publicPriceList: config.publicPriceList,
         imageSkus,
         generatedAt,
       });
+
+      // an unchanged catalog needs no re-upload: skip it to avoid pointless
+      // cache invalidation on consumer CDNs (force=true bypasses this)
+      const fingerprint = contentFingerprint({
+        full: fs.readFileSync(generated.files.full, 'utf-8'),
+        public: fs.readFileSync(generated.files.public, 'utf-8'),
+        csv: fs.readFileSync(generated.files.csv, 'utf-8'),
+      });
+      const previous = PublishService.getLastResult();
+      if (!force && previous?.ok && previous.fingerprint === fingerprint) {
+        const unchanged: PublishResult = {
+          ...previous,
+          generatedAt,
+          skipped: true,
+        };
+        store.set(PUBLISH_KEYS.lastResult, unchanged);
+        PublishService.emitProgress(
+          'success',
+          'No catalog changes since the last publish — nothing uploaded.',
+        );
+        return unchanged;
+      }
 
       const { secretAccessKey, webhookToken } = getPublishSecrets();
       // loaded on demand: the SDK is large, and nothing else in the app needs
@@ -290,6 +450,8 @@ export class PublishService {
         publishableCount: generated.publishableCount,
         uploaded,
         webhook,
+        fingerprint,
+        skipped: false,
         ...(privateExposureWarning ? { privateExposureWarning } : {}),
       };
       store.set(PUBLISH_KEYS.lastResult, result);
@@ -354,8 +516,13 @@ export class PublishService {
     if (!publicBaseUrl || !privateKey) return undefined;
     const url = `${publicBaseUrl.replace(/\/+$/, '')}/${privateKey}`;
     try {
-      const response = await fetch(url, { method: 'GET' });
-      if (response.ok) {
+      // a 1-byte ranged GET proves readability without downloading the whole
+      // catalog, and works on hosts that reject HEAD
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { Range: 'bytes=0-0' },
+      });
+      if (response.ok || response.status === 206) {
         log.error(`Publish: private catalog is publicly readable at ${url}`);
         return `The full catalog is publicly readable at ${url}. It contains every price list. Restrict public access to the public path prefix only, or use a separate private bucket.`;
       }

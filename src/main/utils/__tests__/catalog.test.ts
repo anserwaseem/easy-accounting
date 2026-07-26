@@ -3,7 +3,7 @@ import {
   buildPublicCatalog,
   toProductsCsv,
   isPublishable,
-  publicPricesOf,
+  publicPriceOf,
   type CatalogSourceRow,
 } from '../catalog';
 
@@ -19,32 +19,39 @@ const row = (over: Partial<CatalogSourceRow> = {}): CatalogSourceRow => ({
   ...over,
 });
 
-const OPTS = { publicPriceLists: ['Retail'] };
+const OPTS = { publicPriceList: 'Retail' };
 
-describe('publicPricesOf', () => {
-  it('keeps only public lists with a positive price', () => {
-    const r = row({ prices: { Retail: 1080, Wholesale: 700, Zero: 0 } });
-    expect(publicPricesOf(r, ['Retail', 'Zero'])).toEqual({ Retail: 1080 });
+describe('publicPriceOf', () => {
+  it('returns the price from the configured list', () => {
+    const r = row({ prices: { Retail: 1080, Wholesale: 700 } });
+    expect(publicPriceOf(r, 'Retail')).toBe(1080);
+  });
+  it('ignores a non-positive price', () => {
+    expect(publicPriceOf(row({ prices: { Retail: 0 } }), 'Retail')).toBeNull();
+  });
+  it('returns null when the list is absent or unset', () => {
+    expect(publicPriceOf(row(), 'Wholesale')).toBeNull();
+    expect(publicPriceOf(row(), '')).toBeNull();
   });
 });
 
 describe('isPublishable', () => {
   it('true when attributes + public price + image all present', () => {
-    expect(isPublishable(row(), OPTS.publicPriceLists)).toBe(true);
+    expect(isPublishable(row(), OPTS.publicPriceList)).toBe(true);
   });
   it('false without attributes', () => {
-    expect(isPublishable(row({ attributes: {} }), OPTS.publicPriceLists)).toBe(
+    expect(isPublishable(row({ attributes: {} }), OPTS.publicPriceList)).toBe(
       false,
     );
   });
   it('false without an image', () => {
-    expect(isPublishable(row({ hasImage: false }), OPTS.publicPriceLists)).toBe(
+    expect(isPublishable(row({ hasImage: false }), OPTS.publicPriceList)).toBe(
       false,
     );
   });
   it('false without a public price', () => {
     expect(
-      isPublishable(row({ prices: { Wholesale: 700 } }), OPTS.publicPriceLists),
+      isPublishable(row({ prices: { Wholesale: 700 } }), OPTS.publicPriceList),
     ).toBe(false);
   });
 });
@@ -58,7 +65,7 @@ describe('buildFullCatalog', () => {
     );
     expect(cat.count).toBe(1);
     expect(cat.priceLists).toEqual(['Retail', 'Wholesale']);
-    expect(cat.publicPriceLists).toEqual(['Retail']);
+    expect(cat.publicPriceList).toBe('Retail');
     expect(cat.items[0].basePrice).toBe(900);
     expect(cat.items[0].prices).toEqual({ Retail: 1080, Wholesale: 700 });
     expect(cat.items[0].publishable).toBe(true);
@@ -76,15 +83,15 @@ describe('buildPublicCatalog', () => {
     expect(pub.items[0].sku).toBe('S-23-G');
   });
 
-  it('public items carry only public prices and NO base price field', () => {
+  it('public items expose one price and NO base price field', () => {
     const pub = buildPublicCatalog(
       [row({ prices: { Retail: 1080, Wholesale: 700 } })],
       OPTS,
     );
     const item = pub.items[0] as unknown as Record<string, unknown>;
-    expect(item.prices).toEqual({ Retail: 1080 });
+    expect(item.price).toBe(1080);
     expect('basePrice' in item).toBe(false);
-    expect(item).not.toHaveProperty('basePrice');
+    expect('prices' in item).toBe(false);
   });
 });
 
@@ -154,7 +161,7 @@ describe('toProductsCsv', () => {
     const csv = toProductsCsv(buildPublicCatalog(rows, OPTS, 'T'));
     const [header, dataLine] = csv.trim().split('\n');
     expect(header).toBe(
-      'sku,name,parentSku,quantity,attr.note,attr.urdu,price.Retail,hasImage,publishable',
+      'sku,name,parentSku,quantity,attr.note,attr.urdu,price,hasImage,publishable',
     );
     expect(dataLine).toContain('"Quran, 16 line"'); // comma-quoted
     expect(dataLine).toContain('"has ""zip"""'); // quote-escaped

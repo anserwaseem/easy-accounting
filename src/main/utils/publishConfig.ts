@@ -24,7 +24,7 @@ export const PUBLISH_KEYS = {
   publicBaseUrl: 'publish.publicBaseUrl',
   privatePrefix: 'publish.privatePrefix',
   publicPrefix: 'publish.publicPrefix',
-  publicPriceLists: 'publish.publicPriceLists',
+  publicPriceList: 'publish.publicPriceList',
   imagesManifestUrl: 'publish.imagesManifestUrl',
   webhookUrl: 'publish.webhookUrl',
   webhookToken: 'publish.webhookTokenEnc',
@@ -46,7 +46,8 @@ export interface PublishConfig {
   publicBaseUrl: string;
   privatePrefix: string;
   publicPrefix: string;
-  publicPriceLists: string[];
+  /** The single price list published as the public price. Empty = not chosen. */
+  publicPriceList: string;
   imagesManifestUrl: string;
   webhookUrl: string;
   /** True when a secret access key is stored (the value itself never leaves main). */
@@ -98,7 +99,6 @@ function decrypt(b64: string): string {
 }
 
 export function getPublishConfig(): PublishConfig {
-  const lists = store.get(PUBLISH_KEYS.publicPriceLists);
   return {
     endpoint: str(PUBLISH_KEYS.endpoint),
     region: str(PUBLISH_KEYS.region, DEFAULTS.region),
@@ -108,7 +108,7 @@ export function getPublishConfig(): PublishConfig {
     publicBaseUrl: str(PUBLISH_KEYS.publicBaseUrl),
     privatePrefix: str(PUBLISH_KEYS.privatePrefix, DEFAULTS.privatePrefix),
     publicPrefix: str(PUBLISH_KEYS.publicPrefix, DEFAULTS.publicPrefix),
-    publicPriceLists: Array.isArray(lists) ? (lists as string[]) : [],
+    publicPriceList: str(PUBLISH_KEYS.publicPriceList),
     imagesManifestUrl: str(PUBLISH_KEYS.imagesManifestUrl),
     webhookUrl: str(PUBLISH_KEYS.webhookUrl),
     hasSecretAccessKey: !!str(PUBLISH_KEYS.secretAccessKeyEnc),
@@ -156,9 +156,7 @@ export function savePublishConfig(input: PublishConfigInput): PublishConfig {
   setIfDefined(PUBLISH_KEYS.publicPrefix, input.publicPrefix?.trim());
   setIfDefined(PUBLISH_KEYS.imagesManifestUrl, input.imagesManifestUrl?.trim());
   setIfDefined(PUBLISH_KEYS.webhookUrl, input.webhookUrl?.trim());
-  if (input.publicPriceLists !== undefined) {
-    store.set(PUBLISH_KEYS.publicPriceLists, input.publicPriceLists);
-  }
+  setIfDefined(PUBLISH_KEYS.publicPriceList, input.publicPriceList?.trim());
 
   const saveSecret = (key: string, value?: string) => {
     if (value === undefined) return; // unchanged
@@ -187,7 +185,6 @@ export function validatePublishConfig(config: PublishConfig): string[] {
   if (!config.bucket) missing.push('bucket');
   if (!config.accessKeyId) missing.push('access key ID');
   if (!config.hasSecretAccessKey) missing.push('secret access key');
-  if (config.publicPriceLists.length === 0)
-    missing.push('at least one public price list');
+  if (!config.publicPriceList) missing.push('a public price list');
   return missing;
 }

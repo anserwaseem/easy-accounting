@@ -55,6 +55,7 @@ import {
   savePublishConfig,
   type PublishConfigInput,
 } from './utils/publishConfig';
+import type { SeedOptions } from './utils/priceSeeding';
 import { ErrorManager } from './errorManager';
 import { DEFAULT_USER } from './utils/constants';
 
@@ -228,11 +229,37 @@ app
     ipcMain.handle('publish:preview', async () => {
       const config = getPublishConfig();
       return publishService.previewCatalog({
-        publicPriceLists: config.publicPriceLists,
+        publicPriceList: config.publicPriceList,
         imagesManifestUrl: config.imagesManifestUrl,
       });
     });
-    ipcMain.handle('publish:run', async () => publishService.publish());
+    ipcMain.handle('publish:run', async (_, force?: boolean) =>
+      publishService.publish(force ?? false),
+    );
+    ipcMain.handle('priceList:getAll', async () =>
+      publishService.getPriceLists(),
+    );
+    ipcMain.handle('priceList:create', async (_, name: string) =>
+      publishService.createPriceList(name),
+    );
+    ipcMain.handle('priceList:rename', async (_, id: number, name: string) =>
+      publishService.renamePriceList(id, name),
+    );
+    ipcMain.handle(
+      'priceList:previewSeed',
+      async (_, priceListId: number, options: SeedOptions, ids?: number[]) =>
+        publishService.previewSeed(priceListId, options, ids),
+    );
+    ipcMain.handle(
+      'priceList:applySeed',
+      async (_, priceListId: number, options: SeedOptions, ids?: number[]) =>
+        publishService.applySeed(priceListId, options, ids),
+    );
+    ipcMain.handle(
+      'priceList:setActive',
+      async (_, id: number, isActive: boolean) =>
+        publishService.setPriceListActive(id, isActive),
+    );
     ipcMain.handle('publish:getLastResult', async () =>
       PublishService.getLastResult(),
     );

@@ -10,7 +10,7 @@ export interface PublishConfig {
   publicBaseUrl: string;
   privatePrefix: string;
   publicPrefix: string;
-  publicPriceLists: string[];
+  publicPriceList: string;
   imagesManifestUrl: string;
   webhookUrl: string;
   hasSecretAccessKey: boolean;
@@ -27,6 +27,13 @@ export interface PublishConfigInput
   > {
   secretAccessKey?: string;
   webhookToken?: string;
+}
+
+export interface PriceListSummary {
+  id: number;
+  name: string;
+  isActive: number;
+  itemCount: number;
 }
 
 export interface CatalogPreview {
@@ -48,6 +55,8 @@ export interface PublishResult {
   uploaded: string[];
   webhook?: { called: boolean; ok: boolean; status?: number; error?: string };
   privateExposureWarning?: string;
+  fingerprint?: string;
+  skipped?: boolean;
 }
 
 export interface PublishProgressEvent {
@@ -65,15 +74,14 @@ export const missingPublishConfig = (config: {
   bucket: string;
   accessKeyId: string;
   hasSecretAccessKey: boolean;
-  publicPriceLists: string[];
+  publicPriceList: string;
 }): string[] => {
   const missing: string[] = [];
   if (!config.endpoint.trim()) missing.push('storage endpoint');
   if (!config.bucket.trim()) missing.push('bucket');
   if (!config.accessKeyId.trim()) missing.push('access key ID');
   if (!config.hasSecretAccessKey) missing.push('secret access key');
-  if (config.publicPriceLists.length === 0)
-    missing.push('at least one public price list');
+  if (!config.publicPriceList) missing.push('a public price list');
   return missing;
 };
 
@@ -86,7 +94,7 @@ const EMPTY_CONFIG: PublishConfig = {
   publicBaseUrl: '',
   privatePrefix: 'catalog/private',
   publicPrefix: 'catalog/public',
-  publicPriceLists: [],
+  publicPriceList: '',
   imagesManifestUrl: '',
   webhookUrl: '',
   hasSecretAccessKey: false,
@@ -98,17 +106,20 @@ export const usePublishSettings = () => {
   const [config, setConfig] = useState<PublishConfig>(EMPTY_CONFIG);
   const [priceListNames, setPriceListNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
   const [lastResult, setLastResult] = useState<PublishResult | null>(null);
   const [progress, setProgress] = useState<PublishProgressEvent | null>(null);
 
   const refresh = useCallback(async () => {
-    const [nextConfig, names, previous] = await Promise.all([
+    const [nextConfig, names, lists, previous] = await Promise.all([
       window.electron.getPublishConfig(),
       window.electron.getPriceListNames(),
+      window.electron.getPriceLists(),
       window.electron.getLastPublishResult(),
     ]);
     setConfig(nextConfig);
     setPriceListNames(names);
+    setPriceLists(lists);
     setLastResult(previous);
     setLoading(false);
   }, []);
@@ -122,12 +133,39 @@ export const usePublishSettings = () => {
     [],
   );
 
-  const runPublish = useCallback(async () => {
+  const runPublish = useCallback(async (force = false) => {
     setProgress(null);
-    const result = await window.electron.runPublish();
+    const result = await window.electron.runPublish(force);
     setLastResult(result);
     return result;
   }, []);
+
+  const createPriceList = useCallback(
+    async (name: string) => {
+      const ok = await window.electron.createPriceList(name);
+      await refresh();
+      return ok;
+    },
+    [refresh],
+  );
+
+  const renamePriceList = useCallback(
+    async (id: number, name: string) => {
+      const ok = await window.electron.renamePriceList(id, name);
+      await refresh();
+      return ok;
+    },
+    [refresh],
+  );
+
+  const setPriceListActive = useCallback(
+    async (id: number, isActive: boolean) => {
+      const ok = await window.electron.setPriceListActive(id, isActive);
+      await refresh();
+      return ok;
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     refresh();
@@ -148,10 +186,14 @@ export const usePublishSettings = () => {
     () => ({
       config,
       priceListNames,
+      priceLists,
       loading,
       lastResult,
       progress,
       runPublish,
+      createPriceList,
+      renamePriceList,
+      setPriceListActive,
       savePublishConfig,
       previewCatalog,
       refresh,
@@ -159,10 +201,14 @@ export const usePublishSettings = () => {
     [
       config,
       priceListNames,
+      priceLists,
       loading,
       lastResult,
       progress,
       runPublish,
+      createPriceList,
+      renamePriceList,
+      setPriceListActive,
       savePublishConfig,
       previewCatalog,
       refresh,

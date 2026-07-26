@@ -37,7 +37,12 @@ import type {
 } from 'types';
 import { InvoiceType } from 'types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
-import type { CatalogPreview, PublishResult } from './services/Publish.service';
+import type {
+  CatalogPreview,
+  PriceListSummary,
+  PublishResult,
+} from './services/Publish.service';
+import type { SeedOptions, SeedPlan } from './utils/priceSeeding';
 
 export type Channels =
   | 'backup-operation-status'
@@ -597,7 +602,47 @@ const electronHandler = {
     ipcRenderer.invoke('publish:preview') as Promise<CatalogPreview>,
 
   /** Generate, upload and notify. Resolves with the run outcome. */
-  runPublish: () => ipcRenderer.invoke('publish:run') as Promise<PublishResult>,
+  runPublish: (force?: boolean) =>
+    ipcRenderer.invoke('publish:run', force) as Promise<PublishResult>,
+
+  /** All price lists with item counts, for management. */
+  getPriceLists: () =>
+    ipcRenderer.invoke('priceList:getAll') as Promise<PriceListSummary[]>,
+
+  createPriceList: (name: string) =>
+    ipcRenderer.invoke('priceList:create', name) as Promise<boolean>,
+
+  renamePriceList: (id: number, name: string) =>
+    ipcRenderer.invoke('priceList:rename', id, name) as Promise<boolean>,
+
+  setPriceListActive: (id: number, isActive: boolean) =>
+    ipcRenderer.invoke('priceList:setActive', id, isActive) as Promise<boolean>,
+
+  /** Preview a bulk seed/revision of a price list without writing. */
+  previewPriceListSeed: (
+    priceListId: number,
+    options: SeedOptions,
+    inventoryIds?: number[],
+  ) =>
+    ipcRenderer.invoke(
+      'priceList:previewSeed',
+      priceListId,
+      options,
+      inventoryIds,
+    ) as Promise<SeedPlan>,
+
+  /** Apply a bulk seed/revision of a price list. */
+  applyPriceListSeed: (
+    priceListId: number,
+    options: SeedOptions,
+    inventoryIds?: number[],
+  ) =>
+    ipcRenderer.invoke(
+      'priceList:applySeed',
+      priceListId,
+      options,
+      inventoryIds,
+    ) as Promise<{ applied: number; plan: SeedPlan }>,
 
   /** Outcome of the most recent publish, if any. */
   getLastPublishResult: () =>

@@ -6,6 +6,7 @@
  * CSV under the public prefix. Getting this wrong is the one mistake that
  * would expose non-public prices, so it is derived in one place and asserted.
  */
+import { createHash } from 'crypto';
 
 export type PublishFileKind = 'full' | 'public' | 'csv';
 
@@ -31,6 +32,25 @@ export interface PublishTargetConfig {
 }
 
 const trimSlashes = (value: string): string => value.replace(/^\/+|\/+$/g, '');
+
+/**
+ * Stable fingerprint of what a publish would upload, ignoring the timestamp so
+ * an unchanged catalog produces an unchanged hash. Used to skip re-uploading
+ * identical content (avoids pointless cache churn on consumer CDNs).
+ */
+export function contentFingerprint(payloads: {
+  full: string;
+  public: string;
+  csv: string;
+}): string {
+  const strip = (json: string): string =>
+    json.replace(/"generatedAt"\s*:\s*("[^"]*"|null)/g, '"generatedAt":null');
+  return createHash('sha256')
+    .update(strip(payloads.full))
+    .update(strip(payloads.public))
+    .update(payloads.csv)
+    .digest('hex');
+}
 
 /** Joins a prefix and file name into an object key, tolerating stray slashes. */
 export function joinKey(prefix: string, fileName: string): string {

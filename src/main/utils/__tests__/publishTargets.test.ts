@@ -1,5 +1,6 @@
 import {
   buildPublishTargets,
+  contentFingerprint,
   joinKey,
   unsafeTargetReason,
 } from '../publishTargets';
@@ -149,5 +150,41 @@ describe('unsafeTargetReason', () => {
         publicPrefix: 'x',
       }),
     ).toMatch(/same/i);
+  });
+});
+
+describe('contentFingerprint', () => {
+  const payload = {
+    full: '{"generatedAt":"2026-01-01T00:00:00Z","items":[1]}',
+    public: '{"generatedAt":"2026-01-01T00:00:00Z","items":[1]}',
+    csv: 'sku,price\nA,10\n',
+  };
+
+  it('is stable for identical content', () => {
+    expect(contentFingerprint(payload)).toBe(contentFingerprint(payload));
+  });
+
+  it('ignores the timestamp so an unchanged catalog matches', () => {
+    const later = {
+      ...payload,
+      full: payload.full.replace(
+        '2026-01-01T00:00:00Z',
+        '2026-09-09T09:09:09Z',
+      ),
+      public: payload.public.replace(
+        '2026-01-01T00:00:00Z',
+        '2026-09-09T09:09:09Z',
+      ),
+    };
+    expect(contentFingerprint(later)).toBe(contentFingerprint(payload));
+  });
+
+  it('changes when catalog data changes', () => {
+    expect(
+      contentFingerprint({ ...payload, csv: 'sku,price\nA,11\n' }),
+    ).not.toBe(contentFingerprint(payload));
+    expect(
+      contentFingerprint({ ...payload, public: '{"items":[2]}' }),
+    ).not.toBe(contentFingerprint(payload));
   });
 });

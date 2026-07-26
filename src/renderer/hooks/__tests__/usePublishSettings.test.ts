@@ -5,7 +5,7 @@ const ready = {
   bucket: 'catalog',
   accessKeyId: 'AKIA',
   hasSecretAccessKey: true,
-  publicPriceLists: ['Retail'],
+  publicPriceList: 'Retail',
 };
 
 describe('missingPublishConfig', () => {
@@ -20,14 +20,14 @@ describe('missingPublishConfig', () => {
         bucket: '',
         accessKeyId: '',
         hasSecretAccessKey: false,
-        publicPriceLists: [],
+        publicPriceList: '',
       }),
     ).toEqual([
       'storage endpoint',
       'bucket',
       'access key ID',
       'secret access key',
-      'at least one public price list',
+      'a public price list',
     ]);
   });
 
@@ -38,8 +38,8 @@ describe('missingPublishConfig', () => {
   });
 
   it('requires an explicit public price list (safe by default)', () => {
-    expect(missingPublishConfig({ ...ready, publicPriceLists: [] })).toEqual([
-      'at least one public price list',
+    expect(missingPublishConfig({ ...ready, publicPriceList: '' })).toEqual([
+      'a public price list',
     ]);
   });
 });

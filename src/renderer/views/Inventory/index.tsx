@@ -5,6 +5,7 @@ import { Label } from '@/renderer/shad/ui/label';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
 import { ManageItemTypes } from './ManageItemTypes';
+import { ManagePriceLists } from './ManagePriceLists';
 import { ImportListNumbers } from './ImportListNumbers';
 
 const InventoryPage: React.FC = () => {
@@ -19,6 +20,7 @@ const InventoryPage: React.FC = () => {
   const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
   const [hideNoType, setHideNoType] = useState(true);
   const [bulkEditActive, setBulkEditActive] = useState(false);
+  const [filteredIds, setFilteredIds] = useState<number[]>([]);
   const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null);
 
   const refetchInventory = () => setRefresh(!refresh);
@@ -29,6 +31,10 @@ const InventoryPage: React.FC = () => {
 
   const toolbarHostRef = useCallback((node: HTMLDivElement | null) => {
     setToolbarHost(node);
+  }, []);
+
+  const handleFilteredIdsChange = useCallback((ids: number[]) => {
+    setFilteredIds(ids);
   }, []);
 
   return (
@@ -47,6 +53,10 @@ const InventoryPage: React.FC = () => {
               <ManageItemTypes
                 onUpdated={refetchInventory}
                 initialOpen={openManageItemTypesFromNav}
+              />
+              <ManagePriceLists
+                filteredInventoryIds={filteredIds}
+                onUpdated={refetchInventory}
               />
               <AddInventoryItem refetchInventory={refetchInventory} />
             </>
@@ -163,6 +173,7 @@ const InventoryPage: React.FC = () => {
         refetchInventory={refetchInventory}
         toolbarHost={toolbarHost}
         onBulkEditActiveChange={handleBulkEditActiveChange}
+        onFilteredIdsChange={handleFilteredIdsChange}
         options={{
           refresh,
           hideZeroQuantity,

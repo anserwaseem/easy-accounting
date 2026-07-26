@@ -21,7 +21,7 @@ const ready = {
   publicBaseUrl: 'https://cdn.example.com',
   privatePrefix: 'catalog/private',
   publicPrefix: 'catalog/public',
-  publicPriceLists: ['Retail'],
+  publicPriceList: 'Retail',
   imagesManifestUrl: '',
   webhookUrl: '',
   hasSecretAccessKey: true,
@@ -50,9 +50,9 @@ describe('validatePublishConfig', () => {
     ]);
   });
 
-  it('requires at least one public price list (safe by default)', () => {
-    expect(validatePublishConfig({ ...ready, publicPriceLists: [] })).toEqual([
-      'at least one public price list',
+  it('requires a public price list (safe by default)', () => {
+    expect(validatePublishConfig({ ...ready, publicPriceList: '' })).toEqual([
+      'a public price list',
     ]);
   });
 });

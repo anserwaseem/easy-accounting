@@ -29,8 +29,12 @@ export interface CatalogSourceRow {
 }
 
 interface CatalogOptions {
-  /** Names of price lists the business has marked public. */
-  publicPriceLists: string[];
+  /**
+   * The single price list the business has marked public. Exactly one, because
+   * every downstream consumer (storefront, ad feed) needs one price per item;
+   * publishing several would only push the choice downstream.
+   */
+  publicPriceList: string;
 }
 
 interface FullCatalogItem extends CatalogSourceRow {
@@ -44,8 +48,8 @@ interface PublicCatalogItem {
   parentSku: string | null;
   quantity: number;
   attributes: Record<string, unknown>;
-  /** Only public price lists. */
-  prices: Record<string, number>;
+  /** The public price — from the configured public price list. */
+  price: number;
   hasImage: boolean;
   publishable: boolean;
 }
@@ -54,7 +58,7 @@ interface FullCatalog {
   version: number;
   generatedAt: string | null;
   priceLists: string[];
-  publicPriceLists: string[];
+  publicPriceList: string;
   count: number;
   items: FullCatalogItem[];
 }
@@ -62,7 +66,8 @@ interface FullCatalog {
 interface PublicCatalog {
   version: number;
   generatedAt: string | null;
-  priceLists: string[];
+  /** Which price list the published `price` came from. */
+  publicPriceList: string;
   count: number;
   items: PublicCatalogItem[];
 }
@@ -72,27 +77,24 @@ const VERSION = 1;
 const hasAttributes = (attrs: Record<string, unknown>): boolean =>
   attrs != null && Object.keys(attrs).length > 0;
 
-/** Public prices for a row: the subset of its prices on public lists, > 0. */
-export function publicPricesOf(
+/** The row's public price (from the configured list), or null when absent/<=0. */
+export function publicPriceOf(
   row: CatalogSourceRow,
-  publicPriceLists: string[],
-): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const name of publicPriceLists) {
-    const price = row.prices[name];
-    if (typeof price === 'number' && price > 0) out[name] = price;
-  }
-  return out;
+  publicPriceList: string,
+): number | null {
+  if (!publicPriceList) return null;
+  const price = row.prices[publicPriceList];
+  return typeof price === 'number' && price > 0 ? price : null;
 }
 
-/** publishable = has attributes + at least one (>0) public price + has image. */
+/** publishable = has attributes + a positive public price + has image. */
 export function isPublishable(
   row: CatalogSourceRow,
-  publicPriceLists: string[],
+  publicPriceList: string,
 ): boolean {
   return (
     hasAttributes(row.attributes) &&
-    Object.keys(publicPricesOf(row, publicPriceLists)).length > 0 &&
+    publicPriceOf(row, publicPriceList) !== null &&
     row.hasImage
   );
 }
@@ -113,19 +115,19 @@ export function buildFullCatalog(
     version: VERSION,
     generatedAt,
     priceLists: allPriceListNames(rows),
-    publicPriceLists: [...options.publicPriceLists].sort(),
+    publicPriceList: options.publicPriceList,
     count: rows.length,
     items: rows.map((r) => ({
       ...r,
-      publishable: isPublishable(r, options.publicPriceLists),
+      publishable: isPublishable(r, options.publicPriceList),
     })),
   };
 }
 
 /**
- * Public catalog: only rows that have at least one public price, and each item
- * carries ONLY public prices and no base price. Built field-by-field so private
- * data cannot leak through an accidental spread.
+ * Public catalog: only rows carrying a public price, and each item exposes that
+ * one price and no base price. Built field-by-field so private data cannot leak
+ * through an accidental spread.
  */
 export function buildPublicCatalog(
   rows: CatalogSourceRow[],
@@ -134,23 +136,23 @@ export function buildPublicCatalog(
 ): PublicCatalog {
   const items: PublicCatalogItem[] = [];
   for (const r of rows) {
-    const prices = publicPricesOf(r, options.publicPriceLists);
-    if (Object.keys(prices).length === 0) continue; // nothing public to show
+    const price = publicPriceOf(r, options.publicPriceList);
+    if (price === null) continue; // nothing public to show
     items.push({
       sku: r.sku,
       name: r.name,
       parentSku: r.parentSku,
       quantity: r.quantity,
       attributes: r.attributes,
-      prices,
+      price,
       hasImage: r.hasImage,
-      publishable: isPublishable(r, options.publicPriceLists),
+      publishable: isPublishable(r, options.publicPriceList),
     });
   }
   return {
     version: VERSION,
     generatedAt,
-    priceLists: [...options.publicPriceLists].sort(),
+    publicPriceList: options.publicPriceList,
     count: items.length,
     items,
   };
@@ -163,8 +165,8 @@ const csvEscape = (value: unknown): string => {
 
 /**
  * Generic CSV of the public catalog. Columns: fixed fields, then one column per
- * attribute key present, then one per public price list. Never includes the
- * base price. A flat convenience format; feed-specific column mapping is a
+ * attribute key present, then the public `price`. Never includes the base
+ * price. A flat convenience format; feed-specific column mapping is a
  * downstream (ops) concern.
  */
 export function toProductsCsv(publicCatalog: PublicCatalog): string {
@@ -173,7 +175,6 @@ export function toProductsCsv(publicCatalog: PublicCatalog): string {
     for (const k of Object.keys(it.attributes ?? {})) attrKeys.add(k);
   }
   const attrCols = [...attrKeys].sort();
-  const priceCols = publicCatalog.priceLists; // already sorted, public-only
 
   const header = [
     'sku',
@@ -181,7 +182,7 @@ export function toProductsCsv(publicCatalog: PublicCatalog): string {
     'parentSku',
     'quantity',
     ...attrCols.map((k) => `attr.${k}`),
-    ...priceCols.map((n) => `price.${n}`),
+    'price',
     'hasImage',
     'publishable',
   ];
@@ -193,7 +194,7 @@ export function toProductsCsv(publicCatalog: PublicCatalog): string {
       it.parentSku ?? '',
       it.quantity,
       ...attrCols.map((k) => it.attributes?.[k] ?? ''),
-      ...priceCols.map((n) => it.prices[n] ?? ''),
+      it.price,
       it.hasImage,
       it.publishable,
     ];
