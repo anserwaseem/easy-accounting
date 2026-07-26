@@ -37,6 +37,22 @@ export interface CatalogPreview {
   missingPublicPrice: number;
 }
 
+export interface PublishResult {
+  ok: boolean;
+  error?: string;
+  generatedAt: string;
+  fullCount: number;
+  publicCount: number;
+  publishableCount: number;
+  uploaded: string[];
+  webhook?: { called: boolean; ok: boolean; status?: number; error?: string };
+}
+
+export interface PublishProgressEvent {
+  status: 'generating' | 'uploading' | 'notifying' | 'success' | 'error';
+  message: string;
+}
+
 /**
  * Which required pieces are still missing (empty array = ready to publish).
  * Mirrors validatePublishConfig in main/utils/publishConfig so the form can
@@ -79,15 +95,35 @@ export const usePublishSettings = () => {
   const [config, setConfig] = useState<PublishConfig>(EMPTY_CONFIG);
   const [priceListNames, setPriceListNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastResult, setLastResult] = useState<PublishResult | null>(null);
+  const [progress, setProgress] = useState<PublishProgressEvent | null>(null);
 
   const refresh = useCallback(async () => {
-    const [nextConfig, names] = await Promise.all([
+    const [nextConfig, names, previous] = await Promise.all([
       window.electron.getPublishConfig(),
       window.electron.getPriceListNames(),
+      window.electron.getLastPublishResult(),
     ]);
     setConfig(nextConfig);
     setPriceListNames(names);
+    setLastResult(previous);
     setLoading(false);
+  }, []);
+
+  // stream progress emitted by the main process during a publish run
+  useEffect(
+    () =>
+      window.electron.ipcRenderer.on('publish-progress', (...args) =>
+        setProgress(args[0] as PublishProgressEvent),
+      ),
+    [],
+  );
+
+  const runPublish = useCallback(async () => {
+    setProgress(null);
+    const result = await window.electron.runPublish();
+    setLastResult(result);
+    return result;
   }, []);
 
   useEffect(() => {
@@ -110,6 +146,9 @@ export const usePublishSettings = () => {
       config,
       priceListNames,
       loading,
+      lastResult,
+      progress,
+      runPublish,
       savePublishConfig,
       previewCatalog,
       refresh,
@@ -118,6 +157,9 @@ export const usePublishSettings = () => {
       config,
       priceListNames,
       loading,
+      lastResult,
+      progress,
+      runPublish,
       savePublishConfig,
       previewCatalog,
       refresh,

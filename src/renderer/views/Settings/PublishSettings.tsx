@@ -62,8 +62,17 @@ const Field: React.FC<FieldProps> = ({
  * stored via the OS keychain and is never read back into this screen.
  */
 const PublishSettings: React.FC = () => {
-  const { config, priceListNames, loading, savePublishConfig, previewCatalog } =
-    usePublishSettings();
+  const {
+    config,
+    priceListNames,
+    loading,
+    lastResult,
+    progress,
+    runPublish,
+    savePublishConfig,
+    previewCatalog,
+  } = usePublishSettings();
+  const [publishing, setPublishing] = useState(false);
 
   const [endpoint, setEndpoint] = useState('');
   const [region, setRegion] = useState('');
@@ -179,6 +188,28 @@ const PublishSettings: React.FC = () => {
       setPreviewing(false);
     }
   }, [previewCatalog]);
+
+  const handlePublish = useCallback(async () => {
+    setPublishing(true);
+    try {
+      const result = await runPublish();
+      toast({
+        description: result.ok
+          ? `Published ${result.publishableCount} item(s) to ${result.uploaded.length} file(s).`
+          : `Publish failed: ${result.error}`,
+        variant: result.ok ? 'success' : 'destructive',
+      });
+    } catch (error) {
+      toast({
+        description: `Publish failed: ${
+          (error as Error)?.message ?? 'unknown error'
+        }`,
+        variant: 'destructive',
+      });
+    } finally {
+      setPublishing(false);
+    }
+  }, [runPublish]);
 
   if (loading) return <p className="text-sm">Loading publish settings…</p>;
 
@@ -348,7 +379,48 @@ const PublishSettings: React.FC = () => {
         <Button variant="outline" onClick={handlePreview} disabled={previewing}>
           {previewing ? 'Checking…' : 'Preview catalog'}
         </Button>
+        <Button
+          variant="secondary"
+          onClick={handlePublish}
+          disabled={publishing || missing.length > 0}
+          title={
+            missing.length > 0
+              ? `Still needed: ${missing.join(', ')}`
+              : undefined
+          }
+        >
+          {publishing ? 'Publishing…' : 'Publish now'}
+        </Button>
       </div>
+
+      {publishing && progress && (
+        <p className="text-sm text-muted-foreground">{progress.message}</p>
+      )}
+
+      {!publishing && lastResult && (
+        <div className="text-sm">
+          {lastResult.ok ? (
+            <p>
+              Last publish: {lastResult.publishableCount} item(s) ready,{' '}
+              {lastResult.uploaded.length} file(s) uploaded on{' '}
+              {new Date(lastResult.generatedAt).toLocaleString()}.
+            </p>
+          ) : (
+            <p className="text-destructive">
+              Last publish failed: {lastResult.error}
+            </p>
+          )}
+          {lastResult.webhook?.called && !lastResult.webhook.ok && (
+            <p className="text-muted-foreground">
+              Files uploaded, but the webhook did not succeed
+              {lastResult.webhook.status
+                ? ` (HTTP ${lastResult.webhook.status})`
+                : ''}
+              .
+            </p>
+          )}
+        </div>
+      )}
 
       {preview && (
         <div className="text-sm">

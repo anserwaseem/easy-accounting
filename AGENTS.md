@@ -134,5 +134,6 @@ The invoice line-item table uses `useFieldArray` with `react-virtuoso` (virtual 
 # Deferred Tasks
 
 - [ ] Make Settings sections Accordion-style for better organization and readability.
-- [ ] Supabase→client-config migration for API keys 
+- [ ] Supabase→client-config migration for API keys
 - [ ] Stop committing real data in `release/app/database.db` (public repo). The DB is currently tracked and contains real accounts/invoices/ledger + trade prices; older snapshots are already in `origin/main` history. Plan: reuse the `prepackage-db.ts` mechanism (backs up existing DB, seeds a fresh schema-only DB from `src/sql/schema.sql`) so only a schema-only DB is ever committed — then purge existing `.db` blobs from history (filter-repo/BFG) + force-push.
+- [ ] _(lowest priority)_ Un-pin `@aws-sdk/client-s3` after upgrading Electron/Node. It is pinned to exactly `3.965.0` — the last release supporting Node 18 (`3.968.0` moved to `engines: node >=20`), because Electron 25 bundles Node 18.15. Once Electron (and `.nvmrc`, currently `v18.20`) moves to Node 20+, bump to the current SDK. The pin is intentional: `^` would let npm drift into a Node-20-only release that installs with only a warning and fails at release time. Note the SDK is lazy-loaded inside `PublishService.publish()` (keeps ~18MB out of the startup graph and avoids `TextDecoder` errors in jsdom tests) — keep it that way.

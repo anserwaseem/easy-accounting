@@ -58,6 +58,7 @@
   },
   "browserslist": [],
   "dependencies": {
+    "@aws-sdk/client-s3": "3.965.0",
     "@hookform/resolvers": "^3.3.4",
     "electron-debug": "^3.2.0",
     "electron-extension-installer": "^1.2.0",

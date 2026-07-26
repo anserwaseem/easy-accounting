@@ -37,9 +37,12 @@ import type {
 } from 'types';
 import { InvoiceType } from 'types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
-import type { CatalogPreview } from './services/Publish.service';
+import type { CatalogPreview, PublishResult } from './services/Publish.service';
 
-export type Channels = 'backup-operation-status' | 'backup-operation-progress';
+export type Channels =
+  | 'backup-operation-status'
+  | 'backup-operation-progress'
+  | 'publish-progress';
 
 // eslint-disable-next-line no-console
 console.log('Preload process started');
@@ -592,6 +595,15 @@ const electronHandler = {
   /** Dry-run summary of what a publish would produce. */
   previewCatalog: () =>
     ipcRenderer.invoke('publish:preview') as Promise<CatalogPreview>,
+
+  /** Generate, upload and notify. Resolves with the run outcome. */
+  runPublish: () => ipcRenderer.invoke('publish:run') as Promise<PublishResult>,
+
+  /** Outcome of the most recent publish, if any. */
+  getLastPublishResult: () =>
+    ipcRenderer.invoke(
+      'publish:getLastResult',
+    ) as Promise<PublishResult | null>,
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

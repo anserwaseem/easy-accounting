@@ -232,6 +232,10 @@ app
         imagesManifestUrl: config.imagesManifestUrl,
       });
     });
+    ipcMain.handle('publish:run', async () => publishService.publish());
+    ipcMain.handle('publish:getLastResult', async () =>
+      PublishService.getLastResult(),
+    );
 
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
       return authService.login(user);

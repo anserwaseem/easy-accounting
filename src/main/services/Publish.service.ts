@@ -2,7 +2,19 @@ import fs from 'fs';
 import path from 'path';
 import type { Database, Statement } from 'better-sqlite3';
 import log from 'electron-log';
+import { app, BrowserWindow } from 'electron';
 import { logErrors } from '../errorLogger';
+import { store } from '../store';
+import {
+  getPublishConfig,
+  getPublishSecrets,
+  validatePublishConfig,
+  PUBLISH_KEYS,
+} from '../utils/publishConfig';
+import {
+  buildPublishTargets,
+  unsafeTargetReason,
+} from '../utils/publishTargets';
 import { DatabaseService } from './Database.service';
 import {
   CATALOG_QUERY,
@@ -47,13 +59,40 @@ export interface CatalogPreview {
   missingPublicPrice: number;
 }
 
+export interface PublishResult {
+  ok: boolean;
+  /** Present when the run failed. */
+  error?: string;
+  generatedAt: string;
+  fullCount: number;
+  publicCount: number;
+  publishableCount: number;
+  /** Object keys written, in upload order. */
+  uploaded: string[];
+  /** Whether the post-publish webhook was called, and how it went. */
+  webhook?: { called: boolean; ok: boolean; status?: number; error?: string };
+}
+
+export type PublishProgressStatus =
+  | 'generating'
+  | 'uploading'
+  | 'notifying'
+  | 'success'
+  | 'error';
+
+export interface PublishProgressEvent {
+  status: PublishProgressStatus;
+  message: string;
+}
+
 /**
  * Produces the catalog export files from the accounting DB. Generic: it emits
  * inventory + attributes (by their generic keys) + named price lists, and
  * enforces tier separation structurally via the pure builders in ../utils/catalog.
  *
- * Stage 1 writes the three files to a local directory. Uploading to the
- * configured S3 endpoint and firing the publish webhook are wired in later.
+ * A publish run writes the three files locally, uploads them to the configured
+ * S3-compatible endpoint (full catalog under the private prefix, public catalog
+ * and CSV under the public prefix), then optionally notifies a webhook.
  */
 @logErrors
 export class PublishService {
@@ -154,6 +193,164 @@ export class PublishService {
       missingAttributes,
       missingPublicPrice,
     };
+  }
+
+  /**
+   * Full publish run: generate the catalog files, upload them to the
+   * configured S3-compatible endpoint (full catalog to the private prefix,
+   * public catalog + CSV to the public prefix), then optionally notify a
+   * webhook. Progress is emitted to all windows as it goes.
+   */
+  public async publish(): Promise<PublishResult> {
+    const generatedAt = new Date().toISOString();
+    const config = getPublishConfig();
+
+    const missing = validatePublishConfig(config);
+    if (missing.length > 0) {
+      return PublishService.fail(
+        `Publish is not configured yet — still needed: ${missing.join(', ')}.`,
+        generatedAt,
+      );
+    }
+
+    const unsafe = unsafeTargetReason(config);
+    if (unsafe) {
+      return PublishService.fail(unsafe, generatedAt);
+    }
+
+    try {
+      PublishService.emitProgress('generating', 'Generating catalog files…');
+      const imageSkus = await PublishService.fetchImageSkus(
+        config.imagesManifestUrl,
+      );
+      const outDir = path.join(app.getPath('userData'), 'publish');
+      const generated = this.generateCatalogFiles(outDir, {
+        publicPriceLists: config.publicPriceLists,
+        imageSkus,
+        generatedAt,
+      });
+
+      const { secretAccessKey, webhookToken } = getPublishSecrets();
+      // loaded on demand: the SDK is large, and nothing else in the app needs
+      // it, so keep it out of the startup module graph
+      const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const client = new S3Client({
+        endpoint: config.endpoint,
+        region: config.region || 'auto',
+        credentials: {
+          accessKeyId: config.accessKeyId,
+          secretAccessKey,
+        },
+      });
+
+      const targets = buildPublishTargets(config);
+      const uploaded: string[] = [];
+      for (const target of targets) {
+        PublishService.emitProgress('uploading', `Uploading ${target.key}…`);
+        // sequential: the file set is tiny and ordering keeps logs readable
+        // eslint-disable-next-line no-await-in-loop
+        await client.send(
+          new PutObjectCommand({
+            Bucket: config.bucket,
+            Key: target.key,
+            Body: fs.readFileSync(path.join(outDir, target.fileName)),
+            ContentType: target.contentType,
+          }),
+        );
+        uploaded.push(target.key);
+      }
+
+      const webhook = await PublishService.callWebhook(
+        config.webhookUrl,
+        webhookToken,
+        { generatedAt, publishableCount: generated.publishableCount },
+      );
+
+      const result: PublishResult = {
+        ok: true,
+        generatedAt,
+        fullCount: generated.fullCount,
+        publicCount: generated.publicCount,
+        publishableCount: generated.publishableCount,
+        uploaded,
+        webhook,
+      };
+      store.set(PUBLISH_KEYS.lastResult, result);
+      PublishService.emitProgress(
+        'success',
+        `Published ${generated.publishableCount} item(s).`,
+      );
+      return result;
+    } catch (error) {
+      const message = (error as Error)?.message ?? 'unknown error';
+      log.error('Publish failed', error);
+      return PublishService.fail(message, generatedAt);
+    }
+  }
+
+  private static fail(error: string, generatedAt: string): PublishResult {
+    PublishService.emitProgress('error', error);
+    const result: PublishResult = {
+      ok: false,
+      error,
+      generatedAt,
+      fullCount: 0,
+      publicCount: 0,
+      publishableCount: 0,
+      uploaded: [],
+    };
+    store.set(PUBLISH_KEYS.lastResult, result);
+    return result;
+  }
+
+  /** The most recent publish outcome, for display in settings. */
+  public static getLastResult(): PublishResult | null {
+    const value = store.get(PUBLISH_KEYS.lastResult);
+    return value ? (value as PublishResult) : null;
+  }
+
+  private static emitProgress(
+    status: PublishProgressStatus,
+    message: string,
+  ): void {
+    const event: PublishProgressEvent = { status, message };
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('publish-progress', event);
+      }
+    });
+    log.info(`Publish progress: ${status} - ${message}`);
+  }
+
+  /**
+   * Notifies the configured webhook that a publish completed. A failure here
+   * does not fail the publish itself — the files are already uploaded.
+   */
+  private static async callWebhook(
+    url: string,
+    token: string,
+    payload: Record<string, unknown>,
+  ): Promise<PublishResult['webhook']> {
+    if (!url) return { called: false, ok: true };
+    PublishService.emitProgress('notifying', 'Notifying webhook…');
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        log.warn(`Publish webhook returned ${response.status}`);
+      }
+      return { called: true, ok: response.ok, status: response.status };
+    } catch (error) {
+      const message = (error as Error)?.message ?? 'unknown error';
+      log.warn('Publish webhook failed', error);
+      return { called: true, ok: false, error: message };
+    }
   }
 
   /**
