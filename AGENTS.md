@@ -130,3 +130,7 @@ The invoice line-item table uses `useFieldArray` with `react-virtuoso` (virtual 
 - Journal `billNumber` is set from `invoiceNumber`; journal `discountPercentage` is derived from the account’s discount profile per item type only when a single policy discount applies (otherwise left unset; missing `itemTypeId` is treated as 0%).
 - Some customers have multiple accounts suffixed by item-type/discount tiers (e.g. `-T`, `-TT`); a single invoice can split ledger/journals per suffixed account while still being “one invoice per customer”.
 - Customer item-type tier for sale invoices uses **account code** only (`getHeaderTypedSuffixFromCode`): split-by-type row resolution and split-off mismatch warnings; display names are not authoritative.
+
+# Deferred Tasks
+
+- [ ] Supabase→client-config migration
