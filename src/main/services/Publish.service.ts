@@ -71,6 +71,11 @@ export interface PublishResult {
   uploaded: string[];
   /** Whether the post-publish webhook was called, and how it went. */
   webhook?: { called: boolean; ok: boolean; status?: number; error?: string };
+  /**
+   * Set when the private catalog turned out to be readable over the public
+   * base URL — i.e. the storage bucket exposes more than the public prefix.
+   */
+  privateExposureWarning?: string;
 }
 
 export type PublishProgressStatus =
@@ -260,6 +265,12 @@ export class PublishService {
         uploaded.push(target.key);
       }
 
+      const privateTarget = targets.find((t) => !t.isPublic);
+      const privateExposureWarning = await PublishService.checkPrivateExposure(
+        config.publicBaseUrl,
+        privateTarget?.key,
+      );
+
       const webhook = await PublishService.callWebhook(
         config.webhookUrl,
         webhookToken,
@@ -274,6 +285,7 @@ export class PublishService {
         publishableCount: generated.publishableCount,
         uploaded,
         webhook,
+        ...(privateExposureWarning ? { privateExposureWarning } : {}),
       };
       store.set(PUBLISH_KEYS.lastResult, result);
       PublishService.emitProgress(
@@ -320,6 +332,33 @@ export class PublishService {
       }
     });
     log.info(`Publish progress: ${status} - ${message}`);
+  }
+
+  /**
+   * After uploading, confirm the private catalog is NOT readable over the
+   * public base URL. A bucket exposed at its root would serve the private
+   * prefix too, quietly defeating the private/public split — the user needs to
+   * know immediately, since that file carries every price list.
+   *
+   * Returns a warning message when it IS reachable, otherwise undefined.
+   */
+  private static async checkPrivateExposure(
+    publicBaseUrl: string,
+    privateKey?: string,
+  ): Promise<string | undefined> {
+    if (!publicBaseUrl || !privateKey) return undefined;
+    const url = `${publicBaseUrl.replace(/\/+$/, '')}/${privateKey}`;
+    try {
+      const response = await fetch(url, { method: 'GET' });
+      if (response.ok) {
+        log.error(`Publish: private catalog is publicly readable at ${url}`);
+        return `The full catalog is publicly readable at ${url}. It contains every price list. Restrict public access to the public path prefix only, or use a separate private bucket.`;
+      }
+      return undefined;
+    } catch {
+      // network failure here says nothing about exposure — stay quiet
+      return undefined;
+    }
   }
 
   /**

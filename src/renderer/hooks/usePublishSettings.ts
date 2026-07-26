@@ -46,6 +46,7 @@ export interface PublishResult {
   publishableCount: number;
   uploaded: string[];
   webhook?: { called: boolean; ok: boolean; status?: number; error?: string };
+  privateExposureWarning?: string;
 }
 
 export interface PublishProgressEvent {
