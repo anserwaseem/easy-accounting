@@ -196,6 +196,12 @@ export interface AttributeDefinition {
   sortOrder: number;
   /** SQLite stores booleans as 0/1 */
   isActive: 0 | 1;
+  /**
+   * Whether this attribute is included in the published public catalog.
+   * Opt-in: attributes routinely hold internal bookkeeping, so a new one is
+   * private until marked public.
+   */
+  isPublic: 0 | 1;
   /** how many items currently carry a value for this attribute */
   usageCount?: number;
 }
@@ -207,6 +213,8 @@ export interface UpsertAttributeDefinition {
   unit?: string | null;
   valueType: 'text' | 'number' | 'bool';
   sortOrder?: number;
+  /** defaults to false — publishing is opt-in */
+  isPublic?: boolean;
 }
 
 /** Inventory */

@@ -35,6 +35,15 @@ interface CatalogOptions {
    * publishing several would only push the choice downstream.
    */
   publicPriceList: string;
+  /**
+   * Attribute keys the business has marked public (attribute_definitions.isPublic).
+   *
+   * Attributes are free-form per business, so they routinely carry internal
+   * bookkeeping — import flags, sourcing notes, sales history. Publishing is
+   * therefore opt-in: only these keys reach the public catalog. Omitting this
+   * publishes nothing, which is the safe direction to fail.
+   */
+  publicAttributeKeys?: readonly string[];
 }
 
 interface FullCatalogItem extends CatalogSourceRow {
@@ -77,6 +86,22 @@ const VERSION = 1;
 const hasAttributes = (attrs: Record<string, unknown>): boolean =>
   attrs != null && Object.keys(attrs).length > 0;
 
+/**
+ * The row's attributes narrowed to the keys marked public — a whitelist, so a
+ * newly-invented key is private until someone says otherwise.
+ */
+export function publicAttributesOf(
+  row: CatalogSourceRow,
+  publicAttributeKeys: readonly string[] = [],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of publicAttributeKeys) {
+    const value = row.attributes?.[key];
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
 /** The row's public price (from the configured list), or null when absent/<=0. */
 export function publicPriceOf(
   row: CatalogSourceRow,
@@ -87,13 +112,19 @@ export function publicPriceOf(
   return typeof price === 'number' && price > 0 ? price : null;
 }
 
-/** publishable = has attributes + a positive public price + has image. */
+/**
+ * publishable = has *public* attributes + a positive public price + has image.
+ *
+ * Judged on public attributes only: an item described entirely by internal keys
+ * has nothing to show a customer, so it is not ready to publish.
+ */
 export function isPublishable(
   row: CatalogSourceRow,
   publicPriceList: string,
+  publicAttributeKeys: readonly string[] = [],
 ): boolean {
   return (
-    hasAttributes(row.attributes) &&
+    hasAttributes(publicAttributesOf(row, publicAttributeKeys)) &&
     publicPriceOf(row, publicPriceList) !== null &&
     row.hasImage
   );
@@ -119,7 +150,11 @@ export function buildFullCatalog(
     count: rows.length,
     items: rows.map((r) => ({
       ...r,
-      publishable: isPublishable(r, options.publicPriceList),
+      publishable: isPublishable(
+        r,
+        options.publicPriceList,
+        options.publicAttributeKeys,
+      ),
     })),
   };
 }
@@ -143,10 +178,14 @@ export function buildPublicCatalog(
       name: r.name,
       parentSku: r.parentSku,
       quantity: r.quantity,
-      attributes: r.attributes,
+      attributes: publicAttributesOf(r, options.publicAttributeKeys),
       price,
       hasImage: r.hasImage,
-      publishable: isPublishable(r, options.publicPriceList),
+      publishable: isPublishable(
+        r,
+        options.publicPriceList,
+        options.publicAttributeKeys,
+      ),
     });
   }
   return {

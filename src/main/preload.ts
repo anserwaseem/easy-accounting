@@ -202,6 +202,12 @@ const electronHandler = {
   reorderAttributeDefinitions: (ids: number[]) =>
     ipcRenderer.invoke('attributeDefinition:reorder', ids) as Promise<boolean>,
 
+  setAttributeDefinitionPublic: (id: number, isPublic: boolean) =>
+    ipcRenderer.invoke(
+      'attributeDefinition:setPublic',
+      id,
+      isPublic,
+    ) as Promise<boolean>,
   setAttributeDefinitionActive: (id: number, isActive: boolean) =>
     ipcRenderer.invoke(
       'attributeDefinition:setActive',

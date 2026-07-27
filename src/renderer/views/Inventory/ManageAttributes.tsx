@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   Dialog,
@@ -53,6 +54,11 @@ export const keyFromLabel = (label: string): string =>
  *
  * Deactivating a definition hides its column and editor field but leaves the
  * values on items untouched; deleting removes the values too (with confirmation).
+ *
+ * "Public" controls whether the attribute is included when the catalog is
+ * published. It is off by default: attributes often hold internal notes or
+ * import flags, and the published catalog is world-readable, so an attribute
+ * has to be named public rather than merely forgotten.
  */
 export const ManageAttributes: React.FC<ManageAttributesProps> = ({
   onUpdated,
@@ -70,6 +76,7 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
   const [label, setLabel] = useState('');
   const [unit, setUnit] = useState('');
   const [valueType, setValueType] = useState<ValueType>('text');
+  const [isPublic, setIsPublic] = useState(false);
   // an in-use attribute needs confirmation before its values are destroyed
   const [pendingDelete, setPendingDelete] = useState<{
     def: AttributeDefinition;
@@ -95,6 +102,7 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
       label: label.trim(),
       unit: unit.trim() || null,
       valueType,
+      isPublic,
       // omitted so the service appends after the current highest order;
       // counting rows here would collide after a deletion
     });
@@ -108,10 +116,11 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
       setLabel('');
       setUnit('');
       setValueType('text');
+      setIsPublic(false);
       await load();
       onUpdated?.();
     }
-  }, [label, effectiveKey, unit, valueType, load, onUpdated]);
+  }, [label, effectiveKey, unit, valueType, isPublic, load, onUpdated]);
 
   const handleDelete = useCallback(
     async (def: AttributeDefinition) => {
@@ -165,6 +174,15 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
     [definitions, load, onUpdated],
   );
 
+  const handleTogglePublic = useCallback(
+    async (def: AttributeDefinition) => {
+      await window.electron.setAttributeDefinitionPublic(def.id, !def.isPublic);
+      await load();
+      onUpdated?.();
+    },
+    [load, onUpdated],
+  );
+
   const handleToggle = useCallback(
     async (def: AttributeDefinition) => {
       await window.electron.setAttributeDefinitionActive(def.id, !def.isActive);
@@ -191,9 +209,10 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
 
         <p className="text-xs text-muted-foreground">
           Attributes describe your items (size, material, and so on). They can
-          be shown as columns, edited per item, and are included when the
-          catalog is published. The order below controls how they appear in the
-          columns menu, the table, and the per-item editor.
+          be shown as columns and edited per item. Only attributes marked
+          <strong> Public</strong> are included when the catalog is published —
+          everything else stays internal. The order below controls how they
+          appear in the columns menu, the table, and the per-item editor.
         </p>
 
         {definitions.length > 0 && (
@@ -205,6 +224,7 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
                   <th className="px-3 py-2 font-medium">Name</th>
                   <th className="px-3 py-2 font-medium">Type</th>
                   <th className="px-3 py-2 font-medium">Used by</th>
+                  <th className="px-3 py-2 font-medium">Public</th>
                   <th className="px-3 py-2 font-medium">Status</th>
                   <th className="px-3 py-2 font-medium">Actions</th>
                 </tr>
@@ -246,6 +266,18 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
                     <td className="px-3 py-2 text-xs tabular-nums text-muted-foreground">
                       {def.usageCount ?? 0} item
                       {(def.usageCount ?? 0) === 1 ? '' : 's'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Checkbox
+                        checked={!!def.isPublic}
+                        onCheckedChange={() => handleTogglePublic(def)}
+                        aria-label={`Publish ${def.label} in the public catalog`}
+                        title={
+                          def.isPublic
+                            ? 'Included in the published catalog'
+                            : 'Kept internal — not published'
+                        }
+                      />
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {def.isActive ? 'Active' : 'Inactive'}
@@ -317,6 +349,16 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="mb-3 flex items-center gap-2">
+            <Checkbox
+              id="attr-public"
+              checked={isPublic}
+              onCheckedChange={(c) => setIsPublic(c === true)}
+            />
+            <Label htmlFor="attr-public" className="text-sm font-normal">
+              Public
+            </Label>
           </div>
           <Button
             variant="outline"

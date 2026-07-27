@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS "attribute_definitions" ( -- "020 migration"
     "valueType" TEXT NOT NULL DEFAULT 'text',
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "isActive" BOOLEAN NOT NULL DEFAULT 1,
+    "isPublic" BOOLEAN NOT NULL DEFAULT 0, -- "021 migration"
     "createdAt" DATETIME,
     "updatedAt" DATETIME
 );

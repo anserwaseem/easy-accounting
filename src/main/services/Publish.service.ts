@@ -32,6 +32,7 @@ import {
   buildFullCatalog,
   buildPublicCatalog,
   isPublishable,
+  publicAttributesOf,
   publicPriceOf,
   toProductsCsv,
   type CatalogSourceRow,
@@ -40,6 +41,8 @@ import {
 interface GenerateCatalogOptions {
   /** The price list published as the public price (e.g. 'Retail'). */
   publicPriceList: string;
+  /** Attribute keys marked public; anything else stays out of the public file. */
+  publicAttributeKeys?: readonly string[];
   /** SKUs known to have an image (from the images manifest). */
   imageSkus?: Set<string>;
   /** Overridable for deterministic output; defaults to now (ISO). */
@@ -130,6 +133,8 @@ export class PublishService {
 
   private stmGetCatalogRows!: Statement;
 
+  private stmGetPublicAttributeKeys!: Statement;
+
   private stmGetPriceListNames!: Statement;
 
   private stmGetPriceLists!: Statement;
@@ -147,6 +152,11 @@ export class PublishService {
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.stmGetCatalogRows = this.db.prepare(CATALOG_QUERY);
+    this.stmGetPublicAttributeKeys = this.db.prepare(
+      `SELECT key FROM attribute_definitions
+        WHERE isPublic = 1 AND isActive = 1
+        ORDER BY sortOrder ASC, label ASC`,
+    );
     this.stmGetPriceListNames = this.db.prepare(
       `SELECT name FROM price_lists WHERE isActive = 1 ORDER BY name`,
     );
@@ -264,6 +274,13 @@ export class PublishService {
     return { applied: write(plan.changes), plan };
   }
 
+  /** Attribute keys marked public — the whitelist the public catalog obeys. */
+  public getPublicAttributeKeys(): string[] {
+    return (this.stmGetPublicAttributeKeys.all() as { key: string }[]).map(
+      (r) => r.key,
+    );
+  }
+
   public getCatalogRows(
     imageSkus: Set<string> = new Set(),
   ): CatalogSourceRow[] {
@@ -277,7 +294,10 @@ export class PublishService {
   ): GenerateCatalogResult {
     const rows = this.getCatalogRows(options.imageSkus ?? new Set());
     const generatedAt = options.generatedAt ?? new Date().toISOString();
-    const opts = { publicPriceList: options.publicPriceList };
+    const opts = {
+      publicPriceList: options.publicPriceList,
+      publicAttributeKeys: options.publicAttributeKeys,
+    };
 
     const full = buildFullCatalog(rows, opts, generatedAt);
     const pub = buildPublicCatalog(rows, opts, generatedAt);
@@ -310,12 +330,13 @@ export class PublishService {
    */
   public async previewCatalog(options: {
     publicPriceList: string;
+    publicAttributeKeys?: readonly string[];
     imagesManifestUrl?: string;
   }): Promise<CatalogPreview> {
     const { skus: imageSkus, error: imagesManifestError } =
       await PublishService.fetchImageSkus(options.imagesManifestUrl);
     const rows = this.getCatalogRows(imageSkus);
-    const { publicPriceList } = options;
+    const { publicPriceList, publicAttributeKeys } = options;
 
     let publicCount = 0;
     let publishableCount = 0;
@@ -325,12 +346,16 @@ export class PublishService {
 
     for (const row of rows) {
       const hasPublicPrice = publicPriceOf(row, publicPriceList) !== null;
-      const hasAttrs = Object.keys(row.attributes ?? {}).length > 0;
+      // counted on public attributes: an item described only by internal keys
+      // has nothing to show a customer, which is what this number reports
+      const hasAttrs =
+        Object.keys(publicAttributesOf(row, publicAttributeKeys)).length > 0;
       if (hasPublicPrice) publicCount += 1;
       else missingPublicPrice += 1;
       if (!hasAttrs) missingAttributes += 1;
       if (!row.hasImage) missingImage += 1;
-      if (isPublishable(row, publicPriceList)) publishableCount += 1;
+      if (isPublishable(row, publicPriceList, publicAttributeKeys))
+        publishableCount += 1;
     }
 
     return {
@@ -375,6 +400,7 @@ export class PublishService {
       const outDir = path.join(app.getPath('userData'), 'publish');
       const generated = this.generateCatalogFiles(outDir, {
         publicPriceList: config.publicPriceList,
+        publicAttributeKeys: this.getPublicAttributeKeys(),
         imageSkus,
         generatedAt,
       });

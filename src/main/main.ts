@@ -230,6 +230,7 @@ app
     ipcMain.handle('publish:preview', async () => {
       const config = getPublishConfig();
       return publishService.previewCatalog({
+        publicAttributeKeys: publishService.getPublicAttributeKeys(),
         publicPriceList: config.publicPriceList,
         imagesManifestUrl: config.imagesManifestUrl,
       });
@@ -429,6 +430,11 @@ app
       'attributeDefinition:setActive',
       (_, id: number, isActive: boolean) =>
         inventoryService.setAttributeDefinitionActive(id, isActive),
+    );
+    ipcMain.handle(
+      'attributeDefinition:setPublic',
+      (_, id: number, isPublic: boolean) =>
+        inventoryService.setAttributeDefinitionPublic(id, isPublic),
     );
     ipcMain.handle(
       'inventory:updateAttributes',

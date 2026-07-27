@@ -56,7 +56,8 @@ function seedBasicSchema(db: Database.Database) {
       unit TEXT,
       valueType TEXT NOT NULL DEFAULT 'text',
       sortOrder INTEGER NOT NULL DEFAULT 0,
-      isActive INTEGER NOT NULL DEFAULT 1
+      isActive INTEGER NOT NULL DEFAULT 1,
+      isPublic INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS price_lists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

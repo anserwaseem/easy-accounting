@@ -101,6 +101,10 @@ export class InventoryService {
 
   private stmToggleAttributeDefinition!: Statement;
 
+  private stmSetAttributeDefinitionPublic!: Statement;
+
+  private stmGetPublicAttributeKeys!: Statement;
+
   private stmSetAttributeDefinitionOrder!: Statement;
 
   private stmUpdateInventoryAttributes!: Statement;
@@ -152,6 +156,9 @@ export class InventoryService {
       label,
       unit: input.unit?.trim() || null,
       valueType: input.valueType,
+      // publishing is opt-in: a new attribute is private until marked public,
+      // so an internal key cannot reach the public catalog by being forgotten
+      isPublic: input.isPublic ? 1 : 0,
       // null lets the insert append after the current highest order
       sortOrder: input.sortOrder ?? null,
     };
@@ -225,6 +232,24 @@ export class InventoryService {
     return true;
   }
 
+  /** Marks an attribute publishable (or not) — see CatalogOptions.publicAttributeKeys. */
+  @logErrors
+  setAttributeDefinitionPublic(id: number, isPublic: boolean): boolean {
+    return (
+      this.stmSetAttributeDefinitionPublic.run(isPublic ? 1 : 0, cast(id))
+        .changes > 0
+    );
+  }
+
+  /** Attribute keys marked public and active — the catalog whitelist. */
+  @logErrors
+  getPublicAttributeKeys(): string[] {
+    return (this.stmGetPublicAttributeKeys.all() as { key: string }[]).map(
+      (r) => r.key,
+    );
+  }
+
+  @logErrors
   setAttributeDefinitionActive(id: number, isActive: boolean): boolean {
     return (
       this.stmToggleAttributeDefinition.run(cast(isActive), cast(id)).changes >
@@ -1029,7 +1054,7 @@ export class InventoryService {
     // much data a change would affect
     this.stmGetAttributeDefinitions = this.db.prepare(`
       SELECT ad.id, ad.key, ad.label, ad.unit, ad.valueType, ad.sortOrder,
-             ad.isActive,
+             ad.isActive, ad.isPublic,
              (SELECT COUNT(*) FROM inventory i
                WHERE i.attributes IS NOT NULL
                  AND json_extract(i.attributes, '$.' || ad.key) IS NOT NULL
@@ -1066,9 +1091,9 @@ export class InventoryService {
     // collide with an existing order (counting rows would)
     this.stmInsertAttributeDefinition = this.db.prepare(`
       INSERT OR IGNORE INTO attribute_definitions
-        (key, label, unit, valueType, sortOrder)
+        (key, label, unit, valueType, isPublic, sortOrder)
       VALUES (
-        @key, @label, @unit, @valueType,
+        @key, @label, @unit, @valueType, @isPublic,
         COALESCE(
           @sortOrder,
           (SELECT COALESCE(MAX(sortOrder), 0) + 1 FROM attribute_definitions)
@@ -1079,12 +1104,23 @@ export class InventoryService {
     this.stmUpdateAttributeDefinition = this.db.prepare(`
       UPDATE attribute_definitions
       SET label = @label, unit = @unit, valueType = @valueType,
-          sortOrder = @sortOrder
+          isPublic = @isPublic, sortOrder = @sortOrder
       WHERE id = @id
     `);
 
     this.stmToggleAttributeDefinition = this.db.prepare(`
       UPDATE attribute_definitions SET isActive = ? WHERE id = ?
+    `);
+
+    this.stmSetAttributeDefinitionPublic = this.db.prepare(`
+      UPDATE attribute_definitions SET isPublic = ? WHERE id = ?
+    `);
+
+    // the whitelist the catalog builder narrows public attributes to
+    this.stmGetPublicAttributeKeys = this.db.prepare(`
+      SELECT key FROM attribute_definitions
+       WHERE isPublic = 1 AND isActive = 1
+       ORDER BY sortOrder ASC, label ASC
     `);
 
     this.stmSetAttributeDefinitionOrder = this.db.prepare(`
