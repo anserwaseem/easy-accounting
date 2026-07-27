@@ -86,6 +86,7 @@ const PublishSettings: React.FC = () => {
   const [imagesManifestUrl, setImagesManifestUrl] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
   const [publicList, setPublicList] = useState('');
+  const [reservedNameChars, setReservedNameChars] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [preview, setPreview] = useState<CatalogPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -104,6 +105,7 @@ const PublishSettings: React.FC = () => {
     setImagesManifestUrl(config.imagesManifestUrl);
     setWebhookUrl(config.webhookUrl);
     setPublicList(config.publicPriceList);
+    setReservedNameChars(config.reservedNameChars);
   }, [loading, config]);
 
   // readiness reflects what is typed now, treating a typed secret as present
@@ -141,7 +143,8 @@ const PublishSettings: React.FC = () => {
       publicPrefix !== config.publicPrefix ||
       imagesManifestUrl !== config.imagesManifestUrl ||
       webhookUrl !== config.webhookUrl ||
-      publicList !== config.publicPriceList,
+      publicList !== config.publicPriceList ||
+      reservedNameChars !== config.reservedNameChars,
     [
       config,
       secretTouched,
@@ -156,6 +159,7 @@ const PublishSettings: React.FC = () => {
       imagesManifestUrl,
       webhookUrl,
       publicList,
+      reservedNameChars,
     ],
   );
 
@@ -173,6 +177,7 @@ const PublishSettings: React.FC = () => {
         imagesManifestUrl,
         webhookUrl,
         publicPriceList: publicList,
+        reservedNameChars,
         ...(secretTouched ? { secretAccessKey } : {}),
       });
       setSecretTouched(false);
@@ -191,6 +196,7 @@ const PublishSettings: React.FC = () => {
     bucket,
     privateBucket,
     endpoint,
+    reservedNameChars,
     imagesManifestUrl,
     privatePrefix,
     publicBaseUrl,
@@ -389,6 +395,14 @@ const PublishSettings: React.FC = () => {
               hint="Used to tell which items have an image. Without it, no item counts as having one."
             />
             <Field
+              id="publish-reserved-chars"
+              label="Characters not allowed in item names"
+              placeholder="e.g. ~_"
+              value={reservedNameChars}
+              onChange={setReservedNameChars}
+              hint="Type the characters your publishing pipeline reserves, with no separators. Item names containing them are rejected on save. Leave empty for no restriction."
+            />
+            <Field
               id="publish-private-prefix"
               label="Private path prefix"
               value={privatePrefix}
@@ -508,6 +522,9 @@ const PublishSettings: React.FC = () => {
             Missing image: {preview.missingImage} · missing attributes:{' '}
             {preview.missingAttributes} · missing a public price:{' '}
             {preview.missingPublicPrice}
+            {preview.heldBack > 0 ? (
+              <> · held back on purpose: {preview.heldBack}</>
+            ) : null}
           </p>
           {preview.imagesManifestError && (
             <p className="text-destructive">

@@ -25,6 +25,7 @@ export const PUBLISH_KEYS = {
   privatePrefix: 'publish.privatePrefix',
   publicPrefix: 'publish.publicPrefix',
   publicPriceList: 'publish.publicPriceList',
+  reservedNameChars: 'publish.reservedNameChars',
   imagesManifestUrl: 'publish.imagesManifestUrl',
   webhookUrl: 'publish.webhookUrl',
   webhookToken: 'publish.webhookTokenEnc',
@@ -48,6 +49,12 @@ export interface PublishConfig {
   publicPrefix: string;
   /** The single price list published as the public price. Empty = not chosen. */
   publicPriceList: string;
+  /**
+   * Characters an item name may not contain, because the downstream publishing
+   * pipeline reserves them (e.g. as escapes when turning a SKU into a file path).
+   * Empty = no restriction. Enforced on item create/rename.
+   */
+  reservedNameChars: string;
   imagesManifestUrl: string;
   webhookUrl: string;
   /** True when a secret access key is stored (the value itself never leaves main). */
@@ -109,6 +116,7 @@ export function getPublishConfig(): PublishConfig {
     privatePrefix: str(PUBLISH_KEYS.privatePrefix, DEFAULTS.privatePrefix),
     publicPrefix: str(PUBLISH_KEYS.publicPrefix, DEFAULTS.publicPrefix),
     publicPriceList: str(PUBLISH_KEYS.publicPriceList),
+    reservedNameChars: str(PUBLISH_KEYS.reservedNameChars),
     imagesManifestUrl: str(PUBLISH_KEYS.imagesManifestUrl),
     webhookUrl: str(PUBLISH_KEYS.webhookUrl),
     hasSecretAccessKey: !!str(PUBLISH_KEYS.secretAccessKeyEnc),
@@ -157,6 +165,7 @@ export function savePublishConfig(input: PublishConfigInput): PublishConfig {
   setIfDefined(PUBLISH_KEYS.imagesManifestUrl, input.imagesManifestUrl?.trim());
   setIfDefined(PUBLISH_KEYS.webhookUrl, input.webhookUrl?.trim());
   setIfDefined(PUBLISH_KEYS.publicPriceList, input.publicPriceList?.trim());
+  setIfDefined(PUBLISH_KEYS.reservedNameChars, input.reservedNameChars?.trim());
 
   const saveSecret = (key: string, value?: string) => {
     if (value === undefined) return; // unchanged

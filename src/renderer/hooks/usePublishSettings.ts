@@ -11,6 +11,8 @@ export interface PublishConfig {
   privatePrefix: string;
   publicPrefix: string;
   publicPriceList: string;
+  /** Characters an item name may not contain (reserved by the publishing pipeline). */
+  reservedNameChars: string;
   imagesManifestUrl: string;
   webhookUrl: string;
   hasSecretAccessKey: boolean;
@@ -40,6 +42,8 @@ export interface CatalogPreview {
   candidateCount: number;
   publicCount: number;
   publishableCount: number;
+  /** Candidates the business has explicitly held back from the catalog. */
+  heldBack: number;
   missingImage: number;
   missingAttributes: number;
   missingPublicPrice: number;
@@ -96,6 +100,7 @@ const EMPTY_CONFIG: PublishConfig = {
   privatePrefix: 'catalog/private',
   publicPrefix: 'catalog/public',
   publicPriceList: '',
+  reservedNameChars: '',
   imagesManifestUrl: '',
   webhookUrl: '',
   hasSecretAccessKey: false,

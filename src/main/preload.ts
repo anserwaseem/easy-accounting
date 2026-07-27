@@ -202,6 +202,12 @@ const electronHandler = {
   reorderAttributeDefinitions: (ids: number[]) =>
     ipcRenderer.invoke('attributeDefinition:reorder', ids) as Promise<boolean>,
 
+  setItemExcludedFromCatalog: (id: number, excluded: boolean) =>
+    ipcRenderer.invoke(
+      'inventory:setExcludedFromCatalog',
+      id,
+      excluded,
+    ) as Promise<boolean>,
   setAttributeDefinitionPublic: (id: number, isPublic: boolean) =>
     ipcRenderer.invoke(
       'attributeDefinition:setPublic',
@@ -649,6 +655,10 @@ const electronHandler = {
     ipcRenderer.invoke('publish:getPriceListNames') as Promise<string[]>,
 
   /** Dry-run summary of what a publish would produce. */
+  getItemPublishStatuses: () =>
+    ipcRenderer.invoke('publish:itemStatuses') as Promise<
+      { id: number; state: string; blockers: string[] }[]
+    >,
   previewCatalog: () =>
     ipcRenderer.invoke('publish:preview') as Promise<CatalogPreview>,
 

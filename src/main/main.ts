@@ -235,6 +235,14 @@ app
         imagesManifestUrl: config.imagesManifestUrl,
       });
     });
+    ipcMain.handle('publish:itemStatuses', async () => {
+      const config = getPublishConfig();
+      return publishService.getItemPublishStatuses({
+        publicPriceList: config.publicPriceList,
+        publicAttributeKeys: publishService.getPublicAttributeKeys(),
+        imagesManifestUrl: config.imagesManifestUrl,
+      });
+    });
     ipcMain.handle('publish:run', async (_, force?: boolean) =>
       publishService.publish(force ?? false),
     );
@@ -435,6 +443,11 @@ app
       'attributeDefinition:setPublic',
       (_, id: number, isPublic: boolean) =>
         inventoryService.setAttributeDefinitionPublic(id, isPublic),
+    );
+    ipcMain.handle(
+      'inventory:setExcludedFromCatalog',
+      (_, id: number, excluded: boolean) =>
+        inventoryService.setItemExcludedFromCatalog(id, excluded),
     );
     ipcMain.handle(
       'inventory:updateAttributes',

@@ -26,6 +26,8 @@ export interface CatalogSourceRow {
   prices: Record<string, number>;
   /** Whether an image exists for this SKU (per the images manifest). */
   hasImage: boolean;
+  /** Explicit "hold this back" override, set per item by the business. */
+  excludeFromCatalog: boolean;
 }
 
 interface CatalogOptions {
@@ -113,10 +115,15 @@ export function publicPriceOf(
 }
 
 /**
- * publishable = has *public* attributes + a positive public price + has image.
+ * publishable = not held back + has *public* attributes + a positive public
+ * price + has image.
  *
  * Judged on public attributes only: an item described entirely by internal keys
  * has nothing to show a customer, so it is not ready to publish.
+ *
+ * The exclusion is checked first and is absolute: it exists so a business can
+ * hold back an item that meets every other condition, which is the only case
+ * where the derived answer is the wrong one.
  */
 export function isPublishable(
   row: CatalogSourceRow,
@@ -124,6 +131,7 @@ export function isPublishable(
   publicAttributeKeys: readonly string[] = [],
 ): boolean {
   return (
+    !row.excludeFromCatalog &&
     hasAttributes(publicAttributesOf(row, publicAttributeKeys)) &&
     publicPriceOf(row, publicPriceList) !== null &&
     row.hasImage

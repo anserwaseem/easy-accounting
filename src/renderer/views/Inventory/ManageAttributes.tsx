@@ -21,6 +21,7 @@ import {
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import type { AttributeDefinition } from 'types';
+import { usePublishEnabled } from '@/renderer/hooks/usePublishEnabled';
 import { moveByOffset } from './reorder';
 
 interface ManageAttributesProps {
@@ -73,6 +74,7 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
     else setUncontrolledOpen(next);
   };
   const [definitions, setDefinitions] = useState<AttributeDefinition[]>([]);
+  const publishEnabled = usePublishEnabled();
   const [label, setLabel] = useState('');
   const [unit, setUnit] = useState('');
   const [valueType, setValueType] = useState<ValueType>('text');
@@ -224,7 +226,9 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
                   <th className="px-3 py-2 font-medium">Name</th>
                   <th className="px-3 py-2 font-medium">Type</th>
                   <th className="px-3 py-2 font-medium">Used by</th>
-                  <th className="px-3 py-2 font-medium">Public</th>
+                  {publishEnabled ? (
+                    <th className="px-3 py-2 font-medium">Public</th>
+                  ) : null}
                   <th className="px-3 py-2 font-medium">Status</th>
                   <th className="px-3 py-2 font-medium">Actions</th>
                 </tr>
@@ -267,18 +271,20 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
                       {def.usageCount ?? 0} item
                       {(def.usageCount ?? 0) === 1 ? '' : 's'}
                     </td>
-                    <td className="px-3 py-2">
-                      <Checkbox
-                        checked={!!def.isPublic}
-                        onCheckedChange={() => handleTogglePublic(def)}
-                        aria-label={`Publish ${def.label} in the public catalog`}
-                        title={
-                          def.isPublic
-                            ? 'Included in the published catalog'
-                            : 'Kept internal — not published'
-                        }
-                      />
-                    </td>
+                    {publishEnabled ? (
+                      <td className="px-3 py-2">
+                        <Checkbox
+                          checked={!!def.isPublic}
+                          onCheckedChange={() => handleTogglePublic(def)}
+                          aria-label={`Publish ${def.label} in the public catalog`}
+                          title={
+                            def.isPublic
+                              ? 'Included in the published catalog'
+                              : 'Kept internal — not published'
+                          }
+                        />
+                      </td>
+                    ) : null}
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {def.isActive ? 'Active' : 'Inactive'}
                     </td>
@@ -350,16 +356,18 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
               </SelectContent>
             </Select>
           </div>
-          <div className="mb-3 flex items-center gap-2">
-            <Checkbox
-              id="attr-public"
-              checked={isPublic}
-              onCheckedChange={(c) => setIsPublic(c === true)}
-            />
-            <Label htmlFor="attr-public" className="text-sm font-normal">
-              Public
-            </Label>
-          </div>
+          {publishEnabled ? (
+            <div className="mb-3 flex items-center gap-2">
+              <Checkbox
+                id="attr-public"
+                checked={isPublic}
+                onCheckedChange={(c) => setIsPublic(c === true)}
+              />
+              <Label htmlFor="attr-public" className="text-sm font-normal">
+                Public
+              </Label>
+            </div>
+          ) : null}
           <Button
             variant="outline"
             onClick={handleAdd}

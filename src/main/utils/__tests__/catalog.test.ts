@@ -17,6 +17,7 @@ const row = (over: Partial<CatalogSourceRow> = {}): CatalogSourceRow => ({
   attributes: { size_in: '5.75 x 9', binding: 'Golden Rexine' },
   prices: { Retail: 1080 },
   hasImage: true,
+  excludeFromCatalog: false,
   ...over,
 });
 
@@ -199,6 +200,7 @@ describe('public attribute whitelist', () => {
     attributes: attrs,
     prices: { Retail: 200 },
     hasImage: true,
+    excludeFromCatalog: false,
   });
 
   const internal = {
@@ -263,5 +265,79 @@ describe('public attribute whitelist', () => {
     const csv = toProductsCsv(built);
     expect(csv).toContain('5 x 7');
     expect(csv).not.toContain('sold 337');
+  });
+});
+
+describe('excludeFromCatalog', () => {
+  it('holds back an item that meets every other condition', () => {
+    // the only case where the derived answer is wrong: everything is ready,
+    // the business simply does not want it on sale
+    const held = row({ excludeFromCatalog: true });
+    expect(isPublishable(held, 'Retail', ['size_in'])).toBe(false);
+    expect(
+      isPublishable({ ...held, excludeFromCatalog: false }, 'Retail', [
+        'size_in',
+      ]),
+    ).toBe(true);
+  });
+
+  it('keeps the item in the public catalog, marked unpublishable', () => {
+    // it still has a public price, so a storefront that lists prices can show
+    // it; what changes is that nothing treats it as ready to sell
+    const built = buildPublicCatalog([row({ excludeFromCatalog: true })], {
+      publicPriceList: 'Retail',
+      publicAttributeKeys: ['size_in'],
+    });
+    expect(built.items).toHaveLength(1);
+    expect(built.items[0].publishable).toBe(false);
+  });
+
+  it('is recorded in the full catalog for the business to see', () => {
+    const built = buildFullCatalog([row({ excludeFromCatalog: true })], {
+      publicPriceList: 'Retail',
+      publicAttributeKeys: ['size_in'],
+    });
+    expect(built.items[0].excludeFromCatalog).toBe(true);
+    expect(built.items[0].publishable).toBe(false);
+  });
+
+  it('does not resurrect an item that fails another condition', () => {
+    const noImage = row({ excludeFromCatalog: false, hasImage: false });
+    expect(isPublishable(noImage, 'Retail', ['size_in'])).toBe(false);
+  });
+});
+
+describe('per-item publish state (the decision the badge shows)', () => {
+  const blockersFor = (over: Partial<CatalogSourceRow>) => {
+    const r = row(over);
+    if (r.excludeFromCatalog) return ['held back'];
+    const out: string[] = [];
+    if (!r.hasImage) out.push('no image');
+    if (publicPriceOf(r, 'Retail') === null) out.push('no public price');
+    if (Object.keys(publicAttributesOf(r, ['size_in'])).length === 0) {
+      out.push('no public attributes');
+    }
+    return out;
+  };
+
+  it('a ready item has no blockers', () => {
+    expect(blockersFor({})).toEqual([]);
+  });
+
+  it('names every missing thing, not just the first', () => {
+    expect(
+      blockersFor({ hasImage: false, prices: {}, attributes: {} }),
+    ).toEqual(['no image', 'no public price', 'no public attributes']);
+  });
+
+  it('held back outranks the other reasons', () => {
+    // the item is complete; the business simply said no
+    expect(blockersFor({ excludeFromCatalog: true })).toEqual(['held back']);
+  });
+
+  it('an item described only by internal keys counts as undescribed', () => {
+    expect(blockersFor({ attributes: { notes: 'internal' } })).toEqual([
+      'no public attributes',
+    ]);
   });
 });

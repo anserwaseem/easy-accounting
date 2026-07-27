@@ -232,6 +232,8 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   attributes?: Record<string, unknown>;
   /** price per named price list, keyed by price_lists.id (migration 020) */
   listPrices?: Record<number, number>;
+  /** explicit "hold this back from the catalog" override (migration 022) */
+  excludeFromCatalog?: 0 | 1;
 }
 export interface UpdateInventoryItem {
   id: number;

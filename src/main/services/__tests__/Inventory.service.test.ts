@@ -47,7 +47,8 @@ function seedBasicSchema(db: Database.Database) {
       quantity REAL DEFAULT 0,
       listPosition INTEGER,
       parentId INTEGER REFERENCES inventory(id),
-      attributes TEXT
+      attributes TEXT,
+      excludeFromCatalog INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS attribute_definitions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

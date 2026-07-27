@@ -10,6 +10,8 @@
 import type { CatalogSourceRow } from './catalog';
 
 export interface RawCatalogRow {
+  /** inventory.id — used to join a status back to a table row, never published. */
+  id: number;
   sku: string;
   name: string;
   parentSku: string | null;
@@ -17,16 +19,19 @@ export interface RawCatalogRow {
   quantity: number | null;
   attributes: string | null;
   pricesJson: string | null;
+  excludeFromCatalog: number | null;
 }
 
 export const CATALOG_QUERY = `
   SELECT
+    i.id AS id,
     i.name AS sku,
     i.name AS name,
     par.name AS parentSku,
     i.price AS basePrice,
     i.quantity AS quantity,
     i.attributes AS attributes,
+    i.excludeFromCatalog AS excludeFromCatalog,
     (
       SELECT json_group_object(pl.name, ip.price)
       FROM inventory_prices ip
@@ -64,5 +69,6 @@ export function mapCatalogRow(
     attributes: parseJsonObject(raw.attributes),
     prices,
     hasImage: imageSkus.has(raw.sku),
+    excludeFromCatalog: Boolean(raw.excludeFromCatalog),
   };
 }

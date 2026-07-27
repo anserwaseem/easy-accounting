@@ -64,6 +64,19 @@ export interface PriceListSummary {
   itemCount: number;
 }
 
+/** Why an item is not ready, in the words the UI shows. */
+export type PublishBlocker =
+  | 'no image'
+  | 'no public price'
+  | 'no public attributes';
+
+export interface ItemPublishStatus {
+  id: number;
+  state: 'ready' | 'held back' | 'not ready';
+  /** Populated only for 'not ready'. */
+  blockers: PublishBlocker[];
+}
+
 export interface CatalogPreview {
   /** Items that are catalog candidates (have attributes or a list price). */
   candidateCount: number;
@@ -71,6 +84,8 @@ export interface CatalogPreview {
   publicCount: number;
   /** Items meeting all publish criteria (attributes + public price + image). */
   publishableCount: number;
+  /** Candidates the business has explicitly held back from the catalog. */
+  heldBack: number;
   /** Candidates missing an image, attributes, or a public price. */
   missingImage: number;
   missingAttributes: number;
@@ -325,6 +340,45 @@ export class PublishService {
   }
 
   /**
+   * Per-item publish state, the same decision `previewCatalog` aggregates.
+   *
+   * Exists because a count tells you seven items are not ready but not *which*
+   * seven, leaving the user to guess. Keyed by inventory id so the table can
+   * join it without relying on names being unique.
+   */
+  public async getItemPublishStatuses(options: {
+    publicPriceList: string;
+    publicAttributeKeys?: readonly string[];
+    imagesManifestUrl?: string;
+  }): Promise<ItemPublishStatus[]> {
+    const { skus: imageSkus } = await PublishService.fetchImageSkus(
+      options.imagesManifestUrl,
+    );
+    const { publicPriceList, publicAttributeKeys } = options;
+    const raw = this.stmGetCatalogRows.all() as RawCatalogRow[];
+
+    return raw.map((rawRow) => {
+      const row = mapCatalogRow(rawRow, imageSkus);
+      if (row.excludeFromCatalog) {
+        return { id: rawRow.id, state: 'held back' as const, blockers: [] };
+      }
+      const blockers: PublishBlocker[] = [];
+      if (!row.hasImage) blockers.push('no image');
+      if (publicPriceOf(row, publicPriceList) === null) {
+        blockers.push('no public price');
+      }
+      if (
+        Object.keys(publicAttributesOf(row, publicAttributeKeys)).length === 0
+      ) {
+        blockers.push('no public attributes');
+      }
+      return blockers.length === 0
+        ? { id: rawRow.id, state: 'ready' as const, blockers: [] }
+        : { id: rawRow.id, state: 'not ready' as const, blockers };
+    });
+  }
+
+  /**
    * Summarise what a publish would produce, without writing anything — powers
    * the readiness panel in Settings so the user can see why items are excluded.
    */
@@ -343,8 +397,10 @@ export class PublishService {
     let missingImage = 0;
     let missingAttributes = 0;
     let missingPublicPrice = 0;
+    let heldBack = 0;
 
     for (const row of rows) {
+      if (row.excludeFromCatalog) heldBack += 1;
       const hasPublicPrice = publicPriceOf(row, publicPriceList) !== null;
       // counted on public attributes: an item described only by internal keys
       // has nothing to show a customer, which is what this number reports
@@ -362,6 +418,7 @@ export class PublishService {
       candidateCount: rows.length,
       publicCount,
       publishableCount,
+      heldBack,
       missingImage,
       missingAttributes,
       missingPublicPrice,

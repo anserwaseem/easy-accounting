@@ -33,7 +33,13 @@ import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { useEscapeKey } from '@/renderer/hooks/useEscapeKey';
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
+import { usePublishEnabled } from '@/renderer/hooks/usePublishEnabled';
 import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
+import {
+  PublishStatusBadge,
+  PublishStatusProvider,
+  usePublishStatuses,
+} from './PublishStatus';
 import { EditItemAttributes } from './EditItemAttributes';
 import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
@@ -56,6 +62,7 @@ import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
 /** persisted visible price-list columns (mirrors the Accounts page approach) */
 const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
 const VISIBLE_ATTRIBUTE_COLUMNS_KEY = 'inventoryVisibleAttributeColumns';
+const SHOW_PUBLISH_COLUMN_KEY = 'inventoryShowPublishColumn';
 
 /** attribute values are JSON, so render booleans and numbers readably */
 const formatAttributeValue = (value: unknown): string => {
@@ -141,6 +148,22 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
   const [attributeDefs, setAttributeDefs] = useState<AttributeDefinition[]>([]);
+  const [showPublishColumn, setShowPublishColumn] = useState<boolean>(() =>
+    Boolean(window.electron.store.get(SHOW_PUBLISH_COLUMN_KEY)),
+  );
+
+  // publishing is optional; when it is not configured these controls describe
+  // a feature this installation does not have
+  const publishEnabled = usePublishEnabled() === true;
+  const { statuses: publishStatuses, refresh: refreshPublishStatuses } =
+    usePublishStatuses(publishEnabled && showPublishColumn);
+
+  // publish state is derived from price, attributes, image and the hold-back
+  // flag, so anything that edits a row can invalidate it
+  const refetchAll = useCallback(() => {
+    refetchInventory();
+    refreshPublishStatuses();
+  }, [refetchInventory, refreshPublishStatuses]);
   const [visibleAttributeKeys, setVisibleAttributeKeys] = useState<string[]>(
     () => {
       const stored = window.electron.store.get(VISIBLE_ATTRIBUTE_COLUMNS_KEY);
@@ -325,6 +348,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       visibleAttributeKeys,
     );
   }, [visibleAttributeKeys]);
+
+  useEffect(() => {
+    window.electron.store.set(SHOW_PUBLISH_COLUMN_KEY, showPublishColumn);
+  }, [showPublishColumn]);
 
   const toggleAttributeColumn = useCallback((key: string) => {
     setVisibleAttributeKeys((prev) =>
@@ -515,6 +542,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       setInventory((prev) =>
         prev ? applyPatchesLocally(prev, patches) : prev,
       );
+      // a price edit can add or remove the public price, which is one of the
+      // conditions the publish badge reports
+      refreshPublishStatuses();
       discardDraft();
       exitEditMode();
       toast({
@@ -533,7 +563,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       pendingSavePatchesRef.current = [];
       setSaveSummary(null);
     }
-  }, [applyPatchesLocally, discardDraft, exitEditMode, setSaving]);
+  }, [
+    applyPatchesLocally,
+    discardDraft,
+    exitEditMode,
+    refreshPublishStatuses,
+    setSaving,
+  ]);
 
   const handleSave = useCallback(() => {
     const { current } = inventoryRef;
@@ -776,6 +812,20 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           );
         },
       },
+      ...(publishEnabled && showPublishColumn
+        ? [
+            {
+              id: 'publishState',
+              header: 'Publish',
+              size: 150,
+              enableSorting: false,
+              // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
+              cell: ({ row }: { row: { original: InventoryItem } }) => (
+                <PublishStatusBadge itemId={row.original.id} />
+              ),
+            },
+          ]
+        : []),
       {
         header: 'Actions',
         enableSorting: false,
@@ -795,11 +845,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                 />
                 <EditItemAttributes
                   item={row.original}
-                  onUpdated={refetchInventory}
+                  onUpdated={refetchAll}
                 />
                 <EditInventoryItem
                   row={row}
-                  refetchInventory={refetchInventory}
+                  refetchInventory={refetchAll}
+                  refreshPublishStatuses={refreshPublishStatuses}
+                  showPublishControls={publishEnabled && showPublishColumn}
                 />
               </>
             )}
@@ -810,7 +862,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         size: 112,
       },
     ];
-    // updateItemType closes over itemTypes/editMode; columns rebuild when those change
+    // updateItemType closes over itemTypes/editMode; columns rebuild when those
+    // change. This list is maintained by hand (exhaustive-deps is off below),
+    // so anything a column definition reads MUST be added here — a cell that
+    // closes over state missing from this list silently renders the value from
+    // whenever the memo last ran.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     editMode,
@@ -819,11 +875,15 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     itemTypes,
     itemsWithHistory,
     refetchInventory,
+    refetchAll,
+    refreshPublishStatuses,
     stableBlurCommit,
     stableNavigate,
     stableWriteDraft,
     shownPriceLists,
     shownAttributeDefs,
+    publishEnabled,
+    showPublishColumn,
   ]);
 
   // one picker for every optional column, rendered in the page header so the
@@ -844,6 +904,17 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         onToggle: toggleAttributeColumn,
         onSetAll: setVisibleAttributeKeys,
       },
+      ...(publishEnabled
+        ? [
+            {
+              title: 'Publishing',
+              options: [{ id: 'publishState', label: 'Publish status' }],
+              selectedIds: showPublishColumn ? ['publishState'] : [],
+              onToggle: () => setShowPublishColumn((prev) => !prev),
+              onSetAll: (ids: string[]) => setShowPublishColumn(ids.length > 0),
+            },
+          ]
+        : []),
     ],
     [
       priceLists,
@@ -852,6 +923,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       attributeDefs,
       visibleAttributeKeys,
       toggleAttributeColumn,
+      publishEnabled,
+      showPublishColumn,
     ],
   );
 
@@ -874,14 +947,19 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   return (
     <div className="pt-1">
       {toolbarHost ? createPortal(toolbar, toolbarHost) : null}
-      <InventoryVirtualGrid
-        columns={columns}
-        data={filteredInventory}
-        editMode={editMode}
-        virtualScrollToIndex={virtualScrollToIndex}
-        onViewModelChange={handleViewModelChange}
-        searchFields={searchFields}
-      />
+      {/* statuses flow through context so a refresh re-renders only the badges;
+          putting them in the column definitions remounted every cell, which
+          destroyed any dialog a user had open inside one */}
+      <PublishStatusProvider value={publishStatuses}>
+        <InventoryVirtualGrid
+          columns={columns}
+          data={filteredInventory}
+          editMode={editMode}
+          virtualScrollToIndex={virtualScrollToIndex}
+          onViewModelChange={handleViewModelChange}
+          searchFields={searchFields}
+        />
+      </PublishStatusProvider>
       <StockHistoryDialog
         open={historyOpen}
         onOpenChange={setHistoryOpen}

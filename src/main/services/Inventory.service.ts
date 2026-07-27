@@ -20,6 +20,8 @@ import type {
 } from 'types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
+import { itemNameError } from '../utils/itemName';
+import { getPublishConfig } from '../utils/publishConfig';
 import { cast } from '../utils/sqlite';
 import { parseJsonRecord, parseListPrices } from '../utils/inventoryJson';
 import { raise } from '../utils/general';
@@ -102,6 +104,8 @@ export class InventoryService {
   private stmToggleAttributeDefinition!: Statement;
 
   private stmSetAttributeDefinitionPublic!: Statement;
+
+  private stmSetItemExcluded!: Statement;
 
   private stmGetPublicAttributeKeys!: Statement;
 
@@ -241,6 +245,18 @@ export class InventoryService {
     );
   }
 
+  /**
+   * Holds an item back from the published catalog, or releases it.
+   *
+   * Separate from price, image and attributes so a business never has to damage
+   * its own data — deleting a price to stop something being sold online — to
+   * make a publishing decision.
+   */
+  @logErrors
+  setItemExcludedFromCatalog(id: number, excluded: boolean): boolean {
+    return this.stmSetItemExcluded.run(excluded ? 1 : 0, cast(id)).changes > 0;
+  }
+
   /** Attribute keys marked public and active — the catalog whitelist. */
   @logErrors
   getPublicAttributeKeys(): string[] {
@@ -286,6 +302,7 @@ export class InventoryService {
     let success = true;
     this.db.transaction(() => {
       for (const item of inventory) {
+        InventoryService.assertNameAllowed(item.name);
         const result = this.stmInsertItem.run({
           name: item.name,
           description: item.description ?? null,
@@ -303,7 +320,21 @@ export class InventoryService {
     return success;
   }
 
+  /**
+   * Rejects a name using a character this installation has reserved.
+   *
+   * Enforced in the service rather than only in the form: names also arrive via
+   * import and via IPC, and a name that breaks the downstream path mapping
+   * fails silently later (a product carrying another product's image), so it is
+   * worth refusing at the single point every write goes through.
+   */
+  private static assertNameAllowed(name: string): void {
+    const error = itemNameError(name, getPublishConfig().reservedNameChars);
+    if (error) throw new Error(error);
+  }
+
   insertItem(item: InsertInventoryItem): boolean {
+    InventoryService.assertNameAllowed(item.name);
     const result = this.stmInsertItem.run({
       ...item,
       description: item.description ?? null,
@@ -314,6 +345,7 @@ export class InventoryService {
   }
 
   updateItem(item: UpdateInventoryItem): boolean {
+    if (item.name) InventoryService.assertNameAllowed(item.name);
     const result = this.stmUpdateItem.run({
       ...item,
       id: cast(item.id),
@@ -1114,6 +1146,10 @@ export class InventoryService {
 
     this.stmSetAttributeDefinitionPublic = this.db.prepare(`
       UPDATE attribute_definitions SET isPublic = ? WHERE id = ?
+    `);
+
+    this.stmSetItemExcluded = this.db.prepare(`
+      UPDATE inventory SET excludeFromCatalog = ? WHERE id = ?
     `);
 
     // the whitelist the catalog builder narrows public attributes to
