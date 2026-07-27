@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Tag } from 'lucide-react';
+import { Tag, Undo2 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   Dialog,
@@ -13,6 +13,10 @@ import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import type { AttributeDefinition, InventoryItem } from 'types';
+import {
+  CopyAttributesPanel,
+  CopyAttributesTrigger,
+} from './CopyAttributesPanel';
 
 interface EditItemAttributesProps {
   item: InventoryItem;
@@ -56,6 +60,15 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
   const [definitions, setDefinitions] = useState<AttributeDefinition[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // null = the copy panel has never been opened; [] = opened, nothing to offer
+  const [candidates, setCandidates] = useState<InventoryItem[] | null>(null);
+  const [copying, setCopying] = useState(false);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
+  // snapshot taken before a copy, so one wrong source is one click to undo
+  const [beforeCopy, setBeforeCopy] = useState<Record<string, string> | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +96,13 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [open, item.attributes]);
+    // Deps are the dialog opening and which item is being edited — deliberately
+    // not `item.attributes`. That is a fresh object on every parent re-parse, so
+    // depending on it re-seeds the form mid-edit and silently discards whatever
+    // the user typed or copied in. Content changes arriving while the dialog is
+    // open are not a reason to throw away their work.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, item.id]);
 
   // keys present on the item but no longer defined — surfaced so data is not
   // silently lost when a definition is removed or renamed
@@ -91,6 +110,46 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
     const known = new Set(definitions.map((d) => d.key));
     return Object.keys(item.attributes ?? {}).filter((k) => !known.has(k));
   }, [definitions, item.attributes]);
+
+  // Fetched on the click that opens the panel — no request unless asked for —
+  // and awaited *before* opening. Opening first meant the panel rendered with an
+  // empty list for one frame, flashing "nothing to copy" every single time.
+  const openCopy = useCallback(async () => {
+    if (candidates !== null) {
+      setCopying(true);
+      return;
+    }
+    setLoadingCandidates(true);
+    try {
+      setCandidates(await window.electron.getInventory());
+      setCopying(true);
+    } catch (error) {
+      toast({
+        description: `Could not load items to copy from: ${
+          (error as Error)?.message ?? 'unknown error'
+        }`,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingCandidates(false);
+    }
+  }, [candidates]);
+
+  const handlePrefill = useCallback(
+    (next: Record<string, string>, sourceName: string) => {
+      setBeforeCopy(values);
+      setValues(next);
+      setCopiedFrom(sourceName);
+    },
+    [values],
+  );
+
+  const undoCopy = useCallback(() => {
+    if (!beforeCopy) return;
+    setValues(beforeCopy);
+    setBeforeCopy(null);
+    setCopiedFrom(null);
+  }, [beforeCopy]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -109,6 +168,9 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
       }
       await window.electron.updateInventoryAttributes(item.id, payload);
       toast({ description: 'Attributes saved', variant: 'success' });
+      setCopiedFrom(null);
+      setBeforeCopy(null);
+      setCopying(false);
       setOpen(false);
       onUpdated?.();
     } catch (error) {
@@ -136,73 +198,121 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
           <Tag size={16} />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      {/* fixed height: the body swaps between the form and the copy picker, so
+          the dialog never grows past the viewport */}
+      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">
         <DialogHeader>
-          <DialogTitle>Attributes — {item.name}</DialogTitle>
+          <DialogTitle>
+            {copying ? 'Copy attributes into' : 'Attributes'} — {item.name}
+          </DialogTitle>
         </DialogHeader>
 
-        {definitions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No attributes defined yet. Add them from Inventory → Attributes.
-          </p>
+        {copying && candidates ? (
+          <CopyAttributesPanel
+            item={item}
+            definitions={definitions}
+            values={values}
+            candidates={candidates}
+            onPrefill={handlePrefill}
+            onClose={() => setCopying(false)}
+          />
         ) : (
-          <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
-            {definitions.map((def) => (
-              <div key={def.key} className="flex flex-col gap-1">
-                <Label htmlFor={`attr-${def.key}`}>
-                  {def.label}
-                  {def.unit ? (
-                    <span className="text-muted-foreground"> ({def.unit})</span>
-                  ) : null}
-                </Label>
-                {def.valueType === 'bool' ? (
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id={`attr-${def.key}`}
-                      checked={!!values[def.key]}
-                      onCheckedChange={(c) =>
-                        setValues((prev) => ({
-                          ...prev,
-                          [def.key]: c === true ? 'true' : '',
-                        }))
-                      }
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {values[def.key] ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                ) : (
-                  <Input
-                    id={`attr-${def.key}`}
-                    inputMode={def.valueType === 'number' ? 'decimal' : 'text'}
-                    value={values[def.key] ?? ''}
-                    onChange={(e) =>
-                      setValues((prev) => ({
-                        ...prev,
-                        [def.key]: e.target.value,
-                      }))
-                    }
-                  />
-                )}
+          <>
+            {definitions.length > 0 ? (
+              <div className="flex items-center gap-3">
+                <CopyAttributesTrigger
+                  onClick={openCopy}
+                  loading={loadingCandidates}
+                />
+                {copiedFrom ? (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    Copied from <strong>{copiedFrom}</strong> — not saved yet
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={undoCopy}
+                    >
+                      <Undo2 size={14} className="mr-1" />
+                      Undo
+                    </Button>
+                  </span>
+                ) : null}
               </div>
-            ))}
-          </div>
-        )}
+            ) : null}
 
-        {undefinedKeys.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            Kept as-is (no matching definition): {undefinedKeys.join(', ')}
-          </p>
-        )}
+            {definitions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No attributes defined yet. Add them from Inventory → Attributes.
+              </p>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+                {definitions.map((def) => (
+                  <div key={def.key} className="flex flex-col gap-1">
+                    <Label htmlFor={`attr-${def.key}`}>
+                      {def.label}
+                      {def.unit ? (
+                        <span className="text-muted-foreground">
+                          {' '}
+                          ({def.unit})
+                        </span>
+                      ) : null}
+                    </Label>
+                    {def.valueType === 'bool' ? (
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`attr-${def.key}`}
+                          checked={!!values[def.key]}
+                          onCheckedChange={(c) =>
+                            setValues((prev) => ({
+                              ...prev,
+                              [def.key]: c === true ? 'true' : '',
+                            }))
+                          }
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {values[def.key] ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    ) : (
+                      <Input
+                        id={`attr-${def.key}`}
+                        inputMode={
+                          def.valueType === 'number' ? 'decimal' : 'text'
+                        }
+                        value={values[def.key] ?? ''}
+                        onChange={(e) =>
+                          setValues((prev) => ({
+                            ...prev,
+                            [def.key]: e.target.value,
+                          }))
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
-        <div className="flex items-center gap-2">
-          <Button onClick={handleSave} disabled={saving || !definitions.length}>
-            {saving ? 'Saving…' : 'Save attributes'}
-          </Button>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-        </div>
+            {undefinedKeys.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Kept as-is (no matching definition): {undefinedKeys.join(', ')}
+              </p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleSave}
+                disabled={saving || !definitions.length}
+              >
+                {saving ? 'Saving…' : 'Save attributes'}
+              </Button>
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
