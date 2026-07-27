@@ -656,9 +656,10 @@ const electronHandler = {
 
   /** Dry-run summary of what a publish would produce. */
   getItemPublishStatuses: () =>
-    ipcRenderer.invoke('publish:itemStatuses') as Promise<
-      { id: number; state: string; blockers: string[] }[]
-    >,
+    ipcRenderer.invoke('publish:itemStatuses') as Promise<{
+      statuses: { id: number; state: string; blockers: string[] }[];
+      imagesManifestError?: string;
+    }>,
   previewCatalog: () =>
     ipcRenderer.invoke('publish:preview') as Promise<CatalogPreview>,
 

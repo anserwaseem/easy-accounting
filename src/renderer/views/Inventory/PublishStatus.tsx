@@ -22,27 +22,40 @@ export interface ItemPublishStatus {
  * Loaded on demand rather than with the inventory: it reads the images manifest
  * over the network, and most visits to this page are not about publishing.
  */
+export interface PublishStatusMap {
+  byId: Record<number, ItemPublishStatus>;
+  /**
+   * False until the first fetch returns. Without it "no status yet" and "this
+   * item is not a catalog candidate" both render as a bare dash, and most rows
+   * are the latter — 649 of 995 here — so the table looks broken rather than
+   * informative.
+   */
+  loaded: boolean;
+}
+
 export const usePublishStatuses = (
   enabled: boolean,
 ): {
-  statuses: Record<number, ItemPublishStatus>;
+  statuses: PublishStatusMap;
   /** re-read after anything that could change publishability */
   refresh: () => void;
 } => {
-  const [statuses, setStatuses] = useState<Record<number, ItemPublishStatus>>(
-    {},
-  );
+  const [statuses, setStatuses] = useState<PublishStatusMap>({
+    byId: {},
+    loaded: false,
+  });
 
   const load = useCallback(async () => {
     try {
-      const rows = await window.electron.getItemPublishStatuses();
-      setStatuses(
-        Object.fromEntries(
-          (rows as ItemPublishStatus[]).map((row) => [row.id, row]),
+      const report = await window.electron.getItemPublishStatuses();
+      setStatuses({
+        byId: Object.fromEntries(
+          (report.statuses as ItemPublishStatus[]).map((row) => [row.id, row]),
         ),
-      );
+        loaded: true,
+      });
     } catch {
-      setStatuses({});
+      setStatuses({ byId: {}, loaded: true });
     }
   }, []);
 
@@ -66,7 +79,10 @@ export const usePublishStatuses = (
  * mid-interaction. Cells subscribe here instead, so refreshing statuses
  * re-renders the badges and nothing else.
  */
-const StatusContext = createContext<Record<number, ItemPublishStatus>>({});
+const StatusContext = createContext<PublishStatusMap>({
+  byId: {},
+  loaded: false,
+});
 
 export const PublishStatusProvider = StatusContext.Provider;
 
@@ -93,9 +109,24 @@ export const PublishStatusBadge: React.FC<{ itemId: number }> = ({
 }: {
   itemId: number;
 }) => {
-  const status = useContext(StatusContext)[itemId];
+  const { byId, loaded } = useContext(StatusContext);
+  const status = byId[itemId];
+
+  // three different nothings, told apart: still fetching, never a candidate,
+  // or a real state. Collapsing them into one dash is what made this column
+  // look broken.
+  if (!loaded) {
+    return <span className="text-xs text-muted-foreground">checking…</span>;
+  }
   if (!status) {
-    return <span className="text-xs text-muted-foreground">—</span>;
+    return (
+      <span
+        className="text-xs text-muted-foreground"
+        title="Not a catalog item — it has no attributes and no price list entry"
+      >
+        not in catalog
+      </span>
+    );
   }
   return (
     <span className="flex flex-col gap-0.5">

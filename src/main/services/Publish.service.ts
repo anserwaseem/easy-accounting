@@ -29,6 +29,10 @@ import {
   type RawCatalogRow,
 } from '../utils/catalogQuery';
 import {
+  canUseCachedManifest,
+  isCacheableManifestResult,
+} from '../utils/imageManifestCache';
+import {
   buildFullCatalog,
   buildPublicCatalog,
   isPublishable,
@@ -67,6 +71,7 @@ export interface PriceListSummary {
 /** Why an item is not ready, in the words the UI shows. */
 export type PublishBlocker =
   | 'no image'
+  | 'image check failed'
   | 'no public price'
   | 'no public attributes';
 
@@ -75,6 +80,16 @@ export interface ItemPublishStatus {
   state: 'ready' | 'held back' | 'not ready';
   /** Populated only for 'not ready'. */
   blockers: PublishBlocker[];
+}
+
+export interface ItemPublishStatusReport {
+  statuses: ItemPublishStatus[];
+  /**
+   * Set when the images manifest could not be read. Without it every item
+   * reports "no image", so an unreachable manifest reads as "you have no
+   * photographs" — the same confusion the aggregate preview already guards.
+   */
+  imagesManifestError?: string;
 }
 
 export interface CatalogPreview {
@@ -350,20 +365,22 @@ export class PublishService {
     publicPriceList: string;
     publicAttributeKeys?: readonly string[];
     imagesManifestUrl?: string;
-  }): Promise<ItemPublishStatus[]> {
-    const { skus: imageSkus } = await PublishService.fetchImageSkus(
-      options.imagesManifestUrl,
-    );
+  }): Promise<ItemPublishStatusReport> {
+    // the frequent caller — served from cache between image rebuilds
+    const { skus: imageSkus, error: imagesManifestError } =
+      await PublishService.fetchImageSkus(options.imagesManifestUrl);
     const { publicPriceList, publicAttributeKeys } = options;
     const raw = this.stmGetCatalogRows.all() as RawCatalogRow[];
 
-    return raw.map((rawRow) => {
+    const statuses = raw.map((rawRow) => {
       const row = mapCatalogRow(rawRow, imageSkus);
       if (row.excludeFromCatalog) {
         return { id: rawRow.id, state: 'held back' as const, blockers: [] };
       }
       const blockers: PublishBlocker[] = [];
-      if (!row.hasImage) blockers.push('no image');
+      if (!row.hasImage) {
+        blockers.push(imagesManifestError ? 'image check failed' : 'no image');
+      }
       if (publicPriceOf(row, publicPriceList) === null) {
         blockers.push('no public price');
       }
@@ -376,6 +393,7 @@ export class PublishService {
         ? { id: rawRow.id, state: 'ready' as const, blockers: [] }
         : { id: rawRow.id, state: 'not ready' as const, blockers };
     });
+    return { statuses, imagesManifestError };
   }
 
   /**
@@ -388,7 +406,9 @@ export class PublishService {
     imagesManifestUrl?: string;
   }): Promise<CatalogPreview> {
     const { skus: imageSkus, error: imagesManifestError } =
-      await PublishService.fetchImageSkus(options.imagesManifestUrl);
+      await PublishService.fetchImageSkus(options.imagesManifestUrl, {
+        force: true,
+      });
     const rows = this.getCatalogRows(imageSkus);
     const { publicPriceList, publicAttributeKeys } = options;
 
@@ -451,8 +471,10 @@ export class PublishService {
 
     try {
       PublishService.emitProgress('generating', 'Generating catalog files…');
+      // publishing must reflect the current manifest, never a cached one
       const { skus: imageSkus } = await PublishService.fetchImageSkus(
         config.imagesManifestUrl,
+        { force: true },
       );
       const outDir = path.join(app.getPath('userData'), 'publish');
       const generated = this.generateCatalogFiles(outDir, {
@@ -530,10 +552,22 @@ export class PublishService {
           )
         : undefined;
 
+      // An event envelope rather than a bare body: `{event_type, client_payload}`
+      // is what dispatch-style endpoints expect (GitHub's repository_dispatch
+      // among them), and a receiver that wants the raw fields can still read
+      // client_payload. Posting the fields at the top level made the webhook
+      // unusable for the one integration it exists to serve.
       const webhook = await PublishService.callWebhook(
         config.webhookUrl,
         webhookToken,
-        { generatedAt, publishableCount: generated.publishableCount },
+        {
+          event_type: 'publish',
+          client_payload: {
+            generatedAt,
+            publishableCount: generated.publishableCount,
+            publicCount: generated.publicCount,
+          },
+        },
       );
 
       const result: PublishResult = {
@@ -663,9 +697,31 @@ export class PublishService {
    * pipeline. Shape: { skus: { [sku]: ... } }. Failure to fetch is not fatal —
    * it just means nothing is considered to have an image.
    */
+  /**
+   * The manifest, remembered between calls.
+   *
+   * It changes only when the image pipeline runs — a CI job or a manual build,
+   * never something that happens while the app is open — but the inventory
+   * grid re-reads it after every edit that could change publishability. Without
+   * this, holding back five items in a row is five downloads of the whole
+   * manifest (~340KB each at full catalogue) to learn nothing new.
+   *
+   * Keyed by URL so changing it in Settings cannot serve the old answer, and
+   * bypassed by the two places where the user is explicitly asking for the
+   * current state: previewing and publishing.
+   */
+  private static imageSkusCache: {
+    url: string;
+    result: { skus: Set<string>; error?: string };
+  } | null = null;
+
   private static async fetchImageSkus(
     url?: string,
+    { force = false }: { force?: boolean } = {},
   ): Promise<{ skus: Set<string>; error?: string }> {
+    if (canUseCachedManifest(PublishService.imageSkusCache, url, force)) {
+      return PublishService.imageSkusCache!.result;
+    }
     if (!url) {
       return {
         skus: new Set(),
@@ -684,10 +740,14 @@ export class PublishService {
         skus?: Record<string, unknown>;
       };
       const skus = new Set(Object.keys(manifest?.skus ?? {}));
-      if (skus.size === 0) {
-        return { skus, error: 'The images manifest lists no images.' };
+      const result =
+        skus.size === 0
+          ? { skus, error: 'The images manifest lists no images.' }
+          : { skus };
+      if (isCacheableManifestResult(result)) {
+        PublishService.imageSkusCache = { url, result };
       }
-      return { skus };
+      return result;
     } catch (error) {
       const message = `Could not read the images manifest: ${
         (error as Error)?.message ?? 'unknown error'

@@ -22,7 +22,6 @@ interface ManagePriceListsProps {
   filteredInventoryIds: number[];
   /** called after any change so the inventory table can refresh */
   onUpdated?: () => void;
-  initialOpen?: boolean;
   /** controlled mode: parent owns visibility, no trigger rendered here */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -43,11 +42,10 @@ const DEFAULT_ROUND_TO = '10';
 export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
   filteredInventoryIds,
   onUpdated,
-  initialOpen = false,
   open: controlledOpen,
   onOpenChange,
 }: ManagePriceListsProps) => {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(initialOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : uncontrolledOpen;
   const setOpen = (next: boolean) => {

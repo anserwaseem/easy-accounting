@@ -24,8 +24,6 @@ import type { ItemType } from '@/types';
 
 interface ManageItemTypesProps {
   onUpdated?: () => void;
-  /** when true on first mount, opens the dialog (e.g. deep-link from New Sale Invoice) */
-  initialOpen?: boolean;
   /**
    * Controlled mode: when provided the parent owns visibility and no trigger is
    * rendered here (the dialog is opened from the page's Manage menu).
@@ -36,11 +34,10 @@ interface ManageItemTypesProps {
 
 export const ManageItemTypes: React.FC<ManageItemTypesProps> = ({
   onUpdated,
-  initialOpen = false,
   open: controlledOpen,
   onOpenChange,
 }: ManageItemTypesProps) => {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(initialOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : uncontrolledOpen;
   const setOpen = (next: boolean) => {
