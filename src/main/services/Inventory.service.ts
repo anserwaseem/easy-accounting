@@ -2,6 +2,8 @@ import type { Database, Statement } from 'better-sqlite3';
 import { get } from 'lodash';
 import type {
   ApiResponse,
+  AttributeDefinition,
+  UpsertAttributeDefinition,
   ApplyListPositionsResult,
   ApplyStockAdjustmentPayload,
   BulkPriceListPositionPatch,
@@ -91,6 +93,24 @@ export class InventoryService {
 
   private stmUpsertInventoryPrice!: Statement;
 
+  private stmGetAttributeDefinitions!: Statement;
+
+  private stmInsertAttributeDefinition!: Statement;
+
+  private stmUpdateAttributeDefinition!: Statement;
+
+  private stmToggleAttributeDefinition!: Statement;
+
+  private stmSetAttributeDefinitionOrder!: Statement;
+
+  private stmUpdateInventoryAttributes!: Statement;
+
+  private stmDeleteAttributeDefinition!: Statement;
+
+  private stmCountAttributeUsage!: Statement;
+
+  private stmRemoveAttributeFromItems!: Statement;
+
   private stmDeleteInventoryPrice!: Statement;
 
   constructor() {
@@ -115,6 +135,122 @@ export class InventoryService {
       attributes: parseJsonRecord(attributes),
       listPrices: parseListPrices(listPricesJson),
     }));
+  }
+
+  /** All custom attribute definitions, in display order. */
+  getAttributeDefinitions(): AttributeDefinition[] {
+    return this.stmGetAttributeDefinitions.all() as AttributeDefinition[];
+  }
+
+  /** Creates a definition (no-op when the key exists) or updates one by id. */
+  upsertAttributeDefinition(input: UpsertAttributeDefinition): boolean {
+    const key = input.key?.trim();
+    const label = input.label?.trim();
+    if (!key || !label) return false;
+    const params = {
+      key,
+      label,
+      unit: input.unit?.trim() || null,
+      valueType: input.valueType,
+      // null lets the insert append after the current highest order
+      sortOrder: input.sortOrder ?? null,
+    };
+    if (input.id) {
+      return (
+        this.stmUpdateAttributeDefinition.run({
+          ...params,
+          sortOrder: input.sortOrder ?? 0,
+          id: cast(input.id),
+        }).changes > 0
+      );
+    }
+    return this.stmInsertAttributeDefinition.run(params).changes > 0;
+  }
+
+  /**
+   * Deletes a definition.
+   *
+   * When items still use it, the call reports the usage instead of deleting, so
+   * the caller can confirm first. Passing `force` then deletes the definition
+   * AND strips its value from every item, in one transaction — values left
+   * behind would keep appearing in the published catalog with no way to edit
+   * them.
+   */
+  deleteAttributeDefinition(
+    id: number,
+    force = false,
+  ): { deleted: boolean; usageCount: number; valuesRemoved: number } {
+    const def = this.getAttributeDefinitions().find((d) => d.id === id);
+    if (!def) return { deleted: false, usageCount: 0, valuesRemoved: 0 };
+
+    const { c: usageCount } = this.stmCountAttributeUsage.get(def.key) as {
+      c: number;
+    };
+    if (usageCount > 0 && !force) {
+      return { deleted: false, usageCount, valuesRemoved: 0 };
+    }
+
+    let valuesRemoved = 0;
+    let deleted = false;
+    this.db.transaction(() => {
+      if (usageCount > 0) {
+        valuesRemoved = this.stmRemoveAttributeFromItems.run({
+          key: def.key,
+        }).changes;
+      }
+      deleted = this.stmDeleteAttributeDefinition.run(cast(id)).changes > 0;
+    })();
+
+    return { deleted, usageCount, valuesRemoved };
+  }
+
+  /**
+   * Rewrites display order from the given id sequence, assigning 1..N.
+   *
+   * Normalising rather than swapping two values makes the operation idempotent
+   * and self-healing: any gaps or duplicate orders left by older data are
+   * cleaned up as a side effect of the next move.
+   */
+  reorderAttributeDefinitions(orderedIds: number[]): boolean {
+    if (orderedIds.length === 0) return false;
+    const known = new Set(this.getAttributeDefinitions().map((d) => d.id));
+    const ids = orderedIds.filter((id) => known.has(id));
+    if (ids.length === 0) return false;
+
+    this.db.transaction(() => {
+      ids.forEach((id, index) => {
+        this.stmSetAttributeDefinitionOrder.run(index + 1, cast(id));
+      });
+    })();
+    return true;
+  }
+
+  setAttributeDefinitionActive(id: number, isActive: boolean): boolean {
+    return (
+      this.stmToggleAttributeDefinition.run(cast(isActive), cast(id)).changes >
+      0
+    );
+  }
+
+  /**
+   * Replaces an item's attributes. Keys with an empty value are dropped so the
+   * stored JSON stays free of blanks, which keeps the published catalog clean
+   * and keeps the "has attributes" publish check meaningful.
+   */
+  updateInventoryAttributes(
+    inventoryId: number,
+    attributes: Record<string, unknown>,
+  ): boolean {
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(attributes ?? {})) {
+      if (value === '' || value === null || value === undefined) continue;
+      cleaned[key] = value;
+    }
+    const json =
+      Object.keys(cleaned).length > 0 ? JSON.stringify(cleaned) : null;
+    return (
+      this.stmUpdateInventoryAttributes.run(json, cast(inventoryId)).changes > 0
+    );
   }
 
   saveInventory(inventory: InventoryItem[]): boolean {
@@ -887,6 +1023,76 @@ export class InventoryService {
 
     this.stmDeleteInventoryPrice = this.db.prepare(`
       DELETE FROM inventory_prices WHERE inventoryId = ? AND priceListId = ?
+    `);
+
+    // usageCount tells the UI whether a definition is safe to delete, and how
+    // much data a change would affect
+    this.stmGetAttributeDefinitions = this.db.prepare(`
+      SELECT ad.id, ad.key, ad.label, ad.unit, ad.valueType, ad.sortOrder,
+             ad.isActive,
+             (SELECT COUNT(*) FROM inventory i
+               WHERE i.attributes IS NOT NULL
+                 AND json_extract(i.attributes, '$.' || ad.key) IS NOT NULL
+             ) AS usageCount
+      FROM attribute_definitions ad
+      ORDER BY ad.sortOrder ASC, ad.label ASC
+    `);
+
+    this.stmDeleteAttributeDefinition = this.db.prepare(`
+      DELETE FROM attribute_definitions WHERE id = ?
+    `);
+
+    this.stmCountAttributeUsage = this.db.prepare(`
+      SELECT COUNT(*) AS c FROM inventory
+      WHERE attributes IS NOT NULL
+        AND json_extract(attributes, '$.' || ?) IS NOT NULL
+    `);
+
+    // strips one key from every item's attributes; an item left with no
+    // attributes stores NULL so the "has attributes" publish check stays true
+    // to its meaning
+    this.stmRemoveAttributeFromItems = this.db.prepare(`
+      UPDATE inventory
+         SET attributes = CASE
+               WHEN json_remove(attributes, '$.' || @key) = '{}' THEN NULL
+               ELSE json_remove(attributes, '$.' || @key)
+             END
+       WHERE attributes IS NOT NULL
+         AND json_extract(attributes, '$.' || @key) IS NOT NULL
+    `);
+
+    // a NULL sortOrder means "append": the next value is derived from the
+    // current MAX, so deleting a definition can never make a later insert
+    // collide with an existing order (counting rows would)
+    this.stmInsertAttributeDefinition = this.db.prepare(`
+      INSERT OR IGNORE INTO attribute_definitions
+        (key, label, unit, valueType, sortOrder)
+      VALUES (
+        @key, @label, @unit, @valueType,
+        COALESCE(
+          @sortOrder,
+          (SELECT COALESCE(MAX(sortOrder), 0) + 1 FROM attribute_definitions)
+        )
+      )
+    `);
+
+    this.stmUpdateAttributeDefinition = this.db.prepare(`
+      UPDATE attribute_definitions
+      SET label = @label, unit = @unit, valueType = @valueType,
+          sortOrder = @sortOrder
+      WHERE id = @id
+    `);
+
+    this.stmToggleAttributeDefinition = this.db.prepare(`
+      UPDATE attribute_definitions SET isActive = ? WHERE id = ?
+    `);
+
+    this.stmSetAttributeDefinitionOrder = this.db.prepare(`
+      UPDATE attribute_definitions SET sortOrder = ? WHERE id = ?
+    `);
+
+    this.stmUpdateInventoryAttributes = this.db.prepare(`
+      UPDATE inventory SET attributes = ? WHERE id = ?
     `);
 
     this.stmGetInventoryIdsByTrimName = this.db.prepare(`

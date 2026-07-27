@@ -72,6 +72,12 @@ export interface CatalogPreview {
   missingImage: number;
   missingAttributes: number;
   missingPublicPrice: number;
+  /**
+   * Set when the images manifest could not be read. Without this, "missing
+   * image" counts look identical whether the manifest is unreachable or the
+   * items genuinely have no imagery.
+   */
+  imagesManifestError?: string;
 }
 
 export interface PublishResult {
@@ -306,9 +312,8 @@ export class PublishService {
     publicPriceList: string;
     imagesManifestUrl?: string;
   }): Promise<CatalogPreview> {
-    const imageSkus = await PublishService.fetchImageSkus(
-      options.imagesManifestUrl,
-    );
+    const { skus: imageSkus, error: imagesManifestError } =
+      await PublishService.fetchImageSkus(options.imagesManifestUrl);
     const rows = this.getCatalogRows(imageSkus);
     const { publicPriceList } = options;
 
@@ -335,6 +340,7 @@ export class PublishService {
       missingImage,
       missingAttributes,
       missingPublicPrice,
+      ...(imagesManifestError ? { imagesManifestError } : {}),
     };
   }
 
@@ -363,7 +369,7 @@ export class PublishService {
 
     try {
       PublishService.emitProgress('generating', 'Generating catalog files…');
-      const imageSkus = await PublishService.fetchImageSkus(
+      const { skus: imageSkus } = await PublishService.fetchImageSkus(
         config.imagesManifestUrl,
       );
       const outDir = path.join(app.getPath('userData'), 'publish');
@@ -402,6 +408,11 @@ export class PublishService {
       const client = new S3Client({
         endpoint: config.endpoint,
         region: config.region || 'auto',
+        // path-style keeps every bucket on the one endpoint host
+        // (endpoint/bucket/key). The default virtual-hosted style would put the
+        // bucket in the hostname, which needs per-bucket DNS and fails with
+        // ENOTFOUND on providers that do not publish it.
+        forcePathStyle: true,
         credentials: {
           accessKeyId: config.accessKeyId,
           secretAccessKey,
@@ -569,21 +580,37 @@ export class PublishService {
    * pipeline. Shape: { skus: { [sku]: ... } }. Failure to fetch is not fatal —
    * it just means nothing is considered to have an image.
    */
-  private static async fetchImageSkus(url?: string): Promise<Set<string>> {
-    if (!url) return new Set();
+  private static async fetchImageSkus(
+    url?: string,
+  ): Promise<{ skus: Set<string>; error?: string }> {
+    if (!url) {
+      return {
+        skus: new Set(),
+        error:
+          'No images manifest URL is set, so no item counts as having one.',
+      };
+    }
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        log.warn(`Publish: images manifest fetch failed (${response.status})`);
-        return new Set();
+        const error = `Images manifest returned HTTP ${response.status}.`;
+        log.warn(`Publish: ${error}`);
+        return { skus: new Set(), error };
       }
       const manifest = (await response.json()) as {
         skus?: Record<string, unknown>;
       };
-      return new Set(Object.keys(manifest?.skus ?? {}));
+      const skus = new Set(Object.keys(manifest?.skus ?? {}));
+      if (skus.size === 0) {
+        return { skus, error: 'The images manifest lists no images.' };
+      }
+      return { skus };
     } catch (error) {
-      log.warn('Publish: could not read images manifest', error);
-      return new Set();
+      const message = `Could not read the images manifest: ${
+        (error as Error)?.message ?? 'unknown error'
+      }`;
+      log.warn(`Publish: ${message}`);
+      return { skus: new Set(), error: message };
     }
   }
 }

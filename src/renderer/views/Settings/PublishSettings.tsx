@@ -509,6 +509,12 @@ const PublishSettings: React.FC = () => {
             {preview.missingAttributes} · missing a public price:{' '}
             {preview.missingPublicPrice}
           </p>
+          {preview.imagesManifestError && (
+            <p className="text-destructive">
+              {preview.imagesManifestError} Until this is fixed, no item can be
+              published.
+            </p>
+          )}
         </div>
       )}
     </div>

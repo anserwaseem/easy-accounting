@@ -186,6 +186,29 @@ export type HasMiniView = {
   isMini?: boolean;
 };
 
+/** A business-defined custom attribute (migration 020). */
+export interface AttributeDefinition {
+  id: number;
+  key: string;
+  label: string;
+  unit?: string | null;
+  valueType: 'text' | 'number' | 'bool';
+  sortOrder: number;
+  /** SQLite stores booleans as 0/1 */
+  isActive: 0 | 1;
+  /** how many items currently carry a value for this attribute */
+  usageCount?: number;
+}
+
+export interface UpsertAttributeDefinition {
+  id?: number;
+  key: string;
+  label: string;
+  unit?: string | null;
+  valueType: 'text' | 'number' | 'bool';
+  sortOrder?: number;
+}
+
 /** Inventory */
 export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   name: string;

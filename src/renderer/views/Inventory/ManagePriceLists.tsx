@@ -23,6 +23,9 @@ interface ManagePriceListsProps {
   /** called after any change so the inventory table can refresh */
   onUpdated?: () => void;
   initialOpen?: boolean;
+  /** controlled mode: parent owns visibility, no trigger rendered here */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const DEFAULT_ROUND_TO = '10';
@@ -41,8 +44,16 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
   filteredInventoryIds,
   onUpdated,
   initialOpen = false,
+  open: controlledOpen,
+  onOpenChange,
 }: ManagePriceListsProps) => {
-  const [open, setOpen] = useState(initialOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(initialOpen);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (isControlled) onOpenChange?.(next);
+    else setUncontrolledOpen(next);
+  };
   const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -198,12 +209,14 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
         if (!next) resetSeed();
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Tags size={16} />
-          Price lists
-        </Button>
-      </DialogTrigger>
+      {!isControlled ? (
+        <DialogTrigger asChild>
+          <Button variant="outline" className="gap-2">
+            <Tags size={16} />
+            Price lists
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Price lists</DialogTitle>
@@ -293,6 +306,7 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
             variant="outline"
             onClick={handleCreate}
             disabled={!newName.trim()}
+            className="mb-2"
           >
             Add
           </Button>
@@ -300,10 +314,12 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
 
         {seedList && (
           <div className="flex flex-col gap-3 border-t pt-3">
-            <h4 className="font-medium">Set prices on “{seedList.name}”</h4>
+            <h4 className="text-base font-medium">
+              Set prices on “{seedList.name}”
+            </h4>
 
-            <div className="flex flex-col gap-2">
-              <Label>Start from</Label>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Start from</Label>
               <RadioGroup
                 value={source}
                 onValueChange={(v) => {
@@ -314,20 +330,26 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="base" id="seed-source-base" />
-                  <Label htmlFor="seed-source-base">Base item price</Label>
+                  <Label htmlFor="seed-source-base" className="font-normal">
+                    Base item price
+                  </Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="list" id="seed-source-list" />
-                  <Label htmlFor="seed-source-list">
+                  <Label htmlFor="seed-source-list" className="font-normal">
                     This list&apos;s current price
                   </Label>
                 </div>
               </RadioGroup>
             </div>
 
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="seed-multiplier">Multiply by</Label>
+            {/* label sits directly above its own input so the pairing is
+                unambiguous, and the checkbox gets its own line */}
+            <div className="flex items-start gap-6">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="seed-multiplier" className="text-xs">
+                  Multiply by
+                </Label>
                 <Input
                   id="seed-multiplier"
                   className="w-24"
@@ -338,8 +360,10 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
                   }}
                 />
               </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="seed-round">Round to nearest</Label>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="seed-round" className="text-xs">
+                  Round to nearest
+                </Label>
                 <Input
                   id="seed-round"
                   className="w-24"
@@ -350,34 +374,60 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
                   }}
                 />
               </div>
-              <div className="flex items-center gap-2 pb-2">
-                <Checkbox
-                  id="seed-overwrite"
-                  checked={overwrite}
-                  onCheckedChange={(c) => {
-                    setOverwrite(c === true);
-                    setPlan(null);
-                  }}
-                />
-                <Label htmlFor="seed-overwrite">
-                  Overwrite prices already set
-                </Label>
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
               <Checkbox
-                id="seed-scope"
-                checked={scopeFiltered}
+                id="seed-overwrite"
+                checked={overwrite}
                 onCheckedChange={(c) => {
-                  setScopeFiltered(c === true);
+                  setOverwrite(c === true);
                   setPlan(null);
                 }}
               />
-              <Label htmlFor="seed-scope">
-                Only the {filteredInventoryIds.length} item
-                {filteredInventoryIds.length === 1 ? '' : 's'} currently shown
+              <Label htmlFor="seed-overwrite" className="font-normal">
+                Overwrite prices already set
               </Label>
+            </div>
+
+            <div className="flex flex-col gap-1.5 rounded-md border bg-muted/30 px-3 py-2.5">
+              <span className="text-xs font-medium">Apply to</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  id="seed-scope-filtered"
+                  name="seed-scope"
+                  checked={scopeFiltered}
+                  onChange={() => {
+                    setScopeFiltered(true);
+                    setPlan(null);
+                  }}
+                />
+                <Label htmlFor="seed-scope-filtered" className="font-normal">
+                  The {filteredInventoryIds.length} item
+                  {filteredInventoryIds.length === 1 ? '' : 's'} currently shown
+                  on the Inventory page
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  id="seed-scope-all"
+                  name="seed-scope"
+                  checked={!scopeFiltered}
+                  onChange={() => {
+                    setScopeFiltered(false);
+                    setPlan(null);
+                  }}
+                />
+                <Label htmlFor="seed-scope-all" className="font-normal">
+                  Every item, ignoring the page filters
+                </Label>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                &ldquo;Currently shown&rdquo; follows the Inventory page&apos;s
+                filters and search, so narrow those first to target a subset.
+              </span>
             </div>
 
             {!optionsValid && (

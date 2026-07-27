@@ -7,7 +7,11 @@ jest.mock('electron', () => ({
     decryptString: jest.fn((b: Buffer) => b.toString()),
   },
 }));
-jest.mock('electron-log', () => ({ error: jest.fn(), warn: jest.fn() }));
+jest.mock('electron-log', () => ({
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+}));
 jest.mock('../../store', () => ({
   store: { get: jest.fn(), set: jest.fn(), delete: jest.fn() },
 }));

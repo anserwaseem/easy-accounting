@@ -26,6 +26,7 @@ import type {
   ApplyStockAdjustmentPayload,
   ReturnSaleInvoicePayload,
   BulkPriceListPositionPatch,
+  UpsertAttributeDefinition,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -408,6 +409,32 @@ app
       inventoryService.saveInventory(inventory),
     );
     ipcMain.handle('inventory:get', () => inventoryService.getInventory());
+    ipcMain.handle('attributeDefinition:getAll', () =>
+      inventoryService.getAttributeDefinitions(),
+    );
+    ipcMain.handle(
+      'attributeDefinition:upsert',
+      (_, input: UpsertAttributeDefinition) =>
+        inventoryService.upsertAttributeDefinition(input),
+    );
+    ipcMain.handle(
+      'attributeDefinition:delete',
+      (_, id: number, force?: boolean) =>
+        inventoryService.deleteAttributeDefinition(id, force ?? false),
+    );
+    ipcMain.handle('attributeDefinition:reorder', (_, ids: number[]) =>
+      inventoryService.reorderAttributeDefinitions(ids),
+    );
+    ipcMain.handle(
+      'attributeDefinition:setActive',
+      (_, id: number, isActive: boolean) =>
+        inventoryService.setAttributeDefinitionActive(id, isActive),
+    );
+    ipcMain.handle(
+      'inventory:updateAttributes',
+      (_, id: number, attributes: Record<string, unknown>) =>
+        inventoryService.updateInventoryAttributes(id, attributes),
+    );
     ipcMain.handle('inventory:exist', () =>
       inventoryService.doesInventoryExist(),
     );

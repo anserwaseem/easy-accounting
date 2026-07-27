@@ -43,6 +43,7 @@ export interface CatalogPreview {
   missingImage: number;
   missingAttributes: number;
   missingPublicPrice: number;
+  imagesManifestError?: string;
 }
 
 export interface PublishResult {

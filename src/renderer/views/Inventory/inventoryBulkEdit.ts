@@ -222,6 +222,12 @@ export interface BulkEditChangeRow {
   /** set only when list # changed */
   listFrom?: number | null;
   listTo?: number | null;
+  /** one entry per changed price list */
+  priceListChanges?: Array<{
+    priceListId: number;
+    from: number | null;
+    to: number | null;
+  }>;
 }
 
 export interface BulkEditChangeSummary {
@@ -234,6 +240,8 @@ export interface BulkEditChangeSummary {
   hasPriceChanges: boolean;
   /** true if any row has a list # change */
   hasListChanges: boolean;
+  /** true if any row changed a named price list */
+  hasPriceListChanges: boolean;
 }
 
 const formatListPosLabel = (value: number | null): string =>
@@ -251,6 +259,7 @@ export const buildBulkEditChangeSummary = (
   const rows: BulkEditChangeRow[] = [];
   let hasPriceChanges = false;
   let hasListChanges = false;
+  let hasPriceListChanges = false;
 
   for (const patch of patches) {
     const original = originalsById.get(patch.id);
@@ -274,7 +283,20 @@ export const buildBulkEditChangeSummary = (
       hasListChanges = true;
     }
 
-    if (row.priceTo !== undefined || row.listTo !== undefined) {
+    if (patch.listPrices?.length) {
+      row.priceListChanges = patch.listPrices.map((entry) => ({
+        priceListId: entry.priceListId,
+        from: getRowListPrice(original, entry.priceListId),
+        to: entry.price,
+      }));
+      hasPriceListChanges = true;
+    }
+
+    if (
+      row.priceTo !== undefined ||
+      row.listTo !== undefined ||
+      row.priceListChanges?.length
+    ) {
       rows.push(row);
     }
   }
@@ -287,6 +309,7 @@ export const buildBulkEditChangeSummary = (
     itemCount: patches.length,
     hasPriceChanges,
     hasListChanges,
+    hasPriceListChanges,
   };
 };
 

@@ -18,10 +18,9 @@ import type {
   InventoryItem,
   ItemType,
   BulkPriceListPositionPatch,
+  AttributeDefinition,
 } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
-import { Checkbox } from '@/renderer/shad/ui/checkbox';
-import { Label } from '@/renderer/shad/ui/label';
 import {
   Select,
   SelectContent,
@@ -34,6 +33,8 @@ import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { useEscapeKey } from '@/renderer/hooks/useEscapeKey';
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
+import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
+import { EditItemAttributes } from './EditItemAttributes';
 import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
@@ -54,6 +55,14 @@ import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
 
 /** persisted visible price-list columns (mirrors the Accounts page approach) */
 const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
+const VISIBLE_ATTRIBUTE_COLUMNS_KEY = 'inventoryVisibleAttributeColumns';
+
+/** attribute values are JSON, so render booleans and numbers readably */
+const formatAttributeValue = (value: unknown): string => {
+  if (value === null || value === undefined || value === '') return '';
+  if (typeof value === 'boolean') return value ? 'Yes' : '';
+  return String(value);
+};
 
 const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
   (r) => r.id,
@@ -65,6 +74,8 @@ interface InventoryVirtualGridProps {
   editMode: boolean;
   virtualScrollToIndex: number | null;
   onViewModelChange: (rows: InventoryItem[]) => void;
+  /** includes attribute paths so search covers custom attribute values */
+  searchFields: string[];
 }
 
 /** memoized so dirtyCount/saving toolbar updates do not remount Virtuoso cells */
@@ -75,6 +86,7 @@ const InventoryVirtualGrid = memo(
     editMode,
     virtualScrollToIndex,
     onViewModelChange,
+    searchFields,
   }: InventoryVirtualGridProps) => (
     <DataTable
       columns={columns}
@@ -90,14 +102,7 @@ const InventoryVirtualGrid = memo(
       defaultSortField="listPosition"
       searchPersistenceKey="datatable:inventory:search"
       searchPlaceholder="Search inventory..."
-      searchFields={[
-        'name',
-        'description',
-        'itemTypeName',
-        'listPosition',
-        'price',
-        'quantity',
-      ]}
+      searchFields={searchFields}
       searchDisabled={editMode}
       autoFocusSearch={!editMode}
       virtualScrollToIndex={virtualScrollToIndex}
@@ -135,6 +140,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [inventory, setInventory] = useState<InventoryItem[]>();
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
+  const [attributeDefs, setAttributeDefs] = useState<AttributeDefinition[]>([]);
+  const [visibleAttributeKeys, setVisibleAttributeKeys] = useState<string[]>(
+    () => {
+      const stored = window.electron.store.get(VISIBLE_ATTRIBUTE_COLUMNS_KEY);
+      return Array.isArray(stored) ? (stored as string[]) : [];
+    },
+  );
   // which price-list columns are shown; persisted like the Accounts page does
   const [visiblePriceListIds, setVisiblePriceListIds] = useState<number[]>(
     () => {
@@ -290,6 +302,55 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     );
   }, [visiblePriceListIds]);
 
+  // active attribute definitions drive the optional attribute columns
+  useEffect(() => {
+    let cancelled = false;
+    window.electron
+      .getAttributeDefinitions()
+      .then((defs) => {
+        if (!cancelled) setAttributeDefs(defs.filter((d) => d.isActive));
+        return defs;
+      })
+      .catch(() => {
+        if (!cancelled) setAttributeDefs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [options?.refresh]);
+
+  useEffect(() => {
+    window.electron.store.set(
+      VISIBLE_ATTRIBUTE_COLUMNS_KEY,
+      visibleAttributeKeys,
+    );
+  }, [visibleAttributeKeys]);
+
+  const toggleAttributeColumn = useCallback((key: string) => {
+    setVisibleAttributeKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  }, []);
+
+  const shownAttributeDefs = useMemo(
+    () => attributeDefs.filter((d) => visibleAttributeKeys.includes(d.key)),
+    [attributeDefs, visibleAttributeKeys],
+  );
+
+  // search covers every active attribute, whether or not its column is shown
+  const searchFields = useMemo(
+    () => [
+      'name',
+      'description',
+      'itemTypeName',
+      'listPosition',
+      'price',
+      'quantity',
+      ...attributeDefs.map((def) => `attributes.${def.key}`),
+    ],
+    [attributeDefs],
+  );
+
   const togglePriceListColumn = useCallback((priceListId: number) => {
     setVisiblePriceListIds((prev) =>
       prev.includes(priceListId)
@@ -299,6 +360,15 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   }, []);
 
   // only show columns for lists that still exist and are active
+  const priceListNamesById = useMemo(
+    () =>
+      priceLists.reduce<Record<number, string>>(
+        (acc, l) => ({ ...acc, [l.id]: l.name }),
+        {},
+      ),
+    [priceLists],
+  );
+
   const shownPriceLists = useMemo(
     () => priceLists.filter((l) => visiblePriceListIds.includes(l.id)),
     [priceLists, visiblePriceListIds],
@@ -653,6 +723,22 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           },
         };
       }),
+      ...shownAttributeDefs.map<ColumnDef<InventoryItem>>((def) => ({
+        id: `attr:${def.key}`,
+        header: def.unit ? `${def.label} (${def.unit})` : def.label,
+        size: 110,
+        enableSorting: false,
+        accessorFn: (item) => formatAttributeValue(item.attributes?.[def.key]),
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => {
+          const text = formatAttributeValue(row.original.attributes?.[def.key]);
+          return text ? (
+            <span className="text-xs">{text}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          );
+        },
+      })),
       {
         accessorKey: 'quantity',
         header: 'Quantity',
@@ -695,14 +781,21 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         enableSorting: false,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <div className="flex items-center gap-1">
+          // -ml-2 cancels the icon buttons' internal padding so the first
+          // glyph lines up with the "Actions" header text rather than sitting
+          // 8px inside it
+          <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
             {editMode ? (
-              <span className="text-xs text-muted-foreground">—</span>
+              <span className="ml-2 text-xs text-muted-foreground">—</span>
             ) : (
               <>
                 <AdjustStock
                   item={row.original}
                   refetchInventory={refetchInventory}
+                />
+                <EditItemAttributes
+                  item={row.original}
+                  onUpdated={refetchInventory}
                 />
                 <EditInventoryItem
                   row={row}
@@ -712,7 +805,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             )}
           </div>
         ),
-        size: 1,
+        // three 32px icon buttons + gaps; a shrink-to-fit width made the third
+        // button overflow the column
+        size: 112,
       },
     ];
     // updateItemType closes over itemTypes/editMode; columns rebuild when those change
@@ -728,55 +823,64 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     stableNavigate,
     stableWriteDraft,
     shownPriceLists,
+    shownAttributeDefs,
   ]);
 
-  const priceListColumnToggles =
-    priceLists.length > 0 ? (
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm text-muted-foreground">Price columns:</span>
-        {priceLists.map((list) => (
-          <Label
-            key={list.id}
-            htmlFor={`show-price-list-${list.id}`}
-            className={`flex items-center gap-2 text-sm font-normal ${
-              editMode ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-            }`}
-          >
-            <Checkbox
-              id={`show-price-list-${list.id}`}
-              disabled={editMode}
-              checked={visiblePriceListIds.includes(list.id)}
-              onCheckedChange={() => togglePriceListColumn(list.id)}
-            />
-            <span>{list.name}</span>
-          </Label>
-        ))}
-      </div>
-    ) : null;
+  // one picker for every optional column, rendered in the page header so the
+  // grid keeps its vertical space regardless of how many lists/attributes exist
+  const columnGroups = useMemo(
+    () => [
+      {
+        title: 'Price lists',
+        options: priceLists.map((l) => ({ id: String(l.id), label: l.name })),
+        selectedIds: visiblePriceListIds.map(String),
+        onToggle: (id: string) => togglePriceListColumn(Number(id)),
+        onSetAll: (ids: string[]) => setVisiblePriceListIds(ids.map(Number)),
+      },
+      {
+        title: 'Attributes',
+        options: attributeDefs.map((d) => ({ id: d.key, label: d.label })),
+        selectedIds: visibleAttributeKeys,
+        onToggle: toggleAttributeColumn,
+        onSetAll: setVisibleAttributeKeys,
+      },
+    ],
+    [
+      priceLists,
+      visiblePriceListIds,
+      togglePriceListColumn,
+      attributeDefs,
+      visibleAttributeKeys,
+      toggleAttributeColumn,
+    ],
+  );
 
   const toolbar = (
-    <InventoryBulkEditToolbar
-      editMode={editMode}
-      dirtyCount={dirtyCount}
-      saving={saving}
-      onEnterEdit={handleEnterEdit}
-      onSave={handleSave}
-      onDiscard={handleDiscard}
-    />
+    <>
+      {!editMode ? (
+        <ColumnVisibilityMenu groups={columnGroups} disabled={editMode} />
+      ) : null}
+      <InventoryBulkEditToolbar
+        editMode={editMode}
+        dirtyCount={dirtyCount}
+        saving={saving}
+        onEnterEdit={handleEnterEdit}
+        onSave={handleSave}
+        onDiscard={handleDiscard}
+      />
+    </>
   );
 
   return (
     <div className="pt-1">
       {toolbarHost ? createPortal(toolbar, toolbarHost) : null}
-      {priceListColumnToggles ? (
-        <div className="pb-2">{priceListColumnToggles}</div>
-      ) : null}
       <InventoryVirtualGrid
         columns={columns}
         data={filteredInventory}
         editMode={editMode}
         virtualScrollToIndex={virtualScrollToIndex}
         onViewModelChange={handleViewModelChange}
+        searchFields={searchFields}
       />
       <StockHistoryDialog
         open={historyOpen}
@@ -813,7 +917,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         }
         description={
           saveSummary ? (
-            <InventoryBulkEditSaveSummary summary={saveSummary} />
+            <InventoryBulkEditSaveSummary
+              summary={saveSummary}
+              priceListNames={priceListNamesById}
+            />
           ) : (
             'Save price and list # changes?'
           )

@@ -4,6 +4,8 @@ import { formatListPosLabel } from './inventoryBulkEdit';
 
 interface InventoryBulkEditSaveSummaryProps {
   summary: BulkEditChangeSummary;
+  /** price list id -> name, so changes read as "Retail" not "List 1" */
+  priceListNames?: Record<number, string>;
 }
 
 interface ChangeCellProps {
@@ -26,8 +28,14 @@ const ChangeCell: FC<ChangeCellProps> = ({ from, to }: ChangeCellProps) => (
 /** readable per-item change table for Save confirm — built only on Save click */
 export const InventoryBulkEditSaveSummary: FC<
   InventoryBulkEditSaveSummaryProps
-> = ({ summary }: InventoryBulkEditSaveSummaryProps) => {
-  const { rows, truncatedCount, hasPriceChanges, hasListChanges } = summary;
+> = ({ summary, priceListNames }: InventoryBulkEditSaveSummaryProps) => {
+  const {
+    rows,
+    truncatedCount,
+    hasPriceChanges,
+    hasListChanges,
+    hasPriceListChanges,
+  } = summary;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 text-left">
@@ -43,6 +51,9 @@ export const InventoryBulkEditSaveSummary: FC<
               <th className="px-3 py-2 font-medium">Item</th>
               {hasPriceChanges ? (
                 <th className="px-3 py-2 font-medium">Price</th>
+              ) : null}
+              {hasPriceListChanges ? (
+                <th className="px-3 py-2 font-medium">Price lists</th>
               ) : null}
               {hasListChanges ? (
                 <th className="px-3 py-2 font-medium">List #</th>
@@ -66,6 +77,33 @@ export const InventoryBulkEditSaveSummary: FC<
                         from={String(row.priceFrom)}
                         to={String(row.priceTo)}
                       />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                ) : null}
+                {hasPriceListChanges ? (
+                  <td className="px-3 py-2">
+                    {row.priceListChanges?.length ? (
+                      <div className="flex flex-col gap-1">
+                        {row.priceListChanges.map((change) => (
+                          <div
+                            key={change.priceListId}
+                            className="flex items-center gap-2"
+                          >
+                            <span className="text-xs text-muted-foreground">
+                              {priceListNames?.[change.priceListId] ??
+                                `List ${change.priceListId}`}
+                            </span>
+                            <ChangeCell
+                              from={
+                                change.from == null ? '—' : String(change.from)
+                              }
+                              to={change.to == null ? '—' : String(change.to)}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

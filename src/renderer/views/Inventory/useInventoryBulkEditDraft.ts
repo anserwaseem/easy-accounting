@@ -155,10 +155,24 @@ export const useInventoryBulkEditDraft =
         return inventory.map((row) => {
           const patch = byId.get(row.id);
           if (!patch) return row;
+          // list prices must be merged too, else the grid shows stale values
+          // until the next refetch
+          let nextListPrices = row.listPrices;
+          if (patch.listPrices?.length) {
+            nextListPrices = { ...(row.listPrices ?? {}) };
+            for (const entry of patch.listPrices) {
+              if (entry.price == null) {
+                delete nextListPrices[entry.priceListId];
+              } else {
+                nextListPrices[entry.priceListId] = entry.price;
+              }
+            }
+          }
           return {
             ...row,
             price: patch.price,
             listPosition: patch.listPosition,
+            listPrices: nextListPrices,
           };
         });
       },

@@ -26,13 +26,27 @@ interface ManageItemTypesProps {
   onUpdated?: () => void;
   /** when true on first mount, opens the dialog (e.g. deep-link from New Sale Invoice) */
   initialOpen?: boolean;
+  /**
+   * Controlled mode: when provided the parent owns visibility and no trigger is
+   * rendered here (the dialog is opened from the page's Manage menu).
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const ManageItemTypes: React.FC<ManageItemTypesProps> = ({
   onUpdated,
   initialOpen = false,
+  open: controlledOpen,
+  onOpenChange,
 }: ManageItemTypesProps) => {
-  const [open, setOpen] = useState(initialOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(initialOpen);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (isControlled) onOpenChange?.(next);
+    else setUncontrolledOpen(next);
+  };
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [newTypeName, setNewTypeName] = useState('');
   const [nameDrafts, setNameDrafts] = useState<Record<number, string>>({});
@@ -201,12 +215,14 @@ export const ManageItemTypes: React.FC<ManageItemTypesProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" title="Manage item types">
-          <Settings size={16} className="mr-1.5" />
-          Item types
-        </Button>
-      </DialogTrigger>
+      {!isControlled ? (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" title="Manage item types">
+            <Settings size={16} className="mr-1.5" />
+            Item types
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Item types</DialogTitle>

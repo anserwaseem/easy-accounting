@@ -34,6 +34,8 @@ import type {
   ApplyListPositionsResult,
   BulkPriceListPositionPatch,
   BulkPriceListPositionResult,
+  AttributeDefinition,
+  UpsertAttributeDefinition,
 } from 'types';
 import { InvoiceType } from 'types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
@@ -174,6 +176,49 @@ const electronHandler = {
     ipcRenderer.invoke('inventory:getInventoryIdsWithHistory') as Promise<
       number[]
     >,
+
+  /** Custom attribute definitions, in display order. */
+  getAttributeDefinitions: () =>
+    ipcRenderer.invoke('attributeDefinition:getAll') as Promise<
+      AttributeDefinition[]
+    >,
+
+  upsertAttributeDefinition: (input: UpsertAttributeDefinition) =>
+    ipcRenderer.invoke('attributeDefinition:upsert', input) as Promise<boolean>,
+
+  /**
+   * Deletes an attribute definition. Without `force` an in-use attribute is
+   * left alone and its usage reported, so the caller can confirm; with `force`
+   * the values are stripped from every item too.
+   */
+  deleteAttributeDefinition: (id: number, force?: boolean) =>
+    ipcRenderer.invoke('attributeDefinition:delete', id, force) as Promise<{
+      deleted: boolean;
+      usageCount: number;
+      valuesRemoved: number;
+    }>,
+
+  /** Rewrites attribute display order from the given id sequence. */
+  reorderAttributeDefinitions: (ids: number[]) =>
+    ipcRenderer.invoke('attributeDefinition:reorder', ids) as Promise<boolean>,
+
+  setAttributeDefinitionActive: (id: number, isActive: boolean) =>
+    ipcRenderer.invoke(
+      'attributeDefinition:setActive',
+      id,
+      isActive,
+    ) as Promise<boolean>,
+
+  /** Replaces an item's custom attributes. */
+  updateInventoryAttributes: (
+    id: number,
+    attributes: Record<string, unknown>,
+  ) =>
+    ipcRenderer.invoke(
+      'inventory:updateAttributes',
+      id,
+      attributes,
+    ) as Promise<boolean>,
 
   getItemTypes: () =>
     ipcRenderer.invoke('itemType:getAll') as Promise<ItemType[]>,

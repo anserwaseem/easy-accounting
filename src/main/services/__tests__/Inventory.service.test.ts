@@ -49,6 +49,15 @@ function seedBasicSchema(db: Database.Database) {
       parentId INTEGER REFERENCES inventory(id),
       attributes TEXT
     );
+    CREATE TABLE IF NOT EXISTS attribute_definitions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL,
+      unit TEXT,
+      valueType TEXT NOT NULL DEFAULT 'text',
+      sortOrder INTEGER NOT NULL DEFAULT 0,
+      isActive INTEGER NOT NULL DEFAULT 1
+    );
     CREATE TABLE IF NOT EXISTS price_lists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -572,6 +581,234 @@ describe('InventoryService.bulkUpdatePricesAndListPositions', () => {
         { id: idA, price: 10, listPosition: -1 },
       ]),
     ).toThrow(/Invalid list #/);
+    db.close();
+  });
+});
+
+describe('InventoryService attribute definitions', () => {
+  const seedDef = (db: any, key: string, label: string) =>
+    db
+      .prepare(
+        'INSERT INTO attribute_definitions (key, label, valueType, sortOrder) VALUES (?, ?, ?, 0)',
+      )
+      .run(key, label, 'text').lastInsertRowid as number;
+
+  it('appends new attributes after the highest order, even after a delete', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const service = createTestDb(db);
+
+    service.upsertAttributeDefinition({
+      key: 'a',
+      label: 'A',
+      valueType: 'text',
+    });
+    service.upsertAttributeDefinition({
+      key: 'b',
+      label: 'B',
+      valueType: 'text',
+    });
+    service.upsertAttributeDefinition({
+      key: 'c',
+      label: 'C',
+      valueType: 'text',
+    });
+    expect(service.getAttributeDefinitions().map((d) => d.sortOrder)).toEqual([
+      1, 2, 3,
+    ]);
+
+    // delete from the middle: a row-count based order would reuse 3 and collide
+    const middle = service
+      .getAttributeDefinitions()
+      .find((d) => d.key === 'b') as { id: number };
+    service.deleteAttributeDefinition(middle.id);
+    service.upsertAttributeDefinition({
+      key: 'd',
+      label: 'D',
+      valueType: 'text',
+    });
+
+    const orders = service.getAttributeDefinitions().map((d) => d.sortOrder);
+    expect(orders).toEqual([1, 3, 4]);
+    // and no two definitions share an order
+    expect(new Set(orders).size).toBe(orders.length);
+    db.close();
+  });
+
+  it('normalises order to 1..N on reorder, healing gaps and duplicates', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    // deliberately messy starting state: a gap and a duplicate
+    db.prepare(
+      'INSERT INTO attribute_definitions (key,label,valueType,sortOrder) VALUES (?,?,?,?)',
+    ).run('a', 'A', 'text', 5);
+    db.prepare(
+      'INSERT INTO attribute_definitions (key,label,valueType,sortOrder) VALUES (?,?,?,?)',
+    ).run('b', 'B', 'text', 5);
+    db.prepare(
+      'INSERT INTO attribute_definitions (key,label,valueType,sortOrder) VALUES (?,?,?,?)',
+    ).run('c', 'C', 'text', 99);
+
+    const service = createTestDb(db);
+    const byKey = (k: string) =>
+      service.getAttributeDefinitions().find((d) => d.key === k)!.id;
+    const ok = service.reorderAttributeDefinitions([
+      byKey('c'),
+      byKey('a'),
+      byKey('b'),
+    ]);
+
+    expect(ok).toBe(true);
+    expect(
+      service.getAttributeDefinitions().map((d) => [d.key, d.sortOrder]),
+    ).toEqual([
+      ['c', 1],
+      ['a', 2],
+      ['b', 3],
+    ]);
+    db.close();
+  });
+
+  it('ignores unknown ids and an empty reorder', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const service = createTestDb(db);
+    service.upsertAttributeDefinition({
+      key: 'a',
+      label: 'A',
+      valueType: 'text',
+    });
+    const { id } = service.getAttributeDefinitions()[0];
+
+    expect(service.reorderAttributeDefinitions([])).toBe(false);
+    expect(service.reorderAttributeDefinitions([999])).toBe(false);
+    // a known id mixed with junk still applies to the known one
+    expect(service.reorderAttributeDefinitions([999, id])).toBe(true);
+    expect(service.getAttributeDefinitions()[0].sortOrder).toBe(1);
+    db.close();
+  });
+
+  it('reports how many items use each attribute', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    seedDef(db, 'size_in', 'Paper size');
+    seedDef(db, 'unused_key', 'Unused');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('A', JSON.stringify({ size_in: '5 x 9' }));
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('B', JSON.stringify({ size_in: '6 x 9' }));
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, NULL)',
+    ).run('C');
+
+    const service = createTestDb(db);
+    const defs = service.getAttributeDefinitions();
+    const byKey = Object.fromEntries(defs.map((d) => [d.key, d.usageCount]));
+    expect(byKey).toEqual({ size_in: 2, unused_key: 0 });
+    db.close();
+  });
+
+  it('deletes an unused attribute but defers one in use to a confirmation', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const usedId = seedDef(db, 'size_in', 'Paper size');
+    const unusedId = seedDef(db, 'unused_key', 'Unused');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('A', JSON.stringify({ size_in: '5 x 9' }));
+
+    const service = createTestDb(db);
+    expect(service.deleteAttributeDefinition(unusedId)).toEqual({
+      deleted: true,
+      usageCount: 0,
+      valuesRemoved: 0,
+    });
+    // in use: not deleted yet, and reports how many items are affected
+    expect(service.deleteAttributeDefinition(usedId)).toEqual({
+      deleted: false,
+      usageCount: 1,
+      valuesRemoved: 0,
+    });
+    expect(service.getAttributeDefinitions().map((d) => d.key)).toEqual([
+      'size_in',
+    ]);
+    db.close();
+  });
+
+  it('force-deletes an in-use attribute and strips it from every item', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const usedId = seedDef(db, 'size_in', 'Paper size');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('A', JSON.stringify({ size_in: '5 x 9', pages: 100 }));
+    // this item keeps nothing else, so its attributes should end up NULL
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('B', JSON.stringify({ size_in: '6 x 9' }));
+
+    const service = createTestDb(db);
+    expect(service.deleteAttributeDefinition(usedId, true)).toEqual({
+      deleted: true,
+      usageCount: 2,
+      valuesRemoved: 2,
+    });
+    expect(service.getAttributeDefinitions()).toEqual([]);
+
+    const rows = db
+      .prepare('SELECT name, attributes FROM inventory ORDER BY name')
+      .all() as Array<{ name: string; attributes: string | null }>;
+    // other keys survive; an item left with nothing stores NULL
+    expect(JSON.parse(rows[0].attributes as string)).toEqual({ pages: 100 });
+    expect(rows[1].attributes).toBeNull();
+    db.close();
+  });
+
+  it('leaves items without the attribute untouched when force-deleting', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const id = seedDef(db, 'size_in', 'Paper size');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('HasIt', JSON.stringify({ size_in: '5 x 9' }));
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('Other', JSON.stringify({ pages: 50 }));
+
+    const service = createTestDb(db);
+    expect(service.deleteAttributeDefinition(id, true).valuesRemoved).toBe(1);
+    const other = db
+      .prepare("SELECT attributes FROM inventory WHERE name = 'Other'")
+      .get() as { attributes: string };
+    expect(JSON.parse(other.attributes)).toEqual({ pages: 50 });
+    db.close();
+  });
+
+  it('drops blank values so "has attributes" stays meaningful', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const id = db
+      .prepare('INSERT INTO inventory (name, price, quantity) VALUES (?, 1, 0)')
+      .run('A').lastInsertRowid as number;
+
+    const service = createTestDb(db);
+    service.updateInventoryAttributes(id, { a: 'x', b: '', c: null });
+    const stored = db
+      .prepare('SELECT attributes FROM inventory WHERE id = ?')
+      .get(id) as { attributes: string | null };
+    expect(JSON.parse(stored.attributes as string)).toEqual({ a: 'x' });
+
+    // clearing everything stores NULL rather than an empty object
+    service.updateInventoryAttributes(id, { a: '' });
+    expect(
+      (
+        db.prepare('SELECT attributes FROM inventory WHERE id = ?').get(id) as {
+          attributes: string | null;
+        }
+      ).attributes,
+    ).toBeNull();
     db.close();
   });
 });

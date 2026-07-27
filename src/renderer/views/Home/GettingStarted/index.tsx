@@ -21,6 +21,7 @@ import { Input } from 'renderer/shad/ui/input';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ImportListNumbers } from '@/renderer/views/Inventory/ImportListNumbers';
 import { SetOpeningStock } from '../../Inventory/SetOpeningStock';
 
 export const GettingStarted: React.FC = () => {
@@ -171,7 +172,11 @@ export const GettingStarted: React.FC = () => {
               include a header row with <strong>name</strong> and{' '}
               <strong>price</strong> (any column order); optional{' '}
               <strong>description</strong> and <strong>list #</strong> for
-              display order.
+              display order. Already have items? Use{' '}
+              <span className="font-medium text-foreground">
+                Import list numbers
+              </span>{' '}
+              to set their catalog order from a sheet.
             </div>
           </CardContent>
           <CardFooter className="flex flex-wrap gap-2">
@@ -186,6 +191,9 @@ export const GettingStarted: React.FC = () => {
                 Upload balance sheet
               </Button>
             </FileUploadTooltip>
+            <ImportListNumbers
+              refetchInventory={() => navigate('/inventory')}
+            />
             <FileUploadTooltip content={FILE_UPLOAD_HINT_INVENTORY_CATALOG}>
               <Button
                 variant="outline"
