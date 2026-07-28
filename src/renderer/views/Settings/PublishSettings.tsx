@@ -85,6 +85,8 @@ const PublishSettings: React.FC = () => {
   const [publicPrefix, setPublicPrefix] = useState('');
   const [imagesManifestUrl, setImagesManifestUrl] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookToken, setWebhookToken] = useState('');
+  const [webhookTokenTouched, setWebhookTokenTouched] = useState(false);
   const [publicList, setPublicList] = useState('');
   const [reservedNameChars, setReservedNameChars] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -104,6 +106,8 @@ const PublishSettings: React.FC = () => {
     setPublicPrefix(config.publicPrefix);
     setImagesManifestUrl(config.imagesManifestUrl);
     setWebhookUrl(config.webhookUrl);
+    setWebhookToken('');
+    setWebhookTokenTouched(false);
     setPublicList(config.publicPriceList);
     setReservedNameChars(config.reservedNameChars);
   }, [loading, config]);
@@ -133,6 +137,7 @@ const PublishSettings: React.FC = () => {
   const isDirty = useMemo(
     () =>
       secretTouched ||
+      webhookTokenTouched ||
       endpoint !== config.endpoint ||
       region !== config.region ||
       bucket !== config.bucket ||
@@ -148,6 +153,7 @@ const PublishSettings: React.FC = () => {
     [
       config,
       secretTouched,
+      webhookTokenTouched,
       endpoint,
       region,
       bucket,
@@ -179,6 +185,7 @@ const PublishSettings: React.FC = () => {
         publicPriceList: publicList,
         reservedNameChars,
         ...(secretTouched ? { secretAccessKey } : {}),
+        ...(webhookTokenTouched ? { webhookToken: webhookToken.trim() } : {}),
       });
       setSecretTouched(false);
       setSecretAccessKey('');
@@ -206,6 +213,8 @@ const PublishSettings: React.FC = () => {
     savePublishConfig,
     secretAccessKey,
     secretTouched,
+    webhookToken,
+    webhookTokenTouched,
     webhookUrl,
   ]);
 
@@ -429,7 +438,23 @@ const PublishSettings: React.FC = () => {
               label="Webhook URL"
               value={webhookUrl}
               onChange={setWebhookUrl}
-              hint="Called after a successful publish, to trigger downstream automation."
+              hint="Called after a successful publish, to trigger downstream automation. The body is {event_type: 'publish', client_payload: {…}}."
+            />
+            <Field
+              id="publish-webhook-token"
+              label="Webhook token"
+              type="password"
+              placeholder={config.hasWebhookToken ? '••••••••' : ''}
+              value={webhookToken}
+              onChange={(value) => {
+                setWebhookToken(value);
+                setWebhookTokenTouched(true);
+              }}
+              hint={
+                config.hasWebhookToken
+                  ? 'A token is saved in the system keychain. Type a new one to replace it, or a single space to clear it.'
+                  : 'Sent as an Authorization: Bearer header. Stored in the system keychain, never in the app files.'
+              }
             />
           </div>
         )}
