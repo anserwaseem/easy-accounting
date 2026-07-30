@@ -240,34 +240,47 @@ const PublishSettings: React.FC = () => {
     }
   }, [previewCatalog]);
 
-  const handlePublish = useCallback(async () => {
-    setPublishing(true);
-    try {
-      const result = await runPublish();
-      let description: string;
-      if (!result.ok) {
-        description = `Publish failed: ${result.error}`;
-      } else if (result.skipped) {
-        description =
-          'No catalog changes since the last publish — nothing uploaded.';
-      } else {
-        description = `Published ${result.publishableCount} item(s) to ${result.uploaded.length} file(s).`;
+  /**
+   * `force` re-uploads a catalog that has not changed.
+   *
+   * Needed because "uploaded successfully" and "the storefront took it" are
+   * different events: when a downstream sync fails, the files in the bucket are
+   * already correct, so an ordinary publish correctly finds nothing to do and
+   * leaves no way to retry. Without this the only route was to edit an item
+   * purely to make the fingerprint move, which changes the catalog to fix a
+   * delivery problem.
+   */
+  const handlePublish = useCallback(
+    async (force = false) => {
+      setPublishing(true);
+      try {
+        const result = await runPublish(force);
+        let description: string;
+        if (!result.ok) {
+          description = `Publish failed: ${result.error}`;
+        } else if (result.skipped) {
+          description =
+            'No catalog changes since the last publish — nothing uploaded. Use "Republish unchanged" to send it again.';
+        } else {
+          description = `Published ${result.publishableCount} item(s) to ${result.uploaded.length} file(s).`;
+        }
+        toast({
+          description,
+          variant: result.ok ? 'success' : 'destructive',
+        });
+      } catch (error) {
+        toast({
+          description: `Publish failed: ${
+            (error as Error)?.message ?? 'unknown error'
+          }`,
+          variant: 'destructive',
+        });
+      } finally {
+        setPublishing(false);
       }
-      toast({
-        description,
-        variant: result.ok ? 'success' : 'destructive',
-      });
-    } catch (error) {
-      toast({
-        description: `Publish failed: ${
-          (error as Error)?.message ?? 'unknown error'
-        }`,
-        variant: 'destructive',
-      });
-    } finally {
-      setPublishing(false);
-    }
-  }, [runPublish]);
+    },
+    [runPublish],
+  );
 
   if (loading) return <p className="text-sm">Loading publish settings…</p>;
 
@@ -507,7 +520,7 @@ const PublishSettings: React.FC = () => {
         </Button>
         <Button
           variant="secondary"
-          onClick={handlePublish}
+          onClick={() => handlePublish(false)}
           disabled={publishing || isDirty || missing.length > 0}
           title={
             (isDirty && 'Save your changes first') ||
@@ -516,6 +529,14 @@ const PublishSettings: React.FC = () => {
           }
         >
           {publishing ? 'Publishing…' : 'Publish now'}
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => handlePublish(true)}
+          disabled={publishing || isDirty || missing.length > 0}
+          title="Upload and notify again even though the catalog has not changed — for when the upload worked but something downstream did not"
+        >
+          Republish unchanged
         </Button>
       </div>
 
