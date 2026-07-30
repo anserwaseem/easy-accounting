@@ -89,6 +89,7 @@ const PublishSettings: React.FC = () => {
   const [webhookTokenTouched, setWebhookTokenTouched] = useState(false);
   const [publicList, setPublicList] = useState('');
   const [reservedNameChars, setReservedNameChars] = useState('');
+  const [publishWithoutImages, setPublishWithoutImages] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [preview, setPreview] = useState<CatalogPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -110,6 +111,7 @@ const PublishSettings: React.FC = () => {
     setWebhookTokenTouched(false);
     setPublicList(config.publicPriceList);
     setReservedNameChars(config.reservedNameChars);
+    setPublishWithoutImages(config.publishWithoutImages);
   }, [loading, config]);
 
   // readiness reflects what is typed now, treating a typed secret as present
@@ -149,7 +151,8 @@ const PublishSettings: React.FC = () => {
       imagesManifestUrl !== config.imagesManifestUrl ||
       webhookUrl !== config.webhookUrl ||
       publicList !== config.publicPriceList ||
-      reservedNameChars !== config.reservedNameChars,
+      reservedNameChars !== config.reservedNameChars ||
+      publishWithoutImages !== config.publishWithoutImages,
     [
       config,
       secretTouched,
@@ -166,6 +169,7 @@ const PublishSettings: React.FC = () => {
       webhookUrl,
       publicList,
       reservedNameChars,
+      publishWithoutImages,
     ],
   );
 
@@ -184,6 +188,7 @@ const PublishSettings: React.FC = () => {
         webhookUrl,
         publicPriceList: publicList,
         reservedNameChars,
+        publishWithoutImages,
         ...(secretTouched ? { secretAccessKey } : {}),
         ...(webhookTokenTouched ? { webhookToken: webhookToken.trim() } : {}),
       });
@@ -209,6 +214,7 @@ const PublishSettings: React.FC = () => {
     publicBaseUrl,
     publicList,
     publicPrefix,
+    publishWithoutImages,
     region,
     savePublishConfig,
     secretAccessKey,
@@ -411,6 +417,29 @@ const PublishSettings: React.FC = () => {
               onChange={setReservedNameChars}
               hint="Type the characters your publishing pipeline reserves, with no separators. Item names containing them are rejected on save. Leave empty for no restriction."
             />
+            <label
+              htmlFor="publish-without-images"
+              className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950"
+            >
+              <input
+                id="publish-without-images"
+                type="checkbox"
+                className="mt-1"
+                checked={publishWithoutImages}
+                onChange={(e) => setPublishWithoutImages(e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium">
+                  Publish items that have no photograph yet
+                </span>
+                <span className="mt-1 block text-muted-foreground">
+                  For setting up and testing the storefront before photography
+                  is done — the shop shows a placeholder image. Turn this off
+                  before going live: the next publish then withdraws every item
+                  still lacking a photograph.
+                </span>
+              </span>
+            </label>
             <Field
               id="publish-private-prefix"
               label="Private path prefix"

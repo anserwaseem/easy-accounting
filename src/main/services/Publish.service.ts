@@ -49,6 +49,12 @@ interface GenerateCatalogOptions {
   publicAttributeKeys?: readonly string[];
   /** SKUs known to have an image (from the images manifest). */
   imageSkus?: Set<string>;
+  /**
+   * Whether a photograph is still required to publish. Defaults to true.
+   * Relaxed only to stand the catalogue up for testing before photography is
+   * done — see CatalogOptions.requireImage.
+   */
+  requireImage?: boolean;
   /** Overridable for deterministic output; defaults to now (ISO). */
   generatedAt?: string;
 }
@@ -327,6 +333,7 @@ export class PublishService {
     const opts = {
       publicPriceList: options.publicPriceList,
       publicAttributeKeys: options.publicAttributeKeys,
+      requireImage: options.requireImage ?? true,
     };
 
     const full = buildFullCatalog(rows, opts, generatedAt);
@@ -365,6 +372,8 @@ export class PublishService {
     publicPriceList: string;
     publicAttributeKeys?: readonly string[];
     imagesManifestUrl?: string;
+    /** Must match what a publish would do, or the column reports a lie. */
+    requireImage?: boolean;
   }): Promise<ItemPublishStatusReport> {
     // the frequent caller — served from cache between image rebuilds
     const { skus: imageSkus, error: imagesManifestError } =
@@ -378,7 +387,7 @@ export class PublishService {
         return { id: rawRow.id, state: 'held back' as const, blockers: [] };
       }
       const blockers: PublishBlocker[] = [];
-      if (!row.hasImage) {
+      if (!row.hasImage && (options.requireImage ?? true)) {
         blockers.push(imagesManifestError ? 'image check failed' : 'no image');
       }
       if (publicPriceOf(row, publicPriceList) === null) {
@@ -404,6 +413,8 @@ export class PublishService {
     publicPriceList: string;
     publicAttributeKeys?: readonly string[];
     imagesManifestUrl?: string;
+    /** Must match what a publish would do, or the readiness panel reports a lie. */
+    requireImage?: boolean;
   }): Promise<CatalogPreview> {
     const { skus: imageSkus, error: imagesManifestError } =
       await PublishService.fetchImageSkus(options.imagesManifestUrl, {
@@ -430,7 +441,14 @@ export class PublishService {
       else missingPublicPrice += 1;
       if (!hasAttrs) missingAttributes += 1;
       if (!row.hasImage) missingImage += 1;
-      if (isPublishable(row, publicPriceList, publicAttributeKeys))
+      if (
+        isPublishable(
+          row,
+          publicPriceList,
+          publicAttributeKeys,
+          options.requireImage ?? true,
+        )
+      )
         publishableCount += 1;
     }
 
@@ -481,6 +499,7 @@ export class PublishService {
         publicPriceList: config.publicPriceList,
         publicAttributeKeys: this.getPublicAttributeKeys(),
         imageSkus,
+        requireImage: !config.publishWithoutImages,
         generatedAt,
       });
 

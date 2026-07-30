@@ -25,6 +25,7 @@ export const PUBLISH_KEYS = {
   privatePrefix: 'publish.privatePrefix',
   publicPrefix: 'publish.publicPrefix',
   publicPriceList: 'publish.publicPriceList',
+  publishWithoutImages: 'publish.publishWithoutImages',
   reservedNameChars: 'publish.reservedNameChars',
   imagesManifestUrl: 'publish.imagesManifestUrl',
   webhookUrl: 'publish.webhookUrl',
@@ -55,6 +56,8 @@ export interface PublishConfig {
    * Empty = no restriction. Enforced on item create/rename.
    */
   reservedNameChars: string;
+  /** Publish items with no photograph yet — testing only, never for a live shop. */
+  publishWithoutImages: boolean;
   imagesManifestUrl: string;
   webhookUrl: string;
   /** True when a secret access key is stored (the value itself never leaves main). */
@@ -116,6 +119,7 @@ export function getPublishConfig(): PublishConfig {
     privatePrefix: str(PUBLISH_KEYS.privatePrefix, DEFAULTS.privatePrefix),
     publicPrefix: str(PUBLISH_KEYS.publicPrefix, DEFAULTS.publicPrefix),
     publicPriceList: str(PUBLISH_KEYS.publicPriceList),
+    publishWithoutImages: str(PUBLISH_KEYS.publishWithoutImages) === 'true',
     reservedNameChars: str(PUBLISH_KEYS.reservedNameChars),
     imagesManifestUrl: str(PUBLISH_KEYS.imagesManifestUrl),
     webhookUrl: str(PUBLISH_KEYS.webhookUrl),
@@ -162,6 +166,12 @@ export function savePublishConfig(input: PublishConfigInput): PublishConfig {
   );
   setIfDefined(PUBLISH_KEYS.privatePrefix, input.privatePrefix?.trim());
   setIfDefined(PUBLISH_KEYS.publicPrefix, input.publicPrefix?.trim());
+  setIfDefined(
+    PUBLISH_KEYS.publishWithoutImages,
+    input.publishWithoutImages === undefined
+      ? undefined
+      : String(input.publishWithoutImages),
+  );
   setIfDefined(PUBLISH_KEYS.imagesManifestUrl, input.imagesManifestUrl?.trim());
   setIfDefined(PUBLISH_KEYS.webhookUrl, input.webhookUrl?.trim());
   setIfDefined(PUBLISH_KEYS.publicPriceList, input.publicPriceList?.trim());

@@ -341,3 +341,59 @@ describe('per-item publish state (the decision the badge shows)', () => {
     ]);
   });
 });
+
+describe('requireImage (standing the catalogue up before photography)', () => {
+  const noPhoto = (): CatalogSourceRow => ({
+    sku: 'S-23-G',
+    name: 'S-23-G',
+    parentSku: null,
+    basePrice: 900,
+    quantity: 5,
+    attributes: { lines: 16 },
+    prices: { Retail: 1080 },
+    hasImage: false,
+    excludeFromCatalog: false,
+  });
+
+  it('withholds an unphotographed item by default', () => {
+    expect(isPublishable(noPhoto(), 'Retail', ['lines'])).toBe(false);
+  });
+
+  it('publishes it when the image requirement is relaxed', () => {
+    expect(isPublishable(noPhoto(), 'Retail', ['lines'], false)).toBe(true);
+  });
+
+  it('still withholds one held back by hand', () => {
+    // relaxing the image gate must not override an explicit exclusion
+    const r = { ...noPhoto(), excludeFromCatalog: true };
+    expect(isPublishable(r, 'Retail', ['lines'], false)).toBe(false);
+  });
+
+  it('still withholds one with no public price', () => {
+    const r = { ...noPhoto(), prices: {} };
+    expect(isPublishable(r, 'Retail', ['lines'], false)).toBe(false);
+  });
+
+  it('still withholds one with no public attributes', () => {
+    expect(isPublishable(noPhoto(), 'Retail', [], false)).toBe(false);
+  });
+
+  it('keeps hasImage truthful so photography debt stays visible', () => {
+    // the whole point of a flag over placeholder images
+    const pub = buildPublicCatalog([noPhoto()], {
+      publicPriceList: 'Retail',
+      publicAttributeKeys: ['lines'],
+      requireImage: false,
+    });
+    expect(pub.items[0].publishable).toBe(true);
+    expect(pub.items[0].hasImage).toBe(false);
+  });
+
+  it('defaults to requiring an image when the option is omitted', () => {
+    const pub = buildPublicCatalog([noPhoto()], {
+      publicPriceList: 'Retail',
+      publicAttributeKeys: ['lines'],
+    });
+    expect(pub.items[0].publishable).toBe(false);
+  });
+});

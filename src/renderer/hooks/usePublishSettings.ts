@@ -11,6 +11,12 @@ export interface PublishConfig {
   privatePrefix: string;
   publicPrefix: string;
   publicPriceList: string;
+  /**
+   * Publish items that have no photograph yet (storefront shows a placeholder).
+   * Off in any state a live shop should be in; on only while standing the
+   * catalogue up for testing.
+   */
+  publishWithoutImages: boolean;
   /** Characters an item name may not contain (reserved by the publishing pipeline). */
   reservedNameChars: string;
   imagesManifestUrl: string;
@@ -100,6 +106,7 @@ const EMPTY_CONFIG: PublishConfig = {
   privatePrefix: 'catalog/private',
   publicPrefix: 'catalog/public',
   publicPriceList: '',
+  publishWithoutImages: false,
   reservedNameChars: '',
   imagesManifestUrl: '',
   webhookUrl: '',

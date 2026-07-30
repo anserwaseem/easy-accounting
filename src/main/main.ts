@@ -233,6 +233,7 @@ app
         publicAttributeKeys: publishService.getPublicAttributeKeys(),
         publicPriceList: config.publicPriceList,
         imagesManifestUrl: config.imagesManifestUrl,
+        requireImage: !config.publishWithoutImages,
       });
     });
     ipcMain.handle('publish:itemStatuses', async () => {
@@ -241,6 +242,7 @@ app
         publicPriceList: config.publicPriceList,
         publicAttributeKeys: publishService.getPublicAttributeKeys(),
         imagesManifestUrl: config.imagesManifestUrl,
+        requireImage: !config.publishWithoutImages,
       });
     });
     ipcMain.handle('publish:run', async (_, force?: boolean) =>

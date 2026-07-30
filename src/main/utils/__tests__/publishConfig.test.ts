@@ -26,6 +26,7 @@ const ready = {
   privatePrefix: 'catalog/private',
   publicPrefix: 'catalog/public',
   publicPriceList: 'Retail',
+  publishWithoutImages: false,
   reservedNameChars: '',
   imagesManifestUrl: '',
   webhookUrl: '',

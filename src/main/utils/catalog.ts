@@ -46,6 +46,23 @@ interface CatalogOptions {
    * publishes nothing, which is the safe direction to fail.
    */
   publicAttributeKeys?: readonly string[];
+  /**
+   * Whether an item still needs a photograph to be publishable. Defaults to
+   * true, which is the only state a live storefront should ever be in.
+   *
+   * Turned off to stand the whole catalogue up before the photography is done —
+   * so categories, filters, navigation and checkout can be exercised at real
+   * scale instead of against a handful of items. The storefront then shows its
+   * own placeholder for anything unphotographed.
+   *
+   * Deliberately a *flag*, not placeholder images written into the manifest.
+   * Fake images would make `hasImage` true for ever: the app could no longer
+   * answer "which items still need a photograph", and the gate that keeps
+   * unsellable items off the shop would be gone rather than merely relaxed.
+   * Turning this back on drafts them again on the next publish, with nothing
+   * for anyone to remember.
+   */
+  requireImage?: boolean;
 }
 
 interface FullCatalogItem extends CatalogSourceRow {
@@ -116,7 +133,8 @@ export function publicPriceOf(
 
 /**
  * publishable = not held back + has *public* attributes + a positive public
- * price + has image.
+ * price + has image (unless the image requirement is relaxed — see
+ * `CatalogOptions.requireImage`).
  *
  * Judged on public attributes only: an item described entirely by internal keys
  * has nothing to show a customer, so it is not ready to publish.
@@ -129,12 +147,13 @@ export function isPublishable(
   row: CatalogSourceRow,
   publicPriceList: string,
   publicAttributeKeys: readonly string[] = [],
+  requireImage = true,
 ): boolean {
   return (
     !row.excludeFromCatalog &&
     hasAttributes(publicAttributesOf(row, publicAttributeKeys)) &&
     publicPriceOf(row, publicPriceList) !== null &&
-    row.hasImage
+    (row.hasImage || !requireImage)
   );
 }
 
@@ -162,6 +181,7 @@ export function buildFullCatalog(
         r,
         options.publicPriceList,
         options.publicAttributeKeys,
+        options.requireImage ?? true,
       ),
     })),
   };
@@ -193,6 +213,7 @@ export function buildPublicCatalog(
         r,
         options.publicPriceList,
         options.publicAttributeKeys,
+        options.requireImage ?? true,
       ),
     });
   }
