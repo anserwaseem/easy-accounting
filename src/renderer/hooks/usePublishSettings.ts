@@ -17,6 +17,12 @@ export interface PublishConfig {
    * catalogue up for testing.
    */
   publishWithoutImages: boolean;
+  /**
+   * Attribute keys an item must carry before it can publish, comma separated.
+   * A structural attribute a consumer branches on belongs here: without it the
+   * item is filed under some default and looks correct while being wrong.
+   */
+  requiredAttributeKeys: string;
   /** Characters an item name may not contain (reserved by the publishing pipeline). */
   reservedNameChars: string;
   imagesManifestUrl: string;
@@ -107,6 +113,7 @@ const EMPTY_CONFIG: PublishConfig = {
   publicPrefix: 'catalog/public',
   publicPriceList: '',
   publishWithoutImages: false,
+  requiredAttributeKeys: '',
   reservedNameChars: '',
   imagesManifestUrl: '',
   webhookUrl: '',

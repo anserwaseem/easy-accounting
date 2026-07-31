@@ -90,6 +90,7 @@ const PublishSettings: React.FC = () => {
   const [publicList, setPublicList] = useState('');
   const [reservedNameChars, setReservedNameChars] = useState('');
   const [publishWithoutImages, setPublishWithoutImages] = useState(false);
+  const [requiredAttributeKeys, setRequiredAttributeKeys] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [preview, setPreview] = useState<CatalogPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -112,6 +113,7 @@ const PublishSettings: React.FC = () => {
     setPublicList(config.publicPriceList);
     setReservedNameChars(config.reservedNameChars);
     setPublishWithoutImages(config.publishWithoutImages);
+    setRequiredAttributeKeys(config.requiredAttributeKeys);
   }, [loading, config]);
 
   // readiness reflects what is typed now, treating a typed secret as present
@@ -152,7 +154,8 @@ const PublishSettings: React.FC = () => {
       webhookUrl !== config.webhookUrl ||
       publicList !== config.publicPriceList ||
       reservedNameChars !== config.reservedNameChars ||
-      publishWithoutImages !== config.publishWithoutImages,
+      publishWithoutImages !== config.publishWithoutImages ||
+      requiredAttributeKeys !== config.requiredAttributeKeys,
     [
       config,
       secretTouched,
@@ -170,6 +173,7 @@ const PublishSettings: React.FC = () => {
       publicList,
       reservedNameChars,
       publishWithoutImages,
+      requiredAttributeKeys,
     ],
   );
 
@@ -189,6 +193,7 @@ const PublishSettings: React.FC = () => {
         publicPriceList: publicList,
         reservedNameChars,
         publishWithoutImages,
+        requiredAttributeKeys,
         ...(secretTouched ? { secretAccessKey } : {}),
         ...(webhookTokenTouched ? { webhookToken: webhookToken.trim() } : {}),
       });
@@ -216,6 +221,7 @@ const PublishSettings: React.FC = () => {
     publicPrefix,
     publishWithoutImages,
     region,
+    requiredAttributeKeys,
     savePublishConfig,
     secretAccessKey,
     secretTouched,
@@ -421,6 +427,14 @@ const PublishSettings: React.FC = () => {
               value={imagesManifestUrl}
               onChange={setImagesManifestUrl}
               hint="Used to tell which items have an image. Without it, no item counts as having one."
+            />
+            <Field
+              id="publish-required-attributes"
+              label="Attributes required before an item can publish"
+              placeholder="e.g. product_type"
+              value={requiredAttributeKeys}
+              onChange={setRequiredAttributeKeys}
+              hint="Comma separated attribute keys. An item missing one is held back rather than published — for attributes a downstream system branches on, where a missing value means the item is filed under a default and looks correct while being wrong. Leave empty to require none."
             />
             <Field
               id="publish-reserved-chars"

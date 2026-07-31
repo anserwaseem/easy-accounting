@@ -30,7 +30,7 @@ export interface CatalogSourceRow {
   excludeFromCatalog: boolean;
 }
 
-interface CatalogOptions {
+export interface CatalogOptions {
   /**
    * The single price list the business has marked public. Exactly one, because
    * every downstream consumer (storefront, ad feed) needs one price per item;
@@ -63,6 +63,21 @@ interface CatalogOptions {
    * for anyone to remember.
    */
   requireImage?: boolean;
+  /**
+   * Attribute keys an item must carry before it can be published.
+   *
+   * A capability, not a policy: this module knows nothing about which
+   * attributes matter to a given business. It exists because some attributes
+   * are not descriptive but *structural* — a downstream consumer branches on
+   * them — and an item missing one does not fail, it gets silently filed under
+   * whatever the default branch happens to be. Refusing to publish is the
+   * honest answer: an unclassified item is not ready, in exactly the way an
+   * unpriced one is not.
+   *
+   * Empty (the default) requires nothing, so an installation that has no such
+   * attribute is unaffected.
+   */
+  requiredAttributeKeys?: readonly string[];
 }
 
 interface FullCatalogItem extends CatalogSourceRow {
@@ -131,30 +146,81 @@ export function publicPriceOf(
   return typeof price === 'number' && price > 0 ? price : null;
 }
 
+/** Why an item is not ready. `missing ${key}` names a required attribute. */
+export type PublishBlocker =
+  | 'no image'
+  | 'no public price'
+  | 'no public attributes'
+  | `missing ${string}`;
+
 /**
- * publishable = not held back + has *public* attributes + a positive public
- * price + has image (unless the image requirement is relaxed — see
- * `CatalogOptions.requireImage`).
+ * Every reason this item cannot be published. Empty means ready.
+ *
+ * **This is the definition of publishable, and the only one.** It returns the
+ * reasons rather than a verdict because both callers need both: the catalog
+ * needs a boolean, and the inventory table needs to tell the user *what to go
+ * and fix*. Those were two implementations of the same rule for a while — one
+ * here and one in the service — and they drifted twice, each time producing a
+ * Publish column that disagreed with what a publish actually did. A rule that
+ * is stated once cannot disagree with itself.
  *
  * Judged on public attributes only: an item described entirely by internal keys
- * has nothing to show a customer, so it is not ready to publish.
+ * has nothing to show a customer.
  *
- * The exclusion is checked first and is absolute: it exists so a business can
- * hold back an item that meets every other condition, which is the only case
- * where the derived answer is the wrong one.
+ * Exclusion is deliberately *not* a blocker. "Held back" is a decision, not a
+ * deficiency — the item may meet every condition — so callers check
+ * `excludeFromCatalog` themselves and report it as its own state.
  */
+export function publishBlockers(
+  row: CatalogSourceRow,
+  options: CatalogOptions,
+): PublishBlocker[] {
+  const blockers: PublishBlocker[] = [];
+  if (!row.hasImage && (options.requireImage ?? true)) {
+    blockers.push('no image');
+  }
+  if (publicPriceOf(row, options.publicPriceList) === null) {
+    blockers.push('no public price');
+  }
+  if (!hasAttributes(publicAttributesOf(row, options.publicAttributeKeys))) {
+    blockers.push('no public attributes');
+  }
+  // named individually: "missing product_type" says what to set, where a
+  // generic "missing a required attribute" would leave you hunting
+  for (const key of missingRequiredAttributes(
+    row,
+    options.requiredAttributeKeys,
+  )) {
+    blockers.push(`missing ${key}`);
+  }
+  return blockers;
+}
+
+/** Ready to publish: not held back, and nothing blocking. */
 export function isPublishable(
   row: CatalogSourceRow,
-  publicPriceList: string,
-  publicAttributeKeys: readonly string[] = [],
-  requireImage = true,
+  options: CatalogOptions,
 ): boolean {
-  return (
-    !row.excludeFromCatalog &&
-    hasAttributes(publicAttributesOf(row, publicAttributeKeys)) &&
-    publicPriceOf(row, publicPriceList) !== null &&
-    (row.hasImage || !requireImage)
-  );
+  return !row.excludeFromCatalog && publishBlockers(row, options).length === 0;
+}
+
+/** Required attribute keys this row does not carry a value for. */
+export function missingRequiredAttributes(
+  row: CatalogSourceRow,
+  requiredAttributeKeys: readonly string[] = [],
+): string[] {
+  return requiredAttributeKeys.filter((key) => {
+    const value = row.attributes?.[key];
+    return value === undefined || value === null || value === '';
+  });
+}
+
+/** Parses the configured list: comma or whitespace separated, blanks dropped. */
+export function parseAttributeKeyList(raw: string): string[] {
+  return (raw || '')
+    .split(/[,\s]+/)
+    .map((k) => k.trim())
+    .filter(Boolean);
 }
 
 /** All distinct price-list names across the rows, sorted (stable columns). */
@@ -177,12 +243,7 @@ export function buildFullCatalog(
     count: rows.length,
     items: rows.map((r) => ({
       ...r,
-      publishable: isPublishable(
-        r,
-        options.publicPriceList,
-        options.publicAttributeKeys,
-        options.requireImage ?? true,
-      ),
+      publishable: isPublishable(r, options),
     })),
   };
 }
@@ -209,12 +270,7 @@ export function buildPublicCatalog(
       attributes: publicAttributesOf(r, options.publicAttributeKeys),
       price,
       hasImage: r.hasImage,
-      publishable: isPublishable(
-        r,
-        options.publicPriceList,
-        options.publicAttributeKeys,
-        options.requireImage ?? true,
-      ),
+      publishable: isPublishable(r, options),
     });
   }
   return {

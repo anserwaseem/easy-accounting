@@ -36,9 +36,10 @@ import {
   buildFullCatalog,
   buildPublicCatalog,
   isPublishable,
-  publicAttributesOf,
-  publicPriceOf,
+  parseAttributeKeyList,
+  publishBlockers,
   toProductsCsv,
+  type PublishBlocker as CatalogBlocker,
   type CatalogSourceRow,
 } from '../utils/catalog';
 
@@ -55,6 +56,8 @@ interface GenerateCatalogOptions {
    * done — see CatalogOptions.requireImage.
    */
   requireImage?: boolean;
+  /** Attribute keys an item must carry to publish — see CatalogOptions. */
+  requiredAttributeKeys?: readonly string[];
   /** Overridable for deterministic output; defaults to now (ISO). */
   generatedAt?: string;
 }
@@ -75,11 +78,12 @@ export interface PriceListSummary {
 }
 
 /** Why an item is not ready, in the words the UI shows. */
-export type PublishBlocker =
-  | 'no image'
-  | 'image check failed'
-  | 'no public price'
-  | 'no public attributes';
+/**
+ * The rule's blockers, plus one this layer adds: an unreachable images manifest
+ * is not "no image", it is "we could not tell" — and telling those apart stops
+ * a network blip from reading as 259 unphotographed products.
+ */
+export type PublishBlocker = CatalogBlocker | 'image check failed';
 
 export interface ItemPublishStatus {
   id: number;
@@ -334,6 +338,7 @@ export class PublishService {
       publicPriceList: options.publicPriceList,
       publicAttributeKeys: options.publicAttributeKeys,
       requireImage: options.requireImage ?? true,
+      requiredAttributeKeys: options.requiredAttributeKeys,
     };
 
     const full = buildFullCatalog(rows, opts, generatedAt);
@@ -374,11 +379,11 @@ export class PublishService {
     imagesManifestUrl?: string;
     /** Must match what a publish would do, or the column reports a lie. */
     requireImage?: boolean;
+    requiredAttributeKeys?: readonly string[];
   }): Promise<ItemPublishStatusReport> {
     // the frequent caller — served from cache between image rebuilds
     const { skus: imageSkus, error: imagesManifestError } =
       await PublishService.fetchImageSkus(options.imagesManifestUrl);
-    const { publicPriceList, publicAttributeKeys } = options;
     const raw = this.stmGetCatalogRows.all() as RawCatalogRow[];
 
     const statuses = raw.map((rawRow) => {
@@ -386,18 +391,13 @@ export class PublishService {
       if (row.excludeFromCatalog) {
         return { id: rawRow.id, state: 'held back' as const, blockers: [] };
       }
-      const blockers: PublishBlocker[] = [];
-      if (!row.hasImage && (options.requireImage ?? true)) {
-        blockers.push(imagesManifestError ? 'image check failed' : 'no image');
-      }
-      if (publicPriceOf(row, publicPriceList) === null) {
-        blockers.push('no public price');
-      }
-      if (
-        Object.keys(publicAttributesOf(row, publicAttributeKeys)).length === 0
-      ) {
-        blockers.push('no public attributes');
-      }
+      // one rule, asked for its reasons — this used to restate it, and drifted
+      const blockers: PublishBlocker[] = publishBlockers(row, options).map(
+        (blocker) =>
+          blocker === 'no image' && imagesManifestError
+            ? 'image check failed'
+            : blocker,
+      );
       return blockers.length === 0
         ? { id: rawRow.id, state: 'ready' as const, blockers: [] }
         : { id: rawRow.id, state: 'not ready' as const, blockers };
@@ -415,14 +415,13 @@ export class PublishService {
     imagesManifestUrl?: string;
     /** Must match what a publish would do, or the readiness panel reports a lie. */
     requireImage?: boolean;
+    requiredAttributeKeys?: readonly string[];
   }): Promise<CatalogPreview> {
     const { skus: imageSkus, error: imagesManifestError } =
       await PublishService.fetchImageSkus(options.imagesManifestUrl, {
         force: true,
       });
     const rows = this.getCatalogRows(imageSkus);
-    const { publicPriceList, publicAttributeKeys } = options;
-
     let publicCount = 0;
     let publishableCount = 0;
     let missingImage = 0;
@@ -432,24 +431,16 @@ export class PublishService {
 
     for (const row of rows) {
       if (row.excludeFromCatalog) heldBack += 1;
-      const hasPublicPrice = publicPriceOf(row, publicPriceList) !== null;
-      // counted on public attributes: an item described only by internal keys
-      // has nothing to show a customer, which is what this number reports
-      const hasAttrs =
-        Object.keys(publicAttributesOf(row, publicAttributeKeys)).length > 0;
-      if (hasPublicPrice) publicCount += 1;
-      else missingPublicPrice += 1;
-      if (!hasAttrs) missingAttributes += 1;
+      // the breakdown is the same list the verdict comes from, so a count can
+      // no longer contradict the headline it sits beside
+      const blockers = publishBlockers(row, options);
+      if (blockers.includes('no public price')) missingPublicPrice += 1;
+      else publicCount += 1;
+      if (blockers.includes('no public attributes')) missingAttributes += 1;
+      // counted from the row, not the blockers: this reports photography debt,
+      // which is true whether or not the image requirement is currently relaxed
       if (!row.hasImage) missingImage += 1;
-      if (
-        isPublishable(
-          row,
-          publicPriceList,
-          publicAttributeKeys,
-          options.requireImage ?? true,
-        )
-      )
-        publishableCount += 1;
+      if (isPublishable(row, options)) publishableCount += 1;
     }
 
     return {
@@ -500,6 +491,9 @@ export class PublishService {
         publicAttributeKeys: this.getPublicAttributeKeys(),
         imageSkus,
         requireImage: !config.publishWithoutImages,
+        requiredAttributeKeys: parseAttributeKeyList(
+          config.requiredAttributeKeys,
+        ),
         generatedAt,
       });
 

@@ -27,6 +27,7 @@ export const PUBLISH_KEYS = {
   publicPriceList: 'publish.publicPriceList',
   publishWithoutImages: 'publish.publishWithoutImages',
   reservedNameChars: 'publish.reservedNameChars',
+  requiredAttributeKeys: 'publish.requiredAttributeKeys',
   imagesManifestUrl: 'publish.imagesManifestUrl',
   webhookUrl: 'publish.webhookUrl',
   webhookToken: 'publish.webhookTokenEnc',
@@ -56,6 +57,8 @@ export interface PublishConfig {
    * Empty = no restriction. Enforced on item create/rename.
    */
   reservedNameChars: string;
+  /** Attribute keys an item must carry before it can publish (comma separated). */
+  requiredAttributeKeys: string;
   /** Publish items with no photograph yet — testing only, never for a live shop. */
   publishWithoutImages: boolean;
   imagesManifestUrl: string;
@@ -121,6 +124,7 @@ export function getPublishConfig(): PublishConfig {
     publicPriceList: str(PUBLISH_KEYS.publicPriceList),
     publishWithoutImages: str(PUBLISH_KEYS.publishWithoutImages) === 'true',
     reservedNameChars: str(PUBLISH_KEYS.reservedNameChars),
+    requiredAttributeKeys: str(PUBLISH_KEYS.requiredAttributeKeys),
     imagesManifestUrl: str(PUBLISH_KEYS.imagesManifestUrl),
     webhookUrl: str(PUBLISH_KEYS.webhookUrl),
     hasSecretAccessKey: !!str(PUBLISH_KEYS.secretAccessKeyEnc),
@@ -176,6 +180,10 @@ export function savePublishConfig(input: PublishConfigInput): PublishConfig {
   setIfDefined(PUBLISH_KEYS.webhookUrl, input.webhookUrl?.trim());
   setIfDefined(PUBLISH_KEYS.publicPriceList, input.publicPriceList?.trim());
   setIfDefined(PUBLISH_KEYS.reservedNameChars, input.reservedNameChars?.trim());
+  setIfDefined(
+    PUBLISH_KEYS.requiredAttributeKeys,
+    input.requiredAttributeKeys?.trim(),
+  );
 
   const saveSecret = (key: string, value?: string) => {
     if (value === undefined) return; // unchanged

@@ -32,6 +32,7 @@ import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
 import { isNil } from 'lodash';
 import { addDays, format, parse } from 'date-fns';
+import { parseAttributeKeyList } from './utils/catalog';
 import MenuBuilder from './menu';
 import { formatString, resolveHtmlPath, raise } from './utils/general';
 import { enrichLedgerRowsWithJournalSummaries } from './utils/ledgerJournalEnrichment';
@@ -234,6 +235,9 @@ app
         publicPriceList: config.publicPriceList,
         imagesManifestUrl: config.imagesManifestUrl,
         requireImage: !config.publishWithoutImages,
+        requiredAttributeKeys: parseAttributeKeyList(
+          config.requiredAttributeKeys,
+        ),
       });
     });
     ipcMain.handle('publish:itemStatuses', async () => {
@@ -243,6 +247,9 @@ app
         publicAttributeKeys: publishService.getPublicAttributeKeys(),
         imagesManifestUrl: config.imagesManifestUrl,
         requireImage: !config.publishWithoutImages,
+        requiredAttributeKeys: parseAttributeKeyList(
+          config.requiredAttributeKeys,
+        ),
       });
     });
     ipcMain.handle('publish:run', async (_, force?: boolean) =>

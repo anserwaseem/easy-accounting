@@ -1,10 +1,13 @@
 import {
   buildFullCatalog,
   buildPublicCatalog,
-  toProductsCsv,
   isPublishable,
+  missingRequiredAttributes,
+  parseAttributeKeyList,
   publicAttributesOf,
   publicPriceOf,
+  publishBlockers,
+  toProductsCsv,
   type CatalogSourceRow,
 } from '../catalog';
 
@@ -44,36 +47,18 @@ describe('publicPriceOf', () => {
 
 describe('isPublishable', () => {
   it('true when attributes + public price + image all present', () => {
-    expect(
-      isPublishable(row(), OPTS.publicPriceList, OPTS.publicAttributeKeys),
-    ).toBe(true);
+    expect(isPublishable(row(), OPTS)).toBe(true);
   });
   it('false without attributes', () => {
-    expect(
-      isPublishable(
-        row({ attributes: {} }),
-        OPTS.publicPriceList,
-        OPTS.publicAttributeKeys,
-      ),
-    ).toBe(false);
+    expect(isPublishable(row({ attributes: {} }), OPTS)).toBe(false);
   });
   it('false without an image', () => {
-    expect(
-      isPublishable(
-        row({ hasImage: false }),
-        OPTS.publicPriceList,
-        OPTS.publicAttributeKeys,
-      ),
-    ).toBe(false);
+    expect(isPublishable(row({ hasImage: false }), OPTS)).toBe(false);
   });
   it('false without a public price', () => {
-    expect(
-      isPublishable(
-        row({ prices: { Wholesale: 700 } }),
-        OPTS.publicPriceList,
-        OPTS.publicAttributeKeys,
-      ),
-    ).toBe(false);
+    expect(isPublishable(row({ prices: { Wholesale: 700 } }), OPTS)).toBe(
+      false,
+    );
   });
 });
 
@@ -246,15 +231,21 @@ describe('public attribute whitelist', () => {
   });
 
   it('is not publishable when every attribute is internal', () => {
-    expect(isPublishable(attrRow({ notes: 'x' }), 'Retail', ['size'])).toBe(
-      false,
-    );
+    expect(
+      isPublishable(attrRow({ notes: 'x' }), {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['size'],
+      }),
+    ).toBe(false);
   });
 
   it('is publishable once a public attribute is present', () => {
-    expect(isPublishable(attrRow({ size: '5 x 7' }), 'Retail', ['size'])).toBe(
-      true,
-    );
+    expect(
+      isPublishable(attrRow({ size: '5 x 7' }), {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['size'],
+      }),
+    ).toBe(true);
   });
 
   it('keeps internal values out of the products CSV', () => {
@@ -273,11 +264,17 @@ describe('excludeFromCatalog', () => {
     // the only case where the derived answer is wrong: everything is ready,
     // the business simply does not want it on sale
     const held = row({ excludeFromCatalog: true });
-    expect(isPublishable(held, 'Retail', ['size_in'])).toBe(false);
     expect(
-      isPublishable({ ...held, excludeFromCatalog: false }, 'Retail', [
-        'size_in',
-      ]),
+      isPublishable(held, {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['size_in'],
+      }),
+    ).toBe(false);
+    expect(
+      isPublishable(
+        { ...held, excludeFromCatalog: false },
+        { publicPriceList: 'Retail', publicAttributeKeys: ['size_in'] },
+      ),
     ).toBe(true);
   });
 
@@ -303,7 +300,12 @@ describe('excludeFromCatalog', () => {
 
   it('does not resurrect an item that fails another condition', () => {
     const noImage = row({ excludeFromCatalog: false, hasImage: false });
-    expect(isPublishable(noImage, 'Retail', ['size_in'])).toBe(false);
+    expect(
+      isPublishable(noImage, {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['size_in'],
+      }),
+    ).toBe(false);
   });
 });
 
@@ -356,26 +358,55 @@ describe('requireImage (standing the catalogue up before photography)', () => {
   });
 
   it('withholds an unphotographed item by default', () => {
-    expect(isPublishable(noPhoto(), 'Retail', ['lines'])).toBe(false);
+    expect(
+      isPublishable(noPhoto(), {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['lines'],
+      }),
+    ).toBe(false);
   });
 
   it('publishes it when the image requirement is relaxed', () => {
-    expect(isPublishable(noPhoto(), 'Retail', ['lines'], false)).toBe(true);
+    expect(
+      isPublishable(noPhoto(), {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['lines'],
+        requireImage: false,
+      }),
+    ).toBe(true);
   });
 
   it('still withholds one held back by hand', () => {
     // relaxing the image gate must not override an explicit exclusion
     const r = { ...noPhoto(), excludeFromCatalog: true };
-    expect(isPublishable(r, 'Retail', ['lines'], false)).toBe(false);
+    expect(
+      isPublishable(r, {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['lines'],
+        requireImage: false,
+      }),
+    ).toBe(false);
   });
 
   it('still withholds one with no public price', () => {
     const r = { ...noPhoto(), prices: {} };
-    expect(isPublishable(r, 'Retail', ['lines'], false)).toBe(false);
+    expect(
+      isPublishable(r, {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['lines'],
+        requireImage: false,
+      }),
+    ).toBe(false);
   });
 
   it('still withholds one with no public attributes', () => {
-    expect(isPublishable(noPhoto(), 'Retail', [], false)).toBe(false);
+    expect(
+      isPublishable(noPhoto(), {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: [],
+        requireImage: false,
+      }),
+    ).toBe(false);
   });
 
   it('keeps hasImage truthful so photography debt stays visible', () => {
@@ -395,5 +426,175 @@ describe('requireImage (standing the catalogue up before photography)', () => {
       publicAttributeKeys: ['lines'],
     });
     expect(pub.items[0].publishable).toBe(false);
+  });
+});
+
+describe('requiredAttributeKeys (a structural attribute is not optional)', () => {
+  const typed = (over: Partial<CatalogSourceRow> = {}): CatalogSourceRow => ({
+    sku: 'S-23-G',
+    name: 'S-23-G',
+    parentSku: null,
+    basePrice: 900,
+    quantity: 5,
+    attributes: { lines: 16, product_type: 'Quran' },
+    prices: { Retail: 1080 },
+    hasImage: true,
+    excludeFromCatalog: false,
+    ...over,
+  });
+
+  it('publishes when every required key is present', () => {
+    expect(
+      isPublishable(typed(), {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['lines'],
+        requireImage: true,
+        requiredAttributeKeys: ['product_type'],
+      }),
+    ).toBe(true);
+  });
+
+  it('withholds an item missing a required key', () => {
+    // the whole point: without it the item is filed under a default and looks
+    // correct while being wrong
+    const item = typed({ attributes: { lines: 16 } });
+    expect(
+      isPublishable(item, {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['lines'],
+        requireImage: true,
+        requiredAttributeKeys: ['product_type'],
+      }),
+    ).toBe(false);
+  });
+
+  it('treats an empty value as missing', () => {
+    const item = typed({ attributes: { lines: 16, product_type: '' } });
+    expect(
+      isPublishable(item, {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['lines'],
+        requireImage: true,
+        requiredAttributeKeys: ['product_type'],
+      }),
+    ).toBe(false);
+  });
+
+  it('requires nothing when the list is empty', () => {
+    const item = typed({ attributes: { lines: 16 } });
+    expect(
+      isPublishable(item, {
+        publicPriceList: 'Retail',
+        publicAttributeKeys: ['lines'],
+        requireImage: true,
+        requiredAttributeKeys: [],
+      }),
+    ).toBe(true);
+  });
+
+  it('names each missing key so the fix is obvious', () => {
+    const item = typed({ attributes: { lines: 16 } });
+    expect(
+      missingRequiredAttributes(item, ['product_type', 'weight_kg']),
+    ).toEqual(['product_type', 'weight_kg']);
+  });
+
+  it('reports nothing missing for a complete row', () => {
+    expect(missingRequiredAttributes(typed(), ['product_type'])).toEqual([]);
+  });
+});
+
+describe('parseAttributeKeyList', () => {
+  it('splits on commas', () => {
+    expect(parseAttributeKeyList('product_type, weight_kg')).toEqual([
+      'product_type',
+      'weight_kg',
+    ]);
+  });
+
+  it('splits on whitespace too, so either style works', () => {
+    expect(parseAttributeKeyList('product_type weight_kg')).toEqual([
+      'product_type',
+      'weight_kg',
+    ]);
+  });
+
+  it('drops blanks from trailing separators', () => {
+    expect(parseAttributeKeyList('product_type,,  ,')).toEqual([
+      'product_type',
+    ]);
+  });
+
+  it('an empty setting requires nothing', () => {
+    expect(parseAttributeKeyList('')).toEqual([]);
+  });
+});
+
+describe('publishBlockers is the single definition', () => {
+  const OPTIONS = {
+    publicPriceList: 'Retail',
+    publicAttributeKeys: ['lines'],
+    requiredAttributeKeys: ['product_type'],
+  };
+  const base = (over: Partial<CatalogSourceRow> = {}): CatalogSourceRow => ({
+    sku: 'S-23-G',
+    name: 'S-23-G',
+    parentSku: null,
+    basePrice: 900,
+    quantity: 5,
+    attributes: { lines: 16, product_type: 'Quran' },
+    prices: { Retail: 1080 },
+    hasImage: true,
+    excludeFromCatalog: false,
+    ...over,
+  });
+
+  it('a ready item has no blockers', () => {
+    expect(publishBlockers(base(), OPTIONS)).toEqual([]);
+  });
+
+  it('the verdict always agrees with the reasons', () => {
+    // the property that was violated when the rule existed twice
+    const rows = [
+      base(),
+      base({ hasImage: false }),
+      base({ prices: {} }),
+      base({ attributes: {} }),
+      base({ attributes: { lines: 16 } }),
+      base({ prices: {}, hasImage: false }),
+    ];
+    for (const r of rows) {
+      expect(isPublishable(r, OPTIONS)).toBe(
+        publishBlockers(r, OPTIONS).length === 0,
+      );
+    }
+  });
+
+  it('reports every reason at once, not just the first', () => {
+    const broken = base({ hasImage: false, prices: {}, attributes: {} });
+    expect(publishBlockers(broken, OPTIONS).sort()).toEqual(
+      [
+        'missing product_type',
+        'no image',
+        'no public attributes',
+        'no public price',
+      ].sort(),
+    );
+  });
+
+  it('holding an item back is not a blocker', () => {
+    // "held back" is a decision, not a deficiency — the item may be perfect
+    const held = base({ excludeFromCatalog: true });
+    expect(publishBlockers(held, OPTIONS)).toEqual([]);
+    expect(isPublishable(held, OPTIONS)).toBe(false);
+  });
+
+  it('drops the image blocker when the requirement is relaxed', () => {
+    expect(
+      publishBlockers(base({ hasImage: false }), {
+        ...OPTIONS,
+        requireImage: false,
+      }),
+    ).toEqual([]);
   });
 });

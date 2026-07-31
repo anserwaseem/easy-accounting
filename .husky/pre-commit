@@ -1,4 +1,18 @@
 #!/usr/bin/env sh
 . "$(dirname "$0")/_/husky.sh"
 
-npx lint-staged
+# Chained with && on purpose. Without it only the LAST command's exit status
+# reaches git, so a lint-staged failure would be reported and then ignored —
+# the same trap as piping a test run into `tail`.
+#
+# lint-staged handles formatting and lint on the staged files. The two after it
+# cannot be done per-file: a type error or a failing test usually lives in a
+# file the commit does not touch — the renamed export, the changed signature,
+# the fixture that no longer matches. lint-staged reports clean while the build
+# is broken, which is exactly how a narrow check gives false confidence.
+#
+# About ten seconds. The alternative is a failed workflow run, or the shop.
+#
+# Committing work in progress?  git commit --no-verify
+
+npx lint-staged && npm run typecheck # && npm test
