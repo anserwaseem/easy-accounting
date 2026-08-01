@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect } from 'react';
 import {
   Close,
   Content,
@@ -13,7 +13,38 @@ import { X } from 'lucide-react';
 
 import { cn } from 'renderer/lib/utils';
 
-const Dialog = Root;
+/**
+ * Radix's Dialog, plus a guard against its body lock leaking.
+ *
+ * A modal dialog sets `pointer-events: none` on `<body>` so nothing behind it
+ * can be clicked, and restores it on close. When two modals are mounted at once
+ * — this app nests a ConfirmDialog inside several management dialogs — the
+ * restore can be skipped, and the page is left permanently inert: it renders
+ * perfectly and responds to nothing, so it reads as a hung app rather than a
+ * stuck style. Recovering needs a restart.
+ *
+ * The guard only clears the lock when **no dialog is still open**, so a genuinely
+ * open modal keeps its modality. Applied here rather than at a call site because
+ * twenty files use this component and the next one should not have to know.
+ */
+const Dialog: React.FC<React.ComponentPropsWithoutRef<typeof Root>> = ({
+  open,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Root>) => {
+  useEffect(() => {
+    if (open) return undefined;
+    // after Radix's own teardown, not during it — otherwise this runs first and
+    // Radix re-applies the lock on its way out
+    const timer = setTimeout(() => {
+      if (document.body.style.pointerEvents !== 'none') return;
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+      document.body.style.pointerEvents = '';
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [open]);
+
+  return <Root open={open} {...props} />;
+};
 
 const DialogTrigger = Trigger;
 

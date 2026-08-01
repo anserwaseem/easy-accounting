@@ -36,7 +36,10 @@ const InventoryPage: React.FC = () => {
     'itemTypes' | 'priceLists' | 'attributes' | null
   >(openManageItemTypesFromNav ? 'itemTypes' : null);
 
-  const refetchInventory = () => setRefresh(!refresh);
+  // functional form: this is called from dialog callbacks, and two calls
+  // from the same render would otherwise both write the same value —
+  // the second refetch silently not happening
+  const refetchInventory = () => setRefresh((previous) => !previous);
 
   const handleBulkEditActiveChange = useCallback((active: boolean) => {
     setBulkEditActive(active);
