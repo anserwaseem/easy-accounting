@@ -9,6 +9,8 @@ import {
   missingPublishConfig,
   type CatalogPreview,
 } from '@/renderer/hooks/usePublishSettings';
+import { parseAttributeKeyList } from '@/main/utils/catalog';
+import { MultiSelect } from 'renderer/shad/ui/multiSelect';
 
 /** marks a required field label */
 const Required: React.FC = () => (
@@ -64,6 +66,7 @@ const PublishSettings: React.FC = () => {
   const {
     config,
     priceListNames,
+    attributeDefinitions,
     loading,
     lastResult,
     progress,
@@ -91,6 +94,32 @@ const PublishSettings: React.FC = () => {
   const [reservedNameChars, setReservedNameChars] = useState('');
   const [publishWithoutImages, setPublishWithoutImages] = useState(false);
   const [requiredAttributeKeys, setRequiredAttributeKeys] = useState('');
+
+  // stored as a comma-separated string so the config format is unchanged and a
+  // key can still be required before its definition exists; the UI works in
+  // terms of the list
+  const requiredKeys = useMemo(
+    () => parseAttributeKeyList(requiredAttributeKeys),
+    [requiredAttributeKeys],
+  );
+  const attributeOptions = useMemo(
+    () =>
+      attributeDefinitions.map((definition) => ({
+        value: definition.key,
+        label: definition.label,
+        // the key is what gets stored and what every script and export refers
+        // to, but it appears nowhere else in the app — surfaced so it is
+        // findable rather than something to be memorised
+        hint: definition.key,
+        // a private attribute never reaches the storefront or a feed, so
+        // nothing downstream can group by it — requiring one would hold items
+        // back for a reason no consumer could act on. Shown rather than hidden,
+        // so "why can I not pick Notes?" has a visible answer.
+        disabled: definition.isPublic !== 1,
+        disabledReason: 'not public',
+      })),
+    [attributeDefinitions],
+  );
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [preview, setPreview] = useState<CatalogPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -428,14 +457,25 @@ const PublishSettings: React.FC = () => {
               onChange={setImagesManifestUrl}
               hint="Used to tell which items have an image. Without it, no item counts as having one."
             />
-            <Field
-              id="publish-required-attributes"
-              label="Attributes required before an item can publish"
-              placeholder="e.g. product_type"
-              value={requiredAttributeKeys}
-              onChange={setRequiredAttributeKeys}
-              hint="Comma separated attribute keys. An item missing one is held back rather than published — for attributes a downstream system branches on, where a missing value means the item is filed under a default and looks correct while being wrong. Leave empty to require none."
-            />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="publish-required-attributes">
+                Attributes required before an item can publish
+              </Label>
+              <MultiSelect
+                options={attributeOptions}
+                selected={requiredKeys}
+                onChange={(keys) => setRequiredAttributeKeys(keys.join(', '))}
+                placeholder="None required"
+                searchPlaceholder="Search attributes…"
+                emptyText="No attributes defined yet."
+              />
+              <span className="text-xs text-muted-foreground">
+                An item missing one of these is held back instead of published.
+                Worth requiring for an attribute a storefront or feed groups by:
+                without a value the item is filed under some default, and looks
+                correct while being wrong.
+              </span>
+            </div>
             <Field
               id="publish-reserved-chars"
               label="Characters not allowed in item names"

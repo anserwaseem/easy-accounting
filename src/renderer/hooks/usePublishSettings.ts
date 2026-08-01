@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { AttributeDefinition } from 'types';
 
 /** Mirrors main/utils/publishConfig — secrets are never included. */
 export interface PublishConfig {
@@ -127,20 +128,30 @@ export const usePublishSettings = () => {
   const [priceListNames, setPriceListNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
+  const [attributeDefinitions, setAttributeDefinitions] = useState<
+    AttributeDefinition[]
+  >([]);
   const [lastResult, setLastResult] = useState<PublishResult | null>(null);
   const [progress, setProgress] = useState<PublishProgressEvent | null>(null);
 
   const refresh = useCallback(async () => {
-    const [nextConfig, names, lists, previous] = await Promise.all([
-      window.electron.getPublishConfig(),
-      window.electron.getPriceListNames(),
-      window.electron.getPriceLists(),
-      window.electron.getLastPublishResult(),
-    ]);
+    const [nextConfig, names, lists, previous, definitions] = await Promise.all(
+      [
+        window.electron.getPublishConfig(),
+        window.electron.getPriceListNames(),
+        window.electron.getPriceLists(),
+        window.electron.getLastPublishResult(),
+        window.electron.getAttributeDefinitions(),
+      ],
+    );
     setConfig(nextConfig);
     setPriceListNames(names);
     setPriceLists(lists);
     setLastResult(previous);
+    // needed so "which attributes are required" can be picked from a list: the
+    // stored value is the attribute *key*, which is shown nowhere else in the
+    // UI, so typing it means guessing an identifier you have never seen
+    setAttributeDefinitions(definitions);
     setLoading(false);
   }, []);
 
@@ -207,6 +218,7 @@ export const usePublishSettings = () => {
       config,
       priceListNames,
       priceLists,
+      attributeDefinitions,
       loading,
       lastResult,
       progress,
@@ -222,6 +234,7 @@ export const usePublishSettings = () => {
       config,
       priceListNames,
       priceLists,
+      attributeDefinitions,
       loading,
       lastResult,
       progress,
