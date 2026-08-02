@@ -14,6 +14,8 @@ export interface RawCatalogRow {
   id: number;
   sku: string;
   name: string;
+  /** inventory.title — the customer-facing name, null when unset. */
+  title: string | null;
   parentSku: string | null;
   basePrice: number | null;
   quantity: number | null;
@@ -27,6 +29,7 @@ export const CATALOG_QUERY = `
     i.id AS id,
     i.name AS sku,
     i.name AS name,
+    i.title AS title,
     par.name AS parentSku,
     i.price AS basePrice,
     i.quantity AS quantity,
@@ -63,6 +66,9 @@ export function mapCatalogRow(
   return {
     sku: raw.sku,
     name: raw.name,
+    // trimmed to null, so whitespace typed into the field and then cleared
+    // does not read as "this item has a title" downstream
+    title: raw.title?.trim() ? raw.title.trim() : null,
     parentSku: raw.parentSku ?? null,
     basePrice: Number(raw.basePrice ?? 0),
     quantity: Number(raw.quantity ?? 0),

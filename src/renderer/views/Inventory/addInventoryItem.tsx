@@ -10,6 +10,7 @@ import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useEffect, useMemo, useState } from 'react';
 import type { InsertInventoryItem, ItemType } from '@/types';
+import { usePublishColumnVisible } from '@/renderer/hooks/usePublishColumnVisible';
 import { makeAddInventorySchema } from './inventorySchemas';
 import { InventoryForm } from './InventoryForm';
 
@@ -23,9 +24,13 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
   const [openCreateForm, setOpenCreateForm] = useState(false);
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [reservedNameChars, setReservedNameChars] = useState('');
+  // the display title only means something to an installation that publishes,
+  // and only when the user is looking at publishing
+  const showPublishFields = usePublishColumnVisible();
 
   const defaultValues = {
     name: '',
+    title: '',
     description: undefined,
     price: 0,
     itemTypeId: undefined,
@@ -96,6 +101,7 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
           schema={schema}
           defaultValues={defaultValues}
           onSubmit={onSubmit}
+          hiddenFields={showPublishFields ? [] : ['title']}
           itemTypes={itemTypes}
         />
       </DialogContent>

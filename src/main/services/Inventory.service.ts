@@ -338,6 +338,9 @@ export class InventoryService {
     const result = this.stmInsertItem.run({
       ...item,
       description: item.description ?? null,
+      // same rule as updateItem: blank stores NULL, and the key must be present
+      // either way or the statement's @title parameter has nothing to bind to
+      title: item.title?.trim() || null,
       itemTypeId: item.itemTypeId ?? null,
       listPosition: item.listPosition ?? null,
     });
@@ -350,6 +353,10 @@ export class InventoryService {
       ...item,
       id: cast(item.id),
       description: item.description ?? null,
+      // blank stores NULL, not '': "no title" must have one representation, or
+      // a consumer choosing between a title and a composed one has to test for
+      // both and one caller will forget
+      title: item.title?.trim() || null,
       itemTypeId: item.itemTypeId ?? null,
       listPosition: item.listPosition ?? null,
     });
@@ -991,14 +998,15 @@ export class InventoryService {
     `);
 
     this.stmInsertItem = this.db.prepare(`
-      INSERT INTO inventory (name, description, price, itemTypeId, listPosition)
-      VALUES (@name, @description, @price, @itemTypeId, @listPosition);
+      INSERT INTO inventory (name, description, price, title, itemTypeId, listPosition)
+      VALUES (@name, @description, @price, @title, @itemTypeId, @listPosition);
     `);
 
     this.stmUpdateItem = this.db.prepare(`
       UPDATE inventory
       SET price = @price,
           description = @description,
+          title = @title,
           itemTypeId = @itemTypeId,
           listPosition = @listPosition
       WHERE id = @id;

@@ -22,6 +22,8 @@ const nameField = (reservedNameChars: string) => {
 export const addInventorySchema = z.object({
   name: nameField(''),
   price: z.coerce.number().nonnegative('Price must not be negative'), // allow 0 price to keep up with old data
+  /** see editInventorySchema.title; hidden unless this installation publishes */
+  title: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   itemTypeId: z.coerce
     .number()
@@ -41,6 +43,14 @@ export const editInventorySchema = z.object({
   name: z.string().optional(), // disabled in UI
   quantity: z.number().optional(), // disabled in UI
   price: z.coerce.number().nonnegative('Price must not be negative'), // allow 0 price to keep up with old data
+  /**
+   * What a customer should see this called, where `name` is the identifier.
+   *
+   * Editable here, unlike `name`, precisely because it is not identity: nothing
+   * keys off it, so changing it breaks nothing. Blank is the ordinary state and
+   * is stored as NULL.
+   */
+  title: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   itemTypeId: z.coerce
     .number()

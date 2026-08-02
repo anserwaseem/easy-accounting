@@ -167,7 +167,7 @@ describe('toProductsCsv', () => {
     const csv = toProductsCsv(buildPublicCatalog(rows, OPTS, 'T'));
     const [header, dataLine] = csv.trim().split('\n');
     expect(header).toBe(
-      'sku,name,parentSku,quantity,attr.note,attr.urdu,price,hasImage,publishable',
+      'sku,name,title,parentSku,quantity,attr.note,attr.urdu,price,hasImage,publishable',
     );
     expect(dataLine).toContain('"Quran, 16 line"'); // comma-quoted
     expect(dataLine).toContain('"has ""zip"""'); // quote-escaped
@@ -596,5 +596,36 @@ describe('publishBlockers is the single definition', () => {
         requireImage: false,
       }),
     ).toEqual([]);
+  });
+});
+
+describe('title (migration 023)', () => {
+  it('publishes the title when one is set', () => {
+    const cat = buildPublicCatalog(
+      [row({ title: 'Hazrat Abu Bakr Siddiq (RA)' })],
+      OPTS,
+    );
+    expect(cat.items[0].title).toBe('Hazrat Abu Bakr Siddiq (RA)');
+  });
+
+  it('publishes null when unset, rather than repeating the identifier', () => {
+    // a consumer must be able to tell "no title was given" from "the title is
+    // the code", because only the first means "compose one yourself"
+    const cat = buildPublicCatalog([row()], OPTS);
+    expect(cat.items[0].title).toBeNull();
+    expect(cat.items[0].name).toBe('S-23-G');
+  });
+
+  it('is not a publish blocker', () => {
+    // most items should never need one; requiring it would hold back a
+    // catalogue that is otherwise complete
+    expect(publishBlockers(row({ title: null }), OPTS)).toEqual([]);
+    expect(isPublishable(row({ title: null }), OPTS)).toBe(true);
+  });
+
+  it('still carries no base price alongside it', () => {
+    const cat = buildPublicCatalog([row({ title: 'Anything' })], OPTS);
+    expect(JSON.stringify(cat)).not.toContain('900');
+    expect('basePrice' in cat.items[0]).toBe(false);
   });
 });

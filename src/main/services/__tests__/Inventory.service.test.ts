@@ -48,7 +48,8 @@ function seedBasicSchema(db: Database.Database) {
       listPosition INTEGER,
       parentId INTEGER REFERENCES inventory(id),
       attributes TEXT,
-      excludeFromCatalog INTEGER NOT NULL DEFAULT 0
+      excludeFromCatalog INTEGER NOT NULL DEFAULT 0,
+      title TEXT
     );
     CREATE TABLE IF NOT EXISTS attribute_definitions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -811,6 +812,87 @@ describe('InventoryService attribute definitions', () => {
         }
       ).attributes,
     ).toBeNull();
+    db.close();
+  });
+});
+
+describe('InventoryService display title (migration 023)', () => {
+  const setup = () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const typeId = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    return { db, typeId, service: createTestDb(db) };
+  };
+  const titleOf = (db: Database.Database, name: string) =>
+    (
+      db.prepare('SELECT title FROM inventory WHERE name = ?').get(name) as {
+        title: string | null;
+      }
+    ).title;
+
+  it('stores a title given on create', () => {
+    const { db, typeId, service } = setup();
+    service.insertItem({
+      name: 'H ABU BAKR',
+      price: 40,
+      title: 'Hazrat Abu Bakr Siddiq (RA)',
+      itemTypeId: typeId,
+    });
+    expect(titleOf(db, 'H ABU BAKR')).toBe('Hazrat Abu Bakr Siddiq (RA)');
+    db.close();
+  });
+
+  it('stores NULL rather than an empty string when left blank', () => {
+    // "no title" must have one representation: a consumer choosing between a
+    // stored title and a composed one would otherwise have to test for both
+    const { db, typeId, service } = setup();
+    service.insertItem({
+      name: 'S-23-G',
+      price: 1080,
+      title: '   ',
+      itemTypeId: typeId,
+    });
+    expect(titleOf(db, 'S-23-G')).toBeNull();
+    db.close();
+  });
+
+  it('updates a title, and clearing it restores NULL', () => {
+    const { db, typeId, service } = setup();
+    service.insertItem({ name: 'PEGHAM', price: 100, itemTypeId: typeId });
+    const { id } = db
+      .prepare('SELECT id FROM inventory WHERE name = ?')
+      .get('PEGHAM') as {
+      id: number;
+    };
+
+    service.updateItem({ id, price: 100, title: 'Paigham' });
+    expect(titleOf(db, 'PEGHAM')).toBe('Paigham');
+
+    service.updateItem({ id, price: 100, title: '' });
+    expect(titleOf(db, 'PEGHAM')).toBeNull();
+    db.close();
+  });
+
+  it('leaves the identifying name alone when the title changes', () => {
+    // `name` is identity: it matches the photograph folder, the storefront SKU
+    // and the ad-feed id, so a title edit must never touch it
+    const { db, typeId, service } = setup();
+    service.insertItem({ name: 'H ALI', price: 40, itemTypeId: typeId });
+    const { id } = db
+      .prepare('SELECT id FROM inventory WHERE name = ?')
+      .get('H ALI') as {
+      id: number;
+    };
+    service.updateItem({ id, price: 40, title: 'Hazrat Ali (RA)' });
+    expect(
+      (
+        db.prepare('SELECT name FROM inventory WHERE id = ?').get(id) as {
+          name: string;
+        }
+      ).name,
+    ).toBe('H ALI');
     db.close();
   });
 });

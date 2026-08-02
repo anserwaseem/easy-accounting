@@ -50,6 +50,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
     name: row.original.name,
     quantity: row.original.quantity,
     price: row.original.price,
+    title: row.original.title ?? '',
     description: row.original.description,
     itemTypeId: row.original.itemTypeId,
     listPosition: row.original.listPosition ?? null,
@@ -129,6 +130,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
           defaultValues={defaultValues}
           onSubmit={onEdit}
           disabledFields={['name', 'quantity']}
+          hiddenFields={showPublishControls ? [] : ['title']}
           itemTypes={itemTypes}
         />
         {showPublishControls ? (

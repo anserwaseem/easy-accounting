@@ -34,6 +34,7 @@ import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { useEscapeKey } from '@/renderer/hooks/useEscapeKey';
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { usePublishEnabled } from '@/renderer/hooks/usePublishEnabled';
+import { SHOW_PUBLISH_COLUMN_KEY } from '@/renderer/hooks/usePublishColumnVisible';
 import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
 import {
   PublishStatusBadge,
@@ -62,7 +63,6 @@ import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
 /** persisted visible price-list columns (mirrors the Accounts page approach) */
 const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
 const VISIBLE_ATTRIBUTE_COLUMNS_KEY = 'inventoryVisibleAttributeColumns';
-const SHOW_PUBLISH_COLUMN_KEY = 'inventoryShowPublishColumn';
 
 /** attribute values are JSON, so render booleans and numbers readably */
 const formatAttributeValue = (value: unknown): string => {
@@ -815,6 +815,23 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       ...(publishEnabled && showPublishColumn
         ? [
             {
+              id: 'displayTitle',
+              header: 'Display title',
+              size: 220,
+              enableSorting: false,
+              // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
+              cell: ({ row }: { row: { original: InventoryItem } }) =>
+                row.original.title ? (
+                  <span className="truncate">{row.original.title}</span>
+                ) : (
+                  // an empty cell would read as missing data; this is the
+                  // ordinary state, and says what happens instead
+                  <span className="text-xs italic text-muted-foreground">
+                    from item name
+                  </span>
+                ),
+            },
+            {
               id: 'publishState',
               header: 'Publish',
               size: 150,
@@ -908,6 +925,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         ? [
             {
               title: 'Publishing',
+              // one switch, not two: the display title is publishing work, so
+              // it appears and disappears with the publish state rather than
+              // being a third thing to discover and manage
               options: [{ id: 'publishState', label: 'Publish status' }],
               selectedIds: showPublishColumn ? ['publishState'] : [],
               onToggle: () => setShowPublishColumn((prev) => !prev),

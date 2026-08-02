@@ -16,6 +16,16 @@
 export interface CatalogSourceRow {
   sku: string;
   name: string;
+  /**
+   * The customer-facing name, or null when the business has not set one.
+   *
+   * Separate from `name` because `name` is the item's identity: it matches the
+   * folder holding its photographs, the SKU on a storefront and the id in an ad
+   * feed, so it cannot change, and it is frequently a code rather than a name.
+   * A consumer that needs something to show a customer should prefer this and
+   * fall back to composing one; null is the ordinary state, not a defect.
+   */
+  title?: string | null;
   parentSku: string | null;
   /** inventory.price — the base/private price. Never published. */
   basePrice: number;
@@ -88,6 +98,7 @@ interface FullCatalogItem extends CatalogSourceRow {
 interface PublicCatalogItem {
   sku: string;
   name: string;
+  title: string | null;
   parentSku: string | null;
   quantity: number;
   attributes: Record<string, unknown>;
@@ -265,6 +276,7 @@ export function buildPublicCatalog(
     items.push({
       sku: r.sku,
       name: r.name,
+      title: r.title ?? null,
       parentSku: r.parentSku,
       quantity: r.quantity,
       attributes: publicAttributesOf(r, options.publicAttributeKeys),
@@ -303,6 +315,7 @@ export function toProductsCsv(publicCatalog: PublicCatalog): string {
   const header = [
     'sku',
     'name',
+    'title',
     'parentSku',
     'quantity',
     ...attrCols.map((k) => `attr.${k}`),
@@ -315,6 +328,7 @@ export function toProductsCsv(publicCatalog: PublicCatalog): string {
     const row = [
       it.sku,
       it.name,
+      it.title ?? '',
       it.parentSku ?? '',
       it.quantity,
       ...attrCols.map((k) => it.attributes?.[k] ?? ''),
