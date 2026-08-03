@@ -820,9 +820,21 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               size: 220,
               enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
-              cell: ({ row }: { row: { original: InventoryItem } }) =>
+              cell: ({
+                row,
+                column,
+              }: {
+                row: { original: InventoryItem };
+                // eslint-disable-next-line react/no-unused-prop-types
+                column: { getSize: () => number };
+              }) =>
                 row.original.title ? (
-                  <span className="truncate">{row.original.title}</span>
+                  <span
+                    className="block whitespace-normal break-words"
+                    style={{ maxWidth: column.getSize() }}
+                  >
+                    {row.original.title}
+                  </span>
                 ) : (
                   // an empty cell would read as missing data; this is the
                   // ordinary state, and says what happens instead
