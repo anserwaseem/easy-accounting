@@ -51,7 +51,10 @@ extraResources: # copy the file or directory with matching names directly into t
     to: 'database.db'
   - from: './src/main/migrations'
     to: 'migrations'
-    filter: ['**/*.js', '!**/index.ts'] # include only .js files and explicitly exclude index.ts
+    # only .js files ship: the runner treats every .js file in this directory as
+    # a migration, so a stray helper here would run against customer databases.
+    # __tests__ is excluded outright rather than relying on tests staying .ts.
+    filter: ['**/*.js', '!**/index.ts', '!**/__tests__/**']
   - from: './assets'
     to: 'backups'
     filter: ['!**/*'] # create an empty directory for backups to ensure it exists

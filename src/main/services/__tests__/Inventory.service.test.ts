@@ -1,4 +1,6 @@
 import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
 import { InventoryService } from '..';
 
 jest.mock('electron-log', () => ({
@@ -20,6 +22,19 @@ jest.mock('../../store', () => ({
 
 jest.mock('electron', () => ({ app: { isPackaged: false } }));
 
+const SCHEMA_SQL = fs.readFileSync(
+  path.join(__dirname, '../../../sql/schema.sql'),
+  'utf-8',
+);
+
+const MIGRATIONS_DIR = path.join(__dirname, '../../migrations');
+const MIGRATIONS: { up: (db: Database.Database) => unknown }[] = fs
+  .readdirSync(MIGRATIONS_DIR)
+  .filter((f) => /^\d+\.js$/.test(f))
+  .sort()
+  // eslint-disable-next-line global-require, import/no-dynamic-require
+  .map((f) => require(path.join(MIGRATIONS_DIR, f)));
+
 function createTestDb(inMemoryDb: Database.Database) {
   const service = Object.create(InventoryService.prototype);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,89 +44,23 @@ function createTestDb(inMemoryDb: Database.Database) {
   return service as InventoryService;
 }
 
+/**
+ * The real schema, brought forward by the real migrations.
+ *
+ * This used to inline its own CREATE TABLE statements, which meant every new
+ * migration had to be mirrored here by hand. Forgetting that produced
+ * `no such table` failures in tests that had nothing to do with the change,
+ * and it caught us twice while adding `inventory_prices` and
+ * `attribute_definitions`.
+ *
+ * `schema.sql` alone is not enough: it is the base schema a fresh install
+ * starts from, and migrations carry it the rest of the way (`inventory
+ * .itemTypeId` among them). Running both is what a real install does, so it is
+ * what the service should be tested against.
+ */
 function seedBasicSchema(db: Database.Database) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS item_types (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      isActive INTEGER DEFAULT 1,
-      isPrimary INTEGER DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS inventory (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      description TEXT,
-      price REAL DEFAULT 0,
-      itemTypeId INTEGER REFERENCES item_types(id),
-      isActive INTEGER DEFAULT 1,
-      quantity REAL DEFAULT 0,
-      listPosition INTEGER,
-      parentId INTEGER REFERENCES inventory(id),
-      attributes TEXT,
-      excludeFromCatalog INTEGER NOT NULL DEFAULT 0,
-      title TEXT
-    );
-    CREATE TABLE IF NOT EXISTS attribute_definitions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      key TEXT NOT NULL UNIQUE,
-      label TEXT NOT NULL,
-      unit TEXT,
-      valueType TEXT NOT NULL DEFAULT 'text',
-      sortOrder INTEGER NOT NULL DEFAULT 0,
-      isActive INTEGER NOT NULL DEFAULT 1,
-      isPublic INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS price_lists (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      isActive INTEGER DEFAULT 1
-    );
-    CREATE TABLE IF NOT EXISTS inventory_prices (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      inventoryId INTEGER NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
-      priceListId INTEGER NOT NULL REFERENCES price_lists(id) ON DELETE CASCADE,
-      price REAL NOT NULL DEFAULT 0,
-      UNIQUE(inventoryId, priceListId)
-    );
-    CREATE TABLE IF NOT EXISTS invoices (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      invoiceType TEXT NOT NULL,
-      isQuotation INTEGER DEFAULT 0,
-      isReturned INTEGER DEFAULT 0,
-      returnedAt TEXT,
-      date TEXT NOT NULL,
-      accountId INTEGER,
-      referenceNumber TEXT,
-      biltyNumber TEXT,
-      cartons INTEGER,
-      invoiceNumber INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS invoice_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      invoiceId INTEGER NOT NULL REFERENCES invoices(id),
-      inventoryId INTEGER NOT NULL REFERENCES inventory(id),
-      quantity REAL NOT NULL,
-      price REAL NOT NULL,
-      discount REAL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS stock_adjustments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      inventoryId INTEGER NOT NULL REFERENCES inventory(id),
-      quantityDelta REAL NOT NULL,
-      reason TEXT,
-      date TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS inventory_opening_stock (
-      inventoryId INTEGER PRIMARY KEY,
-      quantity REAL NOT NULL,
-      asOfDate TEXT,
-      old_quantity REAL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS account (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL
-    );
-  `);
+  db.exec(SCHEMA_SQL);
+  MIGRATIONS.forEach((migration) => migration.up(db));
 }
 
 const DATES = { startDate: '2025-01-01', endDate: '2025-12-31' };
@@ -222,12 +171,12 @@ describe('InventoryService.getInventoryHealth', () => {
       )
       .run('Widget', t1).lastInsertRowid as number;
     const accId = db
-      .prepare('INSERT INTO account (name) VALUES (?)')
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
       .run('Cust').lastInsertRowid as number;
     const saleInvId = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Sale', 0, 0, '2025-06-10T12:00:00.000Z', ?, 2390)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Sale', 0, 0, '2025-06-10T12:00:00.000Z', ?, 2390)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -235,8 +184,8 @@ describe('InventoryService.getInventoryHealth', () => {
     ).run(saleInvId, invId);
     const purchInvId = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-06-15T12:00:00.000Z', ?, 88)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-06-15T12:00:00.000Z', ?, 88)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -264,12 +213,12 @@ describe('InventoryService.getInventoryHealth', () => {
       )
       .run('SlowMover', t1).lastInsertRowid as number;
     const accId = db
-      .prepare('INSERT INTO account (name) VALUES (?)')
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
       .run('Cust').lastInsertRowid as number;
     const saleInvId = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Sale', 0, 0, '2024-06-01T12:00:00.000Z', ?, 100)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Sale', 0, 0, '2024-06-01T12:00:00.000Z', ?, 100)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -320,12 +269,13 @@ describe('InventoryService.getStockAsOf', () => {
         'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 10)',
       )
       .run('Widget', t1).lastInsertRowid as number;
-    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('V')
-      .lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
+      .run('V').lastInsertRowid as number;
     const inv = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-06-01T12:00:00.000Z', ?, 1)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-06-01T12:00:00.000Z', ?, 1)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -353,12 +303,13 @@ describe('InventoryService.getStockAsOf', () => {
     db.prepare(
       'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate) VALUES (?, 5, ?)',
     ).run(invId, '2025-01-01');
-    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('V')
-      .lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
+      .run('V').lastInsertRowid as number;
     const purchSameDay = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-01-01T10:00:00.000Z', ?, 1)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-01-01T10:00:00.000Z', ?, 1)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -366,8 +317,8 @@ describe('InventoryService.getStockAsOf', () => {
     ).run(purchSameDay, invId);
     const purchLater = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-02-01T12:00:00.000Z', ?, 2)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-02-01T12:00:00.000Z', ?, 2)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -393,12 +344,13 @@ describe('InventoryService.getStockAsOf', () => {
         'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 20)',
       )
       .run('Widget', t1).lastInsertRowid as number;
-    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('C')
-      .lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
+      .run('C').lastInsertRowid as number;
     const purch = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-05-01T12:00:00.000Z', ?, 1)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-05-01T12:00:00.000Z', ?, 1)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -406,8 +358,8 @@ describe('InventoryService.getStockAsOf', () => {
     ).run(purch, invId);
     const sale = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, returnedAt, date, accountId, invoiceNumber)
-         VALUES ('Sale', 0, 1, '2025-05-10T12:00:00.000Z', '2025-05-05T12:00:00.000Z', ?, 2)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, returnedAt, date, accountId, invoiceNumber)
+         VALUES (0, 'Sale', 0, 1, '2025-05-10T12:00:00.000Z', '2025-05-05T12:00:00.000Z', ?, 2)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -432,12 +384,13 @@ describe('InventoryService.getStockAsOf', () => {
         'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 5)',
       )
       .run('Widget', t1).lastInsertRowid as number;
-    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('C')
-      .lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
+      .run('C').lastInsertRowid as number;
     const sale = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Sale', 0, 0, '2025-06-20T12:00:00.000Z', ?, 1)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Sale', 0, 0, '2025-06-20T12:00:00.000Z', ?, 1)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
