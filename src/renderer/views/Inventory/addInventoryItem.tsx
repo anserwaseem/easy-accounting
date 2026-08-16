@@ -8,9 +8,10 @@ import {
 } from 'renderer/shad/ui/dialog';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { InsertInventoryItem, ItemType } from '@/types';
-import { addInventorySchema } from './inventorySchemas';
+import { usePublishColumnVisible } from '@/renderer/hooks/usePublishColumnVisible';
+import { makeAddInventorySchema } from './inventorySchemas';
 import { InventoryForm } from './InventoryForm';
 
 interface AddInventoryItemProps {
@@ -22,37 +23,58 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
 }: AddInventoryItemProps) => {
   const [openCreateForm, setOpenCreateForm] = useState(false);
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
+  const [reservedNameChars, setReservedNameChars] = useState('');
+  // the display title only means something to an installation that publishes,
+  // and only when the user is looking at publishing
+  const showPublishFields = usePublishColumnVisible();
 
   const defaultValues = {
     name: '',
+    title: '',
     description: undefined,
     price: 0,
     itemTypeId: undefined,
     listPosition: undefined as number | undefined,
   };
 
-  // load active item types each time create dialog opens.
+  // load active item types each time create dialog opens, plus the characters
+  // this installation reserves so the name field can reject them inline
   useEffect(() => {
     if (!openCreateForm) return;
     (async () => {
       const rows = await window.electron.getItemTypes();
       setItemTypes(rows.filter((row) => row.isActive));
+      const config = await window.electron.getPublishConfig();
+      setReservedNameChars(config.reservedNameChars ?? '');
     })();
   }, [openCreateForm]);
 
-  const onSubmit = async (values: InsertInventoryItem) => {
-    const res = await window.electron.insertInventoryItem({ ...values });
+  const schema = useMemo(
+    () => makeAddInventorySchema(reservedNameChars),
+    [reservedNameChars],
+  );
 
-    if (res) {
-      setOpenCreateForm(false);
-      refetchInventory();
-      toast({
-        description: 'Inventory Item created successfully',
-        variant: 'success',
-      });
-    } else {
+  const onSubmit = async (values: InsertInventoryItem) => {
+    try {
+      const res = await window.electron.insertInventoryItem({ ...values });
+      if (res) {
+        setOpenCreateForm(false);
+        refetchInventory();
+        toast({
+          description: 'Inventory Item created successfully',
+          variant: 'success',
+        });
+        return;
+      }
       toast({
         description: 'Inventory Item not created',
+        variant: 'destructive',
+      });
+    } catch (error) {
+      // the service rejects some names the form cannot know about; show the
+      // reason rather than letting it surface as a raw IPC error dialog
+      toast({
+        description: (error as Error)?.message ?? 'Inventory Item not created',
         variant: 'destructive',
       });
     }
@@ -76,9 +98,10 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
           <DialogTitle>Create Inventory Item</DialogTitle>
         </DialogHeader>
         <InventoryForm
-          schema={addInventorySchema}
+          schema={schema}
           defaultValues={defaultValues}
           onSubmit={onSubmit}
+          hiddenFields={showPublishFields ? [] : ['title']}
           itemTypes={itemTypes}
         />
       </DialogContent>

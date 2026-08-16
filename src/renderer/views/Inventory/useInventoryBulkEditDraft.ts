@@ -4,6 +4,7 @@ import {
   buildBulkPriceListPatches,
   countDirtyDraftRows,
   getDraftDisplayValue,
+  priceListIdOfCol,
   type InventoryBulkEditCol,
   type InventoryBulkEditDraftFields,
 } from './inventoryBulkEdit';
@@ -105,10 +106,18 @@ export const useInventoryBulkEditDraft =
     const writeDraftField = useCallback(
       (inventoryId: number, col: InventoryBulkEditCol, raw: string) => {
         const prev = draftRef.current.get(inventoryId) ?? {};
-        draftRef.current.set(inventoryId, {
-          ...prev,
-          [col]: raw,
-        });
+        const priceListId = priceListIdOfCol(col);
+        // price-list columns nest under listPrices so the patch builder can
+        // tell them apart from the base price / list #
+        draftRef.current.set(
+          inventoryId,
+          priceListId !== null
+            ? {
+                ...prev,
+                listPrices: { ...(prev.listPrices ?? {}), [priceListId]: raw },
+              }
+            : { ...prev, [col]: raw },
+        );
         // intentionally no setState — keystroke must not re-render virtualized rows
         dirtyCountRef.current = countDirtyDraftRows(
           originalsRef.current,
@@ -146,10 +155,24 @@ export const useInventoryBulkEditDraft =
         return inventory.map((row) => {
           const patch = byId.get(row.id);
           if (!patch) return row;
+          // list prices must be merged too, else the grid shows stale values
+          // until the next refetch
+          let nextListPrices = row.listPrices;
+          if (patch.listPrices?.length) {
+            nextListPrices = { ...(row.listPrices ?? {}) };
+            for (const entry of patch.listPrices) {
+              if (entry.price == null) {
+                delete nextListPrices[entry.priceListId];
+              } else {
+                nextListPrices[entry.priceListId] = entry.price;
+              }
+            }
+          }
           return {
             ...row,
             price: patch.price,
             listPosition: patch.listPosition,
+            listPrices: nextListPrices,
           };
         });
       },

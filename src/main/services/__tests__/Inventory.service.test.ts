@@ -1,4 +1,6 @@
 import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
 import { InventoryService } from '..';
 
 jest.mock('electron-log', () => ({
@@ -20,6 +22,19 @@ jest.mock('../../store', () => ({
 
 jest.mock('electron', () => ({ app: { isPackaged: false } }));
 
+const SCHEMA_SQL = fs.readFileSync(
+  path.join(__dirname, '../../../sql/schema.sql'),
+  'utf-8',
+);
+
+const MIGRATIONS_DIR = path.join(__dirname, '../../migrations');
+const MIGRATIONS: { up: (db: Database.Database) => unknown }[] = fs
+  .readdirSync(MIGRATIONS_DIR)
+  .filter((f) => /^\d+\.js$/.test(f))
+  .sort()
+  // eslint-disable-next-line global-require, import/no-dynamic-require
+  .map((f) => require(path.join(MIGRATIONS_DIR, f)));
+
 function createTestDb(inMemoryDb: Database.Database) {
   const service = Object.create(InventoryService.prototype);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,63 +44,23 @@ function createTestDb(inMemoryDb: Database.Database) {
   return service as InventoryService;
 }
 
+/**
+ * The real schema, brought forward by the real migrations.
+ *
+ * This used to inline its own CREATE TABLE statements, which meant every new
+ * migration had to be mirrored here by hand. Forgetting that produced
+ * `no such table` failures in tests that had nothing to do with the change,
+ * and it caught us twice while adding `inventory_prices` and
+ * `attribute_definitions`.
+ *
+ * `schema.sql` alone is not enough: it is the base schema a fresh install
+ * starts from, and migrations carry it the rest of the way (`inventory
+ * .itemTypeId` among them). Running both is what a real install does, so it is
+ * what the service should be tested against.
+ */
 function seedBasicSchema(db: Database.Database) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS item_types (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      isActive INTEGER DEFAULT 1,
-      isPrimary INTEGER DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS inventory (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      description TEXT,
-      price REAL DEFAULT 0,
-      itemTypeId INTEGER REFERENCES item_types(id),
-      isActive INTEGER DEFAULT 1,
-      quantity REAL DEFAULT 0,
-      listPosition INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS invoices (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      invoiceType TEXT NOT NULL,
-      isQuotation INTEGER DEFAULT 0,
-      isReturned INTEGER DEFAULT 0,
-      returnedAt TEXT,
-      date TEXT NOT NULL,
-      accountId INTEGER,
-      referenceNumber TEXT,
-      biltyNumber TEXT,
-      cartons INTEGER,
-      invoiceNumber INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS invoice_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      invoiceId INTEGER NOT NULL REFERENCES invoices(id),
-      inventoryId INTEGER NOT NULL REFERENCES inventory(id),
-      quantity REAL NOT NULL,
-      price REAL NOT NULL,
-      discount REAL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS stock_adjustments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      inventoryId INTEGER NOT NULL REFERENCES inventory(id),
-      quantityDelta REAL NOT NULL,
-      reason TEXT,
-      date TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS inventory_opening_stock (
-      inventoryId INTEGER PRIMARY KEY,
-      quantity REAL NOT NULL,
-      asOfDate TEXT,
-      old_quantity REAL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS account (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL
-    );
-  `);
+  db.exec(SCHEMA_SQL);
+  MIGRATIONS.forEach((migration) => migration.up(db));
 }
 
 const DATES = { startDate: '2025-01-01', endDate: '2025-12-31' };
@@ -196,12 +171,12 @@ describe('InventoryService.getInventoryHealth', () => {
       )
       .run('Widget', t1).lastInsertRowid as number;
     const accId = db
-      .prepare('INSERT INTO account (name) VALUES (?)')
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
       .run('Cust').lastInsertRowid as number;
     const saleInvId = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Sale', 0, 0, '2025-06-10T12:00:00.000Z', ?, 2390)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Sale', 0, 0, '2025-06-10T12:00:00.000Z', ?, 2390)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -209,8 +184,8 @@ describe('InventoryService.getInventoryHealth', () => {
     ).run(saleInvId, invId);
     const purchInvId = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-06-15T12:00:00.000Z', ?, 88)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-06-15T12:00:00.000Z', ?, 88)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -238,12 +213,12 @@ describe('InventoryService.getInventoryHealth', () => {
       )
       .run('SlowMover', t1).lastInsertRowid as number;
     const accId = db
-      .prepare('INSERT INTO account (name) VALUES (?)')
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
       .run('Cust').lastInsertRowid as number;
     const saleInvId = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Sale', 0, 0, '2024-06-01T12:00:00.000Z', ?, 100)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Sale', 0, 0, '2024-06-01T12:00:00.000Z', ?, 100)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -294,12 +269,13 @@ describe('InventoryService.getStockAsOf', () => {
         'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 10)',
       )
       .run('Widget', t1).lastInsertRowid as number;
-    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('V')
-      .lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
+      .run('V').lastInsertRowid as number;
     const inv = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-06-01T12:00:00.000Z', ?, 1)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-06-01T12:00:00.000Z', ?, 1)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -327,12 +303,13 @@ describe('InventoryService.getStockAsOf', () => {
     db.prepare(
       'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate) VALUES (?, 5, ?)',
     ).run(invId, '2025-01-01');
-    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('V')
-      .lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
+      .run('V').lastInsertRowid as number;
     const purchSameDay = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-01-01T10:00:00.000Z', ?, 1)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-01-01T10:00:00.000Z', ?, 1)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -340,8 +317,8 @@ describe('InventoryService.getStockAsOf', () => {
     ).run(purchSameDay, invId);
     const purchLater = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-02-01T12:00:00.000Z', ?, 2)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-02-01T12:00:00.000Z', ?, 2)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -367,12 +344,13 @@ describe('InventoryService.getStockAsOf', () => {
         'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 20)',
       )
       .run('Widget', t1).lastInsertRowid as number;
-    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('C')
-      .lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
+      .run('C').lastInsertRowid as number;
     const purch = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Purchase', 0, 0, '2025-05-01T12:00:00.000Z', ?, 1)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Purchase', 0, 0, '2025-05-01T12:00:00.000Z', ?, 1)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -380,8 +358,8 @@ describe('InventoryService.getStockAsOf', () => {
     ).run(purch, invId);
     const sale = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, returnedAt, date, accountId, invoiceNumber)
-         VALUES ('Sale', 0, 1, '2025-05-10T12:00:00.000Z', '2025-05-05T12:00:00.000Z', ?, 2)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, returnedAt, date, accountId, invoiceNumber)
+         VALUES (0, 'Sale', 0, 1, '2025-05-10T12:00:00.000Z', '2025-05-05T12:00:00.000Z', ?, 2)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -406,12 +384,13 @@ describe('InventoryService.getStockAsOf', () => {
         'INSERT INTO inventory (name, description, price, itemTypeId, quantity) VALUES (?, NULL, 10, ?, 5)',
       )
       .run('Widget', t1).lastInsertRowid as number;
-    const accId = db.prepare('INSERT INTO account (name) VALUES (?)').run('C')
-      .lastInsertRowid as number;
+    const accId = db
+      .prepare('INSERT INTO account (chartId, name) VALUES (1, ?)')
+      .run('C').lastInsertRowid as number;
     const sale = db
       .prepare(
-        `INSERT INTO invoices (invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
-         VALUES ('Sale', 0, 0, '2025-06-20T12:00:00.000Z', ?, 1)`,
+        `INSERT INTO invoices (totalAmount, invoiceType, isQuotation, isReturned, date, accountId, invoiceNumber)
+         VALUES (0, 'Sale', 0, 0, '2025-06-20T12:00:00.000Z', ?, 1)`,
       )
       .run(accId).lastInsertRowid as number;
     db.prepare(
@@ -558,6 +537,315 @@ describe('InventoryService.bulkUpdatePricesAndListPositions', () => {
         { id: idA, price: 10, listPosition: -1 },
       ]),
     ).toThrow(/Invalid list #/);
+    db.close();
+  });
+});
+
+describe('InventoryService attribute definitions', () => {
+  const seedDef = (db: any, key: string, label: string) =>
+    db
+      .prepare(
+        'INSERT INTO attribute_definitions (key, label, valueType, sortOrder) VALUES (?, ?, ?, 0)',
+      )
+      .run(key, label, 'text').lastInsertRowid as number;
+
+  it('appends new attributes after the highest order, even after a delete', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const service = createTestDb(db);
+
+    service.upsertAttributeDefinition({
+      key: 'a',
+      label: 'A',
+      valueType: 'text',
+    });
+    service.upsertAttributeDefinition({
+      key: 'b',
+      label: 'B',
+      valueType: 'text',
+    });
+    service.upsertAttributeDefinition({
+      key: 'c',
+      label: 'C',
+      valueType: 'text',
+    });
+    expect(service.getAttributeDefinitions().map((d) => d.sortOrder)).toEqual([
+      1, 2, 3,
+    ]);
+
+    // delete from the middle: a row-count based order would reuse 3 and collide
+    const middle = service
+      .getAttributeDefinitions()
+      .find((d) => d.key === 'b') as { id: number };
+    service.deleteAttributeDefinition(middle.id);
+    service.upsertAttributeDefinition({
+      key: 'd',
+      label: 'D',
+      valueType: 'text',
+    });
+
+    const orders = service.getAttributeDefinitions().map((d) => d.sortOrder);
+    expect(orders).toEqual([1, 3, 4]);
+    // and no two definitions share an order
+    expect(new Set(orders).size).toBe(orders.length);
+    db.close();
+  });
+
+  it('normalises order to 1..N on reorder, healing gaps and duplicates', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    // deliberately messy starting state: a gap and a duplicate
+    db.prepare(
+      'INSERT INTO attribute_definitions (key,label,valueType,sortOrder) VALUES (?,?,?,?)',
+    ).run('a', 'A', 'text', 5);
+    db.prepare(
+      'INSERT INTO attribute_definitions (key,label,valueType,sortOrder) VALUES (?,?,?,?)',
+    ).run('b', 'B', 'text', 5);
+    db.prepare(
+      'INSERT INTO attribute_definitions (key,label,valueType,sortOrder) VALUES (?,?,?,?)',
+    ).run('c', 'C', 'text', 99);
+
+    const service = createTestDb(db);
+    const byKey = (k: string) =>
+      service.getAttributeDefinitions().find((d) => d.key === k)!.id;
+    const ok = service.reorderAttributeDefinitions([
+      byKey('c'),
+      byKey('a'),
+      byKey('b'),
+    ]);
+
+    expect(ok).toBe(true);
+    expect(
+      service.getAttributeDefinitions().map((d) => [d.key, d.sortOrder]),
+    ).toEqual([
+      ['c', 1],
+      ['a', 2],
+      ['b', 3],
+    ]);
+    db.close();
+  });
+
+  it('ignores unknown ids and an empty reorder', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const service = createTestDb(db);
+    service.upsertAttributeDefinition({
+      key: 'a',
+      label: 'A',
+      valueType: 'text',
+    });
+    const { id } = service.getAttributeDefinitions()[0];
+
+    expect(service.reorderAttributeDefinitions([])).toBe(false);
+    expect(service.reorderAttributeDefinitions([999])).toBe(false);
+    // a known id mixed with junk still applies to the known one
+    expect(service.reorderAttributeDefinitions([999, id])).toBe(true);
+    expect(service.getAttributeDefinitions()[0].sortOrder).toBe(1);
+    db.close();
+  });
+
+  it('reports how many items use each attribute', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    seedDef(db, 'size_in', 'Paper size');
+    seedDef(db, 'unused_key', 'Unused');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('A', JSON.stringify({ size_in: '5 x 9' }));
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('B', JSON.stringify({ size_in: '6 x 9' }));
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, NULL)',
+    ).run('C');
+
+    const service = createTestDb(db);
+    const defs = service.getAttributeDefinitions();
+    const byKey = Object.fromEntries(defs.map((d) => [d.key, d.usageCount]));
+    expect(byKey).toEqual({ size_in: 2, unused_key: 0 });
+    db.close();
+  });
+
+  it('deletes an unused attribute but defers one in use to a confirmation', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const usedId = seedDef(db, 'size_in', 'Paper size');
+    const unusedId = seedDef(db, 'unused_key', 'Unused');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('A', JSON.stringify({ size_in: '5 x 9' }));
+
+    const service = createTestDb(db);
+    expect(service.deleteAttributeDefinition(unusedId)).toEqual({
+      deleted: true,
+      usageCount: 0,
+      valuesRemoved: 0,
+    });
+    // in use: not deleted yet, and reports how many items are affected
+    expect(service.deleteAttributeDefinition(usedId)).toEqual({
+      deleted: false,
+      usageCount: 1,
+      valuesRemoved: 0,
+    });
+    expect(service.getAttributeDefinitions().map((d) => d.key)).toEqual([
+      'size_in',
+    ]);
+    db.close();
+  });
+
+  it('force-deletes an in-use attribute and strips it from every item', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const usedId = seedDef(db, 'size_in', 'Paper size');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('A', JSON.stringify({ size_in: '5 x 9', pages: 100 }));
+    // this item keeps nothing else, so its attributes should end up NULL
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('B', JSON.stringify({ size_in: '6 x 9' }));
+
+    const service = createTestDb(db);
+    expect(service.deleteAttributeDefinition(usedId, true)).toEqual({
+      deleted: true,
+      usageCount: 2,
+      valuesRemoved: 2,
+    });
+    expect(service.getAttributeDefinitions()).toEqual([]);
+
+    const rows = db
+      .prepare('SELECT name, attributes FROM inventory ORDER BY name')
+      .all() as Array<{ name: string; attributes: string | null }>;
+    // other keys survive; an item left with nothing stores NULL
+    expect(JSON.parse(rows[0].attributes as string)).toEqual({ pages: 100 });
+    expect(rows[1].attributes).toBeNull();
+    db.close();
+  });
+
+  it('leaves items without the attribute untouched when force-deleting', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const id = seedDef(db, 'size_in', 'Paper size');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('HasIt', JSON.stringify({ size_in: '5 x 9' }));
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity, attributes) VALUES (?, 1, 0, ?)',
+    ).run('Other', JSON.stringify({ pages: 50 }));
+
+    const service = createTestDb(db);
+    expect(service.deleteAttributeDefinition(id, true).valuesRemoved).toBe(1);
+    const other = db
+      .prepare("SELECT attributes FROM inventory WHERE name = 'Other'")
+      .get() as { attributes: string };
+    expect(JSON.parse(other.attributes)).toEqual({ pages: 50 });
+    db.close();
+  });
+
+  it('drops blank values so "has attributes" stays meaningful', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const id = db
+      .prepare('INSERT INTO inventory (name, price, quantity) VALUES (?, 1, 0)')
+      .run('A').lastInsertRowid as number;
+
+    const service = createTestDb(db);
+    service.updateInventoryAttributes(id, { a: 'x', b: '', c: null });
+    const stored = db
+      .prepare('SELECT attributes FROM inventory WHERE id = ?')
+      .get(id) as { attributes: string | null };
+    expect(JSON.parse(stored.attributes as string)).toEqual({ a: 'x' });
+
+    // clearing everything stores NULL rather than an empty object
+    service.updateInventoryAttributes(id, { a: '' });
+    expect(
+      (
+        db.prepare('SELECT attributes FROM inventory WHERE id = ?').get(id) as {
+          attributes: string | null;
+        }
+      ).attributes,
+    ).toBeNull();
+    db.close();
+  });
+});
+
+describe('InventoryService display title (migration 023)', () => {
+  const setup = () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const typeId = db
+      .prepare('INSERT INTO item_types (name, isActive) VALUES (?, 1)')
+      .run('T1').lastInsertRowid as number;
+    return { db, typeId, service: createTestDb(db) };
+  };
+  const titleOf = (db: Database.Database, name: string) =>
+    (
+      db.prepare('SELECT title FROM inventory WHERE name = ?').get(name) as {
+        title: string | null;
+      }
+    ).title;
+
+  it('stores a title given on create', () => {
+    const { db, typeId, service } = setup();
+    service.insertItem({
+      name: 'H ABU BAKR',
+      price: 40,
+      title: 'Hazrat Abu Bakr Siddiq (RA)',
+      itemTypeId: typeId,
+    });
+    expect(titleOf(db, 'H ABU BAKR')).toBe('Hazrat Abu Bakr Siddiq (RA)');
+    db.close();
+  });
+
+  it('stores NULL rather than an empty string when left blank', () => {
+    // "no title" must have one representation: a consumer choosing between a
+    // stored title and a composed one would otherwise have to test for both
+    const { db, typeId, service } = setup();
+    service.insertItem({
+      name: 'S-23-G',
+      price: 1080,
+      title: '   ',
+      itemTypeId: typeId,
+    });
+    expect(titleOf(db, 'S-23-G')).toBeNull();
+    db.close();
+  });
+
+  it('updates a title, and clearing it restores NULL', () => {
+    const { db, typeId, service } = setup();
+    service.insertItem({ name: 'PEGHAM', price: 100, itemTypeId: typeId });
+    const { id } = db
+      .prepare('SELECT id FROM inventory WHERE name = ?')
+      .get('PEGHAM') as {
+      id: number;
+    };
+
+    service.updateItem({ id, price: 100, title: 'Paigham' });
+    expect(titleOf(db, 'PEGHAM')).toBe('Paigham');
+
+    service.updateItem({ id, price: 100, title: '' });
+    expect(titleOf(db, 'PEGHAM')).toBeNull();
+    db.close();
+  });
+
+  it('leaves the identifying name alone when the title changes', () => {
+    // `name` is identity: it matches the photograph folder, the storefront SKU
+    // and the ad-feed id, so a title edit must never touch it
+    const { db, typeId, service } = setup();
+    service.insertItem({ name: 'H ALI', price: 40, itemTypeId: typeId });
+    const { id } = db
+      .prepare('SELECT id FROM inventory WHERE name = ?')
+      .get('H ALI') as {
+      id: number;
+    };
+    service.updateItem({ id, price: 40, title: 'Hazrat Ali (RA)' });
+    expect(
+      (
+        db.prepare('SELECT name FROM inventory WHERE id = ?').get(id) as {
+          name: string;
+        }
+      ).name,
+    ).toBe('H ALI');
     db.close();
   });
 });

@@ -2,6 +2,8 @@ import type { Database, Statement } from 'better-sqlite3';
 import { get } from 'lodash';
 import type {
   ApiResponse,
+  AttributeDefinition,
+  UpsertAttributeDefinition,
   ApplyListPositionsResult,
   ApplyStockAdjustmentPayload,
   BulkPriceListPositionPatch,
@@ -18,7 +20,10 @@ import type {
 } from 'types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
+import { itemNameError } from '../utils/itemName';
+import { getPublishConfig } from '../utils/publishConfig';
 import { cast } from '../utils/sqlite';
+import { parseJsonRecord, parseListPrices } from '../utils/inventoryJson';
 import { raise } from '../utils/general';
 
 @logErrors
@@ -88,6 +93,34 @@ export class InventoryService {
 
   private stmUpdatePriceAndListPositionById!: Statement;
 
+  private stmUpsertInventoryPrice!: Statement;
+
+  private stmGetAttributeDefinitions!: Statement;
+
+  private stmInsertAttributeDefinition!: Statement;
+
+  private stmUpdateAttributeDefinition!: Statement;
+
+  private stmToggleAttributeDefinition!: Statement;
+
+  private stmSetAttributeDefinitionPublic!: Statement;
+
+  private stmSetItemExcluded!: Statement;
+
+  private stmGetPublicAttributeKeys!: Statement;
+
+  private stmSetAttributeDefinitionOrder!: Statement;
+
+  private stmUpdateInventoryAttributes!: Statement;
+
+  private stmDeleteAttributeDefinition!: Statement;
+
+  private stmCountAttributeUsage!: Statement;
+
+  private stmRemoveAttributeFromItems!: Statement;
+
+  private stmDeleteInventoryPrice!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -99,8 +132,166 @@ export class InventoryService {
   }
 
   getInventory(): InventoryItem[] {
-    const results = this.stmGetInventory.all() as InventoryItem[];
-    return results;
+    const results = this.stmGetInventory.all() as Array<
+      Omit<InventoryItem, 'attributes' | 'listPrices'> & {
+        attributes?: string | null;
+        listPricesJson?: string | null;
+      }
+    >;
+    return results.map(({ attributes, listPricesJson, ...item }) => ({
+      ...item,
+      attributes: parseJsonRecord(attributes),
+      listPrices: parseListPrices(listPricesJson),
+    }));
+  }
+
+  /** All custom attribute definitions, in display order. */
+  getAttributeDefinitions(): AttributeDefinition[] {
+    return this.stmGetAttributeDefinitions.all() as AttributeDefinition[];
+  }
+
+  /** Creates a definition (no-op when the key exists) or updates one by id. */
+  upsertAttributeDefinition(input: UpsertAttributeDefinition): boolean {
+    const key = input.key?.trim();
+    const label = input.label?.trim();
+    if (!key || !label) return false;
+    const params = {
+      key,
+      label,
+      unit: input.unit?.trim() || null,
+      valueType: input.valueType,
+      // publishing is opt-in: a new attribute is private until marked public,
+      // so an internal key cannot reach the public catalog by being forgotten
+      isPublic: input.isPublic ? 1 : 0,
+      // null lets the insert append after the current highest order
+      sortOrder: input.sortOrder ?? null,
+    };
+    if (input.id) {
+      return (
+        this.stmUpdateAttributeDefinition.run({
+          ...params,
+          sortOrder: input.sortOrder ?? 0,
+          id: cast(input.id),
+        }).changes > 0
+      );
+    }
+    return this.stmInsertAttributeDefinition.run(params).changes > 0;
+  }
+
+  /**
+   * Deletes a definition.
+   *
+   * When items still use it, the call reports the usage instead of deleting, so
+   * the caller can confirm first. Passing `force` then deletes the definition
+   * AND strips its value from every item, in one transaction — values left
+   * behind would keep appearing in the published catalog with no way to edit
+   * them.
+   */
+  deleteAttributeDefinition(
+    id: number,
+    force = false,
+  ): { deleted: boolean; usageCount: number; valuesRemoved: number } {
+    const def = this.getAttributeDefinitions().find((d) => d.id === id);
+    if (!def) return { deleted: false, usageCount: 0, valuesRemoved: 0 };
+
+    const { c: usageCount } = this.stmCountAttributeUsage.get(def.key) as {
+      c: number;
+    };
+    if (usageCount > 0 && !force) {
+      return { deleted: false, usageCount, valuesRemoved: 0 };
+    }
+
+    let valuesRemoved = 0;
+    let deleted = false;
+    this.db.transaction(() => {
+      if (usageCount > 0) {
+        valuesRemoved = this.stmRemoveAttributeFromItems.run({
+          key: def.key,
+        }).changes;
+      }
+      deleted = this.stmDeleteAttributeDefinition.run(cast(id)).changes > 0;
+    })();
+
+    return { deleted, usageCount, valuesRemoved };
+  }
+
+  /**
+   * Rewrites display order from the given id sequence, assigning 1..N.
+   *
+   * Normalising rather than swapping two values makes the operation idempotent
+   * and self-healing: any gaps or duplicate orders left by older data are
+   * cleaned up as a side effect of the next move.
+   */
+  reorderAttributeDefinitions(orderedIds: number[]): boolean {
+    if (orderedIds.length === 0) return false;
+    const known = new Set(this.getAttributeDefinitions().map((d) => d.id));
+    const ids = orderedIds.filter((id) => known.has(id));
+    if (ids.length === 0) return false;
+
+    this.db.transaction(() => {
+      ids.forEach((id, index) => {
+        this.stmSetAttributeDefinitionOrder.run(index + 1, cast(id));
+      });
+    })();
+    return true;
+  }
+
+  /** Marks an attribute publishable (or not) — see CatalogOptions.publicAttributeKeys. */
+  @logErrors
+  setAttributeDefinitionPublic(id: number, isPublic: boolean): boolean {
+    return (
+      this.stmSetAttributeDefinitionPublic.run(isPublic ? 1 : 0, cast(id))
+        .changes > 0
+    );
+  }
+
+  /**
+   * Holds an item back from the published catalog, or releases it.
+   *
+   * Separate from price, image and attributes so a business never has to damage
+   * its own data — deleting a price to stop something being sold online — to
+   * make a publishing decision.
+   */
+  @logErrors
+  setItemExcludedFromCatalog(id: number, excluded: boolean): boolean {
+    return this.stmSetItemExcluded.run(excluded ? 1 : 0, cast(id)).changes > 0;
+  }
+
+  /** Attribute keys marked public and active — the catalog whitelist. */
+  @logErrors
+  getPublicAttributeKeys(): string[] {
+    return (this.stmGetPublicAttributeKeys.all() as { key: string }[]).map(
+      (r) => r.key,
+    );
+  }
+
+  @logErrors
+  setAttributeDefinitionActive(id: number, isActive: boolean): boolean {
+    return (
+      this.stmToggleAttributeDefinition.run(cast(isActive), cast(id)).changes >
+      0
+    );
+  }
+
+  /**
+   * Replaces an item's attributes. Keys with an empty value are dropped so the
+   * stored JSON stays free of blanks, which keeps the published catalog clean
+   * and keeps the "has attributes" publish check meaningful.
+   */
+  updateInventoryAttributes(
+    inventoryId: number,
+    attributes: Record<string, unknown>,
+  ): boolean {
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(attributes ?? {})) {
+      if (value === '' || value === null || value === undefined) continue;
+      cleaned[key] = value;
+    }
+    const json =
+      Object.keys(cleaned).length > 0 ? JSON.stringify(cleaned) : null;
+    return (
+      this.stmUpdateInventoryAttributes.run(json, cast(inventoryId)).changes > 0
+    );
   }
 
   saveInventory(inventory: InventoryItem[]): boolean {
@@ -111,6 +302,7 @@ export class InventoryService {
     let success = true;
     this.db.transaction(() => {
       for (const item of inventory) {
+        InventoryService.assertNameAllowed(item.name);
         const result = this.stmInsertItem.run({
           name: item.name,
           description: item.description ?? null,
@@ -128,10 +320,27 @@ export class InventoryService {
     return success;
   }
 
+  /**
+   * Rejects a name using a character this installation has reserved.
+   *
+   * Enforced in the service rather than only in the form: names also arrive via
+   * import and via IPC, and a name that breaks the downstream path mapping
+   * fails silently later (a product carrying another product's image), so it is
+   * worth refusing at the single point every write goes through.
+   */
+  private static assertNameAllowed(name: string): void {
+    const error = itemNameError(name, getPublishConfig().reservedNameChars);
+    if (error) throw new Error(error);
+  }
+
   insertItem(item: InsertInventoryItem): boolean {
+    InventoryService.assertNameAllowed(item.name);
     const result = this.stmInsertItem.run({
       ...item,
       description: item.description ?? null,
+      // same rule as updateItem: blank stores NULL, and the key must be present
+      // either way or the statement's @title parameter has nothing to bind to
+      title: item.title?.trim() || null,
       itemTypeId: item.itemTypeId ?? null,
       listPosition: item.listPosition ?? null,
     });
@@ -139,10 +348,15 @@ export class InventoryService {
   }
 
   updateItem(item: UpdateInventoryItem): boolean {
+    if (item.name) InventoryService.assertNameAllowed(item.name);
     const result = this.stmUpdateItem.run({
       ...item,
       id: cast(item.id),
       description: item.description ?? null,
+      // blank stores NULL, not '': "no title" must have one representation, or
+      // a consumer choosing between a title and a composed one has to test for
+      // both and one caller will forget
+      title: item.title?.trim() || null,
       itemTypeId: item.itemTypeId ?? null,
       listPosition: item.listPosition ?? null,
     });
@@ -302,6 +516,33 @@ export class InventoryService {
           listPosition: patch.listPosition,
         });
         updated += result.changes;
+
+        // named price lists: a null price removes the item from that list
+        for (const entry of patch.listPrices ?? []) {
+          if (!Number.isFinite(entry.priceListId) || entry.priceListId <= 0) {
+            raise(`Invalid price list id for inventory id ${patch.id}`);
+          }
+          if (
+            entry.price != null &&
+            (!Number.isFinite(entry.price) || entry.price < 0)
+          ) {
+            raise(
+              `Invalid ${entry.priceListId} list price for inventory id ${patch.id}`,
+            );
+          }
+          if (entry.price == null) {
+            this.stmDeleteInventoryPrice.run(
+              cast(patch.id),
+              cast(entry.priceListId),
+            );
+          } else {
+            this.stmUpsertInventoryPrice.run(
+              cast(patch.id),
+              cast(entry.priceListId),
+              entry.price,
+            );
+          }
+        }
       }
     })();
 
@@ -742,22 +983,30 @@ export class InventoryService {
       SELECT COUNT(*) AS 'count' from inventory;
     `);
 
+    // listPricesJson: { priceListId: price } for every list this item is priced
+    // on; parsed in getInventory so the renderer gets a plain object
     this.stmGetInventory = this.db.prepare(`
-      SELECT i.*, it.name AS itemTypeName
+      SELECT i.*, it.name AS itemTypeName,
+             (
+               SELECT json_group_object(ip.priceListId, ip.price)
+               FROM inventory_prices ip
+               WHERE ip.inventoryId = i.id
+             ) AS listPricesJson
       FROM inventory i
       LEFT JOIN item_types it ON it.id = i.itemTypeId
       ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC;
     `);
 
     this.stmInsertItem = this.db.prepare(`
-      INSERT INTO inventory (name, description, price, itemTypeId, listPosition)
-      VALUES (@name, @description, @price, @itemTypeId, @listPosition);
+      INSERT INTO inventory (name, description, price, title, itemTypeId, listPosition)
+      VALUES (@name, @description, @price, @title, @itemTypeId, @listPosition);
     `);
 
     this.stmUpdateItem = this.db.prepare(`
       UPDATE inventory
       SET price = @price,
           description = @description,
+          title = @title,
           itemTypeId = @itemTypeId,
           listPosition = @listPosition
       WHERE id = @id;
@@ -829,6 +1078,101 @@ export class InventoryService {
       LEFT JOIN item_types it ON it.id = i.itemTypeId
       WHERE i.itemTypeId IN (SELECT value FROM json_each(@itemTypeIdsJson))
       ORDER BY (i.listPosition IS NULL), i.listPosition ASC, i.id ASC
+    `);
+
+    this.stmUpsertInventoryPrice = this.db.prepare(`
+      INSERT INTO inventory_prices (inventoryId, priceListId, price)
+      VALUES (?, ?, ?)
+      ON CONFLICT(inventoryId, priceListId) DO UPDATE SET price = excluded.price
+    `);
+
+    this.stmDeleteInventoryPrice = this.db.prepare(`
+      DELETE FROM inventory_prices WHERE inventoryId = ? AND priceListId = ?
+    `);
+
+    // usageCount tells the UI whether a definition is safe to delete, and how
+    // much data a change would affect
+    this.stmGetAttributeDefinitions = this.db.prepare(`
+      SELECT ad.id, ad.key, ad.label, ad.unit, ad.valueType, ad.sortOrder,
+             ad.isActive, ad.isPublic,
+             (SELECT COUNT(*) FROM inventory i
+               WHERE i.attributes IS NOT NULL
+                 AND json_extract(i.attributes, '$.' || ad.key) IS NOT NULL
+             ) AS usageCount
+      FROM attribute_definitions ad
+      ORDER BY ad.sortOrder ASC, ad.label ASC
+    `);
+
+    this.stmDeleteAttributeDefinition = this.db.prepare(`
+      DELETE FROM attribute_definitions WHERE id = ?
+    `);
+
+    this.stmCountAttributeUsage = this.db.prepare(`
+      SELECT COUNT(*) AS c FROM inventory
+      WHERE attributes IS NOT NULL
+        AND json_extract(attributes, '$.' || ?) IS NOT NULL
+    `);
+
+    // strips one key from every item's attributes; an item left with no
+    // attributes stores NULL so the "has attributes" publish check stays true
+    // to its meaning
+    this.stmRemoveAttributeFromItems = this.db.prepare(`
+      UPDATE inventory
+         SET attributes = CASE
+               WHEN json_remove(attributes, '$.' || @key) = '{}' THEN NULL
+               ELSE json_remove(attributes, '$.' || @key)
+             END
+       WHERE attributes IS NOT NULL
+         AND json_extract(attributes, '$.' || @key) IS NOT NULL
+    `);
+
+    // a NULL sortOrder means "append": the next value is derived from the
+    // current MAX, so deleting a definition can never make a later insert
+    // collide with an existing order (counting rows would)
+    this.stmInsertAttributeDefinition = this.db.prepare(`
+      INSERT OR IGNORE INTO attribute_definitions
+        (key, label, unit, valueType, isPublic, sortOrder)
+      VALUES (
+        @key, @label, @unit, @valueType, @isPublic,
+        COALESCE(
+          @sortOrder,
+          (SELECT COALESCE(MAX(sortOrder), 0) + 1 FROM attribute_definitions)
+        )
+      )
+    `);
+
+    this.stmUpdateAttributeDefinition = this.db.prepare(`
+      UPDATE attribute_definitions
+      SET label = @label, unit = @unit, valueType = @valueType,
+          isPublic = @isPublic, sortOrder = @sortOrder
+      WHERE id = @id
+    `);
+
+    this.stmToggleAttributeDefinition = this.db.prepare(`
+      UPDATE attribute_definitions SET isActive = ? WHERE id = ?
+    `);
+
+    this.stmSetAttributeDefinitionPublic = this.db.prepare(`
+      UPDATE attribute_definitions SET isPublic = ? WHERE id = ?
+    `);
+
+    this.stmSetItemExcluded = this.db.prepare(`
+      UPDATE inventory SET excludeFromCatalog = ? WHERE id = ?
+    `);
+
+    // the whitelist the catalog builder narrows public attributes to
+    this.stmGetPublicAttributeKeys = this.db.prepare(`
+      SELECT key FROM attribute_definitions
+       WHERE isPublic = 1 AND isActive = 1
+       ORDER BY sortOrder ASC, label ASC
+    `);
+
+    this.stmSetAttributeDefinitionOrder = this.db.prepare(`
+      UPDATE attribute_definitions SET sortOrder = ? WHERE id = ?
+    `);
+
+    this.stmUpdateInventoryAttributes = this.db.prepare(`
+      UPDATE inventory SET attributes = ? WHERE id = ?
     `);
 
     this.stmGetInventoryIdsByTrimName = this.db.prepare(`

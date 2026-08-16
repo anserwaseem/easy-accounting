@@ -14,6 +14,8 @@ import type {
   BackupOperationType,
 } from '@/types';
 import { BackupService } from './services/Backup.service';
+import { PublishService } from './services/Publish.service';
+import { getPublishConfig, validatePublishConfig } from './utils/publishConfig';
 import { PrintService } from './services/Print.service';
 import { AppUpdater } from './appUpdater';
 import { store } from './store';
@@ -54,6 +56,7 @@ export default class MenuBuilder {
       MenuBuilder.getWindowMenu(),
       MenuBuilder.getHelpMenu(),
       await this.getBackupMenu(),
+      this.getPublishMenu(),
     ];
   }
 
@@ -63,6 +66,7 @@ export default class MenuBuilder {
       this.getViewMenu(),
       MenuBuilder.getHelpMenu(),
       await this.getBackupMenu(),
+      this.getPublishMenu(),
     ];
   }
 
@@ -242,6 +246,53 @@ export default class MenuBuilder {
           label: '&Close',
           accelerator: 'Ctrl+W',
           click: () => this.mainWindow.close(),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Publishing from the menu means a price or attribute edit can be pushed
+   * live from wherever the user is, instead of detouring through Settings.
+   * Configuration itself stays in Settings.
+   */
+  private getPublishMenu(): MenuItemConstructorOptions {
+    return {
+      label: 'Publish',
+      submenu: [
+        {
+          label: 'Publish Catalog',
+          click: async () => {
+            const publishService = new PublishService();
+            const config = getPublishConfig();
+            const missing = validatePublishConfig(config);
+            if (missing.length > 0) {
+              await dialog.showMessageBox(this.mainWindow, {
+                type: 'info',
+                title: 'Publishing is not set up yet',
+                message: `Add the following in Settings → Publish Catalog first:\n\n${missing.join(
+                  '\n',
+                )}`,
+              });
+              return;
+            }
+            const result = await publishService.publish();
+            let message: string;
+            if (!result.ok) {
+              message = result.error ?? 'Unknown error';
+            } else if (result.skipped) {
+              message =
+                'No catalog changes since the last publish — nothing uploaded.';
+            } else {
+              message = `Published ${result.publishableCount} item(s) to ${result.uploaded.length} file(s).`;
+            }
+            await dialog.showMessageBox(this.mainWindow, {
+              type: result.ok ? 'info' : 'error',
+              title: result.ok ? 'Catalog published' : 'Publish failed',
+              message,
+              detail: result.privateExposureWarning,
+            });
+          },
         },
       ],
     };

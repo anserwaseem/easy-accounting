@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Settings2 } from 'lucide-react';
+import { ChevronDown, Columns3 } from 'lucide-react';
 import { Button } from 'renderer/shad/ui/button';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -506,7 +506,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                     size="sm"
                     className="px-3"
                   >
-                    <Settings2 className="mr-2 h-4 w-4" />
+                    <Columns3 size={16} className="mr-2" />
                     Columns
                   </Button>
                 </PopoverTrigger>

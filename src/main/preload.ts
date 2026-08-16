@@ -34,10 +34,22 @@ import type {
   ApplyListPositionsResult,
   BulkPriceListPositionPatch,
   BulkPriceListPositionResult,
+  AttributeDefinition,
+  UpsertAttributeDefinition,
 } from 'types';
 import { InvoiceType } from 'types';
+import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
+import type {
+  CatalogPreview,
+  PriceListSummary,
+  PublishResult,
+} from './services/Publish.service';
+import type { SeedOptions, SeedPlan } from './utils/priceSeeding';
 
-export type Channels = 'backup-operation-status' | 'backup-operation-progress';
+export type Channels =
+  | 'backup-operation-status'
+  | 'backup-operation-progress'
+  | 'publish-progress';
 
 // eslint-disable-next-line no-console
 console.log('Preload process started');
@@ -164,6 +176,61 @@ const electronHandler = {
     ipcRenderer.invoke('inventory:getInventoryIdsWithHistory') as Promise<
       number[]
     >,
+
+  /** Custom attribute definitions, in display order. */
+  getAttributeDefinitions: () =>
+    ipcRenderer.invoke('attributeDefinition:getAll') as Promise<
+      AttributeDefinition[]
+    >,
+
+  upsertAttributeDefinition: (input: UpsertAttributeDefinition) =>
+    ipcRenderer.invoke('attributeDefinition:upsert', input) as Promise<boolean>,
+
+  /**
+   * Deletes an attribute definition. Without `force` an in-use attribute is
+   * left alone and its usage reported, so the caller can confirm; with `force`
+   * the values are stripped from every item too.
+   */
+  deleteAttributeDefinition: (id: number, force?: boolean) =>
+    ipcRenderer.invoke('attributeDefinition:delete', id, force) as Promise<{
+      deleted: boolean;
+      usageCount: number;
+      valuesRemoved: number;
+    }>,
+
+  /** Rewrites attribute display order from the given id sequence. */
+  reorderAttributeDefinitions: (ids: number[]) =>
+    ipcRenderer.invoke('attributeDefinition:reorder', ids) as Promise<boolean>,
+
+  setItemExcludedFromCatalog: (id: number, excluded: boolean) =>
+    ipcRenderer.invoke(
+      'inventory:setExcludedFromCatalog',
+      id,
+      excluded,
+    ) as Promise<boolean>,
+  setAttributeDefinitionPublic: (id: number, isPublic: boolean) =>
+    ipcRenderer.invoke(
+      'attributeDefinition:setPublic',
+      id,
+      isPublic,
+    ) as Promise<boolean>,
+  setAttributeDefinitionActive: (id: number, isActive: boolean) =>
+    ipcRenderer.invoke(
+      'attributeDefinition:setActive',
+      id,
+      isActive,
+    ) as Promise<boolean>,
+
+  /** Replaces an item's custom attributes. */
+  updateInventoryAttributes: (
+    id: number,
+    attributes: Record<string, unknown>,
+  ) =>
+    ipcRenderer.invoke(
+      'inventory:updateAttributes',
+      id,
+      attributes,
+    ) as Promise<boolean>,
 
   getItemTypes: () =>
     ipcRenderer.invoke('itemType:getAll') as Promise<ItemType[]>,
@@ -575,6 +642,75 @@ const electronHandler = {
    */
   updateJournalInfo: (journalId: number, fields: UpdateJournalFields) =>
     ipcRenderer.invoke('journal:updateInfo', journalId, fields),
+
+  /** Publish configuration (secrets are write-only; never returned here). */
+  getPublishConfig: () =>
+    ipcRenderer.invoke('publish:getConfig') as Promise<PublishConfig>,
+
+  savePublishConfig: (input: PublishConfigInput) =>
+    ipcRenderer.invoke('publish:saveConfig', input) as Promise<PublishConfig>,
+
+  /** Active price list names — drives the public price list picker. */
+  getPriceListNames: () =>
+    ipcRenderer.invoke('publish:getPriceListNames') as Promise<string[]>,
+
+  /** Dry-run summary of what a publish would produce. */
+  getItemPublishStatuses: () =>
+    ipcRenderer.invoke('publish:itemStatuses') as Promise<{
+      statuses: { id: number; state: string; blockers: string[] }[];
+      imagesManifestError?: string;
+    }>,
+  previewCatalog: () =>
+    ipcRenderer.invoke('publish:preview') as Promise<CatalogPreview>,
+
+  /** Generate, upload and notify. Resolves with the run outcome. */
+  runPublish: (force?: boolean) =>
+    ipcRenderer.invoke('publish:run', force) as Promise<PublishResult>,
+
+  /** All price lists with item counts, for management. */
+  getPriceLists: () =>
+    ipcRenderer.invoke('priceList:getAll') as Promise<PriceListSummary[]>,
+
+  createPriceList: (name: string) =>
+    ipcRenderer.invoke('priceList:create', name) as Promise<boolean>,
+
+  renamePriceList: (id: number, name: string) =>
+    ipcRenderer.invoke('priceList:rename', id, name) as Promise<boolean>,
+
+  setPriceListActive: (id: number, isActive: boolean) =>
+    ipcRenderer.invoke('priceList:setActive', id, isActive) as Promise<boolean>,
+
+  /** Preview a bulk seed/revision of a price list without writing. */
+  previewPriceListSeed: (
+    priceListId: number,
+    options: SeedOptions,
+    inventoryIds?: number[],
+  ) =>
+    ipcRenderer.invoke(
+      'priceList:previewSeed',
+      priceListId,
+      options,
+      inventoryIds,
+    ) as Promise<SeedPlan>,
+
+  /** Apply a bulk seed/revision of a price list. */
+  applyPriceListSeed: (
+    priceListId: number,
+    options: SeedOptions,
+    inventoryIds?: number[],
+  ) =>
+    ipcRenderer.invoke(
+      'priceList:applySeed',
+      priceListId,
+      options,
+      inventoryIds,
+    ) as Promise<{ applied: number; plan: SeedPlan }>,
+
+  /** Outcome of the most recent publish, if any. */
+  getLastPublishResult: () =>
+    ipcRenderer.invoke(
+      'publish:getLastResult',
+    ) as Promise<PublishResult | null>,
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

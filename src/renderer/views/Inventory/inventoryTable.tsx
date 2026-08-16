@@ -8,8 +8,10 @@ import {
   type MutableRefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronRight } from 'lucide-react';
 import { isNil, toString } from 'lodash';
 import {
+  cn,
   createListPositionSortingFn,
   defaultSortingFunctions,
 } from 'renderer/lib/utils';
@@ -18,6 +20,7 @@ import type {
   InventoryItem,
   ItemType,
   BulkPriceListPositionPatch,
+  AttributeDefinition,
 } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
 import {
@@ -31,6 +34,27 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { useEscapeKey } from '@/renderer/hooks/useEscapeKey';
+import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
+import { usePublishEnabled } from '@/renderer/hooks/usePublishEnabled';
+import { SHOW_PUBLISH_COLUMN_KEY } from '@/renderer/hooks/usePublishColumnVisible';
+import { ItemDetailPanel } from './ItemDetailPanel';
+import {
+  byListPosition,
+  createAttributeSortingFn,
+  createPriceListSortingFn,
+  emptyInventoryFilters,
+  formatAttributeValue,
+  matchesInventoryFilters,
+  type InventoryFilters,
+} from './inventoryQuery';
+import { InventoryFilterMenu } from './InventoryFilterMenu';
+import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
+import {
+  PublishStatusBadge,
+  PublishStatusProvider,
+  usePublishStatuses,
+} from './PublishStatus';
+import { EditItemAttributes } from './EditItemAttributes';
 import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
@@ -42,10 +66,16 @@ import {
   focusInventoryBulkEditCell,
   resolveNextBulkEditTarget,
   scheduleFocusInventoryBulkEditCell,
+  getRowListPrice,
+  priceListCol,
   type BulkEditChangeSummary,
   type InventoryBulkEditCol,
 } from './inventoryBulkEdit';
 import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
+
+/** persisted visible price-list columns (mirrors the Accounts page approach) */
+const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
+const VISIBLE_ATTRIBUTE_COLUMNS_KEY = 'inventoryVisibleAttributeColumns';
 
 const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
   (r) => r.id,
@@ -57,6 +87,14 @@ interface InventoryVirtualGridProps {
   editMode: boolean;
   virtualScrollToIndex: number | null;
   onViewModelChange: (rows: InventoryItem[]) => void;
+  /** includes attribute paths so search covers custom attribute values */
+  searchFields: string[];
+  /**
+   * omitted during bulk edit: detail rows are extra Virtuoso items, which would
+   * shift virtualScrollToIndex away from the row the editor means to reveal
+   */
+  renderRowDetail?: (item: InventoryItem) => React.ReactNode;
+  isRowExpanded?: (item: InventoryItem) => boolean;
 }
 
 /** memoized so dirtyCount/saving toolbar updates do not remount Virtuoso cells */
@@ -67,6 +105,9 @@ const InventoryVirtualGrid = memo(
     editMode,
     virtualScrollToIndex,
     onViewModelChange,
+    searchFields,
+    renderRowDetail,
+    isRowExpanded,
   }: InventoryVirtualGridProps) => (
     <DataTable
       columns={columns}
@@ -82,18 +123,13 @@ const InventoryVirtualGrid = memo(
       defaultSortField="listPosition"
       searchPersistenceKey="datatable:inventory:search"
       searchPlaceholder="Search inventory..."
-      searchFields={[
-        'name',
-        'description',
-        'itemTypeName',
-        'listPosition',
-        'price',
-        'quantity',
-      ]}
+      searchFields={searchFields}
       searchDisabled={editMode}
       autoFocusSearch={!editMode}
       virtualScrollToIndex={virtualScrollToIndex}
       onViewModelChange={onViewModelChange}
+      renderRowDetail={renderRowDetail}
+      isRowExpanded={isRowExpanded}
     />
   ),
 );
@@ -112,6 +148,8 @@ interface InventoryTableProps {
   toolbarHost?: HTMLElement | null;
   /** notify parent so filters can lock during edit session */
   onBulkEditActiveChange?: (active: boolean) => void;
+  /** notify parent which items survive the filters (scope for bulk price ops) */
+  onFilteredIdsChange?: (ids: number[]) => void;
 }
 
 export const InventoryTable: React.FC<InventoryTableProps> = ({
@@ -119,10 +157,62 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   refetchInventory,
   toolbarHost = null,
   onBulkEditActiveChange,
+  onFilteredIdsChange,
 }: InventoryTableProps) => {
   // eslint-disable-next-line no-console
   const [inventory, setInventory] = useState<InventoryItem[]>();
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
+  const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
+  const [attributeDefs, setAttributeDefs] = useState<AttributeDefinition[]>([]);
+  const [showPublishColumn, setShowPublishColumn] = useState<boolean>(() =>
+    Boolean(window.electron.store.get(SHOW_PUBLISH_COLUMN_KEY)),
+  );
+
+  // attribute filters are view state, not a preference: they answer a question
+  // being asked now, and a filter still applied next session reads as data loss
+  const [inventoryFilters, setInventoryFilters] = useState<InventoryFilters>(
+    emptyInventoryFilters,
+  );
+
+  // rows whose detail panel is open. Deliberately not persisted: an expanded
+  // row is a "look at this one now" gesture, not a preference.
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
+
+  const toggleExpanded = useCallback((id: number) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
+
+  // publishing is optional; when it is not configured these controls describe
+  // a feature this installation does not have
+  const publishEnabled = usePublishEnabled() === true;
+  const { statuses: publishStatuses, refresh: refreshPublishStatuses } =
+    usePublishStatuses(publishEnabled && showPublishColumn);
+
+  // publish state is derived from price, attributes, image and the hold-back
+  // flag, so anything that edits a row can invalidate it
+  const refetchAll = useCallback(() => {
+    refetchInventory();
+    refreshPublishStatuses();
+  }, [refetchInventory, refreshPublishStatuses]);
+  const [visibleAttributeKeys, setVisibleAttributeKeys] = useState<string[]>(
+    () => {
+      const stored = window.electron.store.get(VISIBLE_ATTRIBUTE_COLUMNS_KEY);
+      return Array.isArray(stored) ? (stored as string[]) : [];
+    },
+  );
+  // which price-list columns are shown; persisted like the Accounts page does
+  const [visiblePriceListIds, setVisiblePriceListIds] = useState<number[]>(
+    () => {
+      const stored = window.electron.store.get(VISIBLE_PRICE_LIST_COLUMNS_KEY);
+      return Array.isArray(stored) ? (stored as number[]) : [];
+    },
+  );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [itemsWithHistory, setItemsWithHistory] = useState<number[]>([]);
@@ -235,16 +325,133 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         const hasItemType = !isNil(i.itemTypeId) && Number(i.itemTypeId) > 0;
         if (!hasItemType) return false;
       }
+      if (
+        !matchesInventoryFilters(
+          i,
+          inventoryFilters,
+          (item) => publishStatuses.byId[item.id]?.state,
+        )
+      )
+        return false;
       return true;
     });
-    return rows || [];
+    return byListPosition(rows || []);
   }, [
     inventory,
     options?.hideNegativeQuantity,
     options?.hideZeroQuantity,
     options?.hideZeroPrice,
     options?.hideNoType,
+    inventoryFilters,
+    publishStatuses,
   ]);
+
+  // active price lists drive the optional price columns
+  useEffect(() => {
+    let cancelled = false;
+    window.electron
+      .getPriceLists()
+      .then((lists) => {
+        if (!cancelled) setPriceLists(lists.filter((l) => l.isActive));
+        return lists;
+      })
+      .catch(() => {
+        // price columns are optional; a failure here must not break the table
+        if (!cancelled) setPriceLists([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [options?.refresh]);
+
+  useEffect(() => {
+    window.electron.store.set(
+      VISIBLE_PRICE_LIST_COLUMNS_KEY,
+      visiblePriceListIds,
+    );
+  }, [visiblePriceListIds]);
+
+  // active attribute definitions drive the optional attribute columns
+  useEffect(() => {
+    let cancelled = false;
+    window.electron
+      .getAttributeDefinitions()
+      .then((defs) => {
+        if (!cancelled) setAttributeDefs(defs.filter((d) => d.isActive));
+        return defs;
+      })
+      .catch(() => {
+        if (!cancelled) setAttributeDefs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [options?.refresh]);
+
+  useEffect(() => {
+    window.electron.store.set(
+      VISIBLE_ATTRIBUTE_COLUMNS_KEY,
+      visibleAttributeKeys,
+    );
+  }, [visibleAttributeKeys]);
+
+  useEffect(() => {
+    window.electron.store.set(SHOW_PUBLISH_COLUMN_KEY, showPublishColumn);
+  }, [showPublishColumn]);
+
+  const toggleAttributeColumn = useCallback((key: string) => {
+    setVisibleAttributeKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  }, []);
+
+  const shownAttributeDefs = useMemo(
+    () => attributeDefs.filter((d) => visibleAttributeKeys.includes(d.key)),
+    [attributeDefs, visibleAttributeKeys],
+  );
+
+  // search covers every active attribute, whether or not its column is shown
+  const searchFields = useMemo(
+    () => [
+      'name',
+      'description',
+      'itemTypeName',
+      'listPosition',
+      'price',
+      'quantity',
+      ...attributeDefs.map((def) => `attributes.${def.key}`),
+    ],
+    [attributeDefs],
+  );
+
+  const togglePriceListColumn = useCallback((priceListId: number) => {
+    setVisiblePriceListIds((prev) =>
+      prev.includes(priceListId)
+        ? prev.filter((id) => id !== priceListId)
+        : [...prev, priceListId],
+    );
+  }, []);
+
+  // only show columns for lists that still exist and are active
+  const priceListNamesById = useMemo(
+    () =>
+      priceLists.reduce<Record<number, string>>(
+        (acc, l) => ({ ...acc, [l.id]: l.name }),
+        {},
+      ),
+    [priceLists],
+  );
+
+  const shownPriceLists = useMemo(
+    () => priceLists.filter((l) => visiblePriceListIds.includes(l.id)),
+    [priceLists, visiblePriceListIds],
+  );
+
+  // report the filtered id set upward; derived from the memoized rows so this
+  // fires only when filtering actually changes, not on every render
+  useEffect(() => {
+    onFilteredIdsChange?.(filteredInventory.map((item) => item.id));
+  }, [filteredInventory, onFilteredIdsChange]);
 
   const writeDraftFieldRef = useRef(writeDraftField);
   writeDraftFieldRef.current = writeDraftField;
@@ -381,6 +588,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       setInventory((prev) =>
         prev ? applyPatchesLocally(prev, patches) : prev,
       );
+      // a price edit can add or remove the public price, which is one of the
+      // conditions the publish badge reports
+      refreshPublishStatuses();
       discardDraft();
       exitEditMode();
       toast({
@@ -399,7 +609,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       pendingSavePatchesRef.current = [];
       setSaveSummary(null);
     }
-  }, [applyPatchesLocally, discardDraft, exitEditMode, setSaving]);
+  }, [
+    applyPatchesLocally,
+    discardDraft,
+    exitEditMode,
+    refreshPublishStatuses,
+    setSaving,
+  ]);
 
   const handleSave = useCallback(() => {
     const { current } = inventoryRef;
@@ -442,6 +658,34 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
   const columns: ColumnDef<InventoryItem>[] = useMemo(() => {
     return [
+      {
+        id: 'expander',
+        header: '',
+        size: 28,
+        enableSorting: false,
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => {
+          const isOpen = expandedIds.has(row.original.id);
+          return (
+            <button
+              type="button"
+              onClick={() => toggleExpanded(row.original.id)}
+              aria-expanded={isOpen}
+              aria-label={
+                isOpen
+                  ? `Hide details for ${row.original.name}`
+                  : `Show details for ${row.original.name}`
+              }
+              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight
+                size={14}
+                className={cn('transition-transform', isOpen && 'rotate-90')}
+              />
+            </button>
+          );
+        },
+      },
       {
         accessorKey: 'listPosition',
         header: 'List #',
@@ -552,6 +796,63 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           );
         },
       },
+      ...shownPriceLists.map<ColumnDef<InventoryItem>>((list) => {
+        const col = priceListCol(list.id);
+        return {
+          id: col,
+          header: list.name,
+          headerTooltip: `Price on the "${list.name}" price list. Blank means this item is not priced on it.`,
+          size: 96,
+          enableSorting: !editMode,
+          sortingFn: createPriceListSortingFn((item) =>
+            getRowListPrice(item, list.id),
+          ),
+          accessorFn: (item) => getRowListPrice(item, list.id) ?? undefined,
+          // eslint-disable-next-line react/no-unstable-nested-components
+          cell: ({ row }) => {
+            const stored = getRowListPrice(row.original, list.id);
+            if (!editMode) {
+              return (
+                <span className="tabular-nums">
+                  {stored == null ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    stored
+                  )}
+                </span>
+              );
+            }
+            return (
+              <InventoryBulkEditCell
+                inventoryId={row.original.id}
+                col={col}
+                defaultValue={getCellDefaultValue(row.original, col)}
+                editSessionKey={editSessionKey}
+                onWrite={stableWriteDraft}
+                onBlurCommit={stableBlurCommit}
+                onNavigate={stableNavigate}
+              />
+            );
+          },
+        };
+      }),
+      ...shownAttributeDefs.map<ColumnDef<InventoryItem>>((def) => ({
+        id: `attr:${def.key}`,
+        header: def.unit ? `${def.label} (${def.unit})` : def.label,
+        size: 110,
+        enableSorting: !editMode,
+        sortingFn: createAttributeSortingFn(def),
+        accessorFn: (item) => formatAttributeValue(item.attributes?.[def.key]),
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => {
+          const text = formatAttributeValue(row.original.attributes?.[def.key]);
+          return text ? (
+            <span className="text-xs">{text}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          );
+        },
+      })),
       {
         accessorKey: 'quantity',
         header: 'Quantity',
@@ -589,32 +890,92 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           );
         },
       },
+      ...(publishEnabled && showPublishColumn
+        ? [
+            {
+              id: 'displayTitle',
+              header: 'Display title',
+              size: 220,
+              enableSorting: false,
+              // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
+              cell: ({
+                row,
+                column,
+              }: {
+                row: { original: InventoryItem };
+                // eslint-disable-next-line react/no-unused-prop-types
+                column: { getSize: () => number };
+              }) =>
+                row.original.title ? (
+                  <span
+                    className="block whitespace-normal break-words"
+                    style={{ maxWidth: column.getSize() }}
+                  >
+                    {row.original.title}
+                  </span>
+                ) : (
+                  // an empty cell would read as missing data; this is the
+                  // ordinary state, and says what happens instead
+                  <span className="text-xs italic text-muted-foreground">
+                    from item name
+                  </span>
+                ),
+            },
+            {
+              id: 'publishState',
+              header: 'Publish',
+              size: 150,
+              enableSorting: false,
+              headerTooltip:
+                'Filter by publish state using the Filters button.',
+              // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
+              cell: ({ row }: { row: { original: InventoryItem } }) => (
+                <PublishStatusBadge itemId={row.original.id} />
+              ),
+            },
+          ]
+        : []),
       {
         header: 'Actions',
         enableSorting: false,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <div className="flex items-center gap-1">
+          // -ml-2 cancels the icon buttons' internal padding so the first
+          // glyph lines up with the "Actions" header text rather than sitting
+          // 8px inside it
+          <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
             {editMode ? (
-              <span className="text-xs text-muted-foreground">—</span>
+              <span className="ml-2 text-xs text-muted-foreground">—</span>
             ) : (
               <>
                 <AdjustStock
                   item={row.original}
                   refetchInventory={refetchInventory}
                 />
+                <EditItemAttributes
+                  item={row.original}
+                  onUpdated={refetchAll}
+                />
                 <EditInventoryItem
                   row={row}
-                  refetchInventory={refetchInventory}
+                  refetchInventory={refetchAll}
+                  refreshPublishStatuses={refreshPublishStatuses}
+                  showPublishControls={publishEnabled && showPublishColumn}
                 />
               </>
             )}
           </div>
         ),
-        size: 1,
+        // three 32px icon buttons + gaps; a shrink-to-fit width made the third
+        // button overflow the column
+        size: 112,
       },
     ];
-    // updateItemType closes over itemTypes/editMode; columns rebuild when those change
+    // updateItemType closes over itemTypes/editMode; columns rebuild when those
+    // change. This list is maintained by hand (exhaustive-deps is off below),
+    // so anything a column definition reads MUST be added here — a cell that
+    // closes over state missing from this list silently renders the value from
+    // whenever the memo last ran.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     editMode,
@@ -623,32 +984,123 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     itemTypes,
     itemsWithHistory,
     refetchInventory,
+    refetchAll,
+    refreshPublishStatuses,
     stableBlurCommit,
     stableNavigate,
     stableWriteDraft,
+    shownPriceLists,
+    shownAttributeDefs,
+    publishEnabled,
+    showPublishColumn,
+    publishStatuses,
+    expandedIds,
+    toggleExpanded,
   ]);
 
+  // the panel lists every active attribute and price list the item has a value
+  // for, so it stays useful even while those columns are hidden from the grid
+  const renderRowDetail = useCallback(
+    (item: InventoryItem) => (
+      <ItemDetailPanel item={item} attributeDefs={attributeDefs} />
+    ),
+    [attributeDefs],
+  );
+
+  const isRowExpanded = useCallback(
+    (item: InventoryItem) => expandedIds.has(item.id),
+    [expandedIds],
+  );
+
+  // one picker for every optional column, rendered in the page header so the
+  // grid keeps its vertical space regardless of how many lists/attributes exist
+  const columnGroups = useMemo(
+    () => [
+      {
+        title: 'Price lists',
+        options: priceLists.map((l) => ({ id: String(l.id), label: l.name })),
+        selectedIds: visiblePriceListIds.map(String),
+        onToggle: (id: string) => togglePriceListColumn(Number(id)),
+        onSetAll: (ids: string[]) => setVisiblePriceListIds(ids.map(Number)),
+      },
+      {
+        title: 'Attributes',
+        options: attributeDefs.map((d) => ({ id: d.key, label: d.label })),
+        selectedIds: visibleAttributeKeys,
+        onToggle: toggleAttributeColumn,
+        onSetAll: setVisibleAttributeKeys,
+      },
+      ...(publishEnabled
+        ? [
+            {
+              title: 'Publishing',
+              // one switch, not two: the display title is publishing work, so
+              // it appears and disappears with the publish state rather than
+              // being a third thing to discover and manage
+              options: [{ id: 'publishState', label: 'Publish status' }],
+              selectedIds: showPublishColumn ? ['publishState'] : [],
+              onToggle: () => setShowPublishColumn((prev) => !prev),
+              onSetAll: (ids: string[]) => setShowPublishColumn(ids.length > 0),
+            },
+          ]
+        : []),
+    ],
+    [
+      priceLists,
+      visiblePriceListIds,
+      togglePriceListColumn,
+      attributeDefs,
+      visibleAttributeKeys,
+      toggleAttributeColumn,
+      publishEnabled,
+      showPublishColumn,
+    ],
+  );
+
   const toolbar = (
-    <InventoryBulkEditToolbar
-      editMode={editMode}
-      dirtyCount={dirtyCount}
-      saving={saving}
-      onEnterEdit={handleEnterEdit}
-      onSave={handleSave}
-      onDiscard={handleDiscard}
-    />
+    <>
+      {!editMode ? (
+        <>
+          <ColumnVisibilityMenu groups={columnGroups} disabled={editMode} />
+          <InventoryFilterMenu
+            attributeDefs={attributeDefs}
+            items={inventory ?? []}
+            filters={inventoryFilters}
+            onChange={setInventoryFilters}
+            publishEnabled={publishEnabled && showPublishColumn}
+            disabled={editMode}
+          />
+        </>
+      ) : null}
+      <InventoryBulkEditToolbar
+        editMode={editMode}
+        dirtyCount={dirtyCount}
+        saving={saving}
+        onEnterEdit={handleEnterEdit}
+        onSave={handleSave}
+        onDiscard={handleDiscard}
+      />
+    </>
   );
 
   return (
     <div className="pt-1">
       {toolbarHost ? createPortal(toolbar, toolbarHost) : null}
-      <InventoryVirtualGrid
-        columns={columns}
-        data={filteredInventory}
-        editMode={editMode}
-        virtualScrollToIndex={virtualScrollToIndex}
-        onViewModelChange={handleViewModelChange}
-      />
+      {/* statuses flow through context so a refresh re-renders only the badges;
+          putting them in the column definitions remounted every cell, which
+          destroyed any dialog a user had open inside one */}
+      <PublishStatusProvider value={publishStatuses}>
+        <InventoryVirtualGrid
+          columns={columns}
+          data={filteredInventory}
+          editMode={editMode}
+          virtualScrollToIndex={virtualScrollToIndex}
+          onViewModelChange={handleViewModelChange}
+          searchFields={searchFields}
+          renderRowDetail={editMode ? undefined : renderRowDetail}
+          isRowExpanded={editMode ? undefined : isRowExpanded}
+        />
+      </PublishStatusProvider>
       <StockHistoryDialog
         open={historyOpen}
         onOpenChange={setHistoryOpen}
@@ -684,7 +1136,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         }
         description={
           saveSummary ? (
-            <InventoryBulkEditSaveSummary summary={saveSummary} />
+            <InventoryBulkEditSaveSummary
+              summary={saveSummary}
+              priceListNames={priceListNamesById}
+            />
           ) : (
             'Save price and list # changes?'
           )

@@ -186,8 +186,42 @@ export type HasMiniView = {
   isMini?: boolean;
 };
 
+/** A business-defined custom attribute (migration 020). */
+export interface AttributeDefinition {
+  id: number;
+  key: string;
+  label: string;
+  unit?: string | null;
+  valueType: 'text' | 'number' | 'bool';
+  sortOrder: number;
+  /** SQLite stores booleans as 0/1 */
+  isActive: 0 | 1;
+  /**
+   * Whether this attribute is included in the published public catalog.
+   * Opt-in: attributes routinely hold internal bookkeeping, so a new one is
+   * private until marked public.
+   */
+  isPublic: 0 | 1;
+  /** how many items currently carry a value for this attribute */
+  usageCount?: number;
+}
+
+export interface UpsertAttributeDefinition {
+  id?: number;
+  key: string;
+  label: string;
+  unit?: string | null;
+  valueType: 'text' | 'number' | 'bool';
+  sortOrder?: number;
+  /** defaults to false — publishing is opt-in */
+  isPublic?: boolean;
+}
+
 /** Inventory */
 export interface InventoryItem extends Omit<BaseEntity, 'date'> {
+  /**
+   * identity: the photo folder, the SKU, the ad-feed id, what a customer quotes
+   */
   name: string;
   price: number;
   quantity: number;
@@ -195,6 +229,19 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   itemTypeId?: number | null;
   itemTypeName?: string | null;
   listPosition?: number | null;
+  /** variant grouping: the head item of this item's family, if any (migration 020) */
+  parentId?: number | null;
+  /** custom attributes keyed by attribute_definitions.key (migration 020) */
+  attributes?: Record<string, unknown>;
+  /** price per named price list, keyed by price_lists.id (migration 020) */
+  listPrices?: Record<number, number>;
+  /** explicit "hold this back from the catalog" override (migration 022) */
+  excludeFromCatalog?: 0 | 1;
+  /**
+   * customer-facing name, distinct from the identifying `name` (migration 023).
+   * Null/absent is normal: a consumer then composes a title of its own.
+   */
+  title?: string | null;
 }
 export interface UpdateInventoryItem {
   id: number;
@@ -202,6 +249,8 @@ export interface UpdateInventoryItem {
   name?: string;
   quantity?: number;
   description?: string;
+  /** customer-facing name; blank clears it (migration 023) */
+  title?: string | null;
   itemTypeId?: number | null;
   listPosition?: number | null;
 }
@@ -209,6 +258,8 @@ export interface InsertInventoryItem {
   name: string;
   price: number;
   description?: string;
+  /** customer-facing name; blank stores NULL (migration 023) */
+  title?: string | null;
   itemTypeId?: number | null;
   listPosition?: number | null;
 }
@@ -225,6 +276,11 @@ export interface BulkPriceListPositionPatch {
   id: number;
   price: number;
   listPosition: number | null;
+  /**
+   * Prices on named price lists that changed for this item (migration 020).
+   * A null price removes the item from that list.
+   */
+  listPrices?: Array<{ priceListId: number; price: number | null }>;
 }
 
 export interface BulkPriceListPositionResult {

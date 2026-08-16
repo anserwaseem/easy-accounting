@@ -101,6 +101,9 @@ CREATE TABLE IF NOT EXISTS "inventory" ( -- "002 migration"
     "quantity" INTEGER NOT NULL DEFAULT 0,
     -- "itemTypeId" INTEGER REFERENCES "item_types"("id"), -- "015 migration"
     -- "listPosition" INTEGER, -- "019 migration"
+    -- "parentId" INTEGER REFERENCES "inventory"("id"), -- variant grouping: head item of the family -- "020 migration"
+    -- "attributes" TEXT, -- JSON object keyed by attribute_definitions.key -- "020 migration"
+    -- "excludeFromCatalog" BOOLEAN NOT NULL DEFAULT 0, -- "022 migration"
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -132,6 +135,39 @@ CREATE TABLE IF NOT EXISTS "profile_type_discounts" ( -- "015 migration"
   UNIQUE("profileId", "itemTypeId"),
   FOREIGN KEY ("profileId") REFERENCES "discount_profiles"("id") ON DELETE CASCADE,
   FOREIGN KEY ("itemTypeId") REFERENCES "item_types"("id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "attribute_definitions" ( -- "020 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "key" TEXT NOT NULL UNIQUE,
+    "label" TEXT NOT NULL,
+    "unit" TEXT,
+    "valueType" TEXT NOT NULL DEFAULT 'text',
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "isActive" BOOLEAN NOT NULL DEFAULT 1,
+    "isPublic" BOOLEAN NOT NULL DEFAULT 0, -- "021 migration"
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS "price_lists" ( -- "020 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "name" TEXT NOT NULL UNIQUE,
+    "isActive" BOOLEAN NOT NULL DEFAULT 1,
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS "inventory_prices" ( -- "020 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "inventoryId" INTEGER NOT NULL,
+    "priceListId" INTEGER NOT NULL,
+    "price" REAL NOT NULL DEFAULT 0,
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    UNIQUE("inventoryId", "priceListId"),
+    FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id") ON DELETE CASCADE,
+    FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
@@ -449,3 +485,63 @@ BEGIN
 END;
 
 COMMIT;
+
+-- attribute_definitions -- "020 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_attribute_definitions_add_timestamp
+AFTER INSERT ON attribute_definitions
+BEGIN
+  UPDATE attribute_definitions SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_attribute_definitions_add_timestamp
+AFTER UPDATE ON attribute_definitions
+BEGIN
+  UPDATE attribute_definitions SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- price_lists -- "020 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_price_lists_add_timestamp
+AFTER INSERT ON price_lists
+BEGIN
+  UPDATE price_lists SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_price_lists_add_timestamp
+AFTER UPDATE ON price_lists
+BEGIN
+  UPDATE price_lists SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- inventory_prices -- "020 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_inventory_prices_add_timestamp
+AFTER INSERT ON inventory_prices
+BEGIN
+  UPDATE inventory_prices SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_inventory_prices_add_timestamp
+AFTER UPDATE ON inventory_prices
+BEGIN
+  UPDATE inventory_prices SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- indexes -- "020 migration"
+-- idx_inventory_parentId is created by the migration, not here: "parentId" is a
+-- migration-added column so it does not exist in this baseline schema.
+CREATE INDEX IF NOT EXISTS idx_inventory_prices_inventoryId ON inventory_prices(inventoryId);
+CREATE INDEX IF NOT EXISTS idx_inventory_prices_priceListId ON inventory_prices(priceListId);

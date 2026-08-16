@@ -20,7 +20,7 @@ src/main/                  ← Main process (Node/Electron)
 │   ├── Print.service       ← HTML-to-PDF via webContents.printToPDF()
 │   ├── Pricing.service     ← Pricing logic
 │   └── Backup.service      ← Database backup
-├── migrations/            ← JS migration files (002, 003, … 018)
+├── migrations/            ← JS migration files (001 … 023), run in name order at startup
 ├── errorLogger.ts
 ├── main.ts                ← IPC handler registration (ipcMain.handle('domain:method', …))
 └── preload.ts             ← Exposes window.electron.* to renderer
@@ -66,6 +66,38 @@ To run sql cmds directly on .db:
 
 ```bash
 sqlite3 release/app/database.db "SELECT * FROM migrations"
+```
+
+### Packaging needs the pinned Node and an older Python
+
+`npm run package:*` rebuilds `better-sqlite3` from source, and that step fails on
+a default modern toolchain in two separate ways:
+
+- **Node must be the pinned version.** `.nvmrc` says `v18.20` because Electron 25
+  bundles Node 18.15. On Node 24 the native rebuild produces the wrong ABI even
+  when it compiles.
+- **Python 3.12 removed `distutils`, which node-gyp 9.4.1 imports.** On Python
+  3.12+ the build dies with `ModuleNotFoundError: No module named 'distutils'`
+  before it reaches any of our code.
+
+```bash
+nvm use 18.20.3 && npm_config_python=/opt/homebrew/bin/python3.11 npm run package:mac
+```
+
+`prepackage` renames the working `release/app/database.db` aside and seeds a
+schema-only one in its place; `postpackage` puts it back. **`postpackage` only
+runs if the build succeeds**, so a failed or interrupted package leaves the real
+database at `release/app/database_backup.db`. Take a copy before packaging.
+
+**Packaging leaves `better-sqlite3` built for the last architecture it targeted.**
+`package:mac` builds arm64 then x64, so it finishes by rebuilding the native
+module for x64 and every test that opens a real database then fails on an arm64
+machine with `incompatible architecture (have 'x86_64', need 'arm64')`. It looks
+like the test broke; nothing did. Rebuild before trusting a test run after
+packaging:
+
+```bash
+npm run rebuild
 ```
 
 ## Cursor Rules (from `.cursor/rules/lint.mdc`)
@@ -130,3 +162,24 @@ The invoice line-item table uses `useFieldArray` with `react-virtuoso` (virtual 
 - Journal `billNumber` is set from `invoiceNumber`; journal `discountPercentage` is derived from the account’s discount profile per item type only when a single policy discount applies (otherwise left unset; missing `itemTypeId` is treated as 0%).
 - Some customers have multiple accounts suffixed by item-type/discount tiers (e.g. `-T`, `-TT`); a single invoice can split ledger/journals per suffixed account while still being “one invoice per customer”.
 - Customer item-type tier for sale invoices uses **account code** only (`getHeaderTypedSuffixFromCode`): split-by-type row resolution and split-off mismatch warnings; display names are not authoritative.
+- **`src/sql/schema.sql` is the base schema, not the current one.** A fresh install execs it and then runs every migration on top, so it lags: it carries `attribute_definitions` but not `inventory.itemTypeId`. Anything needing the real shape (tests included) must exec the schema _and_ apply the migrations, which is what `seedBasicSchema` in `Inventory.service.test.ts` now does.
+- **Migrations are covered by `src/main/migrations/__tests__/migrations.test.ts`**, which drives the real `MigrationRunner` over both paths a release meets: a fresh install, and a database left on 019. A new migration needs no new test to be covered by the fresh-install and idempotency cases; add a case only when it transforms existing rows, since nothing else checks that data survives.
+- **Never renumber or edit a released migration file.** The runner keys applied state on the `name` field, so changing a name re-runs the migration on every existing install and changing the body silently skips it on installs that already recorded it.
+- **Do not add "rename item" without a migration path.** `inventory.name` is the SKU, and the publishing pipeline uses it as the identity key everywhere downstream — image folder, R2 prefix, images manifest, WooCommerce `sku`, Meta feed `id`. Renaming forks the product: azs-ops' `sync_woo.py` would create a _second_ WooCommerce product at a new URL and `--prune` would draft the original, moving its order history, reviews and SEO onto a hidden product, while the new one loses its photograph (the masters folder still carries the old name). The immutability is currently enforced by omission — `UPDATE inventory` in `Inventory.service.ts` does not set `name`, and `editInventoryItem.tsx` passes `disabledFields={['name', 'quantity']}` — which reads like an oversight rather than a decision. If renaming is ever wanted it needs a coordinated rename map in azs-ops that moves the R2 prefix and updates the existing Woo product in place; see azs-ops `CLAUDE.md`.
+
+# Deferred Tasks
+
+- [ ] Make Settings sections Accordion-style for better organization and readability. Handle confusing global 'Save' button too.
+- [ ] Supabase→client-config migration for API keys
+- [ ] Stop committing real data in `release/app/database.db` (public repo). The DB is currently tracked and contains real accounts/invoices/ledger + trade prices; older snapshots are already in `origin/main` history. Plan: reuse the `prepackage-db.ts` mechanism (backs up existing DB, seeds a fresh schema-only DB from `src/sql/schema.sql`) so only a schema-only DB is ever committed — then purge existing `.db` blobs from history (filter-repo/BFG) + force-push.
+- [ ] Sticky Name column in the inventory table. **Probably unnecessary now** — the per-row accordion shipped (`ItemDetailPanel.tsx`), so attributes and price-list values no longer need columns and the identifying columns stay on screen. Revisit only if someone turns enough optional columns on to scroll the name out of view again. If it is ever needed: pin the Name cell (`position: sticky; left: 0`) with a matching sticky header cell, an opaque background so scrolled content does not show through, and a right border to mark the seam. The table is virtualised (react-virtuoso), so the offset goes on the cell, not the row wrapper.
+
+- [ ] Extend "Copy attributes from…" to multi-select: apply one source item to N selected inventory rows. The single-item case shipped (see `CopyAttributesPanel.tsx` / `copyAttributes.ts`); the bulk case needs a selection model in the inventory table plus a per-row conflict summary, since a source that fits one row may overwrite another's distinguishing value.
+
+- [ ] Drop the `data_flags` attribute. It carried import provenance ("FILL (no fehrist match)", "CHECK (partial match)", "STOCKOUT") while the master sheet was being reconciled; that work is done and the values are now noise on 175 items. It is already private (`isPublic = 0`) so nothing leaks, but it still shows in the attributes editor and competes for attention. Delete the definition and the values together — a definition without values reads as "not filled in yet" rather than "retired".
+
+- [ ] Consider a `lamination` boolean attribute (yes/no). Several bindings already encode it in free text ("Golden Embossed + Glossy Laminate", "Laminated Four-Color Art Card"), which means it cannot be filtered on and splits one real property across binding values. If it becomes an attribute it joins the `Features` facet automatically (see `FEATURE_FLAGS` in azs-ops `sync_woo.py`), like `tajweedi`/`zip`/`khushbu`. Worth confirming with the business first that it is a property buyers choose by, not an incidental finish.
+
+- [ ] Finish query coverage in the inventory table. **Sorting is complete**: attribute columns sort by declared type, price-list columns numerically, Display title as text, and Publish by attention needed (not ready, held back, ready, then non-candidates) — all with empties last in both directions, via `attributeQuery.ts`. **Attribute filtering is done** (`AttributeFilterMenu`, value or `(not set)`, combined with AND), which is what answers "which 16-line items have no binding set". Note the original task claimed search covered the name only; it already covered every attribute through `searchFields`. Still missing: search does not reach price-list prices (they live in `listPrices` keyed by id, not a flat path lodash `get` can read) or publish status, and neither of those can be filtered. Extend `attributeQuery.ts` rather than adding per-column special cases.
+
+- [ ] _(lowest priority)_ Un-pin `@aws-sdk/client-s3` after upgrading Electron/Node. It is pinned to exactly `3.965.0` — the last release supporting Node 18 (`3.968.0` moved to `engines: node >=20`), because Electron 25 bundles Node 18.15. Once Electron (and `.nvmrc`, currently `v18.20`) moves to Node 20+, bump to the current SDK. The pin is intentional: `^` would let npm drift into a Node-20-only release that installs with only a warning and fails at release time. Note the SDK is lazy-loaded inside `PublishService.publish()` (keeps ~18MB out of the startup graph and avoids `TextDecoder` errors in jsdom tests) — keep it that way.

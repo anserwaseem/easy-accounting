@@ -83,8 +83,9 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 shrink-0"
           title="Adjust stock"
+          aria-label="Adjust stock"
         >
           <SlidersHorizontal size={16} />
         </Button>

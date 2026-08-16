@@ -29,6 +29,15 @@ interface InventoryFormProps<
   onSubmit: (values: T) => Promise<void>;
   onReset?: () => void;
   disabledFields?: string[];
+  /**
+   * Fields to leave out entirely, rather than show disabled.
+   *
+   * `disabledFields` is for a value the user may read but not change; this is
+   * for one that does not apply to them at all, where a greyed-out box would
+   * only raise a question. Used for the publish-only fields on an installation
+   * that is not publishing.
+   */
+  hiddenFields?: string[];
   itemTypes?: ItemType[];
 }
 
@@ -40,6 +49,7 @@ export const InventoryForm = <
   onSubmit,
   onReset,
   disabledFields = [],
+  hiddenFields = [],
   itemTypes = [],
 }: InventoryFormProps<T>) => {
   const form = useForm<T>({
@@ -68,11 +78,15 @@ export const InventoryForm = <
   const inventoryFieldLabel = (key: string): string => {
     if (key === 'itemTypeId') return 'Type';
     if (key === 'listPosition') return 'List #';
+    // "title" alone reads as a synonym for the name field directly above it
+    if (key === 'title') return 'Display title';
     return key;
   };
 
   const fields = map(
-    schemaKeys.filter((key) => !baseEntityKeyNames.includes(key)),
+    schemaKeys.filter(
+      (key) => !baseEntityKeyNames.includes(key) && !hiddenFields.includes(key),
+    ),
     (key) => ({
       name: key as Path<T>,
       label: inventoryFieldLabel(key),

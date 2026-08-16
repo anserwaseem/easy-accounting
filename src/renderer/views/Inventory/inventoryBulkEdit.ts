@@ -1,11 +1,54 @@
 import type { BulkPriceListPositionPatch, InventoryItem } from 'types';
 
-export type InventoryBulkEditCol = 'price' | 'listPosition';
+/**
+ * Editable columns. Beyond the base price and list #, each active price list
+ * contributes a column identified as `list:<priceListId>` so a business can
+ * maintain several named prices per item without a code change.
+ */
+export type InventoryBulkEditCol = 'price' | 'listPosition' | `list:${number}`;
 
 export interface InventoryBulkEditDraftFields {
   price?: string;
   listPosition?: string;
+  /** keyed by price list id, as typed */
+  listPrices?: Record<number, string>;
 }
+
+/** Builds the column id for a price list. */
+export const priceListCol = (priceListId: number): InventoryBulkEditCol =>
+  `list:${priceListId}`;
+
+/** Extracts the price list id from a column id, or null for base columns. */
+export const priceListIdOfCol = (col: InventoryBulkEditCol): number | null => {
+  if (!col.startsWith('list:')) return null;
+  const id = Number(col.slice('list:'.length));
+  return Number.isFinite(id) ? id : null;
+};
+
+/** A list price as stored, or null when the item is not priced on that list. */
+export const getRowListPrice = (
+  row: InventoryItem,
+  priceListId: number,
+): number | null => {
+  const value = row.listPrices?.[priceListId];
+  return typeof value === 'number' ? value : null;
+};
+
+export const formatListPriceDisplay = (value: number | null): string =>
+  value == null ? '' : String(value);
+
+/** empty clears the price on that list; otherwise a number ≥ 0 */
+export const parseListPriceInput = (
+  raw: string,
+): { ok: true; value: number | null } | { ok: false; error: string } => {
+  const trimmed = raw.trim();
+  if (trimmed === '') return { ok: true, value: null };
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) {
+    return { ok: false, error: 'Price must be a number ≥ 0' };
+  }
+  return { ok: true, value: n };
+};
 
 export const INVENTORY_BULK_EDIT_COLS: InventoryBulkEditCol[] = [
   'listPosition',
@@ -27,6 +70,13 @@ export const getDraftDisplayValue = (
     return draft?.price !== undefined
       ? draft.price
       : formatPriceDisplay(row.price);
+  }
+  const priceListId = priceListIdOfCol(col);
+  if (priceListId !== null) {
+    const typed = draft?.listPrices?.[priceListId];
+    return typed !== undefined
+      ? typed
+      : formatListPriceDisplay(getRowListPrice(row, priceListId));
   }
   return draft?.listPosition !== undefined
     ? draft.listPosition
@@ -78,6 +128,13 @@ export const isDraftRowDirty = (
     const parsed = parseListPositionInput(draft.listPosition);
     const original = row.listPosition ?? null;
     if (!parsed.ok || parsed.value !== original) return true;
+  }
+  if (draft.listPrices) {
+    for (const [key, raw] of Object.entries(draft.listPrices)) {
+      const parsed = parseListPriceInput(raw);
+      const original = getRowListPrice(row, Number(key));
+      if (!parsed.ok || parsed.value !== original) return true;
+    }
   }
   return false;
 };
@@ -131,7 +188,26 @@ export const buildBulkPriceListPatches = (
       listPosition = parsed.value;
     }
 
-    patches.push({ id, price, listPosition });
+    const listPrices: Array<{ priceListId: number; price: number | null }> = [];
+    if (draft.listPrices) {
+      for (const [key, raw] of Object.entries(draft.listPrices)) {
+        const priceListId = Number(key);
+        const parsed = parseListPriceInput(raw);
+        if (!parsed.ok) {
+          return { ok: false, error: `${row.name}: ${parsed.error}` };
+        }
+        if (parsed.value !== getRowListPrice(row, priceListId)) {
+          listPrices.push({ priceListId, price: parsed.value });
+        }
+      }
+    }
+
+    patches.push({
+      id,
+      price,
+      listPosition,
+      ...(listPrices.length > 0 ? { listPrices } : {}),
+    });
   }
 
   return { ok: true, patches };
@@ -146,6 +222,12 @@ export interface BulkEditChangeRow {
   /** set only when list # changed */
   listFrom?: number | null;
   listTo?: number | null;
+  /** one entry per changed price list */
+  priceListChanges?: Array<{
+    priceListId: number;
+    from: number | null;
+    to: number | null;
+  }>;
 }
 
 export interface BulkEditChangeSummary {
@@ -158,6 +240,8 @@ export interface BulkEditChangeSummary {
   hasPriceChanges: boolean;
   /** true if any row has a list # change */
   hasListChanges: boolean;
+  /** true if any row changed a named price list */
+  hasPriceListChanges: boolean;
 }
 
 const formatListPosLabel = (value: number | null): string =>
@@ -175,6 +259,7 @@ export const buildBulkEditChangeSummary = (
   const rows: BulkEditChangeRow[] = [];
   let hasPriceChanges = false;
   let hasListChanges = false;
+  let hasPriceListChanges = false;
 
   for (const patch of patches) {
     const original = originalsById.get(patch.id);
@@ -198,7 +283,20 @@ export const buildBulkEditChangeSummary = (
       hasListChanges = true;
     }
 
-    if (row.priceTo !== undefined || row.listTo !== undefined) {
+    if (patch.listPrices?.length) {
+      row.priceListChanges = patch.listPrices.map((entry) => ({
+        priceListId: entry.priceListId,
+        from: getRowListPrice(original, entry.priceListId),
+        to: entry.price,
+      }));
+      hasPriceListChanges = true;
+    }
+
+    if (
+      row.priceTo !== undefined ||
+      row.listTo !== undefined ||
+      row.priceListChanges?.length
+    ) {
       rows.push(row);
     }
   }
@@ -211,6 +309,7 @@ export const buildBulkEditChangeSummary = (
     itemCount: patches.length,
     hasPriceChanges,
     hasListChanges,
+    hasPriceListChanges,
   };
 };
 
