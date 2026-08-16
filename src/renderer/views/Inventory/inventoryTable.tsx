@@ -8,8 +8,10 @@ import {
   type MutableRefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronRight } from 'lucide-react';
 import { isNil, toString } from 'lodash';
 import {
+  cn,
   createListPositionSortingFn,
   defaultSortingFunctions,
 } from 'renderer/lib/utils';
@@ -35,6 +37,7 @@ import { useEscapeKey } from '@/renderer/hooks/useEscapeKey';
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { usePublishEnabled } from '@/renderer/hooks/usePublishEnabled';
 import { SHOW_PUBLISH_COLUMN_KEY } from '@/renderer/hooks/usePublishColumnVisible';
+import { ItemDetailPanel } from './ItemDetailPanel';
 import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
 import {
   PublishStatusBadge,
@@ -83,6 +86,12 @@ interface InventoryVirtualGridProps {
   onViewModelChange: (rows: InventoryItem[]) => void;
   /** includes attribute paths so search covers custom attribute values */
   searchFields: string[];
+  /**
+   * omitted during bulk edit: detail rows are extra Virtuoso items, which would
+   * shift virtualScrollToIndex away from the row the editor means to reveal
+   */
+  renderRowDetail?: (item: InventoryItem) => React.ReactNode;
+  isRowExpanded?: (item: InventoryItem) => boolean;
 }
 
 /** memoized so dirtyCount/saving toolbar updates do not remount Virtuoso cells */
@@ -94,6 +103,8 @@ const InventoryVirtualGrid = memo(
     virtualScrollToIndex,
     onViewModelChange,
     searchFields,
+    renderRowDetail,
+    isRowExpanded,
   }: InventoryVirtualGridProps) => (
     <DataTable
       columns={columns}
@@ -114,6 +125,8 @@ const InventoryVirtualGrid = memo(
       autoFocusSearch={!editMode}
       virtualScrollToIndex={virtualScrollToIndex}
       onViewModelChange={onViewModelChange}
+      renderRowDetail={renderRowDetail}
+      isRowExpanded={isRowExpanded}
     />
   ),
 );
@@ -151,6 +164,20 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [showPublishColumn, setShowPublishColumn] = useState<boolean>(() =>
     Boolean(window.electron.store.get(SHOW_PUBLISH_COLUMN_KEY)),
   );
+
+  // rows whose detail panel is open. Deliberately not persisted: an expanded
+  // row is a "look at this one now" gesture, not a preference.
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
+
+  const toggleExpanded = useCallback((id: number) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
 
   // publishing is optional; when it is not configured these controls describe
   // a feature this installation does not have
@@ -613,6 +640,34 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const columns: ColumnDef<InventoryItem>[] = useMemo(() => {
     return [
       {
+        id: 'expander',
+        header: '',
+        size: 28,
+        enableSorting: false,
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => {
+          const isOpen = expandedIds.has(row.original.id);
+          return (
+            <button
+              type="button"
+              onClick={() => toggleExpanded(row.original.id)}
+              aria-expanded={isOpen}
+              aria-label={
+                isOpen
+                  ? `Hide details for ${row.original.name}`
+                  : `Show details for ${row.original.name}`
+              }
+              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight
+                size={14}
+                className={cn('transition-transform', isOpen && 'rotate-90')}
+              />
+            </button>
+          );
+        },
+      },
+      {
         accessorKey: 'listPosition',
         header: 'List #',
         headerTooltip: 'Catalog list order (nulls sort last).',
@@ -913,7 +968,23 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     shownAttributeDefs,
     publishEnabled,
     showPublishColumn,
+    expandedIds,
+    toggleExpanded,
   ]);
+
+  // the panel lists every active attribute and price list the item has a value
+  // for, so it stays useful even while those columns are hidden from the grid
+  const renderRowDetail = useCallback(
+    (item: InventoryItem) => (
+      <ItemDetailPanel item={item} attributeDefs={attributeDefs} />
+    ),
+    [attributeDefs],
+  );
+
+  const isRowExpanded = useCallback(
+    (item: InventoryItem) => expandedIds.has(item.id),
+    [expandedIds],
+  );
 
   // one picker for every optional column, rendered in the page header so the
   // grid keeps its vertical space regardless of how many lists/attributes exist
@@ -990,6 +1061,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           virtualScrollToIndex={virtualScrollToIndex}
           onViewModelChange={handleViewModelChange}
           searchFields={searchFields}
+          renderRowDetail={editMode ? undefined : renderRowDetail}
+          isRowExpanded={editMode ? undefined : isRowExpanded}
         />
       </PublishStatusProvider>
       <StockHistoryDialog

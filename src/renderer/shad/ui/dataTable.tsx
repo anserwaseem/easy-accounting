@@ -71,6 +71,16 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
    */
   stickyFooterRow?: React.ReactNode[];
   virtualScrollToIndex?: number | null;
+  /**
+   * optional detail panel rendered in its own full-width row beneath an
+   * expanded row. Virtuoso owns the <tr> and itemContent returns only its
+   * cells, so a detail panel cannot be nested inside the row it belongs to;
+   * it is interleaved as a separate item spanning every column instead.
+   * Expansion state stays with the caller so the table holds no row state.
+   * Virtual tables only.
+   */
+  renderRowDetail?: (row: TData) => React.ReactNode;
+  isRowExpanded?: (row: TData) => boolean;
   searchPlaceholder?: string;
   searchFields?: string[];
   isMini?: boolean;
@@ -236,6 +246,8 @@ const DataTable = <TData, TValue>({
   virtualHeightMode = 'content',
   stickyFooterRow,
   virtualScrollToIndex = null,
+  renderRowDetail,
+  isRowExpanded,
   searchPlaceholder,
   searchFields,
   isMini = false,
@@ -576,6 +588,35 @@ const DataTable = <TData, TValue>({
     ));
   };
 
+  // A detail item carries the row it belongs to. Interleaving them into the
+  // data array is what lets Virtuoso measure each panel: it varies row heights
+  // per item, and a panel hidden inside a fixed-height row would be clipped.
+  type DetailItem = { detailFor: Row<TData> };
+  const isDetailItem = (item: Row<TData> | DetailItem): item is DetailItem =>
+    'detailFor' in item;
+
+  const virtualItems: (Row<TData> | DetailItem)[] =
+    renderRowDetail && isRowExpanded
+      ? rows.flatMap((row) =>
+          isRowExpanded(row.original) ? [row, { detailFor: row }] : [row],
+        )
+      : rows;
+
+  const virtualItemKey = (item: Row<TData> | DetailItem) =>
+    isDetailItem(item) ? `${item.detailFor.id}:detail` : item.id;
+
+  const renderVirtualItem = (item: Row<TData> | DetailItem) => {
+    if (!isDetailItem(item)) return renderVirtualItemCells(item);
+    return (
+      <TableCell
+        colSpan={table.getVisibleLeafColumns().length}
+        className="bg-muted/30 p-0"
+      >
+        {renderRowDetail?.(item.detailFor.original)}
+      </TableCell>
+    );
+  };
+
   if (virtual) {
     const renderVirtualMain = () => {
       if (!rows.length) {
@@ -611,14 +652,16 @@ const DataTable = <TData, TValue>({
               >
                 <TableVirtuoso
                   ref={tableVirtuosoRef}
-                  data={rows}
+                  data={virtualItems}
                   style={{ height: virtualTableHeight }}
-                  computeItemKey={(_, row) => (row as Row<TData>).id}
+                  computeItemKey={(_, item) =>
+                    virtualItemKey(item as Row<TData> | DetailItem)
+                  }
                   components={{
                     Table: TableComponent,
                   }}
-                  itemContent={(index, row) =>
-                    renderVirtualItemCells(row as Row<TData>)
+                  itemContent={(index, item) =>
+                    renderVirtualItem(item as Row<TData> | DetailItem)
                   }
                   fixedHeaderContent={() =>
                     table
@@ -643,14 +686,16 @@ const DataTable = <TData, TValue>({
         <div className="overflow-x-auto">
           <TableVirtuoso
             ref={tableVirtuosoRef}
-            data={rows}
+            data={virtualItems}
             style={{ height: virtualTableHeight }}
-            computeItemKey={(_, row) => (row as Row<TData>).id}
+            computeItemKey={(_, item) =>
+              virtualItemKey(item as Row<TData> | DetailItem)
+            }
             components={{
               Table: TableComponent,
             }}
-            itemContent={(index, row) =>
-              renderVirtualItemCells(row as Row<TData>)
+            itemContent={(index, item) =>
+              renderVirtualItem(item as Row<TData> | DetailItem)
             }
             fixedHeaderContent={() =>
               table
