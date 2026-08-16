@@ -36,3 +36,7 @@ code_context.txt
 TODOS.md
 
 .claude/settings.local.json
+
+# working databases; only the schema-only release/app/database.db is tracked
+*.db.bak
+release/app/database-*.db
