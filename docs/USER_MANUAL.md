@@ -20,7 +20,11 @@
    - [Viewing Journals](#viewing-journals)
    - [Creating a New Journal Entry](#creating-a-new-journal-entry)
    - [Viewing a Specific Journal Entry](#viewing-a-specific-journal-entry)
-7. [Support](#7-support)
+7. [Inventory](#7-inventory)
+   - [Attributes](#attributes)
+   - [Price Lists](#price-lists)
+   - [Display Title](#display-title)
+8. [Support](#8-support)
 
 ## 1. Introduction
 
@@ -122,7 +126,97 @@ This structure allows you to see how the account balance has changed over time a
 1. On the Journals page, click on a journal entry.
 2. You'll see the full details of that journal entry, including all associated accounts and amounts.
 
-## 7. Support
+## 7. Inventory
+
+The Inventory page lists the items you buy and sell. Alongside the name, price
+and quantity, each item can carry **attributes** that describe it, a price on one
+or more **price lists**, and a **display title** for use outside the app.
+
+### Attributes
+
+An attribute is a property an item can have: paper size, colour, material,
+weight. You define each attribute once, then fill in a value per item. Keeping
+them as attributes rather than writing them into the item name means you can
+compare and group items by them later.
+
+**Defining the attributes you use**
+
+1. On the Inventory page, click **Attributes** to open the **Item attributes**
+   dialog.
+2. Fill in the form at the bottom:
+   - **Name** — what you call it, for example `Paper size`
+   - **Type** — the kind of value it holds
+   - **Unit (optional)** — for example `gsm`
+   - **Public** — tick this if the attribute may be included when the catalog is
+     published
+3. Click **Add**.
+
+Attributes you no longer use can be set to **Deactivate** rather than deleted.
+The **Used by** column shows how many items still carry a value for one, so you
+can tell whether deactivating it will leave gaps.
+
+**Filling in values for an item**
+
+1. Find the item in the inventory table.
+2. Click the **Edit attributes** icon on its row.
+3. Enter a value against each attribute that applies. Leave the rest blank.
+4. Click **Save attributes**.
+
+Blank is meaningful: it records that the property does not apply to this item,
+which is different from a value of zero.
+
+**Copying attributes from another item**
+
+When a new item is a variation of an existing one, copy the values across
+instead of retyping them:
+
+1. Open **Edit attributes** on the new item.
+2. Click **Copy from...**.
+3. Search for the item to copy from and select it.
+4. Review the **Change** column, which shows what each value **Becomes**. Values
+   already set on your item are shown so you can see what will be overwritten.
+5. Click **Save attributes**.
+
+Check the review step rather than skipping it. An item that is a good source for
+most fields may still overwrite the one value that distinguishes the two.
+
+### Price Lists
+
+A price list is a named set of prices, so one item can be priced differently for
+different purposes without duplicating the item.
+
+**Creating a price list**
+
+1. On the Inventory page, click **Price lists**.
+2. Type a name into **New price list**, for example `Retail`.
+3. Optionally use **Start from** to copy the prices of an existing list as a
+   starting point, then adjust from there.
+4. Click **Save**.
+
+**Setting prices**
+
+Each price list appears as its own column in the inventory table. Type the price
+into the column for the item and list you want.
+
+If an item has no price on a list, it has no price on that list. It does not
+quietly fall back to another list's price, so an item you expect to sell from a
+list needs a price entered against it.
+
+### Display Title
+
+The item name identifies the item and is used to match it everywhere, so it
+cannot be changed once created. The **display title** is a separate, free-text
+label for the same item, used where a customer-facing name is wanted instead of
+an internal code.
+
+1. Open the item for editing.
+2. Enter the wording in **Display title**.
+3. Click **Save**.
+
+Leave it blank and the item name is used instead. Changing the title never
+changes the item name, so it is safe to reword at any time.
+
+## 8. Support
 
 If you need further assistance:
 

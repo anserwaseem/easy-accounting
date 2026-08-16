@@ -166,7 +166,7 @@ export const CopyAttributesPanel: React.FC<CopyAttributesPanelProps> = ({
                 <Input
                   id="copy-search"
                   className="pl-7"
-                  placeholder="e.g. S-23-D"
+                  placeholder="Search items"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />

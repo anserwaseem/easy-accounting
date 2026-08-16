@@ -68,6 +68,38 @@ To run sql cmds directly on .db:
 sqlite3 release/app/database.db "SELECT * FROM migrations"
 ```
 
+### Packaging needs the pinned Node and an older Python
+
+`npm run package:*` rebuilds `better-sqlite3` from source, and that step fails on
+a default modern toolchain in two separate ways:
+
+- **Node must be the pinned version.** `.nvmrc` says `v18.20` because Electron 25
+  bundles Node 18.15. On Node 24 the native rebuild produces the wrong ABI even
+  when it compiles.
+- **Python 3.12 removed `distutils`, which node-gyp 9.4.1 imports.** On Python
+  3.12+ the build dies with `ModuleNotFoundError: No module named 'distutils'`
+  before it reaches any of our code.
+
+```bash
+nvm use 18.20.3 && npm_config_python=/opt/homebrew/bin/python3.11 npm run package:mac
+```
+
+`prepackage` renames the working `release/app/database.db` aside and seeds a
+schema-only one in its place; `postpackage` puts it back. **`postpackage` only
+runs if the build succeeds**, so a failed or interrupted package leaves the real
+database at `release/app/database_backup.db`. Take a copy before packaging.
+
+**Packaging leaves `better-sqlite3` built for the last architecture it targeted.**
+`package:mac` builds arm64 then x64, so it finishes by rebuilding the native
+module for x64 and every test that opens a real database then fails on an arm64
+machine with `incompatible architecture (have 'x86_64', need 'arm64')`. It looks
+like the test broke; nothing did. Rebuild before trusting a test run after
+packaging:
+
+```bash
+npm run rebuild
+```
+
 ## Cursor Rules (from `.cursor/rules/lint.mdc`)
 
 - Always import toast from `use-toast` directly, not via a hook
