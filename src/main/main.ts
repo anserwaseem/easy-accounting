@@ -7,7 +7,7 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, shell, ipcMain } from 'electron';
 import log from 'electron-log';
 import type {
   UserCredentials,
@@ -140,7 +140,33 @@ const createWindow = async () => {
     },
   });
 
-  mainWindow.loadURL(resolveHtmlPath('index.html'));
+  const htmlPath = resolveHtmlPath('index.html');
+
+  // A window that cannot load its own UI is indistinguishable from a window
+  // that is still loading: `ready-to-show` never fires, so nothing is ever
+  // shown and the app sits there as a dock icon. In development that means the
+  // renderer dev server is not up; in a packaged build it means the bundled
+  // renderer is missing or unreadable. Neither is guessable from the outside,
+  // so name it rather than leaving a blank rectangle.
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return;
+
+      log.error(
+        `Failed to load renderer at ${validatedURL}: ${errorDescription} (${errorCode})`,
+      );
+
+      dialog.showErrorBox(
+        'Easy Accounting could not load its interface',
+        isDebug
+          ? `The renderer dev server did not respond at ${validatedURL}.\n\nStart it with "npm start" and check that nothing else is using the port.\n\n${errorDescription} (${errorCode})`
+          : `The application interface could not be loaded.\n\nPlease reinstall Easy Accounting.\n\n${errorDescription} (${errorCode})`,
+      );
+    },
+  );
+
+  mainWindow.loadURL(htmlPath);
 
   mainWindow.on('ready-to-show', () => {
     const validMainWindow = mainWindow ?? raise('"mainWindow" is not defined');
@@ -200,12 +226,55 @@ app.on('window-all-closed', () => {
   }
 });
 
+/**
+ * Startup is all-or-nothing, and the window is the last thing it does.
+ *
+ * Migrations run first, then every service is constructed — and each service
+ * prepares its statements in its constructor, against tables a migration was
+ * supposed to have created. So anything that throws up there skips
+ * `createWindow()` entirely: the process starts, no window appears, and the
+ * user is looking at a dock icon with no way to tell what went wrong. Logging
+ * is not enough, because in a packaged build nobody is watching a console.
+ *
+ * Say it out loud in a dialog, name the log file so the report is useful, and
+ * exit rather than leaving a running process with no window to close.
+ */
+const reportFatalStartupError = (error: unknown) => {
+  log.error('Fatal error during startup:', error);
+
+  const message = error instanceof Error ? error.message : String(error);
+  let logPath = '';
+  try {
+    logPath = log.transports.file.getFile().path;
+  } catch {
+    logPath = '';
+  }
+
+  dialog.showErrorBox(
+    'Easy Accounting could not start',
+    [
+      message,
+      '',
+      'Your existing data has not been changed by the step that failed.',
+      logPath && `Please send this log file to support:\n${logPath}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
+
+  app.exit(1);
+};
+
 app
   .whenReady()
   .then(async () => {
+    // Migrations must finish before any service is constructed: services
+    // prepare their statements eagerly, so a service built against a
+    // not-yet-migrated schema throws `SqliteError: no such table`. A migration
+    // that fails now stops the run and rejects, which lands in
+    // reportFatalStartupError below instead of half-starting the app.
     const migrationRunner = new MigrationRunner();
     await migrationRunner.waitForMigrations();
-    // FIXME when a migration runs where for instance a new table is added, it's corresponding service throws error `SqliteError: no such table: table_name` so should we wait for migrations to finish? but if we do and there's some issue in executing migrations, would app pause/halt?
 
     const authService = new AuthService();
     const chartService = new ChartService();
@@ -756,4 +825,4 @@ app
       if (mainWindow === null) createWindow();
     });
   })
-  .catch(console.log);
+  .catch(reportFatalStartupError);

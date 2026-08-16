@@ -165,6 +165,8 @@ export class MigrationRunner {
       if (!appliedMigrations.includes(migrationName)) {
         log.info(`Applying migration: ${migrationName}`);
 
+        let failure: Error | undefined;
+
         try {
           const result = migrationObj.up(this.db);
 
@@ -175,16 +177,35 @@ export class MigrationRunner {
             log.info(`Migration ${migrationName} applied successfully.`);
             migrationsApplied = true;
           } else if (result instanceof Error) {
-            // If migration returned an Error, log it
-            log.error(`Migration ${migrationName} failed:`, result);
+            failure = result;
           } else {
-            // If migration returned something else, log a warning
-            log.warn(
-              `Migration ${migrationName} did not return true or an Error. It may not have been applied correctly.`,
+            // A migration that returns neither is a migration whose author
+            // cannot tell us whether it worked. Treated as failure: the cost of
+            // stopping on a migration that actually succeeded is one bug report,
+            // the cost of continuing past one that did not is a broken install.
+            failure = new Error(
+              `Migration ${migrationName} did not return true or an Error, so it cannot be confirmed as applied.`,
             );
           }
         } catch (error) {
-          log.error(`Unexpected error in migration ${migrationName}:`, error);
+          failure = error instanceof Error ? error : new Error(String(error));
+        }
+
+        // Stop at the first failure rather than carrying on down the list.
+        //
+        // Migrations are ordered because each one assumes the ones before it
+        // ran. Continuing past a failure applies later migrations to a schema
+        // that is missing the table or column they expect, and — worse — the
+        // services built immediately after this prepare their statements
+        // eagerly against those tables. A single failed migration therefore
+        // stops being a schema problem and becomes an app that will not open.
+        // Leave the database at the last known-good migration and let the
+        // caller decide how to tell the user.
+        if (failure) {
+          log.error(`Migration ${migrationName} failed:`, failure);
+          throw new Error(
+            `Database migration "${migrationName}" failed: ${failure.message}`,
+          );
         }
       } else {
         log.info(`Ignoring migration: ${migrationName}`);
