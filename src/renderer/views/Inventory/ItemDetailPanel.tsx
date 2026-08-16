@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { AttributeDefinition, InventoryItem } from 'types';
+import { formatAttributeValue } from './inventoryQuery';
 
 /**
  * The per-row detail panel behind the inventory table's accordion.
@@ -14,13 +15,6 @@ import type { AttributeDefinition, InventoryItem } from 'types';
  * down the left edge. On a wide table that single column is mostly empty space,
  * and it pushes the following row off the screen for no reason.
  */
-
-/** attribute values arrive as JSON, so booleans and numbers need rendering */
-const formatValue = (value: unknown): string => {
-  if (value === null || value === undefined || value === '') return '';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  return String(value);
-};
 
 interface DetailEntry {
   label: string;
@@ -41,7 +35,7 @@ export const ItemDetailPanel = ({
       attributeDefs
         .map((def) => ({
           label: def.unit ? `${def.label} (${def.unit})` : def.label,
-          value: formatValue(item.attributes?.[def.key]),
+          value: formatAttributeValue(item.attributes?.[def.key]),
         }))
         .filter((entry) => entry.value !== ''),
     [attributeDefs, item.attributes],

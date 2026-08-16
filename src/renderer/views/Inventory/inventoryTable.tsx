@@ -38,6 +38,16 @@ import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { usePublishEnabled } from '@/renderer/hooks/usePublishEnabled';
 import { SHOW_PUBLISH_COLUMN_KEY } from '@/renderer/hooks/usePublishColumnVisible';
 import { ItemDetailPanel } from './ItemDetailPanel';
+import {
+  byListPosition,
+  createAttributeSortingFn,
+  createPriceListSortingFn,
+  emptyInventoryFilters,
+  formatAttributeValue,
+  matchesInventoryFilters,
+  type InventoryFilters,
+} from './inventoryQuery';
+import { InventoryFilterMenu } from './InventoryFilterMenu';
 import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
 import {
   PublishStatusBadge,
@@ -66,13 +76,6 @@ import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
 /** persisted visible price-list columns (mirrors the Accounts page approach) */
 const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
 const VISIBLE_ATTRIBUTE_COLUMNS_KEY = 'inventoryVisibleAttributeColumns';
-
-/** attribute values are JSON, so render booleans and numbers readably */
-const formatAttributeValue = (value: unknown): string => {
-  if (value === null || value === undefined || value === '') return '';
-  if (typeof value === 'boolean') return value ? 'Yes' : '';
-  return String(value);
-};
 
 const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
   (r) => r.id,
@@ -163,6 +166,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [attributeDefs, setAttributeDefs] = useState<AttributeDefinition[]>([]);
   const [showPublishColumn, setShowPublishColumn] = useState<boolean>(() =>
     Boolean(window.electron.store.get(SHOW_PUBLISH_COLUMN_KEY)),
+  );
+
+  // attribute filters are view state, not a preference: they answer a question
+  // being asked now, and a filter still applied next session reads as data loss
+  const [inventoryFilters, setInventoryFilters] = useState<InventoryFilters>(
+    emptyInventoryFilters,
   );
 
   // rows whose detail panel is open. Deliberately not persisted: an expanded
@@ -316,15 +325,25 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         const hasItemType = !isNil(i.itemTypeId) && Number(i.itemTypeId) > 0;
         if (!hasItemType) return false;
       }
+      if (
+        !matchesInventoryFilters(
+          i,
+          inventoryFilters,
+          (item) => publishStatuses.byId[item.id]?.state,
+        )
+      )
+        return false;
       return true;
     });
-    return rows || [];
+    return byListPosition(rows || []);
   }, [
     inventory,
     options?.hideNegativeQuantity,
     options?.hideZeroQuantity,
     options?.hideZeroPrice,
     options?.hideNoType,
+    inventoryFilters,
+    publishStatuses,
   ]);
 
   // active price lists drive the optional price columns
@@ -784,7 +803,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           header: list.name,
           headerTooltip: `Price on the "${list.name}" price list. Blank means this item is not priced on it.`,
           size: 96,
-          enableSorting: false,
+          enableSorting: !editMode,
+          sortingFn: createPriceListSortingFn((item) =>
+            getRowListPrice(item, list.id),
+          ),
           accessorFn: (item) => getRowListPrice(item, list.id) ?? undefined,
           // eslint-disable-next-line react/no-unstable-nested-components
           cell: ({ row }) => {
@@ -818,7 +840,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         id: `attr:${def.key}`,
         header: def.unit ? `${def.label} (${def.unit})` : def.label,
         size: 110,
-        enableSorting: false,
+        enableSorting: !editMode,
+        sortingFn: createAttributeSortingFn(def),
         accessorFn: (item) => formatAttributeValue(item.attributes?.[def.key]),
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
@@ -903,6 +926,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               header: 'Publish',
               size: 150,
               enableSorting: false,
+              headerTooltip:
+                'Filter by publish state using the Filters button.',
               // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
               cell: ({ row }: { row: { original: InventoryItem } }) => (
                 <PublishStatusBadge itemId={row.original.id} />
@@ -968,6 +993,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     shownAttributeDefs,
     publishEnabled,
     showPublishColumn,
+    publishStatuses,
     expandedIds,
     toggleExpanded,
   ]);
@@ -1034,7 +1060,17 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const toolbar = (
     <>
       {!editMode ? (
-        <ColumnVisibilityMenu groups={columnGroups} disabled={editMode} />
+        <>
+          <ColumnVisibilityMenu groups={columnGroups} disabled={editMode} />
+          <InventoryFilterMenu
+            attributeDefs={attributeDefs}
+            items={inventory ?? []}
+            filters={inventoryFilters}
+            onChange={setInventoryFilters}
+            publishEnabled={publishEnabled && showPublishColumn}
+            disabled={editMode}
+          />
+        </>
       ) : null}
       <InventoryBulkEditToolbar
         editMode={editMode}
