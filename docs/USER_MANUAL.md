@@ -21,6 +21,7 @@
    - [Creating a New Journal Entry](#creating-a-new-journal-entry)
    - [Viewing a Specific Journal Entry](#viewing-a-specific-journal-entry)
 7. [Inventory](#7-inventory)
+   - [Finding Items](#finding-items)
    - [Attributes](#attributes)
    - [Price Lists](#price-lists)
    - [Display Title](#display-title)
@@ -132,6 +133,31 @@ The Inventory page lists the items you buy and sell. Alongside the name, price
 and quantity, each item can carry **attributes** that describe it, a price on one
 or more **price lists**, and a **display title** for use outside the app.
 
+### Finding Items
+
+**Row details.** Attributes are not shown as columns by default, because most
+items fill only a few of them and a column for each would push the item name off
+the screen. Click the arrow at the start of a row to open a panel listing what
+that item actually has.
+
+**Search** covers the name, description, type and every attribute value, so
+typing a binding or a paper size finds the items carrying it.
+
+**Filters** answer the questions search cannot, because they are about absence
+as much as presence. Click **Filters**, then choose a value for any attribute.
+Choices combine, so you can ask for 16-line items _and_ no binding set at once.
+Alongside the real values every attribute offers **(not set)**, which is what
+makes "which items are missing this" a question you can ask.
+
+The button shows how many filters are active, and **Clear all** removes them.
+
+**Columns** switches optional columns on when you do want them side by side,
+including price lists and individual attributes.
+
+**Sorting** works on any column with a header you can click. Empty values always
+sort last, whichever direction you sort in, so an unpriced or unfilled item
+never leads the list.
+
 ### Attributes
 
 An attribute is a property an item can have: paper size, colour, material,
@@ -144,10 +170,10 @@ compare and group items by them later.
 1. On the Inventory page, click **Attributes** to open the **Item attributes**
    dialog.
 2. Fill in the form at the bottom:
-   - **Name** — what you call it, for example `Paper size`
-   - **Type** — the kind of value it holds
-   - **Unit (optional)** — for example `gsm`
-   - **Public** — tick this if the attribute may be included when the catalog is
+   - **Name**, what you call it, for example `Paper size`
+   - **Type**, the kind of value it holds
+   - **Unit (optional)**, for example `gsm`
+   - **Public**, tick this if the attribute may be included when the catalog is
      published
 3. Click **Add**.
 
@@ -195,8 +221,14 @@ different purposes without duplicating the item.
 
 **Setting prices**
 
-Each price list appears as its own column in the inventory table. Type the price
-into the column for the item and list you want.
+There are two places to set one, for two different jobs:
+
+- **One item:** open it for editing and fill in the box under **Price lists**.
+  Saved with the rest of the form when you click Submit, so closing the dialog
+  without submitting discards it.
+- **Many items:** each price list appears as its own column in the inventory
+  table. Switch the column on under **Columns**, click **Bulk edit**, and type
+  down the column.
 
 If an item has no price on a list, it has no price on that list. It does not
 quietly fall back to another list's price, so an item you expect to sell from a
