@@ -423,3 +423,33 @@ export const resolveNextBulkEditTarget = (
   }
   return null;
 };
+
+/**
+ * The price-list changes to send for one item, from what is typed in the edit
+ * dialog against what is stored.
+ *
+ * Only differences are returned: sending an unchanged price would rewrite the
+ * row and count as an update for no reason. An empty box is a null price, which
+ * takes the item off that list; zero is a real price of zero, and the two must
+ * not collapse into each other. Text that is not a number is dropped rather
+ * than sent as NaN.
+ */
+export const changedListPrices = (
+  priceLists: readonly { id: number }[],
+  typed: Record<number, string>,
+  row: InventoryItem,
+): Array<{ priceListId: number; price: number | null }> =>
+  priceLists
+    .map((list) => {
+      const raw = (typed[list.id] ?? '').trim();
+      return {
+        priceListId: list.id,
+        price: raw === '' ? null : Number(raw),
+        stored: getRowListPrice(row, list.id),
+      };
+    })
+    .filter(
+      ({ price, stored }) =>
+        price !== stored && (price === null || Number.isFinite(price)),
+    )
+    .map(({ priceListId, price }) => ({ priceListId, price }));

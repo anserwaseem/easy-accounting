@@ -961,6 +961,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   refetchInventory={refetchAll}
                   refreshPublishStatuses={refreshPublishStatuses}
                   showPublishControls={publishEnabled && showPublishColumn}
+                  priceLists={priceLists}
                 />
               </>
             )}
@@ -990,6 +991,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     stableNavigate,
     stableWriteDraft,
     shownPriceLists,
+    // the edit dialog offers every active list, not only the shown columns
+    priceLists,
     shownAttributeDefs,
     publishEnabled,
     showPublishColumn,

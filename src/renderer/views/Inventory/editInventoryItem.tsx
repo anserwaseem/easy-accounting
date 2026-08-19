@@ -9,10 +9,13 @@ import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from 'renderer/shad/ui/use-toast';
-import type { UpdateInventoryItem, ItemType } from '@/types';
+import type { UpdateInventoryItem, ItemType, InventoryItem } from '@/types';
 import { useEffect, useState } from 'react';
+import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { editInventorySchema } from './inventorySchemas';
 import { InventoryForm } from './InventoryForm';
+import { ItemPriceLists } from './ItemPriceLists';
+import { changedListPrices, getRowListPrice } from './inventoryBulkEdit';
 
 interface EditInventoryItemProps {
   row: {
@@ -31,6 +34,12 @@ interface EditInventoryItemProps {
    * page at all, instead of two things appearing independently.
    */
   showPublishControls?: boolean;
+  /**
+   * Active price lists, passed in for the same reason as showPublishControls:
+   * this dialog renders once per row, so loading them here would be one IPC
+   * round trip per visible row on every scroll.
+   */
+  priceLists?: PriceListSummary[];
 }
 
 export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
@@ -38,8 +47,24 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   refetchInventory,
   refreshPublishStatuses,
   showPublishControls = false,
+  priceLists = [],
 }: EditInventoryItemProps) => {
-  const [excludeChanged, setExcludeChanged] = useState(false);
+  // the hold-back toggle applies immediately, so the rows behind this dialog
+  // are stale and reconcile when it closes. Price-list prices do not: they go
+  // in with the form on Submit.
+  const [needsRefetch, setNeedsRefetch] = useState(false);
+
+  const priceListText = (): Record<number, string> =>
+    priceLists.reduce((acc, list) => {
+      const price = getRowListPrice(
+        row.original as unknown as InventoryItem,
+        list.id,
+      );
+      return { ...acc, [list.id]: price == null ? '' : String(price) };
+    }, {});
+
+  const [listPrices, setListPrices] =
+    useState<Record<number, string>>(priceListText);
   const [isOpen, setIsOpen] = useState(false);
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [excluded, setExcluded] = useState(
@@ -85,7 +110,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
     // only the badges are refreshed here. Refetching the inventory would swap
     // the row data beneath this dialog, which is what closed it mid-click; the
     // rows are reconciled when the dialog closes instead.
-    setExcludeChanged(true);
+    setNeedsRefetch(true);
     refreshPublishStatuses?.();
   };
 
@@ -93,6 +118,23 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
     const res = await window.electron.updateInventoryItem({ ...values });
 
     if (res) {
+      const changed = changedListPrices(
+        priceLists,
+        listPrices,
+        row.original as unknown as InventoryItem,
+      );
+
+      if (changed.length) {
+        await window.electron.bulkUpdateInventoryPricesAndListPositions([
+          {
+            id: row.original.id,
+            price: values.price,
+            listPosition: values.listPosition ?? null,
+            listPrices: changed,
+          },
+        ]);
+      }
+
       refetchInventory();
       setIsOpen(false);
       toast({
@@ -112,8 +154,11 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
       open={isOpen}
       onOpenChange={(next) => {
         setIsOpen(next);
-        if (!next && excludeChanged) {
-          setExcludeChanged(false);
+        // reseed on open rather than in an effect: a dialog closed on a typed
+        // but unsaved price must not show that price again next time
+        if (next) setListPrices(priceListText());
+        if (!next && needsRefetch) {
+          setNeedsRefetch(false);
           refetchInventory();
         }
       }}
@@ -132,6 +177,13 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
           disabledFields={['name', 'quantity']}
           hiddenFields={showPublishControls ? [] : ['title']}
           itemTypes={itemTypes}
+        />
+        <ItemPriceLists
+          priceLists={priceLists}
+          values={listPrices}
+          onChange={(id, value) =>
+            setListPrices((prev) => ({ ...prev, [id]: value }))
+          }
         />
         {showPublishControls ? (
           <div className="flex items-start gap-2 border-t pt-3">
