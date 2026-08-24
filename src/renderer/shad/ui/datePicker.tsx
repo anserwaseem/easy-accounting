@@ -162,11 +162,11 @@ const DEFAULT_PRESETS = [
   { label: 'Last 7 Days', value: '-7' },
   { label: 'Last 30 Days', value: '-30' },
   { label: 'Last 365 Days', value: '-365' },
+  { label: 'Last 2 Years', value: 'last-2-years' },
   { label: 'Current Month', value: 'current-month' },
   { label: 'Current Year', value: 'current-year' },
   { label: 'Last Month', value: 'last-month' },
   { label: 'Last Year', value: 'last-year' },
-  { label: 'Current 2 Years', value: 'current-2-years' },
 ];
 
 /** Merge presets: defaults + extras, removing duplicate values (prefers custom label) */
@@ -237,7 +237,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
         from: startOfMonth(lastMonth),
         to: endOfMonth(lastMonth),
       });
-    } else if (value === 'current-2-years') {
+    } else if (value === 'last-2-years') {
       // rolling window: two whole years back from today up to today
       setDate({
         from: subYears(new Date(), 2),

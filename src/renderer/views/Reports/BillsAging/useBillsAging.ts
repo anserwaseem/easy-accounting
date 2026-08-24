@@ -16,6 +16,7 @@ export const useBillsAging = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [startDate, setStartDate] = useState<Date>(() => {
     const d = new Date();
+    d.setFullYear(2025);
     d.setMonth(0, 1); // default to start of year
     d.setHours(0, 0, 0, 0);
     return d;
