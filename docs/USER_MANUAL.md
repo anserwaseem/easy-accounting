@@ -141,7 +141,9 @@ the screen. Click the arrow at the start of a row to open a panel listing what
 that item actually has.
 
 **Search** covers the name, description, type and every attribute value, so
-typing a binding or a paper size finds the items carrying it.
+typing a binding or a paper size finds the items carrying it. Several words
+narrow the list together, in any order: each word only has to appear somewhere in
+the item, so "urdu 16" finds an Urdu 16-line item however its name is worded.
 
 **Filters** answer the questions search cannot, because they are about absence
 as much as presence. Click **Filters**, then choose a value for any attribute.

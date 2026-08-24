@@ -145,13 +145,21 @@ const BillsAgingPage = () => {
     [billsAging.accounts],
   );
 
-  // Check if any filter is applied
-  const hasActiveFilters =
-    hideAllFilters ||
-    hideZeroRows ||
-    hideStatus ||
-    hideNonPositiveOutstanding ||
-    selectedCustomerIds.length > 0;
+  // Check how many filters are applied ('hide all' is just a shortcut for the three toggles)
+  const activeFilterCount =
+    (hideZeroRows ? 1 : 0) +
+    (hideStatus ? 1 : 0) +
+    (hideNonPositiveOutstanding ? 1 : 0) +
+    (selectedCustomerIds.length > 0 ? 1 : 0);
+  const hasActiveFilters = activeFilterCount > 0;
+
+  const handleResetFilters = useCallback(() => {
+    setHideAllFilters(false);
+    setHideStatus(false);
+    setHideZeroRows(false);
+    setHideNonPositiveOutstanding(false);
+    handleCustomerFilterChange([]);
+  }, [handleCustomerFilterChange]);
 
   const handlePrint = () => {
     window.print();
@@ -290,106 +298,118 @@ const BillsAgingPage = () => {
               {/* Action Buttons */}
               <div className="flex items-center gap-2">
                 <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
-                  <div
-                    onMouseEnter={() => setFiltersOpen(true)}
-                    onMouseLeave={() => setFiltersOpen(false)}
-                    className="relative"
-                  >
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <SlidersHorizontal className="h-4 w-4" />
-                        Filters
-                      </Button>
-                    </PopoverTrigger>
-                    {hasActiveFilters && (
-                      <div className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full border-2 border-background" />
-                    )}
-                    <PopoverContent className="w-56 -mt-1">
-                      <div className="flex flex-col gap-3 py-1">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Checkbox
-                            id="toggle-hide-all"
-                            checked={hideAllFilters}
-                            onCheckedChange={(v) => {
-                              const next = Boolean(v);
-                              setHideAllFilters(next);
-                              setHideStatus(next);
-                              setHideZeroRows(next);
-                              setHideNonPositiveOutstanding(next);
-                            }}
-                          />
-                          <Label
-                            htmlFor="toggle-hide-all"
-                            className="font-medium cursor-pointer"
-                          >
-                            Hide all
-                          </Label>
-                        </div>
-                        <Separator />
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Checkbox
-                            id="toggle-hide-status"
-                            checked={hideStatus}
-                            onCheckedChange={(v) => {
-                              const next = Boolean(v);
-                              const nextHideAllFilters =
-                                next &&
-                                hideZeroRows &&
-                                hideNonPositiveOutstanding;
-                              setHideStatus(next);
-                              setHideAllFilters(nextHideAllFilters);
-                            }}
-                          />
-                          <Label
-                            htmlFor="toggle-hide-status"
-                            className="cursor-pointer"
-                          >
-                            Hide status
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Checkbox
-                            id="toggle-hide-zero"
-                            checked={hideZeroRows}
-                            onCheckedChange={(v) => {
-                              const next = Boolean(v);
-                              const nextHideAllFilters =
-                                hideStatus &&
-                                next &&
-                                hideNonPositiveOutstanding;
-                              setHideZeroRows(next);
-                              setHideAllFilters(nextHideAllFilters);
-                            }}
-                          />
-                          <Label
-                            htmlFor="toggle-hide-zero"
-                            className="cursor-pointer"
-                          >
-                            Hide settled bills
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Checkbox
-                            id="toggle-hide-negative"
-                            checked={hideNonPositiveOutstanding}
-                            onCheckedChange={(v) => {
-                              const next = Boolean(v);
-                              const nextHideAllFilters =
-                                hideStatus && hideZeroRows && next;
-                              setHideNonPositiveOutstanding(next);
-                              setHideAllFilters(nextHideAllFilters);
-                            }}
-                          />
-                          <Label
-                            htmlFor="toggle-hide-negative"
-                            className="cursor-pointer"
-                          >
-                            Hide settled accounts
-                          </Label>
-                        </div>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={hasActiveFilters ? 'secondary' : 'outline'}
+                      className="gap-2"
+                      aria-expanded={filtersOpen}
+                      title="Filters"
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                      Filters
+                      {activeFilterCount > 0 && (
+                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+                          {activeFilterCount}
+                        </span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-60">
+                    <div className="flex flex-col gap-3 py-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold">Filters</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={handleResetFilters}
+                          disabled={!hasActiveFilters}
+                        >
+                          Reset
+                        </Button>
                       </div>
-                    </PopoverContent>
-                  </div>
+                      <Separator />
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-all"
+                          checked={hideAllFilters}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            setHideAllFilters(next);
+                            setHideStatus(next);
+                            setHideZeroRows(next);
+                            setHideNonPositiveOutstanding(next);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-all"
+                          className="font-medium cursor-pointer"
+                        >
+                          Hide all
+                        </Label>
+                      </div>
+                      <Separator />
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-status"
+                          checked={hideStatus}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            const nextHideAllFilters =
+                              next &&
+                              hideZeroRows &&
+                              hideNonPositiveOutstanding;
+                            setHideStatus(next);
+                            setHideAllFilters(nextHideAllFilters);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-status"
+                          className="cursor-pointer"
+                        >
+                          Hide status
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-zero"
+                          checked={hideZeroRows}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            const nextHideAllFilters =
+                              hideStatus && next && hideNonPositiveOutstanding;
+                            setHideZeroRows(next);
+                            setHideAllFilters(nextHideAllFilters);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-zero"
+                          className="cursor-pointer"
+                        >
+                          Hide settled bills
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-negative"
+                          checked={hideNonPositiveOutstanding}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            const nextHideAllFilters =
+                              hideStatus && hideZeroRows && next;
+                            setHideNonPositiveOutstanding(next);
+                            setHideAllFilters(nextHideAllFilters);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-negative"
+                          className="cursor-pointer"
+                        >
+                          Hide settled accounts
+                        </Label>
+                      </div>
+                    </div>
+                  </PopoverContent>
                 </Popover>
                 <Button
                   variant="outline"

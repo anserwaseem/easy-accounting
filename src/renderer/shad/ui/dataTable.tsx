@@ -20,7 +20,7 @@ import {
   TableRow,
 } from 'renderer/shad/ui/table';
 import { clamp, debounce, get, toString } from 'lodash';
-import { cn } from '@/renderer/lib/utils';
+import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
 import {
   forwardRef,
   useCallback,
@@ -288,12 +288,14 @@ const DataTable = <TData, TValue>({
       return data;
     }
 
-    const searchTerm = searchValue.toLowerCase();
+    // each word must hit some field (not necessarily the same one), so 'AYESHA SADIQA' finds
+    // 'MAKTABA AYESHA SADIQA' and word order/extra spacing don't matter
+    const searchTerms = getSearchTerms(searchValue);
     return data.filter((item) =>
-      searchFields.some((field) => {
-        const value = get(item, field);
-        return toString(value).toLowerCase().includes(searchTerm);
-      }),
+      matchesSearchTerms(
+        searchFields.map((field) => get(item, field)),
+        searchTerms,
+      ),
     );
   }, [searchValue, data, searchFields]);
 

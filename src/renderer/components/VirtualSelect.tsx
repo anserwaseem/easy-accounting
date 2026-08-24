@@ -1,4 +1,4 @@
-import { debounce, sortBy, toString } from 'lodash';
+import { debounce, sortBy } from 'lodash';
 import {
   useCallback,
   useEffect,
@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/renderer/shad/ui/popover';
-import { cn } from '@/renderer/lib/utils';
+import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
 import type { Account } from 'types';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -200,15 +200,13 @@ const VirtualSelect = <T extends BaseOption = Account>({
 
   const filteredOptions = useMemo(() => {
     if (!filteredSearchValue) return options;
-    const lowerSearch = filteredSearchValue.toLowerCase();
+    // match word by word, so multi-word queries hit regardless of order or extra spacing
+    const searchTerms = getSearchTerms(filteredSearchValue);
     return options.filter((opt) =>
-      searchFields.some((field) => {
-        const fieldValue = opt[field];
-        return (
-          fieldValue !== undefined &&
-          toString(fieldValue).toLowerCase().includes(lowerSearch)
-        );
-      }),
+      matchesSearchTerms(
+        searchFields.map((field) => opt[field]),
+        searchTerms,
+      ),
     );
   }, [filteredSearchValue, options, searchFields]);
 
