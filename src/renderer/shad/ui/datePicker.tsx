@@ -29,7 +29,6 @@ import {
   SelectItem,
 } from 'renderer/shad/ui/select';
 import { Button } from 'renderer/shad/ui/button';
-import { Input } from 'renderer/shad/ui/input';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { toNumber, isNaN } from 'lodash';
 
@@ -167,49 +166,16 @@ const DEFAULT_PRESETS = [
   { label: 'Current Year', value: 'current-year' },
   { label: 'Last Month', value: 'last-month' },
   { label: 'Last Year', value: 'last-year' },
-  { label: 'Last 2 Years', value: 'last-2-years' },
-  { label: 'Last 3 Years', value: 'last-3-years' },
-  { label: 'Last 5 Years', value: 'last-5-years' },
+  { label: 'Current 2 Years', value: 'current-2-years' },
 ];
-
-/** rolling window of whole years back from today, e.g. 'last-2-years' */
-const LAST_N_YEARS_PATTERN = /^last-(\d+)-years$/;
-
-export const MAX_LAST_N_YEARS = 100;
-
-/** builds the preset value for a custom "last N years" selection */
-export const getLastNYearsPresetValue = (years: number) =>
-  `last-${years}-years`;
-
-/** reads N back out of a "last N years" preset value (null when it isn't one) */
-export const parseLastNYearsPresetValue = (value?: string): number | null => {
-  const match = value ? LAST_N_YEARS_PATTERN.exec(value) : null;
-  if (!match) return null;
-
-  const years = toNumber(match[1]);
-  if (isNaN(years) || years < 1 || years > MAX_LAST_N_YEARS) return null;
-
-  return years;
-};
 
 /** Merge presets: defaults + extras, removing duplicate values (prefers custom label) */
 const mergePresets = (
   customPresets: { label: string; value: string }[],
-  selectValue?: string,
 ): { label: string; value: string }[] => {
   const map = new Map<string, { label: string; value: string }>();
   for (const p of DEFAULT_PRESETS) map.set(p.value, p);
   for (const p of customPresets) map.set(p.value, p);
-
-  // keep an ad-hoc "last N years" pick (e.g. last 7 years) selectable/labelled in the list
-  const customYears = parseLastNYearsPresetValue(selectValue);
-  if (customYears && selectValue && !map.has(selectValue)) {
-    map.set(selectValue, {
-      label: `Last ${customYears} Years`,
-      value: selectValue,
-    });
-  }
-
   return Array.from(map.values());
 };
 
@@ -224,8 +190,6 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   const [selectValue, setSelectValue] = useState<string | undefined>(
     initialSelectValue,
   );
-  const [customYearsInput, setCustomYearsInput] = useState('');
-
   useEffect(
     () => $onSelect?.(date, selectValue),
     [$onSelect, date, selectValue],
@@ -248,8 +212,6 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
 
   const onValueChange = useCallback((value: string) => {
     setSelectValue(value);
-
-    const lastNYears = parseLastNYearsPresetValue(value);
 
     if (value === 'all') {
       setDate({ from: subYears(new Date(), 100), to: new Date() });
@@ -275,10 +237,10 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
         from: startOfMonth(lastMonth),
         to: endOfMonth(lastMonth),
       });
-    } else if (lastNYears) {
-      // rolling window: N whole years back from today up to today
+    } else if (value === 'current-2-years') {
+      // rolling window: two whole years back from today up to today
       setDate({
-        from: subYears(new Date(), lastNYears),
+        from: subYears(new Date(), 2),
         to: new Date(),
       });
     } else {
@@ -324,19 +286,6 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
     }
   }, []);
 
-  const customYears = toNumber(customYearsInput);
-  const canApplyCustomYears =
-    !!customYearsInput.trim() &&
-    !isNaN(customYears) &&
-    Number.isInteger(customYears) &&
-    customYears >= 1 &&
-    customYears <= MAX_LAST_N_YEARS;
-
-  const applyCustomYears = useCallback(() => {
-    if (!canApplyCustomYears) return;
-    onValueChange(getLastNYearsPresetValue(customYears));
-  }, [canApplyCustomYears, customYears, onValueChange]);
-
   return (
     <div className={cn('grid gap-2', className)}>
       <Popover>
@@ -359,47 +308,13 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent position="popper">
-              {mergePresets(presets, selectValue).map((preset) => (
+              {mergePresets(presets).map((preset) => (
                 <SelectItem key={preset.value} value={preset.value}>
                   {preset.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap text-sm text-muted-foreground">
-              Last
-            </span>
-            <Input
-              type="number"
-              min={1}
-              max={MAX_LAST_N_YEARS}
-              step={1}
-              value={customYearsInput}
-              onChange={(event) => setCustomYearsInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                applyCustomYears();
-              }}
-              placeholder="N"
-              aria-label={`Last N years (1-${MAX_LAST_N_YEARS})`}
-              className="my-0 h-9 w-20"
-            />
-            <span className="whitespace-nowrap text-sm text-muted-foreground">
-              years
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={applyCustomYears}
-              disabled={!canApplyCustomYears}
-            >
-              Apply
-            </Button>
-          </div>
           <div className="rounded-md border">
             <Calendar
               mode="range"

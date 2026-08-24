@@ -153,14 +153,6 @@ const BillsAgingPage = () => {
     (selectedCustomerIds.length > 0 ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
 
-  const handleResetFilters = useCallback(() => {
-    setHideAllFilters(false);
-    setHideStatus(false);
-    setHideZeroRows(false);
-    setHideNonPositiveOutstanding(false);
-    handleCustomerFilterChange([]);
-  }, [handleCustomerFilterChange]);
-
   const handlePrint = () => {
     window.print();
   };
@@ -316,19 +308,6 @@ const BillsAgingPage = () => {
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-60">
                     <div className="flex flex-col gap-3 py-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold">Filters</p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs"
-                          onClick={handleResetFilters}
-                          disabled={!hasActiveFilters}
-                        >
-                          Reset
-                        </Button>
-                      </div>
-                      <Separator />
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Checkbox
                           id="toggle-hide-all"

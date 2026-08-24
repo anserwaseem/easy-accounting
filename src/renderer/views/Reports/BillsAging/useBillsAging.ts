@@ -100,6 +100,15 @@ export const useBillsAging = () => {
           ),
         ]);
 
+        // an account that owes money at the start of the period is still owing it when nothing
+        // moved during the period, so it must stay in the report as a carry-forward-only row
+        const hasOpeningDue = (accountId: number) => {
+          const opening = openingByAccountId[accountId];
+          return (
+            !!opening && opening.balanceType === 'Dr' && opening.balance > 0
+          );
+        };
+
         // collect all journal IDs from all accounts first
         const allJournalIds = new Set<number>();
         const accountLedgersMap: Record<number, LedgerView[]> = {};
@@ -107,7 +116,7 @@ export const useBillsAging = () => {
         for (const account of filteredAccounts) {
           const entriesInRange = rangeByAccountId[account.id] ?? [];
 
-          if (isEmpty(entriesInRange)) continue;
+          if (isEmpty(entriesInRange) && !hasOpeningDue(account.id)) continue;
 
           accountLedgersMap[account.id] = entriesInRange;
 
@@ -151,11 +160,10 @@ export const useBillsAging = () => {
         const accounts: BillsAgingAccount[] = [];
 
         for (const account of filteredAccounts) {
+          // carry-forward-only accounts are kept with an empty list of entries; a missing entry
+          // means the account has neither activity in the period nor an opening balance due
           const entriesInRange = accountLedgersMap[account.id];
           if (!entriesInRange) continue;
-
-          // treat opening balance as first bill (carry-forward) if balance before period start is Dr
-          const openingBeforeStart = openingByAccountId[account.id];
 
           // separate debit and credit entries
           const debitEntries = entriesInRange.filter(
@@ -169,13 +177,9 @@ export const useBillsAging = () => {
           const bills: BillItem[] = [];
           const unallocatedReceipts: UnallocatedReceipt[] = [];
 
-          // create opening balance bill from last balance before start (if Dr)
-          if (
-            openingBeforeStart &&
-            openingBeforeStart.balanceType === 'Dr' &&
-            openingBeforeStart.balance > 0
-          ) {
-            const openingAmount = openingBeforeStart.balance;
+          // treat opening balance as first bill (carry-forward) if balance before period start is Dr
+          if (hasOpeningDue(account.id)) {
+            const openingAmount = openingByAccountId[account.id].balance;
             bills.push({
               billNumber: 'Opening Balance',
               billPercentage: '-',
