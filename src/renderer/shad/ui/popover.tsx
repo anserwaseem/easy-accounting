@@ -1,11 +1,20 @@
 import { forwardRef } from 'react';
-import { Content, Portal, Root, Trigger } from '@radix-ui/react-popover';
+import {
+  Anchor,
+  Content,
+  Portal,
+  Root,
+  Trigger,
+} from '@radix-ui/react-popover';
 
 import { cn } from 'renderer/lib/utils';
 
 const Popover = Root;
 
 const PopoverTrigger = Trigger;
+
+/** positions the popover against an element that is not the trigger (e.g. a text input) */
+const PopoverAnchor = Anchor;
 
 /**
  * radix dialog (sheets/modals) sets `pointer-events: none` on <body> while open and relies on its
@@ -36,4 +45,4 @@ const PopoverContent = forwardRef<
 ));
 PopoverContent.displayName = Content.displayName;
 
-export { Popover, PopoverTrigger, PopoverContent };
+export { Popover, PopoverAnchor, PopoverTrigger, PopoverContent };
