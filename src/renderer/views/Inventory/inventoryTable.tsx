@@ -1026,13 +1026,6 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         onToggle: (id: string) => togglePriceListColumn(Number(id)),
         onSetAll: (ids: string[]) => setVisiblePriceListIds(ids.map(Number)),
       },
-      {
-        title: 'Attributes',
-        options: attributeDefs.map((d) => ({ id: d.key, label: d.label })),
-        selectedIds: visibleAttributeKeys,
-        onToggle: toggleAttributeColumn,
-        onSetAll: setVisibleAttributeKeys,
-      },
       ...(publishEnabled
         ? [
             {
@@ -1047,6 +1040,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             },
           ]
         : []),
+      {
+        title: 'Attributes',
+        options: attributeDefs.map((d) => ({ id: d.key, label: d.label })),
+        selectedIds: visibleAttributeKeys,
+        onToggle: toggleAttributeColumn,
+        onSetAll: setVisibleAttributeKeys,
+      },
     ],
     [
       priceLists,

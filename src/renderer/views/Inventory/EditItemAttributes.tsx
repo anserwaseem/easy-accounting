@@ -8,15 +8,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/renderer/shad/ui/dialog';
-import { Input } from '@/renderer/shad/ui/input';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { SuggestionInput } from '@/renderer/components/SuggestionInput';
 import type { AttributeDefinition, InventoryItem } from 'types';
 import {
   CopyAttributesPanel,
   CopyAttributesTrigger,
 } from './CopyAttributesPanel';
+import { distinctAttributeValues } from './inventoryQuery';
 
 interface EditItemAttributesProps {
   item: InventoryItem;
@@ -93,6 +94,16 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
       .catch(() => {
         if (!cancelled) setDefinitions([]);
       });
+    // the same list backs the value suggestions and the copy picker; a failure here
+    // costs suggestions only, and the copy button falls back to fetching on click
+    window.electron
+      .getInventory()
+      .then((all) => {
+        if (!cancelled) setCandidates(all);
+        return all;
+      })
+      .catch(() => undefined);
+
     return () => {
       cancelled = true;
     };
@@ -104,6 +115,19 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, item.id]);
 
+  // values already used for each attribute, so a business's vocabulary stays consistent
+  // without becoming a closed list
+  const suggestionsByKey = useMemo(() => {
+    const items = candidates ?? [];
+    return definitions.reduce<Record<string, string[]>>(
+      (acc, def) => ({
+        ...acc,
+        [def.key]: distinctAttributeValues(items, def),
+      }),
+      {},
+    );
+  }, [candidates, definitions]);
+
   // keys present on the item but no longer defined — surfaced so data is not
   // silently lost when a definition is removed or renamed
   const undefinedKeys = useMemo(() => {
@@ -111,9 +135,9 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
     return Object.keys(item.attributes ?? {}).filter((k) => !known.has(k));
   }, [definitions, item.attributes]);
 
-  // Fetched on the click that opens the panel — no request unless asked for —
-  // and awaited *before* opening. Opening first meant the panel rendered with an
-  // empty list for one frame, flashing "nothing to copy" every single time.
+  // Normally already prefetched when the dialog opened; this is the fallback for when
+  // that request failed. It is awaited *before* opening: opening first meant the panel
+  // rendered with an empty list for one frame, flashing "nothing to copy" every time.
   const openCopy = useCallback(async () => {
     if (candidates !== null) {
       setCopying(true);
@@ -275,17 +299,15 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
                         </span>
                       </div>
                     ) : (
-                      <Input
+                      <SuggestionInput
                         id={`attr-${def.key}`}
                         inputMode={
                           def.valueType === 'number' ? 'decimal' : 'text'
                         }
                         value={values[def.key] ?? ''}
-                        onChange={(e) =>
-                          setValues((prev) => ({
-                            ...prev,
-                            [def.key]: e.target.value,
-                          }))
+                        suggestions={suggestionsByKey[def.key] ?? []}
+                        onChange={(next) =>
+                          setValues((prev) => ({ ...prev, [def.key]: next }))
                         }
                       />
                     )}

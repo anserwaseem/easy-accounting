@@ -80,13 +80,22 @@ const SelectScrollDownButton = forwardRef<
 ));
 SelectScrollDownButton.displayName = ScrollDownButton.displayName;
 
+/**
+ * radix dialog (sheets/modals) sets `pointer-events: none` on <body> while open and re-enables them
+ * only for layers registered in its own dismissable-layer copy. our select ships a different copy,
+ * so its portaled content stays mouse-dead inside a sheet (keyboard still works). forcing pointer
+ * events on the content keeps mouse selection working wherever the select is rendered.
+ */
+const forcedPointerEvents: React.CSSProperties = { pointerEvents: 'auto' };
+
 const SelectContent = forwardRef<
   React.ElementRef<typeof Content>,
   React.ComponentPropsWithoutRef<typeof Content>
->(({ className, children, position = 'popper', ...props }, ref) => (
+>(({ className, children, position = 'popper', style, ...props }, ref) => (
   <Portal>
     <Content
       ref={ref}
+      style={{ ...forcedPointerEvents, ...style }}
       className={cn(
         'relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
         position === 'popper' &&

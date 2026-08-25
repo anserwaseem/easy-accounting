@@ -20,7 +20,7 @@ import {
   TableRow,
 } from 'renderer/shad/ui/table';
 import { clamp, debounce, get, toString } from 'lodash';
-import { cn } from '@/renderer/lib/utils';
+import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
 import {
   forwardRef,
   useCallback,
@@ -288,12 +288,14 @@ const DataTable = <TData, TValue>({
       return data;
     }
 
-    const searchTerm = searchValue.toLowerCase();
+    // each word must hit some field (not necessarily the same one), so 'AYESHA SADIQA' finds
+    // 'MAKTABA AYESHA SADIQA' and word order/extra spacing don't matter
+    const searchTerms = getSearchTerms(searchValue);
     return data.filter((item) =>
-      searchFields.some((field) => {
-        const value = get(item, field);
-        return toString(value).toLowerCase().includes(searchTerm);
-      }),
+      matchesSearchTerms(
+        searchFields.map((field) => get(item, field)),
+        searchTerms,
+      ),
     );
   }, [searchValue, data, searchFields]);
 
@@ -430,8 +432,16 @@ const DataTable = <TData, TValue>({
     window.addEventListener('scroll', measureFill, true);
 
     let ro: ResizeObserver | null = null;
+    // measuring on the next frame rather than inside the callback: measureFill resizes the
+    // table it is observing, and doing that synchronously makes the browser report
+    // "ResizeObserver loop limit exceeded" — harmless, but it lands as an uncaught error
+    let measureRaf = 0;
+    const measureNextFrame = () => {
+      cancelAnimationFrame(measureRaf);
+      measureRaf = requestAnimationFrame(measureFill);
+    };
     if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(() => measureFill());
+      ro = new ResizeObserver(measureNextFrame);
       const container = containerRef.current;
       if (container) {
         ro.observe(container);
@@ -442,6 +452,7 @@ const DataTable = <TData, TValue>({
 
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(measureRaf);
       window.removeEventListener('scroll', measureFill, true);
       ro?.disconnect();
     };

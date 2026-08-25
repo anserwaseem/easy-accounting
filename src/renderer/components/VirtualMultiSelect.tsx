@@ -1,4 +1,4 @@
-import { debounce, toString } from 'lodash';
+import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Virtuoso } from 'react-virtuoso';
@@ -9,6 +9,8 @@ import {
   SelectContent,
 } from '@/renderer/shad/ui/select';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
+import { X } from 'lucide-react';
+import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
 import type { Account } from 'types';
 
 type BaseOption = {
@@ -99,15 +101,13 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
   const filteredOptions = useMemo(() => {
     if (!filteredSearchValue) return options;
 
-    const lowerSearch = filteredSearchValue.toLowerCase();
+    // match word by word, so multi-word queries hit regardless of order or extra spacing
+    const searchTerms = getSearchTerms(filteredSearchValue);
     return options.filter((opt) =>
-      searchFields.some((field) => {
-        const fieldValue = opt[field];
-        return (
-          fieldValue !== undefined &&
-          toString(fieldValue).toLowerCase().includes(lowerSearch)
-        );
-      }),
+      matchesSearchTerms(
+        searchFields.map((field) => opt[field]),
+        searchTerms,
+      ),
     );
   }, [filteredSearchValue, options, searchFields]);
 
@@ -182,6 +182,23 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
     [value],
   );
 
+  // clear the whole selection (trigger badge + dropdown action)
+  const handleClearSelection = useCallback(() => onChange([]), [onChange]);
+
+  // select every option currently matching the search
+  const handleSelectAllFiltered = useCallback(() => {
+    const selectedIds = new Set(value.map((v) => v.toString()));
+    const idsToAdd = filteredOptions
+      .map((opt) => opt.id)
+      .filter(
+        (id): id is string | number =>
+          (typeof id === 'string' || typeof id === 'number') &&
+          !selectedIds.has(id.toString()),
+      );
+
+    if (idsToAdd.length) onChange([...value, ...idsToAdd]);
+  }, [filteredOptions, onChange, value]);
+
   // memoize item renderer to prevent re-renders
   const itemRenderer = useCallback(
     (_: number, item: T) => {
@@ -235,6 +252,8 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
     [renderSelectItem, defaultRenderSelectItem, isSelected, handleToggle],
   );
 
+  const hasSelection = value.length > 0;
+
   // display text for trigger
   const displayText = useMemo(() => {
     if (value.length === 0) {
@@ -275,8 +294,35 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
 
   return (
     <Select open={isOpen} onOpenChange={handleOpenChange} disabled={disabled}>
-      <SelectTrigger className="w-[260px]" disabled={disabled}>
+      <SelectTrigger className="w-[260px] gap-1" disabled={disabled}>
         <span className="truncate">{displayText}</span>
+        {hasSelection && !disabled && (
+          <span
+            role="button"
+            tabIndex={-1}
+            aria-label="Clear selection"
+            title="Clear selection"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            // radix opens the select on pointer down, so stop it before it reaches the trigger
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleClearSelection();
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              e.stopPropagation();
+              handleClearSelection();
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </span>
+        )}
       </SelectTrigger>
       <SelectContent className="overflow-hidden">
         <div className="p-2">
@@ -288,6 +334,35 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
             placeholder={searchPlaceholder || 'Search...'}
             className="w-full"
           />
+        </div>
+        <div className="flex items-center justify-between gap-2 border-b px-2 pb-2 text-xs text-muted-foreground">
+          <span>
+            {hasSelection ? `${value.length} selected` : 'None selected'}
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className={cn(
+                'font-medium text-primary underline-offset-4 hover:underline',
+                !filteredOptions.length && 'pointer-events-none opacity-50',
+              )}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleSelectAllFiltered}
+            >
+              {filteredSearchValue ? 'Select matches' : 'Select all'}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'font-medium text-primary underline-offset-4 hover:underline',
+                !hasSelection && 'pointer-events-none opacity-50',
+              )}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleClearSelection}
+            >
+              Clear all
+            </button>
+          </div>
         </div>
         <div className="transition-opacity duration-150 ease-in-out">
           <Virtuoso

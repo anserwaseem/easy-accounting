@@ -75,6 +75,47 @@ export const toLowerString = (value: unknown) => toLower(toString(value));
 export const toLowerTrim = (value: unknown) => toLower(trim(toString(value)));
 
 /**
+ * Normalizes a value for searching: lowercased, trimmed and with runs of whitespace collapsed to a
+ * single space (so `'MAKTABA  AYESHA\nSADIQA'` and `'maktaba ayesha sadiqa'` compare equal).
+ * @param value - The value to be normalized.
+ * @returns The normalized string.
+ * @example normalizeSearchText('  MAKTABA   AYESHA '); // 'maktaba ayesha'
+ */
+export const normalizeSearchText = (value: unknown) =>
+  toLowerTrim(value).replace(/\s+/g, ' ');
+
+/**
+ * Splits a search query into individual terms, so a query can be matched word by word instead of
+ * as one rigid substring.
+ * @param query - The raw search query typed by the user.
+ * @returns The list of normalized, non-empty search terms.
+ * @example getSearchTerms(' AYESHA  SADIQA '); // ['ayesha', 'sadiqa']
+ */
+export const getSearchTerms = (query: unknown): string[] => {
+  const normalized = normalizeSearchText(query);
+  return normalized ? normalized.split(' ') : [];
+};
+
+/**
+ * Checks whether every search term is found in at least one of the given values. Terms are ANDed
+ * and values are ORed, so `'AYESHA SADIQA'` matches `'MAKTABA AYESHA SADIQA'` (and so does
+ * `'SADIQA AYESHA'`), while a term matching nothing rules the record out.
+ * @param values - The values (e.g. row fields) to search in.
+ * @param terms - The search terms, as returned by {@link getSearchTerms}.
+ * @returns True when the values match all terms (or when there are no terms).
+ * @example matchesSearchTerms(['MAKTABA AYESHA SADIQA', 1234], ['ayesha', 'sadiqa']); // true
+ */
+export const matchesSearchTerms = (
+  values: unknown[],
+  terms: string[],
+): boolean => {
+  if (isEmpty(terms)) return true;
+
+  const haystacks = values.map(normalizeSearchText);
+  return terms.every((term) => haystacks.some((value) => value.includes(term)));
+};
+
+/**
  * Rounds a number to a fixed number of decimal places.
  * @param value - The number to be rounded.
  * @param fixed - The number of decimal places to round to.

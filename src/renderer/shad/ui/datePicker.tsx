@@ -162,6 +162,7 @@ const DEFAULT_PRESETS = [
   { label: 'Last 7 Days', value: '-7' },
   { label: 'Last 30 Days', value: '-30' },
   { label: 'Last 365 Days', value: '-365' },
+  { label: 'Last 2 Years', value: 'last-2-years' },
   { label: 'Current Month', value: 'current-month' },
   { label: 'Current Year', value: 'current-year' },
   { label: 'Last Month', value: 'last-month' },
@@ -189,7 +190,6 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   const [selectValue, setSelectValue] = useState<string | undefined>(
     initialSelectValue,
   );
-
   useEffect(
     () => $onSelect?.(date, selectValue),
     [$onSelect, date, selectValue],
@@ -236,6 +236,12 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
       setDate({
         from: startOfMonth(lastMonth),
         to: endOfMonth(lastMonth),
+      });
+    } else if (value === 'last-2-years') {
+      // rolling window: two whole years back from today up to today
+      setDate({
+        from: subYears(new Date(), 2),
+        to: new Date(),
       });
     } else {
       const numberVal = toNumber(value);

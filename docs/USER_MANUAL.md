@@ -141,7 +141,16 @@ the screen. Click the arrow at the start of a row to open a panel listing what
 that item actually has.
 
 **Search** covers the name, description, type and every attribute value, so
-typing a binding or a paper size finds the items carrying it.
+typing a binding or a paper size finds the items carrying it. Several words
+narrow the list together, in any order: each word only has to appear somewhere in
+the item, so "urdu 16" finds an Urdu 16-line item however its name is worded.
+
+**Attribute values** suggest themselves. Every text or number attribute in the
+attributes dialog offers the values already used elsewhere in the inventory —
+click the arrow to see all of them, or keep typing to narrow the list. Picking an
+existing value is what keeps "Hard Binding" from quietly becoming three different
+bindings, but nothing is locked: type something new and it is saved as-is, then
+offered to the next item.
 
 **Filters** answer the questions search cannot, because they are about absence
 as much as presence. Click **Filters**, then choose a value for any attribute.
