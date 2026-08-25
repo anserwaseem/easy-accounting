@@ -186,6 +186,17 @@ const configuration: webpack.Configuration = {
     compress: true,
     hot: true,
     headers: { 'Access-Control-Allow-Origin': '*' },
+    client: {
+      overlay: {
+        errors: true,
+        warnings: false,
+        // "ResizeObserver loop limit exceeded" is a notification, not a failure: the browser
+        // is saying observer callbacks did not settle within one frame. Nothing is broken by
+        // it, and covering the app with a red screen over it hides the errors that do matter.
+        runtimeErrors: (error?: Error) =>
+          !/ResizeObserver loop/.test(error?.message ?? ''),
+      },
+    },
     static: {
       publicPath: '/',
     },

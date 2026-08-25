@@ -432,8 +432,16 @@ const DataTable = <TData, TValue>({
     window.addEventListener('scroll', measureFill, true);
 
     let ro: ResizeObserver | null = null;
+    // measuring on the next frame rather than inside the callback: measureFill resizes the
+    // table it is observing, and doing that synchronously makes the browser report
+    // "ResizeObserver loop limit exceeded" — harmless, but it lands as an uncaught error
+    let measureRaf = 0;
+    const measureNextFrame = () => {
+      cancelAnimationFrame(measureRaf);
+      measureRaf = requestAnimationFrame(measureFill);
+    };
     if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(() => measureFill());
+      ro = new ResizeObserver(measureNextFrame);
       const container = containerRef.current;
       if (container) {
         ro.observe(container);
@@ -444,6 +452,7 @@ const DataTable = <TData, TValue>({
 
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(measureRaf);
       window.removeEventListener('scroll', measureFill, true);
       ro?.disconnect();
     };

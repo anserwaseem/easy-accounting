@@ -9,6 +9,8 @@ import {
 import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
 
 const MAX_VISIBLE_SUGGESTIONS = 50;
+/** wheel deltas can arrive in lines rather than pixels; this converts them */
+const APPROX_LINE_HEIGHT_PX = 16;
 
 type SuggestionInputProps = {
   value: string;
@@ -43,6 +45,7 @@ export const SuggestionInput: React.FC<SuggestionInputProps> = ({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const anchorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   // typing filters the list word by word, so "hard zip" finds "Hard Binding + Zip"
   const matches = useMemo(() => {
@@ -59,6 +62,43 @@ export const SuggestionInput: React.FC<SuggestionInputProps> = ({
     );
 
   useEffect(() => setHighlightedIndex(0), [value, open]);
+
+  /**
+   * A modal dialog locks scrolling everywhere except its own subtree, and this list is portaled
+   * to the body, so the wheel does nothing over it. Rendering it inside the dialog instead is
+   * not an option: the dialog is centred with a transform, which drags the anchored list away
+   * from its field. So inside a dialog the list scrolls itself; elsewhere the browser's own
+   * scrolling is left alone. Attached by callback ref because the portal mounts later than the
+   * effect that opens it, when the ref is still empty.
+   */
+  const detachWheelRef = useRef<(() => void) | null>(null);
+  const attachList = useCallback((node: HTMLDivElement | null) => {
+    detachWheelRef.current?.();
+    detachWheelRef.current = null;
+    listRef.current = node;
+
+    if (!node || !anchorRef.current?.closest('[role="dialog"]')) return;
+
+    const scrollList = (event: WheelEvent) => {
+      event.preventDefault();
+      let pixelsPerUnit = 1;
+      if (event.deltaMode === 1) pixelsPerUnit = APPROX_LINE_HEIGHT_PX;
+      if (event.deltaMode === 2) pixelsPerUnit = node.clientHeight;
+      node.scrollTop += event.deltaY * pixelsPerUnit;
+    };
+
+    node.addEventListener('wheel', scrollList, { passive: false });
+    detachWheelRef.current = () =>
+      node.removeEventListener('wheel', scrollList);
+  }, []);
+
+  // arrow keys must bring their row with them, or the highlight walks off the visible list
+  useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector(`[data-suggestion-index="${highlightedIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [highlightedIndex, open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -131,6 +171,7 @@ export const SuggestionInput: React.FC<SuggestionInputProps> = ({
               if (!open) setOpen(true);
             }}
             onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
             onKeyDown={handleKeyDown}
           />
           {hasSuggestions && (
@@ -173,11 +214,12 @@ export const SuggestionInput: React.FC<SuggestionInputProps> = ({
           }
         }}
       >
-        <div className="max-h-60 overflow-y-auto py-1">
+        <div ref={attachList} className="max-h-60 overflow-y-auto py-1">
           {matches.map((suggestion, index) => (
             <button
               type="button"
               key={suggestion}
+              data-suggestion-index={index}
               className={cn(
                 'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
                 index === highlightedIndex &&
