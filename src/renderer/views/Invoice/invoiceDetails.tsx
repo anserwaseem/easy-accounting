@@ -557,15 +557,17 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             ) : null}
           </div>
 
-          {invoiceType === InvoiceType.Purchase ? null : (
-            <div className="flex flex-col justify-end gap-4 w-32 ml-auto">
-              <Button onClick={handlePrintClick} className="px-4 py-8">
-                {invoice?.isQuotation
-                  ? 'View Printable Quotation'
-                  : 'View Printable Invoice'}
-              </Button>
-            </div>
-          )}
+          <div className="flex flex-col justify-end gap-4 w-32 ml-auto">
+            <Button
+              onClick={handlePrintClick}
+              className="px-4 py-8"
+              disabled={invoice?.id == null}
+            >
+              {invoice?.isQuotation
+                ? 'View Printable Quotation'
+                : 'View Printable Invoice'}
+            </Button>
+          </div>
         </div>
       </div>
 

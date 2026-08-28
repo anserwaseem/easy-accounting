@@ -1600,6 +1600,57 @@ describe('InvoiceService.insertInvoice', () => {
     );
     expect(() => invoiceService.returnPurchaseInvoice(invoiceId, {})).toThrow();
   });
+
+  it('getInvoicePdfOutputBaseName prefixes purchase rows so they cannot overwrite a sale PDF', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    // invoice numbers restart per type, so the same number exists on both sides
+    const sharedInvoiceNumber = 7001;
+    const buildInvoice = (invoiceType: InvoiceType): Invoice => ({
+      id: -1,
+      invoiceType,
+      date: new Date('2026-08-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: sharedInvoiceNumber,
+      extraDiscount: 0,
+      totalAmount: 101,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity: 1,
+          discount: 0,
+          price: 101,
+          discountedPrice: 101,
+        },
+      ],
+    });
+
+    const { invoiceId: saleId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      buildInvoice('Sale' as InvoiceType),
+    );
+    const { invoiceId: purchaseId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      buildInvoice('Purchase' as InvoiceType),
+    );
+
+    expect(
+      invoiceService.getInvoicePdfOutputBaseName(saleId, 'Sale' as InvoiceType),
+    ).toBe('7001');
+    expect(
+      invoiceService.getInvoicePdfOutputBaseName(
+        purchaseId,
+        'Purchase' as InvoiceType,
+      ),
+    ).toBe('purchase-7001');
+  });
 });
 
 describe('InvoiceService sale quotations', () => {
