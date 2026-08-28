@@ -1651,6 +1651,46 @@ describe('InvoiceService.insertInvoice', () => {
       ),
     ).toBe('purchase-7001');
   });
+
+  it('purchase: persists bilty number and cartons (sale-return consignment)', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    // a purchase booking a sale return an agent collected arrives as one consignment
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-08-02T12:00:00.000Z').toISOString(),
+      invoiceNumber: 7101,
+      extraDiscount: 0,
+      totalAmount: 101,
+      biltyNumber: '4477',
+      cartons: 9,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity: 1,
+          discount: 0,
+          price: 101,
+          discountedPrice: 101,
+        },
+      ],
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+
+    const view = invoiceService.getInvoice(invoiceId);
+    expect(Number(view?.biltyNumber)).toBe(4477);
+    expect(Number(view?.cartons)).toBe(9);
+  });
 });
 
 describe('InvoiceService sale quotations', () => {

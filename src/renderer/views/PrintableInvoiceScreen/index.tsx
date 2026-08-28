@@ -448,8 +448,8 @@ const PrintableInvoiceScreen = () => {
     if (name !== '—') return name;
     return isPurchase ? name : 'WALK IN CUSTOMER';
   }, [invoice?.accountName, invoice?.invoiceItems, isPurchase, itemTypeNames]);
-  // the purchase entry form never collects bilty / cartons, so printing the empty
-  // labels would leave two dangling headings; legacy rows that do carry a value still show it
+  // consignment fields are optional on a purchase — set when it books a sale return an
+  // agent collected, empty on a direct purchase, where the labels would dangle unfilled
   const showBiltyField = !isPurchase || biltyGoodsText.trim().length > 0;
   const showCartonsField = !isPurchase || toNumber(invoice?.cartons) > 0;
   // two remaining fields spread to the page edges under justify-between, which reads
