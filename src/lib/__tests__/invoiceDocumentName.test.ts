@@ -1,4 +1,4 @@
-import { InvoiceType } from '@/types';
+import { InvoiceType } from '../../types';
 import { getInvoiceDocumentBaseName } from '../invoiceDocumentName';
 
 describe('getInvoiceDocumentBaseName', () => {

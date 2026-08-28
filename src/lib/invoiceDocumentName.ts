@@ -1,5 +1,5 @@
 import { isNil, toNumber, toString } from 'lodash';
-import { InvoiceType } from '@/types';
+import { InvoiceType } from '../types';
 import { getQuotationDisplayNumber } from './quotationDisplay';
 
 interface InvoiceDocumentNameInput {
