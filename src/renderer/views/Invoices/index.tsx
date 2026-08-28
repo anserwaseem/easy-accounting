@@ -486,7 +486,6 @@ const InvoicesPage: FC<InvoicesProps> = ({
               'accountCode',
               'date',
               'totalAmount',
-              // consignments are looked up by the bilty the agent quotes, not the invoice number
               'biltyNumber',
             ]}
             searchPersistenceKey={`datatable:${invoiceType.toLowerCase()}:invoices:search`}
