@@ -514,23 +514,21 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 <p className="whitespace-pre-wrap">{invoice.returnReason}</p>
               </div>
             ) : null}
-            {invoiceType === InvoiceType.Sale ? (
-              <>
-                {invoice?.biltyNumber != null &&
-                  String(invoice.biltyNumber).trim() !== '' && (
-                    <div className="flex gap-8">
-                      <p className="font-medium text-md w-[160px]">Bilty #:</p>
-                      <p>{invoice.biltyNumber}</p>
-                    </div>
-                  )}
-                {!!invoice?.cartons && (
-                  <div className="flex gap-8">
-                    <p className="font-medium text-md w-[160px]">Cartons:</p>
-                    <p>{invoice.cartons}</p>
-                  </div>
-                )}
-              </>
-            ) : null}
+            {/* both types carry a consignment: sale dispatches, and purchases used to
+                book a sale return an agent collected. each hides when unset. */}
+            {invoice?.biltyNumber != null &&
+              String(invoice.biltyNumber).trim() !== '' && (
+                <div className="flex gap-8">
+                  <p className="font-medium text-md w-[160px]">Bilty #:</p>
+                  <p>{invoice.biltyNumber}</p>
+                </div>
+              )}
+            {!!invoice?.cartons && (
+              <div className="flex gap-8">
+                <p className="font-medium text-md w-[160px]">Cartons:</p>
+                <p>{invoice.cartons}</p>
+              </div>
+            )}
             {invoiceType === InvoiceType.Sale ? (
               <>
                 {invoice != null && toNumber(invoice.extraDiscount) > 0 ? (
@@ -557,15 +555,17 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             ) : null}
           </div>
 
-          {invoiceType === InvoiceType.Purchase ? null : (
-            <div className="flex flex-col justify-end gap-4 w-32 ml-auto">
-              <Button onClick={handlePrintClick} className="px-4 py-8">
-                {invoice?.isQuotation
-                  ? 'View Printable Quotation'
-                  : 'View Printable Invoice'}
-              </Button>
-            </div>
-          )}
+          <div className="flex flex-col justify-end gap-4 w-32 ml-auto">
+            <Button
+              onClick={handlePrintClick}
+              className="px-4 py-8"
+              disabled={invoice?.id == null}
+            >
+              {invoice?.isQuotation
+                ? 'View Printable Quotation'
+                : 'View Printable Invoice'}
+            </Button>
+          </div>
         </div>
       </div>
 

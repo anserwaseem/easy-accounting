@@ -1968,7 +1968,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         <div
                           className="grid gap-3 col-span-2"
                           style={{
-                            gridTemplateColumns: '2fr 1.2fr',
+                            gridTemplateColumns: '2fr 1.2fr 0.6fr 0.4fr',
                           }}
                         >
                           <FormField
@@ -2013,6 +2013,59 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   !field.value && 'text-muted-foreground',
                                 )}
                               />
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="biltyNumber"
+                            render={({ field }) => (
+                              <FormItem
+                                labelPosition="top"
+                                className="min-w-0 space-y-1.5"
+                              >
+                                <FormLabel className="text-base">
+                                  Bilty Number
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="Bilty"
+                                    className="w-full"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="cartons"
+                            render={({ field }) => (
+                              <FormItem
+                                labelPosition="top"
+                                className="min-w-0 space-y-1.5"
+                              >
+                                <FormLabel className="text-base">
+                                  Cartons
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    type="number"
+                                    step={1}
+                                    min={0}
+                                    placeholder="0"
+                                    className="w-full"
+                                    onBlur={(e) =>
+                                      field.onChange(toNumber(e.target.value))
+                                    }
+                                    onChange={(e) =>
+                                      field.onChange(toNumber(e.target.value))
+                                    }
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
                             )}
                           />
                         </div>

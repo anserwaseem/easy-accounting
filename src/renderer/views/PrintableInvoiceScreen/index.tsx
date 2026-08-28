@@ -19,13 +19,14 @@ import {
 } from 'renderer/shad/ui/tooltip';
 import { dismissAllToasts, toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
-import { toNumber, toString, truncate } from 'lodash';
+import { toNumber, truncate } from 'lodash';
 import {
   computeSectionTotals,
   getPrintBillToPartyName,
   getQuotationDisplayNumber,
   groupInvoiceItemsByType,
 } from '@/renderer/lib/invoiceUtils';
+import { getInvoiceDocumentBaseName } from '@/lib/invoiceDocumentName';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
 
 /** screen preview only; print stays neutral/black ink */
@@ -65,17 +66,13 @@ const fetchPdfOutputDir = (): Promise<string | null> =>
     .then(normalizePdfOutputDir)
     .catch(() => null);
 
-const getPrintDocumentTitleBase = (inv: InvoiceView): string => {
-  if (inv.isQuotation) {
-    return `quotation-${getQuotationDisplayNumber(
-      toNumber(inv.invoiceNumber),
-    )}`;
-  }
-  if (inv.invoiceNumber != null) {
-    return toString(inv.invoiceNumber);
-  }
-  return '';
-};
+/** print dialog's suggested filename; same stem the batch PDF save writes */
+const getPrintDocumentTitleBase = (inv: InvoiceView): string =>
+  getInvoiceDocumentBaseName({
+    invoiceType: inv.invoiceType,
+    invoiceNumber: inv.invoiceNumber,
+    isQuotation: Boolean(inv.isQuotation),
+  });
 
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
@@ -435,14 +432,33 @@ const PrintableInvoiceScreen = () => {
     () => invoice?.invoiceItems ?? [],
     [invoice?.invoiceItems],
   );
+  const isPurchase = invoice?.invoiceType === InvoiceType.Purchase;
+
+  // purchases name the supplier the goods came from, not a bill-to customer
+  const partyLabel = isPurchase ? 'Vendor:' : 'Bill To:';
+
   const billToName = useMemo(() => {
     const name = getPrintBillToPartyName(
       invoice?.accountName,
       itemTypeNames,
       invoice?.invoiceItems,
     );
-    return name === '—' ? 'WALK IN CUSTOMER' : name;
-  }, [invoice?.accountName, invoice?.invoiceItems, itemTypeNames]);
+    // an unnamed sale is a counter sale; a purchase always has a selected vendor,
+    // so leave its placeholder alone rather than calling the vendor a customer
+    if (name !== '—') return name;
+    return isPurchase ? name : 'WALK IN CUSTOMER';
+  }, [invoice?.accountName, invoice?.invoiceItems, isPurchase, itemTypeNames]);
+  // consignment fields are optional on a purchase — set when it books a sale return an
+  // agent collected, empty on a direct purchase, where the labels would dangle unfilled
+  const showBiltyField = !isPurchase || biltyGoodsText.trim().length > 0;
+  const showCartonsField = !isPurchase || toNumber(invoice?.cartons) > 0;
+  // two remaining fields spread to the page edges under justify-between, which reads
+  // as a layout gap rather than a deliberately shorter header
+  const headerFieldsRowClass =
+    showBiltyField || showCartonsField
+      ? 'flex justify-between gap-4'
+      : 'flex justify-start gap-10';
+
   const billToAddress = useMemo(() => {
     const raw = invoice?.accountAddress ?? '';
     const address = String(raw).trim();
@@ -719,7 +735,7 @@ const PrintableInvoiceScreen = () => {
         </div>
 
         <div className="flex flex-col text-base leading-none gap-2 my-1">
-          <div className="flex justify-between gap-4">
+          <div className={headerFieldsRowClass}>
             <div className="flex gap-1 whitespace-nowrap">
               <p>{invoice.isQuotation ? 'Quotation #:' : 'Invoice No:'}</p>
               <p>
@@ -736,17 +752,21 @@ const PrintableInvoiceScreen = () => {
                   : invoice.date}
               </p>
             </div>
-            <div className="flex gap-1 whitespace-nowrap">
-              <p>Bilty:</p>
-              <p>{biltyGoodsText}</p>
-            </div>
-            <div className="flex gap-1 whitespace-nowrap">
-              <p>Cartons:</p>
-              <p>{invoice.cartons ?? ''}</p>
-            </div>
+            {showBiltyField ? (
+              <div className="flex gap-1 whitespace-nowrap">
+                <p>Bilty:</p>
+                <p>{biltyGoodsText}</p>
+              </div>
+            ) : null}
+            {showCartonsField ? (
+              <div className="flex gap-1 whitespace-nowrap">
+                <p>Cartons:</p>
+                <p>{invoice.cartons ?? ''}</p>
+              </div>
+            ) : null}
           </div>
           <div className="flex gap-1 -mt-1">
-            <p className="whitespace-nowrap">Bill To:</p>
+            <p className="whitespace-nowrap">{partyLabel}</p>
             <p className="whitespace-nowrap">{billToName}</p>
             <p className="pl-2">{billToAddress}</p>
           </div>

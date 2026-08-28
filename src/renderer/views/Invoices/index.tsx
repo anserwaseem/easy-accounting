@@ -297,26 +297,28 @@ const InvoicesPage: FC<InvoicesProps> = ({
                       getFormattedCurrency(toNumber(getValue())),
                     size: 128,
                   },
-                  {
-                    accessorKey: 'biltyNumber',
-                    header: 'Bilty #',
-                    onClick: (row) =>
-                      propInvoices
-                        ? setPreviewInvoiceId(row.original.invoiceNumber)
-                        : navigateToInvoice(row.original.id),
-                    size: 72,
-                  },
-                  {
-                    accessorKey: 'cartons',
-                    header: 'Cartons',
-                    onClick: (row) =>
-                      propInvoices
-                        ? setPreviewInvoiceId(row.original.invoiceNumber)
-                        : navigateToInvoice(row.original.id),
-                    size: 56,
-                  },
                 ] as ColumnDef<InvoicesView>[])
               : []),
+            // consignment columns are not sale-only: a purchase booking a sale return
+            // an agent collected carries the same bilty and carton count
+            {
+              accessorKey: 'biltyNumber',
+              header: 'Bilty #',
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+              size: 72,
+            },
+            {
+              accessorKey: 'cartons',
+              header: 'Cartons',
+              onClick: (row) =>
+                propInvoices
+                  ? setPreviewInvoiceId(row.original.invoiceNumber)
+                  : navigateToInvoice(row.original.id),
+              size: 56,
+            },
             createInvoiceEditColumn(
               invoiceType,
               navigate,
@@ -484,6 +486,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
               'accountCode',
               'date',
               'totalAmount',
+              'biltyNumber',
             ]}
             searchPersistenceKey={`datatable:${invoiceType.toLowerCase()}:invoices:search`}
             autoFocusSearch

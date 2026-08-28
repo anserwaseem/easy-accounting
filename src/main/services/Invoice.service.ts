@@ -1,8 +1,8 @@
 import type { Database, Statement } from 'better-sqlite3';
 import log from 'electron-log';
-import { forEach, groupBy, toNumber, toString, uniq } from 'lodash';
+import { forEach, groupBy, toNumber, uniq } from 'lodash';
 import { write, utils } from 'xlsx';
-import { getQuotationDisplayNumber } from '../../lib/quotationDisplay';
+import { getInvoiceDocumentBaseName } from '../../lib/invoiceDocumentName';
 import {
   InvoiceType,
   type Invoice,
@@ -833,11 +833,11 @@ export class InvoiceService {
     if (!result) {
       return null;
     }
-    if (uncastBoolean(result.isQuotation)) {
-      const display = getQuotationDisplayNumber(toNumber(result.invoiceNumber));
-      return `quotation-${display}`;
-    }
-    return toString(toNumber(result.invoiceNumber));
+    return getInvoiceDocumentBaseName({
+      invoiceType,
+      invoiceNumber: toNumber(result.invoiceNumber),
+      isQuotation: Boolean(uncastBoolean(result.isQuotation)),
+    });
   }
 
   /**

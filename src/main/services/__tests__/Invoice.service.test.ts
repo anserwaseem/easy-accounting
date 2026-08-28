@@ -1600,6 +1600,97 @@ describe('InvoiceService.insertInvoice', () => {
     );
     expect(() => invoiceService.returnPurchaseInvoice(invoiceId, {})).toThrow();
   });
+
+  it('getInvoicePdfOutputBaseName prefixes purchase rows so they cannot overwrite a sale PDF', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    // invoice numbers restart per type, so the same number exists on both sides
+    const sharedInvoiceNumber = 7001;
+    const buildInvoice = (invoiceType: InvoiceType): Invoice => ({
+      id: -1,
+      invoiceType,
+      date: new Date('2026-08-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: sharedInvoiceNumber,
+      extraDiscount: 0,
+      totalAmount: 101,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity: 1,
+          discount: 0,
+          price: 101,
+          discountedPrice: 101,
+        },
+      ],
+    });
+
+    const { invoiceId: saleId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      buildInvoice('Sale' as InvoiceType),
+    );
+    const { invoiceId: purchaseId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      buildInvoice('Purchase' as InvoiceType),
+    );
+
+    expect(
+      invoiceService.getInvoicePdfOutputBaseName(saleId, 'Sale' as InvoiceType),
+    ).toBe('7001');
+    expect(
+      invoiceService.getInvoicePdfOutputBaseName(
+        purchaseId,
+        'Purchase' as InvoiceType,
+      ),
+    ).toBe('purchase-7001');
+  });
+
+  it('purchase: persists bilty number and cartons (sale-return consignment)', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+
+    // a purchase booking a sale return an agent collected arrives as one consignment
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Purchase' as InvoiceType,
+      date: new Date('2026-08-02T12:00:00.000Z').toISOString(),
+      invoiceNumber: 7101,
+      extraDiscount: 0,
+      totalAmount: 101,
+      biltyNumber: '4477',
+      cartons: 9,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity: 1,
+          discount: 0,
+          price: 101,
+          discountedPrice: 101,
+        },
+      ],
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Purchase' as InvoiceType,
+      invoice,
+    );
+
+    const view = invoiceService.getInvoice(invoiceId);
+    expect(Number(view?.biltyNumber)).toBe(4477);
+    expect(Number(view?.cartons)).toBe(9);
+  });
 });
 
 describe('InvoiceService sale quotations', () => {
