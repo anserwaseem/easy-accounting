@@ -156,28 +156,31 @@ What would make this 10x more valuable — not for a hypothetical market, but fi
 ---
 
 ## Recommended Priority
+*(Revised 2026-08-30 after owner's answers — see "What the answers change" below.)*
 
 ### Do Now (quick wins, ship this month)
-1. **Receive Payment flow** — Why: biggest daily pain in a credit-sales business; makes Bills Aging trustworthy. Impact: journals stop being the front door for money.
-2. **Global search (Ctrl+K)** — Why: hours saved across every session; fits the app's keyboard DNA.
-3. **Customer balance in New Invoice** + **Duplicate invoice** — Why: two low-effort changes at the exact center of the core loop.
-4. **Backup health indicator** — Why: one label that protects the whole business.
+1. **Customer group view** — Why: a customer is N split accounts (`name-itemType`); every order confirmation today hand-picks them in Bills Aging. Auto-group by customer, show combined exposure + days-to-clear in one click. Impact: minutes → seconds on *every single order*.
+2. **Receive Payment flow (bank + cash)** — Why: biggest daily pain on the recovery side; replaces aging's regex/FIFO reconstruction with recorded fact.
+3. **Global search (Ctrl+K)** — Why: hours saved across every session; cmdk primitives already in the codebase.
+4. **Customer balance in New Invoice** + **Duplicate invoice** — Why: two low-effort changes at the exact center of the core loop.
+5. **Backup staleness indicator** — Why: one label that protects the whole business.
 
 ### Do Next (high leverage, this quarter)
-1. **P&L + Balance Sheet reports** — Why: completes the accounting story; Unlocks: bank/tax deliverables come *from* the app.
-2. **Customer statement one-click + share** — Why: turns the ledger into a collections tool; Unlocks: "statement day" as a one-action ritual.
-3. **Transaction templates** — Why: operator-proofs journals; Unlocks: the NL assistant later.
-4. **Post-dated cheque tracking** — Why: forward-looking cash; real loss prevention.
+1. **The Order Desk** — Why: the WhatsApp-order → credit-check → discount-negotiation → invoice ritual is the business's true center and is spread across three screens today. One screen: credit snapshot beside the order, confirm/counter/reject, confirm → draft invoice → print + cartons. Unlocks: order turnaround in one sitting; judgment backed by data instead of memory.
+2. **P&L + Balance Sheet reports** — Why: completes the accounting story; bank/tax deliverables come *from* the app.
+3. **Customer statement one-click + share** — Why: turns the ledger into a collections tool; pairs with the agent relationship (statements per customer group, sent via the agent).
+4. **Transaction templates** — Why: operator-proofs journals; stepping stone to the NL assistant.
 
 ### Explore (strategic bets)
-1. **Catalog → order channel** — Risk: adoption; Upside: the app starts *generating* revenue, not recording it. Start with WhatsApp-shared catalog links that pre-fill orders.
-2. **Companion mobile read-only view** — Risk: cloud security story; Upside: the owner's pocket dashboard, without solving sync.
-3. **Multi-company / year-close** — Risk: file/version management; Upside: the "accountant installs it for every client" growth loop.
+1. **Agent order channel** — Risk: agent adoption; Upside: agents submit structured orders (shared link/form pre-filled from the catalog + customer's price list) that land directly in the Order Desk. The public-portal variant is superseded — the orders come from agents.
+2. **Companion mobile read-only view** — Risk: cloud security story; Upside: the owner's pocket dashboard (credit snapshots on the phone, where the agent conversation happens), without solving sync.
 
 ### Backlog (good, not now)
 1. NL entry assistant — build templates first, learn the shapes, then automate them.
-2. Tax fields (GST/withholding) — wait until statements exist; taxes without a P&L is cart before horse.
-3. Urdu/localized UI — valuable for distribution beyond the first business, premature before multi-company.
+2. Post-dated cheque tracking — recoveries are mostly bank/cash today; revisit if cheques grow.
+3. Multi-company / year-close — single business for now; year-close alone may return at FY boundaries.
+4. Tax fields (GST/withholding) — wait until statements exist.
+5. Urdu/localized UI — premature before anyone beyond the first business runs it.
 
 ---
 
@@ -188,10 +191,18 @@ What would make this 10x more valuable — not for a hypothetical market, but fi
 - **Q**: Can the app produce a balance sheet? **A**: Only import one (`Statement.service.saveBalanceSheet`); no generated P&L or balance sheet report exists under `src/renderer/views/Reports/`.
 - **Q**: Is there cloud infrastructure to build on? **A**: Yes — Supabase backups per machine (`Backup.service`) and a catalog publishing pipeline (`Publish.service`), both reusable for orders/mobile snapshots.
 
-### Blockers (need user input)
-- **Q**: How many businesses/users run this today beyond the original one? (Determines whether Explore bets or Do Now polish matter more.)
-- **Q**: Are recoveries mostly cash, bank transfer, or cheques? (Orders the payment-flow and PDC work.)
-- **Q**: Is the published catalog actually being shared with customers yet, and how do orders arrive today (phone/WhatsApp/visits)?
+### Blockers — ANSWERED (owner, 2026-08-30)
+- **Q**: How do orders arrive today? **A**: Mostly WhatsApp, from **sales agents** on behalf of their clients (direct customer calls are rare). Each order is manually confirmed from Bills Aging: select the agent's head → date range 1/1/25–today → multi-select **all accounts of the customer**, where a customer is split into accounts named `${name}-${itemTypeName1..N}` (one per item type, because discounts differ per type). If the customer is slow clearing overdues, the concern goes back to the agent — reduce the offered discount, reject, or chase missing items — and only then is the sale invoice created, printed, and packed with cartons.
+- **Q**: Are recoveries mostly cash, bank, or cheques? **A**: Mostly **bank and cash**. → Payment flow ships with bank/cash modes first; PDC tracking drops out of "Do Next".
+- **Q**: Anyone beyond the first business running this? **A**: **No.** → Polish the daily loop; multi-company, localization, and docs-as-distribution move to backlog.
+
+### What the answers change
+
+1. **The order-confirmation ritual is the product's true center, and it's unmodeled.** Every order triggers: WhatsApp message → Bills Aging → agent head → date range → hand-picking a customer's split accounts → judgment call on payment habit → discount negotiation with the agent → new invoice → print → pack. Three screens, several minutes, and the crucial judgment ("how does this customer pay?") lives in the operator's head. Two features fall straight out of this:
+   - **Customer group as a first-class concept** (small-medium): auto-group the `${name}-${itemType}` split accounts under one customer; one click anywhere shows combined exposure. Kills the multi-select ritual instantly. The `useBillsAging` days-to-clear computation already produces the "payment habit" number worth surfacing per customer.
+   - **The Order Desk** (medium, new 🔥): one screen per incoming order — customer credit snapshot (total outstanding across all their accounts, oldest unpaid bill, average days-to-clear, last receipts) beside the requested items and offered discount; actions: *confirm* (→ draft invoice, priced by discount profile), *counter* (reduced discount, one message back to the agent), *reject*. The invoice + carton print step already exists. This is the catalog→orders bet landed where the orders actually are: with agents, not end customers.
+2. **Receive Payment flow**: unchanged at #1, now scoped to bank + cash modes first.
+3. **Demoted**: PDC tracking (🤔, revisit if cheques grow), multi-company/year-close (backlog — single business, though year-close alone may return for FY boundaries), catalog public portal (superseded by agent-facing Order Desk).
 
 ## Next Steps
 - [ ] Validate: count how many manual journals are payment-shaped in the real DB (confirms Receive Payment as #1).
