@@ -1,6 +1,10 @@
 # 10x Analysis: Easy Accounting
 Session 1 | Date: 2026-08-30
 
+> **Note on sources**: README and USER_MANUAL.md are known to be out of date, so every
+> claim below was verified against code (`src/main/services/`, `src/renderer/views/`,
+> migrations, schema), not docs. See "Corrections after code verification" at the end.
+
 ## Current Value
 
 Easy Accounting is an **offline-first, double-entry accounting desktop app** (Electron + React + better-sqlite3) for a small trading/publishing business — the inventory carries Urdu book attributes, invoices carry bilty numbers and cartons, and discount profiles apply per item type. It is clearly built around one real business's daily flow, which is its greatest strength: it does exactly what the operator needs, fast, with no internet required.
@@ -13,7 +17,8 @@ Easy Accounting is an **offline-first, double-entry accounting desktop app** (El
 - Catalog publishing with public/private attribute control, image manifests, publish blockers (`Publish.service`)
 - Reports: Trial Balance, Account Balances, Ledger Report (with date range, export, print totals), Bills Aging, Inventory Health, Stock As Of, Sales Performance, Average Equity Balances
 - Balance sheet **import** from Excel (`Statement.service.saveBalanceSheet`)
-- Cloud backup to Supabase per machine (`Backup.service`)
+- Cloud backup to Supabase per machine (`Backup.service`), with a native Backup menu (create/list/show folder in `menu.ts`) and progress toasts (`BackupToastListener`)
+- Company profile + invoice print settings (`Settings/index.tsx`, `useCompanyProfile`, `useInvoicePrintSettings`) and per-account pricing/discount tools (`Accounts/AccountPricing`)
 - Dashboard with Cash Flow + Financial Overview
 - Strong keyboard-first data entry culture (Enter appends invoice rows, focus management PR #125)
 
@@ -63,9 +68,9 @@ What would make this 10x more valuable — not for a hypothetical market, but fi
 
 ### 1. Receive Payment / Make Payment flow (against invoices)
 **What**: A first-class "Receive Payment" screen: pick customer → see open invoices (data already powering Bills Aging) → enter amount + mode (cash/bank/cheque) → allocate across invoices → posting happens automatically.
-**Why 10x**: This is the **highest-leverage gap in the product**. The app models the sale side of credit business beautifully (invoices, aging, ledgers) but recording the *recovery* — the thing a credit-sales business does every single day — is a raw manual journal today. Bills Aging can only ever be as accurate as payment entry is easy. This single flow removes the main reason a non-accountant still needs to understand debits and credits.
-**Impact**: Daily task goes from "compose a journal, get the sides right, hope aging picks it up" to three clicks; aging report becomes trustworthy.
-**Effort**: Medium (UI + one posting routine; allocation table `invoice_payments` is a small migration)
+**Why 10x**: This is the **highest-leverage gap in the product**. The app models the sale side of credit business beautifully (invoices, aging, ledgers) but recording the *recovery* — the thing a credit-sales business does every single day — is a raw manual journal today. The code itself shows the cost: `useBillsAging.ts` has to *reconstruct* bills and receipts by regex-matching `"Journal #(\d+)"` out of ledger `particulars` strings and FIFO-allocating credits against debits — a fragile inference of facts the operator knew at entry time and had nowhere to record. A real payment flow with an allocation table replaces ~200 lines of reconstruction heuristics with ground truth.
+**Impact**: Daily task goes from "compose a journal, get the sides right, hope aging picks it up" to three clicks; aging stops being inferred and becomes recorded fact (partial payments, disputed bills, and non-FIFO allocations all become expressible).
+**Effort**: Medium (UI + one posting routine; allocation table `invoice_payments` is a small migration; Bills Aging then reads it directly)
 **Score**: 🔥
 
 ### 2. Generate the financial statements (P&L + Balance Sheet as reports)
@@ -124,10 +129,10 @@ What would make this 10x more valuable — not for a hypothetical market, but fi
 **Effort**: Low
 **Score**: 🔥
 
-### 4. Backup health indicator
-**What**: A small status in the sidebar: "Backed up 2h ago ✓" / red when stale or offline; click to back up now.
-**Why powerful**: The entire business lives in one SQLite file on one disk. `Backup.service` exists but is invisible — anxiety the user doesn't know they should have until the day it's fatal. One indicator converts silent risk into calm.
-**Effort**: Low
+### 4. Backup staleness indicator
+**What**: A small always-visible status in the sidebar: "Backed up 2h ago ✓" / amber when stale, red when failing or offline; click to back up now.
+**Why powerful**: The entire business lives in one SQLite file on one disk. Backup already has a native menu (`menu.ts`: Create Backup, list, show folder) and progress toasts — what's missing is the *passive* signal: the menu only answers when asked, and a toast only fires during an operation. Staleness is precisely the state nobody asks about. One persistent indicator converts silent risk into calm.
+**Effort**: Low (last-backup timestamp is already derivable from `listBackups()`)
 **Score**: 🔥
 
 ### 5. Low-stock / reorder alerts on the dashboard
@@ -192,3 +197,16 @@ What would make this 10x more valuable — not for a hypothetical market, but fi
 - [ ] Validate: count how many manual journals are payment-shaped in the real DB (confirms Receive Payment as #1).
 - [ ] Research: smallest viable order-submission channel (WhatsApp deep links vs. tiny Supabase-hosted form).
 - [ ] Decide: whether Revenue/Expense heads are populated enough in real data to generate a P&L today, or need a chart cleanup first.
+
+---
+
+## Corrections after code verification (docs are stale)
+
+Claims checked against code because README/USER_MANUAL are out of date:
+
+- **Confirmed — no payment flow**: no `invoice_payments`/allocation table anywhere in schema or migrations 001–023; Bills Aging reconstructs receipts from ledger entries via `particulars.match(/Journal #(\d+)/)` + FIFO (`useBillsAging.ts:203`). Recommendation #1 stands, strengthened.
+- **Confirmed — no P&L / generated balance sheet**: zero hits for income statement / profit-and-loss / `getBalanceSheet` in `src/`; `Statement.service` only imports.
+- **Confirmed — no global command palette**: `cmdk` primitives exist (`shad/ui/command.tsx`) but are only used inside `multiSelect`; no app-wide Ctrl+K. The primitive being present makes the gem even cheaper.
+- **Confirmed — no duplicate-invoice action**: all "duplicate" hits are inventory name-collision checks.
+- **Corrected — backup is not invisible**: native Backup menu + toasts exist; the gap is narrowed to a *staleness* indicator (gem #4 reworded).
+- **Beyond the docs**: company profile + invoice print settings and per-account pricing/discount tooling (`Accounts/AccountPricing`) exist undocumented. Worth noting: keeping USER_MANUAL.md current is itself cheap leverage now — the manual is the distribution artifact if the app ever goes beyond the first business, and features nobody can discover (the manual doesn't mention quotations, returns, reports, backups, or settings at all) are features that don't exist to a new user.
