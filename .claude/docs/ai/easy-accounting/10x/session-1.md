@@ -204,6 +204,30 @@ What would make this 10x more valuable — not for a hypothetical market, but fi
 2. **Receive Payment flow**: unchanged at #1, now scoped to bank + cash modes first.
 3. **Demoted**: PDC tracking (🤔, revisit if cheques grow), multi-company/year-close (backlog — single business, though year-close alone may return for FY boundaries), catalog public portal (superseded by agent-facing Order Desk).
 
+## Addendum: verified against the shop's real database (2026-08-28 backup)
+
+The owner challenged the "customer group view" idea ("the system already does `${name}-${itemType}`, it must know!") and provided the production DB. Findings:
+
+**Scale**: 1,313 accounts under 7 agent heads (custom chart heads with `parentId` → Current Asset; the largest agent head carries 833 accounts), 12,359 invoices (~30–60 sale invoices/month recently), 113,927 invoice items (avg 10.4/invoice), 2,752 journals, 870 discount profiles (≈ one per customer-account), 3 item types.
+
+**Does the system know the grouping? It knows the *convention*, not the *fact* — in exactly one place.** `partyAccountTyping.ts` (New Invoice split-by-type) detects item-type-suffixed accounts and resolves typed↔base by string matching at runtime, name first, code prefix as fallback. Three problems, all confirmed in the data (customer specifics kept out of the repo; see the session conversation):
+1. **215 shop names exist more than once** across cities — one name appears as 14 separate accounts in ~8 cities. `findBasePartyRowForSingleAccountId` matches **by name first** (`baseParties.find(name === base)`) — for those 215 names it can bind a typed account in one city to the base account of a same-named customer in another. Latent wrong-customer risk inside split invoice resolution.
+2. **The code fallback breaks on inconsistent code spellings**: base and typed accounts of the same customer carry differently abbreviated/cased city prefixes, and some codes embed spaces.
+3. **Bills Aging contains none of this logic** (zero references) — which is exactly why the multi-select ritual exists. The knowledge lives where invoices are created, not where the credit decision is made.
+
+Sample proving the split is real: one customer's base account holds 3 invoice headers but has **no ledger entries at all**; its typed account carries the whole ledger — outstanding balance, all 9 receipts. Either account alone shows half the customer.
+
+**Revised recommendation (replaces "customer group view" as pitched):** don't build a new manual grouping UI — **promote the convention the app already half-knows into a stored fact**. Add `customerGroupId` to `account`, seed it automatically from code-prefix matching, and show a one-time review screen for the ambiguous cases (the 215 colliding names). Then reuse the stored grouping in Bills Aging (auto-select a customer's accounts), New Invoice (fixing the name-first mis-binding risk as a side effect), statements, and the future Order Desk. Roughly a day of migration + seeding logic, and it hardens an existing correctness risk rather than adding a feature.
+
+**Receipt-shaped journals** (credit to an agent-head party, debit to a cash-in-hand or bank account): 3–14/month detected by heuristic, against 99–289 total journals/month — consistent with recoveries flowing through manual journals and with bank/cash as the modes.
+
+**Imported history is inert — one migration activates ~18 years of it.** Owner's clarification: invoices older than early 2026 were imported, without journal/ledger entries (pre-history reaches aging only as opening balances — so payment-habit metrics have ~2026-onward depth, which is fine for the Order Desk). But the import also left **11,846 of 12,359 invoices (96%) with `MM/DD/YYYY` string dates** (system-generated ones are ISO). Every date filter in the services compares strings (`i.date >= ?`), and `'01/01/2008' < '2026-…'` lexically, so imported invoices sit below any ISO bound:
+- Sales Performance silently starts at Jan 2026 — the 2008–2025 sales history (most of the 113k invoice items) is invisible to it.
+- `MAX(i.date)` last-sold values are wrong for items only sold pre-import (month-first string order ≠ chronology), so Inventory Health's dead-stock signal can mislabel.
+- Stock As Of's rollback (`CASE WHEN i.date > ?`) never sees imported invoices as "after" any date — wrong for pre-2026 as-of dates.
+
+→ **New Do-Now item: a one-off date-normalization migration** (`MM/DD/YYYY` → ISO). Low effort; fixes last-sold/dead-stock and as-of correctness, and turns ~18 years of imported sales history into usable analytics — seasonality per item and per customer that the book trade runs on.
+
 ## Next Steps
 - [ ] Validate: count how many manual journals are payment-shaped in the real DB (confirms Receive Payment as #1).
 - [ ] Research: smallest viable order-submission channel (WhatsApp deep links vs. tiny Supabase-hosted form).
