@@ -99,9 +99,10 @@ describe('BackupService', () => {
 
   it('should set the backup directory correctly', () => {
     expect(backupService).toHaveProperty('backupDir');
+    // bucket name embeds the runtime platform, so the expectation must too
     // eslint-disable-next-line dot-notation
     expect(backupService['backupDir']).toBe(
-      '/mocked/path/to/backups/database-backup_darwin_test-computer_test-user',
+      `/mocked/path/to/backups/database-backup_${process.platform}_test-computer_test-user`,
     );
   });
 
@@ -201,6 +202,86 @@ describe('BackupService', () => {
       );
 
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('getLastBackupInfo', () => {
+    // builds a valid backup filename for a given date, mimicking real names
+    const backupFilename = (date: Date) =>
+      `database-backup_${date.toISOString().replace(/[:.]/g, '-')}.db`;
+
+    // extractTimestamp keeps second precision only
+    const expectedIso = (date: Date) =>
+      new Date(`${date.toISOString().slice(0, 19)}Z`).toISOString();
+
+    it('returns the newest local backup when offline (fresh case)', async () => {
+      const recent = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2h ago
+      const older = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000); // 3d ago
+      (isOnline as jest.Mock).mockReturnValue(false);
+      (fs.readdirSync as jest.Mock).mockReturnValue([
+        backupFilename(older),
+        backupFilename(recent),
+      ]);
+      (fs.statSync as jest.Mock).mockReturnValue({ size: 1234 });
+
+      const infoResult = await backupService.getLastBackupInfo();
+
+      expect(infoResult.lastBackupAt).toBe(expectedIso(recent));
+      expect(infoResult.type).toBe('local');
+      expect(infoResult.lastError).toBeUndefined();
+    });
+
+    it('returns a stale cloud backup when it is the only one', async () => {
+      (isOnline as jest.Mock).mockReturnValue(true);
+      (fs.readdirSync as jest.Mock).mockReturnValue([]);
+
+      const infoResult = await backupService.getLastBackupInfo();
+
+      // beforeEach mocks the cloud listing with a 2025-01-25 backup
+      expect(infoResult.lastBackupAt).toBe('2025-01-25T15:21:43.000Z');
+      expect(infoResult.type).toBe('cloud');
+      expect(infoResult.lastError).toBeUndefined();
+    });
+
+    it('returns nulls when no backups exist (empty case)', async () => {
+      (isOnline as jest.Mock).mockReturnValue(false);
+      (fs.readdirSync as jest.Mock).mockReturnValue([]);
+
+      const infoResult = await backupService.getLastBackupInfo();
+
+      expect(infoResult).toEqual({ lastBackupAt: null, type: null });
+    });
+
+    it('degrades to local metadata with lastError when cloud listing throws', async () => {
+      const recent = new Date(Date.now() - 60 * 60 * 1000); // 1h ago
+      (isOnline as jest.Mock).mockReturnValue(true);
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readdirSync as jest.Mock).mockReturnValue([backupFilename(recent)]);
+      (fs.statSync as jest.Mock).mockReturnValue({ size: 1234 });
+      // e.g. dummy SUPABASE env vars / unreachable network reject the request
+      (createClient as jest.Mock).mockReturnValue({
+        storage: {
+          from: jest.fn().mockReturnValue({
+            list: jest.fn().mockRejectedValue(new Error('fetch failed')),
+          }),
+        },
+      });
+      const failingService = new BackupService();
+
+      const infoResult = await failingService.getLastBackupInfo();
+
+      expect(infoResult.lastBackupAt).toBe(expectedIso(recent));
+      expect(infoResult.type).toBe('local');
+      expect(infoResult.lastError).toContain('fetch failed');
+    });
+
+    it('returns nulls when the user is logged out (no backup dir)', async () => {
+      (store.get as jest.Mock).mockReturnValue(undefined);
+      const loggedOutService = new BackupService();
+
+      const infoResult = await loggedOutService.getLastBackupInfo();
+
+      expect(infoResult).toEqual({ lastBackupAt: null, type: null });
     });
   });
 

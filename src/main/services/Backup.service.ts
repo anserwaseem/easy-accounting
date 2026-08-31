@@ -20,6 +20,15 @@ import { logErrors } from '../errorLogger';
 import { raise, getComputerName, isOnline } from '../utils/general';
 import { store } from '../store';
 
+/** read-only metadata about the most recent backup, for the sidebar indicator */
+export type BackupLastInfo = {
+  /** ISO timestamp of the newest known backup, or null when none exists */
+  lastBackupAt: string | null;
+  type: BackupType | null;
+  /** set when deriving the info hit an error (e.g. cloud storage unreachable) */
+  lastError?: string;
+};
+
 // FUTURE sync local backups to cloud when internet is connected or expose a button
 @logErrors
 export class BackupService {
@@ -437,5 +446,58 @@ export class BackupService {
 
   public getBackupDir(): string {
     return this.backupDir || '';
+  }
+
+  /**
+   * Metadata about the most recent backup for the sidebar staleness indicator.
+   * Never rejects: when cloud listing throws (e.g. unreachable or dummy
+   * credentials) it degrades to local backup directory metadata so the
+   * indicator can always render something meaningful.
+   */
+  public async getLastBackupInfo(): Promise<BackupLastInfo> {
+    try {
+      const backups = await this.listBackups();
+      const latest = backups[0];
+      if (!latest) return { lastBackupAt: null, type: null };
+
+      return {
+        // an unparsable filename yields an invalid Date whose toISOString
+        // throws; the catch below then falls back to local metadata
+        lastBackupAt: latest.timestamp.toISOString(),
+        type: latest.type,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      log.error(`${this.logPrefix} getLastBackupInfo failed:`, errorMessage);
+      return { ...this.getLocalLastBackupInfo(), lastError: errorMessage };
+    }
+  }
+
+  // local-only fallback used when the merged listing cannot be derived
+  private getLocalLastBackupInfo(): Pick<
+    BackupLastInfo,
+    'lastBackupAt' | 'type'
+  > {
+    try {
+      if (!this.backupDir || !fs.existsSync(this.backupDir)) {
+        return { lastBackupAt: null, type: null };
+      }
+
+      const timestamps = fs
+        .readdirSync(this.backupDir)
+        .filter((file) => file.startsWith(this.BACKUP_PREFIX))
+        .map((file) => BackupService.extractTimestamp(file).getTime())
+        .filter((time) => Number.isFinite(time));
+
+      if (timestamps.length === 0) return { lastBackupAt: null, type: null };
+
+      return {
+        lastBackupAt: new Date(Math.max(...timestamps)).toISOString(),
+        type: 'local',
+      };
+    } catch {
+      return { lastBackupAt: null, type: null };
+    }
   }
 }
