@@ -33,7 +33,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/renderer/shad/ui/tabs';
-import { Pencil, RotateCcw } from 'lucide-react';
+import { Copy, Pencil, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -377,6 +377,24 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                   )}
                 </p>
               </div>
+            ) : null}
+            {invoice?.id != null && isNil(propInvoice) ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 md:h-10"
+                onClick={() =>
+                  // prefills New Invoice with this invoice's customer + items at
+                  // current prices; a quotation duplicates as a quotation
+                  navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
+                    state: { duplicateFromId: invoice.id },
+                  })
+                }
+              >
+                <Copy className="h-3.5 w-3.5 mr-1.5" />
+                Duplicate
+              </Button>
             ) : null}
             {canEditPostedInvoice ? (
               <Button

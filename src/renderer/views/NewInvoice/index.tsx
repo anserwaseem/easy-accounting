@@ -97,6 +97,8 @@ import {
   useInvoiceInventoryLoader,
 } from './hooks/useNewInvoiceInventory';
 import { useEditInvoiceHydration } from './hooks/useEditInvoiceHydration';
+import { useDuplicateInvoiceHydration } from './hooks/useDuplicateInvoiceHydration';
+import { PartyBalanceIndicator } from './components/PartyBalanceIndicator';
 import { useInvoiceDateValidation } from './hooks/useInvoiceDateValidation';
 import { useNewInvoiceNextNumber } from './hooks/useNewInvoiceNextNumber';
 import { useNewInvoiceParties } from './hooks/useNewInvoiceParties';
@@ -126,6 +128,16 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     return Number.isFinite(n) && n > 0 ? n : undefined;
   }, [isPostedInvoiceEditPath, params.id]);
 
+  // "Duplicate" navigations pass the source invoice id via router state; only honored on the plain new route
+  const duplicateFromId = useMemo(() => {
+    if (isPostedInvoiceEditPath) return undefined;
+    const n = toNumber(get(location.state, 'duplicateFromId'));
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }, [isPostedInvoiceEditPath, location.state]);
+
+  // duplicating a quotation keeps it a quotation: primary save inserts a quotation of the same type
+  const [duplicateFromQuotation, setDuplicateFromQuotation] = useState(false);
+
   const [isEditingQuotation, setIsEditingQuotation] = useState(false);
   const isQuotationFlowRef = useRef(false);
   isQuotationFlowRef.current = isEditingQuotation;
@@ -138,13 +150,19 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       } quotation`;
     }
     if (editInvoiceId != null) return `Edit ${invoiceType} Invoice`;
+    if (duplicateFromQuotation) return `New ${invoiceType} Quotation`;
     return `New ${invoiceType} Invoice`;
-  }, [editInvoiceId, invoiceType, isEditingQuotation]);
+  }, [duplicateFromQuotation, editInvoiceId, invoiceType, isEditingQuotation]);
+
+  // a form duplicated from a quotation saves as a quotation (fresh quotation of the same type)
+  const primarySaveKind: 'invoice' | 'quotation' =
+    editInvoiceId == null && duplicateFromQuotation ? 'quotation' : 'invoice';
 
   const primarySubmitLabel = useMemo(() => {
     if (editInvoiceId != null && isEditingQuotation) return 'Update quotation';
+    if (primarySaveKind === 'quotation') return 'Save as Quotation';
     return 'Save';
-  }, [editInvoiceId, isEditingQuotation]);
+  }, [editInvoiceId, isEditingQuotation, primarySaveKind]);
 
   const saleStockValidationBonusRef = useRef<Record<number, number>>({});
   const [editHydrated, setEditHydrated] = useState(false);
@@ -602,11 +620,20 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     saleStockValidationBonusRef,
   });
 
-  // typed/suffixed accounts are omitted from parties; invoice header id may still reference them, so load that row for VirtualSelect label matching
+  useDuplicateInvoiceHydration({
+    invoiceType,
+    duplicateFromId,
+    form,
+    setUseSingleAccount,
+    setSplitByItemType,
+    setDuplicateFromQuotation,
+  });
+
+  // typed/suffixed accounts are omitted from parties; invoice header id may still reference them, so load that row for VirtualSelect label matching (edit + duplicate hydration)
   useEffect(() => {
     let cancelled = false;
     const sid = toNumber(watchedSingleAccountId);
-    if (editInvoiceId == null || sid <= 0) {
+    if ((editInvoiceId == null && duplicateFromId == null) || sid <= 0) {
       setMissingPartyForSelect(undefined);
       return () => {
         cancelled = true;
@@ -650,7 +677,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [editInvoiceId, parties, watchedSingleAccountId]);
+  }, [duplicateFromId, editInvoiceId, parties, watchedSingleAccountId]);
 
   const customerVendorSelectOptions = useMemo(
     () =>
@@ -1364,9 +1391,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   useCmdOrCtrlShortcut('s', () => {
     const disabled =
-      isSubmitDisabled || (editInvoiceId == null && postedNextNumberBlocked);
+      isSubmitDisabled ||
+      (editInvoiceId == null &&
+        primarySaveKind === 'invoice' &&
+        postedNextNumberBlocked);
     if (!disabled) {
-      submitSaveKindRef.current = 'invoice';
+      submitSaveKindRef.current = primarySaveKind;
       form.handleSubmit(onSubmit, onValidationError)();
     }
   });
@@ -1882,6 +1912,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   placeholder="Select a party"
                                   searchPlaceholder="Search parties..."
                                   autoFocusTrigger={editInvoiceId == null}
+                                />
+                                <PartyBalanceIndicator
+                                  accountId={toNumber(field.value)}
                                 />
                                 <FormMessage />
                               </FormItem>
@@ -2466,11 +2499,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           variant="default"
                           disabled={
                             isSubmitDisabled ||
-                            (editInvoiceId == null && postedNextNumberBlocked)
+                            (editInvoiceId == null &&
+                              primarySaveKind === 'invoice' &&
+                              postedNextNumberBlocked)
                           }
                           className="min-h-[44px]"
                           onClick={() => {
-                            submitSaveKindRef.current = 'invoice';
+                            submitSaveKindRef.current = primarySaveKind;
                             form.handleSubmit(onSubmit, onValidationError)();
                           }}
                         >
@@ -2498,7 +2533,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       </p>
                     ) : null}
                   </div>
-                  {editInvoiceId == null ? (
+                  {editInvoiceId == null && !duplicateFromQuotation ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -2531,10 +2566,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         <Button
                           type="button"
                           variant="outline"
-                          disabled={isSubmitDisabled || postedNextNumberBlocked}
+                          disabled={
+                            isSubmitDisabled ||
+                            (primarySaveKind === 'invoice' &&
+                              postedNextNumberBlocked)
+                          }
                           className="min-h-[44px]"
                           onClick={() => {
-                            submitSaveKindRef.current = 'invoice';
+                            submitSaveKindRef.current = primarySaveKind;
                             openPrintAfterSaveRef.current = true;
                             form.handleSubmit(onSubmit, onValidationError)();
                           }}
