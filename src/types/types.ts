@@ -112,6 +112,7 @@ export interface Account extends BaseEntity {
   discountProfileId?: number | null;
   discountProfileName?: string | null;
   discountProfileIsActive?: boolean | null;
+  customerGroupId?: number | null; // stored customer grouping ("025 migration")
 }
 
 export type InsertAccount = Omit<
@@ -298,6 +299,15 @@ export interface DiscountProfile extends Omit<BaseEntity, 'date'> {
   name: string;
   isActive: boolean;
   accountCount?: number;
+}
+
+/** Customer group: one real-world customer spanning several typed accounts */
+export interface CustomerGroup extends Omit<BaseEntity, 'date'> {
+  name: string;
+}
+
+export interface CustomerGroupWithAccounts extends CustomerGroup {
+  accounts: Array<Pick<Account, 'id' | 'name' | 'code'>>;
 }
 
 export interface ProfileTypeDiscount extends Omit<BaseEntity, 'date'> {
