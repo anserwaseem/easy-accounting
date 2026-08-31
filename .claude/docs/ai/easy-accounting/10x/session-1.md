@@ -228,6 +228,13 @@ Sample proving the split is real: one customer's base account holds 3 invoice he
 
 → **New Do-Now item: a one-off date-normalization migration** (`MM/DD/YYYY` → ISO). Low effort; fixes last-sold/dead-stock and as-of correctness, and turns ~18 years of imported sales history into usable analytics — seasonality per item and per customer that the book trade runs on.
 
+## Owner corrections, round 3 (2026-08-31)
+
+1. **A web version is already being built** (`anserwaseem/easy-accounting-web`). The "companion read-only mobile view" bet is therefore already in motion. Refined recommendation: sequence the web app to ship the **read-only slices first** — customer-group credit snapshot, stock lookup, ledger view — since that's the highest-value use (answering "what's this customer's balance?" away from the desk) and needs no write-path/sync work.
+2. **No agent-facing portal is viable**: agents have limited English and send orders as pen-on-paper photos over WhatsApp. The "agent order channel" bet is dropped. Order intake stays operator-typed; a cheap improvement is attaching the WhatsApp order photo to the order/invoice record so the source rides along. (Handwritten-Urdu OCR intake is a long shot — noted, not recommended.)
+3. **Order Desk framing corrected**: the payment schedule isn't kept in anyone's head — Bills Aging provides it fully once assembled. The desk's real value is narrower and still real: the snapshot arrives **with the order** instead of being assembled per-order; pending orders become a queue instead of WhatsApp scrollback; counter/reject decisions are recorded (today they live only in chat); confirm becomes the invoice without retyping items.
+4. **Allocation is a business rule, not a guess**: receipts always clear the **oldest bill first**. So Receive Payment needs no manual allocation UI — pick customer group, amount, mode (bank/cash) → system allocates oldest-first automatically and *stores* the allocation rows, making explicit what aging currently re-derives. Open design question: oldest-first **per account** or **across the customer's split accounts** — decide before the migration.
+
 ## Next Steps
 - [ ] Validate: count how many manual journals are payment-shaped in the real DB (confirms Receive Payment as #1).
 - [ ] Research: smallest viable order-submission channel (WhatsApp deep links vs. tiny Supabase-hosted form).
