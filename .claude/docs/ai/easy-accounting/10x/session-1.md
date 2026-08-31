@@ -235,6 +235,18 @@ Sample proving the split is real: one customer's base account holds 3 invoice he
 3. **Order Desk framing corrected**: the payment schedule isn't kept in anyone's head — Bills Aging provides it fully once assembled. The desk's real value is narrower and still real: the snapshot arrives **with the order** instead of being assembled per-order; pending orders become a queue instead of WhatsApp scrollback; counter/reject decisions are recorded (today they live only in chat); confirm becomes the invoice without retyping items.
 4. **Allocation is a business rule, not a guess**: receipts always clear the **oldest bill first**. So Receive Payment needs no manual allocation UI — pick customer group, amount, mode (bank/cash) → system allocates oldest-first automatically and *stores* the allocation rows, making explicit what aging currently re-derives. Open design question: oldest-first **per account** or **across the customer's split accounts** — decide before the migration.
 
+## Owner challenges, round 4 (2026-08-31) — data-verified
+
+1. **Receive Payment: DEFERRED, data agrees.** Owner's hypothesis: recoveries land as one big journal at the end of each agent's tour. Confirmed in the DB: seven monthly "tour concluded" journals (Jan–Jul 2026), 95–143 entries each — one debit to the agent's "Received From" account, ~90–140 credit lines to individual customers. Journals routed through cash/bank credit only 2–3 customers each. A per-customer Receive Payment screen would be *slower* than the current single batch journal. If this ever gets built, the right shape is a **tour-settlement grid** (customer+amount rows auto-balanced against the agent account) — but the journal screen already effectively is that grid (its performance was even optimized in PR #139). Residual cost of deferring: aging keeps reconstructing allocation by regex+FIFO — which works and matches the business rule.
+2. **P&L: blocked on costing — owner is right.** The revenue side exists (603 of 666 invoice journals credit Revenue; the 'Sale' account carries ~80M Cr), but there is no cost layer: no per-item purchase cost tracking, so no COGS, so no gross profit. The DB even shows the workaround: a manually posted 'Profit & Loss A/c 31.12.25' account — the P&L is being computed outside the system and imported once a year. → P&L (and a self-balancing Balance Sheet, which needs retained earnings) moves behind a new prerequisite: **inventory costing**. That reframes costing as the real strategic bet: weighted-average cost from purchase invoices → COGS per sale → margin per item, per customer, per agent tour. For a trading business, "which items and customers actually make money" is the 10x question the current system cannot answer. Caveat: opening costs for imported stock would need estimating.
+3. **Order Desk: DROPPED** — owner's judgment accepted. At 1–3 orders/day, with aging already providing the assembled answer, the build cost outweighs the queue/record-keeping gain.
+
+**Surviving priority list after four rounds:**
+- **Do Now**: stored customer grouping · date normalization migration · Ctrl+K · balance-in-New-Invoice + duplicate invoice · backup staleness indicator
+- **Do Next**: one-click customer statement (share-ready) · web app read-only slices first
+- **Strategic**: inventory costing → then P&L/Balance Sheet → then margin analytics (per item / customer / tour)
+- **Dropped/deferred**: Receive Payment (batch reality), Order Desk, agent portal, PDC tracking, multi-company
+
 ## Next Steps
 - [ ] Validate: count how many manual journals are payment-shaped in the real DB (confirms Receive Payment as #1).
 - [ ] Research: smallest viable order-submission channel (WhatsApp deep links vs. tiny Supabase-hosted form).
