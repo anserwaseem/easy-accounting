@@ -29,6 +29,7 @@ import type { FC, PropsWithChildren, ReactNode } from 'react';
 import { useState } from 'react';
 import { cn } from 'renderer/lib/utils';
 import { ModeToggle } from 'renderer/components/ModeToggle';
+import GlobalSearch from 'renderer/components/GlobalSearch';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth } from '../hooks';
 
@@ -452,6 +453,8 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             <Outlet />
           </div>
         </div>
+        {/* ⌘/Ctrl+K palette; mounted here so it is available on every authenticated page */}
+        <GlobalSearch />
       </div>
     </TooltipProvider>
   );
