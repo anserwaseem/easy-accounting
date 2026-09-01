@@ -144,8 +144,8 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
                   {row.daysStatus ? (
                     <span>
                       {row.daysStatus.isFullyPaid
-                        ? `Cleared in ${formatDaysDuration(row.daysStatus.days)}`
-                        : `Overdue by ${formatDaysDuration(row.daysStatus.days)}`}
+                        ? `Cleared in ${formatDaysDuration(row.daysStatus.months, row.daysStatus.remainingDays)}`
+                        : `Overdue by ${formatDaysDuration(row.daysStatus.months, row.daysStatus.remainingDays)}`}
                     </span>
                   ) : (
                     '-'

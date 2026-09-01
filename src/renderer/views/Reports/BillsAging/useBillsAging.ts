@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isEmpty, sumBy } from 'lodash';
-import { format, subDays } from 'date-fns';
+import {
+  format,
+  subDays,
+  addMonths,
+  differenceInCalendarMonths,
+  differenceInCalendarDays,
+} from 'date-fns';
 import { getFixedNumber } from 'renderer/lib/utils';
 import type { Account, Chart, LedgerView } from '@/types';
 import type {
@@ -10,6 +16,27 @@ import type {
   BillReceipt,
   UnallocatedReceipt,
 } from './types';
+
+/**
+ * Calendar-accurate months/days elapsed between two dates, respecting real
+ * month lengths (28/29-day Feb, 30- vs 31-day months) rather than a fixed
+ * 30-day-month approximation. `differenceInCalendarMonths` alone can
+ * overcount near month-end dates (e.g. Jan 31 -> Mar 3 is 1 month 3 days,
+ * not 2 months), so we walk it back a month whenever adding the naive
+ * month count overshoots `to`.
+ */
+const getMonthsAndDaysBetween = (from: Date, to: Date) => {
+  let months = differenceInCalendarMonths(to, from);
+  if (addMonths(from, months) > to) {
+    months -= 1;
+  }
+  months = Math.max(0, months);
+  const remainingDays = Math.max(
+    0,
+    differenceInCalendarDays(to, addMonths(from, months)),
+  );
+  return { months, remainingDays };
+};
 
 export const useBillsAging = () => {
   const [selectedHead, setSelectedHead] = useState<string>('');
@@ -191,6 +218,8 @@ export const useBillsAging = () => {
               daysStatus: {
                 isFullyPaid: false,
                 days: 0,
+                months: 0,
+                remainingDays: 0,
               },
             });
           }
@@ -230,6 +259,8 @@ export const useBillsAging = () => {
               daysStatus: {
                 isFullyPaid: false,
                 days: 0,
+                months: 0,
+                remainingDays: 0,
               },
             });
           }
@@ -246,6 +277,8 @@ export const useBillsAging = () => {
               daysStatus: {
                 isFullyPaid: false,
                 days: 0,
+                months: 0,
+                remainingDays: 0,
               },
             });
           });
@@ -315,28 +348,31 @@ export const useBillsAging = () => {
             const billDate = new Date(bill.billDate);
             const isFullyPaid = bill.finalBalance === 0;
 
-            let days: number;
-            if (isFullyPaid && bill.receipts.length > 0) {
-              // calculate days from bill date to last payment date
-              const lastPaymentDate = new Date(
-                bill.receipts[bill.receipts.length - 1].receivedDate,
-              );
-              days = Math.ceil(
-                (lastPaymentDate.getTime() - billDate.getTime()) /
+            // reference date is the last payment date (if fully paid) or the
+            // report date (if still pending)
+            const referenceDate =
+              isFullyPaid && bill.receipts.length > 0
+                ? new Date(bill.receipts[bill.receipts.length - 1].receivedDate)
+                : new Date(end);
+
+            const days = Math.max(
+              0,
+              Math.ceil(
+                (referenceDate.getTime() - billDate.getTime()) /
                   (1000 * 60 * 60 * 24),
-              );
-            } else {
-              // calculate days from bill date to selected date (pending days)
-              const reportDate = new Date(end);
-              days = Math.ceil(
-                (reportDate.getTime() - billDate.getTime()) /
-                  (1000 * 60 * 60 * 24),
-              );
-            }
+              ),
+            );
+
+            const { months, remainingDays } = getMonthsAndDaysBetween(
+              billDate,
+              referenceDate,
+            );
 
             bill.daysStatus = {
               isFullyPaid,
-              days: Math.max(0, days), // ensure non-negative
+              days,
+              months,
+              remainingDays,
             };
           });
 

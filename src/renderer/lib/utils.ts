@@ -127,22 +127,25 @@ export const getFixedNumber = (value: number, fixed = 4) =>
   Number(value.toFixed(fixed));
 
 /**
- * Formats a number of days into a human-readable "X months Y days" duration.
- * @example formatDaysDuration(200); // "6 months 20 days"
- * @example formatDaysDuration(5); // "5 days"
- * @example formatDaysDuration(0); // "0 days"
+ * Formats a calendar-accurate months/days breakdown (see date-fns
+ * `differenceInCalendarMonths` + `differenceInCalendarDays` against
+ * `addMonths`) into a human-readable "X months Y days" duration. Unlike a
+ * fixed 30-day-month approximation, this respects actual month lengths
+ * (28/29-day Feb, 30- vs 31-day months).
+ * @example formatDaysDuration(6, 20); // "6 months 20 days"
+ * @example formatDaysDuration(0, 5); // "5 days"
+ * @example formatDaysDuration(0, 0); // "0 days"
  */
-export const formatDaysDuration = (totalDays: number) => {
-  const days = Math.max(0, Math.trunc(totalDays));
-  const months = Math.floor(days / 30);
-  const remainingDays = days % 30;
+export const formatDaysDuration = (months: number, remainingDays: number) => {
+  const safeMonths = Math.max(0, Math.trunc(months));
+  const safeDays = Math.max(0, Math.trunc(remainingDays));
 
-  if (months === 0) return `${remainingDays} day${remainingDays === 1 ? '' : 's'}`;
+  if (safeMonths === 0) return `${safeDays} day${safeDays === 1 ? '' : 's'}`;
 
-  const monthsPart = `${months} month${months === 1 ? '' : 's'}`;
-  if (remainingDays === 0) return monthsPart;
+  const monthsPart = `${safeMonths} month${safeMonths === 1 ? '' : 's'}`;
+  if (safeDays === 0) return monthsPart;
 
-  return `${monthsPart} ${remainingDays} day${remainingDays === 1 ? '' : 's'}`;
+  return `${monthsPart} ${safeDays} day${safeDays === 1 ? '' : 's'}`;
 };
 
 /**
