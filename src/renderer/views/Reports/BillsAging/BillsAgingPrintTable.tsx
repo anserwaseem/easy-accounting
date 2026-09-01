@@ -8,7 +8,11 @@ import {
   TableRow,
   TableFooter,
 } from 'renderer/shad/ui/table';
-import { getFormattedCurrencyInt, getFixedNumber } from 'renderer/lib/utils';
+import {
+  getFormattedCurrencyInt,
+  getFixedNumber,
+  formatDaysDuration,
+} from 'renderer/lib/utils';
 import type { BillsAging, BillsAgingRow } from './types';
 import './PrintStyles.css';
 
@@ -140,8 +144,8 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
                   {row.daysStatus ? (
                     <span>
                       {row.daysStatus.isFullyPaid
-                        ? `Cleared in ${row.daysStatus.days} days`
-                        : `Overdue by ${row.daysStatus.days} days`}
+                        ? `Cleared in ${formatDaysDuration(row.daysStatus.days)}`
+                        : `Overdue by ${formatDaysDuration(row.daysStatus.days)}`}
                     </span>
                   ) : (
                     '-'

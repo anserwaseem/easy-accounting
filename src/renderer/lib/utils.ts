@@ -127,6 +127,25 @@ export const getFixedNumber = (value: number, fixed = 4) =>
   Number(value.toFixed(fixed));
 
 /**
+ * Formats a number of days into a human-readable "X months Y days" duration.
+ * @example formatDaysDuration(200); // "6 months 20 days"
+ * @example formatDaysDuration(5); // "5 days"
+ * @example formatDaysDuration(0); // "0 days"
+ */
+export const formatDaysDuration = (totalDays: number) => {
+  const days = Math.max(0, Math.trunc(totalDays));
+  const months = Math.floor(days / 30);
+  const remainingDays = days % 30;
+
+  if (months === 0) return `${remainingDays} day${remainingDays === 1 ? '' : 's'}`;
+
+  const monthsPart = `${months} month${months === 1 ? '' : 's'}`;
+  if (remainingDays === 0) return monthsPart;
+
+  return `${monthsPart} ${remainingDays} day${remainingDays === 1 ? '' : 's'}`;
+};
+
+/**
  * Returns the default sorting functions for the table.
  * @returns The default sorting functions.
  * @example <DataTable sortingFns={defaultSortingFunctions} {...otherProps} />

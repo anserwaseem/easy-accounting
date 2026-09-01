@@ -7,7 +7,11 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
-import { getFormattedCurrencyInt, getFixedNumber } from 'renderer/lib/utils';
+import {
+  getFormattedCurrencyInt,
+  getFixedNumber,
+  formatDaysDuration,
+} from 'renderer/lib/utils';
 import type { BillsAging, BillsAgingAccount } from './types';
 
 interface BillsAgingTablesProps {
@@ -198,8 +202,8 @@ export const BillsAgingTables: FC<BillsAgingTablesProps> = ({
                               }`}
                             >
                               {bill.daysStatus.isFullyPaid
-                                ? `Cleared in\n${bill.daysStatus.days} days`
-                                : `Overdue by\n${bill.daysStatus.days} days`}
+                                ? `Cleared in\n${formatDaysDuration(bill.daysStatus.days)}`
+                                : `Overdue by\n${formatDaysDuration(bill.daysStatus.days)}`}
                             </span>
                           </TableCell>
                         )}
