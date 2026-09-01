@@ -1,13 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isEmpty, sumBy } from 'lodash';
-import {
-  format,
-  subDays,
-  addMonths,
-  differenceInCalendarMonths,
-  differenceInCalendarDays,
-} from 'date-fns';
-import { getFixedNumber } from 'renderer/lib/utils';
+import { format, subDays } from 'date-fns';
+import { getFixedNumber, getMonthsAndDaysBetween } from 'renderer/lib/utils';
 import type { Account, Chart, LedgerView } from '@/types';
 import type {
   BillsAging,
@@ -16,27 +10,6 @@ import type {
   BillReceipt,
   UnallocatedReceipt,
 } from './types';
-
-/**
- * Calendar-accurate months/days elapsed between two dates, respecting real
- * month lengths (28/29-day Feb, 30- vs 31-day months) rather than a fixed
- * 30-day-month approximation. `differenceInCalendarMonths` alone can
- * overcount near month-end dates (e.g. Jan 31 -> Mar 3 is 1 month 3 days,
- * not 2 months), so we walk it back a month whenever adding the naive
- * month count overshoots `to`.
- */
-const getMonthsAndDaysBetween = (from: Date, to: Date) => {
-  let months = differenceInCalendarMonths(to, from);
-  if (addMonths(from, months) > to) {
-    months -= 1;
-  }
-  months = Math.max(0, months);
-  const remainingDays = Math.max(
-    0,
-    differenceInCalendarDays(to, addMonths(from, months)),
-  );
-  return { months, remainingDays };
-};
 
 export const useBillsAging = () => {
   const [selectedHead, setSelectedHead] = useState<string>('');

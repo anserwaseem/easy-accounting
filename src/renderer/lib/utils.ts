@@ -1,6 +1,11 @@
 import { Row, SortingFn } from '@tanstack/react-table';
 import { type ClassValue, clsx } from 'clsx';
 import {
+  addMonths,
+  differenceInCalendarDays,
+  differenceInCalendarMonths,
+} from 'date-fns';
+import {
   every,
   isArray,
   isNil,
@@ -127,11 +132,32 @@ export const getFixedNumber = (value: number, fixed = 4) =>
   Number(value.toFixed(fixed));
 
 /**
- * Formats a calendar-accurate months/days breakdown (see date-fns
- * `differenceInCalendarMonths` + `differenceInCalendarDays` against
- * `addMonths`) into a human-readable "X months Y days" duration. Unlike a
- * fixed 30-day-month approximation, this respects actual month lengths
- * (28/29-day Feb, 30- vs 31-day months).
+ * Calendar-accurate months/days elapsed between two dates, respecting real
+ * month lengths (28/29-day Feb, 30- vs 31-day months) rather than a fixed
+ * 30-day-month approximation. `differenceInCalendarMonths` alone can
+ * overcount near month-end dates (e.g. Jan 31 -> Mar 3 is 1 month 3 days,
+ * not 2 months), so we walk it back a month whenever adding the naive
+ * month count overshoots `to`.
+ * @example getMonthsAndDaysBetween(new Date('2025-01-31'), new Date('2025-03-03')); // { months: 1, remainingDays: 3 }
+ */
+export const getMonthsAndDaysBetween = (from: Date, to: Date) => {
+  let months = differenceInCalendarMonths(to, from);
+  if (addMonths(from, months) > to) {
+    months -= 1;
+  }
+  months = Math.max(0, months);
+  const remainingDays = Math.max(
+    0,
+    differenceInCalendarDays(to, addMonths(from, months)),
+  );
+  return { months, remainingDays };
+};
+
+/**
+ * Formats a calendar-accurate months/days breakdown (see
+ * `getMonthsAndDaysBetween`) into a human-readable "X months Y days"
+ * duration. Unlike a fixed 30-day-month approximation, this respects actual
+ * month lengths (28/29-day Feb, 30- vs 31-day months).
  * @example formatDaysDuration(6, 20); // "6 months 20 days"
  * @example formatDaysDuration(0, 5); // "5 days"
  * @example formatDaysDuration(0, 0); // "0 days"
