@@ -68,8 +68,14 @@ const buildBillsAgingExportPayload = (
     hideZero,
   );
 
-  // all-parties exports carry the agent head so the per-agent split stays readable
-  const showHeadNames = selectedHead === ALL_PARTIES_HEAD;
+  // all-parties exports carry the agent head so the per-agent split stays
+  // readable — but only when the selection actually spans more than one head;
+  // a single-head selection needs no Head column
+  const distinctHeads = new Set(
+    rowsBase.map((row) => row.headName).filter(Boolean),
+  );
+  const showHeadNames =
+    selectedHead === ALL_PARTIES_HEAD && distinctHeads.size > 1;
 
   const rows: BillsAgingExportRow[] = rowsBase.map((row) => {
     let daysStatusText = '';
@@ -259,6 +265,15 @@ const BillsAgingPage = () => {
     selectedDate,
   ]);
 
+  // head tags (screen + print) only earn their place when the selection spans
+  // more than one head; a single-head selection reads simpler without them
+  const selectionSpansHeads = useMemo(
+    () =>
+      isAllParties &&
+      new Set(visibleAccounts.map((acc) => acc.headName || 'Other')).size > 1,
+    [isAllParties, visibleAccounts],
+  );
+
   const tableProps = useMemo(
     () => ({
       billsAging: {
@@ -267,9 +282,15 @@ const BillsAgingPage = () => {
       },
       hideZeroRows,
       hideStatus,
-      showHeadNames: isAllParties,
+      showHeadNames: selectionSpansHeads,
     }),
-    [billsAging, visibleAccounts, hideZeroRows, hideStatus, isAllParties],
+    [
+      billsAging,
+      visibleAccounts,
+      hideZeroRows,
+      hideStatus,
+      selectionSpansHeads,
+    ],
   );
 
   // all-parties scope: outstanding per agent head, shown when the current

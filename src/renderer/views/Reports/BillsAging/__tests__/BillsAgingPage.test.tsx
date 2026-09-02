@@ -183,4 +183,37 @@ describe('BillsAgingPage customer-first filters', () => {
       ).toEqual([DUP_ACCOUNT_A.id]),
     );
   });
+
+  it('shows head tags only when the selection spans more than one head', async () => {
+    // both accounts carry an opening balance so both render report sections
+    (window as any).electron.getLedgerBalancesForAccountIdsAsOfDate = jest.fn(
+      async () => ({
+        [DUP_ACCOUNT_A.id]: { balance: 45000, balanceType: 'Dr' },
+        [DUP_ACCOUNT_B.id]: { balance: 12000, balanceType: 'Dr' },
+      }),
+    );
+    render(<BillsAgingPage />);
+    await screen.findByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
+
+    // one head selected: the report renders without head tags
+    await act(async () => {
+      customerSelectProps.onChange([String(DUP_ACCOUNT_A.id)]);
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText(`— ${HEAD}`)).not.toBeInTheDocument();
+
+    // a second head joins the selection: tags appear for both
+    await act(async () => {
+      customerSelectProps.onChange([
+        String(DUP_ACCOUNT_A.id),
+        String(DUP_ACCOUNT_B.id),
+      ]);
+    });
+    expect(await screen.findByText(`— ${HEAD}`)).toBeInTheDocument();
+    expect(screen.getByText(`— ${OTHER_HEAD}`)).toBeInTheDocument();
+  });
 });
