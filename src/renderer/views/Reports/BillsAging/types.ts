@@ -13,7 +13,12 @@ export interface BillItem {
   finalBalance: number;
   daysStatus: {
     isFullyPaid: boolean;
+    /** total elapsed days, kept for reference/sorting */
     days: number;
+    /** calendar-accurate whole months elapsed */
+    months: number;
+    /** calendar-accurate remaining days after `months` whole months */
+    remainingDays: number;
   };
 }
 
@@ -51,5 +56,7 @@ export interface BillsAgingRow {
   daysStatus?: {
     isFullyPaid: boolean;
     days: number;
+    months: number;
+    remainingDays: number;
   };
 }
