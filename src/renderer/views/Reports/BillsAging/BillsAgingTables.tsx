@@ -18,12 +18,15 @@ interface BillsAgingTablesProps {
   billsAging: BillsAging;
   hideZeroRows?: boolean;
   hideStatus?: boolean;
+  /** all-parties scope: tag each account section with its agent head */
+  showHeadNames?: boolean;
 }
 
 export const BillsAgingTables: FC<BillsAgingTablesProps> = ({
   billsAging,
   hideZeroRows = false,
   hideStatus = false,
+  showHeadNames = false,
 }) => {
   const { accounts } = billsAging;
 
@@ -74,6 +77,11 @@ export const BillsAgingTables: FC<BillsAgingTablesProps> = ({
             <div className="mb-4">
               <h3 className="text-lg font-semibold">
                 {account.accountCode} ({account.accountName})
+                {showHeadNames && account.headName && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    — {account.headName}
+                  </span>
+                )}
               </h3>
               <div className="text-sm text-muted-foreground mt-1">
                 Total Bills:{' '}

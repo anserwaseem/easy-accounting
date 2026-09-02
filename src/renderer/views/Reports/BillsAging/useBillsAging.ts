@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { isEmpty, sumBy } from 'lodash';
 import { format, subDays } from 'date-fns';
 import { getFixedNumber, getMonthsAndDaysBetween } from 'renderer/lib/utils';
@@ -11,8 +11,34 @@ import type {
   UnallocatedReceipt,
 } from './types';
 
+/** sentinel head meaning "accounts under every agent head" — the default scope */
+export const ALL_PARTIES_HEAD = 'All parties';
+
+/** shown while the all-parties scope has no customers selected */
+export const ALL_PARTIES_EMPTY_SELECTION_MESSAGE =
+  'Search and select customers to see their combined aging.';
+
+/** joins head names into a stable effect dependency; NUL never appears in a head name */
+const HEAD_NAME_SEPARATOR = '\u0000';
+
+/** a selectable customer account within the active scope */
+export interface PartyOption {
+  id: number;
+  name: string;
+  code?: number | string;
+  headName?: string;
+}
+
+/** account scoping instructions for one report computation */
+interface BillsAgingScope {
+  /** names of every agent head (charts with a parentId) */
+  agentHeadNames: string[];
+  /** account ids to compute in all-parties mode; ignored for a specific head */
+  selectedIds: number[];
+}
+
 export const useBillsAging = () => {
-  const [selectedHead, setSelectedHead] = useState<string>('');
+  const [selectedHead, setSelectedHead] = useState<string>(ALL_PARTIES_HEAD);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [startDate, setStartDate] = useState<Date>(() => {
     const d = new Date();
@@ -22,6 +48,7 @@ export const useBillsAging = () => {
     return d;
   });
   const [charts, setCharts] = useState<Chart[]>([]);
+  const [allAccounts, setAllAccounts] = useState<Account[]>([]);
   const [billsAging, setBillsAging] = useState<BillsAging>({
     headName: '',
     asOfDate: '',
@@ -39,30 +66,64 @@ export const useBillsAging = () => {
         (chart: Chart) => !!chart.parentId,
       );
       setCharts(filteredCharts);
-
-      // If there's no selected head yet but we have charts, select the last one
-      if (!selectedHead && filteredCharts.length > 0) {
-        setSelectedHead(filteredCharts?.at(0)?.name || '');
-      }
     } catch (error) {
       console.error('Error fetching charts:', error);
     }
-  }, [selectedHead]);
+  }, []);
 
-  // process bills aging for a specific head
+  // fetch every account once so the customer selector can search the whole
+  // scope before any report is computed (all-parties mode needs the full pool)
+  const fetchAllAccounts = useCallback(async () => {
+    try {
+      const fetchedAccounts: Account[] = await window.electron.getAccounts();
+      setAllAccounts(fetchedAccounts);
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+    }
+  }, []);
+
+  // process bills aging for the active scope: a specific head, or the
+  // selected customers across every agent head (all-parties mode)
   const fetchBillsAging = useCallback(
-    async (headName: string, start: Date, end: Date) => {
+    async (
+      headName: string,
+      start: Date,
+      end: Date,
+      scope: BillsAgingScope,
+    ) => {
       if (!headName) return;
+
+      const isAllPartiesScope = headName === ALL_PARTIES_HEAD;
+
+      // guard: never compute the full ~all-accounts report; all-parties needs
+      // an explicit customer selection before anything is fetched or rendered
+      if (isAllPartiesScope && scope.selectedIds.length === 0) {
+        setInfoMessage(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
+        setBillsAging({
+          headName,
+          asOfDate: end.toISOString(),
+          accounts: [],
+        });
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
       try {
         setInfoMessage('');
 
-        // fetch all accounts for the selected head
+        // fetch all accounts for the active scope
         const rawAccounts: Account[] = await window.electron.getAccounts();
-        const filteredAccounts = rawAccounts.filter(
-          (account: Account) => account.headName === headName,
-        );
+        const filteredAccounts = isAllPartiesScope
+          ? rawAccounts.filter(
+              (account: Account) =>
+                !!account.headName &&
+                scope.agentHeadNames.includes(account.headName) &&
+                scope.selectedIds.includes(account.id),
+            )
+          : rawAccounts.filter(
+              (account: Account) => account.headName === headName,
+            );
 
         if (isEmpty(filteredAccounts)) {
           setBillsAging({
@@ -137,7 +198,9 @@ export const useBillsAging = () => {
         // check if there are any entries to process at all
         if (Object.keys(accountLedgersMap).length === 0) {
           setInfoMessage(
-            `No entries found for ${headName} during period: ${format(
+            `No entries found for ${
+              isAllPartiesScope ? 'the selected customers' : headName
+            } during period: ${format(
               selectedDateStart,
               'dd/MM/yyyy',
             )} to ${format(end, 'dd/MM/yyyy')}`,
@@ -361,6 +424,7 @@ export const useBillsAging = () => {
             accountId: account.id,
             accountName: account.name,
             accountCode: account.code,
+            headName: account.headName,
             bills,
             unallocatedReceipts,
             totalBillAmount,
@@ -386,13 +450,63 @@ export const useBillsAging = () => {
 
   useEffect(() => {
     fetchCharts();
-  }, [fetchCharts]);
+    fetchAllAccounts();
+  }, [fetchCharts, fetchAllAccounts]);
+
+  const isAllParties = selectedHead === ALL_PARTIES_HEAD;
+
+  // string keys keep the report effect stable: identical content never refires it.
+  // the selection key stays '' for a specific head, where the customer filter is
+  // applied client-side (today's behavior) instead of recomputing the report
+  const agentHeadNamesKey = useMemo(
+    () => charts.map((chart) => chart.name).join(HEAD_NAME_SEPARATOR),
+    [charts],
+  );
+  const allPartiesSelectionKey = isAllParties
+    ? selectedCustomerIds.join(',')
+    : '';
+
+  // recompute the report whenever the scope, period, or all-parties selection changes
+  const runReport = useCallback(() => {
+    if (!selectedHead) return;
+    const agentHeadNames = agentHeadNamesKey
+      ? agentHeadNamesKey.split(HEAD_NAME_SEPARATOR)
+      : [];
+    const selectedIds = allPartiesSelectionKey
+      ? allPartiesSelectionKey.split(',').map(Number)
+      : [];
+    fetchBillsAging(selectedHead, startDate, selectedDate, {
+      agentHeadNames,
+      selectedIds,
+    });
+  }, [
+    selectedHead,
+    startDate,
+    selectedDate,
+    agentHeadNamesKey,
+    allPartiesSelectionKey,
+    fetchBillsAging,
+  ]);
 
   useEffect(() => {
-    if (selectedHead) {
-      fetchBillsAging(selectedHead, startDate, selectedDate);
-    }
-  }, [selectedHead, startDate, selectedDate, fetchBillsAging]);
+    runReport();
+  }, [runReport]);
+
+  // selectable customers across every agent head, tagged with their head so the
+  // page can disambiguate same-name shops that recur under different agents
+  const allPartiesOptions = useMemo<PartyOption[]>(() => {
+    const agentHeadNames = new Set(charts.map((chart) => chart.name));
+    return allAccounts
+      .filter(
+        (account) => !!account.headName && agentHeadNames.has(account.headName),
+      )
+      .map((account) => ({
+        id: account.id,
+        name: account.name,
+        code: account.code,
+        headName: account.headName,
+      }));
+  }, [allAccounts, charts]);
 
   const handleHeadChange = (headName: string) => {
     setSelectedHead(headName);
@@ -416,13 +530,13 @@ export const useBillsAging = () => {
 
   const refreshData = useCallback(() => {
     fetchCharts();
-    if (selectedHead) {
-      fetchBillsAging(selectedHead, startDate, selectedDate);
-    }
-  }, [fetchCharts, selectedHead, startDate, selectedDate, fetchBillsAging]);
+    fetchAllAccounts();
+    runReport();
+  }, [fetchCharts, fetchAllAccounts, runReport]);
 
   return {
     selectedHead,
+    isAllParties,
     startDate,
     selectedDate,
     charts,
@@ -435,5 +549,6 @@ export const useBillsAging = () => {
     infoMessage,
     selectedCustomerIds,
     handleCustomerFilterChange,
+    allPartiesOptions,
   };
 };

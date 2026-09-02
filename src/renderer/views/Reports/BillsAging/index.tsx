@@ -33,7 +33,11 @@ import {
 } from 'renderer/lib/reportExport';
 import { toast } from 'renderer/shad/ui/use-toast';
 import VirtualMultiSelect from 'renderer/components/VirtualMultiSelect';
-import { useBillsAging } from './useBillsAging';
+import {
+  useBillsAging,
+  ALL_PARTIES_HEAD,
+  type PartyOption,
+} from './useBillsAging';
 import { EmptyState, LoadingState, printStyles } from '../components';
 import { BillsAgingTables } from './BillsAgingTables';
 import {
@@ -44,6 +48,7 @@ import { BillsAging, BillsAgingRow } from './types';
 
 type BillsAgingExportRow = {
   accountCode?: number | string;
+  headName?: string;
   billNumber: string;
   billDate: string;
   billPercentage: number | string;
@@ -63,6 +68,9 @@ const buildBillsAgingExportPayload = (
     hideZero,
   );
 
+  // all-parties exports carry the agent head so the per-agent split stays readable
+  const showHeadNames = selectedHead === ALL_PARTIES_HEAD;
+
   const rows: BillsAgingExportRow[] = rowsBase.map((row) => {
     let daysStatusText = '';
     if (!hideStatus && row.daysStatus) {
@@ -77,6 +85,7 @@ const buildBillsAgingExportPayload = (
 
     return {
       accountCode: row.accountCode,
+      headName: showHeadNames ? row.headName : undefined,
       billNumber: row.billNumber,
       billDate: format(new Date(row.billDate), 'dd/MM/yy'),
       billPercentage: row.billPercentage,
@@ -87,6 +96,11 @@ const buildBillsAgingExportPayload = (
 
   const columns: ReportExportPayload<BillsAgingExportRow>['columns'] = [
     { key: 'accountCode', header: 'Account', format: 'string', width: 18 },
+    ...(showHeadNames
+      ? ([
+          { key: 'headName', header: 'Head', format: 'string', width: 20 },
+        ] as ReportExportPayload<BillsAgingExportRow>['columns'])
+      : []),
     { key: 'billNumber', header: 'Bill #', format: 'string', width: 14 },
     { key: 'billDate', header: 'Bill Date', format: 'string', width: 12 },
     { key: 'billPercentage', header: '%', format: 'string', width: 8 },
@@ -121,6 +135,7 @@ const buildBillsAgingExportPayload = (
 const BillsAgingPage = () => {
   const {
     selectedHead,
+    isAllParties,
     startDate,
     selectedDate,
     charts,
@@ -133,6 +148,7 @@ const BillsAgingPage = () => {
     infoMessage,
     selectedCustomerIds,
     handleCustomerFilterChange,
+    allPartiesOptions,
   } = useBillsAging();
 
   const [hideAllFilters, setHideAllFilters] = useState(false);
@@ -142,15 +158,35 @@ const BillsAgingPage = () => {
     useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // get available customers from billsAging accounts
-  const customerOptions = useMemo(
+  // all-parties searches the whole account pool (so a report need not be computed
+  // first); a specific head keeps offering the accounts in its computed report
+  const customerOptions = useMemo<PartyOption[]>(
     () =>
-      billsAging.accounts.map((acc) => ({
-        id: acc.accountId,
-        name: acc.accountName,
-        code: acc.accountCode,
-      })),
-    [billsAging.accounts],
+      isAllParties
+        ? allPartiesOptions
+        : billsAging.accounts.map((acc) => ({
+            id: acc.accountId,
+            name: acc.accountName,
+            code: acc.accountCode,
+          })),
+    [isAllParties, allPartiesOptions, billsAging.accounts],
+  );
+
+  // same shop names recur across heads/cities, so all-parties labels carry
+  // name + code + agent head to keep the options distinguishable
+  const renderPartyOption = useCallback(
+    (item: PartyOption) => (
+      <div>
+        <h2>
+          {item.name}
+          {item.code ? ` (${item.code})` : ''}
+        </h2>
+        {item.headName && (
+          <p className="text-xs text-slate-400">{item.headName}</p>
+        )}
+      </div>
+    ),
+    [],
   );
 
   // Check how many filters are applied ('hide all' is just a shortcut for the three toggles)
@@ -231,10 +267,25 @@ const BillsAgingPage = () => {
       },
       hideZeroRows,
       hideStatus,
+      showHeadNames: isAllParties,
     }),
-    [billsAging, visibleAccounts, hideZeroRows, hideStatus],
+    [billsAging, visibleAccounts, hideZeroRows, hideStatus, isAllParties],
   );
-  console.log('tableProps', visibleAccounts, tableProps);
+
+  // all-parties scope: outstanding per agent head, shown when the current
+  // selection spans more than one head so the per-agent split stays visible
+  const headSubtotals = useMemo(() => {
+    if (!isAllParties) return [];
+    const totals = new Map<string, number>();
+    visibleAccounts.forEach((acc) => {
+      const head = acc.headName || 'Other';
+      totals.set(
+        head,
+        (totals.get(head) ?? 0) + (acc.totalOutstanding - acc.totalUnallocated),
+      );
+    });
+    return [...totals.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [isAllParties, visibleAccounts]);
 
   // Calculate total for header display
   const totalOutstanding = visibleAccounts.reduce(
@@ -265,11 +316,32 @@ const BillsAgingPage = () => {
             <div className="flex flex-wrap items-center gap-3">
               {/* Primary Filters - Compact without labels */}
               <div className="flex items-center gap-3">
+                <VirtualMultiSelect
+                  options={customerOptions}
+                  value={selectedCustomerIds}
+                  onChange={(ids) =>
+                    handleCustomerFilterChange(ids.map((id) => Number(id)))
+                  }
+                  placeholder={
+                    isAllParties ? 'Select customers' : 'All customers'
+                  }
+                  searchPlaceholder="Search customers..."
+                  searchFields={
+                    isAllParties ? ['name', 'code', 'headName'] : undefined
+                  }
+                  renderSelectItem={
+                    isAllParties ? renderPartyOption : undefined
+                  }
+                  disabled={!customerOptions.length}
+                />
                 <Select value={selectedHead} onValueChange={handleHeadChange}>
                   <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="Select head" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={ALL_PARTIES_HEAD}>
+                      {ALL_PARTIES_HEAD}
+                    </SelectItem>
                     {charts.map((chart) => (
                       <SelectItem key={chart.id} value={chart.name}>
                         {chart.name}
@@ -283,16 +355,6 @@ const BillsAgingPage = () => {
                     if (range?.from) handleStartDateChange(range.from);
                     if (range?.to) handleDateChange(range.to);
                   }}
-                />
-                <VirtualMultiSelect
-                  options={customerOptions}
-                  value={selectedCustomerIds}
-                  onChange={(ids) =>
-                    handleCustomerFilterChange(ids.map((id) => Number(id)))
-                  }
-                  placeholder="All customers"
-                  searchPlaceholder="Search customers..."
-                  disabled={!customerOptions.length}
                 />
               </div>
               {/* Action Buttons */}
@@ -433,6 +495,18 @@ const BillsAgingPage = () => {
           {/* Total Outstanding - FIXED in header */}
           {!isLoading && visibleAccounts.length > 0 && (
             <div className="print:hidden text-right text-sm text-muted-foreground">
+              {headSubtotals.length > 1 && (
+                <span className="mr-3">
+                  {headSubtotals
+                    .map(
+                      ([head, amount]) =>
+                        `${head}: ${getFormattedCurrencyInt(amount, {
+                          withoutCurrency: true,
+                        })}`,
+                    )
+                    .join(' · ')}
+                </span>
+              )}
               Total Outstanding (all accounts):{' '}
               <span className={`font-semibold ${totalColor}`}>
                 {getFormattedCurrencyInt(totalOutstanding, {
@@ -456,7 +530,12 @@ const BillsAgingPage = () => {
         <LoadingState variant="skeleton" />
       ) : visibleAccounts.length === 0 ? (
         <EmptyState
-          message={infoMessage || 'No accounts found for this head.'}
+          message={
+            infoMessage ||
+            (isAllParties
+              ? 'No accounts found for the selected customers.'
+              : 'No accounts found for this head.')
+          }
         />
       ) : (
         <React.Fragment
