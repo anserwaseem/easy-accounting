@@ -44,28 +44,45 @@ module.exports = {
       };
 
       db.transaction(() => {
-        // `date` always exists; `returnedAt` arrived with migration 017.
-        // Only rows containing a slash are candidates, which also makes a
-        // re-run a no-op: converted rows no longer match.
-        ['date', 'returnedAt'].forEach((columnName) => {
-          if (!hasColumn('invoices', columnName)) return;
+        // Rewriting the date format is a repair, not an edit: the invoices
+        // "Edited" indicator is `updatedAt > createdAt`, and the
+        // after-update timestamp trigger would stamp every converted row.
+        // Suspend that trigger for the duration so both timestamps come
+        // through unchanged, and restore it before committing.
+        db.exec('DROP TRIGGER IF EXISTS after_update_invoices_add_timestamp');
 
-          const candidates = db
-            .prepare(
-              `SELECT "id", "${columnName}" AS value FROM "invoices"
-                 WHERE "${columnName}" LIKE '%/%'`,
-            )
-            .all();
+        try {
+          // `date` always exists; `returnedAt` arrived with migration 017.
+          // Only rows containing a slash are candidates, which also makes a
+          // re-run a no-op: converted rows no longer match.
+          ['date', 'returnedAt'].forEach((columnName) => {
+            if (!hasColumn('invoices', columnName)) return;
 
-          const update = db.prepare(
-            `UPDATE "invoices" SET "${columnName}" = ? WHERE "id" = ?`,
-          );
+            const candidates = db
+              .prepare(
+                `SELECT "id", "${columnName}" AS value FROM "invoices"
+                   WHERE "${columnName}" LIKE '%/%'`,
+              )
+              .all();
 
-          candidates.forEach((invoiceRow) => {
-            const isoDate = slashDateToIso(invoiceRow.value);
-            if (isoDate) update.run(isoDate, invoiceRow.id);
+            const update = db.prepare(
+              `UPDATE "invoices" SET "${columnName}" = ? WHERE "id" = ?`,
+            );
+
+            candidates.forEach((invoiceRow) => {
+              const isoDate = slashDateToIso(invoiceRow.value);
+              if (isoDate) update.run(isoDate, invoiceRow.id);
+            });
           });
-        });
+        } finally {
+          db.exec(`CREATE TRIGGER IF NOT EXISTS after_update_invoices_add_timestamp
+            AFTER UPDATE ON invoices
+            BEGIN
+              UPDATE invoices SET
+                updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+              WHERE id = NEW.id;
+            END`);
+        }
       })();
 
       return true;

@@ -162,6 +162,33 @@ describe('024_normalize_invoice_date_format', () => {
     expect(snapshot(db)).toEqual(first);
   });
 
+  it('preserves createdAt/updatedAt so converted rows do not read as edited', () => {
+    // the invoices "Edited" indicator is `updatedAt > createdAt`; the date
+    // rewrite is a repair, not an edit, so the timestamp trigger must not
+    // stamp converted rows
+    const stamps = () =>
+      db
+        .prepare('SELECT id, createdAt, updatedAt FROM invoices ORDER BY id')
+        .all() as Array<{ id: number; createdAt: string; updatedAt: string }>;
+    const before = stamps();
+    expect(
+      before.every(({ createdAt, updatedAt }) => updatedAt === createdAt),
+    ).toBe(true);
+
+    expect(migration024.up(db)).toBe(true);
+
+    expect(stamps()).toEqual(before);
+
+    // and the trigger is back afterward: a real edit stamps updatedAt again
+    // (backdate first — the trigger has second granularity)
+    db.prepare(
+      `UPDATE invoices SET updatedAt = '2000-01-01 00:00:00' WHERE id = 1`,
+    ).run();
+    db.prepare(`UPDATE invoices SET totalAmount = 200 WHERE id = 1`).run();
+    const edited = stamps().find(({ id }) => id === 1);
+    expect(edited?.updatedAt).not.toBe('2000-01-01 00:00:00');
+  });
+
   it('makes imported rows visible to string-compare date range filters', () => {
     const inRange = () =>
       (
