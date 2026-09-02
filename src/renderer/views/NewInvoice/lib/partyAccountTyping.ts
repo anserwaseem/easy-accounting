@@ -12,8 +12,6 @@ export interface PartyLikeForTyping {
   name: string;
   code?: string | number | null;
   chartId?: number | null;
-  /** stored customer grouping ("025 migration"); authoritative over string matching when set */
-  customerGroupId?: number | null;
   /** not used by typing helpers; widened so PartyAccount assigns */
   type?: unknown;
 }
@@ -124,31 +122,7 @@ export function findBasePartyRowForSingleAccountId<
   if (direct) return direct;
 
   const acc = allAccounts.find((a) => a.id === singleId);
-  if (!acc) return undefined;
-
-  // stored grouping wins over string matching: shop names repeat across
-  // cities, so a name-first match can bind a typed account to the wrong
-  // city's base account. When the header account carries a customerGroupId,
-  // the base row must come from the same group — and when the group holds no
-  // base row, resolution fails rather than cross-binding to a lookalike.
-  const groupId = acc.customerGroupId ?? null;
-  if (groupId != null) {
-    const groupRows = baseParties.filter(
-      (p) => (p.customerGroupId ?? null) === groupId,
-    );
-    if (groupRows.length <= 1) return groupRows[0];
-    // several base rows in one group: prefer the one whose code is the
-    // typed code's base, else fall back deterministically to the first
-    const { baseCode: groupBaseCode } = splitPartyCode(String(acc.code ?? ''));
-    const groupBaseCodeLower = toLowerTrim(groupBaseCode);
-    return (
-      groupRows.find(
-        (p) => toLowerTrim(String(p.code ?? '')) === groupBaseCodeLower,
-      ) ?? groupRows[0]
-    );
-  }
-
-  if (!isTypedPartyAccount(acc, ctx)) return undefined;
+  if (!acc || !isTypedPartyAccount(acc, ctx)) return undefined;
 
   const { baseName } = splitPartyName(acc.name ?? '');
   const { baseCode } = splitPartyCode(String(acc.code ?? ''));

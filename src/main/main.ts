@@ -426,20 +426,6 @@ app
       (_, accountId: number, isActive: boolean) =>
         accountService.toggleAccountActive(accountId, isActive),
     );
-    ipcMain.handle('account:getCustomerGroups', () =>
-      accountService.getCustomerGroups(),
-    );
-    ipcMain.handle('account:getAccountsInGroup', (_, groupId: number) =>
-      accountService.getAccountsInGroup(groupId),
-    );
-    ipcMain.handle(
-      'account:setCustomerGroup',
-      (_, accountId: number, customerGroupId: number | null) =>
-        accountService.setAccountCustomerGroup(accountId, customerGroupId),
-    );
-    ipcMain.handle('account:createCustomerGroup', (_, name: string) =>
-      accountService.createCustomerGroup(name),
-    );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) => {
       const rows = ledgerService.getLedger(accountId);

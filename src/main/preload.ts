@@ -36,8 +36,6 @@ import type {
   BulkPriceListPositionResult,
   AttributeDefinition,
   UpsertAttributeDefinition,
-  CustomerGroup,
-  CustomerGroupWithAccounts,
 } from 'types';
 import { InvoiceType } from 'types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
@@ -544,31 +542,6 @@ const electronHandler = {
    */
   toggleAccountActive: (accountId: number, isActive: boolean) =>
     ipcRenderer.invoke('account:toggleActive', accountId, isActive),
-  /**
-   * Customer groups: one real-world customer spanning several typed accounts
-   * ("025 migration"). Groups come back with their member accounts.
-   */
-  getCustomerGroups: () =>
-    ipcRenderer.invoke('account:getCustomerGroups') as Promise<
-      CustomerGroupWithAccounts[]
-    >,
-  getAccountsInGroup: (groupId: number) =>
-    ipcRenderer.invoke('account:getAccountsInGroup', groupId) as Promise<
-      Account[]
-    >,
-  setAccountCustomerGroup: (
-    accountId: number,
-    customerGroupId: number | null,
-  ) =>
-    ipcRenderer.invoke(
-      'account:setCustomerGroup',
-      accountId,
-      customerGroupId,
-    ) as Promise<boolean>,
-  createCustomerGroup: (name: string) =>
-    ipcRenderer.invoke('account:createCustomerGroup', name) as Promise<
-      CustomerGroup | undefined
-    >,
   /**
    * Get a ledger
    * @param accountId The account id to get

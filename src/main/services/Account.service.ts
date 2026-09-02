@@ -1,10 +1,4 @@
-import type {
-  Account,
-  CustomerGroup,
-  CustomerGroupWithAccounts,
-  InsertAccount,
-  UpdateAccount,
-} from 'types';
+import type { Account, InsertAccount, UpdateAccount } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { store } from '../store';
 import { DatabaseService } from './Database.service';
@@ -43,16 +37,6 @@ export class AccountService {
 
   private stmGetAccountByNameAnyChart!: Statement;
 
-  private stmGetCustomerGroups!: Statement;
-
-  private stmGetCustomerGroupMembers!: Statement;
-
-  private stmGetAccountsInGroup!: Statement;
-
-  private stmSetAccountCustomerGroup!: Statement;
-
-  private stmInsertCustomerGroup!: Statement;
-
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -88,7 +72,6 @@ export class AccountService {
         a.goodsName,
         a.isActive,
         a.discountProfileId,
-        a.customerGroupId,
         dp.name AS discountProfileName,
         dp.isActive AS discountProfileIsActive
       FROM account a
@@ -242,73 +225,6 @@ export class AccountService {
       : undefined;
   }
 
-  /** all customer groups with their member accounts (ids/names/codes) */
-  getCustomerGroups(): CustomerGroupWithAccounts[] {
-    const username = store.get('username');
-    const groups = this.stmGetCustomerGroups.all() as CustomerGroup[];
-    const members = this.stmGetCustomerGroupMembers.all({
-      username,
-    }) as Array<
-      Pick<Account, 'id' | 'name' | 'code'> & {
-        customerGroupId: number;
-      }
-    >;
-
-    const accountsByGroupId = new Map<
-      number,
-      CustomerGroupWithAccounts['accounts']
-    >();
-    members.forEach(({ customerGroupId, ...account }) => {
-      const list = accountsByGroupId.get(customerGroupId) ?? [];
-      list.push(account);
-      accountsByGroupId.set(customerGroupId, list);
-    });
-
-    return groups.map((group) => ({
-      ...group,
-      accounts: accountsByGroupId.get(group.id) ?? [],
-    }));
-  }
-
-  /** member accounts of one group, same row shape as getAccounts */
-  getAccountsInGroup(groupId: number): Account[] {
-    if (!Number.isInteger(groupId) || groupId <= 0) return [];
-    const username = store.get('username');
-    const results = this.stmGetAccountsInGroup.all({
-      groupId: cast(groupId),
-      username,
-    }) as Account[];
-    return normalizeSqliteBooleanRows(results, ACCOUNT_BOOLEAN_FIELDS);
-  }
-
-  /** assigns an account to a customer group, or clears it with null */
-  setAccountCustomerGroup(
-    accountId: number,
-    customerGroupId: number | null,
-  ): boolean {
-    if (!Number.isInteger(accountId) || accountId <= 0) return false;
-    if (
-      customerGroupId !== null &&
-      (!Number.isInteger(customerGroupId) || customerGroupId <= 0)
-    ) {
-      return false;
-    }
-    const result = this.stmSetAccountCustomerGroup.run({
-      accountId: cast(accountId),
-      customerGroupId: customerGroupId === null ? null : cast(customerGroupId),
-    });
-    return Boolean(result.changes);
-  }
-
-  /** creates an empty customer group; returns it, or undefined for a blank name */
-  createCustomerGroup(name: string): CustomerGroup | undefined {
-    const trimmedName = typeof name === 'string' ? name.trim() : '';
-    if (trimmedName.length === 0) return undefined;
-    const result = this.stmInsertCustomerGroup.run({ name: trimmedName });
-    if (!Number.isSafeInteger(result.lastInsertRowid)) return undefined;
-    return { id: Number(result.lastInsertRowid), name: trimmedName };
-  }
-
   private initPreparedStatements() {
     this.stmGetAccounts = this.db.prepare(`
       SELECT
@@ -326,7 +242,6 @@ export class AccountService {
         a.goodsName,
         a.isActive,
         a.discountProfileId,
-        a.customerGroupId,
         dp.name AS discountProfileName,
         dp.isActive AS discountProfileIsActive
       FROM account a
@@ -440,66 +355,6 @@ export class AccountService {
       UPDATE account
       SET discountProfileId = @discountProfileId
       WHERE id = @accountId
-    `);
-
-    this.stmGetCustomerGroups = this.db.prepare(`
-      SELECT id, name, createdAt, updatedAt
-      FROM customer_groups
-      ORDER BY name COLLATE NOCASE, id
-    `);
-
-    this.stmGetCustomerGroupMembers = this.db.prepare(`
-      SELECT a.id, a.name, a.code, a.customerGroupId
-      FROM account a
-      JOIN chart c ON c.id = a.chartId
-      WHERE a.customerGroupId IS NOT NULL
-        AND c.userId = (
-          SELECT id
-          FROM users
-          WHERE username = @username
-        )
-      ORDER BY a.name COLLATE NOCASE, a.id
-    `);
-
-    this.stmGetAccountsInGroup = this.db.prepare(`
-      SELECT
-        a.id,
-        a.name,
-        c.name as headName,
-        a.chartId,
-        c.type,
-        a.code,
-        a.createdAt,
-        a.updatedAt,
-        a.address,
-        a.phone1,
-        a.phone2,
-        a.goodsName,
-        a.isActive,
-        a.discountProfileId,
-        a.customerGroupId,
-        dp.name AS discountProfileName,
-        dp.isActive AS discountProfileIsActive
-      FROM account a
-      JOIN chart c ON c.id = a.chartId
-      LEFT JOIN discount_profiles dp ON dp.id = a.discountProfileId
-      WHERE a.customerGroupId = @groupId
-        AND c.userId = (
-          SELECT id
-          FROM users
-          WHERE username = @username
-        )
-      ORDER BY a.name COLLATE NOCASE, a.id
-    `);
-
-    this.stmSetAccountCustomerGroup = this.db.prepare(`
-      UPDATE account
-      SET customerGroupId = @customerGroupId
-      WHERE id = @accountId
-    `);
-
-    this.stmInsertCustomerGroup = this.db.prepare(`
-      INSERT INTO customer_groups (name) VALUES (@name)
     `);
   }
 }

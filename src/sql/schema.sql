@@ -41,7 +41,6 @@ CREATE TABLE IF NOT EXISTS "account" (
   -- "goodsName" TEXT, -- "007 migration"
   -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "012 migration"
   -- "discountProfileId" INTEGER REFERENCES "discount_profiles"("id"), -- "015 migration"
-  -- "customerGroupId" INTEGER REFERENCES "customer_groups"("id"), -- "025 migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 
@@ -169,13 +168,6 @@ CREATE TABLE IF NOT EXISTS "inventory_prices" ( -- "020 migration"
     UNIQUE("inventoryId", "priceListId"),
     FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id") ON DELETE CASCADE,
     FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS "customer_groups" ( -- "025 migration"
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL,
-    "createdAt" DATETIME,
-    "updatedAt" DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
@@ -544,24 +536,6 @@ CREATE TRIGGER IF NOT EXISTS after_update_inventory_prices_add_timestamp
 AFTER UPDATE ON inventory_prices
 BEGIN
   UPDATE inventory_prices SET
-    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
-  WHERE id = NEW.id;
-END;
-
--- customer_groups -- "025 migration"
-CREATE TRIGGER IF NOT EXISTS after_insert_customer_groups_add_timestamp
-AFTER INSERT ON customer_groups
-BEGIN
-  UPDATE customer_groups SET
-    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
-    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
-  WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS after_update_customer_groups_add_timestamp
-AFTER UPDATE ON customer_groups
-BEGIN
-  UPDATE customer_groups SET
     updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;

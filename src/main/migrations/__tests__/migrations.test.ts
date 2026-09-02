@@ -248,7 +248,6 @@ describe('migrations', () => {
         '022_add_inventory_excludeFromCatalog',
         '023_add_inventory_title',
         '024_normalize_invoice_date_format',
-        '025_add_customer_groups',
       ]);
     });
 
