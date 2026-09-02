@@ -282,15 +282,11 @@ const BillsAgingPage = () => {
       },
       hideZeroRows,
       hideStatus,
-      showHeadNames: selectionSpansHeads,
+      // on screen the head is always useful context under All parties;
+      // print/export apply the spans-more-than-one-head rule instead
+      showHeadNames: isAllParties,
     }),
-    [
-      billsAging,
-      visibleAccounts,
-      hideZeroRows,
-      hideStatus,
-      selectionSpansHeads,
-    ],
+    [billsAging, visibleAccounts, hideZeroRows, hideStatus, isAllParties],
   );
 
   // all-parties scope: outstanding per agent head, shown when the current
@@ -571,7 +567,13 @@ const BillsAgingPage = () => {
 
           {/* Print Display - Flat Excel-like Table */}
           <div className="hidden print:block">
-            <BillsAgingPrintTable {...{ ...tableProps, hideStatus }} />
+            <BillsAgingPrintTable
+              {...{
+                ...tableProps,
+                hideStatus,
+                showHeadNames: selectionSpansHeads,
+              }}
+            />
           </div>
         </React.Fragment>
       )}

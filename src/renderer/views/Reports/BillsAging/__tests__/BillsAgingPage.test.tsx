@@ -184,7 +184,7 @@ describe('BillsAgingPage customer-first filters', () => {
     );
   });
 
-  it('shows head tags only when the selection spans more than one head', async () => {
+  it('always tags heads on screen but only prints them for multi-head selections', async () => {
     // both accounts carry an opening balance so both render report sections
     (window as any).electron.getLedgerBalancesForAccountIdsAsOfDate = jest.fn(
       async () => ({
@@ -192,10 +192,16 @@ describe('BillsAgingPage customer-first filters', () => {
         [DUP_ACCOUNT_B.id]: { balance: 12000, balanceType: 'Dr' },
       }),
     );
-    render(<BillsAgingPage />);
+    const { container } = render(<BillsAgingPage />);
     await screen.findByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
+    // two hidden print:block divs exist (print header + print table); the
+    // table wrapper is the one that actually contains a <table>
+    const printRegion = () =>
+      Array.from(container.querySelectorAll('div.hidden.print\\:block')).find(
+        (el) => el.querySelector('table'),
+      ) as HTMLElement;
 
-    // one head selected: the report renders without head tags
+    // one head selected: the screen keeps its head tag, print stays plain
     await act(async () => {
       customerSelectProps.onChange([String(DUP_ACCOUNT_A.id)]);
     });
@@ -204,16 +210,20 @@ describe('BillsAgingPage customer-first filters', () => {
         screen.queryByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE),
       ).not.toBeInTheDocument(),
     );
-    expect(screen.queryByText(`— ${HEAD}`)).not.toBeInTheDocument();
+    expect(screen.getAllByText(`— ${HEAD}`).length).toBeGreaterThan(0);
+    expect(printRegion().textContent).not.toContain(`— ${HEAD}`);
 
-    // a second head joins the selection: tags appear for both
+    // a second head joins the selection: print now carries both heads
     await act(async () => {
       customerSelectProps.onChange([
         String(DUP_ACCOUNT_A.id),
         String(DUP_ACCOUNT_B.id),
       ]);
     });
-    expect(await screen.findByText(`— ${HEAD}`)).toBeInTheDocument();
-    expect(screen.getByText(`— ${OTHER_HEAD}`)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(printRegion().textContent).toContain(`— ${HEAD}`),
+    );
+    expect(printRegion().textContent).toContain(`— ${OTHER_HEAD}`);
+    expect(screen.getAllByText(`— ${OTHER_HEAD}`).length).toBeGreaterThan(0);
   });
 });
