@@ -3,7 +3,11 @@ import { format } from 'date-fns';
 import type { CustomerGroupWithAccounts } from '@/types';
 import { Button } from 'renderer/shad/ui/button';
 import { Download, Printer, SlidersHorizontal, RefreshCw } from 'lucide-react';
-import { getFormattedCurrencyInt, getFixedNumber } from 'renderer/lib/utils';
+import {
+  getFormattedCurrencyInt,
+  getFixedNumber,
+  formatDaysDuration,
+} from 'renderer/lib/utils';
 import {
   Select,
   SelectContent,
@@ -63,9 +67,13 @@ const buildBillsAgingExportPayload = (
   const rows: BillsAgingExportRow[] = rowsBase.map((row) => {
     let daysStatusText = '';
     if (!hideStatus && row.daysStatus) {
+      const duration = formatDaysDuration(
+        row.daysStatus.months,
+        row.daysStatus.remainingDays,
+      );
       daysStatusText = row.daysStatus.isFullyPaid
-        ? `Cleared in ${row.daysStatus.days} days`
-        : `Overdue by ${row.daysStatus.days} days`;
+        ? `Cleared in ${duration}`
+        : `Overdue by ${duration}`;
     }
 
     return {

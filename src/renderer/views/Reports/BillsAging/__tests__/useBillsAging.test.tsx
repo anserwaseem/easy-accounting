@@ -117,3 +117,30 @@ describe('useBillsAging carry-forward accounts', () => {
     expect(result.current.infoMessage).toContain('No entries found');
   });
 });
+
+describe('useBillsAging daysStatus', () => {
+  beforeEach(() => setupElectron());
+
+  it('computes calendar-accurate months/days for a still-pending bill', async () => {
+    const result = await renderReport();
+
+    // report period defaults to starting 2025-01-01; move the "as of" date
+    // to a fixed, known point so the elapsed duration is deterministic
+    await act(async () => {
+      result.current.handleDateChange(new Date('2026-03-15T00:00:00.000Z'));
+    });
+    await flushMicrotasks();
+    await flushMicrotasks();
+
+    const silent = result.current.billsAging.accounts.find(
+      (account) => account.accountId === SILENT_ACCOUNT.id,
+    );
+
+    // 2025-01-01 -> 2026-03-15 is 14 whole months (to 2026-03-01) plus 14 days
+    expect(silent?.bills[0].daysStatus).toMatchObject({
+      isFullyPaid: false,
+      months: 14,
+      remainingDays: 14,
+    });
+  });
+});
