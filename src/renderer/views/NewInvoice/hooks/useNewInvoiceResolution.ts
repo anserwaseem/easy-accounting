@@ -25,6 +25,7 @@ const PARTY_PICK = [
   'chartId',
   'discountProfileId',
   'discountProfileIsActive',
+  'customerGroupId',
 ] as const;
 
 interface ResolutionFallback {

@@ -16,8 +16,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
-import type { UpdateAccount, Chart } from 'types';
-import { useState } from 'react';
+import type { UpdateAccount, Chart, CustomerGroup } from 'types';
+import { useEffect, useState } from 'react';
 import { AccountForm, AccountFormData } from './accountForm';
 import { AddAccount } from './addAccount';
 
@@ -41,6 +41,33 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   const [accountToCopy, setAccountToCopy] = useState<AccountFormData | null>(
     null,
   );
+  const [customerGroups, setCustomerGroups] = useState<CustomerGroup[]>([]);
+
+  // load groups when the dialog opens so a group created elsewhere shows up
+  useEffect(() => {
+    if (!isOpen) return;
+    window.electron
+      .getCustomerGroups()
+      .then((groups) => setCustomerGroups(groups ?? []))
+      .catch((error) =>
+        console.error('Error fetching customer groups:', error),
+      );
+  }, [isOpen]);
+
+  const handleCreateCustomerGroup = async (
+    name: string,
+  ): Promise<CustomerGroup | undefined> => {
+    const created = await window.electron.createCustomerGroup(name);
+    if (created) {
+      setCustomerGroups((prev) => [...prev, created]);
+    } else {
+      toast({
+        description: `Failed to create customer group "${name}"`,
+        variant: 'destructive',
+      });
+    }
+    return created;
+  };
 
   const mapRowToFormData = (inputRow: UpdateAccount): AccountFormData => ({
     id: inputRow.id,
@@ -52,6 +79,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     phone2: inputRow.phone2,
     goodsName: inputRow.goodsName,
     isActive: !!inputRow.isActive, // included for type safety, but not used in the form
+    customerGroupId: inputRow.customerGroupId ?? null,
   });
 
   const onSubmit = async (values: AccountFormData) => {
@@ -68,11 +96,24 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       isActive: row.original.isActive,
     });
 
+    // group assignment is stored separately from the account row update
+    const nextGroupId = values.customerGroupId ?? null;
+    const previousGroupId = row.original.customerGroupId ?? null;
+    let isGroupUpdated = true;
+    if (isUpdated && nextGroupId !== previousGroupId) {
+      isGroupUpdated = await window.electron.setAccountCustomerGroup(
+        values.id!,
+        nextGroupId,
+      );
+    }
+
     toast({
       description: isUpdated
-        ? `"${values.accountName}" account updated successfully`
+        ? `"${values.accountName}" account updated successfully${
+            isGroupUpdated ? '' : ' (customer group change failed)'
+          }`
         : `Failed to update "${values.accountName}" account`,
-      variant: isUpdated ? 'success' : 'destructive',
+      variant: isUpdated && isGroupUpdated ? 'success' : 'destructive',
     });
 
     if (isUpdated) {
@@ -189,6 +230,8 @@ export const EditAccount: React.FC<EditAccountProps> = ({
             charts={charts}
             clearRef={clearRef}
             initialValues={mapRowToFormData(row.original)}
+            customerGroups={customerGroups}
+            onCreateCustomerGroup={handleCreateCustomerGroup}
           />
           <DialogFooter className="!justify-start">
             <Button
