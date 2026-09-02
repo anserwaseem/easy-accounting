@@ -202,8 +202,14 @@ export const BillsAgingTables: FC<BillsAgingTablesProps> = ({
                               }`}
                             >
                               {bill.daysStatus.isFullyPaid
-                                ? `Cleared in\n${formatDaysDuration(bill.daysStatus.months, bill.daysStatus.remainingDays)}`
-                                : `Overdue by\n${formatDaysDuration(bill.daysStatus.months, bill.daysStatus.remainingDays)}`}
+                                ? `Cleared in\n${formatDaysDuration(
+                                    bill.daysStatus.months,
+                                    bill.daysStatus.remainingDays,
+                                  )}`
+                                : `Overdue by\n${formatDaysDuration(
+                                    bill.daysStatus.months,
+                                    bill.daysStatus.remainingDays,
+                                  )}`}
                             </span>
                           </TableCell>
                         )}

@@ -42,6 +42,7 @@ import { MigrationRunner } from './migrations/index';
 import {
   AuthService,
   AccountService,
+  BackupService,
   ChartService,
   JournalService,
   LedgerService,
@@ -287,6 +288,7 @@ app
     const printService = new PrintService();
     const pricingService = new PricingService();
     const publishService = new PublishService();
+    const backupService = new BackupService();
 
     // setupUser(migrationRunner, authService);
 
@@ -360,6 +362,17 @@ app
     });
     ipcMain.handle('auth:logout', async () => {
       return AuthService.logout();
+    });
+    // read-only metadata for the sidebar staleness indicator; takes no
+    // renderer input and returns no file paths or credentials
+    ipcMain.handle('backup:lastInfo', async () =>
+      backupService.getLastBackupInfo(),
+    );
+    // same operation as the native Backup menu's "Create Backup"; the local
+    // backup path is stripped so the renderer only sees success/error
+    ipcMain.handle('backup:create', async () => {
+      const { success, error } = await backupService.createBackup();
+      return { success, error };
     });
     ipcMain.handle(
       'balanceSheet:save',

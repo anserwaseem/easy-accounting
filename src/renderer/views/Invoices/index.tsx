@@ -4,7 +4,7 @@ import {
   DialogTrigger,
 } from '@/renderer/shad/ui/dialog';
 import { isNil, toNumber } from 'lodash';
-import { File, Loader2, Plus } from 'lucide-react';
+import { Copy, File, Loader2, Plus } from 'lucide-react';
 import type { Row } from '@tanstack/react-table';
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
@@ -71,6 +71,50 @@ const InvoiceEditActionCell: FC<InvoiceEditActionCellProps> = ({
     />
   );
 };
+
+const InvoiceDuplicateActionCell: FC<InvoiceEditActionCellProps> = ({
+  row,
+  invoiceType,
+  navigate,
+  isPreviewMode,
+}) => (
+  <EditActionButton
+    title="Duplicate invoice"
+    aria-label="Duplicate invoice"
+    disabled={isPreviewMode}
+    onClick={(e) => {
+      e.stopPropagation();
+      if (isPreviewMode) return;
+      // prefills New Invoice with this invoice's customer + items at current prices
+      navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
+        state: { duplicateFromId: row.original.id },
+      });
+    }}
+  >
+    <Copy className="h-4 w-4" />
+  </EditActionButton>
+);
+
+const createInvoiceDuplicateColumn = (
+  invoiceType: InvoiceType,
+  navigate: NavigateFunction,
+  isPreviewMode: boolean,
+): ColumnDef<InvoicesView> => ({
+  id: 'duplicate',
+  header: 'Copy',
+  size: 56,
+  onClick: () => undefined,
+  cell({ row }) {
+    return (
+      <InvoiceDuplicateActionCell
+        row={row}
+        invoiceType={invoiceType}
+        navigate={navigate}
+        isPreviewMode={isPreviewMode}
+      />
+    );
+  },
+});
 
 const createInvoiceEditColumn = (
   invoiceType: InvoiceType,
@@ -320,6 +364,11 @@ const InvoicesPage: FC<InvoicesProps> = ({
               size: 56,
             },
             createInvoiceEditColumn(
+              invoiceType,
+              navigate,
+              propInvoices != null,
+            ),
+            createInvoiceDuplicateColumn(
               invoiceType,
               navigate,
               propInvoices != null,

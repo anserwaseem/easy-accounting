@@ -44,6 +44,7 @@ import type {
   PriceListSummary,
   PublishResult,
 } from './services/Publish.service';
+import type { BackupLastInfo } from './services/Backup.service';
 import type { SeedOptions, SeedPlan } from './utils/priceSeeding';
 
 export type Channels =
@@ -711,6 +712,14 @@ const electronHandler = {
     ipcRenderer.invoke(
       'publish:getLastResult',
     ) as Promise<PublishResult | null>,
+
+  /** Metadata about the most recent backup (read-only; no paths or secrets). */
+  getLastBackupInfo: () =>
+    ipcRenderer.invoke('backup:lastInfo') as Promise<BackupLastInfo>,
+
+  /** Create a backup now — same operation as the Backup menu. */
+  createBackup: () =>
+    ipcRenderer.invoke('backup:create') as Promise<ApiResponse>,
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

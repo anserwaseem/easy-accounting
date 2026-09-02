@@ -9,6 +9,98 @@ import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
 import { raise } from 'renderer/lib/utils';
 import { toast } from 'renderer/shad/ui/use-toast';
 
+/** account mapping + line items + view-mode flags derived from a saved invoice */
+export interface InvoiceViewFormPrefill {
+  lineItems: Invoice['invoiceItems'];
+  accountMapping: Invoice['accountMapping'];
+  useSingleAccount: boolean;
+  splitByItemType: boolean;
+}
+
+/**
+ * maps a saved InvoiceView to form prefill state; shared by edit hydration and
+ * duplicate hydration so both reconstruct account mapping the same way.
+ */
+export const buildPrefillFromInvoiceView = (
+  invoiceType: InvoiceType,
+  inv: InvoiceView,
+): InvoiceViewFormPrefill => {
+  const headerAcct = inv.invoiceHeaderAccountId;
+  const rowAccountIds: number[] = inv.invoiceItems.map((it): number => {
+    if (it.accountId != null && it.accountId > 0) return it.accountId;
+    return headerAcct != null && headerAcct > 0 ? headerAcct : -1;
+  });
+  const distinctRow = [...new Set(rowAccountIds.filter((id) => id > 0))];
+
+  const lineItems = inv.invoiceItems.map((it, idx) => ({
+    id: Date.now() + idx,
+    inventoryId: it.inventoryId ?? 0,
+    quantity: it.quantity,
+    discount: it.discount,
+    price: it.price,
+    discountedPrice:
+      it.discountedPrice ??
+      computeInvoiceItemTotal(it.quantity, it.discount, it.price),
+  }));
+
+  if (invoiceType === InvoiceType.Sale) {
+    if (distinctRow.length > 1) {
+      const splitFallbackId = distinctRow[0];
+      if (splitFallbackId == null || splitFallbackId <= 0) {
+        raise('Invalid account on invoice line');
+      }
+      const singleForSplit =
+        headerAcct != null && headerAcct > 0 ? headerAcct : splitFallbackId;
+      return {
+        lineItems,
+        useSingleAccount: true,
+        splitByItemType: true,
+        accountMapping: {
+          singleAccountId: singleForSplit,
+          multipleAccountIds: rowAccountIds.map((id) =>
+            id > 0 ? id : splitFallbackId,
+          ),
+        },
+      };
+    }
+    return {
+      lineItems,
+      useSingleAccount: true,
+      splitByItemType: false,
+      accountMapping: {
+        singleAccountId: distinctRow[0] ?? headerAcct,
+        multipleAccountIds: [],
+      },
+    };
+  }
+  if (distinctRow.length > 1) {
+    const purchaseLineFallbackId =
+      headerAcct != null && headerAcct > 0
+        ? headerAcct
+        : raise('Invalid account on invoice line');
+    return {
+      lineItems,
+      useSingleAccount: false,
+      splitByItemType: false,
+      accountMapping: {
+        singleAccountId: undefined,
+        multipleAccountIds: rowAccountIds.map((id) =>
+          id > 0 ? id : purchaseLineFallbackId,
+        ),
+      },
+    };
+  }
+  return {
+    lineItems,
+    useSingleAccount: true,
+    splitByItemType: false,
+    accountMapping: {
+      singleAccountId: distinctRow[0] ?? headerAcct,
+      multipleAccountIds: [],
+    },
+  };
+};
+
 interface UseEditInvoiceHydrationParams {
   invoiceType: InvoiceType;
   editInvoiceId: number | undefined;
@@ -98,70 +190,10 @@ export const useEditInvoiceHydration = ({
         });
       }
 
-      const headerAcct = inv.invoiceHeaderAccountId;
-      const rowAccountIds: number[] = inv.invoiceItems.map((it): number => {
-        if (it.accountId != null && it.accountId > 0) return it.accountId;
-        return headerAcct != null && headerAcct > 0 ? headerAcct : -1;
-      });
-      const distinctRow = [...new Set(rowAccountIds.filter((id) => id > 0))];
-
-      const lineItems = inv.invoiceItems.map((it, idx) => ({
-        id: Date.now() + idx,
-        inventoryId: it.inventoryId ?? 0,
-        quantity: it.quantity,
-        discount: it.discount,
-        price: it.price,
-        discountedPrice:
-          it.discountedPrice ??
-          computeInvoiceItemTotal(it.quantity, it.discount, it.price),
-      }));
-
-      let accountMapping: Invoice['accountMapping'];
-      if (invoiceType === InvoiceType.Sale) {
-        if (distinctRow.length > 1) {
-          setUseSingleAccount(true);
-          setSplitByItemType(true);
-          const splitFallbackId = distinctRow[0];
-          if (splitFallbackId == null || splitFallbackId <= 0) {
-            raise('Invalid account on invoice line');
-          }
-          const singleForSplit =
-            headerAcct != null && headerAcct > 0 ? headerAcct : splitFallbackId;
-          accountMapping = {
-            singleAccountId: singleForSplit,
-            multipleAccountIds: rowAccountIds.map((id) =>
-              id > 0 ? id : splitFallbackId,
-            ),
-          };
-        } else {
-          setUseSingleAccount(true);
-          setSplitByItemType(false);
-          accountMapping = {
-            singleAccountId: distinctRow[0] ?? headerAcct,
-            multipleAccountIds: [],
-          };
-        }
-      } else if (distinctRow.length > 1) {
-        setUseSingleAccount(false);
-        setSplitByItemType(false);
-        const purchaseLineFallbackId =
-          headerAcct != null && headerAcct > 0
-            ? headerAcct
-            : raise('Invalid account on invoice line');
-        accountMapping = {
-          singleAccountId: undefined,
-          multipleAccountIds: rowAccountIds.map((id) =>
-            id > 0 ? id : purchaseLineFallbackId,
-          ),
-        };
-      } else {
-        setUseSingleAccount(true);
-        setSplitByItemType(false);
-        accountMapping = {
-          singleAccountId: distinctRow[0] ?? headerAcct,
-          multipleAccountIds: [],
-        };
-      }
+      const prefill = buildPrefillFromInvoiceView(invoiceType, inv);
+      setUseSingleAccount(prefill.useSingleAccount);
+      setSplitByItemType(prefill.splitByItemType);
+      const { lineItems, accountMapping } = prefill;
 
       form.reset({
         id: inv.id,
