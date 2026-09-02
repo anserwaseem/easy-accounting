@@ -1896,10 +1896,15 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                 labelPosition="top"
                                 className="min-w-0 ml-[1px]"
                               >
-                                <FormLabel className="text-base">
-                                  {isSale ? 'Customer' : 'Vendor'}
-                                  <span className="text-destructive"> *</span>
-                                </FormLabel>
+                                <span className="flex items-center justify-between">
+                                  <FormLabel className="text-base">
+                                    {isSale ? 'Customer' : 'Vendor'}
+                                    <span className="text-destructive"> *</span>
+                                  </FormLabel>
+                                  <PartyBalanceIndicator
+                                    accountId={toNumber(field.value)}
+                                  />
+                                </span>
                                 <VirtualSelect
                                   options={customerVendorSelectOptions}
                                   value={field.value}
@@ -1912,9 +1917,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   placeholder="Select a party"
                                   searchPlaceholder="Search parties..."
                                   autoFocusTrigger={editInvoiceId == null}
-                                />
-                                <PartyBalanceIndicator
-                                  accountId={toNumber(field.value)}
                                 />
                                 <FormMessage />
                               </FormItem>

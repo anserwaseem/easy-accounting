@@ -20,6 +20,8 @@ interface BillsAgingPrintTableProps {
   billsAging: BillsAging;
   hideZeroRows?: boolean;
   hideStatus?: boolean;
+  /** all-parties scope: tag each account row with its agent head */
+  showHeadNames?: boolean;
 }
 
 export const buildBillsAgingRows = (
@@ -50,6 +52,7 @@ export const buildBillsAgingRows = (
     visibleBills.forEach((bill) => {
       allRows.push({
         accountCode: account.accountCode,
+        headName: account.headName,
         billNumber: bill.billNumber,
         billDate: bill.billDate,
         billPercentage: bill.billPercentage,
@@ -65,6 +68,7 @@ export const buildBillsAgingRows = (
     account.unallocatedReceipts.forEach((receipt) => {
       allRows.push({
         accountCode: account.accountCode,
+        headName: account.headName,
         billNumber: 'Unallocated Receipt',
         billDate: receipt.receivedDate,
         billPercentage: '-',
@@ -94,6 +98,7 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
   billsAging,
   hideZeroRows = false,
   hideStatus = false,
+  showHeadNames = false,
 }) => {
   const allRows = buildBillsAgingRows(billsAging, hideZeroRows);
 
@@ -125,7 +130,10 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
         <TableBody>
           {allRows.map((row) => (
             <TableRow key={`row-${row.sortKey}`}>
-              <TableCell>{row.accountCode}</TableCell>
+              <TableCell>
+                {row.accountCode}
+                {showHeadNames && row.headName ? ` — ${row.headName}` : ''}
+              </TableCell>
               <TableCell>{row.billNumber}</TableCell>
               <TableCell>
                 {format(new Date(row.billDate), 'dd/MM/yy')}

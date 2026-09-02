@@ -18,6 +18,7 @@ Activate this skill when you need:
 - To validate if you're working on the right things
 
 Trigger phrases include:
+
 - "What would make this 10x better?"
 - "Product strategy"
 - "What should we build next?"
@@ -40,16 +41,19 @@ This skill follows a structured 5-step workflow:
 ### Three Scales of Thinking
 
 **Massive (High effort, transformative)**
+
 - Features that fundamentally expand what the product can do
 - Opens new markets, use cases, or capabilities
 - Makes competitors nervous
 
 **Medium (Moderate effort, high leverage)**
+
 - Significantly enhances the core experience
 - Force multipliers on what already works
 - Turns casual users into power users
 
 **Small Gems (Low effort, disproportionate value)**
+
 - Tiny changes that punch way above their weight
 - Often overlooked because they seem "too simple"
 - Single buttons/shortcuts that save minutes daily
@@ -58,16 +62,17 @@ This skill follows a structured 5-step workflow:
 
 Each idea is assessed across 6 criteria:
 
-| Criteria | Question |
-|----------|----------|
-| Impact | How much more valuable does this make the product? |
-| Reach | What % of users would this affect? |
-| Frequency | How often would users encounter this value? |
-| Differentiation | Does this set us apart or just match competitors? |
-| Defensibility | Is this easy to copy or does it compound over time? |
-| Feasibility | Can we actually build this? |
+| Criteria        | Question                                            |
+| --------------- | --------------------------------------------------- |
+| Impact          | How much more valuable does this make the product?  |
+| Reach           | What % of users would this affect?                  |
+| Frequency       | How often would users encounter this value?         |
+| Differentiation | Does this set us apart or just match competitors?   |
+| Defensibility   | Is this easy to copy or does it compound over time? |
+| Feasibility     | Can we actually build this?                         |
 
 Scoring:
+
 - 🔥 **Must do** - High impact, clearly worth it
 - 👍 **Strong** - Good impact, should prioritize
 - 🤔 **Maybe** - Interesting but needs more thought
@@ -93,6 +98,7 @@ Forces you through 10 idea categories to ensure comprehensive coverage:
 ### Documentation-First
 
 All session outputs are saved to `.claude/docs/ai/<product-or-area>/10x/session-N.md`. This ensures:
+
 - Full traceability of strategic thinking
 - Easy sharing with team members
 - Historical record of decisions
@@ -174,6 +180,7 @@ After a session, you'll have:
 ### Before Starting
 
 Provide context on:
+
 - Product/Area you're thinking about
 - Current state (brief description)
 - Constraints (technical limits, timeline, team size)
@@ -195,6 +202,7 @@ Provide context on:
 ## Output Location
 
 All sessions are saved to:
+
 ```
 .claude/docs/ai/<product-or-area>/10x/session-N.md
 ```
@@ -204,6 +212,7 @@ This keeps your strategic thinking organized, searchable, and shareable with you
 ## Not Included
 
 This skill does NOT:
+
 - Write code or implementation plans (use after strategy is clear)
 - Make final decisions (provides recommendations, you decide)
 - Replace user research (complements it with strategic analysis)
