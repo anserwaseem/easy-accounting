@@ -1,5 +1,6 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
+import type { CustomerGroupWithAccounts } from '@/types';
 import { Button } from 'renderer/shad/ui/button';
 import { Download, Printer, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import {
@@ -153,6 +154,63 @@ const BillsAgingPage = () => {
     [billsAging.accounts],
   );
 
+  // stored customer groups ("025 migration"): one shop split into base +
+  // typed accounts. Picking a group selects exactly its member accounts so
+  // operators stop hand-multi-selecting the same customer on every visit.
+  const [customerGroups, setCustomerGroups] = useState<
+    CustomerGroupWithAccounts[]
+  >([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+
+  // fetch groups once; the report itself does not depend on them
+  useEffect(() => {
+    window.electron
+      .getCustomerGroups()
+      .then((groups) => setCustomerGroups(groups ?? []))
+      .catch((error) =>
+        console.error('Error fetching customer groups:', error),
+      );
+  }, []);
+
+  // only groups with at least one member in the current report are offered,
+  // and selecting one applies only the members that are present
+  const customerGroupOptions = useMemo(() => {
+    const presentIds = new Set(billsAging.accounts.map((acc) => acc.accountId));
+    return customerGroups
+      .map((group) => ({
+        id: group.id,
+        name: group.name,
+        memberIds: group.accounts
+          .map((account) => account.id)
+          .filter((id) => presentIds.has(id)),
+      }))
+      .filter((group) => group.memberIds.length > 0);
+  }, [customerGroups, billsAging.accounts]);
+
+  // the quick-select is a shortcut, not a lock: manual multi-select edits
+  // stay untouched, and clearing the manual filter clears the shortcut label
+  useEffect(() => {
+    if (selectedCustomerIds.length === 0 && selectedGroupId !== '') {
+      setSelectedGroupId('');
+    }
+  }, [selectedCustomerIds, selectedGroupId]);
+
+  const handleCustomerGroupSelect = useCallback(
+    (value: string) => {
+      setSelectedGroupId(value);
+      if (value === 'all') {
+        setSelectedGroupId('');
+        handleCustomerFilterChange([]);
+        return;
+      }
+      const group = customerGroupOptions.find(
+        (option) => String(option.id) === value,
+      );
+      if (group) handleCustomerFilterChange(group.memberIds);
+    },
+    [customerGroupOptions, handleCustomerFilterChange],
+  );
+
   // Check how many filters are applied ('hide all' is just a shortcut for the three toggles)
   const activeFilterCount =
     (hideZeroRows ? 1 : 0) +
@@ -284,6 +342,24 @@ const BillsAgingPage = () => {
                     if (range?.to) handleDateChange(range.to);
                   }}
                 />
+                {customerGroupOptions.length > 0 && (
+                  <Select
+                    value={selectedGroupId}
+                    onValueChange={handleCustomerGroupSelect}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All customers</SelectItem>
+                      {customerGroupOptions.map((group) => (
+                        <SelectItem key={group.id} value={String(group.id)}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <VirtualMultiSelect
                   options={customerOptions}
                   value={selectedCustomerIds}
