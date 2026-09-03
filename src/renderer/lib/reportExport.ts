@@ -105,9 +105,9 @@ function buildSheetRows<T extends Record<string, unknown>>(
 
 const CURRENCY_NUMBER_FORMAT = '#,##0.00';
 
-export function exportReportToExcel<T extends Record<string, unknown>>(
+function buildWorksheet<T extends Record<string, unknown>>(
   payload: ReportExportPayload<T>,
-): void {
+) {
   const aoa = buildSheetRows(payload);
   const ws = utils.aoa_to_sheet(aoa);
 
@@ -132,15 +132,61 @@ export function exportReportToExcel<T extends Record<string, unknown>>(
     }));
   }
 
-  const wb = utils.book_new();
-  utils.book_append_sheet(wb, ws, payload.sheetName.slice(0, 31));
+  return ws;
+}
 
+const downloadWorkbook = (
+  wb: ReturnType<typeof utils.book_new>,
+  fileName: string,
+) => {
   const buffer = write(wb, { type: 'array', bookType: 'xlsx' });
   const blob = new Blob([buffer], { type: EXCEL_MIME });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = payload.suggestedFileName;
+  link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
+};
+
+export function exportReportToExcel<T extends Record<string, unknown>>(
+  payload: ReportExportPayload<T>,
+): void {
+  const wb = utils.book_new();
+  utils.book_append_sheet(
+    wb,
+    buildWorksheet(payload),
+    payload.sheetName.slice(0, 31),
+  );
+  downloadWorkbook(wb, payload.suggestedFileName);
+}
+
+/** extra sheets use string column keys so item + invoice-line grains can share one workbook */
+export interface ExtraReportSheet {
+  title: string;
+  subtitle?: string;
+  sheetName: string;
+  columns: Array<{
+    key: string;
+    header: string;
+    format?: ReportColumnFormat;
+    width?: number;
+  }>;
+  rows: Array<Record<string, unknown>>;
+  footerRow?: Record<string, unknown>;
+}
+
+export function exportReportWorkbook(
+  sheets: ExtraReportSheet[],
+  suggestedFileName: string,
+): void {
+  const wb = utils.book_new();
+  sheets.forEach((sheet) => {
+    utils.book_append_sheet(
+      wb,
+      buildWorksheet(sheet as ReportExportPayload<Record<string, unknown>>),
+      sheet.sheetName.slice(0, 31),
+    );
+  });
+  downloadWorkbook(wb, suggestedFileName);
 }

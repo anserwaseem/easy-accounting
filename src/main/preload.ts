@@ -29,6 +29,8 @@ import type {
   LedgerRangeResponse,
   ReportFilters,
   ReportResponse,
+  PurchasesByVendorFilters,
+  PurchasesByVendorResponse,
   StockAsOfReportFilters,
   StockAsOfReportResponse,
   ApplyListPositionsResult,
@@ -457,6 +459,12 @@ const electronHandler = {
       'report:getSalesPerformance',
       filters,
     ) as Promise<ReportResponse>,
+
+  reportGetPurchasesByVendor: (filters: PurchasesByVendorFilters) =>
+    ipcRenderer.invoke(
+      'report:getPurchasesByVendor',
+      filters,
+    ) as Promise<PurchasesByVendorResponse>,
 
   printToPdf: (outputBaseName: string | number) =>
     ipcRenderer.invoke('print:toPDF', outputBaseName),

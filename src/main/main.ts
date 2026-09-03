@@ -27,6 +27,7 @@ import type {
   ReturnSaleInvoicePayload,
   BulkPriceListPositionPatch,
   UpsertAttributeDefinition,
+  PurchasesByVendorFilters,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -829,6 +830,12 @@ app
       'report:getSalesPerformance',
       async (_, filters: { startDate: string; endDate: string }) =>
         invoiceService.getSalesPerformance(filters),
+    );
+
+    ipcMain.handle(
+      'report:getPurchasesByVendor',
+      async (_, filters: PurchasesByVendorFilters) =>
+        invoiceService.getPurchasesByVendor(filters),
     );
 
     createWindow();

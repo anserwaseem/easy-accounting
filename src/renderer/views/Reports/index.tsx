@@ -8,6 +8,7 @@ import {
   DollarSign,
   Package,
   TrendingUp,
+  Truck,
   Scale,
   AlertCircle,
 } from 'lucide-react';
@@ -66,7 +67,7 @@ const operationsReports: ReportOption[] = [
   {
     title: 'Stock as of date',
     description:
-      'Rewind current stock using posted movements after a past date (no opening balance required).',
+      'Rewind current stock using posted movements after a past date.',
     path: '/reports/stock-as-of',
     icon: <CalendarDays className="h-6 w-6" />,
   },
@@ -75,6 +76,12 @@ const operationsReports: ReportOption[] = [
     description: 'Track posted sales behavior, trends, and returns.',
     path: '/reports/sales-performance',
     icon: <TrendingUp className="h-6 w-6" />,
+  },
+  {
+    title: 'Purchases by Vendor',
+    description: 'Items bought from a vendor between two dates.',
+    path: '/reports/purchases-by-vendor',
+    icon: <Truck className="h-6 w-6" />,
   },
 ];
 
