@@ -227,4 +227,82 @@ describe('VendorStockService', () => {
     expect(result.error).toMatch(/Track vendor stock/i);
     db.close();
   });
+
+  it('updateIssue rewrites stock and lines', () => {
+    const db = new Database(':memory:');
+    seedSchema(db);
+    const { vendorId, inventoryId } = seedVendorAndItem(db);
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity) VALUES (101, 'Item-Y', 10, 0)`,
+    ).run();
+    const service = createService(db);
+
+    const created = service.createIssue({
+      vendorAccountId: vendorId,
+      date: '2026-01-15',
+      items: [{ inventoryId, quantity: 20 }],
+    });
+    expect(created.success).toBe(true);
+    expect(created.issueId).toBeDefined();
+
+    const updated = service.updateIssue(created.issueId!, {
+      vendorAccountId: vendorId,
+      date: '2026-01-16',
+      notes: 'corrected',
+      items: [
+        { inventoryId, quantity: 5 },
+        { inventoryId: 101, quantity: 7 },
+      ],
+    });
+    expect(updated.success).toBe(true);
+    expect(updated.issueNumber).toBe(created.issueNumber);
+
+    const onHand = service.getOnHand(vendorId);
+    const byId = Object.fromEntries(
+      onHand.map((r) => [r.inventoryId, r.quantity]),
+    );
+    expect(byId[inventoryId]).toBe(5);
+    expect(byId[101]).toBe(7);
+
+    const issue = service.getIssue(created.issueId!);
+    expect(issue?.items).toHaveLength(2);
+    expect(issue?.notes).toBe('corrected');
+    expect(issue?.date.slice(0, 10)).toBe('2026-01-16');
+
+    db.close();
+  });
+
+  it('deleteIssue reverses stock and removes the issue', () => {
+    const db = new Database(':memory:');
+    seedSchema(db);
+    const { vendorId, inventoryId } = seedVendorAndItem(db);
+    const service = createService(db);
+
+    const created = service.createIssue({
+      vendorAccountId: vendorId,
+      date: '2026-01-15',
+      items: [{ inventoryId, quantity: 20 }],
+    });
+    expect(created.issueId).toBeDefined();
+
+    const deleted = service.deleteIssue(created.issueId!);
+    expect(deleted.success).toBe(true);
+
+    expect(service.getIssue(created.issueId!)).toBeNull();
+    expect(service.getIssues()).toHaveLength(0);
+    // qty row may remain at 0; on-hand filters non-zero
+    expect(service.getOnHand(vendorId)).toHaveLength(0);
+
+    const movementCount = (
+      db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM vendor_stock_movements
+           WHERE referenceType = 'vendor_issue' AND referenceId = ?`,
+        )
+        .get(created.issueId!) as { c: number }
+    ).c;
+    expect(movementCount).toBe(0);
+
+    db.close();
+  });
 });

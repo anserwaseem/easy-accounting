@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { Input } from '@/renderer/shad/ui/input';
@@ -17,6 +17,13 @@ interface IssueLine {
 
 const NewVendorIssuePage: React.FC = () => {
   const navigate = useNavigate();
+  const { id: editIdParam } = useParams<{ id?: string }>();
+  const editIssueId =
+    editIdParam != null && Number(editIdParam) > 0
+      ? Number(editIdParam)
+      : undefined;
+  const isEdit = editIssueId != null;
+
   const [vendors, setVendors] = useState<
     Array<{ id: number; name: string; code?: number | string | null }>
   >([]);
@@ -29,20 +36,63 @@ const NewVendorIssuePage: React.FC = () => {
     { key: '1', inventoryId: 0, quantity: 0 },
   ]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      const [tracked, items, nextNumber] = await Promise.all([
-        window.electron.getTrackedVendorAccounts(),
-        window.electron.getInventory(),
-        window.electron.getNextVendorIssueNumber(),
-      ]);
-      setVendors(tracked);
-      setInventory(items ?? []);
-      setIssueNumber(nextNumber);
+      setLoading(true);
+      try {
+        const [tracked, items] = await Promise.all([
+          window.electron.getTrackedVendorAccounts(),
+          window.electron.getInventory(),
+        ]);
+        setVendors(tracked);
+        setInventory(items ?? []);
+
+        if (isEdit && editIssueId != null) {
+          const issue = await window.electron.getVendorIssue(editIssueId);
+          if (!issue) {
+            toast({
+              description: 'Vendor issue not found',
+              variant: 'destructive',
+            });
+            navigate('/vendor-stock');
+            return;
+          }
+          setIssueNumber(issue.issueNumber);
+          setVendorAccountId(issue.vendorAccountId);
+          // prefer stored date text; avoid UTC shift from Date parsing
+          const dateText = issue.date?.slice(0, 10);
+          setDate(
+            dateText && /^\d{4}-\d{2}-\d{2}$/.test(dateText)
+              ? dateText
+              : toLocalDateInputValue(new Date(issue.date)),
+          );
+          setNotes(issue.notes ?? '');
+          setLines(
+            issue.items.length
+              ? issue.items.map((item) => ({
+                  key: String(item.id),
+                  inventoryId: item.inventoryId,
+                  quantity: item.quantity,
+                }))
+              : [{ key: '1', inventoryId: 0, quantity: 0 }],
+          );
+        } else {
+          const nextNumber = await window.electron.getNextVendorIssueNumber();
+          setIssueNumber(nextNumber);
+        }
+      } catch (error) {
+        toast({
+          description: String(error),
+          variant: 'destructive',
+        });
+      } finally {
+        setLoading(false);
+      }
     };
     load();
-  }, []);
+  }, [editIssueId, isEdit, navigate]);
 
   const vendorOptions = useMemo(
     () =>
@@ -85,23 +135,34 @@ const NewVendorIssuePage: React.FC = () => {
       return;
     }
 
+    const payload = {
+      vendorAccountId,
+      date,
+      notes: notes.trim() || undefined,
+      items,
+    };
+
     setSaving(true);
     try {
-      const result = await window.electron.createVendorIssue({
-        vendorAccountId,
-        date,
-        notes: notes.trim() || undefined,
-        items,
-      });
+      const result =
+        isEdit && editIssueId != null
+          ? await window.electron.updateVendorIssue(editIssueId, payload)
+          : await window.electron.createVendorIssue(payload);
       if (result.success) {
         toast({
-          description: `Vendor issue #${result.issueNumber} created`,
+          description: isEdit
+            ? `Vendor issue #${result.issueNumber} updated`
+            : `Vendor issue #${result.issueNumber} created`,
           variant: 'success',
         });
         navigate('/vendor-stock');
       } else {
         toast({
-          description: result.error ?? 'Failed to create vendor issue',
+          description:
+            result.error ??
+            (isEdit
+              ? 'Failed to update vendor issue'
+              : 'Failed to create vendor issue'),
           variant: 'destructive',
         });
       }
@@ -115,12 +176,24 @@ const NewVendorIssuePage: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-3xl p-6 text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
-        <h1 className="title-new">New Vendor Issue</h1>
+        <h1 className="title-new">
+          {isEdit ? 'Edit Vendor Issue' : 'New Vendor Issue'}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Increases qty at the vendor. Warehouse inventory is unchanged.
+          {isEdit
+            ? 'Updates vendor qty to match this issue. Warehouse inventory is unchanged.'
+            : 'Increases qty at the vendor. Warehouse inventory is unchanged.'}
         </p>
       </header>
 
@@ -224,7 +297,7 @@ const NewVendorIssuePage: React.FC = () => {
 
       <div className="flex gap-2">
         <Button onClick={handleSave} disabled={saving || vendors.length === 0}>
-          Save issue
+          {isEdit ? 'Save changes' : 'Save issue'}
         </Button>
         <Button variant="ghost" onClick={() => navigate('/vendor-stock')}>
           Cancel

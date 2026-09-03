@@ -29,6 +29,7 @@ import type {
   UpsertAttributeDefinition,
   PurchasesByVendorFilters,
   CreateVendorIssuePayload,
+  UpdateVendorIssuePayload,
   VendorStockOpeningRow,
   VendorStockActivityFilters,
 } from 'types';
@@ -893,6 +894,16 @@ app
       'vendorStock:createIssue',
       async (_, payload: CreateVendorIssuePayload) =>
         vendorStockService.createIssue(payload),
+    );
+
+    ipcMain.handle(
+      'vendorStock:updateIssue',
+      async (_, issueId: number, payload: UpdateVendorIssuePayload) =>
+        vendorStockService.updateIssue(issueId, payload),
+    );
+
+    ipcMain.handle('vendorStock:deleteIssue', async (_, issueId: number) =>
+      vendorStockService.deleteIssue(issueId),
     );
 
     ipcMain.handle('vendorStock:getIssues', () =>

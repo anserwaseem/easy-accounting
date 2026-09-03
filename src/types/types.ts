@@ -373,6 +373,8 @@ export interface CreateVendorIssuePayload {
   items: VendorIssueItemInput[];
 }
 
+export type UpdateVendorIssuePayload = CreateVendorIssuePayload;
+
 export interface VendorIssueListItem {
   id: number;
   issueNumber: number;

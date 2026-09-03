@@ -39,6 +39,7 @@ import type {
   AttributeDefinition,
   UpsertAttributeDefinition,
   CreateVendorIssuePayload,
+  UpdateVendorIssuePayload,
   VendorStockOpeningRow,
   VendorStockRow,
   VendorIssueListItem,
@@ -780,6 +781,19 @@ const electronHandler = {
       'vendorStock:createIssue',
       payload,
     ) as Promise<ApiResponse & { issueId?: number; issueNumber?: number }>,
+
+  updateVendorIssue: (issueId: number, payload: UpdateVendorIssuePayload) =>
+    ipcRenderer.invoke(
+      'vendorStock:updateIssue',
+      issueId,
+      payload,
+    ) as Promise<ApiResponse & { issueId?: number; issueNumber?: number }>,
+
+  deleteVendorIssue: (issueId: number) =>
+    ipcRenderer.invoke(
+      'vendorStock:deleteIssue',
+      issueId,
+    ) as Promise<ApiResponse>,
 
   getVendorIssues: () =>
     ipcRenderer.invoke('vendorStock:getIssues') as Promise<

@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { PackageOpen, Plus, RefreshCw } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { PackageOpen, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import type { VendorIssueListItem, VendorStockRow } from 'types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/renderer/shad/ui/dialog';
 import { ImportVendorOpeningStock } from './ImportVendorOpeningStock';
 
 const VendorStockPage: React.FC = () => {
+  const navigate = useNavigate();
   const [vendors, setVendors] = useState<
     Array<{ id: number; name: string; code?: number | string | null }>
   >([]);
@@ -18,6 +28,10 @@ const VendorStockPage: React.FC = () => {
   const [onHand, setOnHand] = useState<VendorStockRow[]>([]);
   const [issues, setIssues] = useState<VendorIssueListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [issueToDelete, setIssueToDelete] = useState<VendorIssueListItem | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -47,6 +61,34 @@ const VendorStockPage: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleConfirmDelete = async () => {
+    if (!issueToDelete) return;
+    setDeleting(true);
+    try {
+      const result = await window.electron.deleteVendorIssue(issueToDelete.id);
+      if (result.success) {
+        toast({
+          description: `Vendor issue #${issueToDelete.issueNumber} deleted`,
+          variant: 'success',
+        });
+        setIssueToDelete(null);
+        load();
+      } else {
+        toast({
+          description: result.error ?? 'Failed to delete vendor issue',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        description: String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const vendorFilterOptions = useMemo(
     () => [
@@ -110,8 +152,34 @@ const VendorStockPage: React.FC = () => {
         accessorKey: 'lineCount',
         header: 'Lines',
       },
+      {
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1">
+            <EditActionButton
+              onClick={() =>
+                navigate(`/vendor-stock/issues/${row.original.id}/edit`)
+              }
+              aria-label={`Edit issue #${row.original.issueNumber}`}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+              onClick={() => setIssueToDelete(row.original)}
+              aria-label={`Delete issue #${row.original.issueNumber}`}
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
     ],
-    [],
+    [navigate],
   );
 
   return (
@@ -183,6 +251,40 @@ const VendorStockPage: React.FC = () => {
         <h2 className="text-lg font-medium">Issues</h2>
         <DataTable columns={issueColumns} data={issues} />
       </section>
+
+      <Dialog
+        open={issueToDelete != null}
+        onOpenChange={(open) => {
+          if (!open) setIssueToDelete(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete vendor issue?</DialogTitle>
+            <DialogDescription>
+              {issueToDelete
+                ? `Issue #${issueToDelete.issueNumber} will be removed and its qty reversed from ${issueToDelete.vendorAccountName}. This cannot be undone.`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setIssueToDelete(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleting}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

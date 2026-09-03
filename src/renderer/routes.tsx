@@ -61,6 +61,10 @@ const AppRoutes: React.FC = () => (
               <Route path="vendor-stock">
                 <Route index element={<VendorStockPage />} />
                 <Route path="issues/new" element={<NewVendorIssuePage />} />
+                <Route
+                  path="issues/:id/edit"
+                  element={<NewVendorIssuePage />}
+                />
               </Route>
               <Route path="reports">
                 <Route index element={<ReportsPage />} />

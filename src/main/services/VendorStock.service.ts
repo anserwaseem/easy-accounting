@@ -3,6 +3,7 @@ import { get, toNumber } from 'lodash';
 import type {
   ApiResponse,
   CreateVendorIssuePayload,
+  UpdateVendorIssuePayload,
   VendorIssueListItem,
   VendorIssueView,
   VendorStockActivityFilters,
@@ -47,6 +48,14 @@ export class VendorStockService {
   private stmInsertIssue!: Statement;
 
   private stmInsertIssueItem!: Statement;
+
+  private stmUpdateIssue!: Statement;
+
+  private stmDeleteIssueItems!: Statement;
+
+  private stmDeleteIssueMovements!: Statement;
+
+  private stmDeleteIssue!: Statement;
 
   private stmGetIssues!: Statement;
 
@@ -221,22 +230,7 @@ export class VendorStockService {
     issueNumber?: number;
   } {
     try {
-      const { vendorAccountId, date, notes, items } = payload;
-      if (!vendorAccountId || vendorAccountId < 1) {
-        raise('Select a vendor account');
-      }
-      this.assertTracksVendorStock(vendorAccountId);
-      if (!date) {
-        raise('Date is required');
-      }
-      if (!items?.length) {
-        raise('Add at least one line item');
-      }
-      for (const item of items) {
-        if (!item.inventoryId || item.quantity <= 0) {
-          raise('Each line needs an item and quantity > 0');
-        }
-      }
+      this.validateIssuePayload(payload);
 
       let issueId = 0;
       let issueNumber = 0;
@@ -245,29 +239,19 @@ export class VendorStockService {
         issueNumber = this.getNextIssueNumber();
         const result = this.stmInsertIssue.run({
           issueNumber: cast(issueNumber),
-          vendorAccountId: cast(vendorAccountId),
-          date,
-          notes: notes?.trim() || null,
+          vendorAccountId: cast(payload.vendorAccountId),
+          date: payload.date,
+          notes: payload.notes?.trim() || null,
         });
         issueId = Number(result.lastInsertRowid);
 
-        for (const item of items) {
-          this.stmInsertIssueItem.run({
-            issueId: cast(issueId),
-            inventoryId: cast(item.inventoryId),
-            quantity: item.quantity,
-          });
-          this.applyDelta({
-            vendorAccountId,
-            inventoryId: item.inventoryId,
-            quantityDelta: item.quantity,
-            movementType: 'issue',
-            referenceType: 'vendor_issue',
-            referenceId: issueId,
-            date,
-            notes: notes?.trim() || null,
-          });
-        }
+        this.insertIssueLinesAndStock(
+          issueId,
+          payload.vendorAccountId,
+          payload.date,
+          payload.notes,
+          payload.items,
+        );
       })();
 
       return { success: true, issueId, issueNumber };
@@ -289,6 +273,58 @@ export class VendorStockService {
       issueId: cast(issueId),
     }) as VendorIssueView['items'];
     return { ...header, items };
+  }
+
+  updateIssue(
+    issueId: number,
+    payload: UpdateVendorIssuePayload,
+  ): ApiResponse & { issueId?: number; issueNumber?: number } {
+    try {
+      const existing =
+        this.getIssue(issueId) ?? raise('Vendor issue not found');
+      this.validateIssuePayload(payload);
+
+      this.db.transaction(() => {
+        this.clearIssueStockAndLines(existing);
+        this.stmUpdateIssue.run({
+          issueId: cast(issueId),
+          vendorAccountId: cast(payload.vendorAccountId),
+          date: payload.date,
+          notes: payload.notes?.trim() || null,
+        });
+        this.insertIssueLinesAndStock(
+          issueId,
+          payload.vendorAccountId,
+          payload.date,
+          payload.notes,
+          payload.items,
+        );
+      })();
+
+      return {
+        success: true,
+        issueId,
+        issueNumber: existing.issueNumber,
+      };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
+  }
+
+  deleteIssue(issueId: number): ApiResponse {
+    try {
+      const existing =
+        this.getIssue(issueId) ?? raise('Vendor issue not found');
+
+      this.db.transaction(() => {
+        this.clearIssueStockAndLines(existing);
+        this.stmDeleteIssue.run({ issueId: cast(issueId) });
+      })();
+
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
   }
 
   /**
@@ -464,6 +500,68 @@ export class VendorStockService {
     }
   }
 
+  private validateIssuePayload(payload: CreateVendorIssuePayload): void {
+    if (!payload.vendorAccountId || payload.vendorAccountId < 1) {
+      raise('Select a vendor account');
+    }
+    this.assertTracksVendorStock(payload.vendorAccountId);
+    if (!payload.date) {
+      raise('Date is required');
+    }
+    if (!payload.items?.length) {
+      raise('Add at least one line item');
+    }
+    for (const item of payload.items) {
+      if (!item.inventoryId || item.quantity <= 0) {
+        raise('Each line needs an item and quantity > 0');
+      }
+    }
+  }
+
+  private insertIssueLinesAndStock(
+    issueId: number,
+    vendorAccountId: number,
+    date: string,
+    notes: string | undefined,
+    items: CreateVendorIssuePayload['items'],
+  ): void {
+    const trimmedNotes = notes?.trim() || null;
+    for (const item of items) {
+      this.stmInsertIssueItem.run({
+        issueId: cast(issueId),
+        inventoryId: cast(item.inventoryId),
+        quantity: item.quantity,
+      });
+      this.applyDelta({
+        vendorAccountId,
+        inventoryId: item.inventoryId,
+        quantityDelta: item.quantity,
+        movementType: 'issue',
+        referenceType: 'vendor_issue',
+        referenceId: issueId,
+        date,
+        notes: trimmedNotes,
+      });
+    }
+  }
+
+  /**
+   * reverse stock from an existing issue and remove its lines + issue movements.
+   * leaves the vendor_issues header row in place (caller may update or delete it).
+   */
+  private clearIssueStockAndLines(existing: VendorIssueView): void {
+    for (const item of existing.items) {
+      // stock only — movements for this issue are deleted below so history rewrites
+      this.stmUpsertVendorStockDelta.run({
+        vendorAccountId: cast(existing.vendorAccountId),
+        inventoryId: cast(item.inventoryId),
+        quantityDelta: -item.quantity,
+      });
+    }
+    this.stmDeleteIssueMovements.run({ issueId: cast(existing.id) });
+    this.stmDeleteIssueItems.run({ issueId: cast(existing.id) });
+  }
+
   private resolveVendorAccountId(
     code?: string | number | null,
     name?: string | null,
@@ -620,6 +718,7 @@ export class VendorStockService {
       JOIN account a ON a.id = vs.vendorAccountId
       JOIN inventory inv ON inv.id = vs.inventoryId
       WHERE vs.vendorAccountId = @vendorAccountId
+        AND vs.quantity != 0
       ORDER BY inv.name COLLATE NOCASE
     `);
 
@@ -653,6 +752,27 @@ export class VendorStockService {
     this.stmInsertIssueItem = this.db.prepare(`
       INSERT INTO vendor_issue_items (issueId, inventoryId, quantity)
       VALUES (@issueId, @inventoryId, @quantity)
+    `);
+
+    this.stmUpdateIssue = this.db.prepare(`
+      UPDATE vendor_issues
+      SET vendorAccountId = @vendorAccountId,
+          date = @date,
+          notes = @notes
+      WHERE id = @issueId
+    `);
+
+    this.stmDeleteIssueItems = this.db.prepare(`
+      DELETE FROM vendor_issue_items WHERE issueId = @issueId
+    `);
+
+    this.stmDeleteIssueMovements = this.db.prepare(`
+      DELETE FROM vendor_stock_movements
+      WHERE referenceType = 'vendor_issue' AND referenceId = @issueId
+    `);
+
+    this.stmDeleteIssue = this.db.prepare(`
+      DELETE FROM vendor_issues WHERE id = @issueId
     `);
 
     this.stmGetIssues = this.db.prepare(`
