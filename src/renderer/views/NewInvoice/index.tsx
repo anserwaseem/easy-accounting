@@ -199,6 +199,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [pendingConfirm, setPendingConfirm] =
     useState<ConfirmDialogConfig | null>(null);
   const dateConfirmedInModalRef = useRef(false);
+  const [isDiscountConfirmed, setIsDiscountConfirmed] = useState(false);
+  const discountConfirmedInModalRef = useRef(false);
   const openPrintAfterSaveRef = useRef(false);
 
   const formCore = useNewInvoiceFormCore({
@@ -1292,6 +1294,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         setNextInvoiceNumber(result.nextInvoiceNumber);
         form.reset(defaultFormValues);
         setIsDateExplicitlySet(false);
+        setIsDiscountConfirmed(false);
         setSections([]);
         setActiveSectionId(null);
         setRowSectionMap({});
@@ -1335,6 +1338,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     }
   }, []);
 
+  const hasZeroDiscountItem = (values: z.infer<typeof formSchema>) => {
+    const items = Array.isArray(values.invoiceItems) ? values.invoiceItems : [];
+    return items.some((item) => toNumber(item?.discount) === 0);
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (
       isSplitTypedAccountResolutionSubmitBlocked({
@@ -1350,6 +1358,29 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       });
       return;
     }
+
+    if (
+      invoiceType === InvoiceType.Sale &&
+      editInvoiceId == null &&
+      !isDiscountConfirmed &&
+      !discountConfirmedInModalRef.current &&
+      hasZeroDiscountItem(values)
+    ) {
+      setPendingConfirm({
+        title: 'Item with no discount',
+        description:
+          "One or more items on this invoice have 0% discount. If that's not intentional, cancel and check the discount for those items.",
+        confirmLabel: 'Save anyway',
+        cancelLabel: 'Review items',
+        onConfirm: () => {
+          discountConfirmedInModalRef.current = true;
+          setIsDiscountConfirmed(true);
+          form.handleSubmit(onSubmit, onValidationError)();
+        },
+      });
+      return;
+    }
+    discountConfirmedInModalRef.current = false;
 
     const dateError = await validateInvoiceDateAgainstParties(values);
     if (dateError) {
@@ -1866,6 +1897,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               onReset={() => {
                 form.reset(defaultFormValues);
                 setIsDateExplicitlySet(false);
+                setIsDiscountConfirmed(false);
                 setSections([]);
                 setActiveSectionId(null);
                 setRowSectionMap({});
@@ -2602,6 +2634,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     const leave = () => {
                       form.reset(defaultFormValues);
                       setIsDateExplicitlySet(false);
+                      setIsDiscountConfirmed(false);
                       setSections([]);
                       setActiveSectionId(null);
                       setRowSectionMap({});

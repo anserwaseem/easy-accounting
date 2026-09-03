@@ -78,6 +78,37 @@ jest.mock('../components/DateConfirmationDialog', () => ({
     ) : null,
 }));
 
+// control the generic confirm dialog (used for the zero-discount warning, among others)
+jest.mock('@/renderer/components/ConfirmDialog', () => ({
+  ConfirmDialog: ({
+    open,
+    title,
+    confirmLabel,
+    onConfirm,
+    onOpenChange,
+  }: {
+    open: boolean;
+    title: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div data-testid="confirm-dialog">
+        <span>{title}</span>
+        <button
+          type="button"
+          onClick={() => {
+            onConfirm();
+            onOpenChange(false);
+          }}
+        >
+          {confirmLabel ?? 'Continue'}
+        </button>
+      </div>
+    ) : null,
+}));
+
 // useInvoiceInventoryLoader uses getInventory from electron (stubbed in beforeEach)
 jest.mock('../hooks/useNewInvoiceNextNumber', () => ({
   useNewInvoiceNextNumber: () => [1001, jest.fn()],
@@ -227,7 +258,7 @@ describe('NewInvoicePage date confirmation + submit', () => {
     };
   });
 
-  it('Save and Print: opens date modal first, then submits and navigates to print after modal confirm', async () => {
+  it('Save and Print: opens zero-discount then date modal, then submits and navigates to print after both confirmed', async () => {
     render(<NewInvoiceSaleTestHarness />);
 
     const saveAndPrint = await screen.findByRole('button', {
@@ -235,6 +266,11 @@ describe('NewInvoicePage date confirmation + submit', () => {
     });
     await act(async () => {
       fireEvent.click(saveAndPrint);
+    });
+    expect(await screen.findByTestId('confirm-dialog')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save anyway/i }));
     });
     expect(await screen.findByTestId('date-modal')).toBeTruthy();
 
@@ -249,7 +285,7 @@ describe('NewInvoicePage date confirmation + submit', () => {
     expect(navigateMock).toHaveBeenCalledWith('/invoices/77/print');
   });
 
-  it('Save: opens date modal, then submits and navigates to invoice detail', async () => {
+  it('Save: opens zero-discount then date modal, then submits and navigates to invoice detail', async () => {
     render(<NewInvoiceSaleTestHarness />);
 
     const saveBtn = await screen.findByRole('button', { name: /^save$/i });
@@ -257,6 +293,11 @@ describe('NewInvoicePage date confirmation + submit', () => {
       fireEvent.click(saveBtn);
     });
 
+    expect(await screen.findByTestId('confirm-dialog')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save anyway/i }));
+    });
     expect(await screen.findByTestId('date-modal')).toBeTruthy();
 
     await act(async () => {
@@ -284,6 +325,10 @@ describe('NewInvoicePage date confirmation + submit', () => {
     await act(async () => {
       fireEvent.click(saveBtn);
     });
+    expect(await screen.findByTestId('confirm-dialog')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save anyway/i }));
+    });
     await act(async () => {
       fireEvent.click(
         screen.getByRole('button', { name: /use current date/i }),
@@ -298,16 +343,68 @@ describe('NewInvoicePage date confirmation + submit', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
+  it('Zero-discount confirm: blocks submit until confirmed, then falls through to date modal', async () => {
+    // submitValues.invoiceItems[0].discount is 0 by default (set up above).
+    render(<NewInvoiceSaleTestHarness />);
+
+    const saveBtn = await screen.findByRole('button', { name: /^save$/i });
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+
+    expect(await screen.findByTestId('confirm-dialog')).toBeTruthy();
+    expect((window as any).electron.insertInvoice).not.toHaveBeenCalled();
+  });
+
+  it('Non-zero discount: skips the zero-discount dialog entirely', async () => {
+    submitValues.invoiceItems = [
+      {
+        id: 1,
+        inventoryId: 1,
+        quantity: 1,
+        discount: 10,
+        price: 10,
+        discountedPrice: 9,
+      },
+    ];
+
+    render(<NewInvoiceSaleTestHarness />);
+
+    const saveBtn = await screen.findByRole('button', { name: /^save$/i });
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+
+    expect(screen.queryByTestId('confirm-dialog')).toBeNull();
+    expect(await screen.findByTestId('date-modal')).toBeTruthy();
+
+    // restore default (zero-discount) fixture for subsequent tests
+    submitValues.invoiceItems = [
+      {
+        id: 1,
+        inventoryId: 1,
+        quantity: 1,
+        discount: 0,
+        price: 10,
+        discountedPrice: 10,
+      },
+    ];
+  });
+
   it('Date modal Cancel: closes modal without saving', async () => {
-    // The DateConfirmationDialog mock does not render a Cancel button;
-    // instead we verify the insertInvoice is NOT called by asserting
-    // that Save triggers modal but nothing is submitted when modal is open.
-    // This is covered by the fact that we assert insertInvoice is called
-    // only after clicking "Use current date" in other tests.
-    //
-    // The component implementation: onSubmit checks isDateExplicitlySet first,
-    // shows modal, and only proceeds via modal's onUseCurrentDate callback.
-    // Without that callback firing, submit never runs.
+    // isolate date-modal behavior from the zero-discount dialog by giving
+    // the row a non-zero discount.
+    submitValues.invoiceItems = [
+      {
+        id: 1,
+        inventoryId: 1,
+        quantity: 1,
+        discount: 10,
+        price: 10,
+        discountedPrice: 9,
+      },
+    ];
+
     render(<NewInvoiceSaleTestHarness />);
 
     // Just verify modal opens and without confirming, insertInvoice is untouched
@@ -318,6 +415,18 @@ describe('NewInvoicePage date confirmation + submit', () => {
 
     expect(await screen.findByTestId('date-modal')).toBeTruthy();
     expect((window as any).electron.insertInvoice).not.toHaveBeenCalled();
+
+    // restore default (zero-discount) fixture for subsequent tests
+    submitValues.invoiceItems = [
+      {
+        id: 1,
+        inventoryId: 1,
+        quantity: 1,
+        discount: 0,
+        price: 10,
+        discountedPrice: 10,
+      },
+    ];
   });
 
   it('Clear button: resets form without errors', async () => {
