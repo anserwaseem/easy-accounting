@@ -6,6 +6,7 @@ import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { cn } from '@/renderer/lib/utils';
 import type { VendorIssueListItem, VendorStockRow } from 'types';
 import {
   Dialog,
@@ -69,14 +70,14 @@ const VendorStockPage: React.FC = () => {
       const result = await window.electron.deleteVendorIssue(issueToDelete.id);
       if (result.success) {
         toast({
-          description: `Vendor issue #${issueToDelete.issueNumber} deleted`,
+          description: `Send #${issueToDelete.issueNumber} deleted`,
           variant: 'success',
         });
         setIssueToDelete(null);
         load();
       } else {
         toast({
-          description: result.error ?? 'Failed to delete vendor issue',
+          description: result.error ?? 'Failed to delete send',
           variant: 'destructive',
         });
       }
@@ -115,7 +116,12 @@ const VendorStockPage: React.FC = () => {
         accessorKey: 'quantity',
         header: 'Qty',
         cell: ({ row }) => (
-          <span className="tabular-nums">
+          <span
+            className={cn(
+              'tabular-nums',
+              row.original.quantity < 0 && 'font-medium text-destructive',
+            )}
+          >
             {row.original.quantity.toLocaleString()}
           </span>
         ),
@@ -188,7 +194,8 @@ const VendorStockPage: React.FC = () => {
         <div>
           <h1 className="title-new">Vendor Stock</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Shadow qty at tracked vendors. Does not change warehouse inventory.
+            Qty held at tracked vendors (WIP). Does not change warehouse
+            inventory.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -205,7 +212,7 @@ const VendorStockPage: React.FC = () => {
           <Button asChild size="sm">
             <Link to="/vendor-stock/issues/new">
               <Plus size={16} className="mr-1.5" />
-              New vendor issue
+              Send to vendor
             </Link>
           </Button>
         </div>
@@ -214,9 +221,9 @@ const VendorStockPage: React.FC = () => {
       {vendors.length === 0 ? (
         <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
           <PackageOpen className="mb-2 h-5 w-5" />
-          No accounts track vendor stock yet. Edit an account and enable
-          &quot;Track vendor stock&quot;, then import opening balances or create
-          an issue.
+          No accounts track stock at vendors yet. Edit an account and enable
+          &quot;Track stock at vendor (WIP)&quot;, then set starting qty or
+          send goods.
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3">
@@ -243,12 +250,12 @@ const VendorStockPage: React.FC = () => {
       )}
 
       <section className="space-y-2">
-        <h2 className="text-lg font-medium">On hand</h2>
+        <h2 className="text-lg font-medium">At vendor</h2>
         <DataTable columns={onHandColumns} data={onHand} />
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-medium">Issues</h2>
+        <h2 className="text-lg font-medium">Sends</h2>
         <DataTable columns={issueColumns} data={issues} />
       </section>
 
@@ -260,10 +267,10 @@ const VendorStockPage: React.FC = () => {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete vendor issue?</DialogTitle>
+            <DialogTitle>Delete send to vendor?</DialogTitle>
             <DialogDescription>
               {issueToDelete
-                ? `Issue #${issueToDelete.issueNumber} will be removed and its qty reversed from ${issueToDelete.vendorAccountName}. This cannot be undone.`
+                ? `Send #${issueToDelete.issueNumber} will be removed and its qty reversed from ${issueToDelete.vendorAccountName}. This cannot be undone.`
                 : null}
             </DialogDescription>
           </DialogHeader>

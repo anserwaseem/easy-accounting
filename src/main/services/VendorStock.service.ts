@@ -43,6 +43,8 @@ export class VendorStockService {
 
   private stmResolveInventoryByName!: Statement;
 
+  private stmResolveInventoryNameById!: Statement;
+
   private stmGetNextIssueNumber!: Statement;
 
   private stmInsertIssue!: Statement;
@@ -281,7 +283,7 @@ export class VendorStockService {
   ): ApiResponse & { issueId?: number; issueNumber?: number } {
     try {
       const existing =
-        this.getIssue(issueId) ?? raise('Vendor issue not found');
+        this.getIssue(issueId) ?? raise('Send to vendor not found');
       this.validateIssuePayload(payload);
 
       this.db.transaction(() => {
@@ -314,7 +316,7 @@ export class VendorStockService {
   deleteIssue(issueId: number): ApiResponse {
     try {
       const existing =
-        this.getIssue(issueId) ?? raise('Vendor issue not found');
+        this.getIssue(issueId) ?? raise('Send to vendor not found');
 
       this.db.transaction(() => {
         this.clearIssueStockAndLines(existing);
@@ -329,17 +331,19 @@ export class VendorStockService {
 
   /**
    * called from InvoiceService when a purchase is posted/edited/returned.
-   * skips accounts that do not track vendor stock. allows negative qty (warn via log).
+   * skips accounts that do not track vendor stock. allows negative qty.
    * must be called inside an existing db transaction.
+   * returns short user-facing messages for toasts (qty deltas / negatives).
    */
   applyPurchaseEffect(params: {
     invoiceId: number;
     date: string;
     lines: VendorStockPurchaseLine[];
     direction: 'purchase' | 'purchase_return';
-  }): void {
+  }): string[] {
     const { invoiceId, date, lines, direction } = params;
     const sign = direction === 'purchase' ? -1 : 1;
+    const messages: string[] = [];
 
     for (const line of lines) {
       if (!line.accountId || !line.inventoryId || !line.quantity) continue;
@@ -355,7 +359,29 @@ export class VendorStockService {
         date,
         notes: null,
       });
+
+      const newQty =
+        (
+          this.stmGetVendorStockQty.get({
+            vendorAccountId: cast(line.accountId),
+            inventoryId: cast(line.inventoryId),
+          }) as { quantity?: number } | undefined
+        )?.quantity ?? 0;
+      const itemName =
+        (
+          this.stmResolveInventoryNameById.get(cast(line.inventoryId)) as
+            | { name?: string }
+            | undefined
+        )?.name ?? `Item #${line.inventoryId}`;
+      const deltaLabel = sign * line.quantity;
+      const deltaText = deltaLabel > 0 ? `+${deltaLabel}` : String(deltaLabel);
+      messages.push(`${itemName}: ${deltaText} (now ${newQty})`);
+      if (newQty < 0) {
+        messages.push(`Warning: ${itemName} at vendor is negative (${newQty})`);
+      }
     }
+
+    return messages;
   }
 
   getActivity(
@@ -495,7 +521,7 @@ export class VendorStockService {
   private assertTracksVendorStock(accountId: number): void {
     if (!this.tracksVendorStock(accountId)) {
       raise(
-        'Account does not track vendor stock. Enable "Track vendor stock" on the account first.',
+        'Account does not track stock at vendor. Enable "Track stock at vendor (WIP)" on the account first.',
       );
     }
   }
@@ -579,7 +605,7 @@ export class VendorStockService {
       if (byName?.id) return byName.id;
     }
     return raise(
-      `Vendor not found (code=${code ?? ''}, name=${name ?? ''}). Use an existing account with Track vendor stock enabled.`,
+      `Vendor not found (code=${code ?? ''}, name=${name ?? ''}). Use an existing account with Track stock at vendor (WIP) enabled.`,
     );
   }
 
@@ -738,6 +764,10 @@ export class VendorStockService {
 
     this.stmResolveInventoryByName = this.db.prepare(`
       SELECT id FROM inventory WHERE TRIM(name) = TRIM(?)
+    `);
+
+    this.stmResolveInventoryNameById = this.db.prepare(`
+      SELECT name FROM inventory WHERE id = ?
     `);
 
     this.stmGetNextIssueNumber = this.db.prepare(`

@@ -321,7 +321,11 @@ const electronHandler = {
     ipcRenderer.invoke('invoice:getId', invoiceType),
 
   insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) =>
-    ipcRenderer.invoke('invoice:insert', invoiceType, invoice),
+    ipcRenderer.invoke('invoice:insert', invoiceType, invoice) as Promise<{
+      invoiceId: number;
+      nextInvoiceNumber: number;
+      vendorStockMessages?: string[];
+    }>,
 
   insertQuotation: (invoiceType: InvoiceType, invoice: Invoice) =>
     ipcRenderer.invoke(
@@ -345,13 +349,20 @@ const electronHandler = {
   convertQuotation: (invoiceId: number) =>
     ipcRenderer.invoke('invoice:convertQuotation', invoiceId) as Promise<{
       invoiceNumber: number;
+      vendorStockMessages?: string[];
     }>,
 
   updateInvoice: (
     invoiceType: InvoiceType,
     invoiceId: number,
     invoice: Invoice,
-  ) => ipcRenderer.invoke('invoice:update', invoiceType, invoiceId, invoice),
+  ) =>
+    ipcRenderer.invoke(
+      'invoice:update',
+      invoiceType,
+      invoiceId,
+      invoice,
+    ) as Promise<{ success: boolean; vendorStockMessages?: string[] }>,
 
   getInvoices: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getAll', invoiceType),

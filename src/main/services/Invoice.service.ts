@@ -194,7 +194,10 @@ export class InvoiceService {
     })();
   }
 
-  convertQuotationInvoice(invoiceId: number): { invoiceNumber: number } {
+  convertQuotationInvoice(invoiceId: number): {
+    invoiceNumber: number;
+    vendorStockMessages?: string[];
+  } {
     return this.db.transaction(() => {
       return this.convertQuotationInvoiceWithoutTransaction(invoiceId);
     })();
@@ -288,7 +291,11 @@ export class InvoiceService {
   insertInvoice(
     invoiceType: InvoiceType,
     invoice: Invoice,
-  ): { invoiceId: number; nextInvoiceNumber: number } {
+  ): {
+    invoiceId: number;
+    nextInvoiceNumber: number;
+    vendorStockMessages?: string[];
+  } {
     return this.db.transaction(() => {
       return this.insertInvoiceWithoutTransaction(invoiceType, invoice);
     })();
@@ -297,7 +304,11 @@ export class InvoiceService {
   private insertInvoiceWithoutTransaction(
     invoiceType: InvoiceType,
     invoice: Invoice,
-  ): { invoiceId: number; nextInvoiceNumber: number } {
+  ): {
+    invoiceId: number;
+    nextInvoiceNumber: number;
+    vendorStockMessages?: string[];
+  } {
     const invalid = { invoiceId: -1, nextInvoiceNumber: -1 };
     if (!invoice.invoiceNumber) {
       log.error('No invoice number found while inserting invoice', invoice);
@@ -401,7 +412,17 @@ export class InvoiceService {
         );
       }
       if (invoiceType === InvoiceType.Purchase) {
-        this.applyVendorStockForPostedPurchase(invoiceId, invoice, 'purchase');
+        const vendorStockMessages = this.applyVendorStockForPostedPurchase(
+          invoiceId,
+          invoice,
+          'purchase',
+        );
+        return {
+          invoiceId,
+          nextInvoiceNumber: invoice.invoiceNumber + 1,
+          vendorStockMessages:
+            vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+        };
       }
       return {
         invoiceId,
@@ -434,8 +455,14 @@ export class InvoiceService {
         );
       }
 
+      let vendorStockMessages: string[] | undefined;
       if (invoiceType === InvoiceType.Purchase) {
-        this.applyVendorStockForPostedPurchase(invoiceId, invoice, 'purchase');
+        const messages = this.applyVendorStockForPostedPurchase(
+          invoiceId,
+          invoice,
+          'purchase',
+        );
+        if (messages.length > 0) vendorStockMessages = messages;
       }
 
       this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
@@ -443,6 +470,7 @@ export class InvoiceService {
       return {
         invoiceId,
         nextInvoiceNumber: invoice.invoiceNumber + 1,
+        vendorStockMessages,
       };
     }
 
@@ -718,6 +746,7 @@ export class InvoiceService {
 
   private convertQuotationInvoiceWithoutTransaction(invoiceId: number): {
     invoiceNumber: number;
+    vendorStockMessages?: string[];
   } {
     const header = this.stmGetInvoiceHeader.get({
       invoiceId: cast(invoiceId),
@@ -780,11 +809,17 @@ export class InvoiceService {
       nextNum,
     );
     if (invType === InvoiceType.Purchase) {
-      this.applyVendorStockForPostedPurchase(
+      const vendorStockMessages = this.applyVendorStockForPostedPurchase(
         invoiceId,
         invoicePayload,
         'purchase',
       );
+      this.postJournalsForPersistedInvoice(invType, invoiceId, invoicePayload);
+      return {
+        invoiceNumber: nextNum,
+        vendorStockMessages:
+          vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+      };
     }
     this.postJournalsForPersistedInvoice(invType, invoiceId, invoicePayload);
 
@@ -939,10 +974,18 @@ export class InvoiceService {
     invoiceType: InvoiceType,
     invoiceId: number,
     invoice: Invoice,
-  ): { success: boolean } {
+  ): { success: boolean; vendorStockMessages?: string[] } {
     return this.db.transaction(() => {
-      this.updateInvoiceWithoutTransaction(invoiceType, invoiceId, invoice);
-      return { success: true };
+      const vendorStockMessages = this.updateInvoiceWithoutTransaction(
+        invoiceType,
+        invoiceId,
+        invoice,
+      );
+      return {
+        success: true,
+        vendorStockMessages:
+          vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+      };
     })();
   }
 
@@ -950,7 +993,7 @@ export class InvoiceService {
     invoiceType: InvoiceType,
     invoiceId: number,
     invoice: Invoice,
-  ): void {
+  ): string[] {
     const header = this.stmGetInvoiceHeader.get({
       invoiceId: cast(invoiceId),
     }) as
@@ -1034,8 +1077,13 @@ export class InvoiceService {
 
     this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
 
+    let vendorStockMessages: string[] = [];
     if (invoiceType === InvoiceType.Purchase) {
-      this.applyVendorStockForPostedPurchase(invoiceId, invoice, 'purchase');
+      vendorStockMessages = this.applyVendorStockForPostedPurchase(
+        invoiceId,
+        invoice,
+        'purchase',
+      );
     }
 
     if (
@@ -1050,6 +1098,7 @@ export class InvoiceService {
     }
 
     this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
+    return vendorStockMessages;
   }
 
   private updateInventoryForInvoiceLineItems(
@@ -1362,8 +1411,8 @@ export class InvoiceService {
     invoiceId: number,
     invoice: Invoice,
     direction: 'purchase' | 'purchase_return',
-  ): void {
-    this.vendorStockService.applyPurchaseEffect({
+  ): string[] {
+    return this.vendorStockService.applyPurchaseEffect({
       invoiceId,
       date: invoice.date,
       lines: this.buildVendorStockLinesFromInvoice(invoice),
@@ -1376,8 +1425,8 @@ export class InvoiceService {
     date: string,
     rows: { accountId: number; inventoryId: number; quantity: number }[],
     direction: 'purchase' | 'purchase_return',
-  ): void {
-    this.vendorStockService.applyPurchaseEffect({
+  ): string[] {
+    return this.vendorStockService.applyPurchaseEffect({
       invoiceId,
       date,
       lines: rows.map((r) => ({

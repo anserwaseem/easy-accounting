@@ -10,6 +10,7 @@ import {
   FormLabel,
   FormControl,
   FormMessage,
+  FormDescription,
 } from 'renderer/shad/ui/form';
 import type { Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
@@ -195,16 +196,22 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           control={form.control}
           name="tracksVendorStock"
           render={({ field }) => (
-            <FormItem labelPosition="start" className="items-center">
-              <FormLabel>Track vendor stock</FormLabel>
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={(checked) =>
-                    field.onChange(checked === true)
-                  }
-                />
-              </FormControl>
+            <FormItem labelPosition="start" className="items-start">
+              <FormLabel>Track stock at vendor (WIP)</FormLabel>
+              <div className="space-y-1">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                  />
+                </FormControl>
+                <FormDescription>
+                  Purchases from this account will reduce qty held here. Use for
+                  WIP locations, not agents booking consignment returns.
+                </FormDescription>
+              </div>
               <FormMessage />
             </FormItem>
           )}

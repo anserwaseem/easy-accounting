@@ -8,6 +8,7 @@ import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
+import { cn } from '@/renderer/lib/utils';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import type {
   VendorStockActivityItem,
@@ -99,7 +100,7 @@ const VendorStockActivityPage: React.FC = () => {
       },
       {
         accessorKey: 'purchased',
-        header: 'Purchased',
+        header: 'Received via purchase',
         cell: ({ row }) => (
           <span className="tabular-nums">{row.original.purchased}</span>
         ),
@@ -124,7 +125,12 @@ const VendorStockActivityPage: React.FC = () => {
         accessorKey: 'closing',
         header: 'Closing',
         cell: ({ row }) => (
-          <span className="tabular-nums font-medium">
+          <span
+            className={cn(
+              'tabular-nums font-medium',
+              row.original.closing < 0 && 'text-destructive',
+            )}
+          >
             {row.original.closing}
           </span>
         ),
@@ -154,9 +160,9 @@ const VendorStockActivityPage: React.FC = () => {
             { key: 'issued', header: 'Issued', format: 'number', width: 10 },
             {
               key: 'purchased',
-              header: 'Purchased',
+              header: 'Received via purchase',
               format: 'number',
-              width: 10,
+              width: 14,
             },
             {
               key: 'purchaseReturned',
@@ -195,7 +201,7 @@ const VendorStockActivityPage: React.FC = () => {
       </head><body>
       <h1>Vendor stock activity — ${response.vendorAccountName}</h1>
       <p>${response.startDate} to ${response.endDate}</p>
-      <table><thead><tr><th>Item</th><th>Opening</th><th>Issued</th><th>Purchased</th><th>Purchase returns</th><th>Adjusted</th><th>Closing</th></tr></thead>
+      <table><thead><tr><th>Item</th><th>Opening</th><th>Issued</th><th>Received via purchase</th><th>Purchase returns</th><th>Adjusted</th><th>Closing</th></tr></thead>
       <tbody>${rowsHtml}</tbody></table>
       </body></html>`);
     w.document.close();
@@ -210,9 +216,10 @@ const VendorStockActivityPage: React.FC = () => {
         <div className="flex flex-col gap-2 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h1 className="title-new">Vendor Stock Activity</h1>
+              <h1 className="title-new">At-vendor activity</h1>
               <p className="text-sm text-muted-foreground">
-                Opening, issued, purchased, and closing qty at a tracked vendor.
+                Opening, issued, received via purchase, and closing qty at a
+                tracked vendor (WIP).
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 print:hidden">

@@ -224,7 +224,7 @@ describe('VendorStockService', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/Track vendor stock/i);
+    expect(result.error).toMatch(/Track stock at vendor/i);
     db.close();
   });
 

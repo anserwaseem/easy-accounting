@@ -681,27 +681,46 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     };
   }, [duplicateFromId, editInvoiceId, parties, watchedSingleAccountId]);
 
-  const customerVendorSelectOptions = useMemo(
-    () =>
-      buildCustomerVendorSelectOptions({
-        invoiceType,
-        baseParties: parties ?? [],
-        extendedParties: partiesIncludingTyped ?? [],
-        useSingleAccount,
-        splitByItemType,
-        singleAccountId: toNumber(watchedSingleAccountId),
-        missingExtra: missingPartyForSelect,
-      }),
-    [
+  const customerVendorSelectOptions = useMemo(() => {
+    const options = buildCustomerVendorSelectOptions({
       invoiceType,
-      missingPartyForSelect,
-      parties,
-      partiesIncludingTyped,
-      splitByItemType,
+      baseParties: parties ?? [],
+      extendedParties: partiesIncludingTyped ?? [],
       useSingleAccount,
-      watchedSingleAccountId,
-    ],
-  );
+      splitByItemType,
+      singleAccountId: toNumber(watchedSingleAccountId),
+      missingExtra: missingPartyForSelect,
+    });
+    if (invoiceType !== InvoiceType.Purchase) return options;
+    return options.map((party) =>
+      party.tracksVendorStock
+        ? { ...party, name: `${party.name} · WIP` }
+        : party,
+    );
+  }, [
+    invoiceType,
+    missingPartyForSelect,
+    parties,
+    partiesIncludingTyped,
+    splitByItemType,
+    useSingleAccount,
+    watchedSingleAccountId,
+  ]);
+
+  const selectedVendorTracksStock = useMemo(() => {
+    if (invoiceType !== InvoiceType.Purchase) return false;
+    const sid = toNumber(watchedSingleAccountId);
+    if (sid <= 0) return false;
+    const party = (partiesIncludingTyped ?? parties ?? []).find(
+      (p) => toNumber(p.id) === sid,
+    );
+    return Boolean(party?.tracksVendorStock);
+  }, [
+    invoiceType,
+    parties,
+    partiesIncludingTyped,
+    watchedSingleAccountId,
+  ]);
 
   const onSplitByItemTypeCheckedChange = useCallback(
     (checked: boolean | 'indeterminate') => {
@@ -1228,13 +1247,23 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     values: z.infer<typeof formSchema>,
   ): Promise<number | undefined> => {
     try {
-      const showPostSaveToast = () => {
+      const showPostSaveToast = (vendorStockMessages?: string[]) => {
         toast({
           variant: 'success',
           description: `${invoiceType} invoice ${
             editInvoiceId != null ? 'updated' : 'saved successfully'
           }`,
         });
+        if (vendorStockMessages?.length) {
+          const hasNegative = vendorStockMessages.some((m) =>
+            m.startsWith('Warning:'),
+          );
+          toast({
+            variant: hasNegative ? 'destructive' : 'default',
+            title: 'At vendor stock',
+            description: vendorStockMessages.join(' · '),
+          });
+        }
       };
       if (editInvoiceId != null && isEditingQuotation) {
         const invoice = {
@@ -1254,12 +1283,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           ...values,
           invoiceNumber: values.invoiceNumber,
         };
-        await window.electron.updateInvoice(
+        const updateResult = await window.electron.updateInvoice(
           invoiceType,
           editInvoiceId,
           invoice,
         );
-        showPostSaveToast();
+        showPostSaveToast(updateResult.vendorStockMessages);
         return editInvoiceId;
       }
 
@@ -1285,10 +1314,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         ...values,
         invoiceNumber: nextInvoiceNumber,
       };
-      const result = (await window.electron.insertInvoice(
-        invoiceType,
-        invoice,
-      )) as { invoiceId: number; nextInvoiceNumber: number };
+      const result = await window.electron.insertInvoice(invoiceType, invoice);
 
       if (result.nextInvoiceNumber > 0) {
         setNextInvoiceNumber(result.nextInvoiceNumber);
@@ -1299,7 +1325,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         setActiveSectionId(null);
         setRowSectionMap({});
         setManualDiscountRows({});
-        if (result.invoiceId > 0) showPostSaveToast();
+        if (result.invoiceId > 0) {
+          showPostSaveToast(result.vendorStockMessages);
+        }
         return result.invoiceId > 0 ? result.invoiceId : undefined;
       }
       raise(`Failed to save ${invoiceType} invoice`);
@@ -2136,6 +2164,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                             )}
                           />
                         </div>
+                        {selectedVendorTracksStock && (
+                          <div className="col-span-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+                            Posting this purchase will reduce qty held at this
+                            vendor (WIP). Warehouse stock still increases as
+                            usual.
+                          </div>
+                        )}
                         {singleAccountAutoDiscountOff && (
                           <div className="col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
                             Auto discount off for selected customer.

@@ -10,7 +10,7 @@ export const FILE_UPLOAD_HINT_OPENING_STOCK =
   'Columns: item name and quantity. Optional header row with name and quantity labels.\nFiles: .xlsx, .xls, .csv.';
 
 export const FILE_UPLOAD_HINT_VENDOR_OPENING_STOCK =
-  'Columns: vendor_code (or vendor_name), item name, quantity. Header row recommended.\nAccount must have Track vendor stock enabled.\nFiles: .xlsx, .xls, .csv.';
+  'Columns: vendor_code (or vendor_name), item name, quantity. Header row recommended.\nAccount must have Track stock at vendor (WIP) enabled.\nFile is previewed first — nothing writes until you confirm.\nFiles: .xlsx, .xls, .csv.';
 
 export const FILE_UPLOAD_HINT_LIST_POSITION_IMPORT =
   'Excel: header row with name (or item / item code) and list (or list #).\nFiles: .xlsx, .xls, .csv.';

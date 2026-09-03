@@ -53,7 +53,7 @@ const NewVendorIssuePage: React.FC = () => {
           const issue = await window.electron.getVendorIssue(editIssueId);
           if (!issue) {
             toast({
-              description: 'Vendor issue not found',
+              description: 'Send not found',
               variant: 'destructive',
             });
             navigate('/vendor-stock');
@@ -151,8 +151,8 @@ const NewVendorIssuePage: React.FC = () => {
       if (result.success) {
         toast({
           description: isEdit
-            ? `Vendor issue #${result.issueNumber} updated`
-            : `Vendor issue #${result.issueNumber} created`,
+            ? `Send #${result.issueNumber} updated`
+            : `Send #${result.issueNumber} created`,
           variant: 'success',
         });
         navigate('/vendor-stock');
@@ -160,9 +160,7 @@ const NewVendorIssuePage: React.FC = () => {
         toast({
           description:
             result.error ??
-            (isEdit
-              ? 'Failed to update vendor issue'
-              : 'Failed to create vendor issue'),
+            (isEdit ? 'Failed to update send' : 'Failed to create send'),
           variant: 'destructive',
         });
       }
@@ -188,18 +186,18 @@ const NewVendorIssuePage: React.FC = () => {
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
         <h1 className="title-new">
-          {isEdit ? 'Edit Vendor Issue' : 'New Vendor Issue'}
+          {isEdit ? 'Edit send to vendor' : 'Send to vendor'}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isEdit
-            ? 'Updates vendor qty to match this issue. Warehouse inventory is unchanged.'
+            ? 'Updates qty at the vendor to match this send. Warehouse inventory is unchanged.'
             : 'Increases qty at the vendor. Warehouse inventory is unchanged.'}
         </p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Issue #</Label>
+          <Label>Send #</Label>
           <Input value={issueNumber} disabled />
         </div>
         <div className="space-y-2">
@@ -212,11 +210,11 @@ const NewVendorIssuePage: React.FC = () => {
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label>Vendor</Label>
+          <Label>Vendor (WIP)</Label>
           {vendors.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No tracked vendors. Enable &quot;Track vendor stock&quot; on an
-              account first.
+              No tracked vendors. Enable &quot;Track stock at vendor (WIP)&quot;
+              on an account first.
             </p>
           ) : (
             <VirtualSelect
@@ -297,7 +295,7 @@ const NewVendorIssuePage: React.FC = () => {
 
       <div className="flex gap-2">
         <Button onClick={handleSave} disabled={saving || vendors.length === 0}>
-          {isEdit ? 'Save changes' : 'Save issue'}
+          {isEdit ? 'Save changes' : 'Save send'}
         </Button>
         <Button variant="ghost" onClick={() => navigate('/vendor-stock')}>
           Cancel

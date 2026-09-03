@@ -403,7 +403,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               newTo="/vendor-stock/issues/new"
               icon={<Warehouse size={18} />}
               label="Vendor Stock"
-              plusShortcut={{ digit: '4', noun: 'vendor issue' }}
+              plusShortcut={{ digit: '4', noun: 'send to vendor' }}
               collapsed={collapsed}
             />,
             <SidebarListPlusNewRow

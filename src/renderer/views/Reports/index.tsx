@@ -84,9 +84,9 @@ const operationsReports: ReportOption[] = [
     icon: <Truck className="h-6 w-6" />,
   },
   {
-    title: 'Vendor Stock Activity',
+    title: 'At-vendor activity',
     description:
-      'Opening, issued, purchased, and closing qty at a tracked vendor.',
+      'Opening, issued, received via purchase, and closing qty at a tracked vendor (WIP).',
     path: '/reports/vendor-stock-activity',
     icon: <Package className="h-6 w-6" />,
   },

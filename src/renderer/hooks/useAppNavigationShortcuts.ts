@@ -5,7 +5,7 @@ import { useCmdOrCtrlShortcut } from './useCmdOrCtrlShortcut';
  * 1 new journal,
  * 2 new purchase invoice,
  * 3 new sale invoice,
- * 4 new vendor issue
+ * 4 new send to vendor
  */
 export const useAppNavigationShortcuts = (): void => {
   const navigate = useNavigate();
