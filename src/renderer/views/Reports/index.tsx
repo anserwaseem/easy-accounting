@@ -83,6 +83,13 @@ const operationsReports: ReportOption[] = [
     path: '/reports/purchases-by-vendor',
     icon: <Truck className="h-6 w-6" />,
   },
+  {
+    title: 'Vendor Stock Activity',
+    description:
+      'Opening, issued, purchased, and closing qty at a tracked vendor.',
+    path: '/reports/vendor-stock-activity',
+    icon: <Package className="h-6 w-6" />,
+  },
 ];
 
 interface ReportCardProps {

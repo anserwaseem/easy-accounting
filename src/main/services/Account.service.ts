@@ -9,7 +9,11 @@ import {
 } from '../utils/sqlite';
 import { logErrors } from '../errorLogger';
 
-const ACCOUNT_BOOLEAN_FIELDS = ['isActive', 'discountProfileIsActive'] as const;
+const ACCOUNT_BOOLEAN_FIELDS = [
+  'isActive',
+  'discountProfileIsActive',
+  'tracksVendorStock',
+] as const;
 
 @logErrors
 export class AccountService {
@@ -71,6 +75,7 @@ export class AccountService {
         a.phone2,
         a.goodsName,
         a.isActive,
+        COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
         a.discountProfileId,
         dp.name AS discountProfileName,
         dp.isActive AS discountProfileIsActive
@@ -89,7 +94,11 @@ export class AccountService {
 
   insertAccount(account: InsertAccount): boolean {
     const username = store.get('username');
-    const result = this.stmInsertAccount.run({ ...account, username });
+    const result = this.stmInsertAccount.run({
+      ...account,
+      tracksVendorStock: cast(!!account.tracksVendorStock),
+      username,
+    });
     return Number.isSafeInteger(result.lastInsertRowid);
   }
 
@@ -121,7 +130,11 @@ export class AccountService {
     }
 
     const username = store.get('username');
-    const result = this.stmInsertAccount.run({ ...account, username });
+    const result = this.stmInsertAccount.run({
+      ...account,
+      tracksVendorStock: cast(!!account.tracksVendorStock),
+      username,
+    });
     return {
       success: !!result.lastInsertRowid,
       accountId: result.lastInsertRowid as number,
@@ -133,6 +146,7 @@ export class AccountService {
     const result = this.stmUpdateAccount.run({
       ...account,
       id: cast(account.id),
+      tracksVendorStock: cast(!!account.tracksVendorStock),
       username,
     });
     return Boolean(result.changes);
@@ -241,6 +255,7 @@ export class AccountService {
         a.phone2,
         a.goodsName,
         a.isActive,
+        COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
         a.discountProfileId,
         dp.name AS discountProfileName,
         dp.isActive AS discountProfileIsActive
@@ -255,7 +270,7 @@ export class AccountService {
     `);
 
     this.stmInsertAccount = this.db.prepare(`
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive, discountProfileId)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive, discountProfileId, tracksVendorStock)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -264,12 +279,12 @@ export class AccountService {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName, 1, @discountProfileId)
+      ), @code, @address, @phone1, @phone2, @goodsName, 1, @discountProfileId, COALESCE(@tracksVendorStock, 0))
     `);
 
     this.stmUpdateAccount = this.db.prepare(`
       UPDATE account
-      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, discountProfileId = @discountProfileId, chartId = (
+      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, discountProfileId = @discountProfileId, tracksVendorStock = COALESCE(@tracksVendorStock, 0), chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName AND userId = (
@@ -296,7 +311,7 @@ export class AccountService {
     `);
 
     this.stmGetAccountByName = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock, a.discountProfileId
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE LOWER(a.name) LIKE LOWER(@name) AND userId = (
@@ -308,7 +323,7 @@ export class AccountService {
     `);
 
     this.stmGetAccountByNameAndChart = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock, a.discountProfileId
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE a.chartId = @chartId
@@ -322,7 +337,7 @@ export class AccountService {
     `);
 
     this.stmGetAccountByNameAnyChart = this.db.prepare(`
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock, a.discountProfileId
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE TRIM(a.name) = TRIM(@name)

@@ -65,6 +65,7 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           goodsName: values.goodsName,
           discountProfileId: null,
           isActive: true,
+          tracksVendorStock: values.tracksVendorStock,
         }),
       {
         successMessage: `"${values.accountName}" account created successfully`,

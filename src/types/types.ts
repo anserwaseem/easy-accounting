@@ -109,6 +109,8 @@ export interface Account extends BaseEntity {
   phone2?: string;
   goodsName?: string;
   isActive: boolean;
+  /** when true, purchase invoices reduce this account's vendor stock; issues increase it */
+  tracksVendorStock?: boolean;
   discountProfileId?: number | null;
   discountProfileName?: string | null;
   discountProfileIsActive?: boolean | null;
@@ -334,6 +336,94 @@ export interface ApplyStockAdjustmentPayload {
 export type StockAdjustment = Prettify<
   BaseEntity & ApplyStockAdjustmentPayload
 >;
+
+/** Vendor stock (shadow qty at a tracked vendor; does not touch warehouse inventory.quantity) */
+export type VendorStockMovementType =
+  | 'opening'
+  | 'issue'
+  | 'purchase'
+  | 'purchase_return'
+  | 'adjustment';
+
+export interface VendorStockRow {
+  vendorAccountId: number;
+  vendorAccountName: string;
+  vendorAccountCode?: number | string | null;
+  inventoryId: number;
+  inventoryName: string;
+  quantity: number;
+}
+
+export interface VendorStockOpeningRow {
+  vendorCode?: string | number | null;
+  vendorName?: string | null;
+  name: string;
+  quantity: number;
+}
+
+export interface VendorIssueItemInput {
+  inventoryId: number;
+  quantity: number;
+}
+
+export interface CreateVendorIssuePayload {
+  vendorAccountId: number;
+  date: string;
+  notes?: string;
+  items: VendorIssueItemInput[];
+}
+
+export interface VendorIssueListItem {
+  id: number;
+  issueNumber: number;
+  vendorAccountId: number;
+  vendorAccountName: string;
+  date: string;
+  notes?: string | null;
+  totalQuantity: number;
+  lineCount: number;
+  createdAt?: string;
+}
+
+export interface VendorIssueView extends VendorIssueListItem {
+  items: Array<{
+    id: number;
+    inventoryId: number;
+    inventoryName: string;
+    quantity: number;
+  }>;
+}
+
+export interface VendorStockPurchaseLine {
+  accountId: number;
+  inventoryId: number;
+  quantity: number;
+}
+
+export interface VendorStockActivityFilters {
+  vendorAccountId: number;
+  startDate: string;
+  endDate: string;
+}
+
+export interface VendorStockActivityItem {
+  inventoryId: number;
+  inventoryName: string;
+  opening: number;
+  issued: number;
+  purchased: number;
+  purchaseReturned: number;
+  adjusted: number;
+  closing: number;
+}
+
+export interface VendorStockActivityResponse {
+  vendorAccountId: number;
+  vendorAccountName: string;
+  startDate: string;
+  endDate: string;
+  items: VendorStockActivityItem[];
+}
 
 /** Invoice */
 export interface InvoiceItem extends Omit<BaseEntity, 'date'> {

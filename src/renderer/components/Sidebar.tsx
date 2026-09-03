@@ -24,6 +24,7 @@ import {
   Store,
   Table2,
   TextQuote,
+  Warehouse,
 } from 'lucide-react';
 import type { FC, PropsWithChildren, ReactNode } from 'react';
 import { useState } from 'react';
@@ -394,6 +395,15 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               to="/inventory"
               icon={<Store size={18} />}
               label="Inventory"
+              collapsed={collapsed}
+            />,
+            <SidebarListPlusNewRow
+              key="vendor-stock"
+              listTo="/vendor-stock"
+              newTo="/vendor-stock/issues/new"
+              icon={<Warehouse size={18} />}
+              label="Vendor Stock"
+              plusShortcut={{ digit: '4', noun: 'vendor issue' }}
               collapsed={collapsed}
             />,
             <SidebarListPlusNewRow

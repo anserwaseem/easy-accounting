@@ -28,6 +28,9 @@ import type {
   BulkPriceListPositionPatch,
   UpsertAttributeDefinition,
   PurchasesByVendorFilters,
+  CreateVendorIssuePayload,
+  VendorStockOpeningRow,
+  VendorStockActivityFilters,
 } from 'types';
 import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
@@ -53,6 +56,7 @@ import {
   PrintService,
   PricingService,
   PublishService,
+  VendorStockService,
 } from './services';
 import {
   getPublishConfig,
@@ -290,6 +294,7 @@ app
     const pricingService = new PricingService();
     const publishService = new PublishService();
     const backupService = new BackupService();
+    const vendorStockService = new VendorStockService();
 
     // setupUser(migrationRunner, authService);
 
@@ -836,6 +841,72 @@ app
       'report:getPurchasesByVendor',
       async (_, filters: PurchasesByVendorFilters) =>
         invoiceService.getPurchasesByVendor(filters),
+    );
+
+    ipcMain.handle(
+      'vendorStock:getOnHand',
+      async (_, vendorAccountId?: number) =>
+        vendorStockService.getOnHand(vendorAccountId),
+    );
+
+    ipcMain.handle('vendorStock:getTrackedVendors', () =>
+      vendorStockService.getTrackedVendorAccounts(),
+    );
+
+    ipcMain.handle(
+      'vendorStock:setOpeningStock',
+      async (
+        _,
+        vendorAccountId: number,
+        items: Array<{ name: string; quantity: number }>,
+        asOfDate: string,
+        resetOthersToZero?: boolean,
+      ) =>
+        vendorStockService.setOpeningStock(
+          vendorAccountId,
+          items,
+          asOfDate,
+          resetOthersToZero,
+        ),
+    );
+
+    ipcMain.handle(
+      'vendorStock:importOpeningStock',
+      async (
+        _,
+        rows: VendorStockOpeningRow[],
+        asOfDate: string,
+        resetOthersToZero?: boolean,
+      ) =>
+        vendorStockService.importOpeningStock(
+          rows,
+          asOfDate,
+          resetOthersToZero,
+        ),
+    );
+
+    ipcMain.handle('vendorStock:getNextIssueNumber', () =>
+      vendorStockService.getNextIssueNumber(),
+    );
+
+    ipcMain.handle(
+      'vendorStock:createIssue',
+      async (_, payload: CreateVendorIssuePayload) =>
+        vendorStockService.createIssue(payload),
+    );
+
+    ipcMain.handle('vendorStock:getIssues', () =>
+      vendorStockService.getIssues(),
+    );
+
+    ipcMain.handle('vendorStock:getIssue', async (_, issueId: number) =>
+      vendorStockService.getIssue(issueId),
+    );
+
+    ipcMain.handle(
+      'vendorStock:getActivity',
+      async (_, filters: VendorStockActivityFilters) =>
+        vendorStockService.getActivity(filters),
     );
 
     createWindow();

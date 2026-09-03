@@ -38,6 +38,13 @@ import type {
   BulkPriceListPositionResult,
   AttributeDefinition,
   UpsertAttributeDefinition,
+  CreateVendorIssuePayload,
+  VendorStockOpeningRow,
+  VendorStockRow,
+  VendorIssueListItem,
+  VendorIssueView,
+  VendorStockActivityFilters,
+  VendorStockActivityResponse,
 } from 'types';
 import { InvoiceType } from 'types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
@@ -728,6 +735,66 @@ const electronHandler = {
   /** Create a backup now — same operation as the Backup menu. */
   createBackup: () =>
     ipcRenderer.invoke('backup:create') as Promise<ApiResponse>,
+
+  getVendorStockOnHand: (vendorAccountId?: number) =>
+    ipcRenderer.invoke('vendorStock:getOnHand', vendorAccountId) as Promise<
+      VendorStockRow[]
+    >,
+
+  getTrackedVendorAccounts: () =>
+    ipcRenderer.invoke('vendorStock:getTrackedVendors') as Promise<
+      Array<{ id: number; name: string; code?: number | string | null }>
+    >,
+
+  setVendorOpeningStock: (
+    vendorAccountId: number,
+    items: Array<{ name: string; quantity: number }>,
+    asOfDate: string,
+    resetOthersToZero?: boolean,
+  ) =>
+    ipcRenderer.invoke(
+      'vendorStock:setOpeningStock',
+      vendorAccountId,
+      items,
+      asOfDate,
+      resetOthersToZero,
+    ) as Promise<ApiResponse>,
+
+  importVendorOpeningStock: (
+    rows: VendorStockOpeningRow[],
+    asOfDate: string,
+    resetOthersToZero?: boolean,
+  ) =>
+    ipcRenderer.invoke(
+      'vendorStock:importOpeningStock',
+      rows,
+      asOfDate,
+      resetOthersToZero,
+    ) as Promise<ApiResponse>,
+
+  getNextVendorIssueNumber: () =>
+    ipcRenderer.invoke('vendorStock:getNextIssueNumber') as Promise<number>,
+
+  createVendorIssue: (payload: CreateVendorIssuePayload) =>
+    ipcRenderer.invoke(
+      'vendorStock:createIssue',
+      payload,
+    ) as Promise<ApiResponse & { issueId?: number; issueNumber?: number }>,
+
+  getVendorIssues: () =>
+    ipcRenderer.invoke('vendorStock:getIssues') as Promise<
+      VendorIssueListItem[]
+    >,
+
+  getVendorIssue: (issueId: number) =>
+    ipcRenderer.invoke('vendorStock:getIssue', issueId) as Promise<
+      VendorIssueView | null
+    >,
+
+  getVendorStockActivity: (filters: VendorStockActivityFilters) =>
+    ipcRenderer.invoke('vendorStock:getActivity', filters) as Promise<
+      VendorStockActivityResponse
+    >,
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

@@ -13,6 +13,7 @@ import {
 } from 'renderer/shad/ui/form';
 import type { Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
+import { Checkbox } from 'renderer/shad/ui/checkbox';
 
 export const accountFormSchema = z.object({
   id: z.number().optional(),
@@ -44,6 +45,7 @@ export const accountFormSchema = z.object({
     .nullable()
     .transform((val) => val ?? undefined),
   isActive: z.boolean().default(true),
+  tracksVendorStock: z.boolean().default(false),
 });
 
 export type AccountFormData = z.infer<typeof accountFormSchema>;
@@ -57,6 +59,7 @@ export const defaultValues: AccountFormData = {
   phone2: undefined,
   goodsName: undefined,
   isActive: true,
+  tracksVendorStock: false,
 };
 
 interface AccountFormProps {
@@ -183,6 +186,24 @@ export const AccountForm: React.FC<AccountFormProps> = ({
               <FormLabel>Goods Name</FormLabel>
               <FormControl>
                 <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="tracksVendorStock"
+          render={({ field }) => (
+            <FormItem labelPosition="start" className="items-center">
+              <FormLabel>Track vendor stock</FormLabel>
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={(checked) =>
+                    field.onChange(checked === true)
+                  }
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
