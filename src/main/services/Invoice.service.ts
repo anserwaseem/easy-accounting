@@ -1,6 +1,6 @@
 import type { Database, Statement } from 'better-sqlite3';
 import log from 'electron-log';
-import { forEach, groupBy, toNumber, uniq } from 'lodash';
+import { forEach, groupBy, orderBy, sumBy, toNumber, uniq } from 'lodash';
 import { write, utils } from 'xlsx';
 import { getInvoiceDocumentBaseName } from '../../lib/invoiceDocumentName';
 import {
@@ -11,6 +11,9 @@ import {
   type InvoiceView,
   type InvoicesExport,
   type InvoicesView,
+  type PurchasesByVendorFilters,
+  type PurchasesByVendorItem,
+  type PurchasesByVendorResponse,
   type ReturnSaleInvoicePayload,
 } from '../../types';
 import { logErrors } from '../errorLogger';
@@ -137,6 +140,8 @@ export class InvoiceService {
   private stmAggregateInvoiceStockByLine!: Statement;
 
   private stmGetInvoicesInDateRange!: Statement;
+
+  private stmGetPurchasesByVendorLines!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -2110,6 +2115,71 @@ export class InvoiceService {
     };
   }
 
+  /** items bought from a vendor in a date range (posted purchases only, qty only). */
+  getPurchasesByVendor(
+    filters: PurchasesByVendorFilters,
+  ): PurchasesByVendorResponse {
+    const { vendorAccountId, startDate, endDate } = filters;
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+
+    const vendor = this.accountService.getAccountsByIds([vendorAccountId])[0];
+    const vendorName = vendor?.name ?? '';
+
+    const lines = this.stmGetPurchasesByVendorLines.all({
+      vendorAccountId,
+      startDate: sqlStartDate,
+      endDate: sqlEndDate,
+    }) as Array<{
+      inventoryId: number;
+      itemName: string;
+      quantity: number;
+      invoiceId: number;
+      invoiceNumber: number;
+      date: string;
+    }>;
+
+    const items: PurchasesByVendorItem[] = orderBy(
+      Object.values(groupBy(lines, (row) => row.inventoryId)).map(
+        (itemLines) => {
+          const first = itemLines[0];
+          const invoices = orderBy(
+            Object.values(groupBy(itemLines, (line) => line.invoiceId)).map(
+              (invoiceLines) => ({
+                invoiceId: invoiceLines[0].invoiceId,
+                invoiceNumber: invoiceLines[0].invoiceNumber,
+                date: invoiceLines[0].date,
+                quantity: sumBy(invoiceLines, 'quantity'),
+              }),
+            ),
+            ['date', 'invoiceNumber'],
+            ['asc', 'asc'],
+          );
+          return {
+            inventoryId: first.inventoryId,
+            itemName: first.itemName,
+            quantity: sumBy(itemLines, 'quantity'),
+            invoiceCount: invoices.length,
+            invoices,
+          };
+        },
+      ),
+      [(item) => item.itemName.toLowerCase()],
+      ['asc'],
+    );
+
+    return {
+      vendor: { id: vendorAccountId, name: vendorName },
+      kpis: {
+        itemCount: items.length,
+        totalQty: sumBy(items, 'quantity'),
+      },
+      items,
+    };
+  }
+
   private initPreparedStatements() {
     this.stmGetNextInvoiceNumber = this.db.prepare(`
       SELECT (COALESCE(MAX(invoiceNumber), 0) + 1) AS 'invoiceNumber'
@@ -2431,6 +2501,25 @@ export class InvoiceService {
         AND ( @startDate IS NULL OR @endDate IS NULL OR i.date BETWEEN @startDate AND @endDate )
       GROUP BY i.id
       ORDER BY i.invoiceNumber
+    `);
+
+    this.stmGetPurchasesByVendorLines = this.db.prepare(`
+      SELECT
+        inv.id AS inventoryId,
+        inv.name AS itemName,
+        ii.quantity AS quantity,
+        i.id AS invoiceId,
+        i.invoiceNumber AS invoiceNumber,
+        i.date AS date
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoiceId = i.id
+      JOIN inventory inv ON inv.id = ii.inventoryId
+      WHERE i.invoiceType = 'Purchase'
+        AND COALESCE(i.isQuotation, 0) = 0
+        AND COALESCE(i.isReturned, 0) = 0
+        AND i.date >= @startDate
+        AND i.date <= @endDate
+        AND COALESCE(ii.accountId, i.accountId) = @vendorAccountId
     `);
   }
 }

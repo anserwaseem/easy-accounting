@@ -97,10 +97,42 @@ export interface StockAsOfReportResponse {
   rows: StockAsOfRow[];
 }
 
+/** purchases-by-vendor report input */
+export interface PurchasesByVendorFilters {
+  vendorAccountId: number;
+  startDate: string;
+  endDate: string;
+}
+
+/** one contributing purchase invoice for an item row */
+export interface PurchasesByVendorInvoiceLine {
+  invoiceId: number;
+  invoiceNumber: number;
+  date: string;
+  quantity: number;
+}
+
+/** aggregated inventory item bought from a vendor in the date range */
+export interface PurchasesByVendorItem {
+  inventoryId: number;
+  itemName: string;
+  quantity: number;
+  invoiceCount: number;
+  invoices: PurchasesByVendorInvoiceLine[];
+}
+
+/** purchases-by-vendor report payload (qty only — no price/amount) */
+export interface PurchasesByVendorResponse {
+  vendor: { id: number; name: string };
+  kpis: { itemCount: number; totalQty: number };
+  items: PurchasesByVendorItem[];
+}
+
 /** report keys for store persistence */
 export const REPORT_FILTER_KEYS = {
   inventoryHealth: 'reports.inventoryHealth.filters',
   salesPerformance: 'reports.salesPerformance.filters',
   ledger: 'reports.ledger.filters',
   stockAsOf: 'reports.stockAsOf.filters',
+  purchasesByVendor: 'reports.purchasesByVendor.filters',
 } as const;
