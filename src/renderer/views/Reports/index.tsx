@@ -86,7 +86,7 @@ const operationsReports: ReportOption[] = [
   {
     title: 'At-vendor activity',
     description:
-      'Opening, issued, received via purchase, and closing qty at a tracked vendor (WIP).',
+      'Opening, issued, received via purchase, and closing qty at a tracked vendor.',
     path: '/reports/vendor-stock-activity',
     icon: <Package className="h-6 w-6" />,
   },

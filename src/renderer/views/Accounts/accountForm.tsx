@@ -10,7 +10,6 @@ import {
   FormLabel,
   FormControl,
   FormMessage,
-  FormDescription,
 } from 'renderer/shad/ui/form';
 import type { Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
@@ -196,21 +195,26 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           control={form.control}
           name="tracksVendorStock"
           render={({ field }) => (
-            <FormItem labelPosition="start" className="items-start">
-              <FormLabel>Track stock at vendor (WIP)</FormLabel>
-              <div className="space-y-1">
+            <FormItem className="py-1">
+              <div className="flex items-start gap-2">
                 <FormControl>
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={(checked) =>
                       field.onChange(checked === true)
                     }
+                    className="mt-0.5"
                   />
                 </FormControl>
-                <FormDescription>
-                  Purchases from this account will reduce qty held here. Use for
-                  WIP locations, not agents booking consignment returns.
-                </FormDescription>
+                <div className="min-w-0 space-y-1">
+                  <FormLabel className="cursor-pointer font-normal leading-snug">
+                    Track stock at this vendor
+                  </FormLabel>
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    Count goods sitting here until you buy them back. Leave off
+                    for agents who only book consignment returns.
+                  </p>
+                </div>
               </div>
               <FormMessage />
             </FormItem>

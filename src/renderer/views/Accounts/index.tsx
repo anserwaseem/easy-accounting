@@ -142,7 +142,7 @@ const AccountCell: React.FC<CellContext<Account, unknown>> = ({
       <p className="text-xs text-slate-400">&nbsp;&nbsp;{row.original.type}</p>
       {row.original.tracksVendorStock && (
         <span className="ml-2 text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
-          WIP
+          Stock
         </span>
       )}
       {!row.original.isActive && (
@@ -161,7 +161,7 @@ const AccountNameCell: React.FC<CellContext<Account, unknown>> = ({
     {row.original.name}
     {row.original.tracksVendorStock && (
       <span className="ml-2 text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
-        WIP
+        Stock
       </span>
     )}
     {!row.original.isActive && (

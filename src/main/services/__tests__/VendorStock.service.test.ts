@@ -82,7 +82,9 @@ describe('VendorStockService', () => {
     const service = createService(db);
 
     const warehouseBefore = (
-      db.prepare('SELECT quantity FROM inventory WHERE id = ?').get(inventoryId) as {
+      db
+        .prepare('SELECT quantity FROM inventory WHERE id = ?')
+        .get(inventoryId) as {
         quantity: number;
       }
     ).quantity;
@@ -100,7 +102,9 @@ describe('VendorStockService', () => {
     expect(onHand[0].quantity).toBe(20);
 
     const warehouseAfter = (
-      db.prepare('SELECT quantity FROM inventory WHERE id = ?').get(inventoryId) as {
+      db
+        .prepare('SELECT quantity FROM inventory WHERE id = ?')
+        .get(inventoryId) as {
         quantity: number;
       }
     ).quantity;
@@ -190,7 +194,8 @@ describe('VendorStockService', () => {
     });
     service.applyPurchaseEffect({
       invoiceId: 9,
-      date: '2026-01-20',
+      // end-date filtering must include activity later that calendar day
+      date: '2026-01-31T15:30:00.000Z',
       lines: [{ accountId: vendorId, inventoryId, quantity: 25 }],
       direction: 'purchase',
     });
@@ -302,6 +307,137 @@ describe('VendorStockService', () => {
         .get(created.issueId!) as { c: number }
     ).c;
     expect(movementCount).toBe(0);
+
+    db.close();
+  });
+
+  it('purchase of variant consumes family-head WIP from send', () => {
+    const db = new Database(':memory:');
+    seedSchema(db);
+    const { vendorId } = seedVendorAndItem(db);
+    // head S-23 + variant S-23-Z (parentId → head)
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity) VALUES (200, 'S-23', 10, 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity, parentId) VALUES (201, 'S-23-Z', 10, 0, 200)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity, parentId) VALUES (202, 'S-23-G', 10, 0, 200)`,
+    ).run();
+    const service = createService(db);
+
+    service.createIssue({
+      vendorAccountId: vendorId,
+      date: '2026-01-10',
+      items: [{ inventoryId: 200, quantity: 500 }],
+    });
+
+    const msgs = service.applyPurchaseEffect({
+      invoiceId: 50,
+      date: '2026-01-20',
+      lines: [
+        { accountId: vendorId, inventoryId: 201, quantity: 200 },
+        { accountId: vendorId, inventoryId: 202, quantity: 100 },
+        { accountId: vendorId, inventoryId: 200, quantity: 50 },
+      ],
+      direction: 'purchase',
+    });
+
+    const onHand = service.getOnHand(vendorId);
+    expect(onHand).toHaveLength(1);
+    expect(onHand[0].inventoryId).toBe(200);
+    expect(onHand[0].quantity).toBe(150); // 500 - 200 - 100 - 50
+    expect(msgs).toEqual(['S-23: -350 (now 150)']);
+    expect(msgs.some((m) => /negative/i.test(m))).toBe(false);
+
+    db.close();
+  });
+
+  it('issue of variant coerces to family head', () => {
+    const db = new Database(':memory:');
+    seedSchema(db);
+    const { vendorId } = seedVendorAndItem(db);
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity) VALUES (200, 'S-23', 10, 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity, parentId) VALUES (201, 'S-23-Z', 10, 0, 200)`,
+    ).run();
+    const service = createService(db);
+
+    const created = service.createIssue({
+      vendorAccountId: vendorId,
+      date: '2026-01-10',
+      items: [{ inventoryId: 201, quantity: 40 }],
+    });
+    expect(created.success).toBe(true);
+
+    const issue = service.getIssue(created.issueId!);
+    expect(issue?.items).toHaveLength(1);
+    expect(issue?.items[0].inventoryId).toBe(200);
+    expect(issue?.items[0].quantity).toBe(40);
+    expect(service.getOnHand(vendorId)[0].inventoryId).toBe(200);
+
+    db.close();
+  });
+
+  it('purchase past family WIP allows negative with warning', () => {
+    const db = new Database(':memory:');
+    seedSchema(db);
+    const { vendorId } = seedVendorAndItem(db);
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity) VALUES (200, 'S-23', 10, 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity, parentId) VALUES (201, 'S-23-Z', 10, 0, 200)`,
+    ).run();
+    const service = createService(db);
+
+    service.createIssue({
+      vendorAccountId: vendorId,
+      date: '2026-01-10',
+      items: [{ inventoryId: 200, quantity: 10 }],
+    });
+
+    const msgs = service.applyPurchaseEffect({
+      invoiceId: 51,
+      date: '2026-01-20',
+      lines: [{ accountId: vendorId, inventoryId: 201, quantity: 25 }],
+      direction: 'purchase',
+    });
+
+    expect(service.getOnHand(vendorId)[0].quantity).toBe(-15);
+    expect(msgs.some((m) => /negative/i.test(m))).toBe(true);
+
+    db.close();
+  });
+
+  it('remapInventoryToFamilyHead merges orphan WIP into head', () => {
+    const db = new Database(':memory:');
+    seedSchema(db);
+    const { vendorId } = seedVendorAndItem(db);
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity) VALUES (200, 'S-23', 10, 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity) VALUES (201, 'S-23-GD', 10, 0)`,
+    ).run();
+    const service = createService(db);
+
+    // orphan treated as own head until linked
+    service.createIssue({
+      vendorAccountId: vendorId,
+      date: '2026-01-10',
+      items: [{ inventoryId: 201, quantity: 30 }],
+    });
+    expect(service.getOnHand(vendorId)[0].inventoryId).toBe(201);
+
+    service.remapInventoryToFamilyHead(201, 200);
+    const onHand = service.getOnHand(vendorId);
+    expect(onHand).toHaveLength(1);
+    expect(onHand[0].inventoryId).toBe(200);
+    expect(onHand[0].quantity).toBe(30);
 
     db.close();
   });

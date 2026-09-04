@@ -37,9 +37,9 @@ export const ImportVendorOpeningStock: React.FC<
 
   const previewSummary = useMemo(() => {
     const vendors = new Set(
-      previewRows.map(
-        (r) => r.vendorCode || r.vendorName || '',
-      ).filter(Boolean),
+      previewRows
+        .map((r) => r.vendorCode || r.vendorName || '')
+        .filter(Boolean),
     );
     return {
       rowCount: previewRows.length,
@@ -156,7 +156,7 @@ export const ImportVendorOpeningStock: React.FC<
               ) : null}
             </Label>
           </div>
-          <FileUploadTooltip hint={FILE_UPLOAD_HINT_VENDOR_OPENING_STOCK}>
+          <FileUploadTooltip content={FILE_UPLOAD_HINT_VENDOR_OPENING_STOCK}>
             <Button
               variant="secondary"
               className="w-full"
@@ -164,7 +164,9 @@ export const ImportVendorOpeningStock: React.FC<
                 document.getElementById('vendorOpeningStockInput')?.click()
               }
             >
-              {previewRows.length ? 'Choose a different file' : 'Choose Excel / CSV'}
+              {previewRows.length
+                ? 'Choose a different file'
+                : 'Choose Excel / CSV'}
             </Button>
           </FileUploadTooltip>
           <input
@@ -185,7 +187,9 @@ export const ImportVendorOpeningStock: React.FC<
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-muted/80">
                     <tr>
-                      <th className="px-2 py-1 text-left font-medium">Vendor</th>
+                      <th className="px-2 py-1 text-left font-medium">
+                        Vendor
+                      </th>
                       <th className="px-2 py-1 text-left font-medium">Item</th>
                       <th className="px-2 py-1 text-right font-medium">Qty</th>
                     </tr>

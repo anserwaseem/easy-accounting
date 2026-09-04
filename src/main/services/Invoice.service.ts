@@ -135,6 +135,8 @@ export class InvoiceService {
 
   private stmMarkInvoiceReturned!: Statement;
 
+  private stmGetCurrentLocalDateTime!: Statement;
+
   private stmGetNextQuotationInvoiceNumber!: Statement;
 
   private stmGetQuotationInvoices!: Statement;
@@ -1302,25 +1304,29 @@ export class InvoiceService {
       );
     });
 
+    const trimmed = options?.returnReason?.trim();
+    const returnReason = trimmed != null && trimmed.length > 0 ? trimmed : null;
+    const returnedAtRow = this.stmGetCurrentLocalDateTime.get() as {
+      returnedAt: string;
+    };
+
+    this.stmMarkInvoiceReturned.run({
+      invoiceId: cast(invoiceId),
+      returnedAt: returnedAtRow.returnedAt,
+      returnReason,
+    });
+
     if (expectedType === InvoiceType.Purchase) {
       this.assertInventoryNonNegative(
         uniq(items.map((item) => item.inventoryId)),
       );
       this.applyVendorStockFromStoredLines(
         invoiceId,
-        header.date,
+        returnedAtRow.returnedAt,
         items,
         'purchase_return',
       );
     }
-
-    const trimmed = options?.returnReason?.trim();
-    const returnReason = trimmed != null && trimmed.length > 0 ? trimmed : null;
-
-    this.stmMarkInvoiceReturned.run({
-      invoiceId: cast(invoiceId),
-      returnReason,
-    });
   }
 
   private persistInvoiceItemsAndInventory(
@@ -1381,7 +1387,7 @@ export class InvoiceService {
     raise('Select a customer or vendor account');
   }
 
-  private buildVendorStockLinesFromInvoice(
+  private static buildVendorStockLinesFromInvoice(
     invoice: Invoice,
   ): VendorStockPurchaseLine[] {
     const multipleIds = invoice.accountMapping.multipleAccountIds;
@@ -1415,7 +1421,7 @@ export class InvoiceService {
     return this.vendorStockService.applyPurchaseEffect({
       invoiceId,
       date: invoice.date,
-      lines: this.buildVendorStockLinesFromInvoice(invoice),
+      lines: InvoiceService.buildVendorStockLinesFromInvoice(invoice),
       direction,
     });
   }
@@ -2636,9 +2642,13 @@ export class InvoiceService {
     this.stmMarkInvoiceReturned = this.db.prepare(`
       UPDATE invoices SET
         isReturned = 1,
-        returnedAt = datetime('now', 'localtime'),
+        returnedAt = @returnedAt,
         returnReason = @returnReason
       WHERE id = @invoiceId
+    `);
+
+    this.stmGetCurrentLocalDateTime = this.db.prepare(`
+      SELECT datetime('now', 'localtime') AS returnedAt
     `);
 
     this.stmGetInvoicesInDateRange = this.db.prepare(`

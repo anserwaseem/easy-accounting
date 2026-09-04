@@ -962,6 +962,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   refreshPublishStatuses={refreshPublishStatuses}
                   showPublishControls={publishEnabled && showPublishColumn}
                   priceLists={priceLists}
+                  inventoryItems={inventory ?? []}
                 />
               </>
             )}
@@ -996,6 +997,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     shownAttributeDefs,
     publishEnabled,
     showPublishColumn,
+    inventory,
     publishStatuses,
     expandedIds,
     toggleExpanded,

@@ -29,9 +29,8 @@ const VendorStockPage: React.FC = () => {
   const [onHand, setOnHand] = useState<VendorStockRow[]>([]);
   const [issues, setIssues] = useState<VendorIssueListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [issueToDelete, setIssueToDelete] = useState<VendorIssueListItem | null>(
-    null,
-  );
+  const [issueToDelete, setIssueToDelete] =
+    useState<VendorIssueListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
@@ -115,6 +114,7 @@ const VendorStockPage: React.FC = () => {
       {
         accessorKey: 'quantity',
         header: 'Qty',
+        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <span
             className={cn(
@@ -148,6 +148,7 @@ const VendorStockPage: React.FC = () => {
       {
         accessorKey: 'totalQuantity',
         header: 'Qty',
+        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <span className="tabular-nums">
             {row.original.totalQuantity.toLocaleString()}
@@ -162,6 +163,7 @@ const VendorStockPage: React.FC = () => {
         id: 'actions',
         header: '',
         enableSorting: false,
+        // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1">
             <EditActionButton
@@ -194,11 +196,17 @@ const VendorStockPage: React.FC = () => {
         <div>
           <h1 className="title-new">Vendor Stock</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Qty held at tracked vendors (WIP). Does not change warehouse
-            inventory.
+            Qty held at tracked vendors. Does not change warehouse inventory.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ImportVendorOpeningStock onImported={load} />
+          <Button asChild size="sm">
+            <Link to="/vendor-stock/issues/new">
+              <Plus size={16} className="mr-1.5" />
+              Send to vendor
+            </Link>
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -206,14 +214,6 @@ const VendorStockPage: React.FC = () => {
             disabled={isLoading}
           >
             <RefreshCw size={16} className="mr-1.5" />
-            Refresh
-          </Button>
-          <ImportVendorOpeningStock onImported={load} />
-          <Button asChild size="sm">
-            <Link to="/vendor-stock/issues/new">
-              <Plus size={16} className="mr-1.5" />
-              Send to vendor
-            </Link>
           </Button>
         </div>
       </header>
@@ -222,8 +222,8 @@ const VendorStockPage: React.FC = () => {
         <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
           <PackageOpen className="mb-2 h-5 w-5" />
           No accounts track stock at vendors yet. Edit an account and enable
-          &quot;Track stock at vendor (WIP)&quot;, then set starting qty or
-          send goods.
+          &quot;Track stock at this vendor&quot;, then set starting qty or send
+          goods.
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3">

@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS "stock_adjustments" ( -- "014 migration"
     FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
 );
 
-CREATE TABLE IF NOT EXISTS "vendor_stock" ( -- "025 migration"
+CREATE TABLE IF NOT EXISTS "vendor_stock" ( -- "025 migration"; inventoryId = family head
     "vendorAccountId" INTEGER NOT NULL,
     "inventoryId" INTEGER NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 0,

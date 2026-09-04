@@ -103,6 +103,14 @@ const NewVendorIssuePage: React.FC = () => {
     [vendors],
   );
 
+  const familyHeadOptions = useMemo(
+    () =>
+      // send picker: family heads only (parentId null). orphans count as heads
+      // until linked via Edit inventory → Family head.
+      inventory.filter((item) => item.parentId == null),
+    [inventory],
+  );
+
   const addLine = useCallback(() => {
     setLines((prev) => [
       ...prev,
@@ -190,8 +198,8 @@ const NewVendorIssuePage: React.FC = () => {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isEdit
-            ? 'Updates qty at the vendor to match this send. Warehouse inventory is unchanged.'
-            : 'Increases qty at the vendor. Warehouse inventory is unchanged.'}
+            ? 'Updates family qty at the vendor to match this send. Warehouse inventory is unchanged.'
+            : 'Increases family qty at the vendor (pick the family head). Warehouse inventory is unchanged. Purchases of any variant later reduce the same pool.'}
         </p>
       </header>
 
@@ -210,10 +218,10 @@ const NewVendorIssuePage: React.FC = () => {
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label>Vendor (WIP)</Label>
+          <Label>Vendor</Label>
           {vendors.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No tracked vendors. Enable &quot;Track stock at vendor (WIP)&quot;
+              No tracked vendors. Enable &quot;Track stock at this vendor&quot;
               on an account first.
             </p>
           ) : (
@@ -251,7 +259,7 @@ const NewVendorIssuePage: React.FC = () => {
             className="grid grid-cols-[1fr_120px_40px] items-center gap-2"
           >
             <VirtualSelect
-              options={inventory}
+              options={familyHeadOptions}
               value={line.inventoryId || null}
               onChange={(value) =>
                 setLines((prev) =>
@@ -262,8 +270,8 @@ const NewVendorIssuePage: React.FC = () => {
                   ),
                 )
               }
-              placeholder="Item"
-              searchPlaceholder="Search items..."
+              placeholder="Family head"
+              searchPlaceholder="Search family heads..."
             />
             <Input
               type="number"

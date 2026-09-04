@@ -92,7 +92,7 @@ const SidebarOutlineLink: FC<SidebarOutlineLinkProps> = ({
 // ─── List + plus row ──────────────────────────────────────────────────────────
 
 interface PlusShortcutConfig {
-  digit: '1' | '2' | '3';
+  digit: '1' | '2' | '3' | '4';
   /** lowercase phrase after "New", e.g. "journal", "purchase invoice" */
   noun: string;
 }
@@ -398,15 +398,6 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               collapsed={collapsed}
             />,
             <SidebarListPlusNewRow
-              key="vendor-stock"
-              listTo="/vendor-stock"
-              newTo="/vendor-stock/issues/new"
-              icon={<Warehouse size={18} />}
-              label="Vendor Stock"
-              plusShortcut={{ digit: '4', noun: 'send to vendor' }}
-              collapsed={collapsed}
-            />,
-            <SidebarListPlusNewRow
               key="purchase-invoices"
               listTo="/purchase/invoices"
               newTo="/purchase/invoices/new"
@@ -438,6 +429,15 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               to="/sale/quotations"
               icon={<Quote size={18} />}
               label="Sale Quotations"
+              collapsed={collapsed}
+            />,
+            <SidebarListPlusNewRow
+              key="vendor-stock"
+              listTo="/vendor-stock"
+              newTo="/vendor-stock/issues/new"
+              icon={<Warehouse size={18} />}
+              label="Vendor Stock"
+              plusShortcut={{ digit: '4', noun: 'send to vendor' }}
               collapsed={collapsed}
             />,
             <SidebarOutlineLink

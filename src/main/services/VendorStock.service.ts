@@ -1,5 +1,6 @@
 import type { Database, Statement } from 'better-sqlite3';
 import { get, toNumber } from 'lodash';
+import { familyHeadId } from '../../lib/inventoryFamily';
 import type {
   ApiResponse,
   CreateVendorIssuePayload,
@@ -44,6 +45,8 @@ export class VendorStockService {
   private stmResolveInventoryByName!: Statement;
 
   private stmResolveInventoryNameById!: Statement;
+
+  private stmGetInventoryParent!: Statement;
 
   private stmGetNextIssueNumber!: Statement;
 
@@ -101,7 +104,11 @@ export class VendorStockService {
       ORDER BY a.name COLLATE NOCASE
     `,
       )
-      .all() as Array<{ id: number; name: string; code?: number | string | null }>;
+      .all() as Array<{
+      id: number;
+      name: string;
+      code?: number | string | null;
+    }>;
   }
 
   /**
@@ -181,7 +188,8 @@ export class VendorStockService {
     asOfDate: string,
     resetOthersToZero: boolean,
   ): void {
-    const touched = new Set<number>();
+    // opening is family-keyed: variant names coerce to head; same-head rows sum
+    const qtyByHead = new Map<number, number>();
 
     for (const item of items) {
       const name = item.name?.trim();
@@ -191,10 +199,16 @@ export class VendorStockService {
       const inventoryId =
         this.resolveInventoryIdByName(name) ??
         raise(`Inventory item not found: ${name}`);
+      const headId = this.resolveFamilyHeadId(inventoryId);
+      qtyByHead.set(headId, (qtyByHead.get(headId) ?? 0) + item.quantity);
+    }
+
+    const touched = new Set<number>();
+    for (const [inventoryId, quantity] of qtyByHead) {
       this.setQuantityAbsolute({
         vendorAccountId,
         inventoryId,
-        quantity: item.quantity,
+        quantity,
         date: asOfDate,
         movementType: 'opening',
         notes: 'Opening stock import',
@@ -217,6 +231,78 @@ export class VendorStockService {
           notes: 'Opening stock reset (not in file)',
         });
       }
+    }
+  }
+
+  /**
+   * vendor WIP is keyed by family head (parentId ?? id).
+   * purchase of any variant consumes the same pool as a send of the head.
+   */
+  resolveFamilyHeadId(inventoryId: number): number {
+    const row = this.stmGetInventoryParent.get(cast(inventoryId)) as
+      | { id: number; parentId?: number | null }
+      | undefined;
+    if (!row) {
+      return raise(`Inventory item not found: #${inventoryId}`);
+    }
+    return familyHeadId({ id: row.id, parentId: row.parentId });
+  }
+
+  /**
+   * when an orphan is linked to a family head, fold any WIP still keyed on the
+   * orphan into the head so purchase consume stays one pool.
+   * must run inside a db transaction (caller owns it).
+   */
+  remapInventoryToFamilyHead(fromInventoryId: number, toHeadId: number): void {
+    if (fromInventoryId === toHeadId) return;
+
+    this.db
+      .prepare(
+        `
+        UPDATE vendor_stock_movements
+        SET inventoryId = ?
+        WHERE inventoryId = ?
+      `,
+      )
+      .run(cast(toHeadId), cast(fromInventoryId));
+
+    this.db
+      .prepare(
+        `
+        UPDATE vendor_issue_items
+        SET inventoryId = ?
+        WHERE inventoryId = ?
+      `,
+      )
+      .run(cast(toHeadId), cast(fromInventoryId));
+
+    const orphanRows = this.db
+      .prepare(
+        `
+        SELECT vendorAccountId, quantity
+        FROM vendor_stock
+        WHERE inventoryId = ?
+      `,
+      )
+      .all(cast(fromInventoryId)) as Array<{
+      vendorAccountId: number;
+      quantity: number;
+    }>;
+
+    for (const row of orphanRows) {
+      this.stmUpsertVendorStockDelta.run({
+        vendorAccountId: cast(row.vendorAccountId),
+        inventoryId: cast(toHeadId),
+        quantityDelta: row.quantity,
+      });
+      this.db
+        .prepare(
+          `
+          DELETE FROM vendor_stock
+          WHERE vendorAccountId = ? AND inventoryId = ?
+        `,
+        )
+        .run(cast(row.vendorAccountId), cast(fromInventoryId));
     }
   }
 
@@ -333,7 +419,8 @@ export class VendorStockService {
    * called from InvoiceService when a purchase is posted/edited/returned.
    * skips accounts that do not track vendor stock. allows negative qty.
    * must be called inside an existing db transaction.
-   * returns short user-facing messages for toasts (qty deltas / negatives).
+   * returns short user-facing messages for toasts — one line per family head,
+   * not per invoice line (variants collapse into the same pool).
    */
   applyPurchaseEffect(params: {
     invoiceId: number;
@@ -343,16 +430,24 @@ export class VendorStockService {
   }): string[] {
     const { invoiceId, date, lines, direction } = params;
     const sign = direction === 'purchase' ? -1 : 1;
-    const messages: string[] = [];
+
+    // aggregate first so toast is one row per family, not a running play-by-play
+    const deltaByKey = new Map<
+      string,
+      { accountId: number; headId: number; delta: number }
+    >();
 
     for (const line of lines) {
       if (!line.accountId || !line.inventoryId || !line.quantity) continue;
       if (!this.tracksVendorStock(line.accountId)) continue;
 
+      const headId = this.resolveFamilyHeadId(line.inventoryId);
+      const quantityDelta = sign * line.quantity;
+
       this.applyDelta({
         vendorAccountId: line.accountId,
-        inventoryId: line.inventoryId,
-        quantityDelta: sign * line.quantity,
+        inventoryId: headId,
+        quantityDelta,
         movementType: direction,
         referenceType: 'invoice',
         referenceId: invoiceId,
@@ -360,24 +455,38 @@ export class VendorStockService {
         notes: null,
       });
 
+      const key = `${line.accountId}:${headId}`;
+      const existing = deltaByKey.get(key);
+      if (existing) {
+        existing.delta += quantityDelta;
+      } else {
+        deltaByKey.set(key, {
+          accountId: line.accountId,
+          headId,
+          delta: quantityDelta,
+        });
+      }
+    }
+
+    const messages: string[] = [];
+    for (const { accountId, headId, delta } of deltaByKey.values()) {
       const newQty =
         (
           this.stmGetVendorStockQty.get({
-            vendorAccountId: cast(line.accountId),
-            inventoryId: cast(line.inventoryId),
+            vendorAccountId: cast(accountId),
+            inventoryId: cast(headId),
           }) as { quantity?: number } | undefined
         )?.quantity ?? 0;
-      const itemName =
+      const headName =
         (
-          this.stmResolveInventoryNameById.get(cast(line.inventoryId)) as
+          this.stmResolveInventoryNameById.get(cast(headId)) as
             | { name?: string }
             | undefined
-        )?.name ?? `Item #${line.inventoryId}`;
-      const deltaLabel = sign * line.quantity;
-      const deltaText = deltaLabel > 0 ? `+${deltaLabel}` : String(deltaLabel);
-      messages.push(`${itemName}: ${deltaText} (now ${newQty})`);
+        )?.name ?? `Item #${headId}`;
+      const deltaText = delta > 0 ? `+${delta}` : String(delta);
+      messages.push(`${headName}: ${deltaText} (now ${newQty})`);
       if (newQty < 0) {
-        messages.push(`Warning: ${itemName} at vendor is negative (${newQty})`);
+        messages.push(`Warning: ${headName} at vendor is negative (${newQty})`);
       }
     }
 
@@ -521,7 +630,7 @@ export class VendorStockService {
   private assertTracksVendorStock(accountId: number): void {
     if (!this.tracksVendorStock(accountId)) {
       raise(
-        'Account does not track stock at vendor. Enable "Track stock at vendor (WIP)" on the account first.',
+        'Account does not track stock at vendor. Enable "Track stock at this vendor" on the account first.',
       );
     }
   }
@@ -552,16 +661,22 @@ export class VendorStockService {
     items: CreateVendorIssuePayload['items'],
   ): void {
     const trimmedNotes = notes?.trim() || null;
+    // coerce variants → family head so WIP pool matches purchase consume
+    const qtyByHead = new Map<number, number>();
     for (const item of items) {
+      const headId = this.resolveFamilyHeadId(item.inventoryId);
+      qtyByHead.set(headId, (qtyByHead.get(headId) ?? 0) + item.quantity);
+    }
+    for (const [inventoryId, quantity] of qtyByHead) {
       this.stmInsertIssueItem.run({
         issueId: cast(issueId),
-        inventoryId: cast(item.inventoryId),
-        quantity: item.quantity,
+        inventoryId: cast(inventoryId),
+        quantity,
       });
       this.applyDelta({
         vendorAccountId,
-        inventoryId: item.inventoryId,
-        quantityDelta: item.quantity,
+        inventoryId,
+        quantityDelta: quantity,
         movementType: 'issue',
         referenceType: 'vendor_issue',
         referenceId: issueId,
@@ -605,7 +720,9 @@ export class VendorStockService {
       if (byName?.id) return byName.id;
     }
     return raise(
-      `Vendor not found (code=${code ?? ''}, name=${name ?? ''}). Use an existing account with Track stock at vendor (WIP) enabled.`,
+      `Vendor not found (code=${code ?? ''}, name=${
+        name ?? ''
+      }). Use an existing account with "Track stock at this vendor" enabled.`,
     );
   }
 
@@ -675,8 +792,7 @@ export class VendorStockService {
       quantityDelta: params.quantityDelta,
       movementType: params.movementType,
       referenceType: params.referenceType,
-      referenceId:
-        params.referenceId == null ? null : cast(params.referenceId),
+      referenceId: params.referenceId == null ? null : cast(params.referenceId),
       date: params.date,
       notes: params.notes,
     });
@@ -768,6 +884,10 @@ export class VendorStockService {
 
     this.stmResolveInventoryNameById = this.db.prepare(`
       SELECT name FROM inventory WHERE id = ?
+    `);
+
+    this.stmGetInventoryParent = this.db.prepare(`
+      SELECT id, parentId FROM inventory WHERE id = ?
     `);
 
     this.stmGetNextIssueNumber = this.db.prepare(`
@@ -865,7 +985,7 @@ export class VendorStockService {
       WHERE vendorAccountId = @vendorAccountId
         AND inventoryId = @inventoryId
         AND datetime(date) >= datetime(@startDate)
-        AND datetime(date) <= datetime(@endDate)
+        AND datetime(date) < datetime(@endDate, '+1 day')
       GROUP BY movementType
     `);
 

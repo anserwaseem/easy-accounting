@@ -25,6 +25,7 @@ import { getPublishConfig } from '../utils/publishConfig';
 import { cast } from '../utils/sqlite';
 import { parseJsonRecord, parseListPrices } from '../utils/inventoryJson';
 import { raise } from '../utils/general';
+import { VendorStockService } from './VendorStock.service';
 
 @logErrors
 export class InventoryService {
@@ -361,6 +362,74 @@ export class InventoryService {
       listPosition: item.listPosition ?? null,
     });
     return Boolean(result.changes);
+  }
+
+  /**
+   * link orphan / standalone item to a family head (or clear parentId).
+   * parent must itself be a head (parentId NULL). item must not already have
+   * children. folds any vendor WIP keyed on this item into the new head.
+   */
+  setInventoryParentId(
+    inventoryId: number,
+    parentId: number | null,
+  ): ApiResponse {
+    try {
+      this.db.transaction(() => {
+        const item = this.db
+          .prepare(`SELECT id, parentId FROM inventory WHERE id = ?`)
+          .get(cast(inventoryId)) as
+          | { id: number; parentId: number | null }
+          | undefined;
+        if (!item) return raise('Inventory item not found');
+
+        if (parentId == null) {
+          this.db
+            .prepare(`UPDATE inventory SET parentId = NULL WHERE id = ?`)
+            .run(cast(inventoryId));
+          return;
+        }
+
+        if (parentId === inventoryId) {
+          raise('An item cannot be its own family head');
+        }
+
+        const parent = this.db
+          .prepare(`SELECT id, parentId FROM inventory WHERE id = ?`)
+          .get(cast(parentId)) as
+          | { id: number; parentId: number | null }
+          | undefined;
+        if (!parent) return raise('Family head not found');
+        if (parent.parentId != null) {
+          raise(
+            'Family head must be a head item (no parent of its own). Pick the root SKU.',
+          );
+        }
+
+        const childCount = (
+          this.db
+            .prepare(`SELECT COUNT(*) AS c FROM inventory WHERE parentId = ?`)
+            .get(cast(inventoryId)) as { c: number }
+        ).c;
+        if (childCount > 0) {
+          raise(
+            'This item is already a family head with variants. Unlink children first.',
+          );
+        }
+
+        this.db
+          .prepare(`UPDATE inventory SET parentId = ? WHERE id = ?`)
+          .run(cast(parentId), cast(inventoryId));
+
+        // fold orphan WIP into the head so Design A consume stays one pool
+        new VendorStockService().remapInventoryToFamilyHead(
+          inventoryId,
+          parentId,
+        );
+      })();
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
   }
 
   getOpeningStock(): InventoryOpeningStock[] {

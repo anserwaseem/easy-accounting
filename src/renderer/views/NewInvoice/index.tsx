@@ -694,7 +694,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     if (invoiceType !== InvoiceType.Purchase) return options;
     return options.map((party) =>
       party.tracksVendorStock
-        ? { ...party, name: `${party.name} · WIP` }
+        ? { ...party, name: `${party.name} · stock` }
         : party,
     );
   }, [
@@ -715,12 +715,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       (p) => toNumber(p.id) === sid,
     );
     return Boolean(party?.tracksVendorStock);
-  }, [
-    invoiceType,
-    parties,
-    partiesIncludingTyped,
-    watchedSingleAccountId,
-  ]);
+  }, [invoiceType, parties, partiesIncludingTyped, watchedSingleAccountId]);
 
   const onSplitByItemTypeCheckedChange = useCallback(
     (checked: boolean | 'indeterminate') => {
@@ -2167,8 +2162,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         {selectedVendorTracksStock && (
                           <div className="col-span-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
                             Posting this purchase will reduce qty held at this
-                            vendor (WIP). Warehouse stock still increases as
-                            usual.
+                            vendor. Warehouse stock still increases as usual.
                           </div>
                         )}
                         {singleAccountAutoDiscountOff && (

@@ -562,6 +562,11 @@ app
       inventoryService.updateItem(item),
     );
     ipcMain.handle(
+      'inventory:setParentId',
+      (_, inventoryId: number, parentId: number | null) =>
+        inventoryService.setInventoryParentId(inventoryId, parentId),
+    );
+    ipcMain.handle(
       'inventory:bulkUpdatePricesAndListPositions',
       (_, patches: BulkPriceListPositionPatch[]) =>
         inventoryService.bulkUpdatePricesAndListPositions(patches),

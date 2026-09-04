@@ -139,6 +139,13 @@ const electronHandler = {
   updateInventoryItem: (item: UpdateInventoryItem) =>
     ipcRenderer.invoke('inventory:update', item),
 
+  setInventoryParentId: (inventoryId: number, parentId: number | null) =>
+    ipcRenderer.invoke(
+      'inventory:setParentId',
+      inventoryId,
+      parentId,
+    ) as Promise<ApiResponse>,
+
   bulkUpdateInventoryPricesAndListPositions: (
     patches: BulkPriceListPositionPatch[],
   ) =>
@@ -788,17 +795,14 @@ const electronHandler = {
     ipcRenderer.invoke('vendorStock:getNextIssueNumber') as Promise<number>,
 
   createVendorIssue: (payload: CreateVendorIssuePayload) =>
-    ipcRenderer.invoke(
-      'vendorStock:createIssue',
-      payload,
-    ) as Promise<ApiResponse & { issueId?: number; issueNumber?: number }>,
+    ipcRenderer.invoke('vendorStock:createIssue', payload) as Promise<
+      ApiResponse & { issueId?: number; issueNumber?: number }
+    >,
 
   updateVendorIssue: (issueId: number, payload: UpdateVendorIssuePayload) =>
-    ipcRenderer.invoke(
-      'vendorStock:updateIssue',
-      issueId,
-      payload,
-    ) as Promise<ApiResponse & { issueId?: number; issueNumber?: number }>,
+    ipcRenderer.invoke('vendorStock:updateIssue', issueId, payload) as Promise<
+      ApiResponse & { issueId?: number; issueNumber?: number }
+    >,
 
   deleteVendorIssue: (issueId: number) =>
     ipcRenderer.invoke(
@@ -812,14 +816,16 @@ const electronHandler = {
     >,
 
   getVendorIssue: (issueId: number) =>
-    ipcRenderer.invoke('vendorStock:getIssue', issueId) as Promise<
-      VendorIssueView | null
-    >,
+    ipcRenderer.invoke(
+      'vendorStock:getIssue',
+      issueId,
+    ) as Promise<VendorIssueView | null>,
 
   getVendorStockActivity: (filters: VendorStockActivityFilters) =>
-    ipcRenderer.invoke('vendorStock:getActivity', filters) as Promise<
-      VendorStockActivityResponse
-    >,
+    ipcRenderer.invoke(
+      'vendorStock:getActivity',
+      filters,
+    ) as Promise<VendorStockActivityResponse>,
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
