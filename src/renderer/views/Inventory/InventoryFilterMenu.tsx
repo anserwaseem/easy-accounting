@@ -1,5 +1,5 @@
 import { Filter } from 'lucide-react';
-import type { AttributeDefinition, InventoryItem } from 'types';
+import type { AttributeDefinition, InventoryItem, ItemType } from 'types';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   Popover,
@@ -19,6 +19,7 @@ import {
   emptyInventoryFilters,
   type AttributeFilter,
   type DisplayTitleFilter,
+  type FamilyFilter,
   type InventoryFilters,
   type PublishFilter,
 } from './inventoryQuery';
@@ -33,6 +34,7 @@ interface InventoryFilterMenuProps {
   attributeDefs: AttributeDefinition[];
   /** the unfiltered rows, so the choices offered are the values that exist */
   items: InventoryItem[];
+  itemTypes: ItemType[];
   filters: InventoryFilters;
   onChange: (filters: InventoryFilters) => void;
   /** publish choices are pointless when publishing is not configured */
@@ -71,14 +73,13 @@ const Row = ({
 export const InventoryFilterMenu: React.FC<InventoryFilterMenuProps> = ({
   attributeDefs,
   items,
+  itemTypes,
   filters,
   onChange,
   publishEnabled = false,
   disabled = false,
 }: InventoryFilterMenuProps) => {
   const activeCount = countActiveInventoryFilters(filters);
-
-  if (!attributeDefs.length && !publishEnabled) return null;
 
   const setAttribute = (key: string, filter: AttributeFilter) =>
     onChange({
@@ -127,51 +128,100 @@ export const InventoryFilterMenu: React.FC<InventoryFilterMenuProps> = ({
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto">
-          {publishEnabled ? (
-            <div className="flex flex-col gap-2.5 border-b p-3">
-              <Row label="Publish">
-                <Select
-                  value={filters.publish}
-                  onValueChange={(v: string) =>
-                    onChange({ ...filters, publish: v as PublishFilter })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any</SelectItem>
-                    <SelectItem value="not ready">Not ready</SelectItem>
-                    <SelectItem value="held back">Held back</SelectItem>
-                    <SelectItem value="ready">Ready</SelectItem>
-                    <SelectItem value="not a candidate">
-                      Not a candidate
+          <div className="flex flex-col gap-2.5 border-b p-3">
+            <Row label="Family">
+              <Select
+                value={filters.family ?? 'any'}
+                onValueChange={(v: string) =>
+                  onChange({ ...filters, family: v as FamilyFilter })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any</SelectItem>
+                  <SelectItem value="heads">Heads with variants</SelectItem>
+                  <SelectItem value="variants">Variants</SelectItem>
+                  <SelectItem value="standalone">
+                    Own heads (no variants)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Type">
+              <Select
+                value={String(filters.itemTypeId ?? 'any')}
+                onValueChange={(value) =>
+                  onChange({
+                    ...filters,
+                    itemTypeId:
+                      value === 'any' || value === 'none'
+                        ? value
+                        : Number(value),
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any</SelectItem>
+                  <SelectItem value="none">No type</SelectItem>
+                  {itemTypes.map((itemType) => (
+                    <SelectItem key={itemType.id} value={String(itemType.id)}>
+                      {itemType.name}
                     </SelectItem>
-                  </SelectContent>
-                </Select>
-              </Row>
-              <Row label="Display title">
-                <Select
-                  value={filters.displayTitle}
-                  onValueChange={(v: string) =>
-                    onChange({
-                      ...filters,
-                      displayTitle: v as DisplayTitleFilter,
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any</SelectItem>
-                    <SelectItem value="set">Set</SelectItem>
-                    <SelectItem value="unset">From item name</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Row>
-            </div>
-          ) : null}
+                  ))}
+                </SelectContent>
+              </Select>
+            </Row>
+            {publishEnabled ? (
+              <>
+                <Row label="Publish">
+                  <Select
+                    value={filters.publish}
+                    onValueChange={(v: string) =>
+                      onChange({ ...filters, publish: v as PublishFilter })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any</SelectItem>
+                      <SelectItem value="not ready">Not ready</SelectItem>
+                      <SelectItem value="held back">Held back</SelectItem>
+                      <SelectItem value="ready">Ready</SelectItem>
+                      <SelectItem value="not a candidate">
+                        Not a candidate
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row label="Display title">
+                  <Select
+                    value={filters.displayTitle}
+                    onValueChange={(v: string) =>
+                      onChange({
+                        ...filters,
+                        displayTitle: v as DisplayTitleFilter,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any</SelectItem>
+                      <SelectItem value="set">Set</SelectItem>
+                      <SelectItem value="unset">From item name</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+              </>
+            ) : null}
+          </div>
 
           {attributeDefs.length ? (
             <div className="flex flex-col gap-2.5 p-3">

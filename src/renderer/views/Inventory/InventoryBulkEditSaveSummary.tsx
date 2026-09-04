@@ -34,6 +34,7 @@ export const InventoryBulkEditSaveSummary: FC<
     truncatedCount,
     hasPriceChanges,
     hasListChanges,
+    hasFamilyChanges,
     hasPriceListChanges,
   } = summary;
 
@@ -57,6 +58,9 @@ export const InventoryBulkEditSaveSummary: FC<
               ) : null}
               {hasListChanges ? (
                 <th className="px-3 py-2 font-medium">List #</th>
+              ) : null}
+              {hasFamilyChanges ? (
+                <th className="px-3 py-2 font-medium">Family</th>
               ) : null}
             </tr>
           </thead>
@@ -116,6 +120,16 @@ export const InventoryBulkEditSaveSummary: FC<
                         from={formatListPosLabel(row.listFrom ?? null)}
                         to={formatListPosLabel(row.listTo)}
                       />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                ) : null}
+                {hasFamilyChanges ? (
+                  <td className="px-3 py-2">
+                    {row.familyFrom !== undefined &&
+                    row.familyTo !== undefined ? (
+                      <ChangeCell from={row.familyFrom} to={row.familyTo} />
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

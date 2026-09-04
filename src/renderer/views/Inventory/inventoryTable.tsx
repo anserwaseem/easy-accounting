@@ -40,10 +40,12 @@ import { SHOW_PUBLISH_COLUMN_KEY } from '@/renderer/hooks/usePublishColumnVisibl
 import { ItemDetailPanel } from './ItemDetailPanel';
 import {
   byListPosition,
+  buildInventoryFamilyIndex,
   createAttributeSortingFn,
   createPriceListSortingFn,
   emptyInventoryFilters,
   formatAttributeValue,
+  inventoryFamilyLabel,
   matchesInventoryFilters,
   type InventoryFilters,
 } from './inventoryQuery';
@@ -59,6 +61,7 @@ import { EditInventoryItem } from './editInventoryItem';
 import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
 import { InventoryBulkEditCell } from './InventoryBulkEditCell';
+import { InventoryBulkFamilyCell } from './InventoryBulkFamilyCell';
 import { InventoryBulkEditToolbar } from './InventoryBulkEditToolbar';
 import { InventoryBulkEditSaveSummary } from './InventoryBulkEditSaveSummary';
 import {
@@ -76,6 +79,15 @@ import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
 /** persisted visible price-list columns (mirrors the Accounts page approach) */
 const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
 const VISIBLE_ATTRIBUTE_COLUMNS_KEY = 'inventoryVisibleAttributeColumns';
+const VISIBLE_CORE_COLUMNS_KEY = 'inventoryVisibleCoreColumnsV2';
+type CoreColumnId = 'listPosition' | 'family' | 'description' | 'itemTypeName';
+const CORE_COLUMN_OPTIONS: Array<{ id: CoreColumnId; label: string }> = [
+  { id: 'listPosition', label: 'List #' },
+  { id: 'family', label: 'Family' },
+  { id: 'description', label: 'Description' },
+  { id: 'itemTypeName', label: 'Type' },
+];
+const DEFAULT_CORE_COLUMN_IDS = CORE_COLUMN_OPTIONS.map(({ id }) => id);
 
 const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
   (r) => r.id,
@@ -87,6 +99,7 @@ interface InventoryVirtualGridProps {
   editMode: boolean;
   virtualScrollToIndex: number | null;
   onViewModelChange: (rows: InventoryItem[]) => void;
+  showListPosition: boolean;
   /** includes attribute paths so search covers custom attribute values */
   searchFields: string[];
   /**
@@ -105,6 +118,7 @@ const InventoryVirtualGrid = memo(
     editMode,
     virtualScrollToIndex,
     onViewModelChange,
+    showListPosition,
     searchFields,
     renderRowDetail,
     isRowExpanded,
@@ -120,7 +134,7 @@ const InventoryVirtualGrid = memo(
       virtual
       virtualHeightMode="fill"
       compact
-      defaultSortField="listPosition"
+      defaultSortField={showListPosition ? 'listPosition' : undefined}
       searchPersistenceKey="datatable:inventory:search"
       searchPlaceholder="Search inventory..."
       searchFields={searchFields}
@@ -206,6 +220,15 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       return Array.isArray(stored) ? (stored as string[]) : [];
     },
   );
+  const [visibleCoreColumnIds, setVisibleCoreColumnIds] = useState<
+    CoreColumnId[]
+  >(() => {
+    const stored = window.electron.store.get(VISIBLE_CORE_COLUMNS_KEY);
+    if (!Array.isArray(stored)) return DEFAULT_CORE_COLUMN_IDS;
+    return stored.filter((id): id is CoreColumnId =>
+      CORE_COLUMN_OPTIONS.some((option) => option.id === id),
+    );
+  });
   // which price-list columns are shown; persisted like the Accounts page does
   const [visiblePriceListIds, setVisiblePriceListIds] = useState<number[]>(
     () => {
@@ -229,6 +252,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const viewRowsRef = useRef<InventoryItem[]>([]);
   const inventoryRef = useRef<InventoryItem[] | undefined>(inventory);
   inventoryRef.current = inventory;
+  const familyIndex = useMemo(
+    () => buildInventoryFamilyIndex(inventory ?? []),
+    [inventory],
+  );
+  const familyHeadCandidates = useMemo(
+    () => (inventory ?? []).filter((item) => item.parentId == null),
+    [inventory],
+  );
 
   const bulkEdit = useInventoryBulkEditDraft();
   const {
@@ -330,6 +361,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           i,
           inventoryFilters,
           (item) => publishStatuses.byId[item.id]?.state,
+          familyIndex,
         )
       )
         return false;
@@ -343,6 +375,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     options?.hideZeroPrice,
     options?.hideNoType,
     inventoryFilters,
+    familyIndex,
     publishStatuses,
   ]);
 
@@ -404,6 +437,21 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
   }, []);
+
+  const setCoreColumns = useCallback((ids: CoreColumnId[]) => {
+    setVisibleCoreColumnIds(ids);
+    window.electron.store.set(VISIBLE_CORE_COLUMNS_KEY, ids);
+  }, []);
+
+  const toggleCoreColumn = useCallback(
+    (id: CoreColumnId) => {
+      const next = visibleCoreColumnIds.includes(id)
+        ? visibleCoreColumnIds.filter((columnId) => columnId !== id)
+        : [...visibleCoreColumnIds, id];
+      setCoreColumns(next);
+    },
+    [setCoreColumns, visibleCoreColumnIds],
+  );
 
   const shownAttributeDefs = useMemo(
     () => attributeDefs.filter((d) => visibleAttributeKeys.includes(d.key)),
@@ -686,93 +734,174 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           );
         },
       },
-      {
-        accessorKey: 'listPosition',
-        header: 'List #',
-        headerTooltip: 'Catalog list order (nulls sort last).',
-        size: 72,
-        sortingFn: listPositionSortingFn,
-        enableSorting: !editMode,
-        // eslint-disable-next-line react/no-unstable-nested-components
-        cell: ({ row }) => {
-          if (!editMode) {
-            return (
-              <span className="text-xs text-muted-foreground">
-                {row.original.listPosition != null
-                  ? row.original.listPosition
-                  : '—'}
-              </span>
-            );
-          }
-          return (
-            <InventoryBulkEditCell
-              inventoryId={row.original.id}
-              col="listPosition"
-              defaultValue={getCellDefaultValue(row.original, 'listPosition')}
-              editSessionKey={editSessionKey}
-              onWrite={stableWriteDraft}
-              onBlurCommit={stableBlurCommit}
-              onNavigate={stableNavigate}
-            />
-          );
-        },
-      },
+      ...(visibleCoreColumnIds.includes('listPosition')
+        ? [
+            {
+              accessorKey: 'listPosition',
+              header: 'List #',
+              headerTooltip: 'Catalog list order (nulls sort last).',
+              size: 72,
+              sortingFn: listPositionSortingFn,
+              enableSorting: !editMode,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => {
+                if (!editMode) {
+                  return (
+                    <span className="text-xs text-muted-foreground">
+                      {row.original.listPosition != null
+                        ? row.original.listPosition
+                        : '—'}
+                    </span>
+                  );
+                }
+                return (
+                  <InventoryBulkEditCell
+                    inventoryId={row.original.id}
+                    col="listPosition"
+                    defaultValue={getCellDefaultValue(
+                      row.original,
+                      'listPosition',
+                    )}
+                    editSessionKey={editSessionKey}
+                    onWrite={stableWriteDraft}
+                    onBlurCommit={stableBlurCommit}
+                    onNavigate={stableNavigate}
+                  />
+                );
+              },
+            } as ColumnDef<InventoryItem>,
+          ]
+        : []),
       {
         accessorKey: 'name',
         header: 'Name',
         size: 102,
         enableSorting: !editMode,
       },
-      {
-        accessorKey: 'description',
-        header: 'Description',
-        size: 240,
-        enableSorting: !editMode,
-      },
-      {
-        accessorKey: 'itemTypeName',
-        header: 'Type',
-        size: 92,
-        enableSorting: !editMode,
-        // eslint-disable-next-line react/no-unstable-nested-components
-        cell: ({ row }) => {
-          const typeId = row.original.itemTypeId ?? 0;
-          const hasOrphanType =
-            typeId > 0 && !itemTypes.some((t) => t.id === typeId);
+      ...(visibleCoreColumnIds.includes('family')
+        ? [
+            {
+              id: 'family',
+              header: 'Family',
+              headerTooltip:
+                'Heads show variant count; variants show their assigned head. Own head means no parent is assigned.',
+              size: 130,
+              enableSorting: !editMode,
+              accessorFn: (item: InventoryItem) =>
+                inventoryFamilyLabel(item, familyIndex),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: { row: { original: InventoryItem } }) => {
+                const label = inventoryFamilyLabel(row.original, familyIndex);
+                const childCount =
+                  familyIndex.childCountByHeadId.get(row.original.id) ?? 0;
+                if (editMode) {
+                  if (childCount > 0) {
+                    return (
+                      <span className="text-xs text-muted-foreground">
+                        {label}
+                      </span>
+                    );
+                  }
+                  return (
+                    <InventoryBulkFamilyCell
+                      key={`${editSessionKey}:${row.original.id}`}
+                      inventoryId={row.original.id}
+                      parentId={row.original.parentId ?? null}
+                      options={[
+                        { id: 0, name: 'None — standalone/head' },
+                        ...familyHeadCandidates.filter(
+                          (candidate) => candidate.id !== row.original.id,
+                        ),
+                      ]}
+                      onWrite={stableWriteDraft}
+                      onCommit={flushDirtyCount}
+                    />
+                  );
+                }
+                if (childCount > 0) {
+                  return (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary hover:underline"
+                      onClick={() => toggleExpanded(row.original.id)}
+                      title="Show family variants"
+                    >
+                      {label}
+                    </button>
+                  );
+                }
+                return (
+                  <span
+                    className={cn(
+                      'text-xs',
+                      label === 'Own head' && 'text-muted-foreground',
+                    )}
+                  >
+                    {label}
+                  </span>
+                );
+              },
+            },
+          ]
+        : []),
+      ...(visibleCoreColumnIds.includes('description')
+        ? [
+            {
+              accessorKey: 'description',
+              header: 'Description',
+              size: 240,
+              enableSorting: !editMode,
+            },
+          ]
+        : []),
+      ...(visibleCoreColumnIds.includes('itemTypeName')
+        ? [
+            {
+              accessorKey: 'itemTypeName',
+              header: 'Type',
+              size: 92,
+              enableSorting: !editMode,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => {
+                const typeId = row.original.itemTypeId ?? 0;
+                const hasOrphanType =
+                  typeId > 0 && !itemTypes.some((t) => t.id === typeId);
 
-          if (editMode) {
-            return (
-              <span className="text-sm text-muted-foreground">
-                {row.original.itemTypeName ?? 'No type'}
-              </span>
-            );
-          }
+                if (editMode) {
+                  return (
+                    <span className="text-sm text-muted-foreground">
+                      {row.original.itemTypeName ?? 'No type'}
+                    </span>
+                  );
+                }
 
-          return (
-            <Select
-              value={String(typeId)}
-              onValueChange={(v) => updateItemType(row.original, v)}
-            >
-              <SelectTrigger className="h-9 w-[180px] max-w-full">
-                <SelectValue placeholder="No type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">No type</SelectItem>
-                {hasOrphanType ? (
-                  <SelectItem value={String(typeId)}>
-                    {row.original.itemTypeName ?? `Type #${typeId}`}
-                  </SelectItem>
-                ) : null}
-                {itemTypes.map((t) => (
-                  <SelectItem key={t.id} value={String(t.id)}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          );
-        },
-      },
+                return (
+                  <Select
+                    value={String(typeId)}
+                    onValueChange={(v) => updateItemType(row.original, v)}
+                  >
+                    <SelectTrigger className="h-9 w-[180px] max-w-full">
+                      <SelectValue placeholder="No type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">No type</SelectItem>
+                      {hasOrphanType ? (
+                        <SelectItem value={String(typeId)}>
+                          {row.original.itemTypeName ?? `Type #${typeId}`}
+                        </SelectItem>
+                      ) : null}
+                      {itemTypes.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              },
+            } as ColumnDef<InventoryItem>,
+          ]
+        : []),
       {
         accessorKey: 'price',
         header: 'Price',
@@ -995,9 +1124,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     // the edit dialog offers every active list, not only the shown columns
     priceLists,
     shownAttributeDefs,
+    visibleCoreColumnIds,
     publishEnabled,
     showPublishColumn,
     inventory,
+    familyIndex,
+    familyHeadCandidates,
+    flushDirtyCount,
     publishStatuses,
     expandedIds,
     toggleExpanded,
@@ -1007,9 +1140,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   // for, so it stays useful even while those columns are hidden from the grid
   const renderRowDetail = useCallback(
     (item: InventoryItem) => (
-      <ItemDetailPanel item={item} attributeDefs={attributeDefs} />
+      <ItemDetailPanel
+        item={item}
+        attributeDefs={attributeDefs}
+        inventoryItems={inventory ?? []}
+        familyIndex={familyIndex}
+      />
     ),
-    [attributeDefs],
+    [attributeDefs, familyIndex, inventory],
   );
 
   const isRowExpanded = useCallback(
@@ -1021,6 +1159,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   // grid keeps its vertical space regardless of how many lists/attributes exist
   const columnGroups = useMemo(
     () => [
+      {
+        title: 'Inventory',
+        options: CORE_COLUMN_OPTIONS,
+        selectedIds: visibleCoreColumnIds,
+        onToggle: (id: string) => toggleCoreColumn(id as CoreColumnId),
+        onSetAll: (ids: string[]) => setCoreColumns(ids as CoreColumnId[]),
+      },
       {
         title: 'Price lists',
         options: priceLists.map((l) => ({ id: String(l.id), label: l.name })),
@@ -1052,6 +1197,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     ],
     [
       priceLists,
+      visibleCoreColumnIds,
+      toggleCoreColumn,
+      setCoreColumns,
       visiblePriceListIds,
       togglePriceListColumn,
       attributeDefs,
@@ -1070,6 +1218,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           <InventoryFilterMenu
             attributeDefs={attributeDefs}
             items={inventory ?? []}
+            itemTypes={itemTypes}
             filters={inventoryFilters}
             onChange={setInventoryFilters}
             publishEnabled={publishEnabled && showPublishColumn}
@@ -1101,6 +1250,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           editMode={editMode}
           virtualScrollToIndex={virtualScrollToIndex}
           onViewModelChange={handleViewModelChange}
+          showListPosition={visibleCoreColumnIds.includes('listPosition')}
           searchFields={searchFields}
           renderRowDetail={editMode ? undefined : renderRowDetail}
           isRowExpanded={editMode ? undefined : isRowExpanded}

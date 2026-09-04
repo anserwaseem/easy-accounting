@@ -1,3 +1,0 @@
-vendor_code,vendor_name,name,quantity,notes
-REPLACE_BINDER_CODE,REPLACE_BINDER_NAME,THIS_SKU_DOES_NOT_EXIST,5,unknown item — whole import must roll back
-REPLACE_AGENT_CODE,REPLACE_AGENT_NAME,REPLACE_ITEM_A,5,untracked agent — even with a real SKU this must fail until the WIP checkbox is on

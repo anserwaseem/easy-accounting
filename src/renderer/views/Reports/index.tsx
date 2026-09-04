@@ -86,7 +86,7 @@ const operationsReports: ReportOption[] = [
   {
     title: 'At-vendor activity',
     description:
-      'Opening, issued, received via purchase, and closing qty at a tracked vendor.',
+      'Reconcile a vendor balance or investigate how its current quantity changed.',
     path: '/reports/vendor-stock-activity',
     icon: <Package className="h-6 w-6" />,
   },

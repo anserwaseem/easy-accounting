@@ -251,8 +251,8 @@ const VendorStockActivityPage: React.FC = () => {
           <div>
             <h1 className="title-new">At-vendor activity</h1>
             <p className="text-sm text-muted-foreground">
-              Opening, issued, received via purchase, and closing qty at a
-              tracked vendor.
+              Use this to reconcile a vendor&apos;s physical count, investigate
+              a negative balance, or explain how current quantity changed.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 print:hidden">

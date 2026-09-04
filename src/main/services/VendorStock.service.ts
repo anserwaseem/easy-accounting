@@ -76,8 +76,8 @@ export class VendorStockService {
 
   private stmGetInventoryIdsWithVendorStock!: Statement;
 
-  constructor() {
-    this.db = DatabaseService.getInstance().getDatabase();
+  constructor(db?: Database) {
+    this.db = db ?? DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
   }
 

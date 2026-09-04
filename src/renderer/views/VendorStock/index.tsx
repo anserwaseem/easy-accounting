@@ -213,7 +213,7 @@ const VendorStockPage: React.FC = () => {
             onClick={load}
             disabled={isLoading}
           >
-            <RefreshCw size={16} className="mr-1.5" />
+            <RefreshCw size={16} />
           </Button>
         </div>
       </header>
@@ -244,7 +244,12 @@ const VendorStockPage: React.FC = () => {
             />
           </div>
           <Button variant="link" className="px-0" asChild>
-            <Link to="/reports/vendor-stock-activity">Activity report</Link>
+            <Link
+              to="/reports/vendor-stock-activity"
+              title="Reconcile or investigate this vendor balance"
+            >
+              Reconcile activity
+            </Link>
           </Button>
         </div>
       )}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Input } from '@/renderer/shad/ui/input';
+import { Button } from '@/renderer/shad/ui/button';
 import { cn } from '@/renderer/lib/utils';
 
 interface FamilyHeadOption {
@@ -45,6 +46,25 @@ export const FamilyHeadPicker: React.FC<FamilyHeadPickerProps> = ({
           {selected?.name ?? 'None — this is a head'}
         </span>
       </p>
+      {value != null ? (
+        <div className="space-y-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => {
+              setQuery('');
+              onChange(null);
+            }}
+          >
+            Make this item its own family head
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Existing at-vendor quantity stays with its current family.
+          </p>
+        </div>
+      ) : null}
       <ul className="max-h-40 overflow-y-auto rounded-md border">
         {filtered.map((opt) => {
           const active = (value ?? 0) === opt.id;

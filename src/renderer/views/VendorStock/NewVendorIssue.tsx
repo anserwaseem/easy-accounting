@@ -1,18 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { groupBy, sortBy } from 'lodash';
 import { Button } from '@/renderer/shad/ui/button';
 import { Input } from '@/renderer/shad/ui/input';
 import { Label } from '@/renderer/shad/ui/label';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { toLocalDateInputValue } from '@/renderer/lib/localDate';
+import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
+import { useMountEffect } from '@/renderer/hooks/useMountEffect';
 import type { InventoryItem } from 'types';
 
 interface IssueLine {
   key: string;
   inventoryId: number;
   quantity: number;
+}
+
+interface FamilyHeadOption extends InventoryItem {
+  variantNames: string[];
+  variantSearch: string;
 }
 
 const NewVendorIssuePage: React.FC = () => {
@@ -35,10 +43,16 @@ const NewVendorIssuePage: React.FC = () => {
   const [lines, setLines] = useState<IssueLine[]>([
     { key: '1', inventoryId: 0, quantity: 0 },
   ]);
+  const [expandedVariantLineKeys, setExpandedVariantLineKeys] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const lineSequenceRef = useRef(1);
+  const pendingItemFocusKeyRef = useRef<string | null>(null);
+  const quantityInputRefs = useRef(new Map<string, HTMLInputElement>());
 
-  useEffect(() => {
+  useMountEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
@@ -92,7 +106,7 @@ const NewVendorIssuePage: React.FC = () => {
       }
     };
     load();
-  }, [editIssueId, isEdit, navigate]);
+  });
 
   const vendorOptions = useMemo(
     () =>
@@ -103,25 +117,73 @@ const NewVendorIssuePage: React.FC = () => {
     [vendors],
   );
 
-  const familyHeadOptions = useMemo(
-    () =>
-      // send picker: family heads only (parentId null). orphans count as heads
-      // until linked via Edit inventory → Family head.
-      inventory.filter((item) => item.parentId == null),
-    [inventory],
-  );
+  const familyHeadOptions = useMemo<FamilyHeadOption[]>(() => {
+    const variantsByHead = groupBy(
+      inventory.filter((item) => item.parentId != null),
+      (item) => String(item.parentId),
+    );
+    return inventory
+      .filter((item) => item.parentId == null)
+      .map((head) => {
+        const variantNames = sortBy(
+          variantsByHead[String(head.id)] ?? [],
+          (variant) => variant.name.toLowerCase(),
+        ).map((variant) => variant.name);
+        return {
+          ...head,
+          variantNames,
+          variantSearch: variantNames.join(' '),
+        };
+      });
+  }, [inventory]);
 
   const addLine = useCallback(() => {
-    setLines((prev) => [
-      ...prev,
-      { key: String(Date.now()), inventoryId: 0, quantity: 0 },
-    ]);
+    const key = `new-${lineSequenceRef.current + 1}`;
+    lineSequenceRef.current += 1;
+    pendingItemFocusKeyRef.current = key;
+    setLines((prev) => [...prev, { key, inventoryId: 0, quantity: 0 }]);
   }, []);
+
+  useCmdOrCtrlShortcut('n', addLine);
 
   const removeLine = useCallback((key: string) => {
     setLines((prev) =>
       prev.length <= 1 ? prev : prev.filter((l) => l.key !== key),
     );
+    setExpandedVariantLineKeys((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const handleFamilyChange = useCallback(
+    (lineKey: string, inventoryId: number) => {
+      setLines((prev) =>
+        prev.map((line) =>
+          line.key === lineKey ? { ...line, inventoryId } : line,
+        ),
+      );
+      setExpandedVariantLineKeys((prev) => {
+        if (!prev.has(lineKey)) return prev;
+        const next = new Set(prev);
+        next.delete(lineKey);
+        return next;
+      });
+      requestAnimationFrame(() => {
+        quantityInputRefs.current.get(lineKey)?.focus();
+      });
+    },
+    [],
+  );
+
+  const toggleVariantDetails = useCallback((lineKey: string) => {
+    setExpandedVariantLineKeys((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(lineKey)) next.add(lineKey);
+      return next;
+    });
   }, []);
 
   const handleSave = async () => {
@@ -236,69 +298,145 @@ const NewVendorIssuePage: React.FC = () => {
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vendorIssueNotes">Notes</Label>
-          <Input
+          <textarea
             id="vendorIssueNotes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Optional notes"
+            rows={3}
+            className="flex min-h-[5rem] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
         </div>
       </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Items</h2>
+          <div>
+            <h2 className="text-lg font-medium">Goods sent</h2>
+            <p className="text-xs text-muted-foreground">
+              If one common batch can become several variants, select its
+              family. Otherwise select the individual item.
+            </p>
+          </div>
           <Button type="button" variant="outline" size="sm" onClick={addLine}>
             <Plus size={14} className="mr-1" />
             Add line
           </Button>
         </div>
-        {lines.map((line) => (
-          <div
-            key={line.key}
-            className="grid grid-cols-[1fr_120px_40px] items-center gap-2"
-          >
-            <VirtualSelect
-              options={familyHeadOptions}
-              value={line.inventoryId || null}
-              onChange={(value) =>
-                setLines((prev) =>
-                  prev.map((l) =>
-                    l.key === line.key
-                      ? { ...l, inventoryId: Number(value) }
-                      : l,
-                  ),
-                )
-              }
-              placeholder="Family head"
-              searchPlaceholder="Search family heads..."
-            />
-            <Input
-              type="number"
-              min={1}
-              value={line.quantity || ''}
-              onChange={(e) =>
-                setLines((prev) =>
-                  prev.map((l) =>
-                    l.key === line.key
-                      ? { ...l, quantity: Number(e.target.value) || 0 }
-                      : l,
-                  ),
-                )
-              }
-              placeholder="Qty"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => removeLine(line.key)}
-              aria-label="Remove line"
+        <div className="hidden grid-cols-[minmax(0,1fr)_120px_40px] gap-2 px-2 text-xs font-medium text-muted-foreground sm:grid">
+          <span>Family or individual item</span>
+          <span>Quantity</span>
+          <span />
+        </div>
+        {lines.map((line) => {
+          const selectedHead = familyHeadOptions.find(
+            (head) => head.id === line.inventoryId,
+          );
+          const variantsExpanded = expandedVariantLineKeys.has(line.key);
+          return (
+            <div
+              key={line.key}
+              className="grid grid-cols-[minmax(0,1fr)_120px_40px] items-center gap-2 rounded-md border bg-muted/10 p-2"
             >
-              <Trash2 size={16} />
-            </Button>
-          </div>
-        ))}
+              <div className="min-w-0 space-y-1">
+                <VirtualSelect
+                  options={familyHeadOptions}
+                  searchFields={['name', 'variantSearch']}
+                  groupBy={(head) =>
+                    head.variantNames.length > 0
+                      ? 'Families'
+                      : 'Individual items'
+                  }
+                  value={line.inventoryId || null}
+                  triggerRef={(node) => {
+                    if (node && pendingItemFocusKeyRef.current === line.key) {
+                      pendingItemFocusKeyRef.current = null;
+                      requestAnimationFrame(() => node.focus());
+                    }
+                  }}
+                  onChange={(value) =>
+                    handleFamilyChange(line.key, Number(value))
+                  }
+                  placeholder="Select family or item"
+                  renderSelectItem={(head) => (
+                    <div className="flex min-w-0 w-full items-center justify-between gap-3">
+                      <span className="truncate font-medium">{head.name}</span>
+                      {head.variantNames.length > 0 ? (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {head.variantNames.length} variants
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
+                />
+                {selectedHead?.variantNames.length ? (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 px-1 text-xs font-medium text-primary hover:underline"
+                    onClick={() => toggleVariantDetails(line.key)}
+                    aria-expanded={variantsExpanded}
+                  >
+                    <ChevronDown
+                      size={13}
+                      className={
+                        variantsExpanded
+                          ? 'rotate-180 transition-transform'
+                          : 'transition-transform'
+                      }
+                    />
+                    {variantsExpanded ? 'Hide' : 'View'}{' '}
+                    {selectedHead.variantNames.length} variants
+                  </button>
+                ) : null}
+              </div>
+              <Input
+                ref={(node) => {
+                  if (node) quantityInputRefs.current.set(line.key, node);
+                  else quantityInputRefs.current.delete(line.key);
+                }}
+                type="number"
+                min={1}
+                value={line.quantity || ''}
+                onChange={(e) =>
+                  setLines((prev) =>
+                    prev.map((l) =>
+                      l.key === line.key
+                        ? { ...l, quantity: Number(e.target.value) || 0 }
+                        : l,
+                    ),
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return;
+                  event.preventDefault();
+                  addLine();
+                }}
+                placeholder="Qty"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removeLine(line.key)}
+                aria-label="Remove line"
+              >
+                <Trash2 size={16} />
+              </Button>
+              {variantsExpanded && selectedHead?.variantNames.length ? (
+                <div className="col-span-full flex max-h-28 flex-wrap gap-1.5 overflow-y-auto border-t pt-2">
+                  {selectedHead.variantNames.map((variantName) => (
+                    <span
+                      key={variantName}
+                      className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                    >
+                      {variantName}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex gap-2">

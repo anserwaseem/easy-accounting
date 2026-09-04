@@ -1,8 +1,0 @@
-vendor_code,vendor_name,name,quantity,notes
-REPLACE_BINDER_CODE,REPLACE_BINDER_NAME,REPLACE_ITEM_A,100,binder already holds 100 of A
-REPLACE_BINDER_CODE,REPLACE_BINDER_NAME,REPLACE_ITEM_B,40,binder holds 40 of B
-REPLACE_BINDER_CODE,REPLACE_BINDER_NAME,REPLACE_ITEM_C,0,explicit zero — row should appear only after a send or stay at 0
-REPLACE_BINDER_CODE,REPLACE_BINDER_NAME,REPLACE_ITEM_A,100,duplicate of A — last row wins; keep qty identical so it is a no-op
-REPLACE_PRESS_CODE,REPLACE_PRESS_NAME,REPLACE_ITEM_A,25,same SKU A sitting at a SECOND vendor
-REPLACE_PRESS_CODE,REPLACE_PRESS_NAME,REPLACE_ITEM_D,80,press-only item
-REPLACE_PRESS_CODE,REPLACE_PRESS_NAME,REPLACE_ITEM_B,15.9,decimals FLOOR — this becomes 15 not 16

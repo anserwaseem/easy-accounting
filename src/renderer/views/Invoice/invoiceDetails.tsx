@@ -229,6 +229,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           variant: hasNegative ? 'destructive' : 'default',
           title: 'At vendor stock',
           description: vendorStockMessages.join(' · '),
+          duration: Number.POSITIVE_INFINITY,
         });
       }
       await reloadInvoice();

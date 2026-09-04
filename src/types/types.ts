@@ -273,11 +273,13 @@ export interface ApplyListPositionsResult {
   ambiguousNames: string[];
 }
 
-/** one row patch for bulk price + list # save */
+/** one row patch for bulk inventory grid save */
 export interface BulkPriceListPositionPatch {
   id: number;
   price: number;
   listPosition: number | null;
+  /** omitted means unchanged; null makes this item its own head */
+  parentId?: number | null;
   /**
    * Prices on named price lists that changed for this item (migration 020).
    * A null price removes the item from that list.
