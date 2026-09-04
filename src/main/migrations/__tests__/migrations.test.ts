@@ -248,6 +248,7 @@ describe('migrations', () => {
         '022_add_inventory_excludeFromCatalog',
         '023_add_inventory_title',
         '024_normalize_invoice_date_format',
+        '025_add_account_urdu_fields',
       ]);
     });
 
@@ -257,6 +258,9 @@ describe('migrations', () => {
       POST_019.tables.forEach((t) => expect(tableExists(db, t)).toBe(true));
       POST_019.columns.inventory.forEach((c) =>
         expect(columnExists(db, 'inventory', c)).toBe(true),
+      );
+      ['nameUrdu', 'addressUrdu', 'goodsNameUrdu'].forEach((c) =>
+        expect(columnExists(db, 'account', c)).toBe(true),
       );
       expect(columnExists(db, 'attribute_definitions', 'isPublic')).toBe(true);
     });

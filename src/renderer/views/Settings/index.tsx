@@ -263,13 +263,19 @@ const SettingsPage: React.FC = () => {
         >
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="en" id="printLocaleEn" />
-            <Label htmlFor="printLocaleEn" className="font-normal cursor-pointer">
+            <Label
+              htmlFor="printLocaleEn"
+              className="font-normal cursor-pointer"
+            >
               English (left-to-right)
             </Label>
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="ur" id="printLocaleUr" />
-            <Label htmlFor="printLocaleUr" className="font-normal cursor-pointer">
+            <Label
+              htmlFor="printLocaleUr"
+              className="font-normal cursor-pointer"
+            >
               Urdu (right-to-left)
             </Label>
           </div>
