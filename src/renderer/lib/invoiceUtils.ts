@@ -24,15 +24,37 @@ export const stripItemTypeSuffixFromAccountName = (
 export const getPrintBillToPartyName = (
   headerAccountName: string | undefined | null,
   itemTypeNames: string[],
-  invoiceItems?: ReadonlyArray<{ accountName?: string }>,
+  invoiceItems?: ReadonlyArray<{
+    accountName?: string;
+    accountNameUrdu?: string;
+  }>,
+  options?: {
+    preferUrdu?: boolean;
+    headerAccountNameUrdu?: string | null;
+  },
 ): string => {
+  const preferUrdu = options?.preferUrdu === true;
+
+  const pickLineName = (row: {
+    accountName?: string;
+    accountNameUrdu?: string;
+  }): string | undefined => {
+    if (preferUrdu) {
+      const ur = row.accountNameUrdu?.trim();
+      if (ur) return ur;
+    }
+    return row.accountName?.trim();
+  };
+
   const lines = (invoiceItems ?? [])
-    .map((row) => row.accountName?.trim())
+    .map(pickLineName)
     .filter((n): n is string => Boolean(n));
 
   let rawSegments: string[];
   if (lines.length > 0) {
     rawSegments = [...new Set(lines)];
+  } else if (preferUrdu && options?.headerAccountNameUrdu?.trim()) {
+    rawSegments = [options.headerAccountNameUrdu.trim()];
   } else if (headerAccountName?.trim()) {
     rawSegments = [headerAccountName.trim()];
   } else {

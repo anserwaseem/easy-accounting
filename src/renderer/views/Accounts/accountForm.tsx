@@ -14,6 +14,12 @@ import {
 import type { Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
 
+const optionalText = z
+  .string()
+  .optional()
+  .nullable()
+  .transform((val) => val ?? undefined);
+
 export const accountFormSchema = z.object({
   id: z.number().optional(),
   headName: z.string().min(2).max(50),
@@ -23,26 +29,14 @@ export const accountFormSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => val ?? undefined),
-  address: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((val) => val ?? undefined),
-  phone1: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((val) => val ?? undefined),
-  phone2: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((val) => val ?? undefined),
-  goodsName: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((val) => val ?? undefined),
+  address: optionalText,
+  phone1: optionalText,
+  phone2: optionalText,
+  goodsName: optionalText,
+  // urdu print fields — optional; empty means fall back to English on print
+  nameUrdu: optionalText,
+  addressUrdu: optionalText,
+  goodsNameUrdu: optionalText,
   isActive: z.boolean().default(true),
 });
 
@@ -56,6 +50,9 @@ export const defaultValues: AccountFormData = {
   phone1: undefined,
   phone2: undefined,
   goodsName: undefined,
+  nameUrdu: undefined,
+  addressUrdu: undefined,
+  goodsNameUrdu: undefined,
   isActive: true,
 };
 
@@ -125,6 +122,24 @@ export const AccountForm: React.FC<AccountFormProps> = ({
         />
         <FormField
           control={form.control}
+          name="nameUrdu"
+          render={({ field }) => (
+            <FormItem labelPosition="start">
+              <FormLabel>Account Name (Urdu)</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  dir="rtl"
+                  lang="ur"
+                  placeholder="اردو نام برائے پرنٹ"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
           name="accountCode"
           render={({ field }) => (
             <FormItem labelPosition="start">
@@ -144,6 +159,24 @@ export const AccountForm: React.FC<AccountFormProps> = ({
               <FormLabel>Address</FormLabel>
               <FormControl>
                 <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="addressUrdu"
+          render={({ field }) => (
+            <FormItem labelPosition="start">
+              <FormLabel>Address (Urdu)</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  dir="rtl"
+                  lang="ur"
+                  placeholder="اردو پتہ برائے پرنٹ"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -183,6 +216,24 @@ export const AccountForm: React.FC<AccountFormProps> = ({
               <FormLabel>Goods Name</FormLabel>
               <FormControl>
                 <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="goodsNameUrdu"
+          render={({ field }) => (
+            <FormItem labelPosition="start">
+              <FormLabel>Goods Name (Urdu)</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  dir="rtl"
+                  lang="ur"
+                  placeholder="اردو مال برداری نام"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

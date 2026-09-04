@@ -58,11 +58,15 @@ type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
   createdAt?: Date;
   updatedAt?: Date;
   invoiceAccountName?: string;
+  invoiceAccountNameUrdu?: string | null;
   invoiceAccountCode?: number | string | null;
   invoiceAccountAddress?: string | null;
+  invoiceAccountAddressUrdu?: string | null;
   invoiceAccountGoodsName?: string | null;
+  invoiceAccountGoodsNameUrdu?: string | null;
   itemRowAccountId?: number | null;
   accountCode?: number | string | null;
+  accountNameUrdu?: string | null;
   isReturned?: SqliteBoolColumn;
   returnedAt?: string | null;
   returnReason?: string | null;
@@ -242,6 +246,8 @@ export class InvoiceService {
         prev.isQuotation = Boolean(uncastBoolean(cur.isQuotation));
         // for multi-account invoices, show all customer/vendor names and codes (similar to list view)
         prev.accountName = cur.invoiceAccountName ?? cur.accountName;
+        prev.accountNameUrdu =
+          cur.invoiceAccountNameUrdu ?? cur.accountNameUrdu ?? null;
         if (isSingleCode) {
           prev.accountCode =
             cur.invoiceAccountCode != null
@@ -249,7 +255,9 @@ export class InvoiceService {
               : null;
         }
         prev.accountAddress = cur.invoiceAccountAddress ?? null;
+        prev.accountAddressUrdu = cur.invoiceAccountAddressUrdu ?? null;
         prev.accountGoodsName = cur.invoiceAccountGoodsName ?? null;
+        prev.accountGoodsNameUrdu = cur.invoiceAccountGoodsNameUrdu ?? null;
         prev.invoiceItems = [];
       }
       prev.invoiceItems.push({
@@ -262,6 +270,9 @@ export class InvoiceService {
         inventoryItemName: cur.inventoryItemName,
         inventoryItemDescription: cur.inventoryItemDescription,
         accountName: isSingleAccount ? undefined : cur.accountName,
+        accountNameUrdu: isSingleAccount
+          ? undefined
+          : cur.accountNameUrdu ?? undefined,
         accountId:
           cur.itemRowAccountId != null && cur.itemRowAccountId > 0
             ? cur.itemRowAccountId
@@ -272,6 +283,11 @@ export class InvoiceService {
 
     if (!isSingleAccount) {
       res.accountName = uniq(result.map((r) => r.accountName)).join(', ');
+      res.accountNameUrdu = uniq(
+        result
+          .map((r) => r.accountNameUrdu)
+          .filter((n): n is string => Boolean(n?.trim())),
+      ).join(', ');
     }
     if (!isSingleCode) {
       res.accountCode = invoiceAccountCodes.join(', ');
@@ -2316,9 +2332,12 @@ export class InvoiceService {
         i.returnReason,
         COALESCE(i.isQuotation, 0) AS isQuotation,
         a.name AS 'invoiceAccountName',
+        a.nameUrdu AS 'invoiceAccountNameUrdu',
         a.code AS 'invoiceAccountCode',
         a.address AS 'invoiceAccountAddress',
+        a.addressUrdu AS 'invoiceAccountAddressUrdu',
         a.goodsName AS 'invoiceAccountGoodsName',
+        a.goodsNameUrdu AS 'invoiceAccountGoodsNameUrdu',
         ii.inventoryId,
         ii.quantity,
         ii.price,
@@ -2331,6 +2350,10 @@ export class InvoiceService {
           CASE WHEN ii.accountId IS NOT NULL THEN a2.name ELSE NULL END,
           a.name
         ) AS 'accountName',
+        COALESCE(
+          CASE WHEN ii.accountId IS NOT NULL THEN a2.nameUrdu ELSE NULL END,
+          a.nameUrdu
+        ) AS 'accountNameUrdu',
         COALESCE(
           CASE WHEN ii.accountId IS NOT NULL THEN a2.code ELSE NULL END,
           a.code

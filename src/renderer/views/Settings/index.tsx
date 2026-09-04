@@ -7,6 +7,7 @@ import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
+import type { InvoicePrintLocale } from '@/renderer/lib/invoicePrint/locale';
 import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
 import PublishSettings from './PublishSettings';
 
@@ -29,14 +30,17 @@ const SettingsPage: React.FC = () => {
   const [draftCompanyEmail, setDraftCompanyEmail] = useState(
     companyProfile.email,
   );
+  const [draftCompanyNameUrdu, setDraftCompanyNameUrdu] = useState(
+    companyProfile.nameUrdu,
+  );
+  const [draftCompanyAddressUrdu, setDraftCompanyAddressUrdu] = useState(
+    companyProfile.addressUrdu,
+  );
 
-  const {
-    settings: invoicePrintSettings,
-    saveInvoicePrintSettings,
-    defaults,
-  } = useInvoicePrintSettings();
-  const [draftTotalQuantityLabel, setDraftTotalQuantityLabel] = useState(
-    invoicePrintSettings.totalQuantityLabel,
+  const { settings: invoicePrintSettings, saveInvoicePrintSettings } =
+    useInvoicePrintSettings();
+  const [draftPrintLocale, setDraftPrintLocale] = useState<InvoicePrintLocale>(
+    invoicePrintSettings.locale,
   );
 
   const [
@@ -60,11 +64,12 @@ const SettingsPage: React.FC = () => {
       address: draftCompanyAddress,
       phone: draftCompanyPhone.trim(),
       email: draftCompanyEmail.trim(),
+      nameUrdu: draftCompanyNameUrdu.trim(),
+      addressUrdu: draftCompanyAddressUrdu,
     });
 
     saveInvoicePrintSettings({
-      totalQuantityLabel:
-        draftTotalQuantityLabel.trim() || defaults.totalQuantityLabel,
+      locale: draftPrintLocale,
     });
 
     window.electron.store.set(
@@ -84,9 +89,10 @@ const SettingsPage: React.FC = () => {
     draftCompanyAddress,
     draftCompanyPhone,
     draftCompanyEmail,
+    draftCompanyNameUrdu,
+    draftCompanyAddressUrdu,
     saveInvoicePrintSettings,
-    draftTotalQuantityLabel,
-    defaults.totalQuantityLabel,
+    draftPrintLocale,
   ]);
 
   return (
@@ -164,6 +170,17 @@ const SettingsPage: React.FC = () => {
           />
         </div>
         <div className="flex flex-col gap-2">
+          <Label htmlFor="companyProfileNameUrdu">Company name (Urdu)</Label>
+          <Input
+            id="companyProfileNameUrdu"
+            value={draftCompanyNameUrdu}
+            dir="rtl"
+            lang="ur"
+            placeholder="اردو نام برائے پرنٹ"
+            onChange={(e) => setDraftCompanyNameUrdu(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
           <Label htmlFor="companyProfilePhone">Phone</Label>
           <Input
             id="companyProfilePhone"
@@ -179,6 +196,17 @@ const SettingsPage: React.FC = () => {
             value={draftCompanyAddress}
             placeholder="e.g., Street, Area, City"
             onChange={(e) => setDraftCompanyAddress(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2 md:col-span-2">
+          <Label htmlFor="companyProfileAddressUrdu">Address (Urdu)</Label>
+          <Input
+            id="companyProfileAddressUrdu"
+            value={draftCompanyAddressUrdu}
+            dir="rtl"
+            lang="ur"
+            placeholder="اردو پتہ برائے پرنٹ"
+            onChange={(e) => setDraftCompanyAddressUrdu(e.target.value)}
           />
         </div>
         <div className="flex flex-col gap-2">
@@ -226,19 +254,31 @@ const SettingsPage: React.FC = () => {
         <h2 className="text-2xl font-medium">Invoice Print</h2>
         <Separator />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="totalQuantityLabel">Total quantity label</Label>
-          <Input
-            id="totalQuantityLabel"
-            value={draftTotalQuantityLabel}
-            placeholder={defaults.totalQuantityLabel}
-            onChange={(e) => setDraftTotalQuantityLabel(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Shown above the total quantity row on printed invoices.
-          </p>
-        </div>
+      <div className="mt-4 max-w-xl">
+        <p className="mb-2 text-sm">Printed invoice language</p>
+        <RadioGroup
+          value={draftPrintLocale}
+          className="gap-3"
+          onValueChange={(v) => setDraftPrintLocale(v as InvoicePrintLocale)}
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="en" id="printLocaleEn" />
+            <Label htmlFor="printLocaleEn" className="font-normal cursor-pointer">
+              English (left-to-right)
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="ur" id="printLocaleUr" />
+            <Label htmlFor="printLocaleUr" className="font-normal cursor-pointer">
+              Urdu (right-to-left)
+            </Label>
+          </div>
+        </RadioGroup>
+        <p className="text-xs text-muted-foreground mt-2">
+          Urdu mode mirrors the print layout, translates labels and amount-in-
+          words, and uses company/account Urdu fields when filled (otherwise
+          falls back to English). Item codes and numbers stay Latin digits.
+        </p>
       </div>
 
       <div className="flex flex-col gap-2 mt-8">

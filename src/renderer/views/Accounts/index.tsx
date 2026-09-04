@@ -37,6 +37,9 @@ type OptionalAccountColumnId =
   | 'phone1'
   | 'phone2'
   | 'goodsName'
+  | 'nameUrdu'
+  | 'addressUrdu'
+  | 'goodsNameUrdu'
   | 'policy'
   | 'headName'
   | 'type'
@@ -68,7 +71,10 @@ const getAvailableColumnOptions = (
     { id: 'updatedAt', label: 'Updated at' },
     { id: 'createdAt', label: 'Created at' },
     { id: 'address', label: 'Address' },
+    { id: 'addressUrdu', label: 'Address (Urdu)' },
     { id: 'goodsName', label: 'Goods name' },
+    { id: 'goodsNameUrdu', label: 'Goods name (Urdu)' },
+    { id: 'nameUrdu', label: 'Name (Urdu)' },
     { id: 'phone1', label: 'Phone 1' },
     { id: 'phone2', label: 'Phone 2' },
   ];
@@ -269,6 +275,30 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               onClick: openAccount,
             },
             {
+              id: 'nameUrdu',
+              accessorKey: 'nameUrdu',
+              header: 'Name (Urdu)',
+              onClick: openAccount,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: CellContext<Account, unknown>) => (
+                <span dir="rtl" lang="ur">
+                  {row.original.nameUrdu ?? ''}
+                </span>
+              ),
+            },
+            {
+              id: 'addressUrdu',
+              accessorKey: 'addressUrdu',
+              header: 'Address (Urdu)',
+              onClick: openAccount,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: CellContext<Account, unknown>) => (
+                <span dir="rtl" lang="ur">
+                  {row.original.addressUrdu ?? ''}
+                </span>
+              ),
+            },
+            {
               id: 'phone1',
               accessorKey: 'phone1',
               header: 'Phone 1',
@@ -285,6 +315,18 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'goodsName',
               header: 'Goods Name',
               onClick: openAccount,
+            },
+            {
+              id: 'goodsNameUrdu',
+              accessorKey: 'goodsNameUrdu',
+              header: 'Goods Name (Urdu)',
+              onClick: openAccount,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: CellContext<Account, unknown>) => (
+                <span dir="rtl" lang="ur">
+                  {row.original.goodsNameUrdu ?? ''}
+                </span>
+              ),
             },
             ...(shouldShowPolicyColumn
               ? [
@@ -578,12 +620,15 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           searchPlaceholder="Search accounts..."
           searchFields={[
             'name',
+            'nameUrdu',
             'code',
             'headName',
             'address',
+            'addressUrdu',
             'phone1',
             'phone2',
             'goodsName',
+            'goodsNameUrdu',
             'discountProfileName',
           ]}
           searchPersistenceKey="datatable:accounts:search"

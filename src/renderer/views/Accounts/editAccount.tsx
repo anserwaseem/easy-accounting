@@ -51,6 +51,9 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     phone1: inputRow.phone1,
     phone2: inputRow.phone2,
     goodsName: inputRow.goodsName,
+    nameUrdu: inputRow.nameUrdu,
+    addressUrdu: inputRow.addressUrdu,
+    goodsNameUrdu: inputRow.goodsNameUrdu,
     isActive: !!inputRow.isActive, // included for type safety, but not used in the form
   });
 
@@ -64,6 +67,9 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       phone1: values.phone1,
       phone2: values.phone2,
       goodsName: values.goodsName,
+      nameUrdu: values.nameUrdu,
+      addressUrdu: values.addressUrdu,
+      goodsNameUrdu: values.goodsNameUrdu,
       discountProfileId: row.original.discountProfileId ?? null,
       isActive: row.original.isActive,
     });

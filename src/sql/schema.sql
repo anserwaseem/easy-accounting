@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS "account" (
   -- "phone1" VARCHAR(20), -- "007 migration"
   -- "phone2" VARCHAR(20), -- "007 migration"
   -- "goodsName" TEXT, -- "007 migration"
+  -- "nameUrdu" TEXT, -- "025 migration"
+  -- "addressUrdu" TEXT, -- "025 migration"
+  -- "goodsNameUrdu" TEXT, -- "025 migration"
   -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "012 migration"
   -- "discountProfileId" INTEGER REFERENCES "discount_profiles"("id"), -- "015 migration"
   "createdAt"	DATETIME,

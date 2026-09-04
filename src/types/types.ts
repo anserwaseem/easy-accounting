@@ -108,6 +108,12 @@ export interface Account extends BaseEntity {
   phone1?: string;
   phone2?: string;
   goodsName?: string;
+  /** optional Urdu print name; empty falls back to name */
+  nameUrdu?: string;
+  /** optional Urdu print address; empty falls back to address */
+  addressUrdu?: string;
+  /** optional Urdu print goods / bilty carrier name; empty falls back to goodsName */
+  goodsNameUrdu?: string;
   isActive: boolean;
   discountProfileId?: number | null;
   discountProfileName?: string | null;
@@ -399,17 +405,22 @@ export type InvoiceItemView = {
   accountName?: string;
   /** persisted line account when invoice uses per-row accounts */
   accountId?: number;
+  /** line party Urdu name when invoice uses per-row accounts */
+  accountNameUrdu?: string;
 };
 export type InvoiceView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {
     accountName?: string;
+    accountNameUrdu?: string | null;
     accountCode?: number | string | null;
     /** header party account id for edit hydration */
     invoiceHeaderAccountId?: number;
     /** persisted for edit round-trip when extra discount applies */
     extraDiscountAccountId?: number | null;
     accountAddress?: string | null;
+    accountAddressUrdu?: string | null;
     accountGoodsName?: string | null;
+    accountGoodsNameUrdu?: string | null;
     invoiceItems: Array<InvoiceItemView>;
     /** sale quotation until converted to a numbered invoice */
     isQuotation?: boolean;

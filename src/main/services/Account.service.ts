@@ -70,6 +70,9 @@ export class AccountService {
         a.phone1,
         a.phone2,
         a.goodsName,
+        a.nameUrdu,
+        a.addressUrdu,
+        a.goodsNameUrdu,
         a.isActive,
         a.discountProfileId,
         dp.name AS discountProfileName,
@@ -89,7 +92,13 @@ export class AccountService {
 
   insertAccount(account: InsertAccount): boolean {
     const username = store.get('username');
-    const result = this.stmInsertAccount.run({ ...account, username });
+    const result = this.stmInsertAccount.run({
+      ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
+      username,
+    });
     return Number.isSafeInteger(result.lastInsertRowid);
   }
 
@@ -121,7 +130,13 @@ export class AccountService {
     }
 
     const username = store.get('username');
-    const result = this.stmInsertAccount.run({ ...account, username });
+    const result = this.stmInsertAccount.run({
+      ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
+      username,
+    });
     return {
       success: !!result.lastInsertRowid,
       accountId: result.lastInsertRowid as number,
@@ -132,6 +147,9 @@ export class AccountService {
     const username = store.get('username');
     const result = this.stmUpdateAccount.run({
       ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
       id: cast(account.id),
       username,
     });
@@ -240,6 +258,9 @@ export class AccountService {
         a.phone1,
         a.phone2,
         a.goodsName,
+        a.nameUrdu,
+        a.addressUrdu,
+        a.goodsNameUrdu,
         a.isActive,
         a.discountProfileId,
         dp.name AS discountProfileName,
@@ -255,7 +276,7 @@ export class AccountService {
     `);
 
     this.stmInsertAccount = this.db.prepare(`
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive, discountProfileId)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, nameUrdu, addressUrdu, goodsNameUrdu, isActive, discountProfileId)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -264,12 +285,12 @@ export class AccountService {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName, 1, @discountProfileId)
+      ), @code, @address, @phone1, @phone2, @goodsName, @nameUrdu, @addressUrdu, @goodsNameUrdu, 1, @discountProfileId)
     `);
 
     this.stmUpdateAccount = this.db.prepare(`
       UPDATE account
-      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, discountProfileId = @discountProfileId, chartId = (
+      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, nameUrdu = @nameUrdu, addressUrdu = @addressUrdu, goodsNameUrdu = @goodsNameUrdu, discountProfileId = @discountProfileId, chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName AND userId = (

@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { InvoicePrintLocale } from '@/renderer/lib/invoicePrint/locale';
 
 export interface InvoicePrintSettings {
-  totalQuantityLabel: string;
+  locale: InvoicePrintLocale;
 }
 
 const INVOICE_PRINT_KEYS = {
+  locale: 'print.locale',
+  /** legacy key removed from Settings UI; ignored when present */
   totalQuantityLabel: 'print.totalQuantityLabel',
 } as const;
 
-const DEFAULT_TOTAL_QUANTITY_LABEL = 'Total quantity:';
+const DEFAULT_LOCALE: InvoicePrintLocale = 'en';
+
+const parseLocale = (value: unknown): InvoicePrintLocale =>
+  value === 'ur' ? 'ur' : DEFAULT_LOCALE;
 
 const readInvoicePrintSettings = (): InvoicePrintSettings => ({
-  totalQuantityLabel: String(
-    window.electron.store.get(INVOICE_PRINT_KEYS.totalQuantityLabel) ??
-      DEFAULT_TOTAL_QUANTITY_LABEL,
-  ),
+  locale: parseLocale(window.electron.store.get(INVOICE_PRINT_KEYS.locale)),
 });
 
 export const useInvoicePrintSettings = () => {
@@ -27,10 +30,7 @@ export const useInvoicePrintSettings = () => {
   }, []);
 
   const saveInvoicePrintSettings = useCallback((next: InvoicePrintSettings) => {
-    window.electron.store.set(
-      INVOICE_PRINT_KEYS.totalQuantityLabel,
-      next.totalQuantityLabel,
-    );
+    window.electron.store.set(INVOICE_PRINT_KEYS.locale, next.locale);
     setSettings(next);
   }, []);
 
@@ -39,7 +39,7 @@ export const useInvoicePrintSettings = () => {
       settings,
       saveInvoicePrintSettings,
       defaults: {
-        totalQuantityLabel: DEFAULT_TOTAL_QUANTITY_LABEL,
+        locale: DEFAULT_LOCALE,
       },
     }),
     [settings, saveInvoicePrintSettings],
