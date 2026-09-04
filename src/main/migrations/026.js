@@ -1,5 +1,5 @@
 module.exports = {
-  name: '025_add_account_urdu_fields',
+  name: '026_add_account_urdu_fields',
   up: (db) => {
     try {
       const hasColumn = (tableName, columnName) => {
@@ -31,11 +31,11 @@ module.exports = {
 
       return true;
     } catch (error) {
-      console.log('025 migration error!');
+      console.log('026 migration error!');
       console.error(error);
       return error;
     } finally {
-      console.log('025 migration completed!');
+      console.log('026 migration completed!');
     }
   },
 };

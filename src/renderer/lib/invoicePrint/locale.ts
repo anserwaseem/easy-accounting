@@ -69,7 +69,7 @@ const URDU_LABELS: InvoicePrintLabels = {
   vendor: 'سپلائر:',
   walkInCustomer: 'نقد خریدار',
   serial: '#',
-  item: 'آئٹم',
+  item: 'حوالہ نمبر',
   itemDescription: 'تفصیل',
   qty: 'مقدار',
   price: 'قیمت',

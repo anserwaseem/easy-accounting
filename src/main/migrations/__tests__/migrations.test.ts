@@ -249,6 +249,7 @@ describe('migrations', () => {
         '023_add_inventory_title',
         '024_normalize_invoice_date_format',
         '025_add_account_urdu_fields',
+        '026_add_account_urdu_fields',
       ]);
     });
 
