@@ -7,7 +7,6 @@ import {
 } from '@/renderer/hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { format, isValid } from 'date-fns';
 import { InvoiceType, type InvoiceView } from 'types';
 import { Button } from 'renderer/shad/ui/button';
 import { getOsModifierLabel, Kbd, KbdGroup } from 'renderer/shad/ui/kbd';
@@ -27,11 +26,19 @@ import {
   groupInvoiceItemsByType,
 } from '@/renderer/lib/invoiceUtils';
 import { getInvoiceDocumentBaseName } from '@/lib/invoiceDocumentName';
+import { amountInWordsUrdu } from '@/lib/amountInWordsUrdu';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
+import {
+  formatInvoicePrintCurrency,
+  formatInvoicePrintDate,
+  getInvoicePrintLabels,
+  pickPrintLocalizedText,
+} from '@/renderer/lib/invoicePrint/locale';
+import nastaliqFontUrl from '../../fonts/NotoNastaliqUrdu-Regular.ttf';
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
-  'min-h-screen bg-white p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:pl-8 print:pr-0 print:pt-0 print:pb-0 print:text-black';
+  'min-h-screen bg-white p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:ps-8 print:pe-0 print:pt-0 print:pb-0 print:text-black';
 
 /** lock controls to light surfaces so shadcn tokens (bg-background, accent) never go dark-on-dark */
 const printToolbarPanelClass =
@@ -86,8 +93,12 @@ const PrintableInvoiceScreen = () => {
   const [pdfOutputDir, setPdfOutputDir] = useState<string | null>(null);
   const navigate = useNavigate();
   const { profile: companyProfile } = useCompanyProfile();
-  const { settings: invoicePrintSettings, defaults } =
-    useInvoicePrintSettings();
+  const { settings: invoicePrintSettings } = useInvoicePrintSettings();
+  const isUrdu = invoicePrintSettings.locale === 'ur';
+  const labels = useMemo(
+    () => getInvoicePrintLabels(invoicePrintSettings.locale),
+    [invoicePrintSettings.locale],
+  );
   const { theme } = useTheme();
   const isDarkAppChrome =
     theme === 'dark' ||
@@ -98,10 +109,14 @@ const PrintableInvoiceScreen = () => {
   const biltyGoodsText = useMemo(() => {
     if (!invoice) return '';
     const bilty = invoice.biltyNumber ?? '';
-    const goods = invoice.accountGoodsName?.trim();
+    const goods = pickPrintLocalizedText(
+      invoice.accountGoodsName,
+      invoice.accountGoodsNameUrdu,
+      invoicePrintSettings.locale,
+    );
     const goodsShort = goods ? truncate(goods, { length: 30 }).trim() : '';
     return goodsShort ? `${bilty} (${goodsShort})` : `${bilty}`;
-  }, [invoice]);
+  }, [invoice, invoicePrintSettings.locale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,8 +262,9 @@ const PrintableInvoiceScreen = () => {
       // clear any prior toasts; per-invoice navigation also runs dismiss via useEffect([id])
       dismissAllToasts();
 
-      // allow renderer to fetch invoice before printToPDF snapshots the webview
-      const settleMs = 100;
+      // allow renderer to fetch invoice before printToPDF snapshots the webview;
+      // urdu needs extra settle time so nastaliq font can load
+      const settleMs = isUrdu ? 400 : 100;
 
       for (const rowId of rowIds) {
         let label: string | number = rowId;
@@ -435,19 +451,31 @@ const PrintableInvoiceScreen = () => {
   const isPurchase = invoice?.invoiceType === InvoiceType.Purchase;
 
   // purchases name the supplier the goods came from, not a bill-to customer
-  const partyLabel = isPurchase ? 'Vendor:' : 'Bill To:';
+  const partyLabel = isPurchase ? labels.vendor : labels.billTo;
 
   const billToName = useMemo(() => {
     const name = getPrintBillToPartyName(
       invoice?.accountName,
       itemTypeNames,
       invoice?.invoiceItems,
+      {
+        preferUrdu: isUrdu,
+        headerAccountNameUrdu: invoice?.accountNameUrdu,
+      },
     );
     // an unnamed sale is a counter sale; a purchase always has a selected vendor,
     // so leave its placeholder alone rather than calling the vendor a customer
     if (name !== '—') return name;
-    return isPurchase ? name : 'WALK IN CUSTOMER';
-  }, [invoice?.accountName, invoice?.invoiceItems, isPurchase, itemTypeNames]);
+    return isPurchase ? name : labels.walkInCustomer;
+  }, [
+    invoice?.accountName,
+    invoice?.accountNameUrdu,
+    invoice?.invoiceItems,
+    isPurchase,
+    isUrdu,
+    itemTypeNames,
+    labels.walkInCustomer,
+  ]);
   // consignment fields are optional on a purchase — set when it books a sale return an
   // agent collected, empty on a direct purchase, where the labels would dangle unfilled
   const showBiltyField = !isPurchase || biltyGoodsText.trim().length > 0;
@@ -460,26 +488,79 @@ const PrintableInvoiceScreen = () => {
       : 'flex justify-start gap-10';
 
   const billToAddress = useMemo(() => {
-    const raw = invoice?.accountAddress ?? '';
-    const address = String(raw).trim();
-    return address.length > 0 ? address : '';
-  }, [invoice?.accountAddress]);
+    return pickPrintLocalizedText(
+      invoice?.accountAddress,
+      invoice?.accountAddressUrdu,
+      invoicePrintSettings.locale,
+    );
+  }, [
+    invoice?.accountAddress,
+    invoice?.accountAddressUrdu,
+    invoicePrintSettings.locale,
+  ]);
 
   const printCompanyHeading = useMemo(() => {
-    const name = companyProfile.name.trim();
+    const name = pickPrintLocalizedText(
+      companyProfile.name,
+      companyProfile.nameUrdu,
+      invoicePrintSettings.locale,
+    );
     if (name.length > 0) {
       return name;
     }
     if (invoice?.isQuotation) {
-      return 'QUOTATION';
+      return labels.quotationFallbackTitle;
     }
-    return 'INVOICE';
-  }, [companyProfile.name, invoice?.isQuotation]);
+    return labels.invoiceFallbackTitle;
+  }, [
+    companyProfile.name,
+    companyProfile.nameUrdu,
+    invoice?.isQuotation,
+    invoicePrintSettings.locale,
+    labels.invoiceFallbackTitle,
+    labels.quotationFallbackTitle,
+  ]);
+
+  const companyAddressLine = useMemo(() => {
+    const address = pickPrintLocalizedText(
+      companyProfile.address,
+      companyProfile.addressUrdu,
+      invoicePrintSettings.locale,
+    );
+    return [address, companyProfile.phone.trim(), companyProfile.email.trim()]
+      .filter(Boolean)
+      .join(' · ');
+  }, [
+    companyProfile.address,
+    companyProfile.addressUrdu,
+    companyProfile.email,
+    companyProfile.phone,
+    invoicePrintSettings.locale,
+  ]);
 
   const totalQuantity = invoiceItems.reduce(
     (sum, item) => sum + toNumber(item.quantity),
     0,
   );
+
+  const formatPrintAmount = (amount: number): string =>
+    isUrdu
+      ? formatInvoicePrintCurrency(amount, invoicePrintSettings.locale)
+      : getFormattedCurrency(amount);
+
+  const totalAmountInWords = useMemo(() => {
+    const amount = toNumber(invoice?.totalAmount || 0);
+    if (isUrdu) {
+      return `${labels.total} ${amountInWordsUrdu(amount)} ${
+        labels.currencyWordsPrefix
+      }`;
+    }
+    const words = toWords(amount)
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+    return `${labels.total} ${labels.currencyWordsPrefix} ${words}`;
+  }, [invoice?.totalAmount, isUrdu, labels.currencyWordsPrefix, labels.total]);
 
   const groupedInvoiceItems = useMemo(
     () => groupInvoiceItemsByType(invoiceItems, primaryItemTypeName),
@@ -551,7 +632,23 @@ const PrintableInvoiceScreen = () => {
   }
 
   return (
-    <div className={printPreviewRootClass}>
+    <div
+      className={`${printPreviewRootClass}${
+        isUrdu ? " font-['Noto_Nastaliq_Urdu',serif]" : ''
+      }`}
+      dir={isUrdu ? 'rtl' : 'ltr'}
+      lang={isUrdu ? 'ur' : 'en'}
+    >
+      {isUrdu ? (
+        <style>{`
+          @font-face {
+            font-family: 'Noto Nastaliq Urdu';
+            src: url(${nastaliqFontUrl}) format('truetype');
+            font-weight: 400 700;
+            font-display: block;
+          }
+        `}</style>
+      ) : null}
       {isDarkAppChrome ? (
         <div
           className="print:hidden mb-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 shadow-sm dark:border-amber-300/50 dark:bg-amber-950/30 dark:text-amber-50"
@@ -561,7 +658,7 @@ const PrintableInvoiceScreen = () => {
           theme for the rest of the app.
         </div>
       ) : null}
-      <div className={printToolbarPanelClass}>
+      <div dir="ltr" className={printToolbarPanelClass}>
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-2">
             <Button
@@ -685,14 +782,15 @@ const PrintableInvoiceScreen = () => {
             role="status"
           >
             <p className="text-lg font-bold uppercase tracking-wide text-red-800 print:text-black">
-              RETURNED
+              {labels.returnedBanner}
             </p>
             {invoice.returnedAt ? (
               <p className="mt-1 text-sm text-red-900/80 print:text-neutral-800">
-                Returned on{' '}
-                {isValid(new Date(invoice.returnedAt))
-                  ? format(invoice.returnedAt, 'PP')
-                  : invoice.returnedAt}
+                {labels.returnedOn}{' '}
+                {formatInvoicePrintDate(
+                  invoice.returnedAt,
+                  invoicePrintSettings.locale,
+                )}
               </p>
             ) : null}
           </div>
@@ -703,32 +801,22 @@ const PrintableInvoiceScreen = () => {
             role="status"
           >
             <p className="text-lg font-bold uppercase tracking-wide text-amber-950 print:text-black">
-              QUOTATION
+              {labels.quotationBanner}
             </p>
           </div>
         ) : null}
         <div className="flex justify-between items-center">
           <div className="w-full">
-            <h1 className="text-[26px] leading-6 font-bold text-center font-mono">
+            <h1
+              className={`text-[26px] leading-6 font-bold text-center${
+                isUrdu ? '' : ' font-mono'
+              }`}
+            >
               {printCompanyHeading}
             </h1>
-            {[
-              companyProfile.address,
-              companyProfile.phone,
-              companyProfile.email,
-            ]
-              .map((v) => v.trim())
-              .filter(Boolean)
-              .join(' · ') ? (
-              <p className="text-center font-mono text-sm">
-                {[
-                  companyProfile.address,
-                  companyProfile.phone,
-                  companyProfile.email,
-                ]
-                  .map((v) => v.trim())
-                  .filter(Boolean)
-                  .join(' · ')}
+            {companyAddressLine ? (
+              <p className={`text-center text-sm${isUrdu ? '' : ' font-mono'}`}>
+                {companyAddressLine}
               </p>
             ) : null}
           </div>
@@ -737,51 +825,56 @@ const PrintableInvoiceScreen = () => {
         <div className="flex flex-col text-base leading-none gap-2 my-1">
           <div className={headerFieldsRowClass}>
             <div className="flex gap-1 whitespace-nowrap">
-              <p>{invoice.isQuotation ? 'Quotation #:' : 'Invoice No:'}</p>
               <p>
+                {invoice.isQuotation
+                  ? labels.quotationNumber
+                  : labels.invoiceNumber}
+              </p>
+              <p dir="ltr">
                 {invoice.isQuotation
                   ? getQuotationDisplayNumber(toNumber(invoice.invoiceNumber))
                   : invoice.invoiceNumber}
               </p>
             </div>
             <div className="flex gap-1 whitespace-nowrap">
-              <p>Date:</p>
-              <p className="whitespace-nowrap">
-                {isValid(new Date(invoice.date))
-                  ? format(invoice.date, 'PP')
-                  : invoice.date}
+              <p>{labels.date}</p>
+              <p className="whitespace-nowrap" dir="ltr">
+                {formatInvoicePrintDate(
+                  invoice.date,
+                  invoicePrintSettings.locale,
+                )}
               </p>
             </div>
             {showBiltyField ? (
               <div className="flex gap-1 whitespace-nowrap">
-                <p>Bilty:</p>
+                <p>{labels.bilty}</p>
                 <p>{biltyGoodsText}</p>
               </div>
             ) : null}
             {showCartonsField ? (
               <div className="flex gap-1 whitespace-nowrap">
-                <p>Cartons:</p>
-                <p>{invoice.cartons ?? ''}</p>
+                <p>{labels.cartons}</p>
+                <p dir="ltr">{invoice.cartons ?? ''}</p>
               </div>
             ) : null}
           </div>
           <div className="flex gap-1 -mt-1">
             <p className="whitespace-nowrap">{partyLabel}</p>
             <p className="whitespace-nowrap">{billToName}</p>
-            <p className="pl-2">{billToAddress}</p>
+            <p className="ps-2">{billToAddress}</p>
           </div>
         </div>
 
         <table className="w-full text-base leading-tight [&_th]:px-1 [&_td]:px-1 [&_td]:py-0 border-[0.5px] border-gray-400 border-collapse [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400">
           <thead>
             <tr className="[&_th]:font-semibold">
-              <th className="text-left">#</th>
-              <th>Item</th>
-              <th className="text-left">Item Description</th>
-              <th className="text-right">Qty</th>
-              <th className="text-right w-[4.75rem]">Price</th>
-              <th className="text-right">Discount</th>
-              <th className="text-right pr-2 w-[7.25rem]">Amount</th>
+              <th className="text-start">{labels.serial}</th>
+              <th>{labels.item}</th>
+              <th className="text-start">{labels.itemDescription}</th>
+              <th className="text-end">{labels.qty}</th>
+              <th className="text-end w-[4.75rem]">{labels.price}</th>
+              <th className="text-end">{labels.discount}</th>
+              <th className="text-end pe-2 w-[7.25rem]">{labels.amount}</th>
             </tr>
           </thead>
           <tbody>
@@ -800,12 +893,15 @@ const PrintableInvoiceScreen = () => {
                 return (
                   <tr key={row.key} className="bg-gray-50">
                     <td colSpan={3} />
-                    <td className="text-right font-semibold">
+                    <td className="text-end font-semibold" dir="ltr">
                       {row.totalQuantity}
                     </td>
                     <td />
                     <td />
-                    <td className="text-right pr-2 w-[7.25rem] font-semibold">
+                    <td
+                      className="text-end pe-2 w-[7.25rem] font-semibold"
+                      dir="ltr"
+                    >
                       {toNumber(row.totalAmount).toFixed(2)}
                     </td>
                   </tr>
@@ -814,60 +910,70 @@ const PrintableInvoiceScreen = () => {
 
               return (
                 <tr key={row.key}>
-                  <td>{row.serialNumber}</td>
-                  <td className="text-center">{row.item.inventoryItemName}</td>
+                  <td dir="ltr">{row.serialNumber}</td>
+                  <td className="text-center" dir="ltr">
+                    {row.item.inventoryItemName}
+                  </td>
                   <td>{row.item.inventoryItemDescription}</td>
-                  <td className="text-right">{row.item.quantity}</td>
-                  <td className="text-right w-[4.75rem]">
+                  <td className="text-end" dir="ltr">
+                    {row.item.quantity}
+                  </td>
+                  <td className="text-end w-[4.75rem]" dir="ltr">
                     {toNumber(row.item.price).toFixed(0)}
                   </td>
-                  <td className="text-right">{row.item.discount.toFixed(2)}</td>
-                  <td className="text-right pr-2 w-[7.25rem]">
+                  <td className="text-end" dir="ltr">
+                    {row.item.discount.toFixed(2)}
+                  </td>
+                  <td className="text-end pe-2 w-[7.25rem]" dir="ltr">
                     {toNumber(row.item.discountedPrice).toFixed(2)}
                   </td>
                 </tr>
               );
             })}
 
-            {/* Total Quantity */}
+            {/* total quantity */}
             <tr className="[&_td]:border-0">
               <td
                 colSpan={3}
                 className="italic !border-y-[0.5px] !border-gray-400"
               >
-                {invoicePrintSettings.totalQuantityLabel.trim() ||
-                  defaults.totalQuantityLabel}
+                {labels.totalQuantity}
               </td>
-              <td className="text-right !border-[0.5px] !border-gray-400">
+              <td
+                className="text-end !border-[0.5px] !border-gray-400"
+                dir="ltr"
+              >
                 {totalQuantity}
               </td>
               <td colSpan={3} />
             </tr>
-            {/* Extra Discount */}
+            {/* extra discount */}
             {invoice.extraDiscount ? (
               <tr className="[&_td]:border-0">
                 <td colSpan={6} className="!border-y-[0.5px] !border-gray-400">
-                  Extra Discount:
+                  {labels.extraDiscount}
                 </td>
-                <td className="pr-2 w-[7.25rem] text-right !border-[0.5px] !border-gray-400">
-                  {getFormattedCurrency(toNumber(invoice.extraDiscount))}
+                <td
+                  className="pe-2 w-[7.25rem] text-end !border-[0.5px] !border-gray-400"
+                  dir="ltr"
+                >
+                  {formatPrintAmount(toNumber(invoice.extraDiscount))}
                 </td>
               </tr>
             ) : null}
-            {/* Total Amount */}
+            {/* total amount */}
             <tr className="[&_td]:border-0">
               <td
                 colSpan={6}
                 className="italic !border-y-[0.5px] !border-gray-400"
               >
-                Total: Rs.{' '}
-                {toWords(invoice.totalAmount || 0)
-                  .split(' ')
-                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                  .join(' ')}
+                {totalAmountInWords}
               </td>
-              <td className="pr-2 w-[7.25rem] font-bold text-right !border-[0.5px] !border-gray-400">
-                {getFormattedCurrency(toNumber(invoice?.totalAmount))}
+              <td
+                className="pe-2 w-[7.25rem] font-bold text-end !border-[0.5px] !border-gray-400"
+                dir="ltr"
+              >
+                {formatPrintAmount(toNumber(invoice?.totalAmount))}
               </td>
             </tr>
           </tbody>
