@@ -176,9 +176,24 @@ Do **not** add more hub chrome before answering the blockers below. The next cod
 5. **Does press P1 also need WIP tracking**, or only binder B1?
 6. **Scrap**: if Q1 family yields Q2+Q3 &lt; Q1, is the rest scrap, still at binder, or returned material?
 
+## Production DB note (2026-09-04)
+
+Owner pointed at local backup:
+
+`/Users/anserwaseem/Projects/azs-experiments/easy-accounting/release/app/database-backup_2026-09-03T13-49-38-969Z.db`
+
+That path is **on the Mac host**, not mounted into this cloud agent VM. Cannot verify parentId / `family_code` attribute from here. Run:
+
+```bash
+sqlite3 "/Users/anserwaseem/Projects/azs-experiments/easy-accounting/release/app/database-backup_2026-09-03T13-49-38-969Z.db" \
+  < docs/examples/vendor-stock/verify-family-wip.sql
+```
+
+(Paste output back — especially sections 2, 3, 4, 7.) Or drop/upload the `.db` into the agent workspace.
+
 ## Next Steps
 
-- [ ] Answer blockers 1–6 with one real S-23 example (numbers)
+- [ ] Run `verify-family-wip.sql` on the 2026-09-03 backup; answer blockers 1–6 with one real S-23 example (numbers)
 - [ ] Check production: `% of variants with parentId NOT NULL`
 - [ ] If parentId healthy: design minimal patch — `resolveFamilyInventoryId` in `applyPurchaseEffect` + activity group-by family
 - [ ] If parentId empty: data repair before any WIP v2
