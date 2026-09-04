@@ -273,6 +273,8 @@ describe('VendorStockService', () => {
     expect(issue?.items).toHaveLength(2);
     expect(issue?.notes).toBe('corrected');
     expect(issue?.date.slice(0, 10)).toBe('2026-01-16');
+    expect(issue?.createdAt).toBeTruthy();
+    expect(issue?.updatedAt).toBeTruthy();
 
     db.close();
   });

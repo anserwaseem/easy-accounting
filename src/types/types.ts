@@ -387,6 +387,7 @@ export interface VendorIssueListItem {
   totalQuantity: number;
   lineCount: number;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface VendorIssueView extends VendorIssueListItem {

@@ -934,6 +934,7 @@ export class VendorStockService {
         vi.date,
         vi.notes,
         vi.createdAt,
+        vi.updatedAt,
         COALESCE(SUM(vii.quantity), 0) AS totalQuantity,
         COUNT(vii.id) AS lineCount
       FROM vendor_issues vi
@@ -952,6 +953,7 @@ export class VendorStockService {
         vi.date,
         vi.notes,
         vi.createdAt,
+        vi.updatedAt,
         COALESCE((SELECT SUM(quantity) FROM vendor_issue_items WHERE issueId = vi.id), 0) AS totalQuantity,
         COALESCE((SELECT COUNT(*) FROM vendor_issue_items WHERE issueId = vi.id), 0) AS lineCount
       FROM vendor_issues vi

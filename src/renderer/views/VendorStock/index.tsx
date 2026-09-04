@@ -5,8 +5,15 @@ import { Button } from '@/renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { DateHeader } from '@/renderer/components/common/DateHeader';
+import { Badge } from '@/renderer/shad/ui/badge';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { cn } from '@/renderer/lib/utils';
+import {
+  dateFormatOptions,
+  datetimeFormatOptions,
+} from '@/renderer/lib/constants';
+import { isPersistedRowEdited } from '@/renderer/lib/invoiceUtils';
 import type { VendorIssueListItem, VendorStockRow } from 'types';
 import {
   Dialog,
@@ -18,14 +25,26 @@ import {
 } from '@/renderer/shad/ui/dialog';
 import { ImportVendorOpeningStock } from './ImportVendorOpeningStock';
 
+const SELECTED_VENDOR_STORE_KEY = 'vendorStockSelectedVendorId';
+
+const readStoredVendorId = (): number | undefined => {
+  const stored = window.electron.store.get(SELECTED_VENDOR_STORE_KEY);
+  const id = Number(stored);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+};
+
+const persistVendorId = (vendorId: number | undefined): void => {
+  window.electron.store.set(SELECTED_VENDOR_STORE_KEY, vendorId ?? null);
+};
+
 const VendorStockPage: React.FC = () => {
   const navigate = useNavigate();
   const [vendors, setVendors] = useState<
     Array<{ id: number; name: string; code?: number | string | null }>
   >([]);
-  const [selectedVendorId, setSelectedVendorId] = useState<
-    number | undefined
-  >();
+  const [selectedVendorId, setSelectedVendorId] = useState<number | undefined>(
+    readStoredVendorId,
+  );
   const [onHand, setOnHand] = useState<VendorStockRow[]>([]);
   const [issues, setIssues] = useState<VendorIssueListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,19 +52,31 @@ const VendorStockPage: React.FC = () => {
     useState<VendorIssueListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const applyVendorId = useCallback((vendorId: number | undefined) => {
+    setSelectedVendorId(vendorId);
+    persistVendorId(vendorId);
+  }, []);
+
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [tracked, stock, issueRows] = await Promise.all([
-        window.electron.getTrackedVendorAccounts(),
-        window.electron.getVendorStockOnHand(selectedVendorId),
+      const tracked = await window.electron.getTrackedVendorAccounts();
+      setVendors(tracked);
+      const vendorStillTracked =
+        selectedVendorId != null &&
+        tracked.some((vendor) => vendor.id === selectedVendorId);
+      const vendorId = vendorStillTracked ? selectedVendorId : undefined;
+      if (selectedVendorId != null && !vendorStillTracked) {
+        applyVendorId(undefined);
+      }
+      const [stock, issueRows] = await Promise.all([
+        window.electron.getVendorStockOnHand(vendorId),
         window.electron.getVendorIssues(),
       ]);
-      setVendors(tracked);
       setOnHand(stock);
       setIssues(
-        selectedVendorId
-          ? issueRows.filter((i) => i.vendorAccountId === selectedVendorId)
+        vendorId
+          ? issueRows.filter((i) => i.vendorAccountId === vendorId)
           : issueRows,
       );
     } catch (error) {
@@ -56,7 +87,7 @@ const VendorStockPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedVendorId]);
+  }, [applyVendorId, selectedVendorId]);
 
   useEffect(() => {
     load();
@@ -103,10 +134,14 @@ const VendorStockPage: React.FC = () => {
 
   const onHandColumns: ColumnDef<VendorStockRow>[] = useMemo(
     () => [
-      {
-        accessorKey: 'vendorAccountName',
-        header: 'Vendor',
-      },
+      ...(selectedVendorId
+        ? []
+        : [
+            {
+              accessorKey: 'vendorAccountName',
+              header: 'Vendor',
+            },
+          ]),
       {
         accessorKey: 'inventoryName',
         header: 'Item',
@@ -127,7 +162,7 @@ const VendorStockPage: React.FC = () => {
         ),
       },
     ],
-    [],
+    [selectedVendorId],
   );
 
   const issueColumns: ColumnDef<VendorIssueListItem>[] = useMemo(
@@ -135,16 +170,48 @@ const VendorStockPage: React.FC = () => {
       {
         accessorKey: 'issueNumber',
         header: '#',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
+            {row.original.issueNumber}
+            {isPersistedRowEdited(row.original) ? (
+              <Badge
+                variant="amber"
+                className="px-1.5 py-0 text-[10px] font-normal"
+                title={
+                  row.original.updatedAt
+                    ? new Date(row.original.updatedAt).toLocaleString(
+                        'en-US',
+                        datetimeFormatOptions,
+                      )
+                    : undefined
+                }
+              >
+                Edited
+              </Badge>
+            ) : null}
+          </span>
+        ),
       },
       {
         accessorKey: 'date',
-        header: 'Date',
-        cell: ({ row }) => row.original.date?.slice(0, 10) ?? '',
+        header: DateHeader,
+        cell: ({ row }) =>
+          row.original.date
+            ? new Date(row.original.date).toLocaleString(
+                'en-US',
+                dateFormatOptions,
+              )
+            : '',
       },
-      {
-        accessorKey: 'vendorAccountName',
-        header: 'Vendor',
-      },
+      ...(selectedVendorId
+        ? []
+        : [
+            {
+              accessorKey: 'vendorAccountName',
+              header: 'Vendor',
+            },
+          ]),
       {
         accessorKey: 'totalQuantity',
         header: 'Qty',
@@ -187,7 +254,7 @@ const VendorStockPage: React.FC = () => {
         ),
       },
     ],
-    [navigate],
+    [navigate, selectedVendorId],
   );
 
   return (
@@ -233,11 +300,7 @@ const VendorStockPage: React.FC = () => {
               options={vendorFilterOptions}
               value={selectedVendorId ?? 'all'}
               onChange={(value) => {
-                if (value === 'all') {
-                  setSelectedVendorId(undefined);
-                } else {
-                  setSelectedVendorId(Number(value));
-                }
+                applyVendorId(value === 'all' ? undefined : Number(value));
               }}
               placeholder="Filter vendor"
               searchPlaceholder="Search vendors..."

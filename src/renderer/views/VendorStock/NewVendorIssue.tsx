@@ -5,9 +5,16 @@ import { groupBy, sortBy } from 'lodash';
 import { Button } from '@/renderer/shad/ui/button';
 import { Input } from '@/renderer/shad/ui/input';
 import { Label } from '@/renderer/shad/ui/label';
+import { Badge } from '@/renderer/shad/ui/badge';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { DateSelector } from '@/renderer/components/DateSelector';
 import { toast } from '@/renderer/shad/ui/use-toast';
-import { toLocalDateInputValue } from '@/renderer/lib/localDate';
+import {
+  toLocalNoonIsoString,
+  toLocalNoonIsoStringFromStored,
+} from '@/renderer/lib/localDate';
+import { datetimeFormatOptions } from '@/renderer/lib/constants';
+import { isPersistedRowEdited } from '@/renderer/lib/invoiceUtils';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
 import type { InventoryItem } from 'types';
@@ -37,9 +44,11 @@ const NewVendorIssuePage: React.FC = () => {
   >([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [vendorAccountId, setVendorAccountId] = useState<number | undefined>();
-  const [date, setDate] = useState(toLocalDateInputValue(new Date()));
+  const [date, setDate] = useState(toLocalNoonIsoString(new Date()));
   const [notes, setNotes] = useState('');
   const [issueNumber, setIssueNumber] = useState<number>(1);
+  const [createdAt, setCreatedAt] = useState<string | undefined>();
+  const [updatedAt, setUpdatedAt] = useState<string | undefined>();
   const [lines, setLines] = useState<IssueLine[]>([
     { key: '1', inventoryId: 0, quantity: 0 },
   ]);
@@ -75,12 +84,13 @@ const NewVendorIssuePage: React.FC = () => {
           }
           setIssueNumber(issue.issueNumber);
           setVendorAccountId(issue.vendorAccountId);
-          // prefer stored date text; avoid UTC shift from Date parsing
-          const dateText = issue.date?.slice(0, 10);
+          setCreatedAt(issue.createdAt);
+          setUpdatedAt(issue.updatedAt);
+          // prefer stored calendar day; avoid UTC shift from date-only strings
           setDate(
-            dateText && /^\d{4}-\d{2}-\d{2}$/.test(dateText)
-              ? dateText
-              : toLocalDateInputValue(new Date(issue.date)),
+            issue.date
+              ? toLocalNoonIsoStringFromStored(issue.date)
+              : toLocalNoonIsoString(new Date()),
           );
           setNotes(issue.notes ?? '');
           setLines(
@@ -254,15 +264,35 @@ const NewVendorIssuePage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="title-new">
-          {isEdit ? 'Edit send to vendor' : 'Send to vendor'}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {isEdit
-            ? 'Updates family qty at the vendor to match this send. Warehouse inventory is unchanged.'
-            : 'Increases family qty at the vendor (pick the family head). Warehouse inventory is unchanged. Purchases of any variant later reduce the same pool.'}
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="title-new">
+            {isEdit ? 'Edit send to vendor' : 'Send to vendor'}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {isEdit
+              ? 'Updates family qty at the vendor to match this send. Warehouse inventory is unchanged.'
+              : 'Increases family qty at the vendor (pick the family head). Warehouse inventory is unchanged. Purchases of any variant later reduce the same pool.'}
+          </p>
+        </div>
+        {isEdit &&
+        isPersistedRowEdited({ createdAt, updatedAt }) &&
+        updatedAt ? (
+          <div
+            className="flex gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm shadow-sm md:max-w-sm md:items-end md:text-right"
+            role="status"
+          >
+            <Badge variant="amber" className="w-fit">
+              Last edited
+            </Badge>
+            <p className="mt-1 text-muted-foreground">
+              {new Date(updatedAt).toLocaleString(
+                'en-US',
+                datetimeFormatOptions,
+              )}
+            </p>
+          </div>
+        ) : null}
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -272,11 +302,13 @@ const NewVendorIssuePage: React.FC = () => {
         </div>
         <div className="space-y-2">
           <Label htmlFor="vendorIssueDate">Date</Label>
-          <Input
+          <DateSelector
             id="vendorIssueDate"
-            type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onSelect={(selected) => {
+              if (!selected) return;
+              setDate(toLocalNoonIsoString(selected));
+            }}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">

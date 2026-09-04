@@ -123,12 +123,12 @@ export const groupInvoiceItemsByType = (
 };
 
 /** true when persisted row was modified after creation (list + details edited indicator). */
-const isInvoiceEditedSnapshot = (inv: {
+export const isPersistedRowEdited = (row: {
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }): boolean => {
-  const c = inv.createdAt;
-  const u = inv.updatedAt;
+  const c = row.createdAt;
+  const u = row.updatedAt;
   if (c == null || u == null) return false;
   const ct = new Date(c).getTime();
   const ut = new Date(u).getTime();
@@ -145,7 +145,7 @@ export const showInvoiceEditedIndicator = (inv: {
   isReturned?: boolean;
 }): boolean => {
   if (inv.isReturned) return false;
-  return isInvoiceEditedSnapshot(inv);
+  return isPersistedRowEdited(inv);
 };
 
 export { getQuotationDisplayNumber } from '@/lib/quotationDisplay';
