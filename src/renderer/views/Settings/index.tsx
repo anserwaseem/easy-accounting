@@ -3,11 +3,20 @@ import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
 import { Label } from 'renderer/shad/ui/label';
 import { Input } from 'renderer/shad/ui/input';
 import { useCallback, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
-import type { InvoicePrintLocale } from '@/renderer/lib/invoicePrint/locale';
+import type {
+  InvoicePrintLabelKey,
+  InvoicePrintLabels,
+  InvoicePrintLocale,
+} from '@/renderer/lib/invoicePrint/locale';
+import {
+  INVOICE_PRINT_LABEL_KEYS,
+  INVOICE_PRINT_LABEL_TITLES,
+} from '@/renderer/lib/invoicePrint/locale';
 import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
 import PublishSettings from './PublishSettings';
 
@@ -37,11 +46,18 @@ const SettingsPage: React.FC = () => {
     companyProfile.addressUrdu,
   );
 
-  const { settings: invoicePrintSettings, saveInvoicePrintSettings } =
-    useInvoicePrintSettings();
+  const {
+    settings: invoicePrintSettings,
+    saveInvoicePrintSettings,
+    defaults: invoicePrintDefaults,
+  } = useInvoicePrintSettings();
   const [draftPrintLocale, setDraftPrintLocale] = useState<InvoicePrintLocale>(
     invoicePrintSettings.locale,
   );
+  const [draftUrduLabelOverrides, setDraftUrduLabelOverrides] = useState<
+    Partial<InvoicePrintLabels>
+  >(() => ({ ...invoicePrintSettings.urduLabelOverrides }));
+  const [urduLabelsExpanded, setUrduLabelsExpanded] = useState(false);
 
   const [
     allowSaveWhenSplitTypedAccountMissing,
@@ -52,6 +68,25 @@ const SettingsPage: React.FC = () => {
         BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY,
       ) === false,
   );
+
+  const handleUrduLabelChange = useCallback(
+    (key: InvoicePrintLabelKey, value: string) => {
+      setDraftUrduLabelOverrides((prev) => {
+        const next = { ...prev };
+        if (value.trim().length === 0) {
+          delete next[key];
+        } else {
+          next[key] = value;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleResetUrduLabels = useCallback(() => {
+    setDraftUrduLabelOverrides({});
+  }, []);
 
   const handleSaveSettings = useCallback(() => {
     window.electron.store.set(
@@ -70,6 +105,7 @@ const SettingsPage: React.FC = () => {
 
     saveInvoicePrintSettings({
       locale: draftPrintLocale,
+      urduLabelOverrides: draftUrduLabelOverrides,
     });
 
     window.electron.store.set(
@@ -93,6 +129,7 @@ const SettingsPage: React.FC = () => {
     draftCompanyAddressUrdu,
     saveInvoicePrintSettings,
     draftPrintLocale,
+    draftUrduLabelOverrides,
   ]);
 
   return (
@@ -285,6 +322,60 @@ const SettingsPage: React.FC = () => {
           words, and uses company/account Urdu fields when filled (otherwise
           falls back to English). Item codes and numbers stay Latin digits.
         </p>
+
+        <div className="mt-6 border rounded-md">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm font-medium hover:bg-muted/50"
+            onClick={() => setUrduLabelsExpanded((open) => !open)}
+            aria-expanded={urduLabelsExpanded}
+          >
+            {urduLabelsExpanded ? (
+              <ChevronDown size={16} className="shrink-0" />
+            ) : (
+              <ChevronRight size={16} className="shrink-0" />
+            )}
+            Urdu print labels
+          </button>
+          {urduLabelsExpanded ? (
+            <div className="border-t px-3 pb-3 pt-2 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Have a native speaker review before production. Leave a field
+                empty to keep the built-in default.
+              </p>
+              <div className="grid grid-cols-1 gap-3">
+                {INVOICE_PRINT_LABEL_KEYS.map((key) => (
+                  <div className="flex flex-col gap-1.5" key={key}>
+                    <Label
+                      htmlFor={`urduPrintLabel-${key}`}
+                      className="font-normal"
+                    >
+                      {INVOICE_PRINT_LABEL_TITLES[key]}
+                    </Label>
+                    <Input
+                      id={`urduPrintLabel-${key}`}
+                      dir="rtl"
+                      lang="ur"
+                      value={draftUrduLabelOverrides[key] ?? ''}
+                      placeholder={invoicePrintDefaults.urduLabels[key]}
+                      onChange={(e) =>
+                        handleUrduLabelChange(key, e.target.value)
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleResetUrduLabels}
+              >
+                Reset Urdu labels to defaults
+              </Button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 mt-8">

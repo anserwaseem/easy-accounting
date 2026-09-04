@@ -9,8 +9,20 @@ describe('invoicePrint locale helpers', () => {
   it('returns Urdu chrome labels', () => {
     const labels = getInvoicePrintLabels('ur');
     expect(labels.billTo).toBe('بل بنام:');
+    expect(labels.price).toBe('ریٹ');
+    expect(labels.total).toBe('کل رقم:');
+    expect(labels.returnedBanner).toBe('واپس شدہ');
     expect(labels.totalQuantity).toBe('کل مقدار:');
     expect(labels.currencyWordsPrefix).toBe('روپے');
+  });
+
+  it('applies non-empty Urdu overrides only', () => {
+    const labels = getInvoicePrintLabels('ur', {
+      billTo: '  وصول کنندہ:  ',
+      total: '',
+    });
+    expect(labels.billTo).toBe('وصول کنندہ:');
+    expect(labels.total).toBe('کل رقم:');
   });
 
   it('formats Urdu Gregorian dates with Urdu month names', () => {
@@ -27,9 +39,7 @@ describe('invoicePrint locale helpers', () => {
   });
 
   it('falls back to English when Urdu is empty', () => {
-    expect(pickPrintLocalizedText('English Co', '  ', 'ur')).toBe(
-      'English Co',
-    );
+    expect(pickPrintLocalizedText('English Co', '  ', 'ur')).toBe('English Co');
   });
 
   it('formats Urdu currency with Western digits', () => {

@@ -128,6 +128,22 @@ export type UpdateAccount = Prettify<
   Omit<Account, keyof BaseEntity | 'chartId' | 'type'> & Pick<BaseEntity, 'id'>
 >;
 
+/** one row from Urdu fields spreadsheet import */
+export type AccountUrduFieldPatch = {
+  id?: number;
+  code?: string | number | null;
+  name?: string;
+  nameUrdu?: string | null;
+  addressUrdu?: string | null;
+  goodsNameUrdu?: string | null;
+};
+
+export type AccountUrduBulkUpdateResult = {
+  updated: number;
+  notFound: number;
+  ambiguous: number;
+};
+
 /** Chart */
 export interface Chart extends BaseEntity {
   name: string;

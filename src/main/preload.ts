@@ -7,6 +7,7 @@ import type {
   BalanceSheet,
   InsertAccount,
   UpdateAccount,
+  AccountUrduFieldPatch,
   Journal,
   JournalNarrationSummary,
   LedgerView,
@@ -515,6 +516,13 @@ const electronHandler = {
    */
   updateAccount: (account: UpdateAccount) =>
     ipcRenderer.invoke('account:updateAccount', account),
+
+  bulkUpdateAccountUrduFields: (patches: AccountUrduFieldPatch[]) =>
+    ipcRenderer.invoke('account:bulkUpdateUrduFields', patches) as Promise<{
+      updated: number;
+      notFound: number;
+      ambiguous: number;
+    }>,
 
   updateAccountDiscountProfile: (
     accountId: number,

@@ -28,12 +28,17 @@ import {
 import { getInvoiceDocumentBaseName } from '@/lib/invoiceDocumentName';
 import { amountInWordsUrdu } from '@/lib/amountInWordsUrdu';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
+import type { InvoicePrintLocale } from '@/renderer/lib/invoicePrint/locale';
 import {
   formatInvoicePrintCurrency,
   formatInvoicePrintDate,
   getInvoicePrintLabels,
   pickPrintLocalizedText,
+  waitForInvoicePrintFonts,
 } from '@/renderer/lib/invoicePrint/locale';
+import { getInvoicePrintReadinessGaps } from '@/renderer/lib/invoicePrint/readiness';
+import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
+import { Label } from 'renderer/shad/ui/label';
 import nastaliqFontUrl from '../../fonts/NotoNastaliqUrdu-Regular.ttf';
 
 /** screen preview only; print stays neutral/black ink */
@@ -94,10 +99,19 @@ const PrintableInvoiceScreen = () => {
   const navigate = useNavigate();
   const { profile: companyProfile } = useCompanyProfile();
   const { settings: invoicePrintSettings } = useInvoicePrintSettings();
-  const isUrdu = invoicePrintSettings.locale === 'ur';
+  // null = follow Settings; set to override for this print session only
+  const [sessionLocale, setSessionLocale] = useState<InvoicePrintLocale | null>(
+    null,
+  );
+  const effectiveLocale = sessionLocale ?? invoicePrintSettings.locale;
+  const isUrdu = effectiveLocale === 'ur';
   const labels = useMemo(
-    () => getInvoicePrintLabels(invoicePrintSettings.locale),
-    [invoicePrintSettings.locale],
+    () =>
+      getInvoicePrintLabels(
+        effectiveLocale,
+        invoicePrintSettings.urduLabelOverrides,
+      ),
+    [effectiveLocale, invoicePrintSettings.urduLabelOverrides],
   );
   const { theme } = useTheme();
   const isDarkAppChrome =
@@ -112,11 +126,11 @@ const PrintableInvoiceScreen = () => {
     const goods = pickPrintLocalizedText(
       invoice.accountGoodsName,
       invoice.accountGoodsNameUrdu,
-      invoicePrintSettings.locale,
+      effectiveLocale,
     );
     const goodsShort = goods ? truncate(goods, { length: 30 }).trim() : '';
     return goodsShort ? `${bilty} (${goodsShort})` : `${bilty}`;
-  }, [invoice, invoicePrintSettings.locale]);
+  }, [invoice, effectiveLocale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,8 +230,9 @@ const PrintableInvoiceScreen = () => {
     };
   }, [invoice]);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     dismissAllToasts();
+    await waitForInvoicePrintFonts(effectiveLocale);
     window.print();
   };
 
@@ -262,9 +277,8 @@ const PrintableInvoiceScreen = () => {
       // clear any prior toasts; per-invoice navigation also runs dismiss via useEffect([id])
       dismissAllToasts();
 
-      // allow renderer to fetch invoice before printToPDF snapshots the webview;
-      // urdu needs extra settle time so nastaliq font can load
-      const settleMs = isUrdu ? 400 : 100;
+      // short settle for React paint after navigate; fonts awaited separately
+      const settleMs = 75;
 
       for (const rowId of rowIds) {
         let label: string | number = rowId;
@@ -282,6 +296,7 @@ const PrintableInvoiceScreen = () => {
           navigate(`/invoices/${rowId}/print`);
           // eslint-disable-next-line no-promise-executor-return
           await new Promise((resolve) => setTimeout(resolve, settleMs));
+          await waitForInvoicePrintFonts(effectiveLocale);
 
           const result = await window.electron.printToPdf(pdfBase);
 
@@ -491,19 +506,15 @@ const PrintableInvoiceScreen = () => {
     return pickPrintLocalizedText(
       invoice?.accountAddress,
       invoice?.accountAddressUrdu,
-      invoicePrintSettings.locale,
+      effectiveLocale,
     );
-  }, [
-    invoice?.accountAddress,
-    invoice?.accountAddressUrdu,
-    invoicePrintSettings.locale,
-  ]);
+  }, [invoice?.accountAddress, invoice?.accountAddressUrdu, effectiveLocale]);
 
   const printCompanyHeading = useMemo(() => {
     const name = pickPrintLocalizedText(
       companyProfile.name,
       companyProfile.nameUrdu,
-      invoicePrintSettings.locale,
+      effectiveLocale,
     );
     if (name.length > 0) {
       return name;
@@ -516,7 +527,7 @@ const PrintableInvoiceScreen = () => {
     companyProfile.name,
     companyProfile.nameUrdu,
     invoice?.isQuotation,
-    invoicePrintSettings.locale,
+    effectiveLocale,
     labels.invoiceFallbackTitle,
     labels.quotationFallbackTitle,
   ]);
@@ -525,7 +536,7 @@ const PrintableInvoiceScreen = () => {
     const address = pickPrintLocalizedText(
       companyProfile.address,
       companyProfile.addressUrdu,
-      invoicePrintSettings.locale,
+      effectiveLocale,
     );
     return [address, companyProfile.phone.trim(), companyProfile.email.trim()]
       .filter(Boolean)
@@ -535,7 +546,7 @@ const PrintableInvoiceScreen = () => {
     companyProfile.addressUrdu,
     companyProfile.email,
     companyProfile.phone,
-    invoicePrintSettings.locale,
+    effectiveLocale,
   ]);
 
   const totalQuantity = invoiceItems.reduce(
@@ -545,7 +556,7 @@ const PrintableInvoiceScreen = () => {
 
   const formatPrintAmount = (amount: number): string =>
     isUrdu
-      ? formatInvoicePrintCurrency(amount, invoicePrintSettings.locale)
+      ? formatInvoicePrintCurrency(amount, effectiveLocale)
       : getFormattedCurrency(amount);
 
   const totalAmountInWords = useMemo(() => {
@@ -611,6 +622,44 @@ const PrintableInvoiceScreen = () => {
     });
   }, [groupedInvoiceItems]);
 
+  // english party name before walk-in substitution (readiness / gap detection)
+  const partyNameEnglishForReadiness = useMemo(
+    () =>
+      getPrintBillToPartyName(
+        invoice?.accountName,
+        itemTypeNames,
+        invoice?.invoiceItems,
+      ),
+    [invoice?.accountName, invoice?.invoiceItems, itemTypeNames],
+  );
+
+  const readinessGaps = useMemo(() => {
+    if (!isUrdu || !invoice) return [];
+    return getInvoicePrintReadinessGaps({
+      locale: effectiveLocale,
+      companyName: companyProfile.name,
+      companyNameUrdu: companyProfile.nameUrdu,
+      companyAddress: companyProfile.address,
+      companyAddressUrdu: companyProfile.addressUrdu,
+      partyNameEnglish: partyNameEnglishForReadiness,
+      partyNameUrdu: invoice.accountNameUrdu ?? '',
+      partyAddressEnglish: invoice.accountAddress ?? '',
+      partyAddressUrdu: invoice.accountAddressUrdu ?? '',
+      goodsNameEnglish: invoice.accountGoodsName ?? '',
+      goodsNameUrdu: invoice.accountGoodsNameUrdu ?? '',
+      showGoodsField: Boolean(String(invoice.accountGoodsName ?? '').trim()),
+    });
+  }, [
+    companyProfile.address,
+    companyProfile.addressUrdu,
+    companyProfile.name,
+    companyProfile.nameUrdu,
+    effectiveLocale,
+    invoice,
+    isUrdu,
+    partyNameEnglishForReadiness,
+  ]);
+
   const batchSavePdfAriaLabel = useMemo(() => {
     if (isBatchPrinting) {
       return 'Saving PDFs';
@@ -634,7 +683,9 @@ const PrintableInvoiceScreen = () => {
   return (
     <div
       className={`${printPreviewRootClass}${
-        isUrdu ? " font-['Noto_Nastaliq_Urdu',serif]" : ''
+        isUrdu
+          ? " font-['Noto_Nastaliq_Urdu',serif] leading-relaxed [&_td]:py-0.5 [&_th]:py-0.5"
+          : ''
       }`}
       dir={isUrdu ? 'rtl' : 'ltr'}
       lang={isUrdu ? 'ur' : 'en'}
@@ -658,9 +709,24 @@ const PrintableInvoiceScreen = () => {
           theme for the rest of the app.
         </div>
       ) : null}
+      {readinessGaps.length > 0 ? (
+        <div
+          className="print:hidden mb-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 shadow-sm"
+          role="status"
+        >
+          <p className="font-medium">
+            Missing Urdu fields — print will fall back to English:
+          </p>
+          <ul className="mt-1 list-disc ps-5 text-xs">
+            {readinessGaps.map((gap) => (
+              <li key={gap.key}>{gap.label}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div dir="ltr" className={printToolbarPanelClass}>
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={handleClose}
               variant="outline"
@@ -724,6 +790,39 @@ const PrintableInvoiceScreen = () => {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <div className="flex items-center gap-2 ms-auto">
+              <RadioGroup
+                value={effectiveLocale}
+                onValueChange={(v) => setSessionLocale(v as InvoicePrintLocale)}
+                className="flex flex-row items-center gap-3"
+                disabled={isBatchPrinting}
+              >
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="en" id="printSessionLocaleEn" />
+                  <Label
+                    htmlFor="printSessionLocaleEn"
+                    className="text-xs font-normal cursor-pointer"
+                  >
+                    EN
+                  </Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="ur" id="printSessionLocaleUr" />
+                  <Label
+                    htmlFor="printSessionLocaleUr"
+                    className="text-xs font-normal cursor-pointer"
+                  >
+                    اردو
+                  </Label>
+                </div>
+              </RadioGroup>
+              {sessionLocale != null &&
+              sessionLocale !== invoicePrintSettings.locale ? (
+                <span className="text-[0.6875rem] text-muted-foreground whitespace-nowrap">
+                  This print only
+                </span>
+              ) : null}
+            </div>
             {isBatchPrinting ? (
               <p className="text-2xl font-semibold text-red-600">
                 Please wait until saving finishes.
@@ -787,10 +886,7 @@ const PrintableInvoiceScreen = () => {
             {invoice.returnedAt ? (
               <p className="mt-1 text-sm text-red-900/80 print:text-neutral-800">
                 {labels.returnedOn}{' '}
-                {formatInvoicePrintDate(
-                  invoice.returnedAt,
-                  invoicePrintSettings.locale,
-                )}
+                {formatInvoicePrintDate(invoice.returnedAt, effectiveLocale)}
               </p>
             ) : null}
           </div>
@@ -839,10 +935,7 @@ const PrintableInvoiceScreen = () => {
             <div className="flex gap-1 whitespace-nowrap">
               <p>{labels.date}</p>
               <p className="whitespace-nowrap" dir="ltr">
-                {formatInvoicePrintDate(
-                  invoice.date,
-                  invoicePrintSettings.locale,
-                )}
+                {formatInvoicePrintDate(invoice.date, effectiveLocale)}
               </p>
             </div>
             {showBiltyField ? (
@@ -865,7 +958,11 @@ const PrintableInvoiceScreen = () => {
           </div>
         </div>
 
-        <table className="w-full text-base leading-tight [&_th]:px-1 [&_td]:px-1 [&_td]:py-0 border-[0.5px] border-gray-400 border-collapse [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400">
+        <table
+          className={`w-full text-base leading-tight [&_th]:px-1 [&_td]:px-1 border-[0.5px] border-gray-400 border-collapse [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${
+            isUrdu ? '[&_td]:py-0.5 [&_th]:py-0.5' : '[&_td]:py-0'
+          }`}
+        >
           <thead>
             <tr className="[&_th]:font-semibold">
               <th className="text-start">{labels.serial}</th>

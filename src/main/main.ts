@@ -14,6 +14,7 @@ import type {
   BalanceSheet,
   InsertAccount,
   UpdateAccount,
+  AccountUrduFieldPatch,
   Journal,
   LedgerView,
   InventoryItem,
@@ -407,6 +408,11 @@ app
     );
     ipcMain.handle('account:updateAccount', async (_, account: UpdateAccount) =>
       accountService.updateAccount(account),
+    );
+    ipcMain.handle(
+      'account:bulkUpdateUrduFields',
+      async (_, patches: AccountUrduFieldPatch[]) =>
+        accountService.bulkUpdateUrduFields(patches),
     );
     ipcMain.handle(
       'account:updateDiscountProfile',

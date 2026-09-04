@@ -29,6 +29,7 @@ import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
 import { AccountPricingSheet } from './AccountPricing';
+import { ImportExportAccountUrdu } from './ImportExportAccountUrdu';
 
 type AccountTypeFilter = 'All' | AccountType;
 type OptionalAccountColumnId =
@@ -597,6 +598,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 charts={charts}
                 onHeadAdded={refetchAccounts}
                 btnClassName="px-3"
+              />
+              <ImportExportAccountUrdu
+                accounts={accounts}
+                refetchAccounts={refetchAccounts}
               />
               <AddAccount
                 charts={charts}

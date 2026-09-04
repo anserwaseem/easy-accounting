@@ -29,6 +29,64 @@ export interface InvoicePrintLabels {
   currencyWordsPrefix: string;
 }
 
+export type InvoicePrintLabelKey = keyof InvoicePrintLabels;
+
+export const INVOICE_PRINT_LABEL_KEYS: InvoicePrintLabelKey[] = [
+  'quotationBanner',
+  'invoiceFallbackTitle',
+  'quotationFallbackTitle',
+  'quotationNumber',
+  'invoiceNumber',
+  'date',
+  'bilty',
+  'cartons',
+  'billTo',
+  'vendor',
+  'walkInCustomer',
+  'serial',
+  'item',
+  'itemDescription',
+  'qty',
+  'price',
+  'discount',
+  'amount',
+  'totalQuantity',
+  'extraDiscount',
+  'total',
+  'returnedBanner',
+  'returnedOn',
+  'currencyWordsPrefix',
+];
+
+/** english UI titles for Settings label editor */
+export const INVOICE_PRINT_LABEL_TITLES: Record<InvoicePrintLabelKey, string> =
+  {
+    quotationBanner: 'Quotation banner',
+    invoiceFallbackTitle: 'Invoice title (no company name)',
+    quotationFallbackTitle: 'Quotation title (no company name)',
+    quotationNumber: 'Quotation number label',
+    invoiceNumber: 'Invoice number label',
+    date: 'Date label',
+    bilty: 'Bilty label',
+    cartons: 'Cartons label',
+    billTo: 'Bill To label',
+    vendor: 'Vendor label',
+    walkInCustomer: 'Walk-in customer',
+    serial: 'Serial column',
+    item: 'Item column',
+    itemDescription: 'Description column',
+    qty: 'Qty column',
+    price: 'Price column',
+    discount: 'Discount column',
+    amount: 'Amount column',
+    totalQuantity: 'Total quantity row',
+    extraDiscount: 'Extra discount row',
+    total: 'Total row',
+    returnedBanner: 'Returned banner',
+    returnedOn: 'Returned on label',
+    currencyWordsPrefix: 'Currency in words',
+  };
+
 const ENGLISH_LABELS: InvoicePrintLabels = {
   quotationBanner: 'QUOTATION',
   invoiceFallbackTitle: 'INVOICE',
@@ -56,36 +114,55 @@ const ENGLISH_LABELS: InvoicePrintLabels = {
   currencyWordsPrefix: 'Rs.',
 };
 
+/** commercial Urdu defaults — editable in Settings for a native-speaker pass */
 const URDU_LABELS: InvoicePrintLabels = {
   quotationBanner: 'کوٹیشن',
-  invoiceFallbackTitle: 'انوائس',
+  invoiceFallbackTitle: 'بل',
   quotationFallbackTitle: 'کوٹیشن',
   quotationNumber: 'کوٹیشن نمبر:',
-  invoiceNumber: 'انوائس نمبر:',
+  invoiceNumber: 'بل نمبر:',
   date: 'تاریخ:',
   bilty: 'بلٹی:',
   cartons: 'کارٹن:',
   billTo: 'بل بنام:',
-  vendor: 'سپلائر:',
+  vendor: 'وینڈر:',
   walkInCustomer: 'نقد خریدار',
   serial: '#',
   item: 'حوالہ نمبر',
   itemDescription: 'تفصیل',
   qty: 'مقدار',
-  price: 'قیمت',
+  price: 'ریٹ',
   discount: 'رعایت',
   amount: 'رقم',
   totalQuantity: 'کل مقدار:',
   extraDiscount: 'اضافی رعایت:',
-  total: 'کل:',
-  returnedBanner: 'واپس',
-  returnedOn: 'واپسی کی تاریخ',
+  total: 'کل رقم:',
+  returnedBanner: 'واپس شدہ',
+  returnedOn: 'واپسی کی تاریخ:',
   currencyWordsPrefix: 'روپے',
 };
 
+export const getDefaultInvoicePrintLabels = (
+  locale: InvoicePrintLocale,
+): InvoicePrintLabels =>
+  locale === 'ur' ? { ...URDU_LABELS } : { ...ENGLISH_LABELS };
+
 export const getInvoicePrintLabels = (
   locale: InvoicePrintLocale,
-): InvoicePrintLabels => (locale === 'ur' ? URDU_LABELS : ENGLISH_LABELS);
+  overrides?: Partial<InvoicePrintLabels> | null,
+): InvoicePrintLabels => {
+  const base = getDefaultInvoicePrintLabels(locale);
+  if (locale !== 'ur' || !overrides) return base;
+
+  const merged = { ...base };
+  INVOICE_PRINT_LABEL_KEYS.forEach((key) => {
+    const override = overrides[key];
+    if (typeof override === 'string' && override.trim().length > 0) {
+      merged[key] = override.trim();
+    }
+  });
+  return merged;
+};
 
 const URDU_MONTHS = [
   'جنوری',
@@ -148,4 +225,21 @@ export const formatInvoicePrintCurrency = (
     return `${formatted} روپے`;
   }
   return `PKR ${formatted}`;
+};
+
+/** wait for document fonts (esp. Nastaliq) before printToPDF / window.print */
+export const waitForInvoicePrintFonts = async (
+  locale: InvoicePrintLocale,
+): Promise<void> => {
+  if (typeof document === 'undefined' || !document.fonts) {
+    return;
+  }
+  try {
+    await document.fonts.ready;
+    if (locale === 'ur') {
+      await document.fonts.load("16px 'Noto Nastaliq Urdu'");
+    }
+  } catch {
+    // print still proceeds; glyphs may fall back
+  }
 };
