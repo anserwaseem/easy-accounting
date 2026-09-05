@@ -249,6 +249,7 @@ describe('migrations', () => {
         '023_add_inventory_title',
         '024_normalize_invoice_date_format',
         '026_add_account_urdu_fields',
+        '027_add_inventory_descriptionUrdu',
       ]);
     });
 
@@ -262,6 +263,7 @@ describe('migrations', () => {
       ['nameUrdu', 'addressUrdu', 'goodsNameUrdu'].forEach((c) =>
         expect(columnExists(db, 'account', c)).toBe(true),
       );
+      expect(columnExists(db, 'inventory', 'descriptionUrdu')).toBe(true);
       expect(columnExists(db, 'attribute_definitions', 'isPublic')).toBe(true);
     });
 

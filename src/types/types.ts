@@ -144,6 +144,19 @@ export type AccountUrduBulkUpdateResult = {
   ambiguous: number;
 };
 
+/** one row from inventory Urdu description spreadsheet import */
+export type InventoryUrduFieldPatch = {
+  id?: number;
+  name?: string;
+  descriptionUrdu?: string | null;
+};
+
+export type InventoryUrduBulkUpdateResult = {
+  updated: number;
+  notFound: number;
+  ambiguous: number;
+};
+
 /** Chart */
 export interface Chart extends BaseEntity {
   name: string;
@@ -248,6 +261,8 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   price: number;
   quantity: number;
   description?: string;
+  /** optional Urdu print description; empty falls back to description */
+  descriptionUrdu?: string | null;
   itemTypeId?: number | null;
   itemTypeName?: string | null;
   listPosition?: number | null;
@@ -271,6 +286,8 @@ export interface UpdateInventoryItem {
   name?: string;
   quantity?: number;
   description?: string;
+  /** optional Urdu print description; blank clears it */
+  descriptionUrdu?: string | null;
   /** customer-facing name; blank clears it (migration 023) */
   title?: string | null;
   itemTypeId?: number | null;
@@ -280,6 +297,8 @@ export interface InsertInventoryItem {
   name: string;
   price: number;
   description?: string;
+  /** optional Urdu print description; blank stores NULL */
+  descriptionUrdu?: string | null;
   /** customer-facing name; blank stores NULL (migration 023) */
   title?: string | null;
   itemTypeId?: number | null;
@@ -417,6 +436,8 @@ export type InvoiceItemView = {
   inventoryItemName: string;
   inventoryId?: number;
   inventoryItemDescription?: string;
+  /** live-joined inventory.descriptionUrdu; empty falls back on print */
+  inventoryItemDescriptionUrdu?: string | null;
   discountedPrice?: number;
   accountName?: string;
   /** persisted line account when invoice uses per-row accounts */

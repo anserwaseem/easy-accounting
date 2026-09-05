@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS "inventory" ( -- "002 migration"
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    -- "descriptionUrdu" TEXT, -- "027 migration"
     "price" DECIMAL(10, 2) NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 0,
     -- "itemTypeId" INTEGER REFERENCES "item_types"("id"), -- "015 migration"

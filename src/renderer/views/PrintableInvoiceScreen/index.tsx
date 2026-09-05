@@ -688,6 +688,11 @@ const PrintableInvoiceScreen = () => {
       goodsNameEnglish: invoice.accountGoodsName ?? '',
       goodsNameUrdu: invoice.accountGoodsNameUrdu ?? '',
       showGoodsField: Boolean(String(invoice.accountGoodsName ?? '').trim()),
+      missingItemDescriptionUrduCount: (invoice.invoiceItems ?? []).filter(
+        (item) =>
+          String(item.inventoryItemDescription ?? '').trim().length > 0 &&
+          String(item.inventoryItemDescriptionUrdu ?? '').trim().length === 0,
+      ).length,
     });
   }, [
     companyProfile.address,
@@ -738,6 +743,8 @@ const PrintableInvoiceScreen = () => {
       ) : null}
       {isDarkAppChrome ? (
         <div
+          dir="ltr"
+          lang="en"
           className="print:hidden mb-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 shadow-sm dark:border-amber-300/50 dark:bg-amber-950/30 dark:text-amber-50"
           role="status"
         >
@@ -747,6 +754,8 @@ const PrintableInvoiceScreen = () => {
       ) : null}
       {readinessGaps.length > 0 ? (
         <div
+          dir="ltr"
+          lang="en"
           className="print:hidden mb-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 shadow-sm"
           role="status"
         >
@@ -1149,13 +1158,30 @@ const PrintableInvoiceScreen = () => {
                   <td className={`text-center ${dataClass}`} dir="ltr">
                     {row.item.inventoryItemName}
                   </td>
-                  {/* LTR pack toward حوالہ نمبر (RTL neighbor) — avoid left-gutter gap */}
-                  <td
-                    dir="ltr"
-                    className={`${dataClass}${isUrdu ? ' text-right' : ''}`}
-                  >
-                    {row.item.inventoryItemDescription}
-                  </td>
+                  {/* Urdu desc → Nastaliq + air; English fallback stays latin + pack to SKU */}
+                  {(() => {
+                    const descriptionText = pickPrintLocalizedText(
+                      row.item.inventoryItemDescription,
+                      row.item.inventoryItemDescriptionUrdu,
+                      effectiveLocale,
+                    );
+                    const descriptionIsUrdu =
+                      isUrdu &&
+                      String(row.item.inventoryItemDescriptionUrdu ?? '').trim()
+                        .length > 0;
+                    return (
+                      <td
+                        dir={descriptionIsUrdu ? 'rtl' : 'ltr'}
+                        className={
+                          descriptionIsUrdu
+                            ? `${chromeClass} !px-1.5 !py-1 !leading-[1.85]`
+                            : `${dataClass}${isUrdu ? ' text-right' : ''}`
+                        }
+                      >
+                        {descriptionText}
+                      </td>
+                    );
+                  })()}
                   <td className={`${qtyColClass} ${dataClass}`} dir="ltr">
                     {row.item.quantity}
                   </td>

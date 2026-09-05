@@ -269,6 +269,7 @@ export class InvoiceService {
         discountedPrice: InvoiceService.getInvoiceItemTotal(cur, cur.price),
         inventoryItemName: cur.inventoryItemName,
         inventoryItemDescription: cur.inventoryItemDescription,
+        inventoryItemDescriptionUrdu: cur.inventoryItemDescriptionUrdu ?? null,
         accountName: isSingleAccount ? undefined : cur.accountName,
         accountNameUrdu: isSingleAccount
           ? undefined
@@ -2345,6 +2346,7 @@ export class InvoiceService {
         ii.accountId AS 'itemRowAccountId',
         iii.name as 'inventoryItemName',
         iii.description AS 'inventoryItemDescription',
+        iii.descriptionUrdu AS 'inventoryItemDescriptionUrdu',
         it.name as 'itemTypeName',
         COALESCE(
           CASE WHEN ii.accountId IS NOT NULL THEN a2.name ELSE NULL END,

@@ -80,6 +80,7 @@ export const InventoryForm = <
     if (key === 'listPosition') return 'List #';
     // "title" alone reads as a synonym for the name field directly above it
     if (key === 'title') return 'Display title';
+    if (key === 'descriptionUrdu') return 'Description (Urdu)';
     return key;
   };
 

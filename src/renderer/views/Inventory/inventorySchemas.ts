@@ -25,6 +25,7 @@ export const addInventorySchema = z.object({
   /** see editInventorySchema.title; hidden unless this installation publishes */
   title: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
+  descriptionUrdu: z.string().optional().nullable(),
   itemTypeId: z.coerce
     .number()
     .optional()
@@ -52,6 +53,8 @@ export const editInventorySchema = z.object({
    */
   title: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
+  /** optional Urdu print description; empty falls back to English on print */
+  descriptionUrdu: z.string().optional().nullable(),
   itemTypeId: z.coerce
     .number()
     .optional()

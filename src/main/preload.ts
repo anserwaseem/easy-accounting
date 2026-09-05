@@ -8,6 +8,7 @@ import type {
   InsertAccount,
   UpdateAccount,
   AccountUrduFieldPatch,
+  InventoryUrduFieldPatch,
   Journal,
   JournalNarrationSummary,
   LedgerView,
@@ -519,6 +520,13 @@ const electronHandler = {
 
   bulkUpdateAccountUrduFields: (patches: AccountUrduFieldPatch[]) =>
     ipcRenderer.invoke('account:bulkUpdateUrduFields', patches) as Promise<{
+      updated: number;
+      notFound: number;
+      ambiguous: number;
+    }>,
+
+  bulkUpdateInventoryUrduFields: (patches: InventoryUrduFieldPatch[]) =>
+    ipcRenderer.invoke('inventory:bulkUpdateUrduFields', patches) as Promise<{
       updated: number;
       notFound: number;
       ambiguous: number;

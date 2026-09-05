@@ -20,6 +20,8 @@ export interface InvoicePrintReadinessInput {
   goodsNameEnglish: string;
   goodsNameUrdu: string;
   showGoodsField: boolean;
+  /** line items with English description but blank Urdu */
+  missingItemDescriptionUrduCount: number;
 }
 
 const isBlank = (value: string | null | undefined): boolean =>
@@ -57,6 +59,13 @@ export const getInvoicePrintReadinessGaps = (
     isBlank(input.goodsNameUrdu)
   ) {
     gaps.push({ key: 'goodsName', label: 'Goods name (Urdu)' });
+  }
+  if (input.missingItemDescriptionUrduCount > 0) {
+    const n = input.missingItemDescriptionUrduCount;
+    gaps.push({
+      key: 'itemDescriptions',
+      label: `Item description (Urdu): ${n} missing`,
+    });
   }
 
   return gaps;

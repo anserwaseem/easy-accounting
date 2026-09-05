@@ -14,6 +14,7 @@ describe('getInvoicePrintReadinessGaps', () => {
     goodsNameEnglish: 'Books',
     goodsNameUrdu: 'کتب',
     showGoodsField: true,
+    missingItemDescriptionUrduCount: 0,
   };
 
   it('returns no gaps for english locale', () => {
@@ -56,5 +57,16 @@ describe('getInvoicePrintReadinessGaps', () => {
       partyNameUrdu: '',
     });
     expect(gaps.find((g) => g.key === 'partyName')).toBeUndefined();
+  });
+
+  it('lists missing item description Urdu count', () => {
+    const gaps = getInvoicePrintReadinessGaps({
+      ...base,
+      missingItemDescriptionUrduCount: 3,
+    });
+    expect(gaps.find((g) => g.key === 'itemDescriptions')).toEqual({
+      key: 'itemDescriptions',
+      label: 'Item description (Urdu): 3 missing',
+    });
   });
 });

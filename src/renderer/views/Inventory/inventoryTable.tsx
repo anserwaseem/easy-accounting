@@ -76,6 +76,7 @@ import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
 /** persisted visible price-list columns (mirrors the Accounts page approach) */
 const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
 const VISIBLE_ATTRIBUTE_COLUMNS_KEY = 'inventoryVisibleAttributeColumns';
+const SHOW_DESCRIPTION_URDU_COLUMN_KEY = 'inventoryShowDescriptionUrduColumn';
 
 const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
   (r) => r.id,
@@ -167,6 +168,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [showPublishColumn, setShowPublishColumn] = useState<boolean>(() =>
     Boolean(window.electron.store.get(SHOW_PUBLISH_COLUMN_KEY)),
   );
+  // optional Urdu print description column; off by default (wide + Nastaliq)
+  const [showDescriptionUrduColumn, setShowDescriptionUrduColumn] =
+    useState<boolean>(() =>
+      Boolean(window.electron.store.get(SHOW_DESCRIPTION_URDU_COLUMN_KEY)),
+    );
 
   // attribute filters are view state, not a preference: they answer a question
   // being asked now, and a filter still applied next session reads as data loss
@@ -283,6 +289,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       id: row.id,
       price: row.price,
       description: row.description,
+      descriptionUrdu: row.descriptionUrdu ?? null,
+      title: row.title ?? null,
       itemTypeId: nextItemTypeId,
       listPosition: row.listPosition ?? null,
     });
@@ -399,6 +407,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     window.electron.store.set(SHOW_PUBLISH_COLUMN_KEY, showPublishColumn);
   }, [showPublishColumn]);
 
+  useEffect(() => {
+    window.electron.store.set(
+      SHOW_DESCRIPTION_URDU_COLUMN_KEY,
+      showDescriptionUrduColumn,
+    );
+  }, [showDescriptionUrduColumn]);
+
   const toggleAttributeColumn = useCallback((key: string) => {
     setVisibleAttributeKeys((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
@@ -415,6 +430,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     () => [
       'name',
       'description',
+      'descriptionUrdu',
       'itemTypeName',
       'listPosition',
       'price',
@@ -729,6 +745,30 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         size: 240,
         enableSorting: !editMode,
       },
+      ...(showDescriptionUrduColumn
+        ? [
+            {
+              accessorKey: 'descriptionUrdu',
+              header: 'Description (Urdu)',
+              size: 200,
+              enableSorting: !editMode,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: { row: { original: InventoryItem } }) => {
+                const value = row.original.descriptionUrdu?.trim();
+                if (!value) {
+                  return (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  );
+                }
+                return (
+                  <span dir="rtl" lang="ur" className="text-sm leading-relaxed">
+                    {value}
+                  </span>
+                );
+              },
+            } as ColumnDef<InventoryItem>,
+          ]
+        : []),
       {
         accessorKey: 'itemTypeName',
         header: 'Type',
@@ -996,6 +1036,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     shownAttributeDefs,
     publishEnabled,
     showPublishColumn,
+    showDescriptionUrduColumn,
     publishStatuses,
     expandedIds,
     toggleExpanded,
@@ -1019,6 +1060,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   // grid keeps its vertical space regardless of how many lists/attributes exist
   const columnGroups = useMemo(
     () => [
+      {
+        title: 'Fields',
+        options: [{ id: 'descriptionUrdu', label: 'Description (Urdu)' }],
+        selectedIds: showDescriptionUrduColumn ? ['descriptionUrdu'] : [],
+        onToggle: () => setShowDescriptionUrduColumn((prev) => !prev),
+        onSetAll: (ids: string[]) =>
+          setShowDescriptionUrduColumn(ids.includes('descriptionUrdu')),
+      },
       {
         title: 'Price lists',
         options: priceLists.map((l) => ({ id: String(l.id), label: l.name })),
@@ -1049,6 +1098,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       },
     ],
     [
+      showDescriptionUrduColumn,
       priceLists,
       visiblePriceListIds,
       togglePriceListColumn,
