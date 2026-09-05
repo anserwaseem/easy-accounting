@@ -570,6 +570,33 @@ describe('InventoryService.bulkUpdatePricesAndListPositions', () => {
     expect(variant?.parentId).toBe(headId);
     db.close();
   });
+
+  it('updates description fields when present on the patch', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const id = db
+      .prepare(
+        `INSERT INTO inventory (name, description, descriptionUrdu, price, quantity)
+         VALUES ('SKU', 'old', 'قدیم', 10, 0)`,
+      )
+      .run().lastInsertRowid as number;
+
+    const service = createTestDb(db);
+    service.bulkUpdatePricesAndListPositions([
+      {
+        id,
+        price: 10,
+        listPosition: null,
+        description: 'new en',
+        descriptionUrdu: null,
+      },
+    ]);
+
+    const item = service.getInventory().find((row) => row.id === id);
+    expect(item?.description).toBe('new en');
+    expect(item?.descriptionUrdu).toBeNull();
+    db.close();
+  });
 });
 
 describe('InventoryService attribute definitions', () => {

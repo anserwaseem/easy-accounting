@@ -1,4 +1,10 @@
-import type { Account, InsertAccount, UpdateAccount } from 'types';
+import type {
+  Account,
+  AccountUrduBulkUpdateResult,
+  AccountUrduFieldPatch,
+  InsertAccount,
+  UpdateAccount,
+} from 'types';
 import type { Database, Statement } from 'better-sqlite3';
 import { store } from '../store';
 import { DatabaseService } from './Database.service';
@@ -41,6 +47,10 @@ export class AccountService {
 
   private stmGetAccountByNameAnyChart!: Statement;
 
+  private stmGetAccountById!: Statement;
+
+  private stmUpdateAccountUrdu!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.initPreparedStatements();
@@ -74,6 +84,9 @@ export class AccountService {
         a.phone1,
         a.phone2,
         a.goodsName,
+        a.nameUrdu,
+        a.addressUrdu,
+        a.goodsNameUrdu,
         a.isActive,
         COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
         a.discountProfileId,
@@ -96,6 +109,9 @@ export class AccountService {
     const username = store.get('username');
     const result = this.stmInsertAccount.run({
       ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
       username,
     });
@@ -132,6 +148,9 @@ export class AccountService {
     const username = store.get('username');
     const result = this.stmInsertAccount.run({
       ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
       username,
     });
@@ -145,11 +164,124 @@ export class AccountService {
     const username = store.get('username');
     const result = this.stmUpdateAccount.run({
       ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
       id: cast(account.id),
       tracksVendorStock: cast(!!account.tracksVendorStock),
       username,
     });
     return Boolean(result.changes);
+  }
+
+  /**
+   * apply Urdu print fields from spreadsheet import.
+   * match by id when present, else by name (+ optional code).
+   * only keys present on the patch are written (undefined = leave unchanged).
+   */
+  bulkUpdateUrduFields(
+    patches: AccountUrduFieldPatch[],
+  ): AccountUrduBulkUpdateResult {
+    const username = store.get('username');
+    let updated = 0;
+    let notFound = 0;
+    let ambiguous = 0;
+
+    const run = this.db.transaction(() => {
+      patches.forEach((patch) => {
+        const resolved = this.resolveAccountForUrduPatch(patch, username);
+        if (resolved === 'notFound') {
+          notFound += 1;
+          return;
+        }
+        if (resolved === 'ambiguous') {
+          ambiguous += 1;
+          return;
+        }
+
+        const nextNameUrdu =
+          patch.nameUrdu !== undefined
+            ? patch.nameUrdu
+            : resolved.nameUrdu ?? null;
+        const nextAddressUrdu =
+          patch.addressUrdu !== undefined
+            ? patch.addressUrdu
+            : resolved.addressUrdu ?? null;
+        const nextGoodsNameUrdu =
+          patch.goodsNameUrdu !== undefined
+            ? patch.goodsNameUrdu
+            : resolved.goodsNameUrdu ?? null;
+
+        const result = this.stmUpdateAccountUrdu.run({
+          id: cast(resolved.id),
+          nameUrdu: nextNameUrdu,
+          addressUrdu: nextAddressUrdu,
+          goodsNameUrdu: nextGoodsNameUrdu,
+        });
+        if (result.changes > 0) updated += 1;
+        else notFound += 1;
+      });
+    });
+
+    run();
+    return { updated, notFound, ambiguous };
+  }
+
+  private resolveAccountForUrduPatch(
+    patch: AccountUrduFieldPatch,
+    username: unknown,
+  ): Account | 'notFound' | 'ambiguous' {
+    if (patch.id != null && Number.isFinite(patch.id) && patch.id > 0) {
+      const byId = this.stmGetAccountById.get({
+        id: cast(patch.id),
+        username,
+      }) as Account | undefined;
+      return byId
+        ? (normalizeSqliteBooleanFields(
+            byId,
+            ACCOUNT_BOOLEAN_FIELDS,
+          ) as Account)
+        : 'notFound';
+    }
+
+    const name = patch.name?.trim();
+    if (!name) return 'notFound';
+
+    const code =
+      patch.code == null || String(patch.code).trim() === ''
+        ? null
+        : String(patch.code).trim();
+
+    const matches = (
+      this.stmGetAccountByName.all({
+        name,
+        code,
+        username,
+      }) as Account[]
+    ).map(
+      (row) =>
+        normalizeSqliteBooleanFields(row, ACCOUNT_BOOLEAN_FIELDS) as Account,
+    );
+
+    // stmGetAccountByName uses LIKE; prefer exact trimmed name matches
+    const exact = matches.filter(
+      (row) => row.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    const pool = exact.length > 0 ? exact : matches;
+    if (pool.length === 0) return 'notFound';
+    if (pool.length > 1) {
+      if (code != null) {
+        const coded = pool.filter(
+          (row) => String(row.code ?? '').trim() === code,
+        );
+        if (coded.length === 1) {
+          return this.resolveAccountForUrduPatch({ id: coded[0].id }, username);
+        }
+      }
+      return 'ambiguous';
+    }
+    // re-fetch by id so Urdu columns are present (name lookup SELECT omits them)
+    return this.resolveAccountForUrduPatch({ id: pool[0].id }, username);
   }
 
   hasJournalEntries(accountId: number): boolean {
@@ -254,6 +386,9 @@ export class AccountService {
         a.phone1,
         a.phone2,
         a.goodsName,
+        a.nameUrdu,
+        a.addressUrdu,
+        a.goodsNameUrdu,
         a.isActive,
         COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
         a.discountProfileId,
@@ -270,7 +405,7 @@ export class AccountService {
     `);
 
     this.stmInsertAccount = this.db.prepare(`
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive, discountProfileId, tracksVendorStock)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, nameUrdu, addressUrdu, goodsNameUrdu, isActive, discountProfileId, tracksVendorStock)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -279,12 +414,12 @@ export class AccountService {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName, 1, @discountProfileId, COALESCE(@tracksVendorStock, 0))
+      ), @code, @address, @phone1, @phone2, @goodsName, @nameUrdu, @addressUrdu, @goodsNameUrdu, 1, @discountProfileId, COALESCE(@tracksVendorStock, 0))
     `);
 
     this.stmUpdateAccount = this.db.prepare(`
       UPDATE account
-      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, discountProfileId = @discountProfileId, tracksVendorStock = COALESCE(@tracksVendorStock, 0), chartId = (
+      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, nameUrdu = @nameUrdu, addressUrdu = @addressUrdu, goodsNameUrdu = @goodsNameUrdu, discountProfileId = @discountProfileId, tracksVendorStock = COALESCE(@tracksVendorStock, 0), chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName AND userId = (
@@ -370,6 +505,43 @@ export class AccountService {
       UPDATE account
       SET discountProfileId = @discountProfileId
       WHERE id = @accountId
+    `);
+
+    this.stmGetAccountById = this.db.prepare(`
+      SELECT
+        a.id,
+        a.name,
+        c.name as headName,
+        a.chartId,
+        c.type,
+        a.code,
+        a.createdAt,
+        a.updatedAt,
+        a.address,
+        a.phone1,
+        a.phone2,
+        a.goodsName,
+        a.nameUrdu,
+        a.addressUrdu,
+        a.goodsNameUrdu,
+        a.isActive,
+        a.discountProfileId
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      WHERE a.id = @id AND c.userId = (
+        SELECT id
+        FROM users
+        WHERE username = @username
+      )
+      LIMIT 1
+    `);
+
+    this.stmUpdateAccountUrdu = this.db.prepare(`
+      UPDATE account
+      SET nameUrdu = @nameUrdu,
+          addressUrdu = @addressUrdu,
+          goodsNameUrdu = @goodsNameUrdu
+      WHERE id = @id
     `);
   }
 }

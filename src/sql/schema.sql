@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS "account" (
   -- "phone1" VARCHAR(20), -- "007 migration"
   -- "phone2" VARCHAR(20), -- "007 migration"
   -- "goodsName" TEXT, -- "007 migration"
+  -- "nameUrdu" TEXT, -- "026 migration"
+  -- "addressUrdu" TEXT, -- "026 migration"
+  -- "goodsNameUrdu" TEXT, -- "026 migration"
   -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "012 migration"
   -- "discountProfileId" INTEGER REFERENCES "discount_profiles"("id"), -- "015 migration"
   -- "tracksVendorStock" BOOLEAN NOT NULL DEFAULT 0, -- "025 migration"
@@ -98,6 +101,7 @@ CREATE TABLE IF NOT EXISTS "inventory" ( -- "002 migration"
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    -- "descriptionUrdu" TEXT, -- "026 migration"
     "price" DECIMAL(10, 2) NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 0,
     -- "itemTypeId" INTEGER REFERENCES "item_types"("id"), -- "015 migration"

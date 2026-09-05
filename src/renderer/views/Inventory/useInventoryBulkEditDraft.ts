@@ -175,6 +175,18 @@ export const useInventoryBulkEditDraft =
             parentId: Object.prototype.hasOwnProperty.call(patch, 'parentId')
               ? patch.parentId
               : row.parentId,
+            description: Object.prototype.hasOwnProperty.call(
+              patch,
+              'description',
+            )
+              ? patch.description ?? undefined
+              : row.description,
+            descriptionUrdu: Object.prototype.hasOwnProperty.call(
+              patch,
+              'descriptionUrdu',
+            )
+              ? patch.descriptionUrdu ?? undefined
+              : row.descriptionUrdu,
             listPrices: nextListPrices,
           };
         });

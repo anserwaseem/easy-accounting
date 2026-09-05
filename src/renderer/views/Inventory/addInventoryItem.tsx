@@ -32,6 +32,7 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
     name: '',
     title: '',
     description: undefined,
+    descriptionUrdu: undefined,
     price: 0,
     itemTypeId: undefined,
     listPosition: undefined as number | undefined,

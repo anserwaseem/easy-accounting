@@ -108,6 +108,12 @@ export interface Account extends BaseEntity {
   phone1?: string;
   phone2?: string;
   goodsName?: string;
+  /** optional Urdu print name; empty falls back to name */
+  nameUrdu?: string;
+  /** optional Urdu print address; empty falls back to address */
+  addressUrdu?: string;
+  /** optional Urdu print goods / bilty carrier name; empty falls back to goodsName */
+  goodsNameUrdu?: string;
   isActive: boolean;
   /** when true, purchase invoices reduce this account's vendor stock; issues increase it */
   tracksVendorStock?: boolean;
@@ -123,6 +129,35 @@ export type InsertAccount = Omit<
 export type UpdateAccount = Prettify<
   Omit<Account, keyof BaseEntity | 'chartId' | 'type'> & Pick<BaseEntity, 'id'>
 >;
+
+/** one row from Urdu fields spreadsheet import */
+export type AccountUrduFieldPatch = {
+  id?: number;
+  code?: string | number | null;
+  name?: string;
+  nameUrdu?: string | null;
+  addressUrdu?: string | null;
+  goodsNameUrdu?: string | null;
+};
+
+export type AccountUrduBulkUpdateResult = {
+  updated: number;
+  notFound: number;
+  ambiguous: number;
+};
+
+/** one row from inventory Urdu description spreadsheet import */
+export type InventoryUrduFieldPatch = {
+  id?: number;
+  name?: string;
+  descriptionUrdu?: string | null;
+};
+
+export type InventoryUrduBulkUpdateResult = {
+  updated: number;
+  notFound: number;
+  ambiguous: number;
+};
 
 /** Chart */
 export interface Chart extends BaseEntity {
@@ -228,6 +263,8 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   price: number;
   quantity: number;
   description?: string;
+  /** optional Urdu print description; empty falls back to description */
+  descriptionUrdu?: string | null;
   itemTypeId?: number | null;
   itemTypeName?: string | null;
   listPosition?: number | null;
@@ -251,6 +288,8 @@ export interface UpdateInventoryItem {
   name?: string;
   quantity?: number;
   description?: string;
+  /** optional Urdu print description; blank clears it */
+  descriptionUrdu?: string | null;
   /** customer-facing name; blank clears it (migration 023) */
   title?: string | null;
   itemTypeId?: number | null;
@@ -260,6 +299,8 @@ export interface InsertInventoryItem {
   name: string;
   price: number;
   description?: string;
+  /** optional Urdu print description; blank stores NULL */
+  descriptionUrdu?: string | null;
   /** customer-facing name; blank stores NULL (migration 023) */
   title?: string | null;
   itemTypeId?: number | null;
@@ -285,6 +326,10 @@ export interface BulkPriceListPositionPatch {
    * A null price removes the item from that list.
    */
   listPrices?: Array<{ priceListId: number; price: number | null }>;
+  /** omitted means unchanged; null/empty clears English description */
+  description?: string | null;
+  /** omitted means unchanged; null/empty clears Urdu description */
+  descriptionUrdu?: string | null;
 }
 
 export interface BulkPriceListPositionResult {
@@ -490,21 +535,28 @@ export type InvoiceItemView = {
   inventoryItemName: string;
   inventoryId?: number;
   inventoryItemDescription?: string;
+  /** live-joined inventory.descriptionUrdu; empty falls back on print */
+  inventoryItemDescriptionUrdu?: string | null;
   discountedPrice?: number;
   accountName?: string;
   /** persisted line account when invoice uses per-row accounts */
   accountId?: number;
+  /** line party Urdu name when invoice uses per-row accounts */
+  accountNameUrdu?: string;
 };
 export type InvoiceView = Prettify<
   Omit<Invoice, 'invoiceItems'> & {
     accountName?: string;
+    accountNameUrdu?: string | null;
     accountCode?: number | string | null;
     /** header party account id for edit hydration */
     invoiceHeaderAccountId?: number;
     /** persisted for edit round-trip when extra discount applies */
     extraDiscountAccountId?: number | null;
     accountAddress?: string | null;
+    accountAddressUrdu?: string | null;
     accountGoodsName?: string | null;
+    accountGoodsNameUrdu?: string | null;
     invoiceItems: Array<InvoiceItemView>;
     /** sale quotation until converted to a numbered invoice */
     isQuotation?: boolean;

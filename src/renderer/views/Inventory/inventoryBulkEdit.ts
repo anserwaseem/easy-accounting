@@ -9,12 +9,16 @@ export type InventoryBulkEditCol =
   | 'price'
   | 'listPosition'
   | 'parentId'
+  | 'description'
+  | 'descriptionUrdu'
   | `list:${number}`;
 
 export interface InventoryBulkEditDraftFields {
   price?: string;
   listPosition?: string;
   parentId?: string;
+  description?: string;
+  descriptionUrdu?: string;
   /** keyed by price list id, as typed */
   listPrices?: Record<number, string>;
 }
@@ -60,11 +64,39 @@ export const INVENTORY_BULK_EDIT_COLS: InventoryBulkEditCol[] = [
   'price',
 ];
 
+/** builds Tab/arrow order from currently visible editable columns */
+export const buildInventoryBulkEditCols = (options: {
+  showListPosition: boolean;
+  showDescription: boolean;
+  showDescriptionUrdu: boolean;
+  priceListIds: number[];
+}): InventoryBulkEditCol[] => {
+  const cols: InventoryBulkEditCol[] = [];
+  if (options.showListPosition) cols.push('listPosition');
+  if (options.showDescription) cols.push('description');
+  if (options.showDescriptionUrdu) cols.push('descriptionUrdu');
+  cols.push('price');
+  options.priceListIds.forEach((id) => cols.push(priceListCol(id)));
+  return cols;
+};
+
 export const formatListPositionDisplay = (
   value: number | null | undefined,
 ): string => (value == null ? '' : String(value));
 
 export const formatPriceDisplay = (value: number): string => String(value);
+
+export const formatDescriptionDisplay = (
+  value: string | null | undefined,
+): string => value ?? '';
+
+/** empty / whitespace → null; otherwise trimmed text */
+export const parseDescriptionInput = (
+  raw: string,
+): { ok: true; value: string | null } => {
+  const trimmed = raw.trim();
+  return { ok: true, value: trimmed === '' ? null : trimmed };
+};
 
 export const getDraftDisplayValue = (
   row: InventoryItem,
@@ -79,6 +111,16 @@ export const getDraftDisplayValue = (
   if (col === 'parentId') {
     if (draft?.parentId !== undefined) return draft.parentId;
     return row.parentId == null ? '' : String(row.parentId);
+  }
+  if (col === 'description') {
+    return draft?.description !== undefined
+      ? draft.description
+      : formatDescriptionDisplay(row.description);
+  }
+  if (col === 'descriptionUrdu') {
+    return draft?.descriptionUrdu !== undefined
+      ? draft.descriptionUrdu
+      : formatDescriptionDisplay(row.descriptionUrdu);
   }
   const priceListId = priceListIdOfCol(col);
   if (priceListId !== null) {
@@ -142,6 +184,20 @@ export const isDraftRowDirty = (
     const parsed = parseFamilyParentInput(draft.parentId);
     const original = row.parentId ?? null;
     if (!parsed.ok || parsed.value !== original) return true;
+  }
+  if (draft.description !== undefined) {
+    const parsed = parseDescriptionInput(draft.description);
+    const original = parseDescriptionInput(
+      formatDescriptionDisplay(row.description),
+    ).value;
+    if (parsed.value !== original) return true;
+  }
+  if (draft.descriptionUrdu !== undefined) {
+    const parsed = parseDescriptionInput(draft.descriptionUrdu);
+    const original = parseDescriptionInput(
+      formatDescriptionDisplay(row.descriptionUrdu),
+    ).value;
+    if (parsed.value !== original) return true;
   }
   if (draft.listPrices) {
     for (const [key, raw] of Object.entries(draft.listPrices)) {
@@ -226,6 +282,28 @@ export const buildBulkPriceListPatches = (
       }
     }
 
+    let description: string | null | undefined;
+    if (draft.description !== undefined) {
+      const parsed = parseDescriptionInput(draft.description);
+      const original = parseDescriptionInput(
+        formatDescriptionDisplay(row.description),
+      ).value;
+      if (parsed.value !== original) {
+        description = parsed.value;
+      }
+    }
+
+    let descriptionUrdu: string | null | undefined;
+    if (draft.descriptionUrdu !== undefined) {
+      const parsed = parseDescriptionInput(draft.descriptionUrdu);
+      const original = parseDescriptionInput(
+        formatDescriptionDisplay(row.descriptionUrdu),
+      ).value;
+      if (parsed.value !== original) {
+        descriptionUrdu = parsed.value;
+      }
+    }
+
     const listPrices: Array<{ priceListId: number; price: number | null }> = [];
     if (draft.listPrices) {
       for (const [key, raw] of Object.entries(draft.listPrices)) {
@@ -245,6 +323,8 @@ export const buildBulkPriceListPatches = (
       price,
       listPosition,
       ...(parentId !== undefined ? { parentId } : {}),
+      ...(description !== undefined ? { description } : {}),
+      ...(descriptionUrdu !== undefined ? { descriptionUrdu } : {}),
       ...(listPrices.length > 0 ? { listPrices } : {}),
     });
   }
@@ -264,6 +344,12 @@ export interface BulkEditChangeRow {
   /** set only when family changed */
   familyFrom?: string;
   familyTo?: string;
+  /** set only when English description changed */
+  descriptionFrom?: string;
+  descriptionTo?: string;
+  /** set only when Urdu description changed */
+  descriptionUrduFrom?: string;
+  descriptionUrduTo?: string;
   /** one entry per changed price list */
   priceListChanges?: Array<{
     priceListId: number;
@@ -284,6 +370,10 @@ export interface BulkEditChangeSummary {
   hasListChanges: boolean;
   /** true if any row changed family */
   hasFamilyChanges: boolean;
+  /** true if any row changed English description */
+  hasDescriptionChanges: boolean;
+  /** true if any row changed Urdu description */
+  hasDescriptionUrduChanges: boolean;
   /** true if any row changed a named price list */
   hasPriceListChanges: boolean;
 }
@@ -304,7 +394,12 @@ export const buildBulkEditChangeSummary = (
   let hasPriceChanges = false;
   let hasListChanges = false;
   let hasFamilyChanges = false;
+  let hasDescriptionChanges = false;
+  let hasDescriptionUrduChanges = false;
   let hasPriceListChanges = false;
+
+  const descLabel = (value: string | null | undefined): string =>
+    value?.trim() ? value.trim() : '—';
 
   for (const patch of patches) {
     const original = originalsById.get(patch.id);
@@ -347,6 +442,18 @@ export const buildBulkEditChangeSummary = (
       hasFamilyChanges = true;
     }
 
+    if (Object.prototype.hasOwnProperty.call(patch, 'description')) {
+      row.descriptionFrom = descLabel(original.description);
+      row.descriptionTo = descLabel(patch.description);
+      hasDescriptionChanges = true;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'descriptionUrdu')) {
+      row.descriptionUrduFrom = descLabel(original.descriptionUrdu);
+      row.descriptionUrduTo = descLabel(patch.descriptionUrdu);
+      hasDescriptionUrduChanges = true;
+    }
+
     if (patch.listPrices?.length) {
       row.priceListChanges = patch.listPrices.map((entry) => ({
         priceListId: entry.priceListId,
@@ -360,6 +467,8 @@ export const buildBulkEditChangeSummary = (
       row.priceTo !== undefined ||
       row.listTo !== undefined ||
       row.familyTo !== undefined ||
+      row.descriptionTo !== undefined ||
+      row.descriptionUrduTo !== undefined ||
       row.priceListChanges?.length
     ) {
       rows.push(row);
@@ -375,6 +484,8 @@ export const buildBulkEditChangeSummary = (
     hasPriceChanges,
     hasListChanges,
     hasFamilyChanges,
+    hasDescriptionChanges,
+    hasDescriptionUrduChanges,
     hasPriceListChanges,
   };
 };
@@ -415,6 +526,7 @@ export const resolveNextBulkEditTarget = (
   currentCol: InventoryBulkEditCol,
   key: string,
   shiftKey: boolean,
+  editableCols: InventoryBulkEditCol[] = INVENTORY_BULK_EDIT_COLS,
 ): {
   inventoryId: number;
   col: InventoryBulkEditCol;
@@ -423,18 +535,16 @@ export const resolveNextBulkEditTarget = (
   const rowIndex = viewRows.findIndex((r) => r.id === currentId);
   if (rowIndex < 0) return null;
 
-  const colIndex = INVENTORY_BULK_EDIT_COLS.indexOf(currentCol);
+  const colIndex = editableCols.indexOf(currentCol);
   if (colIndex < 0) return null;
 
   if (key === 'ArrowLeft') {
-    const nextCol = INVENTORY_BULK_EDIT_COLS[Math.max(0, colIndex - 1)];
+    const nextCol = editableCols[Math.max(0, colIndex - 1)];
     return { inventoryId: currentId, col: nextCol, rowIndex };
   }
   if (key === 'ArrowRight') {
     const nextCol =
-      INVENTORY_BULK_EDIT_COLS[
-        Math.min(INVENTORY_BULK_EDIT_COLS.length - 1, colIndex + 1)
-      ];
+      editableCols[Math.min(editableCols.length - 1, colIndex + 1)];
     return { inventoryId: currentId, col: nextCol, rowIndex };
   }
   if (key === 'ArrowUp' || (key === 'Enter' && shiftKey)) {
@@ -460,7 +570,7 @@ export const resolveNextBulkEditTarget = (
       if (colIndex > 0) {
         return {
           inventoryId: currentId,
-          col: INVENTORY_BULK_EDIT_COLS[colIndex - 1],
+          col: editableCols[colIndex - 1],
           rowIndex,
         };
       }
@@ -468,14 +578,14 @@ export const resolveNextBulkEditTarget = (
       if (nextRow < 0) return null;
       return {
         inventoryId: viewRows[nextRow].id,
-        col: INVENTORY_BULK_EDIT_COLS[INVENTORY_BULK_EDIT_COLS.length - 1],
+        col: editableCols[editableCols.length - 1],
         rowIndex: nextRow,
       };
     }
-    if (colIndex < INVENTORY_BULK_EDIT_COLS.length - 1) {
+    if (colIndex < editableCols.length - 1) {
       return {
         inventoryId: currentId,
-        col: INVENTORY_BULK_EDIT_COLS[colIndex + 1],
+        col: editableCols[colIndex + 1],
         rowIndex,
       };
     }
@@ -483,7 +593,7 @@ export const resolveNextBulkEditTarget = (
     if (nextRow >= viewRows.length) return null;
     return {
       inventoryId: viewRows[nextRow].id,
-      col: INVENTORY_BULK_EDIT_COLS[0],
+      col: editableCols[0],
       rowIndex: nextRow,
     };
   }

@@ -14,6 +14,8 @@ import type {
   BalanceSheet,
   InsertAccount,
   UpdateAccount,
+  AccountUrduFieldPatch,
+  InventoryUrduFieldPatch,
   Journal,
   LedgerView,
   InventoryItem,
@@ -415,6 +417,11 @@ app
       accountService.updateAccount(account),
     );
     ipcMain.handle(
+      'account:bulkUpdateUrduFields',
+      async (_, patches: AccountUrduFieldPatch[]) =>
+        accountService.bulkUpdateUrduFields(patches),
+    );
+    ipcMain.handle(
       'account:updateDiscountProfile',
       async (_, accountId: number, discountProfileId: number | null) =>
         accountService.updateAccountDiscountProfile(
@@ -560,6 +567,11 @@ app
     );
     ipcMain.handle('inventory:update', (_, item: UpdateInventoryItem) =>
       inventoryService.updateItem(item),
+    );
+    ipcMain.handle(
+      'inventory:bulkUpdateUrduFields',
+      async (_, patches: InventoryUrduFieldPatch[]) =>
+        inventoryService.bulkUpdateUrduFields(patches),
     );
     ipcMain.handle(
       'inventory:setParentId',

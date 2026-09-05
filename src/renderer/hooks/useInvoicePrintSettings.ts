@@ -1,19 +1,51 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type {
+  InvoicePrintLabelKey,
+  InvoicePrintLabels,
+  InvoicePrintLocale,
+} from '@/renderer/lib/invoicePrint/locale';
+import {
+  getDefaultInvoicePrintLabels,
+  INVOICE_PRINT_LABEL_KEYS,
+} from '@/renderer/lib/invoicePrint/locale';
 
 export interface InvoicePrintSettings {
-  totalQuantityLabel: string;
+  locale: InvoicePrintLocale;
+  /** only applied when locale is Urdu; empty/missing keys keep defaults */
+  urduLabelOverrides: Partial<InvoicePrintLabels>;
 }
 
 const INVOICE_PRINT_KEYS = {
+  locale: 'print.locale',
+  urduLabelOverrides: 'print.urduLabelOverrides',
+  /** legacy key removed from Settings UI; ignored when present */
   totalQuantityLabel: 'print.totalQuantityLabel',
 } as const;
 
-const DEFAULT_TOTAL_QUANTITY_LABEL = 'Total quantity:';
+const DEFAULT_LOCALE: InvoicePrintLocale = 'en';
+
+const parseLocale = (value: unknown): InvoicePrintLocale =>
+  value === 'ur' ? 'ur' : DEFAULT_LOCALE;
+
+const parseUrduLabelOverrides = (
+  value: unknown,
+): Partial<InvoicePrintLabels> => {
+  if (!value || typeof value !== 'object') return {};
+  const raw = value as Record<string, unknown>;
+  const next: Partial<InvoicePrintLabels> = {};
+  INVOICE_PRINT_LABEL_KEYS.forEach((key: InvoicePrintLabelKey) => {
+    const candidate = raw[key];
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      next[key] = candidate.trim();
+    }
+  });
+  return next;
+};
 
 const readInvoicePrintSettings = (): InvoicePrintSettings => ({
-  totalQuantityLabel: String(
-    window.electron.store.get(INVOICE_PRINT_KEYS.totalQuantityLabel) ??
-      DEFAULT_TOTAL_QUANTITY_LABEL,
+  locale: parseLocale(window.electron.store.get(INVOICE_PRINT_KEYS.locale)),
+  urduLabelOverrides: parseUrduLabelOverrides(
+    window.electron.store.get(INVOICE_PRINT_KEYS.urduLabelOverrides),
   ),
 });
 
@@ -27,9 +59,10 @@ export const useInvoicePrintSettings = () => {
   }, []);
 
   const saveInvoicePrintSettings = useCallback((next: InvoicePrintSettings) => {
+    window.electron.store.set(INVOICE_PRINT_KEYS.locale, next.locale);
     window.electron.store.set(
-      INVOICE_PRINT_KEYS.totalQuantityLabel,
-      next.totalQuantityLabel,
+      INVOICE_PRINT_KEYS.urduLabelOverrides,
+      next.urduLabelOverrides,
     );
     setSettings(next);
   }, []);
@@ -39,7 +72,8 @@ export const useInvoicePrintSettings = () => {
       settings,
       saveInvoicePrintSettings,
       defaults: {
-        totalQuantityLabel: DEFAULT_TOTAL_QUANTITY_LABEL,
+        locale: DEFAULT_LOCALE,
+        urduLabels: getDefaultInvoicePrintLabels('ur'),
       },
     }),
     [settings, saveInvoicePrintSettings],

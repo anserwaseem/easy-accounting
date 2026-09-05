@@ -35,6 +35,10 @@ interface AddCustomHeadProps {
   charts: Chart[];
   onHeadAdded: () => void;
   btnClassName?: string;
+  /** when true, omit trigger button (parent opens via isOpen) */
+  hideButton?: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const formSchema = z.object({
@@ -46,8 +50,16 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
   charts,
   onHeadAdded,
   btnClassName,
+  hideButton = false,
+  isOpen,
+  onOpenChange,
 }: AddCustomHeadProps) => {
   const [open, setOpen] = useState(false);
+  const dialogOpen = isOpen ?? open;
+  const setDialogOpen = (next: boolean) => {
+    setOpen(next);
+    onOpenChange?.(next);
+  };
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -68,7 +80,7 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
       });
 
       form.reset();
-      setOpen(false);
+      setDialogOpen(false);
       onHeadAdded();
 
       toast({
@@ -85,18 +97,20 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn('w-auto', btnClassName)}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Head
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {!hideButton ? (
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn('w-auto', btnClassName)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Head
+          </Button>
+        </DialogTrigger>
+      ) : null}
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Head</DialogTitle>
         </DialogHeader>

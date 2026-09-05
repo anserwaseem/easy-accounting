@@ -11,6 +11,8 @@ import type {
   InsertInventoryItem,
   InventoryItem,
   InventoryOpeningStock,
+  InventoryUrduBulkUpdateResult,
+  InventoryUrduFieldPatch,
   ReportResponse,
   SetOpeningStockItem,
   StockAdjustment,
@@ -89,6 +91,12 @@ export class InventoryService {
   private stmStockAsOfAdjustmentDeltaAfter!: Statement;
 
   private stmGetInventoryIdsByTrimName!: Statement;
+
+  private stmGetInventoryUrduById!: Statement;
+
+  private stmUpdateInventoryUrdu!: Statement;
+
+  private stmUpdateInventoryDescription!: Statement;
 
   private stmUpdateInventoryListPositionById!: Statement;
 
@@ -307,7 +315,9 @@ export class InventoryService {
         const result = this.stmInsertItem.run({
           name: item.name,
           description: item.description ?? null,
+          descriptionUrdu: item.descriptionUrdu?.trim() || null,
           price: item.price,
+          title: item.title?.trim() || null,
           itemTypeId: item.itemTypeId ?? null,
           listPosition: item.listPosition ?? null,
         });
@@ -339,6 +349,7 @@ export class InventoryService {
     const result = this.stmInsertItem.run({
       ...item,
       description: item.description ?? null,
+      descriptionUrdu: item.descriptionUrdu?.trim() || null,
       // same rule as updateItem: blank stores NULL, and the key must be present
       // either way or the statement's @title parameter has nothing to bind to
       title: item.title?.trim() || null,
@@ -354,6 +365,7 @@ export class InventoryService {
       ...item,
       id: cast(item.id),
       description: item.description ?? null,
+      descriptionUrdu: item.descriptionUrdu?.trim() || null,
       // blank stores NULL, not '': "no title" must have one representation, or
       // a consumer choosing between a title and a composed one has to test for
       // both and one caller will forget
@@ -362,6 +374,73 @@ export class InventoryService {
       listPosition: item.listPosition ?? null,
     });
     return Boolean(result.changes);
+  }
+
+  /**
+   * apply Urdu print description from spreadsheet import.
+   * match by id when present, else by trimmed name (SKU).
+   * only keys present on the patch are written (undefined = leave unchanged).
+   */
+  bulkUpdateUrduFields(
+    patches: InventoryUrduFieldPatch[],
+  ): InventoryUrduBulkUpdateResult {
+    let updated = 0;
+    let notFound = 0;
+    let ambiguous = 0;
+
+    const run = this.db.transaction(() => {
+      patches.forEach((patch) => {
+        const resolved = this.resolveInventoryForUrduPatch(patch);
+        if (resolved === 'notFound') {
+          notFound += 1;
+          return;
+        }
+        if (resolved === 'ambiguous') {
+          ambiguous += 1;
+          return;
+        }
+
+        const nextDescriptionUrdu =
+          patch.descriptionUrdu !== undefined
+            ? patch.descriptionUrdu?.trim() || null
+            : resolved.descriptionUrdu ?? null;
+
+        const result = this.stmUpdateInventoryUrdu.run({
+          id: cast(resolved.id),
+          descriptionUrdu: nextDescriptionUrdu,
+        });
+        if (result.changes > 0) updated += 1;
+        else notFound += 1;
+      });
+    });
+
+    run();
+    return { updated, notFound, ambiguous };
+  }
+
+  private resolveInventoryForUrduPatch(
+    patch: InventoryUrduFieldPatch,
+  ): { id: number; descriptionUrdu: string | null } | 'notFound' | 'ambiguous' {
+    if (patch.id != null && Number.isFinite(patch.id) && patch.id > 0) {
+      const byId = this.stmGetInventoryUrduById.get(cast(patch.id)) as
+        | { id: number; descriptionUrdu: string | null }
+        | undefined;
+      return byId ?? 'notFound';
+    }
+
+    const name = patch.name?.trim();
+    if (!name) return 'notFound';
+
+    const matches = this.stmGetInventoryIdsByTrimName.all(name) as Array<{
+      id: number;
+    }>;
+    if (matches.length === 0) return 'notFound';
+    if (matches.length > 1) return 'ambiguous';
+
+    const byId = this.stmGetInventoryUrduById.get(cast(matches[0].id)) as
+      | { id: number; descriptionUrdu: string | null }
+      | undefined;
+    return byId ?? 'notFound';
   }
 
   /**
@@ -464,7 +543,9 @@ export class InventoryService {
             const result = this.stmInsertItem.run({
               name,
               description: null,
+              descriptionUrdu: null,
               price: 0,
+              title: null,
               itemTypeId: null,
               listPosition: null,
             });
@@ -561,8 +642,8 @@ export class InventoryService {
   }
 
   /**
-   * updates price, listPosition, family, and named prices in one transaction.
-   * only dirty patches should be sent from the renderer.
+   * updates price, listPosition, family, named prices, and descriptions in one
+   * transaction. only dirty patches should be sent from the renderer.
    */
   bulkUpdatePricesAndListPositions(
     patches: BulkPriceListPositionPatch[],
@@ -608,6 +689,20 @@ export class InventoryService {
             patch.parentId ?? null,
             vendorStockService,
           );
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, 'description')) {
+          this.stmUpdateInventoryDescription.run({
+            id: cast(patch.id),
+            description: patch.description?.trim() || null,
+          });
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, 'descriptionUrdu')) {
+          this.stmUpdateInventoryUrdu.run({
+            id: cast(patch.id),
+            descriptionUrdu: patch.descriptionUrdu?.trim() || null,
+          });
         }
 
         // named price lists: a null price removes the item from that list
@@ -1091,14 +1186,15 @@ export class InventoryService {
     `);
 
     this.stmInsertItem = this.db.prepare(`
-      INSERT INTO inventory (name, description, price, title, itemTypeId, listPosition)
-      VALUES (@name, @description, @price, @title, @itemTypeId, @listPosition);
+      INSERT INTO inventory (name, description, descriptionUrdu, price, title, itemTypeId, listPosition)
+      VALUES (@name, @description, @descriptionUrdu, @price, @title, @itemTypeId, @listPosition);
     `);
 
     this.stmUpdateItem = this.db.prepare(`
       UPDATE inventory
       SET price = @price,
           description = @description,
+          descriptionUrdu = @descriptionUrdu,
           title = @title,
           itemTypeId = @itemTypeId,
           listPosition = @listPosition
@@ -1270,6 +1366,22 @@ export class InventoryService {
 
     this.stmGetInventoryIdsByTrimName = this.db.prepare(`
       SELECT id FROM inventory WHERE TRIM(name) = TRIM(?)
+    `);
+
+    this.stmGetInventoryUrduById = this.db.prepare(`
+      SELECT id, descriptionUrdu FROM inventory WHERE id = ?
+    `);
+
+    this.stmUpdateInventoryUrdu = this.db.prepare(`
+      UPDATE inventory
+      SET descriptionUrdu = @descriptionUrdu
+      WHERE id = @id
+    `);
+
+    this.stmUpdateInventoryDescription = this.db.prepare(`
+      UPDATE inventory
+      SET description = @description
+      WHERE id = @id
     `);
 
     this.stmUpdateInventoryListPositionById = this.db.prepare(`

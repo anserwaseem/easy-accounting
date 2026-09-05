@@ -8,10 +8,12 @@ import {
   parseFamilyParentInput,
   parseListPositionInput,
   parsePriceInput,
+  parseDescriptionInput,
   resolveNextBulkEditTarget,
   priceListCol,
   priceListIdOfCol,
   parseListPriceInput,
+  buildInventoryBulkEditCols,
 } from '../inventoryBulkEdit';
 
 const row = (
@@ -22,6 +24,7 @@ const row = (
   price: partial.price ?? 10,
   quantity: partial.quantity ?? 0,
   description: partial.description,
+  descriptionUrdu: partial.descriptionUrdu,
   itemTypeId: partial.itemTypeId ?? null,
   itemTypeName: partial.itemTypeName ?? null,
   listPosition: partial.listPosition ?? null,
@@ -56,6 +59,15 @@ describe('inventoryBulkEdit parsers', () => {
     expect(parseFamilyParentInput('12')).toEqual({ ok: true, value: 12 });
     expect(parseFamilyParentInput('0').ok).toBe(false);
     expect(parseFamilyParentInput('x').ok).toBe(false);
+  });
+
+  it('parses description empty as null and trims', () => {
+    expect(parseDescriptionInput('')).toEqual({ ok: true, value: null });
+    expect(parseDescriptionInput('  ')).toEqual({ ok: true, value: null });
+    expect(parseDescriptionInput('  hello  ')).toEqual({
+      ok: true,
+      value: 'hello',
+    });
   });
 });
 
@@ -125,6 +137,48 @@ describe('inventoryBulkEdit draft dirty + patches', () => {
       familyFrom: 'None',
       familyTo: 'Family A',
     });
+  });
+
+  it('builds description-only patches and summary labels', () => {
+    const item = row({
+      id: 1,
+      name: 'A',
+      description: 'old',
+      descriptionUrdu: 'قدیم',
+    });
+    const originals = new Map([[item.id, item]]);
+    const built = buildBulkPriceListPatches(
+      originals,
+      new Map([[item.id, { description: 'new', descriptionUrdu: '  ' }]]),
+    );
+    expect(built).toEqual({
+      ok: true,
+      patches: [
+        {
+          id: 1,
+          price: 10,
+          listPosition: null,
+          description: 'new',
+          descriptionUrdu: null,
+        },
+      ],
+    });
+    if (!built.ok) return;
+    const summary = buildBulkEditChangeSummary(originals, built.patches);
+    expect(summary.hasDescriptionChanges).toBe(true);
+    expect(summary.hasDescriptionUrduChanges).toBe(true);
+    expect(summary.rows[0]).toMatchObject({
+      descriptionFrom: 'old',
+      descriptionTo: 'new',
+      descriptionUrduFrom: 'قدیم',
+      descriptionUrduTo: '—',
+    });
+  });
+
+  it('does not mark description dirty when trim equals stored', () => {
+    const item = row({ id: 1, name: 'A', description: 'same' });
+    expect(isDraftRowDirty(item, { description: '  same  ' })).toBe(false);
+    expect(isDraftRowDirty(item, { description: 'other' })).toBe(true);
   });
 
   it('rejects negative list # in patches', () => {
@@ -217,6 +271,27 @@ describe('resolveNextBulkEditTarget', () => {
     expect(
       resolveNextBulkEditTarget(rows, 1, 'listPosition', 'Tab', true),
     ).toBeNull();
+  });
+
+  it('tabs through visible description columns when provided', () => {
+    const cols = buildInventoryBulkEditCols({
+      showListPosition: true,
+      showDescription: true,
+      showDescriptionUrdu: true,
+      priceListIds: [],
+    });
+    expect(cols).toEqual([
+      'listPosition',
+      'description',
+      'descriptionUrdu',
+      'price',
+    ]);
+    expect(
+      resolveNextBulkEditTarget(rows, 1, 'listPosition', 'Tab', false, cols),
+    ).toEqual({ inventoryId: 1, col: 'description', rowIndex: 0 });
+    expect(
+      resolveNextBulkEditTarget(rows, 1, 'description', 'Tab', false, cols),
+    ).toEqual({ inventoryId: 1, col: 'descriptionUrdu', rowIndex: 0 });
   });
 });
 

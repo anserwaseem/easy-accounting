@@ -87,6 +87,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
     price: row.original.price,
     title: row.original.title ?? '',
     description: row.original.description,
+    descriptionUrdu: row.original.descriptionUrdu ?? '',
     itemTypeId: row.original.itemTypeId,
     listPosition: row.original.listPosition ?? null,
   };

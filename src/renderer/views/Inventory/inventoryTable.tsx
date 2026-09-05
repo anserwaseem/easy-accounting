@@ -66,6 +66,7 @@ import { InventoryBulkEditToolbar } from './InventoryBulkEditToolbar';
 import { InventoryBulkEditSaveSummary } from './InventoryBulkEditSaveSummary';
 import {
   buildBulkEditChangeSummary,
+  buildInventoryBulkEditCols,
   focusInventoryBulkEditCell,
   resolveNextBulkEditTarget,
   scheduleFocusInventoryBulkEditCell,
@@ -80,14 +81,23 @@ import { useInventoryBulkEditDraft } from './useInventoryBulkEditDraft';
 const VISIBLE_PRICE_LIST_COLUMNS_KEY = 'inventoryVisiblePriceListColumns';
 const VISIBLE_ATTRIBUTE_COLUMNS_KEY = 'inventoryVisibleAttributeColumns';
 const VISIBLE_CORE_COLUMNS_KEY = 'inventoryVisibleCoreColumnsV2';
-type CoreColumnId = 'listPosition' | 'family' | 'description' | 'itemTypeName';
+type CoreColumnId =
+  | 'listPosition'
+  | 'family'
+  | 'description'
+  | 'descriptionUrdu'
+  | 'itemTypeName';
 const CORE_COLUMN_OPTIONS: Array<{ id: CoreColumnId; label: string }> = [
   { id: 'listPosition', label: 'List #' },
   { id: 'family', label: 'Family' },
   { id: 'description', label: 'Description' },
+  { id: 'descriptionUrdu', label: 'Description (Urdu)' },
   { id: 'itemTypeName', label: 'Type' },
 ];
-const DEFAULT_CORE_COLUMN_IDS = CORE_COLUMN_OPTIONS.map(({ id }) => id);
+/** Urdu description off by default — wide + optional print field */
+const DEFAULT_CORE_COLUMN_IDS: CoreColumnId[] = CORE_COLUMN_OPTIONS.map(
+  ({ id }) => id,
+).filter((id) => id !== 'descriptionUrdu');
 
 const listPositionSortingFn = createListPositionSortingFn<InventoryItem>(
   (r) => r.id,
@@ -314,6 +324,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       id: row.id,
       price: row.price,
       description: row.description,
+      descriptionUrdu: row.descriptionUrdu ?? null,
+      title: row.title ?? null,
       itemTypeId: nextItemTypeId,
       listPosition: row.listPosition ?? null,
     });
@@ -463,6 +475,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     () => [
       'name',
       'description',
+      'descriptionUrdu',
       'itemTypeName',
       'listPosition',
       'price',
@@ -494,6 +507,19 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     () => priceLists.filter((l) => visiblePriceListIds.includes(l.id)),
     [priceLists, visiblePriceListIds],
   );
+
+  const bulkEditCols = useMemo(
+    () =>
+      buildInventoryBulkEditCols({
+        showListPosition: visibleCoreColumnIds.includes('listPosition'),
+        showDescription: visibleCoreColumnIds.includes('description'),
+        showDescriptionUrdu: visibleCoreColumnIds.includes('descriptionUrdu'),
+        priceListIds: shownPriceLists.map((list) => list.id),
+      }),
+    [shownPriceLists, visibleCoreColumnIds],
+  );
+  const bulkEditColsRef = useRef(bulkEditCols);
+  bulkEditColsRef.current = bulkEditCols;
 
   // report the filtered id set upward; derived from the memoized rows so this
   // fires only when filtering actually changes, not on every render
@@ -570,6 +596,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       col,
       key,
       shiftKey,
+      bulkEditColsRef.current,
     );
     if (!target) return;
 
@@ -851,7 +878,76 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               header: 'Description',
               size: 240,
               enableSorting: !editMode,
-            },
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: { row: { original: InventoryItem } }) => {
+                if (!editMode) {
+                  const value = row.original.description?.trim();
+                  return value ? (
+                    <span className="text-sm">{value}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  );
+                }
+                return (
+                  <InventoryBulkEditCell
+                    inventoryId={row.original.id}
+                    col="description"
+                    defaultValue={getCellDefaultValue(
+                      row.original,
+                      'description',
+                    )}
+                    editSessionKey={editSessionKey}
+                    onWrite={stableWriteDraft}
+                    onBlurCommit={stableBlurCommit}
+                    onNavigate={stableNavigate}
+                  />
+                );
+              },
+            } as ColumnDef<InventoryItem>,
+          ]
+        : []),
+      ...(visibleCoreColumnIds.includes('descriptionUrdu')
+        ? [
+            {
+              accessorKey: 'descriptionUrdu',
+              header: 'Description (Urdu)',
+              size: 200,
+              enableSorting: !editMode,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: { row: { original: InventoryItem } }) => {
+                if (!editMode) {
+                  const value = row.original.descriptionUrdu?.trim();
+                  if (!value) {
+                    return (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    );
+                  }
+                  return (
+                    <span
+                      dir="rtl"
+                      lang="ur"
+                      className="text-sm leading-relaxed"
+                    >
+                      {value}
+                    </span>
+                  );
+                }
+                return (
+                  <InventoryBulkEditCell
+                    inventoryId={row.original.id}
+                    col="descriptionUrdu"
+                    defaultValue={getCellDefaultValue(
+                      row.original,
+                      'descriptionUrdu',
+                    )}
+                    editSessionKey={editSessionKey}
+                    onWrite={stableWriteDraft}
+                    onBlurCommit={stableBlurCommit}
+                    onNavigate={stableNavigate}
+                  />
+                );
+              },
+            } as ColumnDef<InventoryItem>,
           ]
         : []),
       ...(visibleCoreColumnIds.includes('itemTypeName')
