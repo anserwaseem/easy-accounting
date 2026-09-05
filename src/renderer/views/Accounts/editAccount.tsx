@@ -55,6 +55,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     addressUrdu: inputRow.addressUrdu,
     goodsNameUrdu: inputRow.goodsNameUrdu,
     isActive: !!inputRow.isActive, // included for type safety, but not used in the form
+    tracksVendorStock: !!inputRow.tracksVendorStock,
   });
 
   const onSubmit = async (values: AccountFormData) => {
@@ -72,6 +73,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       goodsNameUrdu: values.goodsNameUrdu,
       discountProfileId: row.original.discountProfileId ?? null,
       isActive: row.original.isActive,
+      tracksVendorStock: values.tracksVendorStock,
     });
 
     toast({

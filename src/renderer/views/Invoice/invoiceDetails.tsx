@@ -215,13 +215,23 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     if (!invoice?.id) return;
     setIsConvertingQuotation(true);
     try {
-      const { invoiceNumber } = await window.electron.convertQuotation(
-        invoice.id,
-      );
+      const { invoiceNumber, vendorStockMessages } =
+        await window.electron.convertQuotation(invoice.id);
       toast({
         variant: 'success',
         description: `Converted to ${invoiceType.toLowerCase()} invoice #${invoiceNumber}.`,
       });
+      if (vendorStockMessages?.length) {
+        const hasNegative = vendorStockMessages.some((m) =>
+          m.startsWith('Warning:'),
+        );
+        toast({
+          variant: hasNegative ? 'destructive' : 'default',
+          title: 'At vendor stock',
+          description: vendorStockMessages.join(' · '),
+          duration: Number.POSITIVE_INFINITY,
+        });
+      }
       await reloadInvoice();
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);

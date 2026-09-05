@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS "account" (
   -- "goodsNameUrdu" TEXT, -- "026 migration"
   -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "012 migration"
   -- "discountProfileId" INTEGER REFERENCES "discount_profiles"("id"), -- "015 migration"
+  -- "tracksVendorStock" BOOLEAN NOT NULL DEFAULT 0, -- "025 migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 
@@ -234,6 +235,63 @@ CREATE TABLE IF NOT EXISTS "stock_adjustments" ( -- "014 migration"
     FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
 );
 
+CREATE TABLE IF NOT EXISTS "vendor_stock" ( -- "025 migration"; inventoryId = family head
+    "vendorAccountId" INTEGER NOT NULL,
+    "inventoryId" INTEGER NOT NULL,
+    "quantity" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    PRIMARY KEY ("vendorAccountId", "inventoryId"),
+    FOREIGN KEY ("vendorAccountId") REFERENCES "account"("id"),
+    FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
+);
+
+CREATE TABLE IF NOT EXISTS "vendor_issues" ( -- "025 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "issueNumber" INTEGER NOT NULL UNIQUE,
+    "vendorAccountId" INTEGER NOT NULL,
+    "date" DATETIME NOT NULL,
+    "notes" TEXT,
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    FOREIGN KEY ("vendorAccountId") REFERENCES "account"("id")
+);
+
+CREATE TABLE IF NOT EXISTS "vendor_issue_items" ( -- "025 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "issueId" INTEGER NOT NULL,
+    "inventoryId" INTEGER NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    FOREIGN KEY ("issueId") REFERENCES "vendor_issues"("id"),
+    FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
+);
+
+CREATE TABLE IF NOT EXISTS "vendor_stock_movements" ( -- "025 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "vendorAccountId" INTEGER NOT NULL,
+    "inventoryId" INTEGER NOT NULL,
+    "quantityDelta" INTEGER NOT NULL,
+    "movementType" TEXT NOT NULL CHECK (
+      "movementType" IN (
+        'opening',
+        'issue',
+        'purchase',
+        'purchase_return',
+        'adjustment'
+      )
+    ),
+    "referenceType" TEXT,
+    "referenceId" INTEGER,
+    "date" DATETIME NOT NULL,
+    "notes" TEXT,
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    FOREIGN KEY ("vendorAccountId") REFERENCES "account"("id"),
+    FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
+);
+
 
 -- TRIGGERS --
 -- ledger
@@ -394,6 +452,80 @@ CREATE TRIGGER IF NOT EXISTS after_update_stock_adjustments_add_timestamp
 AFTER UPDATE ON stock_adjustments
 BEGIN
   UPDATE stock_adjustments SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- vendor_stock -- "025 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_vendor_stock_add_timestamp
+AFTER INSERT ON vendor_stock
+BEGIN
+  UPDATE vendor_stock SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE vendorAccountId = NEW.vendorAccountId
+    AND inventoryId = NEW.inventoryId;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_vendor_stock_add_timestamp
+AFTER UPDATE ON vendor_stock
+BEGIN
+  UPDATE vendor_stock SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE vendorAccountId = NEW.vendorAccountId
+    AND inventoryId = NEW.inventoryId;
+END;
+
+-- vendor_issues -- "025 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_vendor_issues_add_timestamp
+AFTER INSERT ON vendor_issues
+BEGIN
+  UPDATE vendor_issues SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_vendor_issues_add_timestamp
+AFTER UPDATE ON vendor_issues
+BEGIN
+  UPDATE vendor_issues SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- vendor_issue_items -- "025 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_vendor_issue_items_add_timestamp
+AFTER INSERT ON vendor_issue_items
+BEGIN
+  UPDATE vendor_issue_items SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_vendor_issue_items_add_timestamp
+AFTER UPDATE ON vendor_issue_items
+BEGIN
+  UPDATE vendor_issue_items SET
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+-- vendor_stock_movements -- "025 migration"
+CREATE TRIGGER IF NOT EXISTS after_insert_vendor_stock_movements_add_timestamp
+AFTER INSERT ON vendor_stock_movements
+BEGIN
+  UPDATE vendor_stock_movements SET
+    createdAt = datetime(CURRENT_TIMESTAMP, 'localtime'),
+    updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_update_vendor_stock_movements_add_timestamp
+AFTER UPDATE ON vendor_stock_movements
+BEGIN
+  UPDATE vendor_stock_movements SET
     updatedAt = datetime(CURRENT_TIMESTAMP, 'localtime')
   WHERE id = NEW.id;
 END;

@@ -58,11 +58,20 @@ const SCHEMA_SQL = fs.readFileSync(
 
 const MIGRATIONS_DIR = path.join(__dirname, '..');
 
-/** Everything migrations 020-023 introduce, so the 019 fixture can be cut back. */
+/** Everything migrations 020-025 introduce, so the 019 fixture can be cut back. */
 const POST_019 = {
-  tables: ['inventory_prices', 'price_lists', 'attribute_definitions'],
+  tables: [
+    'inventory_prices',
+    'price_lists',
+    'attribute_definitions',
+    'vendor_stock',
+    'vendor_issues',
+    'vendor_issue_items',
+    'vendor_stock_movements',
+  ],
   columns: {
     inventory: ['parentId', 'attributes', 'excludeFromCatalog', 'title'],
+    account: ['tracksVendorStock'],
   } as Record<string, string[]>,
 };
 
@@ -248,6 +257,7 @@ describe('migrations', () => {
         '022_add_inventory_excludeFromCatalog',
         '023_add_inventory_title',
         '024_normalize_invoice_date_format',
+        '025_vendor_stock',
         '026_add_account_urdu_fields',
         '027_add_inventory_descriptionUrdu',
       ]);
@@ -259,6 +269,9 @@ describe('migrations', () => {
       POST_019.tables.forEach((t) => expect(tableExists(db, t)).toBe(true));
       POST_019.columns.inventory.forEach((c) =>
         expect(columnExists(db, 'inventory', c)).toBe(true),
+      );
+      POST_019.columns.account.forEach((c) =>
+        expect(columnExists(db, 'account', c)).toBe(true),
       );
       ['nameUrdu', 'addressUrdu', 'goodsNameUrdu'].forEach((c) =>
         expect(columnExists(db, 'account', c)).toBe(true),

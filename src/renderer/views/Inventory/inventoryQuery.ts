@@ -154,24 +154,103 @@ export type PublishFilter =
 /** an item with no title publishes under its item name, which is the default */
 export type DisplayTitleFilter = 'any' | 'set' | 'unset';
 
+export type FamilyFilter = 'any' | 'heads' | 'variants' | 'standalone';
+
+export interface InventoryFamilyIndex {
+  byId: ReadonlyMap<number, InventoryItem>;
+  childCountByHeadId: ReadonlyMap<number, number>;
+}
+
+/**
+ * one family projection shared by grid, filters, and detail panel.
+ * Parent links are authoritative; names and attributes never override an
+ * explicit user decision to make an item independent.
+ */
+export const buildInventoryFamilyIndex = (
+  items: InventoryItem[],
+): InventoryFamilyIndex => {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const childCountByHeadId = new Map<number, number>();
+  items.forEach((item) => {
+    if (item.parentId == null) return;
+    childCountByHeadId.set(
+      item.parentId,
+      (childCountByHeadId.get(item.parentId) ?? 0) + 1,
+    );
+  });
+
+  return { byId, childCountByHeadId };
+};
+
+export const matchesFamilyFilter = (
+  item: InventoryItem,
+  filter: FamilyFilter,
+  index: InventoryFamilyIndex,
+): boolean => {
+  if (filter === 'any') return true;
+  if (filter === 'variants') return item.parentId != null;
+  if (filter === 'heads')
+    return (index.childCountByHeadId.get(item.id) ?? 0) > 0;
+  return (
+    item.parentId == null && (index.childCountByHeadId.get(item.id) ?? 0) === 0
+  );
+};
+
+/** compact family text used by inventory grid sorting and cell display */
+export const inventoryFamilyLabel = (
+  item: InventoryItem,
+  index: InventoryFamilyIndex,
+): string => {
+  if (item.parentId != null) {
+    return index.byId.get(item.parentId)?.name ?? `Missing #${item.parentId}`;
+  }
+  const childCount = index.childCountByHeadId.get(item.id) ?? 0;
+  if (childCount > 0)
+    return `Head · ${childCount} variant${childCount === 1 ? '' : 's'}`;
+  return 'Own head';
+};
+
 export interface InventoryFilters {
   attributes: AttributeFilters;
   publish: PublishFilter;
   displayTitle: DisplayTitleFilter;
+  family?: FamilyFilter;
+  itemTypeId?: number | 'any' | 'none';
 }
 
 export const emptyInventoryFilters: InventoryFilters = {
   attributes: {},
   publish: 'any',
   displayTitle: 'any',
+  family: 'any',
+  itemTypeId: 'any',
 };
 
 export const matchesInventoryFilters = (
   item: InventoryItem,
   filters: InventoryFilters,
   getPublishState: (item: InventoryItem) => string | undefined,
+  familyIndex?: InventoryFamilyIndex,
 ): boolean => {
   if (!matchesAttributeFilters(item, filters.attributes)) return false;
+
+  const familyFilter = filters.family ?? 'any';
+  if (
+    familyFilter !== 'any' &&
+    (!familyIndex || !matchesFamilyFilter(item, familyFilter, familyIndex))
+  ) {
+    return false;
+  }
+
+  const itemTypeFilter = filters.itemTypeId ?? 'any';
+  if (itemTypeFilter === 'none') {
+    if (item.itemTypeId != null && Number(item.itemTypeId) > 0) return false;
+  } else if (
+    itemTypeFilter !== 'any' &&
+    Number(item.itemTypeId) !== itemTypeFilter
+  ) {
+    return false;
+  }
 
   if (filters.displayTitle !== 'any') {
     const hasTitle = !isAttributeUnset(item.title);
@@ -195,7 +274,9 @@ export const countActiveInventoryFilters = (
 ): number =>
   countActiveFilters(filters.attributes) +
   (filters.publish === 'any' ? 0 : 1) +
-  (filters.displayTitle === 'any' ? 0 : 1);
+  (filters.displayTitle === 'any' ? 0 : 1) +
+  ((filters.family ?? 'any') === 'any' ? 0 : 1) +
+  ((filters.itemTypeId ?? 'any') === 'any' ? 0 : 1);
 
 /**
  * The table's resting order.

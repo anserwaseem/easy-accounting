@@ -13,6 +13,7 @@ import {
 } from 'renderer/shad/ui/form';
 import type { Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
+import { Checkbox } from 'renderer/shad/ui/checkbox';
 
 const optionalText = z
   .string()
@@ -38,6 +39,7 @@ export const accountFormSchema = z.object({
   addressUrdu: optionalText,
   goodsNameUrdu: optionalText,
   isActive: z.boolean().default(true),
+  tracksVendorStock: z.boolean().default(false),
 });
 
 export type AccountFormData = z.infer<typeof accountFormSchema>;
@@ -54,6 +56,7 @@ export const defaultValues: AccountFormData = {
   addressUrdu: undefined,
   goodsNameUrdu: undefined,
   isActive: true,
+  tracksVendorStock: false,
 };
 
 interface AccountFormProps {
@@ -235,6 +238,35 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                   placeholder="اردو مال برداری نام"
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="tracksVendorStock"
+          render={({ field }) => (
+            <FormItem className="py-1">
+              <div className="flex items-start gap-2">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    className="mt-0.5"
+                  />
+                </FormControl>
+                <div className="min-w-0 space-y-1">
+                  <FormLabel className="cursor-pointer font-normal leading-snug">
+                    Track stock at this vendor
+                  </FormLabel>
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    Count goods sitting here until you buy them back. Leave off
+                    for agents who only book consignment returns.
+                  </p>
+                </div>
+              </div>
               <FormMessage />
             </FormItem>
           )}

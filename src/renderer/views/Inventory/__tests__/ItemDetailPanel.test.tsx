@@ -9,6 +9,7 @@
 import { render, screen } from '@testing-library/react';
 import type { AttributeDefinition, InventoryItem } from 'types';
 import { ItemDetailPanel } from '../ItemDetailPanel';
+import type { InventoryFamilyIndex } from '../inventoryQuery';
 
 const def = (
   key: string,
@@ -47,6 +48,8 @@ describe('ItemDetailPanel', () => {
           def('colour', 'Colour'),
           def('weight', 'Weight'),
         ]}
+        inventoryItems={[]}
+        familyIndex={{} as InventoryFamilyIndex}
       />,
     );
 
@@ -62,6 +65,8 @@ describe('ItemDetailPanel', () => {
       <ItemDetailPanel
         item={item({ attributes: { weight: 80 } })}
         attributeDefs={[def('weight', 'Weight', { unit: 'gsm' })]}
+        inventoryItems={[]}
+        familyIndex={{} as InventoryFamilyIndex}
       />,
     );
 
@@ -77,6 +82,8 @@ describe('ItemDetailPanel', () => {
           def('laminated', 'Laminated', { valueType: 'bool' }),
           def('zipped', 'Zipped', { valueType: 'bool' }),
         ]}
+        inventoryItems={[]}
+        familyIndex={{} as InventoryFamilyIndex}
       />,
     );
 
@@ -90,6 +97,8 @@ describe('ItemDetailPanel', () => {
       <ItemDetailPanel
         item={item()}
         attributeDefs={[def('size', 'Paper size')]}
+        inventoryItems={[]}
+        familyIndex={{} as InventoryFamilyIndex}
       />,
     );
 
