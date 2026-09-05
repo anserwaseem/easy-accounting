@@ -39,7 +39,20 @@ import {
 import { getInvoicePrintReadinessGaps } from '@/renderer/lib/invoicePrint/readiness';
 import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
 import { Label } from 'renderer/shad/ui/label';
-import nastaliqFontUrl from '../../fonts/NotoNastaliqUrdu-Regular.ttf';
+import {
+  ensureUrduInvoiceFonts,
+  getUrduFontFaceCss,
+  urduFontClass,
+} from '@/renderer/lib/invoicePrint/urduFont';
+
+/**
+ * Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity).
+ * Jameel reads optically smaller than latin at the same CSS size — bump ~30%
+ * so labels sit closer to number weight. Description values use a milder bump.
+ */
+const urduChromeClass = `${urduFontClass} text-[1.3em]`;
+/** تفصیل body — smaller than headers/labels so rows stay closer to EN density */
+const urduDescriptionClass = `${urduFontClass} text-[1.1em]`;
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
@@ -61,8 +74,6 @@ const printToolbarKbdClass =
 const printToolbarKbdOnPrimaryClass =
   'border-white/30 bg-white/15 text-white dark:border-white/30 dark:bg-white/15 dark:text-white';
 
-/** Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity) */
-const urduChromeClass = "font-['Noto_Nastaliq_Urdu',serif]";
 /** force latin metrics so table data matches EN print */
 const printLatinClass = 'font-sans';
 
@@ -218,6 +229,14 @@ const PrintableInvoiceScreen = () => {
       dismissAllToasts();
     };
   }, []);
+
+  // start Noto immediately; Jameel (if registered) prefetches in the background
+  useEffect(() => {
+    if (!isUrdu) {
+      return;
+    }
+    ensureUrduInvoiceFonts('preview').catch(() => {});
+  }, [isUrdu]);
 
   useEffect(() => {
     if (!invoice) {
@@ -731,16 +750,7 @@ const PrintableInvoiceScreen = () => {
       dir={isUrdu ? 'rtl' : 'ltr'}
       lang={isUrdu ? 'ur' : 'en'}
     >
-      {isUrdu ? (
-        <style>{`
-          @font-face {
-            font-family: 'Noto Nastaliq Urdu';
-            src: url(${nastaliqFontUrl}) format('truetype');
-            font-weight: 400 700;
-            font-display: block;
-          }
-        `}</style>
-      ) : null}
+      {isUrdu ? <style>{getUrduFontFaceCss()}</style> : null}
       {isDarkAppChrome ? (
         <div
           dir="ltr"
