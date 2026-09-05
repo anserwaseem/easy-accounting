@@ -258,8 +258,7 @@ describe('migrations', () => {
         '023_add_inventory_title',
         '024_normalize_invoice_date_format',
         '025_vendor_stock',
-        '026_add_account_urdu_fields',
-        '027_add_inventory_descriptionUrdu',
+        '026_add_urdu_print_fields',
       ]);
     });
 

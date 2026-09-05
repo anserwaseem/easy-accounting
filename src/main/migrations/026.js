@@ -1,5 +1,5 @@
 module.exports = {
-  name: '026_add_account_urdu_fields',
+  name: '026_add_urdu_print_fields',
   up: (db) => {
     try {
       const hasColumn = (tableName, columnName) => {
@@ -9,9 +9,9 @@ module.exports = {
 
       db.transaction(() => {
         // optional Urdu print fields for invoice/quotation RTL output.
-        // empty is normal: print falls back to the English name/address/goodsName.
-        // not a rename — English fields stay the operational identity for search,
-        // ledgers, and existing documents.
+        // empty is normal: print falls back to the English name/address/goodsName/
+        // description. not a rename — English fields stay the operational identity
+        // for search, ledgers, and existing documents.
         if (!hasColumn('account', 'nameUrdu')) {
           db.prepare(`ALTER TABLE "account" ADD COLUMN "nameUrdu" TEXT`).run();
         }
@@ -23,6 +23,11 @@ module.exports = {
         if (!hasColumn('account', 'goodsNameUrdu')) {
           db.prepare(
             `ALTER TABLE "account" ADD COLUMN "goodsNameUrdu" TEXT`,
+          ).run();
+        }
+        if (!hasColumn('inventory', 'descriptionUrdu')) {
+          db.prepare(
+            `ALTER TABLE "inventory" ADD COLUMN "descriptionUrdu" TEXT`,
           ).run();
         }
       })();
