@@ -326,6 +326,10 @@ export interface BulkPriceListPositionPatch {
    * A null price removes the item from that list.
    */
   listPrices?: Array<{ priceListId: number; price: number | null }>;
+  /** omitted means unchanged; null/empty clears English description */
+  description?: string | null;
+  /** omitted means unchanged; null/empty clears Urdu description */
+  descriptionUrdu?: string | null;
 }
 
 export interface BulkPriceListPositionResult {

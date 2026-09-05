@@ -96,6 +96,8 @@ export class InventoryService {
 
   private stmUpdateInventoryUrdu!: Statement;
 
+  private stmUpdateInventoryDescription!: Statement;
+
   private stmUpdateInventoryListPositionById!: Statement;
 
   private stmUpdatePriceAndListPositionById!: Statement;
@@ -640,8 +642,8 @@ export class InventoryService {
   }
 
   /**
-   * updates price, listPosition, family, and named prices in one transaction.
-   * only dirty patches should be sent from the renderer.
+   * updates price, listPosition, family, named prices, and descriptions in one
+   * transaction. only dirty patches should be sent from the renderer.
    */
   bulkUpdatePricesAndListPositions(
     patches: BulkPriceListPositionPatch[],
@@ -687,6 +689,20 @@ export class InventoryService {
             patch.parentId ?? null,
             vendorStockService,
           );
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, 'description')) {
+          this.stmUpdateInventoryDescription.run({
+            id: cast(patch.id),
+            description: patch.description?.trim() || null,
+          });
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, 'descriptionUrdu')) {
+          this.stmUpdateInventoryUrdu.run({
+            id: cast(patch.id),
+            descriptionUrdu: patch.descriptionUrdu?.trim() || null,
+          });
         }
 
         // named price lists: a null price removes the item from that list
@@ -1359,6 +1375,12 @@ export class InventoryService {
     this.stmUpdateInventoryUrdu = this.db.prepare(`
       UPDATE inventory
       SET descriptionUrdu = @descriptionUrdu
+      WHERE id = @id
+    `);
+
+    this.stmUpdateInventoryDescription = this.db.prepare(`
+      UPDATE inventory
+      SET description = @description
       WHERE id = @id
     `);
 

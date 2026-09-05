@@ -66,6 +66,7 @@ import { InventoryBulkEditToolbar } from './InventoryBulkEditToolbar';
 import { InventoryBulkEditSaveSummary } from './InventoryBulkEditSaveSummary';
 import {
   buildBulkEditChangeSummary,
+  buildInventoryBulkEditCols,
   focusInventoryBulkEditCell,
   resolveNextBulkEditTarget,
   scheduleFocusInventoryBulkEditCell,
@@ -507,6 +508,19 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     [priceLists, visiblePriceListIds],
   );
 
+  const bulkEditCols = useMemo(
+    () =>
+      buildInventoryBulkEditCols({
+        showListPosition: visibleCoreColumnIds.includes('listPosition'),
+        showDescription: visibleCoreColumnIds.includes('description'),
+        showDescriptionUrdu: visibleCoreColumnIds.includes('descriptionUrdu'),
+        priceListIds: shownPriceLists.map((list) => list.id),
+      }),
+    [shownPriceLists, visibleCoreColumnIds],
+  );
+  const bulkEditColsRef = useRef(bulkEditCols);
+  bulkEditColsRef.current = bulkEditCols;
+
   // report the filtered id set upward; derived from the memoized rows so this
   // fires only when filtering actually changes, not on every render
   useEffect(() => {
@@ -582,6 +596,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       col,
       key,
       shiftKey,
+      bulkEditColsRef.current,
     );
     if (!target) return;
 
@@ -863,7 +878,32 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               header: 'Description',
               size: 240,
               enableSorting: !editMode,
-            },
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: { row: { original: InventoryItem } }) => {
+                if (!editMode) {
+                  const value = row.original.description?.trim();
+                  return value ? (
+                    <span className="text-sm">{value}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  );
+                }
+                return (
+                  <InventoryBulkEditCell
+                    inventoryId={row.original.id}
+                    col="description"
+                    defaultValue={getCellDefaultValue(
+                      row.original,
+                      'description',
+                    )}
+                    editSessionKey={editSessionKey}
+                    onWrite={stableWriteDraft}
+                    onBlurCommit={stableBlurCommit}
+                    onNavigate={stableNavigate}
+                  />
+                );
+              },
+            } as ColumnDef<InventoryItem>,
           ]
         : []),
       ...(visibleCoreColumnIds.includes('descriptionUrdu')
@@ -875,16 +915,36 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               enableSorting: !editMode,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: { row: { original: InventoryItem } }) => {
-                const value = row.original.descriptionUrdu?.trim();
-                if (!value) {
+                if (!editMode) {
+                  const value = row.original.descriptionUrdu?.trim();
+                  if (!value) {
+                    return (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    );
+                  }
                   return (
-                    <span className="text-xs text-muted-foreground">—</span>
+                    <span
+                      dir="rtl"
+                      lang="ur"
+                      className="text-sm leading-relaxed"
+                    >
+                      {value}
+                    </span>
                   );
                 }
                 return (
-                  <span dir="rtl" lang="ur" className="text-sm leading-relaxed">
-                    {value}
-                  </span>
+                  <InventoryBulkEditCell
+                    inventoryId={row.original.id}
+                    col="descriptionUrdu"
+                    defaultValue={getCellDefaultValue(
+                      row.original,
+                      'descriptionUrdu',
+                    )}
+                    editSessionKey={editSessionKey}
+                    onWrite={stableWriteDraft}
+                    onBlurCommit={stableBlurCommit}
+                    onNavigate={stableNavigate}
+                  />
                 );
               },
             } as ColumnDef<InventoryItem>,

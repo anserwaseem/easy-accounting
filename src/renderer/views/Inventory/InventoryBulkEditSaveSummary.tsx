@@ -35,6 +35,8 @@ export const InventoryBulkEditSaveSummary: FC<
     hasPriceChanges,
     hasListChanges,
     hasFamilyChanges,
+    hasDescriptionChanges,
+    hasDescriptionUrduChanges,
     hasPriceListChanges,
   } = summary;
 
@@ -61,6 +63,12 @@ export const InventoryBulkEditSaveSummary: FC<
               ) : null}
               {hasFamilyChanges ? (
                 <th className="px-3 py-2 font-medium">Family</th>
+              ) : null}
+              {hasDescriptionChanges ? (
+                <th className="px-3 py-2 font-medium">Description</th>
+              ) : null}
+              {hasDescriptionUrduChanges ? (
+                <th className="px-3 py-2 font-medium">Description (Urdu)</th>
               ) : null}
             </tr>
           </thead>
@@ -130,6 +138,32 @@ export const InventoryBulkEditSaveSummary: FC<
                     {row.familyFrom !== undefined &&
                     row.familyTo !== undefined ? (
                       <ChangeCell from={row.familyFrom} to={row.familyTo} />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                ) : null}
+                {hasDescriptionChanges ? (
+                  <td className="max-w-[12rem] px-3 py-2">
+                    {row.descriptionFrom !== undefined &&
+                    row.descriptionTo !== undefined ? (
+                      <ChangeCell
+                        from={row.descriptionFrom}
+                        to={row.descriptionTo}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                ) : null}
+                {hasDescriptionUrduChanges ? (
+                  <td className="max-w-[12rem] px-3 py-2" dir="rtl" lang="ur">
+                    {row.descriptionUrduFrom !== undefined &&
+                    row.descriptionUrduTo !== undefined ? (
+                      <ChangeCell
+                        from={row.descriptionUrduFrom}
+                        to={row.descriptionUrduTo}
+                      />
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

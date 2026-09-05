@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { Input } from '@/renderer/shad/ui/input';
+import { cn } from '@/renderer/lib/utils';
 import type { InventoryBulkEditCol } from './inventoryBulkEdit';
 
 interface InventoryBulkEditCellProps {
@@ -43,6 +44,18 @@ const NAV_KEYS = new Set([
   'Tab',
 ]);
 
+const isTextCol = (col: InventoryBulkEditCol): boolean =>
+  col === 'description' || col === 'descriptionUrdu';
+
+const ariaLabelForCol = (col: InventoryBulkEditCol): string => {
+  if (col === 'price') return 'Price';
+  if (col === 'listPosition') return 'List number';
+  if (col === 'description') return 'Description';
+  if (col === 'descriptionUrdu') return 'Description (Urdu)';
+  if (col.startsWith('list:')) return 'List price';
+  return col;
+};
+
 const InventoryBulkEditCellComponent = ({
   inventoryId,
   col,
@@ -75,20 +88,31 @@ const InventoryBulkEditCellComponent = ({
     [col, inventoryId, onNavigate],
   );
 
+  const textCol = isTextCol(col);
+
   // key on wrapper remounts input only when discard/enter edit resets session
   return (
     <span key={editSessionKey} className="block min-w-0">
       <Input
         type="text"
-        inputMode={col === 'price' ? 'decimal' : 'numeric'}
+        inputMode={
+          // eslint-disable-next-line no-nested-ternary
+          col === 'price' || col.startsWith('list:')
+            ? 'decimal'
+            : textCol
+            ? 'text'
+            : 'numeric'
+        }
         data-inventory-id={inventoryId}
         data-col={col}
         defaultValue={defaultValue}
         onChange={handleChange}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        className="my-0 h-8 px-2 py-1 text-sm tabular-nums"
-        aria-label={col === 'price' ? 'Price' : 'List number'}
+        dir={col === 'descriptionUrdu' ? 'rtl' : undefined}
+        lang={col === 'descriptionUrdu' ? 'ur' : undefined}
+        className={cn('my-0 h-8 px-2 py-1 text-sm', !textCol && 'tabular-nums')}
+        aria-label={ariaLabelForCol(col)}
       />
     </span>
   );
