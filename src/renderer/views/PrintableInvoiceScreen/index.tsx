@@ -39,7 +39,18 @@ import {
 import { getInvoicePrintReadinessGaps } from '@/renderer/lib/invoicePrint/readiness';
 import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
 import { Label } from 'renderer/shad/ui/label';
-import nastaliqFontUrl from '../../fonts/NotoNastaliqUrdu-Regular.ttf';
+import jameelNastaleeqFontUrl from '../../fonts/JameelNooriNastaleeq.ttf';
+
+/** Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity) */
+const URDU_PRINT_FONT_FAMILY = 'Jameel Noori Nastaleeq';
+const urduFontClass = "font-['Jameel_Noori_Nastaleeq',serif]";
+/**
+ * Jameel reads optically smaller than latin at the same CSS size — bump ~30%
+ * so labels sit closer to number weight. Description values use a milder bump.
+ */
+const urduChromeClass = `${urduFontClass} text-[1.3em]`;
+/** تفصیل body — smaller than headers/labels so rows stay closer to EN density */
+const urduDescriptionClass = `${urduFontClass} text-[1.1em]`;
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
@@ -61,8 +72,6 @@ const printToolbarKbdClass =
 const printToolbarKbdOnPrimaryClass =
   'border-white/30 bg-white/15 text-white dark:border-white/30 dark:bg-white/15 dark:text-white';
 
-/** Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity) */
-const urduChromeClass = "font-['Noto_Nastaliq_Urdu',serif]";
 /** force latin metrics so table data matches EN print */
 const printLatinClass = 'font-sans';
 
@@ -577,9 +586,9 @@ const PrintableInvoiceScreen = () => {
   const numHeadAlignClass = isUrdu ? 'text-start' : 'text-end';
   const chromeClass = isUrdu ? urduChromeClass : '';
   const dataClass = printLatinClass;
-  // Nastaliq footer labels need forced padding — table [&_td]:py-0 otherwise wins
+  // Nastaliq footer labels — slight pad so descenders clear border, not row-tall
   const footerChromeClass = isUrdu
-    ? `${chromeClass} !py-1.5 !leading-relaxed not-italic`
+    ? `${chromeClass} !py-0 !leading-snug not-italic`
     : chromeClass;
 
   /** split digits (latin) from روپے (Nastaliq) so footer amount matches EN number metrics */
@@ -734,8 +743,8 @@ const PrintableInvoiceScreen = () => {
       {isUrdu ? (
         <style>{`
           @font-face {
-            font-family: 'Noto Nastaliq Urdu';
-            src: url(${nastaliqFontUrl}) format('truetype');
+            font-family: '${URDU_PRINT_FONT_FAMILY}';
+            src: url(${jameelNastaleeqFontUrl}) format('truetype');
             font-weight: 400 700;
             font-display: block;
           }
@@ -949,10 +958,10 @@ const PrintableInvoiceScreen = () => {
         <div className="flex justify-between items-center">
           <div className="w-full">
             <h1
-              className={`text-[26px] font-bold text-center${
+              className={`font-bold text-center${
                 isUrdu
-                  ? ` ${urduChromeClass} leading-[1.7] mb-1`
-                  : ' font-mono leading-6'
+                  ? ` ${urduFontClass} text-[29px] leading-[1.7] mb-1`
+                  : ' font-mono text-[26px] leading-6'
               }`}
             >
               {printCompanyHeading}
@@ -982,8 +991,8 @@ const PrintableInvoiceScreen = () => {
         </div>
 
         <div
-          className={`flex flex-col text-base gap-2 my-1 ${
-            isUrdu ? 'leading-normal' : 'leading-none'
+          className={`flex flex-col text-base my-1 ${
+            isUrdu ? 'gap-1 leading-tight' : 'gap-2 leading-none'
           }`}
         >
           <div className={headerFieldsRowClass}>
@@ -1061,10 +1070,10 @@ const PrintableInvoiceScreen = () => {
               </div>
             ) : null}
           </div>
-          {/* EN keeps -mt-1 compact; Urdu needs descender clearance above table */}
+          {/* EN keeps -mt-1 compact; Urdu: slight pad so Nastaliq descenders clear table */}
           <div
             className={`flex gap-1 items-baseline ${
-              isUrdu ? 'pb-2 leading-[1.85]' : '-mt-1'
+              isUrdu ? 'pb-0.5 leading-snug' : '-mt-1'
             }`}
           >
             <p className={`whitespace-nowrap ${chromeClass}`}>{partyLabel}</p>
@@ -1080,7 +1089,7 @@ const PrintableInvoiceScreen = () => {
         <table
           className={`w-full text-base border-[0.5px] border-gray-400 border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${
             isUrdu
-              ? '[&_th]:py-1.5 [&_th]:leading-normal [&_td]:py-0 [&_td]:leading-tight'
+              ? '[&_th]:py-0.5 [&_th]:leading-snug [&_td]:py-0 [&_td]:leading-tight'
               : 'leading-tight [&_td]:py-0 [&_th]:py-0'
           }`}
         >
@@ -1158,7 +1167,7 @@ const PrintableInvoiceScreen = () => {
                   <td className={`text-center ${dataClass}`} dir="ltr">
                     {row.item.inventoryItemName}
                   </td>
-                  {/* Urdu desc → Nastaliq + air; English fallback stays latin + pack to SKU */}
+                  {/* Urdu desc → Nastaliq; keep leading tight so rows match EN density */}
                   {(() => {
                     const descriptionText = pickPrintLocalizedText(
                       row.item.inventoryItemDescription,
@@ -1174,7 +1183,7 @@ const PrintableInvoiceScreen = () => {
                         dir={descriptionIsUrdu ? 'rtl' : 'ltr'}
                         className={
                           descriptionIsUrdu
-                            ? `${chromeClass} !px-1.5 !py-1 !leading-[1.85]`
+                            ? `${urduDescriptionClass} !px-1 !py-0 !leading-snug`
                             : `${dataClass}${isUrdu ? ' text-right' : ''}`
                         }
                       >
@@ -1213,7 +1222,7 @@ const PrintableInvoiceScreen = () => {
               </td>
               <td
                 className={`${qtyColClass} ${dataClass} !border-[0.5px] !border-gray-400${
-                  isUrdu ? ' !py-1.5' : ''
+                  isUrdu ? ' !py-0.5' : ''
                 }`}
                 dir="ltr"
               >
@@ -1232,7 +1241,7 @@ const PrintableInvoiceScreen = () => {
                 </td>
                 <td
                   className={`text-end ${amountColClass} whitespace-nowrap !border-[0.5px] !border-gray-400${
-                    isUrdu ? ' !py-1.5' : ''
+                    isUrdu ? ' !py-0.5' : ''
                   }`}
                 >
                   {renderPrintAmount(toNumber(invoice.extraDiscount))}
@@ -1245,13 +1254,13 @@ const PrintableInvoiceScreen = () => {
                 colSpan={6}
                 className={`${
                   isUrdu ? '' : 'italic '
-                }!border-y-[0.5px] !border-gray-400 ${footerChromeClass}`}
+                }!border-y-[0.5px] !border-gray-400 ${footerChromeClass} !py-0.5`}
               >
                 {totalAmountInWords}
               </td>
               <td
                 className={`text-end ${amountColClass} font-bold whitespace-nowrap !border-[0.5px] !border-gray-400${
-                  isUrdu ? ' !py-1.5' : ''
+                  isUrdu ? ' !py-0.5' : ''
                 }`}
               >
                 {renderPrintAmount(toNumber(invoice?.totalAmount))}
