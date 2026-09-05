@@ -1,4 +1,4 @@
-import { Copy } from 'lucide-react';
+import { Ban, Copy, Power, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -6,16 +6,11 @@ import {
   DialogHeader,
   DialogFooter,
   DialogDescription,
+  DialogTrigger,
 } from 'renderer/shad/ui/dialog';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from 'renderer/shad/ui/dropdown-menu';
 import type { UpdateAccount, Chart } from 'types';
 import { useState } from 'react';
 import { AccountForm, AccountFormData } from './accountForm';
@@ -165,51 +160,68 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     }
   };
 
+  const isActive = !!row.original.isActive;
+  const toggleLabel = isActive ? 'Deactivate account' : 'Activate account';
+
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <EditActionButton
-            aria-label="Account actions"
-            title="Account actions"
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setIsOpen(true)}>
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleToggleActive}>
-            {row.original.isActive ? 'Deactivate' : 'Activate'}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)}>
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* -ml-2 lines first glyph up with Actions header — same as inventory */}
+      <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          title={toggleLabel}
+          aria-label={toggleLabel}
+          onClick={handleToggleActive}
+        >
+          {isActive ? (
+            <Ban className="h-4 w-4" />
+          ) : (
+            <Power className="h-4 w-4" />
+          )}
+        </Button>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Edit Account</DialogTitle>
-          </DialogHeader>
-          <AccountForm
-            onSubmit={onSubmit}
-            charts={charts}
-            clearRef={clearRef}
-            initialValues={mapRowToFormData(row.original)}
-          />
-          <DialogFooter className="!justify-start">
-            <Button
-              variant="outline"
-              onClick={handleCreateCopy}
-              className="flex items-center"
-            >
-              <Copy className="mr-2 h-4 w-4" />
-              Create a Copy
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          title="Delete account"
+          aria-label="Delete account"
+          onClick={() => setIsDeleteDialogOpen(true)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <EditActionButton aria-label="Edit account" title="Edit account" />
+          </DialogTrigger>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Account</DialogTitle>
+            </DialogHeader>
+            <AccountForm
+              onSubmit={onSubmit}
+              charts={charts}
+              clearRef={clearRef}
+              initialValues={mapRowToFormData(row.original)}
+            />
+            <DialogFooter className="!justify-start">
+              <Button
+                variant="outline"
+                onClick={handleCreateCopy}
+                className="flex items-center"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Create a Copy
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

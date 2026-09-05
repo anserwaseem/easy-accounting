@@ -456,6 +456,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             {
               id: 'edit',
               header: 'Actions',
+              enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (
                 <EditAccount
@@ -465,7 +466,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   clearRef={clearRef}
                 />
               ),
-              size: 1,
+              // three 32px icon buttons + gaps — match inventory Actions width
+              size: 112,
             },
           ].filter(
             (column) =>
