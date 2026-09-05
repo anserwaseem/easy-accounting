@@ -188,7 +188,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       </DropdownMenu>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Account</DialogTitle>
           </DialogHeader>

@@ -101,7 +101,7 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Account</DialogTitle>
         </DialogHeader>

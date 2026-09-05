@@ -8,6 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/renderer/shad/ui/dropdown-menu';
 import { InventoryTable } from './inventoryTable';
@@ -90,9 +91,12 @@ const InventoryPage: React.FC = () => {
                   >
                     Attributes
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <ImportExportInventoryUrdu
+                    refetchInventory={refetchInventory}
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
-              <ImportExportInventoryUrdu refetchInventory={refetchInventory} />
               <AddInventoryItem refetchInventory={refetchInventory} />
             </>
           ) : null}

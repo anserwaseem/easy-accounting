@@ -1,4 +1,3 @@
-import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
 import {
   INVENTORY_URDU_EXPORT_HEADERS,
   buildInventoryUrduExportRows,
@@ -6,28 +5,28 @@ import {
 } from '@/renderer/lib/inventoryUrduImport';
 import { FILE_UPLOAD_HINT_INVENTORY_URDU } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from '@/renderer/lib/lib';
-import { Button } from '@/renderer/shad/ui/button';
+import { DropdownMenuItem } from '@/renderer/shad/ui/dropdown-menu';
 import { Input } from '@/renderer/shad/ui/input';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { format } from 'date-fns';
-import { Download, Upload } from 'lucide-react';
 import { toString } from 'lodash';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { InventoryItem } from 'types';
 import { write, utils } from 'xlsx';
 
 const EXCEL_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-const INVENTORY_URDU_IMPORT_INPUT_ID = 'importInventoryUrduInput';
-
 interface ImportExportInventoryUrduProps {
   refetchInventory: () => void | Promise<void>;
 }
 
+/** Manage-menu items for inventory Urdu description spreadsheet import/export */
 export const ImportExportInventoryUrdu: React.FC<
   ImportExportInventoryUrduProps
 > = ({ refetchInventory }: ImportExportInventoryUrduProps) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleExport = useCallback(async () => {
     try {
       const items = (await window.electron.getInventory()) as InventoryItem[];
@@ -111,34 +110,24 @@ export const ImportExportInventoryUrdu: React.FC<
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="px-3"
-        title="Export inventory Urdu descriptions to Excel"
-        onClick={handleExport}
+      <DropdownMenuItem
+        onSelect={() => {
+          handleExport();
+        }}
       >
-        <Download size={16} className="mr-1.5" />
         Export Urdu
-      </Button>
-      <FileUploadTooltip content={FILE_UPLOAD_HINT_INVENTORY_URDU}>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="px-3"
-          title="Import inventory Urdu descriptions from Excel"
-          onClick={() =>
-            document.getElementById(INVENTORY_URDU_IMPORT_INPUT_ID)?.click()
-          }
-        >
-          <Upload size={16} className="mr-1.5" />
-          Import Urdu
-        </Button>
-      </FileUploadTooltip>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        title={FILE_UPLOAD_HINT_INVENTORY_URDU}
+        onSelect={(event) => {
+          event.preventDefault();
+          fileInputRef.current?.click();
+        }}
+      >
+        Import Urdu
+      </DropdownMenuItem>
       <Input
-        id={INVENTORY_URDU_IMPORT_INPUT_ID}
+        ref={fileInputRef}
         type="file"
         accept=".xlsx, .xls, .csv"
         className="hidden"

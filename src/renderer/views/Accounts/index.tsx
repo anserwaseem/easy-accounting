@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Columns3 } from 'lucide-react';
+import { ChevronDown, Columns3, Plus, Settings2 } from 'lucide-react';
 import { Button } from 'renderer/shad/ui/button';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -30,8 +30,12 @@ import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
 import { AccountPricingSheet } from './AccountPricing';
 import { ImportExportAccountUrdu } from './ImportExportAccountUrdu';
+import {
+  AccountFilterMenu,
+  type AccountHeadFilter,
+  type AccountTypeFilter,
+} from './AccountFilterMenu';
 
-type AccountTypeFilter = 'All' | AccountType;
 type OptionalAccountColumnId =
   | 'code'
   | 'address'
@@ -59,6 +63,11 @@ type AccountPageProps = {
 const getStoredAccountType = (): AccountTypeFilter =>
   (window.electron.store.get('accountTypeSelected') as AccountTypeFilter) ||
   AccountType.Asset;
+
+const getStoredAccountHead = (): AccountHeadFilter => {
+  const stored = window.electron.store.get('accountHeadSelected');
+  return typeof stored === 'string' && stored.length > 0 ? stored : 'All';
+};
 
 const getColumnStorageKey = (typeSelected: AccountTypeFilter) =>
   `accountVisibleColumns:${typeSelected}`;
@@ -188,6 +197,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] =
     useState<AccountTypeFilter>(getStoredAccountType);
+  const [headSelected, setHeadSelected] =
+    useState<AccountHeadFilter>(getStoredAccountHead);
   const [visibleColumnIds, setVisibleColumnIds] = useState<
     OptionalAccountColumnId[]
   >(() => getStoredVisibleColumns(getStoredAccountType()));
@@ -199,6 +210,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     [],
   );
   const [pricingAccountId, setPricingAccountId] = useState<number | null>(null);
+  const [newDialog, setNewDialog] = useState<'account' | 'head' | null>(null);
   const clearRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
@@ -232,10 +244,20 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     [navigate],
   );
 
-  const handleTypeChange = useCallback((nextType: AccountTypeFilter) => {
-    setTypeSelected(nextType);
-    setVisibleColumnIds(getStoredVisibleColumns(nextType));
-  }, []);
+  const handleTypeChange = useCallback(
+    (nextType: AccountTypeFilter) => {
+      setTypeSelected(nextType);
+      setVisibleColumnIds(getStoredVisibleColumns(nextType));
+      // drop head filter when it no longer belongs to the selected type
+      if (headSelected !== 'All' && nextType !== 'All') {
+        const headChart = charts.find((chart) => chart.name === headSelected);
+        if (!headChart || headChart.type !== nextType) {
+          setHeadSelected('All');
+        }
+      }
+    },
+    [charts, headSelected],
+  );
 
   const toggleVisibleColumn = useCallback(
     (columnId: OptionalAccountColumnId) => {
@@ -433,7 +455,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             },
             {
               id: 'edit',
-              header: 'Edit',
+              header: 'Actions',
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (
                 <EditAccount
@@ -472,6 +494,11 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     [typeSelected],
   );
 
+  useEffect(
+    () => window.electron.store.set('accountHeadSelected', headSelected),
+    [headSelected],
+  );
+
   // persist visible columns for the currently selected account view.
   useEffect(() => {
     window.electron.store.set(
@@ -491,75 +518,37 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     if (!showInactive) {
       filteredAccounts = filteredAccounts.filter((account) => account.isActive);
     }
-    if (!typeSelected || typeSelected === 'All') {
-      return filteredAccounts;
+    if (typeSelected && typeSelected !== 'All') {
+      filteredAccounts = filteredAccounts.filter(
+        (account) => account.type === typeSelected,
+      );
+    }
+    if (headSelected !== 'All') {
+      filteredAccounts = filteredAccounts.filter(
+        (account) => account.headName === headSelected,
+      );
     }
 
-    return filteredAccounts.filter((account) => account.type === typeSelected);
-  }, [accounts, typeSelected, showInactive]);
+    return filteredAccounts;
+  }, [accounts, typeSelected, headSelected, showInactive]);
 
   return (
     <div>
       <div className="flex flex-col gap-3 py-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={isMini ? 'w-max' : 'w-fit'}
-                >
-                  <span className="mr-2">{typeSelected} Accounts</span>
-                  <ChevronDown size={16} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="px-4">
-                <DropdownMenuItem onClick={() => handleTypeChange('All')}>
-                  All Accounts
-                </DropdownMenuItem>
-                {Object.keys(AccountType).map((type) => (
-                  <DropdownMenuItem
-                    key={type}
-                    onClick={() =>
-                      handleTypeChange(
-                        AccountType[type as keyof typeof AccountType],
-                      )
-                    }
-                  >
-                    {type} Accounts
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
 
-            <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
-          </div>
-
-          {isMini ? null : (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <div className="mr-2 flex items-center gap-2 whitespace-nowrap text-sm font-medium leading-none">
-                <Checkbox
-                  checked={showInactive}
-                  onCheckedChange={() => setShowInactive(!showInactive)}
-                />
-                <button
-                  type="button"
-                  className="cursor-pointer"
-                  onClick={() => setShowInactive(!showInactive)}
-                >
-                  Show inactive accounts
-                </button>
-              </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {isMini ? null : (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="px-3"
+                    className="gap-2 px-3"
                   >
-                    <Columns3 size={16} className="mr-2" />
+                    <Columns3 size={16} />
                     Columns
                   </Button>
                 </PopoverTrigger>
@@ -604,23 +593,68 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   </div>
                 </PopoverContent>
               </Popover>
-              <AddCustomHead
-                charts={charts}
-                onHeadAdded={refetchAccounts}
-                btnClassName="px-3"
-              />
-              <ImportExportAccountUrdu
-                accounts={accounts}
-                refetchAccounts={refetchAccounts}
-              />
-              <AddAccount
-                charts={charts}
-                clearRef={clearRef}
-                refetchAccounts={refetchAccounts}
-                btnClassName="px-3"
-              />
-            </div>
-          )}
+            )}
+            <AccountFilterMenu
+              charts={charts}
+              typeSelected={typeSelected}
+              onTypeChange={handleTypeChange}
+              headSelected={headSelected}
+              onHeadChange={setHeadSelected}
+              showInactive={showInactive}
+              onShowInactiveChange={setShowInactive}
+            />
+            {isMini ? null : (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Settings2 size={16} />
+                      Manage
+                      <ChevronDown size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <ImportExportAccountUrdu
+                      accounts={accounts}
+                      refetchAccounts={refetchAccounts}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Plus size={16} />
+                      New
+                      <ChevronDown size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => setNewDialog('account')}>
+                      Account
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setNewDialog('head')}>
+                      Head
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <AddAccount
+                  charts={charts}
+                  clearRef={clearRef}
+                  refetchAccounts={refetchAccounts}
+                  hideButton
+                  isOpen={newDialog === 'account'}
+                  onOpenChange={(open) => setNewDialog(open ? 'account' : null)}
+                />
+                <AddCustomHead
+                  charts={charts}
+                  onHeadAdded={refetchAccounts}
+                  hideButton
+                  isOpen={newDialog === 'head'}
+                  onOpenChange={(open) => setNewDialog(open ? 'head' : null)}
+                />
+              </>
+            )}
+          </div>
         </div>
       </div>
       <div className="py-8">

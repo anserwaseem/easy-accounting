@@ -1,4 +1,3 @@
-import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
 import {
   ACCOUNT_URDU_EXPORT_HEADERS,
   buildAccountUrduExportRows,
@@ -6,29 +5,29 @@ import {
 } from '@/renderer/lib/accountUrduImport';
 import { FILE_UPLOAD_HINT_ACCOUNT_URDU } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from '@/renderer/lib/lib';
-import { Button } from '@/renderer/shad/ui/button';
+import { DropdownMenuItem } from '@/renderer/shad/ui/dropdown-menu';
 import { Input } from '@/renderer/shad/ui/input';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { format } from 'date-fns';
-import { Download, Upload } from 'lucide-react';
 import { toString } from 'lodash';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { Account } from 'types';
 import { write, utils } from 'xlsx';
 
 const EXCEL_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-const ACCOUNT_URDU_IMPORT_INPUT_ID = 'importAccountUrduInput';
-
 interface ImportExportAccountUrduProps {
   accounts: Account[];
   refetchAccounts: () => void | Promise<void>;
 }
 
+/** Manage-menu items for account Urdu field spreadsheet import/export */
 export const ImportExportAccountUrdu: React.FC<
   ImportExportAccountUrduProps
 > = ({ accounts, refetchAccounts }: ImportExportAccountUrduProps) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleExport = useCallback(() => {
     try {
       const rows = buildAccountUrduExportRows(accounts);
@@ -115,34 +114,18 @@ export const ImportExportAccountUrdu: React.FC<
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="px-3"
-        title="Export account Urdu fields to Excel"
-        onClick={handleExport}
+      <DropdownMenuItem onSelect={handleExport}>Export Urdu</DropdownMenuItem>
+      <DropdownMenuItem
+        title={FILE_UPLOAD_HINT_ACCOUNT_URDU}
+        onSelect={(event) => {
+          event.preventDefault();
+          fileInputRef.current?.click();
+        }}
       >
-        <Download size={16} className="mr-1.5" />
-        Export Urdu
-      </Button>
-      <FileUploadTooltip content={FILE_UPLOAD_HINT_ACCOUNT_URDU}>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="px-3"
-          title="Import account Urdu fields from Excel"
-          onClick={() =>
-            document.getElementById(ACCOUNT_URDU_IMPORT_INPUT_ID)?.click()
-          }
-        >
-          <Upload size={16} className="mr-1.5" />
-          Import Urdu
-        </Button>
-      </FileUploadTooltip>
+        Import Urdu
+      </DropdownMenuItem>
       <Input
-        id={ACCOUNT_URDU_IMPORT_INPUT_ID}
+        ref={fileInputRef}
         type="file"
         accept=".xlsx, .xls, .csv"
         className="hidden"
