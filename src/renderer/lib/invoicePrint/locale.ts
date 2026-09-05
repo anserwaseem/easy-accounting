@@ -179,24 +179,56 @@ const URDU_MONTHS = [
   'دسمبر',
 ] as const;
 
+export interface InvoicePrintDateParts {
+  day: number;
+  month: string;
+  year: number;
+  /** english `PP` string when locale is en */
+  formatted: string;
+}
+
+/** structured parts so Urdu UI can LTR-isolate day/year and avoid bidi reorder */
+export const getInvoicePrintDateParts = (
+  value: string | Date,
+  locale: InvoicePrintLocale,
+): InvoicePrintDateParts | null => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!isValid(date)) {
+    return null;
+  }
+
+  if (locale !== 'ur') {
+    return {
+      day: date.getDate(),
+      month: format(date, 'MMM'),
+      year: date.getFullYear(),
+      formatted: format(date, 'PP'),
+    };
+  }
+
+  return {
+    day: date.getDate(),
+    month: URDU_MONTHS[date.getMonth()],
+    year: date.getFullYear(),
+    formatted: `${date.getDate()} ${
+      URDU_MONTHS[date.getMonth()]
+    } ${date.getFullYear()}`,
+  };
+};
+
 /** Gregorian day + Urdu month name + year, Western digits */
 export const formatInvoicePrintDate = (
   value: string | Date,
   locale: InvoicePrintLocale,
 ): string => {
-  const date = value instanceof Date ? value : new Date(value);
-  if (!isValid(date)) {
+  const parts = getInvoicePrintDateParts(value, locale);
+  if (!parts) {
     return String(value);
   }
-
   if (locale !== 'ur') {
-    return format(date, 'PP');
+    return parts.formatted;
   }
-
-  const day = date.getDate();
-  const month = URDU_MONTHS[date.getMonth()];
-  const year = date.getFullYear();
-  return `${day} ${month} ${year}`;
+  return `${parts.day} ${parts.month} ${parts.year}`;
 };
 
 /** prefer localized string when locale is Urdu and Urdu value is non-empty */

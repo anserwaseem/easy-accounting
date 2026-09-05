@@ -30,8 +30,8 @@ import { amountInWordsUrdu } from '@/lib/amountInWordsUrdu';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
 import type { InvoicePrintLocale } from '@/renderer/lib/invoicePrint/locale';
 import {
-  formatInvoicePrintCurrency,
   formatInvoicePrintDate,
+  getInvoicePrintDateParts,
   getInvoicePrintLabels,
   pickPrintLocalizedText,
   waitForInvoicePrintFonts,
@@ -60,6 +60,11 @@ const printToolbarKbdClass =
 
 const printToolbarKbdOnPrimaryClass =
   'border-white/30 bg-white/15 text-white dark:border-white/30 dark:bg-white/15 dark:text-white';
+
+/** Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity) */
+const urduChromeClass = "font-['Noto_Nastaliq_Urdu',serif]";
+/** force latin metrics so table data matches EN print */
+const printLatinClass = 'font-sans';
 
 /** sticky batch toasts clear on navigation/print; this caps lifetime if user stays idle */
 const BATCH_TOAST_FALLBACK_MS = 45_000;
@@ -120,8 +125,8 @@ const PrintableInvoiceScreen = () => {
       typeof document !== 'undefined' &&
       document.documentElement.classList.contains('dark'));
 
-  const biltyGoodsText = useMemo(() => {
-    if (!invoice) return '';
+  const biltyGoods = useMemo(() => {
+    if (!invoice) return { bilty: '', goodsShort: '' };
     const bilty = invoice.biltyNumber ?? '';
     const goods = pickPrintLocalizedText(
       invoice.accountGoodsName,
@@ -129,8 +134,12 @@ const PrintableInvoiceScreen = () => {
       effectiveLocale,
     );
     const goodsShort = goods ? truncate(goods, { length: 30 }).trim() : '';
-    return goodsShort ? `${bilty} (${goodsShort})` : `${bilty}`;
+    return { bilty, goodsShort };
   }, [invoice, effectiveLocale]);
+
+  const biltyGoodsText = biltyGoods.goodsShort
+    ? `${biltyGoods.bilty} (${biltyGoods.goodsShort})`
+    : biltyGoods.bilty;
 
   useEffect(() => {
     let cancelled = false;
@@ -559,18 +568,36 @@ const PrintableInvoiceScreen = () => {
     0,
   );
 
-  // Urdu totals need room for "140,418.00 روپے" without wrapping
-  const amountColClass = isUrdu
-    ? 'pe-2 w-[9.5rem] whitespace-nowrap tabular-nums'
-    : 'pe-2 w-[7.25rem] tabular-nums';
+  // same amount col width as EN so SKU/number columns stay ditto; footer total nowraps
+  const amountColClass = 'pe-2 w-[7.25rem] tabular-nums';
   const priceColClass = 'text-end w-[4.75rem] tabular-nums';
   const qtyColClass = 'text-end tabular-nums';
   const discountColClass = 'text-end tabular-nums';
+  // Urdu headings: start edge (visual right); EN keeps end-align over numbers
+  const numHeadAlignClass = isUrdu ? 'text-start' : 'text-end';
+  const chromeClass = isUrdu ? urduChromeClass : '';
+  const dataClass = printLatinClass;
+  // Nastaliq footer labels need forced padding — table [&_td]:py-0 otherwise wins
+  const footerChromeClass = isUrdu
+    ? `${chromeClass} !py-1.5 !leading-relaxed not-italic`
+    : chromeClass;
 
-  const formatPrintAmount = (amount: number): string =>
-    isUrdu
-      ? formatInvoicePrintCurrency(amount, effectiveLocale)
-      : getFormattedCurrency(amount);
+  /** split digits (latin) from روپے (Nastaliq) so footer amount matches EN number metrics */
+  const renderPrintAmount = (amount: number) => {
+    if (!isUrdu) {
+      return getFormattedCurrency(amount);
+    }
+    const formatted = new Intl.NumberFormat('en-PK', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+    return (
+      <span dir="ltr">
+        <span className={dataClass}>{formatted}</span>{' '}
+        <span className={chromeClass}>{labels.currencyWordsPrefix}</span>
+      </span>
+    );
+  };
 
   const totalAmountInWords = useMemo(() => {
     const amount = toNumber(invoice?.totalAmount || 0);
@@ -695,11 +722,7 @@ const PrintableInvoiceScreen = () => {
 
   return (
     <div
-      className={`${printPreviewRootClass}${
-        isUrdu
-          ? " font-['Noto_Nastaliq_Urdu',serif] leading-relaxed [&_td]:py-0.5 [&_th]:py-0.5"
-          : ''
-      }`}
+      className={printPreviewRootClass}
       dir={isUrdu ? 'rtl' : 'ltr'}
       lang={isUrdu ? 'ur' : 'en'}
     >
@@ -917,20 +940,31 @@ const PrintableInvoiceScreen = () => {
         <div className="flex justify-between items-center">
           <div className="w-full">
             <h1
-              className={`text-[26px] leading-6 font-bold text-center${
-                isUrdu ? '' : ' font-mono'
+              className={`text-[26px] font-bold text-center${
+                isUrdu
+                  ? ` ${urduChromeClass} leading-[1.7] mb-1`
+                  : ' font-mono leading-6'
               }`}
             >
               {printCompanyHeading}
             </h1>
             {companyContactParts.length > 0 ? (
-              <p className={`text-center text-sm${isUrdu ? '' : ' font-mono'}`}>
+              <p
+                className={`text-center text-sm${
+                  isUrdu ? ` ${urduChromeClass} leading-normal` : ' font-mono'
+                }`}
+              >
                 {companyContactParts.map((part, index) => (
                   <span
                     key={part.ltr ? `ltr:${part.text}` : `rtl:${part.text}`}
                   >
                     {index > 0 ? ' · ' : null}
-                    <span dir={part.ltr ? 'ltr' : undefined}>{part.text}</span>
+                    <span
+                      dir={part.ltr ? 'ltr' : undefined}
+                      className={part.ltr ? printLatinClass : undefined}
+                    >
+                      {part.text}
+                    </span>
                   </span>
                 ))}
               </p>
@@ -938,60 +972,136 @@ const PrintableInvoiceScreen = () => {
           </div>
         </div>
 
-        <div className="flex flex-col text-base leading-none gap-2 my-1">
+        <div
+          className={`flex flex-col text-base gap-2 my-1 ${
+            isUrdu ? 'leading-normal' : 'leading-none'
+          }`}
+        >
           <div className={headerFieldsRowClass}>
-            <div className="flex gap-1 whitespace-nowrap">
-              <p>
+            <div className="flex gap-1 whitespace-nowrap items-baseline">
+              <p className={chromeClass}>
                 {invoice.isQuotation
                   ? labels.quotationNumber
                   : labels.invoiceNumber}
               </p>
-              <p dir="ltr">
+              <p dir="ltr" className={dataClass}>
                 {invoice.isQuotation
                   ? getQuotationDisplayNumber(toNumber(invoice.invoiceNumber))
                   : invoice.invoiceNumber}
               </p>
             </div>
-            <div className="flex gap-1 whitespace-nowrap">
-              <p>{labels.date}</p>
-              <p className="whitespace-nowrap" dir="ltr">
-                {formatInvoicePrintDate(invoice.date, effectiveLocale)}
-              </p>
+            <div className="flex gap-1 whitespace-nowrap items-baseline">
+              <p className={chromeClass}>{labels.date}</p>
+              {(() => {
+                const dateParts = getInvoicePrintDateParts(
+                  invoice.date,
+                  effectiveLocale,
+                );
+                if (!dateParts) {
+                  return (
+                    <p className={`whitespace-nowrap ${dataClass}`} dir="ltr">
+                      {invoice.date}
+                    </p>
+                  );
+                }
+                if (!isUrdu) {
+                  return (
+                    <p className={`whitespace-nowrap ${dataClass}`} dir="ltr">
+                      {dateParts.formatted}
+                    </p>
+                  );
+                }
+                // isolate day/year so "3 ستمبر 2026" does not bidi-flip to "ستمبر 2026 3"
+                return (
+                  <p className="whitespace-nowrap">
+                    <span dir="ltr" className={dataClass}>
+                      {dateParts.day}
+                    </span>{' '}
+                    <span className={chromeClass}>{dateParts.month}</span>{' '}
+                    <span dir="ltr" className={dataClass}>
+                      {dateParts.year}
+                    </span>
+                  </p>
+                );
+              })()}
             </div>
             {showBiltyField ? (
-              <div className="flex gap-1 whitespace-nowrap">
-                <p>{labels.bilty}</p>
-                <p>{biltyGoodsText}</p>
+              <div className="flex gap-1 whitespace-nowrap items-baseline">
+                <p className={chromeClass}>{labels.bilty}</p>
+                <p>
+                  <span dir="ltr" className={dataClass}>
+                    {biltyGoods.bilty}
+                  </span>
+                  {biltyGoods.goodsShort ? (
+                    <>
+                      {' '}
+                      <span className={chromeClass}>
+                        ({biltyGoods.goodsShort})
+                      </span>
+                    </>
+                  ) : null}
+                </p>
               </div>
             ) : null}
             {showCartonsField ? (
-              <div className="flex gap-1 whitespace-nowrap">
-                <p>{labels.cartons}</p>
-                <p dir="ltr">{invoice.cartons ?? ''}</p>
+              <div className="flex gap-1 whitespace-nowrap items-baseline">
+                <p className={chromeClass}>{labels.cartons}</p>
+                <p dir="ltr" className={dataClass}>
+                  {invoice.cartons ?? ''}
+                </p>
               </div>
             ) : null}
           </div>
-          <div className="flex gap-1 -mt-1">
-            <p className="whitespace-nowrap">{partyLabel}</p>
-            <p className="whitespace-nowrap">{billToName}</p>
-            <p className="ps-2">{billToAddress}</p>
+          {/* EN keeps -mt-1 compact; Urdu needs descender clearance above table */}
+          <div
+            className={`flex gap-1 items-baseline ${
+              isUrdu ? 'pb-2 leading-[1.85]' : '-mt-1'
+            }`}
+          >
+            <p className={`whitespace-nowrap ${chromeClass}`}>{partyLabel}</p>
+            <p className={`whitespace-nowrap ${isUrdu ? chromeClass : ''}`}>
+              {billToName}
+            </p>
+            <p className={`ps-2 ${isUrdu ? chromeClass : ''}`}>
+              {billToAddress}
+            </p>
           </div>
         </div>
 
         <table
-          className={`w-full text-base leading-tight [&_th]:px-1 [&_td]:px-1 border-[0.5px] border-gray-400 border-collapse [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${
-            isUrdu ? '[&_td]:py-0.5 [&_th]:py-0.5' : '[&_td]:py-0'
+          className={`w-full text-base border-[0.5px] border-gray-400 border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${
+            isUrdu
+              ? '[&_th]:py-1.5 [&_th]:leading-normal [&_td]:py-0 [&_td]:leading-tight'
+              : 'leading-tight [&_td]:py-0 [&_th]:py-0'
           }`}
         >
           <thead>
             <tr className="[&_th]:font-semibold">
-              <th className="text-start">{labels.serial}</th>
-              <th className="text-center">{labels.item}</th>
-              <th className="text-start">{labels.itemDescription}</th>
-              <th className={qtyColClass}>{labels.qty}</th>
-              <th className={priceColClass}>{labels.price}</th>
-              <th className={discountColClass}>{labels.discount}</th>
-              <th className={`text-end ${amountColClass}`}>{labels.amount}</th>
+              <th className={`text-start ${chromeClass}`}>{labels.serial}</th>
+              <th className={`text-center ${chromeClass}`}>{labels.item}</th>
+              <th className={`text-start ${chromeClass}`}>
+                {labels.itemDescription}
+              </th>
+              <th
+                className={`${numHeadAlignClass} tabular-nums ${chromeClass}`}
+              >
+                {labels.qty}
+              </th>
+              <th
+                className={`${numHeadAlignClass} w-[4.75rem] tabular-nums ${chromeClass}`}
+              >
+                {labels.price}
+              </th>
+              <th
+                className={`${numHeadAlignClass} tabular-nums ${chromeClass}`}
+              >
+                {labels.discount}
+              </th>
+              <th
+                className={`${numHeadAlignClass} ${amountColClass} ${chromeClass}`}
+              >
+                {labels.amount}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -999,7 +1109,7 @@ const PrintableInvoiceScreen = () => {
               if (row.kind === 'header') {
                 return (
                   <tr key={row.key} className="bg-gray-100">
-                    <td className="font-semibold" colSpan={7}>
+                    <td className={`font-semibold ${dataClass}`} colSpan={7}>
                       {row.sectionName}
                     </td>
                   </tr>
@@ -1010,13 +1120,16 @@ const PrintableInvoiceScreen = () => {
                 return (
                   <tr key={row.key} className="bg-gray-50">
                     <td colSpan={3} />
-                    <td className={`${qtyColClass} font-semibold`} dir="ltr">
+                    <td
+                      className={`${qtyColClass} ${dataClass} font-semibold`}
+                      dir="ltr"
+                    >
                       {row.totalQuantity}
                     </td>
                     <td />
                     <td />
                     <td
-                      className={`text-end ${amountColClass} font-semibold`}
+                      className={`text-end ${amountColClass} ${dataClass} font-semibold`}
                       dir="ltr"
                     >
                       {toNumber(row.totalAmount).toFixed(2)}
@@ -1027,27 +1140,35 @@ const PrintableInvoiceScreen = () => {
 
               return (
                 <tr key={row.key}>
-                  <td dir="ltr">{row.serialNumber}</td>
-                  <td className="text-center" dir="ltr">
+                  <td
+                    dir="ltr"
+                    className={`${dataClass}${isUrdu ? ' text-right' : ''}`}
+                  >
+                    {row.serialNumber}
+                  </td>
+                  <td className={`text-center ${dataClass}`} dir="ltr">
                     {row.item.inventoryItemName}
                   </td>
-                  {/* latin descriptions in RTL: LTR isolate, pack toward حوالہ نمبر */}
+                  {/* LTR pack toward حوالہ نمبر (RTL neighbor) — avoid left-gutter gap */}
                   <td
-                    dir={isUrdu ? 'ltr' : undefined}
-                    className={isUrdu ? 'text-right' : undefined}
+                    dir="ltr"
+                    className={`${dataClass}${isUrdu ? ' text-right' : ''}`}
                   >
                     {row.item.inventoryItemDescription}
                   </td>
-                  <td className={qtyColClass} dir="ltr">
+                  <td className={`${qtyColClass} ${dataClass}`} dir="ltr">
                     {row.item.quantity}
                   </td>
-                  <td className={priceColClass} dir="ltr">
+                  <td className={`${priceColClass} ${dataClass}`} dir="ltr">
                     {toNumber(row.item.price).toFixed(0)}
                   </td>
-                  <td className={discountColClass} dir="ltr">
+                  <td className={`${discountColClass} ${dataClass}`} dir="ltr">
                     {row.item.discount.toFixed(2)}
                   </td>
-                  <td className={`text-end ${amountColClass}`} dir="ltr">
+                  <td
+                    className={`text-end ${amountColClass} ${dataClass}`}
+                    dir="ltr"
+                  >
                     {toNumber(row.item.discountedPrice).toFixed(2)}
                   </td>
                 </tr>
@@ -1058,12 +1179,16 @@ const PrintableInvoiceScreen = () => {
             <tr className="[&_td]:border-0">
               <td
                 colSpan={3}
-                className="italic !border-y-[0.5px] !border-gray-400"
+                className={`${
+                  isUrdu ? '' : 'italic '
+                }!border-y-[0.5px] !border-gray-400 ${footerChromeClass}`}
               >
                 {labels.totalQuantity}
               </td>
               <td
-                className={`${qtyColClass} !border-[0.5px] !border-gray-400`}
+                className={`${qtyColClass} ${dataClass} !border-[0.5px] !border-gray-400${
+                  isUrdu ? ' !py-1.5' : ''
+                }`}
                 dir="ltr"
               >
                 {totalQuantity}
@@ -1073,14 +1198,18 @@ const PrintableInvoiceScreen = () => {
             {/* extra discount */}
             {invoice.extraDiscount ? (
               <tr className="[&_td]:border-0">
-                <td colSpan={6} className="!border-y-[0.5px] !border-gray-400">
+                <td
+                  colSpan={6}
+                  className={`!border-y-[0.5px] !border-gray-400 ${footerChromeClass}`}
+                >
                   {labels.extraDiscount}
                 </td>
                 <td
-                  className={`text-end ${amountColClass} !border-[0.5px] !border-gray-400`}
-                  dir="ltr"
+                  className={`text-end ${amountColClass} whitespace-nowrap !border-[0.5px] !border-gray-400${
+                    isUrdu ? ' !py-1.5' : ''
+                  }`}
                 >
-                  {formatPrintAmount(toNumber(invoice.extraDiscount))}
+                  {renderPrintAmount(toNumber(invoice.extraDiscount))}
                 </td>
               </tr>
             ) : null}
@@ -1088,15 +1217,18 @@ const PrintableInvoiceScreen = () => {
             <tr className="[&_td]:border-0">
               <td
                 colSpan={6}
-                className="italic !border-y-[0.5px] !border-gray-400"
+                className={`${
+                  isUrdu ? '' : 'italic '
+                }!border-y-[0.5px] !border-gray-400 ${footerChromeClass}`}
               >
                 {totalAmountInWords}
               </td>
               <td
-                className={`text-end ${amountColClass} font-bold !border-[0.5px] !border-gray-400`}
-                dir="ltr"
+                className={`text-end ${amountColClass} font-bold whitespace-nowrap !border-[0.5px] !border-gray-400${
+                  isUrdu ? ' !py-1.5' : ''
+                }`}
               >
-                {formatPrintAmount(toNumber(invoice?.totalAmount))}
+                {renderPrintAmount(toNumber(invoice?.totalAmount))}
               </td>
             </tr>
           </tbody>

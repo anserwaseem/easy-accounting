@@ -1,6 +1,7 @@
 import {
   formatInvoicePrintCurrency,
   formatInvoicePrintDate,
+  getInvoicePrintDateParts,
   getInvoicePrintLabels,
   pickPrintLocalizedText,
 } from '../locale';
@@ -30,6 +31,16 @@ describe('invoicePrint locale helpers', () => {
     expect(formatInvoicePrintDate(new Date(2026, 8, 3), 'ur')).toBe(
       '3 ستمبر 2026',
     );
+  });
+
+  it('splits Urdu date so UI can LTR-isolate day/year', () => {
+    const parts = getInvoicePrintDateParts(new Date(2026, 8, 3), 'ur');
+    expect(parts).toEqual({
+      day: 3,
+      month: 'ستمبر',
+      year: 2026,
+      formatted: '3 ستمبر 2026',
+    });
   });
 
   it('prefers Urdu text when locale is ur and Urdu is set', () => {
