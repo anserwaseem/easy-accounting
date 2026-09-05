@@ -13,9 +13,7 @@ module.exports = {
         // not a rename — English fields stay the operational identity for search,
         // ledgers, and existing documents.
         if (!hasColumn('account', 'nameUrdu')) {
-          db.prepare(
-            `ALTER TABLE "account" ADD COLUMN "nameUrdu" TEXT`,
-          ).run();
+          db.prepare(`ALTER TABLE "account" ADD COLUMN "nameUrdu" TEXT`).run();
         }
         if (!hasColumn('account', 'addressUrdu')) {
           db.prepare(

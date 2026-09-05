@@ -21,11 +21,14 @@ describe('getPrintBillToPartyName Urdu preference', () => {
 
   it('prefers line Urdu names over English line names', () => {
     expect(
-      getPrintBillToPartyName('Header', ['T'], [
-        { accountName: 'ALBALAGH-T', accountNameUrdu: 'البلغ' },
-      ], {
-        preferUrdu: true,
-      }),
+      getPrintBillToPartyName(
+        'Header',
+        ['T'],
+        [{ accountName: 'ALBALAGH-T', accountNameUrdu: 'البلغ' }],
+        {
+          preferUrdu: true,
+        },
+      ),
     ).toBe('البلغ');
   });
 });

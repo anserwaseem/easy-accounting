@@ -532,15 +532,20 @@ const PrintableInvoiceScreen = () => {
     labels.quotationFallbackTitle,
   ]);
 
-  const companyAddressLine = useMemo(() => {
+  // split contact so phone/email stay LTR inside an RTL company line
+  const companyContactParts = useMemo(() => {
     const address = pickPrintLocalizedText(
       companyProfile.address,
       companyProfile.addressUrdu,
       effectiveLocale,
     );
-    return [address, companyProfile.phone.trim(), companyProfile.email.trim()]
-      .filter(Boolean)
-      .join(' · ');
+    const phone = companyProfile.phone.trim();
+    const email = companyProfile.email.trim();
+    const parts: Array<{ text: string; ltr?: boolean }> = [];
+    if (address) parts.push({ text: address });
+    if (phone) parts.push({ text: phone, ltr: true });
+    if (email) parts.push({ text: email, ltr: true });
+    return parts;
   }, [
     companyProfile.address,
     companyProfile.addressUrdu,
@@ -553,6 +558,14 @@ const PrintableInvoiceScreen = () => {
     (sum, item) => sum + toNumber(item.quantity),
     0,
   );
+
+  // Urdu totals need room for "140,418.00 روپے" without wrapping
+  const amountColClass = isUrdu
+    ? 'pe-2 w-[9.5rem] whitespace-nowrap tabular-nums'
+    : 'pe-2 w-[7.25rem] tabular-nums';
+  const priceColClass = 'text-end w-[4.75rem] tabular-nums';
+  const qtyColClass = 'text-end tabular-nums';
+  const discountColClass = 'text-end tabular-nums';
 
   const formatPrintAmount = (amount: number): string =>
     isUrdu
@@ -910,9 +923,16 @@ const PrintableInvoiceScreen = () => {
             >
               {printCompanyHeading}
             </h1>
-            {companyAddressLine ? (
+            {companyContactParts.length > 0 ? (
               <p className={`text-center text-sm${isUrdu ? '' : ' font-mono'}`}>
-                {companyAddressLine}
+                {companyContactParts.map((part, index) => (
+                  <span
+                    key={part.ltr ? `ltr:${part.text}` : `rtl:${part.text}`}
+                  >
+                    {index > 0 ? ' · ' : null}
+                    <span dir={part.ltr ? 'ltr' : undefined}>{part.text}</span>
+                  </span>
+                ))}
               </p>
             ) : null}
           </div>
@@ -966,12 +986,12 @@ const PrintableInvoiceScreen = () => {
           <thead>
             <tr className="[&_th]:font-semibold">
               <th className="text-start">{labels.serial}</th>
-              <th>{labels.item}</th>
+              <th className="text-center">{labels.item}</th>
               <th className="text-start">{labels.itemDescription}</th>
-              <th className="text-end">{labels.qty}</th>
-              <th className="text-end w-[4.75rem]">{labels.price}</th>
-              <th className="text-end">{labels.discount}</th>
-              <th className="text-end pe-2 w-[7.25rem]">{labels.amount}</th>
+              <th className={qtyColClass}>{labels.qty}</th>
+              <th className={priceColClass}>{labels.price}</th>
+              <th className={discountColClass}>{labels.discount}</th>
+              <th className={`text-end ${amountColClass}`}>{labels.amount}</th>
             </tr>
           </thead>
           <tbody>
@@ -990,13 +1010,13 @@ const PrintableInvoiceScreen = () => {
                 return (
                   <tr key={row.key} className="bg-gray-50">
                     <td colSpan={3} />
-                    <td className="text-end font-semibold" dir="ltr">
+                    <td className={`${qtyColClass} font-semibold`} dir="ltr">
                       {row.totalQuantity}
                     </td>
                     <td />
                     <td />
                     <td
-                      className="text-end pe-2 w-[7.25rem] font-semibold"
+                      className={`text-end ${amountColClass} font-semibold`}
                       dir="ltr"
                     >
                       {toNumber(row.totalAmount).toFixed(2)}
@@ -1011,17 +1031,23 @@ const PrintableInvoiceScreen = () => {
                   <td className="text-center" dir="ltr">
                     {row.item.inventoryItemName}
                   </td>
-                  <td>{row.item.inventoryItemDescription}</td>
-                  <td className="text-end" dir="ltr">
+                  {/* latin descriptions in RTL: LTR isolate, pack toward حوالہ نمبر */}
+                  <td
+                    dir={isUrdu ? 'ltr' : undefined}
+                    className={isUrdu ? 'text-right' : undefined}
+                  >
+                    {row.item.inventoryItemDescription}
+                  </td>
+                  <td className={qtyColClass} dir="ltr">
                     {row.item.quantity}
                   </td>
-                  <td className="text-end w-[4.75rem]" dir="ltr">
+                  <td className={priceColClass} dir="ltr">
                     {toNumber(row.item.price).toFixed(0)}
                   </td>
-                  <td className="text-end" dir="ltr">
+                  <td className={discountColClass} dir="ltr">
                     {row.item.discount.toFixed(2)}
                   </td>
-                  <td className="text-end pe-2 w-[7.25rem]" dir="ltr">
+                  <td className={`text-end ${amountColClass}`} dir="ltr">
                     {toNumber(row.item.discountedPrice).toFixed(2)}
                   </td>
                 </tr>
@@ -1037,7 +1063,7 @@ const PrintableInvoiceScreen = () => {
                 {labels.totalQuantity}
               </td>
               <td
-                className="text-end !border-[0.5px] !border-gray-400"
+                className={`${qtyColClass} !border-[0.5px] !border-gray-400`}
                 dir="ltr"
               >
                 {totalQuantity}
@@ -1051,7 +1077,7 @@ const PrintableInvoiceScreen = () => {
                   {labels.extraDiscount}
                 </td>
                 <td
-                  className="pe-2 w-[7.25rem] text-end !border-[0.5px] !border-gray-400"
+                  className={`text-end ${amountColClass} !border-[0.5px] !border-gray-400`}
                   dir="ltr"
                 >
                   {formatPrintAmount(toNumber(invoice.extraDiscount))}
@@ -1067,7 +1093,7 @@ const PrintableInvoiceScreen = () => {
                 {totalAmountInWords}
               </td>
               <td
-                className="pe-2 w-[7.25rem] font-bold text-end !border-[0.5px] !border-gray-400"
+                className={`text-end ${amountColClass} font-bold !border-[0.5px] !border-gray-400`}
                 dir="ltr"
               >
                 {formatPrintAmount(toNumber(invoice?.totalAmount))}
