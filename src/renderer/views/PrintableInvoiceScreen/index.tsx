@@ -39,12 +39,14 @@ import {
 import { getInvoicePrintReadinessGaps } from '@/renderer/lib/invoicePrint/readiness';
 import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
 import { Label } from 'renderer/shad/ui/label';
-import jameelNastaleeqFontUrl from '../../fonts/JameelNooriNastaleeq.ttf';
+import {
+  ensureUrduInvoiceFonts,
+  getUrduFontFaceCss,
+  urduFontClass,
+} from '@/renderer/lib/invoicePrint/urduFont';
 
-/** Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity) */
-const URDU_PRINT_FONT_FAMILY = 'Jameel Noori Nastaleeq';
-const urduFontClass = "font-['Jameel_Noori_Nastaleeq',serif]";
 /**
+ * Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity).
  * Jameel reads optically smaller than latin at the same CSS size — bump ~30%
  * so labels sit closer to number weight. Description values use a milder bump.
  */
@@ -227,6 +229,14 @@ const PrintableInvoiceScreen = () => {
       dismissAllToasts();
     };
   }, []);
+
+  // start Noto immediately; Jameel (if registered) prefetches in the background
+  useEffect(() => {
+    if (!isUrdu) {
+      return;
+    }
+    ensureUrduInvoiceFonts('preview').catch(() => {});
+  }, [isUrdu]);
 
   useEffect(() => {
     if (!invoice) {
@@ -740,16 +750,7 @@ const PrintableInvoiceScreen = () => {
       dir={isUrdu ? 'rtl' : 'ltr'}
       lang={isUrdu ? 'ur' : 'en'}
     >
-      {isUrdu ? (
-        <style>{`
-          @font-face {
-            font-family: '${URDU_PRINT_FONT_FAMILY}';
-            src: url(${jameelNastaleeqFontUrl}) format('truetype');
-            font-weight: 400 700;
-            font-display: block;
-          }
-        `}</style>
-      ) : null}
+      {isUrdu ? <style>{getUrduFontFaceCss()}</style> : null}
       {isDarkAppChrome ? (
         <div
           dir="ltr"

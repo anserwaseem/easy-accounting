@@ -262,17 +262,18 @@ export const formatInvoicePrintCurrency = (
 /** wait for document fonts (esp. Nastaliq) before printToPDF / window.print */
 export const waitForInvoicePrintFonts = async (
   locale: InvoicePrintLocale,
-  urduFontFamily = 'Jameel Noori Nastaleeq',
 ): Promise<void> => {
   if (typeof document === 'undefined' || !document.fonts) {
     return;
   }
-  try {
-    await document.fonts.ready;
-    if (locale === 'ur') {
-      await document.fonts.load(`16px '${urduFontFamily}'`);
+  if (locale !== 'ur') {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // print still proceeds
     }
-  } catch {
-    // print still proceeds; glyphs may fall back
+    return;
   }
+  const { ensureUrduInvoiceFonts } = await import('./urduFont');
+  await ensureUrduInvoiceFonts('print');
 };
