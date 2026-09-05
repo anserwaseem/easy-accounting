@@ -226,6 +226,15 @@ const SettingsPage: React.FC = () => {
             onChange={(e) => setDraftCompanyPhone(e.target.value)}
           />
         </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="companyProfileEmail">Email</Label>
+          <Input
+            id="companyProfileEmail"
+            value={draftCompanyEmail}
+            placeholder="e.g., accounts@company.com"
+            onChange={(e) => setDraftCompanyEmail(e.target.value)}
+          />
+        </div>
         <div className="flex flex-col gap-2 md:col-span-2">
           <Label htmlFor="companyProfileAddress">Address</Label>
           <Input
@@ -244,15 +253,6 @@ const SettingsPage: React.FC = () => {
             lang="ur"
             placeholder="اردو پتہ برائے پرنٹ"
             onChange={(e) => setDraftCompanyAddressUrdu(e.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="companyProfileEmail">Email</Label>
-          <Input
-            id="companyProfileEmail"
-            value={draftCompanyEmail}
-            placeholder="e.g., accounts@company.com"
-            onChange={(e) => setDraftCompanyEmail(e.target.value)}
           />
         </div>
       </div>
