@@ -10,16 +10,20 @@ import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateInventoryItem, ItemType, InventoryItem } from '@/types';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { editInventorySchema } from './inventorySchemas';
 import { InventoryForm } from './InventoryForm';
 import { ItemPriceLists } from './ItemPriceLists';
+import { FamilyHeadPicker } from './FamilyHeadPicker';
 import { changedListPrices, getRowListPrice } from './inventoryBulkEdit';
 
 interface EditInventoryItemProps {
   row: {
-    original: UpdateInventoryItem & { excludeFromCatalog?: 0 | 1 };
+    original: UpdateInventoryItem & {
+      excludeFromCatalog?: 0 | 1;
+      parentId?: number | null;
+    };
   };
   refetchInventory: () => void;
   /** refreshes only the publish badges — safe to call with the dialog open */
@@ -40,6 +44,8 @@ interface EditInventoryItemProps {
    * round trip per visible row on every scroll.
    */
   priceLists?: PriceListSummary[];
+  /** all inventory rows — used to pick a family head for orphans */
+  inventoryItems?: InventoryItem[];
 }
 
 export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
@@ -48,6 +54,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   refreshPublishStatuses,
   showPublishControls = false,
   priceLists = [],
+  inventoryItems = [],
 }: EditInventoryItemProps) => {
   // the hold-back toggle applies immediately, so the rows behind this dialog
   // are stale and reconcile when it closes. Price-list prices do not: they go
@@ -70,6 +77,9 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   const [excluded, setExcluded] = useState(
     Boolean(row.original.excludeFromCatalog),
   );
+  const [parentId, setParentId] = useState<number | null>(
+    row.original.parentId ?? null,
+  );
   const defaultValues: UpdateInventoryItem = {
     id: row.original.id,
     name: row.original.name,
@@ -81,14 +91,30 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
     listPosition: row.original.listPosition ?? null,
   };
 
+  const familyHeadOptions = useMemo(() => {
+    const heads = inventoryItems.filter(
+      (item) => item.parentId == null && item.id !== row.original.id,
+    );
+    return [{ id: 0, name: 'None — this is a head' }, ...heads];
+  }, [inventoryItems, row.original.id]);
+
+  const variantChildCount = useMemo(
+    () =>
+      inventoryItems.filter((item) => item.parentId === row.original.id).length,
+    [inventoryItems, row.original.id],
+  );
+  // heads with variants cannot become children — hide picker, show status only
+  const canSetFamilyHead = variantChildCount === 0;
+
   // load active item types each time edit dialog opens.
   useEffect(() => {
     if (!isOpen) return;
+    setParentId(row.original.parentId ?? null);
     (async () => {
       const rows = await window.electron.getItemTypes();
       setItemTypes(rows.filter((itemType) => itemType.isActive));
     })();
-  }, [isOpen]);
+  }, [isOpen, row.original.parentId]);
 
   // applied immediately rather than on submit: it is a publishing decision
   // about the item, not one of its accounting fields, and the rest of this form
@@ -112,6 +138,31 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
     // rows are reconciled when the dialog closes instead.
     setNeedsRefetch(true);
     refreshPublishStatuses?.();
+  };
+
+  const onParentChange = async (next: number | null) => {
+    const prev = parentId;
+    setParentId(next);
+    const result = await window.electron.setInventoryParentId(
+      row.original.id,
+      next,
+    );
+    if (!result.success) {
+      setParentId(prev);
+      toast({
+        description: result.error ?? 'Could not set family head',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setNeedsRefetch(true);
+    toast({
+      description:
+        next == null
+          ? 'Cleared family head — item is its own head'
+          : 'Linked to family head (at-vendor qty folded if any)',
+      variant: 'success',
+    });
   };
 
   const onEdit = async (values: UpdateInventoryItem) => {
@@ -166,7 +217,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
       <DialogTrigger asChild>
         <EditActionButton aria-label="Edit inventory item" />
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit Inventory Item</DialogTitle>
         </DialogHeader>
@@ -207,6 +258,22 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
             </div>
           </div>
         ) : null}
+        <div className="space-y-1.5 border-t pt-3">
+          <Label className="text-sm font-normal">Family head</Label>
+          {canSetFamilyHead ? (
+            <FamilyHeadPicker
+              key={isOpen ? `open-${row.original.id}` : 'closed'}
+              options={familyHeadOptions}
+              value={parentId}
+              onChange={onParentChange}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              This item is head of {variantChildCount} variant
+              {variantChildCount === 1 ? '' : 's'} — cannot nest under another.
+            </p>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

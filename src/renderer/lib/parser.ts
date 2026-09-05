@@ -899,6 +899,128 @@ export const parseOpeningStock = (
   );
 };
 
+function isHeaderRowVendorOpeningStock(row: unknown[]): boolean {
+  return row.some(
+    (cell) =>
+      typeof cell === 'string' &&
+      [
+        'vendor_code',
+        'vendorcode',
+        'vendor_name',
+        'vendorname',
+        'vendor',
+        'name',
+        'item',
+        'quantity',
+        'qty',
+      ].includes((cell as string).toLowerCase().trim().replace(/\s+/g, '_')),
+  );
+}
+
+const cellToString = (value: unknown): string => {
+  if (value == null) return '';
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'string') return value.trim();
+  return String(value).trim();
+};
+
+/** parses vendor opening stock: vendor_code|vendor_name, item name, quantity */
+export const parseVendorOpeningStock = (
+  obj: unknown,
+): Array<{
+  vendorCode?: string;
+  vendorName?: string;
+  name: string;
+  quantity: number;
+}> => {
+  if (!isTwoDimensionalArray(obj)) {
+    raise('Invalid format for vendor opening stock');
+  }
+
+  const rows = obj as unknown[][];
+  if (!rows.length) return [];
+
+  const hasHeader = isHeaderRowVendorOpeningStock(rows[0]);
+  const startIndex = hasHeader ? 1 : 0;
+
+  let vendorCodeIdx = 0;
+  let vendorNameIdx = -1;
+  let nameIdx = 1;
+  let qtyIdx = 2;
+
+  if (hasHeader) {
+    const headers = (rows[0] as unknown[]).map((h) =>
+      cellToString(h).toLowerCase().replace(/\s+/g, '_'),
+    );
+    vendorCodeIdx = headers.findIndex((h) =>
+      ['vendor_code', 'vendorcode', 'code'].includes(h),
+    );
+    vendorNameIdx = headers.findIndex((h) =>
+      ['vendor_name', 'vendorname', 'vendor'].includes(h),
+    );
+    nameIdx = headers.findIndex((h) =>
+      ['name', 'item', 'item_name', 'itemname'].includes(h),
+    );
+    qtyIdx = headers.findIndex((h) => ['quantity', 'qty'].includes(h));
+
+    if (nameIdx < 0 || qtyIdx < 0) {
+      raise(
+        'Vendor opening stock header must include item name and quantity columns',
+      );
+    }
+    if (vendorCodeIdx < 0 && vendorNameIdx < 0) {
+      raise(
+        'Vendor opening stock header must include vendor_code or vendor_name',
+      );
+    }
+  }
+
+  return compact(
+    rows.slice(startIndex).map((row, index) => {
+      if (!Array.isArray(row)) {
+        raise(`Invalid row at index ${index + startIndex}`);
+      }
+
+      const vendorCode =
+        vendorCodeIdx >= 0 ? cellToString(row[vendorCodeIdx]) : '';
+      const vendorName =
+        vendorNameIdx >= 0 ? cellToString(row[vendorNameIdx]) : '';
+      const name = cellToString(row[nameIdx]);
+      const rawQty = row[qtyIdx];
+
+      if (!vendorCode && !vendorName) {
+        raise(
+          `Row ${
+            index + startIndex + 1
+          }: vendor_code or vendor_name is required`,
+        );
+      }
+      if (!name) {
+        raise(`Row ${index + startIndex + 1}: item name is required`);
+      }
+
+      const qty =
+        typeof rawQty === 'number'
+          ? rawQty
+          : parseFloat(cellToString(rawQty) || '0');
+      if (Number.isNaN(qty) || qty < 0) {
+        raise(
+          `Row ${
+            index + startIndex + 1
+          }: quantity must be a non-negative number`,
+        );
+      }
+
+      return {
+        vendorCode: vendorCode || undefined,
+        vendorName: vendorName || undefined,
+        name,
+        quantity: Math.floor(qty),
+      };
+    }),
+  );
+};
+
 // #endregion
 
 // #region inventory availability

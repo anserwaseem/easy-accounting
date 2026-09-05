@@ -1420,6 +1420,9 @@ describe('InvoiceService.insertInvoice', () => {
   it('returnPurchaseInvoice: removes journals, reduces inventory to pre-purchase level, stores reason, marks returned', () => {
     const acc = seedBaseAccounts();
     const inv = seedInventoryAndTypes();
+    db.prepare(`UPDATE account SET tracksVendorStock = 1 WHERE id = ?`).run(
+      acc.primaryPartyId,
+    );
 
     const items: InvoiceItem[] = [
       {
@@ -1483,10 +1486,27 @@ describe('InvoiceService.insertInvoice', () => {
     expect(qtyAfterReturn).toBe(50);
 
     const returnedRow = db
-      .prepare(`SELECT isReturned, returnReason FROM invoices WHERE id = ?`)
-      .get([invoiceId]) as { isReturned: number; returnReason: string | null };
+      .prepare(
+        `SELECT isReturned, returnedAt, returnReason FROM invoices WHERE id = ?`,
+      )
+      .get([invoiceId]) as {
+      isReturned: number;
+      returnedAt: string;
+      returnReason: string | null;
+    };
     expect(returnedRow.isReturned).toBe(1);
     expect(returnedRow.returnReason).toBe('defective stock');
+
+    const vendorReturn = db
+      .prepare(
+        `SELECT date FROM vendor_stock_movements
+         WHERE referenceType = 'invoice'
+           AND referenceId = ?
+           AND movementType = 'purchase_return'`,
+      )
+      .get(invoiceId) as { date: string };
+    expect(vendorReturn.date).toBe(returnedRow.returnedAt);
+    expect(vendorReturn.date).not.toBe(invoice.date);
 
     const view = invoiceService.getInvoice(invoiceId);
     expect(view.isReturned).toBe(true);

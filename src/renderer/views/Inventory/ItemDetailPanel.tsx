@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
+import { sortBy } from 'lodash';
 import type { AttributeDefinition, InventoryItem } from 'types';
-import { formatAttributeValue } from './inventoryQuery';
+import {
+  formatAttributeValue,
+  type InventoryFamilyIndex,
+} from './inventoryQuery';
 
 /**
  * The per-row detail panel behind the inventory table's accordion.
@@ -24,11 +28,15 @@ interface DetailEntry {
 interface ItemDetailPanelProps {
   item: InventoryItem;
   attributeDefs: AttributeDefinition[];
+  inventoryItems: InventoryItem[];
+  familyIndex: InventoryFamilyIndex;
 }
 
 export const ItemDetailPanel = ({
   item,
   attributeDefs,
+  inventoryItems,
+  familyIndex,
 }: ItemDetailPanelProps) => {
   const entries = useMemo<DetailEntry[]>(
     () =>
@@ -40,9 +48,55 @@ export const ItemDetailPanel = ({
         .filter((entry) => entry.value !== ''),
     [attributeDefs, item.attributes],
   );
+  const familyHead =
+    item.parentId != null ? familyIndex.byId.get(item.parentId) : undefined;
+  const familyMembers = useMemo(
+    () =>
+      sortBy(
+        inventoryItems.filter((candidate) => candidate.parentId === item.id),
+        (candidate) => candidate.name.toLowerCase(),
+      ),
+    [inventoryItems, item.id],
+  );
 
   return (
     <div className="border-l-2 border-primary/40 px-4 py-2.5">
+      <div className="mb-2 border-b pb-2">
+        {familyMembers.length > 0 ? (
+          <>
+            <p className="mb-1.5 text-xs font-medium">
+              Family head · {familyMembers.length} variant
+              {familyMembers.length === 1 ? '' : 's'}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {familyMembers.map((member) => (
+                <span
+                  key={member.id}
+                  className="rounded border bg-muted/40 px-2 py-0.5 text-xs"
+                >
+                  {member.name}
+                  <span className="ml-1 text-muted-foreground">
+                    · qty {member.quantity}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </>
+        ) : null}
+        {item.parentId != null ? (
+          <p className="text-xs">
+            <span className="text-muted-foreground">Family head:</span>{' '}
+            <span className="font-medium">
+              {familyHead?.name ?? `Missing item #${item.parentId}`}
+            </span>
+          </p>
+        ) : null}
+        {item.parentId == null && familyMembers.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Own family head · no variants assigned.
+          </p>
+        ) : null}
+      </div>
       {entries.length ? (
         <dl className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-x-8 gap-y-1">
           {entries.map((entry) => (

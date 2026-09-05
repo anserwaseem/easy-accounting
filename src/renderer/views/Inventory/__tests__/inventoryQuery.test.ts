@@ -1,6 +1,7 @@
 import type { AttributeDefinition, InventoryItem } from 'types';
 import {
   byListPosition,
+  buildInventoryFamilyIndex,
   compareAttributeValues,
   countActiveFilters,
   countActiveInventoryFilters,
@@ -8,8 +9,10 @@ import {
   matchesInventoryFilters,
   distinctAttributeValues,
   formatAttributeValue,
+  inventoryFamilyLabel,
   isAttributeUnset,
   matchesAttributeFilters,
+  matchesFamilyFilter,
   type AttributeFilters,
   type InventoryFilters,
 } from '../inventoryQuery';
@@ -228,6 +231,38 @@ describe('matchesInventoryFilters', () => {
     ).toBe(false);
   });
 
+  it('filters by item type, including items with no type', () => {
+    const typed = {
+      ...withTitle(null),
+      itemTypeId: 7,
+    } as InventoryItem;
+    const untyped = {
+      ...withTitle(null),
+      itemTypeId: null,
+    } as InventoryItem;
+    expect(
+      matchesInventoryFilters(
+        typed,
+        { ...emptyInventoryFilters, itemTypeId: 7 },
+        noState,
+      ),
+    ).toBe(true);
+    expect(
+      matchesInventoryFilters(
+        untyped,
+        { ...emptyInventoryFilters, itemTypeId: 'none' },
+        noState,
+      ),
+    ).toBe(true);
+    expect(
+      matchesInventoryFilters(
+        typed,
+        { ...emptyInventoryFilters, itemTypeId: 'none' },
+        noState,
+      ),
+    ).toBe(false);
+  });
+
   it('treats "not a candidate" as having no state at all', () => {
     const filters: InventoryFilters = {
       ...emptyInventoryFilters,
@@ -261,6 +296,46 @@ describe('matchesInventoryFilters', () => {
   });
 });
 
+describe('inventory family projection', () => {
+  const familyItem = (
+    id: number,
+    name: string,
+    parentId: number | null,
+    familyCode?: string,
+  ) =>
+    ({
+      id,
+      name,
+      parentId,
+      price: 0,
+      quantity: 0,
+      attributes: familyCode ? { family_code: familyCode } : {},
+    }) as InventoryItem;
+
+  const head = familyItem(10, 'F-10', null, 'F-10');
+  const variant = familyItem(11, 'F-10-Z', 10, 'F-10');
+  const independent = familyItem(13, 'F-10-G', null, 'F-10');
+  const standalone = familyItem(20, 'Notebook', null);
+  const items = [head, variant, independent, standalone];
+  const index = buildInventoryFamilyIndex(items);
+
+  it('counts children and resolves inventory rows by id', () => {
+    expect(index.childCountByHeadId.get(head.id)).toBe(1);
+    expect(index.byId.get(variant.id)).toBe(variant);
+  });
+
+  it('filters heads, variants, and standalone items', () => {
+    expect(matchesFamilyFilter(head, 'heads', index)).toBe(true);
+    expect(matchesFamilyFilter(variant, 'variants', index)).toBe(true);
+    expect(matchesFamilyFilter(standalone, 'standalone', index)).toBe(true);
+  });
+
+  it('keeps an explicitly independent item as own head despite matching text', () => {
+    expect(matchesFamilyFilter(independent, 'standalone', index)).toBe(true);
+    expect(inventoryFamilyLabel(independent, index)).toBe('Own head');
+  });
+});
+
 describe('countActiveInventoryFilters', () => {
   it('counts attribute, publish and title choices together', () => {
     expect(countActiveInventoryFilters(emptyInventoryFilters)).toBe(0);
@@ -269,7 +344,9 @@ describe('countActiveInventoryFilters', () => {
         attributes: { a: { mode: 'unset' }, b: { mode: 'any' } },
         publish: 'ready',
         displayTitle: 'set',
+        family: 'heads',
+        itemTypeId: 7,
       }),
-    ).toBe(3);
+    ).toBe(5);
   });
 });

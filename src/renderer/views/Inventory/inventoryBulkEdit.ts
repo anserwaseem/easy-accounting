@@ -5,11 +5,16 @@ import type { BulkPriceListPositionPatch, InventoryItem } from 'types';
  * contributes a column identified as `list:<priceListId>` so a business can
  * maintain several named prices per item without a code change.
  */
-export type InventoryBulkEditCol = 'price' | 'listPosition' | `list:${number}`;
+export type InventoryBulkEditCol =
+  | 'price'
+  | 'listPosition'
+  | 'parentId'
+  | `list:${number}`;
 
 export interface InventoryBulkEditDraftFields {
   price?: string;
   listPosition?: string;
+  parentId?: string;
   /** keyed by price list id, as typed */
   listPrices?: Record<number, string>;
 }
@@ -71,6 +76,10 @@ export const getDraftDisplayValue = (
       ? draft.price
       : formatPriceDisplay(row.price);
   }
+  if (col === 'parentId') {
+    if (draft?.parentId !== undefined) return draft.parentId;
+    return row.parentId == null ? '' : String(row.parentId);
+  }
   const priceListId = priceListIdOfCol(col);
   if (priceListId !== null) {
     const typed = draft?.listPrices?.[priceListId];
@@ -129,6 +138,11 @@ export const isDraftRowDirty = (
     const original = row.listPosition ?? null;
     if (!parsed.ok || parsed.value !== original) return true;
   }
+  if (draft.parentId !== undefined) {
+    const parsed = parseFamilyParentInput(draft.parentId);
+    const original = row.parentId ?? null;
+    if (!parsed.ok || parsed.value !== original) return true;
+  }
   if (draft.listPrices) {
     for (const [key, raw] of Object.entries(draft.listPrices)) {
       const parsed = parseListPriceInput(raw);
@@ -152,6 +166,19 @@ export const countDirtyDraftRows = (
   });
   return count;
 };
+
+/** empty means standalone/head; otherwise a positive inventory head id */
+export function parseFamilyParentInput(
+  raw: string,
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  const trimmed = raw.trim();
+  if (trimmed === '') return { ok: true, value: null };
+  const id = Number(trimmed);
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, error: 'Family head is invalid' };
+  }
+  return { ok: true, value: id };
+}
 
 /**
  * builds save payload from draft overlay. returns error if any dirty cell is invalid.
@@ -188,6 +215,17 @@ export const buildBulkPriceListPatches = (
       listPosition = parsed.value;
     }
 
+    let parentId: number | null | undefined;
+    if (draft.parentId !== undefined) {
+      const parsed = parseFamilyParentInput(draft.parentId);
+      if (!parsed.ok) {
+        return { ok: false, error: `${row.name}: ${parsed.error}` };
+      }
+      if (parsed.value !== (row.parentId ?? null)) {
+        parentId = parsed.value;
+      }
+    }
+
     const listPrices: Array<{ priceListId: number; price: number | null }> = [];
     if (draft.listPrices) {
       for (const [key, raw] of Object.entries(draft.listPrices)) {
@@ -206,6 +244,7 @@ export const buildBulkPriceListPatches = (
       id,
       price,
       listPosition,
+      ...(parentId !== undefined ? { parentId } : {}),
       ...(listPrices.length > 0 ? { listPrices } : {}),
     });
   }
@@ -222,6 +261,9 @@ export interface BulkEditChangeRow {
   /** set only when list # changed */
   listFrom?: number | null;
   listTo?: number | null;
+  /** set only when family changed */
+  familyFrom?: string;
+  familyTo?: string;
   /** one entry per changed price list */
   priceListChanges?: Array<{
     priceListId: number;
@@ -240,6 +282,8 @@ export interface BulkEditChangeSummary {
   hasPriceChanges: boolean;
   /** true if any row has a list # change */
   hasListChanges: boolean;
+  /** true if any row changed family */
+  hasFamilyChanges: boolean;
   /** true if any row changed a named price list */
   hasPriceListChanges: boolean;
 }
@@ -259,6 +303,7 @@ export const buildBulkEditChangeSummary = (
   const rows: BulkEditChangeRow[] = [];
   let hasPriceChanges = false;
   let hasListChanges = false;
+  let hasFamilyChanges = false;
   let hasPriceListChanges = false;
 
   for (const patch of patches) {
@@ -283,6 +328,25 @@ export const buildBulkEditChangeSummary = (
       hasListChanges = true;
     }
 
+    if (
+      Object.prototype.hasOwnProperty.call(patch, 'parentId') &&
+      patch.parentId !== (original.parentId ?? null)
+    ) {
+      const oldHead =
+        original.parentId == null
+          ? 'None'
+          : originalsById.get(original.parentId)?.name ??
+            `Item #${original.parentId}`;
+      const newHead =
+        patch.parentId == null
+          ? 'None'
+          : originalsById.get(patch.parentId)?.name ??
+            `Item #${patch.parentId}`;
+      row.familyFrom = oldHead;
+      row.familyTo = newHead;
+      hasFamilyChanges = true;
+    }
+
     if (patch.listPrices?.length) {
       row.priceListChanges = patch.listPrices.map((entry) => ({
         priceListId: entry.priceListId,
@@ -295,6 +359,7 @@ export const buildBulkEditChangeSummary = (
     if (
       row.priceTo !== undefined ||
       row.listTo !== undefined ||
+      row.familyTo !== undefined ||
       row.priceListChanges?.length
     ) {
       rows.push(row);
@@ -309,6 +374,7 @@ export const buildBulkEditChangeSummary = (
     itemCount: patches.length,
     hasPriceChanges,
     hasListChanges,
+    hasFamilyChanges,
     hasPriceListChanges,
   };
 };

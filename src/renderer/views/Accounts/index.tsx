@@ -140,6 +140,11 @@ const AccountCell: React.FC<CellContext<Account, unknown>> = ({
     </div>
     <div className="flex items-center">
       <p className="text-xs text-slate-400">&nbsp;&nbsp;{row.original.type}</p>
+      {row.original.tracksVendorStock && (
+        <span className="ml-2 text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
+          Stock
+        </span>
+      )}
       {!row.original.isActive && (
         <span className="ml-2 text-xs px-2 py-0.5 bg-red-100 text-red-800 rounded">
           Inactive
@@ -154,6 +159,11 @@ const AccountNameCell: React.FC<CellContext<Account, unknown>> = ({
 }: CellContext<Account, unknown>) => (
   <div className={cn(!row.original.isActive && 'opacity-60')}>
     {row.original.name}
+    {row.original.tracksVendorStock && (
+      <span className="ml-2 text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
+        Stock
+      </span>
+    )}
     {!row.original.isActive && (
       <span className="ml-2 text-xs px-2 py-0.5 bg-red-100 text-red-800 rounded">
         Inactive

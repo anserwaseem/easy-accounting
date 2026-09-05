@@ -539,6 +539,37 @@ describe('InventoryService.bulkUpdatePricesAndListPositions', () => {
     ).toThrow(/Invalid list #/);
     db.close();
   });
+
+  it('updates family parent in the same bulk transaction', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    const headId = db
+      .prepare(
+        `INSERT INTO inventory (name, price, quantity) VALUES ('Family', 10, 0)`,
+      )
+      .run().lastInsertRowid as number;
+    const variantId = db
+      .prepare(
+        `INSERT INTO inventory (name, price, quantity) VALUES ('Variant', 10, 0)`,
+      )
+      .run().lastInsertRowid as number;
+
+    const service = createTestDb(db);
+    service.bulkUpdatePricesAndListPositions([
+      {
+        id: variantId,
+        price: 10,
+        listPosition: null,
+        parentId: headId,
+      },
+    ]);
+
+    const variant = service
+      .getInventory()
+      .find((item) => item.id === variantId);
+    expect(variant?.parentId).toBe(headId);
+    db.close();
+  });
 });
 
 describe('InventoryService attribute definitions', () => {

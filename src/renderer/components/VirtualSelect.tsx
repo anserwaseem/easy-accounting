@@ -636,7 +636,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   }, [isOpen, selectedOption]);
 
   return (
-    <Popover open={isOpen} onOpenChange={handleOpenChange}>
+    <Popover modal={false} open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <div
           className={cn(

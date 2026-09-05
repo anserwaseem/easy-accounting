@@ -15,6 +15,7 @@ import {
   type PurchasesByVendorItem,
   type PurchasesByVendorResponse,
   type ReturnSaleInvoicePayload,
+  type VendorStockPurchaseLine,
 } from '../../types';
 import { logErrors } from '../errorLogger';
 import { DatabaseService } from './Database.service';
@@ -22,6 +23,7 @@ import { raise, convertOrdinalDate } from '../utils/general';
 import { JournalService } from './Journal.service';
 import { AccountService } from './Account.service';
 import { PricingService } from './Pricing.service';
+import { VendorStockService } from './VendorStock.service';
 import type { SqliteBoolean } from '../utils/sqlite';
 import {
   cast,
@@ -79,6 +81,8 @@ export class InvoiceService {
 
   private pricingService!: PricingService;
 
+  private vendorStockService!: VendorStockService;
+
   private stmGetNextInvoiceNumber!: Statement;
 
   private stmInsertInvoice!: Statement;
@@ -131,6 +135,8 @@ export class InvoiceService {
 
   private stmMarkInvoiceReturned!: Statement;
 
+  private stmGetCurrentLocalDateTime!: Statement;
+
   private stmGetNextQuotationInvoiceNumber!: Statement;
 
   private stmGetQuotationInvoices!: Statement;
@@ -148,6 +154,7 @@ export class InvoiceService {
     this.journalService = new JournalService();
     this.accountService = new AccountService();
     this.pricingService = new PricingService();
+    this.vendorStockService = new VendorStockService();
     this.initPreparedStatements();
   }
 
@@ -189,7 +196,10 @@ export class InvoiceService {
     })();
   }
 
-  convertQuotationInvoice(invoiceId: number): { invoiceNumber: number } {
+  convertQuotationInvoice(invoiceId: number): {
+    invoiceNumber: number;
+    vendorStockMessages?: string[];
+  } {
     return this.db.transaction(() => {
       return this.convertQuotationInvoiceWithoutTransaction(invoiceId);
     })();
@@ -283,7 +293,11 @@ export class InvoiceService {
   insertInvoice(
     invoiceType: InvoiceType,
     invoice: Invoice,
-  ): { invoiceId: number; nextInvoiceNumber: number } {
+  ): {
+    invoiceId: number;
+    nextInvoiceNumber: number;
+    vendorStockMessages?: string[];
+  } {
     return this.db.transaction(() => {
       return this.insertInvoiceWithoutTransaction(invoiceType, invoice);
     })();
@@ -292,7 +306,11 @@ export class InvoiceService {
   private insertInvoiceWithoutTransaction(
     invoiceType: InvoiceType,
     invoice: Invoice,
-  ): { invoiceId: number; nextInvoiceNumber: number } {
+  ): {
+    invoiceId: number;
+    nextInvoiceNumber: number;
+    vendorStockMessages?: string[];
+  } {
     const invalid = { invoiceId: -1, nextInvoiceNumber: -1 };
     if (!invoice.invoiceNumber) {
       log.error('No invoice number found while inserting invoice', invoice);
@@ -395,6 +413,19 @@ export class InvoiceService {
           invoiceId,
         );
       }
+      if (invoiceType === InvoiceType.Purchase) {
+        const vendorStockMessages = this.applyVendorStockForPostedPurchase(
+          invoiceId,
+          invoice,
+          'purchase',
+        );
+        return {
+          invoiceId,
+          nextInvoiceNumber: invoice.invoiceNumber + 1,
+          vendorStockMessages:
+            vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+        };
+      }
       return {
         invoiceId,
         nextInvoiceNumber: invoice.invoiceNumber + 1,
@@ -426,11 +457,22 @@ export class InvoiceService {
         );
       }
 
+      let vendorStockMessages: string[] | undefined;
+      if (invoiceType === InvoiceType.Purchase) {
+        const messages = this.applyVendorStockForPostedPurchase(
+          invoiceId,
+          invoice,
+          'purchase',
+        );
+        if (messages.length > 0) vendorStockMessages = messages;
+      }
+
       this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
 
       return {
         invoiceId,
         nextInvoiceNumber: invoice.invoiceNumber + 1,
+        vendorStockMessages,
       };
     }
 
@@ -706,6 +748,7 @@ export class InvoiceService {
 
   private convertQuotationInvoiceWithoutTransaction(invoiceId: number): {
     invoiceNumber: number;
+    vendorStockMessages?: string[];
   } {
     const header = this.stmGetInvoiceHeader.get({
       invoiceId: cast(invoiceId),
@@ -767,6 +810,19 @@ export class InvoiceService {
       view,
       nextNum,
     );
+    if (invType === InvoiceType.Purchase) {
+      const vendorStockMessages = this.applyVendorStockForPostedPurchase(
+        invoiceId,
+        invoicePayload,
+        'purchase',
+      );
+      this.postJournalsForPersistedInvoice(invType, invoiceId, invoicePayload);
+      return {
+        invoiceNumber: nextNum,
+        vendorStockMessages:
+          vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+      };
+    }
     this.postJournalsForPersistedInvoice(invType, invoiceId, invoicePayload);
 
     return { invoiceNumber: nextNum };
@@ -920,10 +976,18 @@ export class InvoiceService {
     invoiceType: InvoiceType,
     invoiceId: number,
     invoice: Invoice,
-  ): { success: boolean } {
+  ): { success: boolean; vendorStockMessages?: string[] } {
     return this.db.transaction(() => {
-      this.updateInvoiceWithoutTransaction(invoiceType, invoiceId, invoice);
-      return { success: true };
+      const vendorStockMessages = this.updateInvoiceWithoutTransaction(
+        invoiceType,
+        invoiceId,
+        invoice,
+      );
+      return {
+        success: true,
+        vendorStockMessages:
+          vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+      };
     })();
   }
 
@@ -931,7 +995,7 @@ export class InvoiceService {
     invoiceType: InvoiceType,
     invoiceId: number,
     invoice: Invoice,
-  ): void {
+  ): string[] {
     const header = this.stmGetInvoiceHeader.get({
       invoiceId: cast(invoiceId),
     }) as
@@ -952,7 +1016,7 @@ export class InvoiceService {
 
     const oldRows = this.stmGetInvoiceItemsForUpdate.all({
       invoiceId: cast(invoiceId),
-    }) as { inventoryId: number; quantity: number }[];
+    }) as { inventoryId: number; quantity: number; accountId: number }[];
 
     const journalIds = this.journalService.getJournalIdsByInvoiceId(invoiceId);
     if (journalIds.length === 0) {
@@ -968,6 +1032,14 @@ export class InvoiceService {
 
     this.updateInventoryForInvoiceLineItems(invoiceType, oldRows, 'reverse');
 
+    if (invoiceType === InvoiceType.Purchase) {
+      this.applyVendorStockFromStoredLines(
+        invoiceId,
+        invoice.date,
+        oldRows,
+        'purchase_return',
+      );
+    }
     const totalAmount = invoice.totalAmount ?? 0;
     const multipleIds = invoice.accountMapping.multipleAccountIds;
     const hasMultiple =
@@ -1007,6 +1079,15 @@ export class InvoiceService {
 
     this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
 
+    let vendorStockMessages: string[] = [];
+    if (invoiceType === InvoiceType.Purchase) {
+      vendorStockMessages = this.applyVendorStockForPostedPurchase(
+        invoiceId,
+        invoice,
+        'purchase',
+      );
+    }
+
     if (
       invoiceType === InvoiceType.Sale ||
       invoiceType === InvoiceType.Purchase
@@ -1019,6 +1100,7 @@ export class InvoiceService {
     }
 
     this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
+    return vendorStockMessages;
   }
 
   private updateInventoryForInvoiceLineItems(
@@ -1185,6 +1267,7 @@ export class InvoiceService {
       invoiceType: InvoiceType;
       isReturned: SqliteBoolColumn;
       isQuotation?: SqliteBoolColumn;
+      date: string;
     };
     if (header.invoiceType !== expectedType) {
       raise(
@@ -1210,7 +1293,7 @@ export class InvoiceService {
 
     const items = this.stmGetInvoiceItemsForUpdate.all({
       invoiceId: cast(invoiceId),
-    }) as { inventoryId: number; quantity: number }[];
+    }) as { inventoryId: number; quantity: number; accountId: number }[];
 
     const inventoryDelta = expectedType === InvoiceType.Sale ? 1 : -1;
 
@@ -1221,19 +1304,29 @@ export class InvoiceService {
       );
     });
 
+    const trimmed = options?.returnReason?.trim();
+    const returnReason = trimmed != null && trimmed.length > 0 ? trimmed : null;
+    const returnedAtRow = this.stmGetCurrentLocalDateTime.get() as {
+      returnedAt: string;
+    };
+
+    this.stmMarkInvoiceReturned.run({
+      invoiceId: cast(invoiceId),
+      returnedAt: returnedAtRow.returnedAt,
+      returnReason,
+    });
+
     if (expectedType === InvoiceType.Purchase) {
       this.assertInventoryNonNegative(
         uniq(items.map((item) => item.inventoryId)),
       );
+      this.applyVendorStockFromStoredLines(
+        invoiceId,
+        returnedAtRow.returnedAt,
+        items,
+        'purchase_return',
+      );
     }
-
-    const trimmed = options?.returnReason?.trim();
-    const returnReason = trimmed != null && trimmed.length > 0 ? trimmed : null;
-
-    this.stmMarkInvoiceReturned.run({
-      invoiceId: cast(invoiceId),
-      returnReason,
-    });
   }
 
   private persistInvoiceItemsAndInventory(
@@ -1292,6 +1385,63 @@ export class InvoiceService {
     }
 
     raise('Select a customer or vendor account');
+  }
+
+  private static buildVendorStockLinesFromInvoice(
+    invoice: Invoice,
+  ): VendorStockPurchaseLine[] {
+    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const hasMultiple =
+      Array.isArray(multipleIds) &&
+      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.every((id) => typeof id === 'number' && id > 0);
+
+    if (hasMultiple) {
+      return invoice.invoiceItems.map((item, idx) => ({
+        accountId: multipleIds[idx],
+        inventoryId: item.inventoryId,
+        quantity: item.quantity,
+      }));
+    }
+
+    const accountId = invoice.accountMapping.singleAccountId;
+    if (!accountId) return [];
+    return invoice.invoiceItems.map((item) => ({
+      accountId,
+      inventoryId: item.inventoryId,
+      quantity: item.quantity,
+    }));
+  }
+
+  private applyVendorStockForPostedPurchase(
+    invoiceId: number,
+    invoice: Invoice,
+    direction: 'purchase' | 'purchase_return',
+  ): string[] {
+    return this.vendorStockService.applyPurchaseEffect({
+      invoiceId,
+      date: invoice.date,
+      lines: InvoiceService.buildVendorStockLinesFromInvoice(invoice),
+      direction,
+    });
+  }
+
+  private applyVendorStockFromStoredLines(
+    invoiceId: number,
+    date: string,
+    rows: { accountId: number; inventoryId: number; quantity: number }[],
+    direction: 'purchase' | 'purchase_return',
+  ): string[] {
+    return this.vendorStockService.applyPurchaseEffect({
+      invoiceId,
+      date,
+      lines: rows.map((r) => ({
+        accountId: r.accountId,
+        inventoryId: r.inventoryId,
+        quantity: r.quantity,
+      })),
+      direction,
+    });
   }
 
   private postJournalsForPersistedInvoice(
@@ -2424,7 +2574,13 @@ export class InvoiceService {
     `);
 
     this.stmGetInvoiceItemsForUpdate = this.db.prepare(`
-      SELECT inventoryId, quantity FROM invoice_items WHERE invoiceId = @invoiceId
+      SELECT
+        ii.inventoryId,
+        ii.quantity,
+        COALESCE(ii.accountId, i.accountId) AS accountId
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE ii.invoiceId = @invoiceId
     `);
 
     this.stmGetInvoiceHeader = this.db.prepare(`
@@ -2479,16 +2635,20 @@ export class InvoiceService {
     `);
 
     this.stmGetInvoiceForReturn = this.db.prepare(`
-      SELECT invoiceType, COALESCE(isReturned, 0) AS isReturned, COALESCE(isQuotation, 0) AS isQuotation
+      SELECT invoiceType, date, COALESCE(isReturned, 0) AS isReturned, COALESCE(isQuotation, 0) AS isQuotation
       FROM invoices WHERE id = @invoiceId
     `);
 
     this.stmMarkInvoiceReturned = this.db.prepare(`
       UPDATE invoices SET
         isReturned = 1,
-        returnedAt = datetime('now', 'localtime'),
+        returnedAt = @returnedAt,
         returnReason = @returnReason
       WHERE id = @invoiceId
+    `);
+
+    this.stmGetCurrentLocalDateTime = this.db.prepare(`
+      SELECT datetime('now', 'localtime') AS returnedAt
     `);
 
     this.stmGetInvoicesInDateRange = this.db.prepare(`

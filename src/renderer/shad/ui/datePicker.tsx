@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   addDays,
   addMonths,
@@ -31,6 +31,7 @@ import {
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { toNumber, isNaN } from 'lodash';
+import { useMountEffect } from '@/renderer/hooks/useMountEffect';
 
 export const DatePicker: React.FC = () => {
   const [date, setDate] = useState<Date>();
@@ -190,10 +191,9 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   const [selectValue, setSelectValue] = useState<string | undefined>(
     initialSelectValue,
   );
-  useEffect(
-    () => $onSelect?.(date, selectValue),
-    [$onSelect, date, selectValue],
-  );
+  useMountEffect(() => {
+    $onSelect?.(date, selectValue);
+  });
 
   const getSelectLabel = useCallback(() => {
     if (selectValue && presets.some((preset) => preset.value === selectValue))
@@ -210,81 +210,87 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
     return 'Pick a date';
   }, [date?.from, date?.to, presets, selectValue]);
 
-  const onValueChange = useCallback((value: string) => {
-    setSelectValue(value);
-
-    if (value === 'all') {
-      setDate({ from: subYears(new Date(), 100), to: new Date() });
-    } else if (value === 'current-month') {
-      setDate({
-        from: startOfMonth(new Date()),
-        to: new Date(),
-      });
-    } else if (value === 'current-year') {
-      setDate({
-        from: startOfYear(new Date()),
-        to: new Date(),
-      });
-    } else if (value === 'last-year') {
-      const lastYear = subYears(new Date(), 1);
-      setDate({
-        from: startOfYear(lastYear),
-        to: endOfYear(lastYear),
-      });
-    } else if (value === 'last-month') {
-      const lastMonth = subMonths(new Date(), 1);
-      setDate({
-        from: startOfMonth(lastMonth),
-        to: endOfMonth(lastMonth),
-      });
-    } else if (value === 'last-2-years') {
-      // rolling window: two whole years back from today up to today
-      setDate({
-        from: subYears(new Date(), 2),
-        to: new Date(),
-      });
-    } else {
-      const numberVal = toNumber(value);
-
-      if (isNaN(numberVal)) setDate(undefined);
-      else if (numberVal === 0) setDate({ from: new Date(), to: new Date() });
-      else if (numberVal < 0) {
-        let fromDate;
-        switch (numberVal) {
-          case -30:
-            fromDate = addMonths(new Date(), -1);
-            break;
-          case -365:
-            fromDate = addYears(new Date(), -1);
-            break;
-          default:
-            fromDate = addDays(new Date(), numberVal);
-            break;
-        }
-        setDate({
-          from: fromDate,
+  const onValueChange = useCallback(
+    (value: string) => {
+      let nextDate: DateRange | undefined;
+      if (value === 'all') {
+        nextDate = { from: subYears(new Date(), 100), to: new Date() };
+      } else if (value === 'current-month') {
+        nextDate = {
+          from: startOfMonth(new Date()),
           to: new Date(),
-        });
+        };
+      } else if (value === 'current-year') {
+        nextDate = {
+          from: startOfYear(new Date()),
+          to: new Date(),
+        };
+      } else if (value === 'last-year') {
+        const lastYear = subYears(new Date(), 1);
+        nextDate = {
+          from: startOfYear(lastYear),
+          to: endOfYear(lastYear),
+        };
+      } else if (value === 'last-month') {
+        const lastMonth = subMonths(new Date(), 1);
+        nextDate = {
+          from: startOfMonth(lastMonth),
+          to: endOfMonth(lastMonth),
+        };
+      } else if (value === 'last-2-years') {
+        // rolling window: two whole years back from today up to today
+        nextDate = {
+          from: subYears(new Date(), 2),
+          to: new Date(),
+        };
       } else {
-        let toDate;
-        switch (numberVal) {
-          case 30:
-            toDate = addMonths(new Date(), 1);
-            break;
-          case 365:
-            toDate = addYears(new Date(), 1);
-            break;
-          default:
-            toDate = addDays(new Date(), numberVal);
-            break;
+        const numberVal = toNumber(value);
+
+        if (isNaN(numberVal)) nextDate = undefined;
+        else if (numberVal === 0)
+          nextDate = { from: new Date(), to: new Date() };
+        else if (numberVal < 0) {
+          let fromDate;
+          switch (numberVal) {
+            case -30:
+              fromDate = addMonths(new Date(), -1);
+              break;
+            case -365:
+              fromDate = addYears(new Date(), -1);
+              break;
+            default:
+              fromDate = addDays(new Date(), numberVal);
+              break;
+          }
+          nextDate = {
+            from: fromDate,
+            to: new Date(),
+          };
+        } else {
+          let toDate;
+          switch (numberVal) {
+            case 30:
+              toDate = addMonths(new Date(), 1);
+              break;
+            case 365:
+              toDate = addYears(new Date(), 1);
+              break;
+            default:
+              toDate = addDays(new Date(), numberVal);
+              break;
+          }
+          nextDate = {
+            from: new Date(),
+            to: toDate,
+          };
         }
-        setDate({
-          from: new Date(),
-          to: toDate,
-        });
       }
-    }
-  }, []);
+      setSelectValue(value);
+      setDate(nextDate);
+      $onSelect?.(nextDate, value);
+    },
+    [$onSelect],
+  );
 
   return (
     <div className={cn('grid gap-2', className)}>
@@ -307,7 +313,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
             <SelectTrigger>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
-            <SelectContent position="popper">
+            <SelectContent position="popper" className="z-[70]">
               {mergePresets(presets).map((preset) => (
                 <SelectItem key={preset.value} value={preset.value}>
                   {preset.label}
@@ -323,6 +329,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
               onSelect={(selectedDate) => {
                 setDate(selectedDate);
                 setSelectValue('');
+                $onSelect?.(selectedDate, '');
               }}
               numberOfMonths={2}
             />

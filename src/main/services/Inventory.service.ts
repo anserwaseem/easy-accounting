@@ -25,6 +25,7 @@ import { getPublishConfig } from '../utils/publishConfig';
 import { cast } from '../utils/sqlite';
 import { parseJsonRecord, parseListPrices } from '../utils/inventoryJson';
 import { raise } from '../utils/general';
+import { VendorStockService } from './VendorStock.service';
 
 @logErrors
 export class InventoryService {
@@ -363,6 +364,83 @@ export class InventoryService {
     return Boolean(result.changes);
   }
 
+  /**
+   * link orphan / standalone item to a family head (or clear parentId).
+   * parent must itself be a head (parentId NULL). item must not already have
+   * children. folds any vendor WIP keyed on this item into the new head.
+   */
+  setInventoryParentId(
+    inventoryId: number,
+    parentId: number | null,
+  ): ApiResponse {
+    try {
+      this.db.transaction(() => {
+        this.setInventoryParentIdWithoutTransaction(
+          inventoryId,
+          parentId,
+          new VendorStockService(this.db),
+        );
+      })();
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
+  }
+
+  private setInventoryParentIdWithoutTransaction(
+    inventoryId: number,
+    parentId: number | null,
+    vendorStockService: VendorStockService,
+  ): void {
+    const item = this.db
+      .prepare(`SELECT id, parentId FROM inventory WHERE id = ?`)
+      .get(cast(inventoryId)) as
+      | { id: number; parentId: number | null }
+      | undefined;
+    if (!item) return raise('Inventory item not found');
+
+    if (parentId == null) {
+      this.db
+        .prepare(`UPDATE inventory SET parentId = NULL WHERE id = ?`)
+        .run(cast(inventoryId));
+      return;
+    }
+
+    if (parentId === inventoryId) {
+      raise('An item cannot be its own family head');
+    }
+
+    const parent = this.db
+      .prepare(`SELECT id, parentId FROM inventory WHERE id = ?`)
+      .get(cast(parentId)) as
+      | { id: number; parentId: number | null }
+      | undefined;
+    if (!parent) return raise('Family head not found');
+    if (parent.parentId != null) {
+      raise(
+        'Family head must be a head item (no parent of its own). Pick the root SKU.',
+      );
+    }
+
+    const childCount = (
+      this.db
+        .prepare(`SELECT COUNT(*) AS c FROM inventory WHERE parentId = ?`)
+        .get(cast(inventoryId)) as { c: number }
+    ).c;
+    if (childCount > 0) {
+      raise(
+        'This item is already a family head with variants. Unlink children first.',
+      );
+    }
+
+    this.db
+      .prepare(`UPDATE inventory SET parentId = ? WHERE id = ?`)
+      .run(cast(parentId), cast(inventoryId));
+
+    // fold orphan stock into head so future purchases consume one pool
+    vendorStockService.remapInventoryToFamilyHead(inventoryId, parentId);
+  }
+
   getOpeningStock(): InventoryOpeningStock[] {
     return this.stmGetOpeningStock.all() as InventoryOpeningStock[];
   }
@@ -483,7 +561,7 @@ export class InventoryService {
   }
 
   /**
-   * updates price + listPosition for known inventory ids in one transaction.
+   * updates price, listPosition, family, and named prices in one transaction.
    * only dirty patches should be sent from the renderer.
    */
   bulkUpdatePricesAndListPositions(
@@ -495,6 +573,7 @@ export class InventoryService {
 
     let updated = 0;
     this.db.transaction(() => {
+      const vendorStockService = new VendorStockService(this.db);
       for (const patch of patches) {
         if (!Number.isFinite(patch.id) || patch.id <= 0) {
           raise(`Invalid inventory id: ${patch.id}`);
@@ -510,12 +589,26 @@ export class InventoryService {
         ) {
           raise(`Invalid list # for inventory id ${patch.id}`);
         }
+        if (
+          patch.parentId != null &&
+          (!Number.isInteger(patch.parentId) || patch.parentId <= 0)
+        ) {
+          raise(`Invalid family head for inventory id ${patch.id}`);
+        }
         const result = this.stmUpdatePriceAndListPositionById.run({
           id: cast(patch.id),
           price: patch.price,
           listPosition: patch.listPosition,
         });
         updated += result.changes;
+
+        if (Object.prototype.hasOwnProperty.call(patch, 'parentId')) {
+          this.setInventoryParentIdWithoutTransaction(
+            patch.id,
+            patch.parentId ?? null,
+            vendorStockService,
+          );
+        }
 
         // named price lists: a null price removes the item from that list
         for (const entry of patch.listPrices ?? []) {

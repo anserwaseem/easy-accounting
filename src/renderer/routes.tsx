@@ -33,6 +33,9 @@ import InventoryHealthReportPage from './views/Reports/InventoryHealth';
 import StockAsOfReportPage from './views/Reports/StockAsOf';
 import SalesPerformanceReportPage from './views/Reports/SalesPerformance';
 import PurchasesByVendorPage from './views/Reports/PurchasesByVendor';
+import VendorStockPage from './views/VendorStock';
+import NewVendorIssuePage from './views/VendorStock/NewVendorIssue';
+import VendorStockActivityPage from './views/Reports/VendorStockActivity';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -55,6 +58,14 @@ const AppRoutes: React.FC = () => (
                 <Route path=":id" element={<JournalPage />} />
               </Route>
               <Route path="inventory" element={<InventoryPage />} />
+              <Route path="vendor-stock">
+                <Route index element={<VendorStockPage />} />
+                <Route path="issues/new" element={<NewVendorIssuePage />} />
+                <Route
+                  path="issues/:id/edit"
+                  element={<NewVendorIssuePage />}
+                />
+              </Route>
               <Route path="reports">
                 <Route index element={<ReportsPage />} />
                 <Route path="trial-balance" element={<TrialBalancePage />} />
@@ -80,6 +91,10 @@ const AppRoutes: React.FC = () => (
                 <Route
                   path="purchases-by-vendor"
                   element={<PurchasesByVendorPage />}
+                />
+                <Route
+                  path="vendor-stock-activity"
+                  element={<VendorStockActivityPage />}
                 />
               </Route>
               <Route path="purchase/invoices">

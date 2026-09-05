@@ -172,6 +172,9 @@ export const useInventoryBulkEditDraft =
             ...row,
             price: patch.price,
             listPosition: patch.listPosition,
+            parentId: Object.prototype.hasOwnProperty.call(patch, 'parentId')
+              ? patch.parentId
+              : row.parentId,
             listPrices: nextListPrices,
           };
         });

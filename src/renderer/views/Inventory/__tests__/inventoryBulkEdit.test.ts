@@ -5,6 +5,7 @@ import {
   countDirtyDraftRows,
   getDraftDisplayValue,
   isDraftRowDirty,
+  parseFamilyParentInput,
   parseListPositionInput,
   parsePriceInput,
   resolveNextBulkEditTarget,
@@ -24,6 +25,7 @@ const row = (
   itemTypeId: partial.itemTypeId ?? null,
   itemTypeName: partial.itemTypeName ?? null,
   listPosition: partial.listPosition ?? null,
+  parentId: partial.parentId ?? null,
 });
 
 describe('inventoryBulkEdit parsers', () => {
@@ -47,6 +49,13 @@ describe('inventoryBulkEdit parsers', () => {
       ok: false,
       error: 'List # must be a non-negative whole number',
     });
+  });
+
+  it('parses family head ids and empty as no family', () => {
+    expect(parseFamilyParentInput('')).toEqual({ ok: true, value: null });
+    expect(parseFamilyParentInput('12')).toEqual({ ok: true, value: 12 });
+    expect(parseFamilyParentInput('0').ok).toBe(false);
+    expect(parseFamilyParentInput('x').ok).toBe(false);
   });
 });
 
@@ -85,6 +94,37 @@ describe('inventoryBulkEdit draft dirty + patches', () => {
     const draft = new Map([[a.id, { price: 'nope' }]]);
     const built = buildBulkPriceListPatches(originals, draft);
     expect(built.ok).toBe(false);
+  });
+
+  it('builds family-only patches and labels summary with head names', () => {
+    const head = row({ id: 10, name: 'Family A' });
+    const variant = row({ id: 11, name: 'Variant', parentId: null });
+    const originals = new Map([
+      [head.id, head],
+      [variant.id, variant],
+    ]);
+    const built = buildBulkPriceListPatches(
+      originals,
+      new Map([[variant.id, { parentId: '10' }]]),
+    );
+    expect(built).toEqual({
+      ok: true,
+      patches: [
+        {
+          id: 11,
+          price: 10,
+          listPosition: null,
+          parentId: 10,
+        },
+      ],
+    });
+    if (!built.ok) return;
+    const summary = buildBulkEditChangeSummary(originals, built.patches);
+    expect(summary.hasFamilyChanges).toBe(true);
+    expect(summary.rows[0]).toMatchObject({
+      familyFrom: 'None',
+      familyTo: 'Family A',
+    });
   });
 
   it('rejects negative list # in patches', () => {

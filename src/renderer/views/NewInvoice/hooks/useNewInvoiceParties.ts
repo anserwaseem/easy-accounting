@@ -17,6 +17,7 @@ const PARTY_PICK = [
   'chartId',
   'discountProfileId',
   'discountProfileIsActive',
+  'tracksVendorStock',
 ] as const;
 
 export type PartyAccount = Pick<Account, (typeof PARTY_PICK)[number]>;
