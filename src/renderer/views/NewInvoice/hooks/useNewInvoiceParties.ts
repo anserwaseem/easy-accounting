@@ -1,6 +1,5 @@
 import { isNil, pick, trim } from 'lodash';
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'renderer/shad/ui/use-toast';
 import { toLowerTrim } from 'renderer/lib/utils';
 import {
   buildPartyTypingContext,
@@ -40,7 +39,7 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
   setRequiredAccountsExist: React.Dispatch<
     React.SetStateAction<RequiredAccountsExist>
   >;
-  isRefreshingParties: boolean;
+  /** refetch parties only (no toast/loading — page owns refresh UX with inventory) */
   refreshParties: () => Promise<void>;
 } {
   const [parties, setParties] = useState<PartyAccount[] | undefined>();
@@ -53,7 +52,6 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
       purchase: false,
       loading: false,
     });
-  const [isRefreshingParties, setIsRefreshingParties] = useState(false);
 
   const fetchPartiesAndRequiredAccounts = useCallback(async () => {
     const allAccounts: Account[] = await window.electron.getAccounts();
@@ -127,30 +125,15 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
   }, [invoiceType, parties, fetchPartiesAndRequiredAccounts]);
 
   const refreshParties = useCallback(async () => {
-    setIsRefreshingParties(true);
-    try {
-      const { partyAccounts, partyAccountsIncludingTyped, sale, purchase } =
-        await fetchPartiesAndRequiredAccounts();
-      setRequiredAccountsExist((prev) => ({
-        ...prev,
-        sale,
-        purchase,
-      }));
-      setParties(partyAccounts);
-      setPartiesIncludingTyped(partyAccountsIncludingTyped);
-      toast({
-        description: 'Accounts refreshed successfully',
-        variant: 'success',
-      });
-    } catch (error) {
-      toast({
-        description: 'Failed to refresh accounts',
-        variant: 'destructive',
-      });
-      console.error('Error refreshing accounts:', error);
-    } finally {
-      setIsRefreshingParties(false);
-    }
+    const { partyAccounts, partyAccountsIncludingTyped, sale, purchase } =
+      await fetchPartiesAndRequiredAccounts();
+    setRequiredAccountsExist((prev) => ({
+      ...prev,
+      sale,
+      purchase,
+    }));
+    setParties(partyAccounts);
+    setPartiesIncludingTyped(partyAccountsIncludingTyped);
   }, [fetchPartiesAndRequiredAccounts]);
 
   return {
@@ -160,7 +143,6 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
     setPartiesIncludingTyped,
     requiredAccountsExist,
     setRequiredAccountsExist,
-    isRefreshingParties,
     refreshParties,
   };
 }

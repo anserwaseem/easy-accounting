@@ -176,9 +176,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     parties,
     partiesIncludingTyped,
     requiredAccountsExist,
-    isRefreshingParties,
     refreshParties,
   } = useNewInvoiceParties(invoiceType);
+  const [isRefreshingLookups, setIsRefreshingLookups] = useState(false);
 
   const [missingPartyForSelect, setMissingPartyForSelect] = useState<
     PartyAccount | undefined
@@ -245,7 +245,31 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [itemStructureKey],
   );
 
-  useInvoiceInventoryLoader(invoiceType, lineInventoryIdsKey, setInventory);
+  const { refreshInventory } = useInvoiceInventoryLoader(
+    invoiceType,
+    lineInventoryIdsKey,
+    setInventory,
+  );
+
+  // refresh btn: parties + inventory (inventory loader caches raw until refresh)
+  const handleRefreshLookups = useCallback(async () => {
+    setIsRefreshingLookups(true);
+    try {
+      await Promise.all([refreshParties(), refreshInventory()]);
+      toast({
+        description: 'Accounts and inventory refreshed successfully',
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        description: 'Failed to refresh accounts and inventory',
+        variant: 'destructive',
+      });
+      console.error('Error refreshing accounts and inventory:', error);
+    } finally {
+      setIsRefreshingLookups(false);
+    }
+  }, [refreshParties, refreshInventory]);
 
   const inventoryById = useMemo(() => {
     const next = new Map<number, InventoryItem>();
@@ -1897,12 +1921,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             <Button
               variant="outline"
               size="icon"
-              onClick={refreshParties}
-              title="Refresh accounts"
-              disabled={isRefreshingParties}
+              onClick={handleRefreshLookups}
+              title="Refresh accounts and inventory"
+              disabled={isRefreshingLookups}
             >
               <RefreshCw
-                className={cn('h-4 w-4', isRefreshingParties && 'animate-spin')}
+                className={cn('h-4 w-4', isRefreshingLookups && 'animate-spin')}
               />
             </Button>
           </div>
@@ -2311,7 +2335,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         ))}
                         . Some rows use non existing typed accounts. Create the
                         account in another window and click&nbsp;
-                        <strong>Refresh accounts</strong> to link.
+                        <strong>Refresh accounts and inventory</strong> to link.
                       </p>
                       {splitTypedAccountStrictBlock ? (
                         <p>

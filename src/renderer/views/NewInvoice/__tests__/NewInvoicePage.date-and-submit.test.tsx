@@ -118,7 +118,6 @@ jest.mock('../hooks/useNewInvoiceParties', () => ({
     parties: [{ id: 10, name: 'P' }],
     partiesIncludingTyped: [{ id: 10, name: 'P' }],
     requiredAccountsExist: { sale: true, purchase: true, loading: false },
-    isRefreshingParties: false,
     refreshParties: jest.fn(),
   }),
 }));

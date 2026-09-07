@@ -3,10 +3,6 @@ import type { Account } from 'types';
 import { AccountType, InvoiceType } from 'types';
 import { useNewInvoiceParties } from '../hooks/useNewInvoiceParties';
 
-jest.mock('renderer/shad/ui/use-toast', () => ({
-  toast: jest.fn(),
-}));
-
 const baseAccount = (overrides: Partial<Account>): Account => ({
   id: 1,
   date: '2020-01-01',
@@ -83,7 +79,7 @@ describe('useNewInvoiceParties', () => {
     ]);
   });
 
-  it('refreshParties refetches accounts and shows success toast', async () => {
+  it('refreshParties refetches accounts', async () => {
     const getAccounts = jest.fn().mockResolvedValue([
       baseAccount({
         id: 1,
@@ -109,10 +105,6 @@ describe('useNewInvoiceParties', () => {
       getAccounts,
     };
 
-    const { toast } = jest.requireMock('renderer/shad/ui/use-toast') as {
-      toast: jest.Mock;
-    };
-
     const { result } = renderHook(() =>
       useNewInvoiceParties(InvoiceType.Purchase),
     );
@@ -128,8 +120,5 @@ describe('useNewInvoiceParties', () => {
     });
 
     expect(getAccounts).toHaveBeenCalledTimes(2);
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: 'success' }),
-    );
   });
 });
