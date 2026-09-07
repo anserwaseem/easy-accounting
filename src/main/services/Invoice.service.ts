@@ -85,6 +85,8 @@ type PartyItemLine = {
   invoiceId: number;
   invoiceNumber: number;
   date: string;
+  customerAccountId?: number;
+  customerName?: string;
 };
 
 /** roll invoice lines into item rows with per-invoice qty breakdown. */
@@ -93,14 +95,24 @@ const rollupPartyItemLines = (lines: PartyItemLine[]) =>
     Object.values(groupBy(lines, (row) => row.inventoryId)).map((itemLines) => {
       const first = itemLines[0];
       const invoices = orderBy(
-        Object.values(groupBy(itemLines, (line) => line.invoiceId)).map(
-          (invoiceLines) => ({
-            invoiceId: invoiceLines[0].invoiceId,
-            invoiceNumber: invoiceLines[0].invoiceNumber,
-            date: invoiceLines[0].date,
-            quantity: sumBy(invoiceLines, 'quantity'),
-          }),
-        ),
+        Object.values(
+          groupBy(itemLines, (line) =>
+            line.customerAccountId != null
+              ? `${line.invoiceId}:${line.customerAccountId}`
+              : String(line.invoiceId),
+          ),
+        ).map((invoiceLines) => ({
+          invoiceId: invoiceLines[0].invoiceId,
+          invoiceNumber: invoiceLines[0].invoiceNumber,
+          date: invoiceLines[0].date,
+          quantity: sumBy(invoiceLines, 'quantity'),
+          ...(invoiceLines[0].customerAccountId != null
+            ? {
+                customerAccountId: invoiceLines[0].customerAccountId,
+                customerName: invoiceLines[0].customerName ?? '',
+              }
+            : {}),
+        })),
         ['date', 'invoiceNumber'],
         ['asc', 'asc'],
       );
@@ -193,8 +205,6 @@ export class InvoiceService {
   private stmGetInvoicesInDateRange!: Statement;
 
   private stmGetPurchasesByVendorLines!: Statement;
-
-  private stmGetSalesByCustomerLines!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -2356,29 +2366,81 @@ export class InvoiceService {
     };
   }
 
-  /** items sold to a customer in a date range (posted sales only, qty only). */
+  /** items sold to selected customer(s) in a date range (posted sales only, qty only). */
   getSalesByCustomer(filters: SalesByCustomerFilters): SalesByCustomerResponse {
-    const { customerAccountId, startDate, endDate } = filters;
+    const { customerAccountIds, startDate, endDate } = filters;
+    const uniqueIds = [
+      ...new Set(
+        customerAccountIds.filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    ];
+
+    if (uniqueIds.length === 0) {
+      return {
+        customers: [],
+        kpis: { itemCount: 0, totalQty: 0 },
+        items: [],
+      };
+    }
+
     const sqlStartDate =
       startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
     const sqlEndDate =
       endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
 
-    const customer = this.accountService.getAccountsByIds([
-      customerAccountId,
-    ])[0];
-    const customerName = customer?.name ?? '';
+    const accounts = this.accountService.getAccountsByIds(uniqueIds);
+    const customers = orderBy(
+      uniqueIds.map((id) => {
+        const account = accounts.find((row) => row.id === id);
+        return { id, name: account?.name ?? '' };
+      }),
+      [(row) => row.name.toLowerCase()],
+      ['asc'],
+    );
 
-    const lines = this.stmGetSalesByCustomerLines.all({
-      customerAccountId,
-      startDate: sqlStartDate,
-      endDate: sqlEndDate,
-    }) as PartyItemLine[];
+    const placeholders = uniqueIds.map(() => '?').join(',');
+    const lines = this.db
+      .prepare(
+        `
+      SELECT
+        inv.id AS inventoryId,
+        inv.name AS itemName,
+        ii.quantity AS quantity,
+        i.id AS invoiceId,
+        i.invoiceNumber AS invoiceNumber,
+        i.date AS date,
+        COALESCE(ii.accountId, i.accountId) AS customerAccountId,
+        a.name AS customerName
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoiceId = i.id
+      JOIN inventory inv ON inv.id = ii.inventoryId
+      JOIN account a ON a.id = COALESCE(ii.accountId, i.accountId)
+      WHERE i.invoiceType = 'Sale'
+        AND COALESCE(i.isQuotation, 0) = 0
+        AND COALESCE(i.isReturned, 0) = 0
+        AND i.date >= ?
+        AND i.date <= ?
+        AND COALESCE(ii.accountId, i.accountId) IN (${placeholders})
+    `,
+      )
+      .all(sqlStartDate, sqlEndDate, ...uniqueIds) as PartyItemLine[];
 
-    const items: SalesByCustomerItem[] = rollupPartyItemLines(lines);
+    const items: SalesByCustomerItem[] = rollupPartyItemLines(lines).map(
+      (item) => ({
+        ...item,
+        invoices: item.invoices.map((line) => ({
+          invoiceId: line.invoiceId,
+          invoiceNumber: line.invoiceNumber,
+          date: line.date,
+          quantity: line.quantity,
+          customerAccountId: line.customerAccountId ?? 0,
+          customerName: line.customerName ?? '',
+        })),
+      }),
+    );
 
     return {
-      customer: { id: customerAccountId, name: customerName },
+      customers,
       kpis: {
         itemCount: items.length,
         totalQty: sumBy(items, 'quantity'),
@@ -2745,25 +2807,6 @@ export class InvoiceService {
         AND i.date >= @startDate
         AND i.date <= @endDate
         AND COALESCE(ii.accountId, i.accountId) = @vendorAccountId
-    `);
-
-    this.stmGetSalesByCustomerLines = this.db.prepare(`
-      SELECT
-        inv.id AS inventoryId,
-        inv.name AS itemName,
-        ii.quantity AS quantity,
-        i.id AS invoiceId,
-        i.invoiceNumber AS invoiceNumber,
-        i.date AS date
-      FROM invoices i
-      JOIN invoice_items ii ON ii.invoiceId = i.id
-      JOIN inventory inv ON inv.id = ii.inventoryId
-      WHERE i.invoiceType = 'Sale'
-        AND COALESCE(i.isQuotation, 0) = 0
-        AND COALESCE(i.isReturned, 0) = 0
-        AND i.date >= @startDate
-        AND i.date <= @endDate
-        AND COALESCE(ii.accountId, i.accountId) = @customerAccountId
     `);
   }
 }

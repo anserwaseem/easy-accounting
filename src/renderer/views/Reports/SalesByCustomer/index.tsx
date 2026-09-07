@@ -4,7 +4,7 @@ import { sumBy } from 'lodash';
 import { Download, Printer, RefreshCw } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
-import VirtualSelect from '@/renderer/components/VirtualSelect';
+import VirtualMultiSelect from '@/renderer/components/VirtualMultiSelect';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { cn } from '@/renderer/lib/utils';
@@ -13,7 +13,10 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import type { SalesByCustomerItem } from 'types';
 import { printStyles } from '../components/printStyles';
 import { EmptyState, LoadingState } from '../components';
-import { useSalesByCustomer } from './useSalesByCustomer';
+import {
+  SALES_BY_CUSTOMER_EMPTY_SELECTION_MESSAGE,
+  useSalesByCustomer,
+} from './useSalesByCustomer';
 import { printSalesByCustomerIframe } from './printSalesByCustomer';
 import { SalesByCustomerInvoiceSheet } from './SalesByCustomerInvoiceSheet';
 
@@ -70,8 +73,8 @@ const InvoiceCountCell: React.FC<SelectableItemCellProps> = ({
 const SalesByCustomerPage: React.FC = () => {
   const {
     customers,
-    selectedCustomerId,
-    selectedCustomerName,
+    selectedCustomerIds,
+    selectedCustomerLabel,
     handleCustomerChange,
     dateRange,
     handleDateChange,
@@ -91,6 +94,8 @@ const SalesByCustomerPage: React.FC = () => {
 
   const sourceRows = response?.items ?? [];
   const exportPrintRows = gridViewRows ?? sourceRows;
+  const hasSelection = selectedCustomerIds.length > 0;
+  const showCustomerOnLines = selectedCustomerIds.length > 1;
 
   useEffect(() => {
     setGridViewRows(null);
@@ -166,24 +171,59 @@ const SalesByCustomerPage: React.FC = () => {
     [totalQty],
   );
 
-  const canExport = !isLoading && selectedCustomerId != null && itemCount > 0;
+  const canExport = !isLoading && hasSelection && itemCount > 0;
 
   const handleExport = useCallback(() => {
     if (!canExport || !dateRange?.from || !dateRange?.to) return;
     try {
-      const customerPart = sanitizeFilePart(selectedCustomerName || 'customer');
+      const customerPart = sanitizeFilePart(
+        selectedCustomerLabel || 'customers',
+      );
       const from = format(dateRange.from, 'yyyy-MM-dd');
       const to = format(dateRange.to, 'yyyy-MM-dd');
-      const subtitle = `${selectedCustomerName} — ${dateSubtitle}`;
+      const subtitle = `${selectedCustomerLabel} — ${dateSubtitle}`;
 
       const lineRows = exportPrintRows.flatMap((item) =>
         item.invoices.map((line) => ({
           date: line.date,
           invoiceNumber: line.invoiceNumber,
+          customerName: line.customerName,
           itemName: item.itemName,
           quantity: line.quantity,
         })),
       );
+
+      const invoiceLineColumns = [
+        { key: 'date', header: 'Date', format: 'date' as const, width: 14 },
+        {
+          key: 'invoiceNumber',
+          header: 'Sale #',
+          format: 'number' as const,
+          width: 12,
+        },
+        ...(showCustomerOnLines
+          ? [
+              {
+                key: 'customerName',
+                header: 'Customer',
+                format: 'string' as const,
+                width: 24,
+              },
+            ]
+          : []),
+        {
+          key: 'itemName',
+          header: 'Item',
+          format: 'string' as const,
+          width: 28,
+        },
+        {
+          key: 'quantity',
+          header: 'Qty',
+          format: 'number' as const,
+          width: 10,
+        },
+      ];
 
       exportReportWorkbook(
         [
@@ -202,17 +242,7 @@ const SalesByCustomerPage: React.FC = () => {
             title: 'Sales by Customer — Invoice lines',
             subtitle,
             sheetName: 'Invoice lines',
-            columns: [
-              { key: 'date', header: 'Date', format: 'date', width: 14 },
-              {
-                key: 'invoiceNumber',
-                header: 'Sale #',
-                format: 'number',
-                width: 12,
-              },
-              { key: 'itemName', header: 'Item', format: 'string', width: 28 },
-              { key: 'quantity', header: 'Qty', format: 'number', width: 10 },
-            ],
+            columns: invoiceLineColumns,
             rows: lineRows as unknown as Array<Record<string, unknown>>,
           },
         ],
@@ -236,7 +266,8 @@ const SalesByCustomerPage: React.FC = () => {
     dateRange,
     dateSubtitle,
     exportPrintRows,
-    selectedCustomerName,
+    selectedCustomerLabel,
+    showCustomerOnLines,
     totalQty,
   ]);
 
@@ -244,7 +275,7 @@ const SalesByCustomerPage: React.FC = () => {
     if (!canExport) return;
     printSalesByCustomerIframe({
       rows: exportPrintRows,
-      customerName: selectedCustomerName,
+      customerLabel: selectedCustomerLabel,
       dateSubtitle,
       totalQty,
     });
@@ -252,7 +283,7 @@ const SalesByCustomerPage: React.FC = () => {
     canExport,
     dateSubtitle,
     exportPrintRows,
-    selectedCustomerName,
+    selectedCustomerLabel,
     totalQty,
   ]);
 
@@ -265,15 +296,17 @@ const SalesByCustomerPage: React.FC = () => {
             <h1 className="title-new">Sales by Customer</h1>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Customer:</span>
+                <span className="text-sm text-muted-foreground">
+                  Customers:
+                </span>
                 <div className="w-[220px]">
-                  <VirtualSelect
+                  <VirtualMultiSelect
                     options={customers}
-                    value={selectedCustomerId?.toString()}
+                    value={selectedCustomerIds}
                     onChange={handleCustomerChange}
-                    placeholder="Select customer"
+                    placeholder="Select customers"
                     searchPlaceholder="Search customers..."
-                    autoFocusTrigger={selectedCustomerId == null}
+                    disabled={!customers.length}
                   />
                 </div>
               </div>
@@ -317,7 +350,7 @@ const SalesByCustomerPage: React.FC = () => {
               </Button>
             </div>
           </div>
-          {selectedCustomerId && !isLoading && sourceRows.length > 0 && (
+          {hasSelection && !isLoading && sourceRows.length > 0 && (
             <div className="print:hidden text-right text-sm text-muted-foreground">
               {totalQty.toLocaleString()} items sold
             </div>
@@ -327,24 +360,25 @@ const SalesByCustomerPage: React.FC = () => {
     >
       <SalesByCustomerInvoiceSheet
         item={selectedItem}
-        customerName={selectedCustomerName}
+        customerLabel={selectedCustomerLabel}
         dateSubtitle={dateSubtitle}
+        showCustomerColumn={showCustomerOnLines}
         onOpenChange={(open) => {
           if (!open) setSelectedItem(null);
         }}
       />
-      {!selectedCustomerId && !isLoading && (
-        <EmptyState message="Pick a customer." />
+      {!hasSelection && !isLoading && (
+        <EmptyState message={SALES_BY_CUSTOMER_EMPTY_SELECTION_MESSAGE} />
       )}
       {isLoading && <LoadingState message="Loading sales..." />}
-      {selectedCustomerId && !isLoading && sourceRows.length === 0 && (
+      {hasSelection && !isLoading && sourceRows.length === 0 && (
         <EmptyState
           message={`No posted sales to ${
-            selectedCustomerName || 'this customer'
+            selectedCustomerLabel || 'these customers'
           } in this range.`}
         />
       )}
-      {selectedCustomerId && !isLoading && sourceRows.length > 0 && (
+      {hasSelection && !isLoading && sourceRows.length > 0 && (
         <DataTable<SalesByCustomerItem, unknown>
           columns={columns}
           data={sourceRows}

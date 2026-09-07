@@ -1975,15 +1975,14 @@ describe('InvoiceService.insertInvoice', () => {
       });
 
       const report = invoiceService.getSalesByCustomer({
-        customerAccountId: acc.primaryPartyId,
+        customerAccountIds: [acc.primaryPartyId],
         startDate: '2026-01-01',
         endDate: '2026-12-31',
       });
 
-      expect(report.customer).toEqual({
-        id: acc.primaryPartyId,
-        name: 'PrimaryParty',
-      });
+      expect(report.customers).toEqual([
+        { id: acc.primaryPartyId, name: 'PrimaryParty' },
+      ]);
       expect(report.kpis).toEqual({ itemCount: 2, totalQty: 9 });
       expect(report.items.map((row) => row.itemName).sort()).toEqual([
         'ItemOther',
@@ -1998,12 +1997,70 @@ describe('InvoiceService.insertInvoice', () => {
       expect(primary?.invoices.map((line) => line.quantity).sort()).toEqual([
         2, 3,
       ]);
+      expect(
+        primary?.invoices.every(
+          (line) =>
+            line.customerAccountId === acc.primaryPartyId &&
+            line.customerName === 'PrimaryParty',
+        ),
+      ).toBe(true);
       const other = report.items.find(
         (row) => row.inventoryId === inv.otherItemId,
       );
       expect(other?.quantity).toBe(4);
       expect(other?.invoiceCount).toBe(1);
       expect(JSON.stringify(report)).not.toMatch(/price|amount|discount/i);
+    });
+
+    it('combines qty across multiple selected customers', () => {
+      const acc = seedBaseAccounts();
+      const inv = seedInventoryAndTypes();
+
+      insertPostedSale({
+        customerId: acc.primaryPartyId,
+        invoiceNumber: 7111,
+        date: new Date('2026-02-10T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 2, 1)],
+      });
+      insertPostedSale({
+        customerId: acc.sectionPartyId,
+        invoiceNumber: 7112,
+        date: new Date('2026-02-11T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 5, 1), item(inv.otherItemId, 1, 2)],
+      });
+
+      const report = invoiceService.getSalesByCustomer({
+        customerAccountIds: [acc.sectionPartyId, acc.primaryPartyId],
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      });
+
+      expect(report.customers.map((row) => row.name)).toEqual([
+        'PrimaryParty',
+        'SectionParty',
+      ]);
+      expect(report.kpis).toEqual({ itemCount: 2, totalQty: 8 });
+      const primary = report.items.find(
+        (row) => row.inventoryId === inv.primaryItemId,
+      );
+      expect(primary?.quantity).toBe(7);
+      expect(primary?.invoiceCount).toBe(2);
+      expect(primary?.invoices.map((line) => line.customerName).sort()).toEqual(
+        ['PrimaryParty', 'SectionParty'],
+      );
+    });
+
+    it('returns empty payload when no customers selected', () => {
+      const report = invoiceService.getSalesByCustomer({
+        customerAccountIds: [],
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      });
+      expect(report).toEqual({
+        customers: [],
+        kpis: { itemCount: 0, totalQty: 0 },
+        items: [],
+      });
     });
 
     it('excludes quotations, returned sales, purchases, and dates outside range', () => {
@@ -2078,7 +2135,7 @@ describe('InvoiceService.insertInvoice', () => {
       });
 
       const report = invoiceService.getSalesByCustomer({
-        customerAccountId: acc.primaryPartyId,
+        customerAccountIds: [acc.primaryPartyId],
         startDate: '2026-01-01',
         endDate: '2026-03-31',
       });
@@ -2102,7 +2159,7 @@ describe('InvoiceService.insertInvoice', () => {
       });
 
       const primaryReport = invoiceService.getSalesByCustomer({
-        customerAccountId: acc.primaryPartyId,
+        customerAccountIds: [acc.primaryPartyId],
         startDate: '2026-01-01',
         endDate: '2026-12-31',
       });
@@ -2111,7 +2168,7 @@ describe('InvoiceService.insertInvoice', () => {
       expect(primaryReport.items[0].quantity).toBe(2);
 
       const sectionReport = invoiceService.getSalesByCustomer({
-        customerAccountId: acc.sectionPartyId,
+        customerAccountIds: [acc.sectionPartyId],
         startDate: '2026-01-01',
         endDate: '2026-12-31',
       });

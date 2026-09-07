@@ -4,7 +4,7 @@ import { printStyles } from '../components/printStyles';
 
 interface PrintSalesByCustomerOptions {
   rows: SalesByCustomerItem[];
-  customerName: string;
+  customerLabel: string;
   dateSubtitle: string;
   totalQty: number;
 }
@@ -34,10 +34,10 @@ const buildGroupHtml = (rows: SalesByCustomerItem[]): string => `
 export const printSalesByCustomerIframe = (
   options: PrintSalesByCustomerOptions,
 ) => {
-  const { rows, customerName, dateSubtitle, totalQty } = options;
+  const { rows, customerLabel, dateSubtitle, totalQty } = options;
   if (rows.length === 0) return;
 
-  const title = escape(`Sales by Customer: ${customerName} — ${dateSubtitle}`);
+  const title = escape(`Sales by Customer: ${customerLabel} — ${dateSubtitle}`);
   const groupSize = Math.ceil(rows.length / 3);
   const groups = Array.from({ length: 3 }, (_, index) =>
     buildGroupHtml(rows.slice(index * groupSize, (index + 1) * groupSize)),

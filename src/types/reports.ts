@@ -130,7 +130,7 @@ export interface PurchasesByVendorResponse {
 
 /** sales-by-customer report input */
 export interface SalesByCustomerFilters {
-  customerAccountId: number;
+  customerAccountIds: number[];
   startDate: string;
   endDate: string;
 }
@@ -141,9 +141,11 @@ export interface SalesByCustomerInvoiceLine {
   invoiceNumber: number;
   date: string;
   quantity: number;
+  customerAccountId: number;
+  customerName: string;
 }
 
-/** aggregated inventory item sold to a customer in the date range */
+/** aggregated inventory item sold to selected customer(s) in the date range */
 export interface SalesByCustomerItem {
   inventoryId: number;
   itemName: string;
@@ -154,7 +156,7 @@ export interface SalesByCustomerItem {
 
 /** sales-by-customer report payload (qty only — no price/amount) */
 export interface SalesByCustomerResponse {
-  customer: { id: number; name: string };
+  customers: Array<{ id: number; name: string }>;
   kpis: { itemCount: number; totalQty: number };
   items: SalesByCustomerItem[];
 }

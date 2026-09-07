@@ -11,8 +11,9 @@ import type { SalesByCustomerItem } from 'types';
 
 interface SalesByCustomerInvoiceSheetProps {
   item: SalesByCustomerItem | null;
-  customerName: string;
+  customerLabel: string;
   dateSubtitle: string;
+  showCustomerColumn: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -25,8 +26,9 @@ export const SalesByCustomerInvoiceSheet: React.FC<
   SalesByCustomerInvoiceSheetProps
 > = ({
   item,
-  customerName,
+  customerLabel,
   dateSubtitle,
+  showCustomerColumn,
   onOpenChange,
 }: SalesByCustomerInvoiceSheetProps) => {
   const itemLabel = (() => {
@@ -40,7 +42,7 @@ export const SalesByCustomerInvoiceSheet: React.FC<
         <SheetHeader className="pr-10">
           <SheetTitle>{itemLabel}</SheetTitle>
           <SheetDescription>
-            {customerName}
+            {customerLabel}
             {dateSubtitle ? ` · ${dateSubtitle}` : ''}
           </SheetDescription>
         </SheetHeader>
@@ -50,12 +52,18 @@ export const SalesByCustomerInvoiceSheet: React.FC<
               <tr className="border-b text-left text-muted-foreground">
                 <th className="py-2 pr-3 font-medium">Date</th>
                 <th className="py-2 pr-3 font-medium">Sale #</th>
+                {showCustomerColumn ? (
+                  <th className="py-2 pr-3 font-medium">Customer</th>
+                ) : null}
                 <th className="py-2 text-right font-medium">Qty</th>
               </tr>
             </thead>
             <tbody>
               {item.invoices.map((line) => (
-                <tr key={line.invoiceId} className="border-b last:border-0">
+                <tr
+                  key={`${line.invoiceId}:${line.customerAccountId}`}
+                  className="border-b last:border-0"
+                >
                   <td className="py-2 pr-3">{formatDate(line.date)}</td>
                   <td className="py-2 pr-3">
                     <Link
@@ -65,6 +73,9 @@ export const SalesByCustomerInvoiceSheet: React.FC<
                       {line.invoiceNumber}
                     </Link>
                   </td>
+                  {showCustomerColumn ? (
+                    <td className="py-2 pr-3">{line.customerName}</td>
+                  ) : null}
                   <td className="py-2 text-right tabular-nums">
                     {line.quantity}
                   </td>

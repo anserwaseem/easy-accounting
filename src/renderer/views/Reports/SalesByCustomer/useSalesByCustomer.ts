@@ -10,6 +10,10 @@ import { toLowerTrim } from '@/renderer/lib/utils';
 import type { Account, SalesByCustomerResponse } from 'types';
 import { AccountType, InvoiceType, REPORT_FILTER_KEYS } from 'types';
 
+/** shown while no customers are selected */
+export const SALES_BY_CUSTOMER_EMPTY_SELECTION_MESSAGE =
+  'Search and select customers to see items sold.';
+
 const isCustomerParty = (account: Account): boolean => {
   if (toLowerTrim(account.name) === InvoiceType.Sale.toLowerCase()) {
     return false;
@@ -43,8 +47,8 @@ export const useSalesByCustomer = () => {
   const [presetValue, setPresetValue] = useState<string>(
     saved.presetValue ?? 'current-year',
   );
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(
-    saved.accountIds?.[0] ?? null,
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>(() =>
+    (saved.accountIds ?? []).map(Number).filter((id) => id > 0),
   );
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,24 +59,24 @@ export const useSalesByCustomer = () => {
 
   const customers = useMemo(() => accounts.filter(isCustomerParty), [accounts]);
 
-  const selectedCustomerName = useMemo(() => {
-    if (selectedCustomerId == null) return '';
-    return (
-      customers.find((account) => account.id === selectedCustomerId)?.name ?? ''
-    );
-  }, [selectedCustomerId, customers]);
+  const selectedCustomerLabel = useMemo(() => {
+    if (selectedCustomerIds.length === 0) return '';
+    if (selectedCustomerIds.length === 1) {
+      return (
+        customers.find((account) => account.id === selectedCustomerIds[0])
+          ?.name ?? ''
+      );
+    }
+    return `${selectedCustomerIds.length} customers`;
+  }, [selectedCustomerIds, customers]);
 
   const persistFilters = useCallback(
-    (
-      range: DateRange | undefined,
-      customerId: number | null,
-      preset: string,
-    ) => {
+    (range: DateRange | undefined, customerIds: number[], preset: string) => {
       saveSavedFilters(
         REPORT_FILTER_KEYS.salesByCustomer,
         makeSavedState(range, undefined, {
           presetValue: preset,
-          ...(customerId != null ? { accountIds: [customerId] } : {}),
+          ...(customerIds.length > 0 ? { accountIds: customerIds } : {}),
         }),
       );
     },
@@ -89,7 +93,11 @@ export const useSalesByCustomer = () => {
   }, []);
 
   const fetchReport = useCallback(async () => {
-    if (!selectedCustomerId || !dateRange?.from || !dateRange?.to) {
+    if (
+      selectedCustomerIds.length === 0 ||
+      !dateRange?.from ||
+      !dateRange?.to
+    ) {
       setResponse(null);
       return;
     }
@@ -103,7 +111,7 @@ export const useSalesByCustomer = () => {
 
     try {
       const resp = await window.electron.reportGetSalesByCustomer({
-        customerAccountId: selectedCustomerId,
+        customerAccountIds: selectedCustomerIds,
         startDate,
         endDate,
       });
@@ -120,7 +128,7 @@ export const useSalesByCustomer = () => {
         setIsLoading(false);
       }
     }
-  }, [selectedCustomerId, dateRange]);
+  }, [selectedCustomerIds, dateRange]);
 
   useEffect(() => {
     fetchAccounts();
@@ -136,16 +144,16 @@ export const useSalesByCustomer = () => {
       setDateRange(range);
       const nextPreset = selectValue || presetValue;
       if (selectValue) setPresetValue(selectValue);
-      persistFilters(range, selectedCustomerId, nextPreset);
+      persistFilters(range, selectedCustomerIds, nextPreset);
     },
-    [persistFilters, presetValue, selectedCustomerId],
+    [persistFilters, presetValue, selectedCustomerIds],
   );
 
   const handleCustomerChange = useCallback(
-    (value: string | number) => {
-      const customerId = Number(value);
-      setSelectedCustomerId(customerId);
-      persistFilters(dateRange, customerId, presetValue);
+    (ids: (string | number)[]) => {
+      const customerIds = ids.map(Number).filter((id) => id > 0);
+      setSelectedCustomerIds(customerIds);
+      persistFilters(dateRange, customerIds, presetValue);
     },
     [dateRange, persistFilters, presetValue],
   );
@@ -162,8 +170,8 @@ export const useSalesByCustomer = () => {
 
   return {
     customers,
-    selectedCustomerId,
-    selectedCustomerName,
+    selectedCustomerIds,
+    selectedCustomerLabel,
     handleCustomerChange,
     dateRange,
     handleDateChange,
