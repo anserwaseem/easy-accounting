@@ -128,6 +128,37 @@ export interface PurchasesByVendorResponse {
   items: PurchasesByVendorItem[];
 }
 
+/** sales-by-customer report input */
+export interface SalesByCustomerFilters {
+  customerAccountId: number;
+  startDate: string;
+  endDate: string;
+}
+
+/** one contributing sale invoice for an item row */
+export interface SalesByCustomerInvoiceLine {
+  invoiceId: number;
+  invoiceNumber: number;
+  date: string;
+  quantity: number;
+}
+
+/** aggregated inventory item sold to a customer in the date range */
+export interface SalesByCustomerItem {
+  inventoryId: number;
+  itemName: string;
+  quantity: number;
+  invoiceCount: number;
+  invoices: SalesByCustomerInvoiceLine[];
+}
+
+/** sales-by-customer report payload (qty only — no price/amount) */
+export interface SalesByCustomerResponse {
+  customer: { id: number; name: string };
+  kpis: { itemCount: number; totalQty: number };
+  items: SalesByCustomerItem[];
+}
+
 /** report keys for store persistence */
 export const REPORT_FILTER_KEYS = {
   inventoryHealth: 'reports.inventoryHealth.filters',
@@ -135,4 +166,5 @@ export const REPORT_FILTER_KEYS = {
   ledger: 'reports.ledger.filters',
   stockAsOf: 'reports.stockAsOf.filters',
   purchasesByVendor: 'reports.purchasesByVendor.filters',
+  salesByCustomer: 'reports.salesByCustomer.filters',
 } as const;

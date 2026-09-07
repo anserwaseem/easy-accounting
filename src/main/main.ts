@@ -30,6 +30,7 @@ import type {
   BulkPriceListPositionPatch,
   UpsertAttributeDefinition,
   PurchasesByVendorFilters,
+  SalesByCustomerFilters,
   CreateVendorIssuePayload,
   UpdateVendorIssuePayload,
   VendorStockOpeningRow,
@@ -859,6 +860,12 @@ app
       'report:getPurchasesByVendor',
       async (_, filters: PurchasesByVendorFilters) =>
         invoiceService.getPurchasesByVendor(filters),
+    );
+
+    ipcMain.handle(
+      'report:getSalesByCustomer',
+      async (_, filters: SalesByCustomerFilters) =>
+        invoiceService.getSalesByCustomer(filters),
     );
 
     ipcMain.handle(

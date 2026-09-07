@@ -15,6 +15,9 @@ import {
   type PurchasesByVendorItem,
   type PurchasesByVendorResponse,
   type ReturnSaleInvoicePayload,
+  type SalesByCustomerFilters,
+  type SalesByCustomerItem,
+  type SalesByCustomerResponse,
   type VendorStockPurchaseLine,
 } from '../../types';
 import { logErrors } from '../errorLogger';
@@ -152,6 +155,7 @@ export class InvoiceService {
   private stmGetInvoicesInDateRange!: Statement;
 
   private stmGetPurchasesByVendorLines!: Statement;
+  private stmGetSalesByCustomerLines!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -2282,33 +2286,29 @@ export class InvoiceService {
     };
   }
 
-  /** items bought from a vendor in a date range (posted purchases only, qty only). */
-  getPurchasesByVendor(
-    filters: PurchasesByVendorFilters,
-  ): PurchasesByVendorResponse {
-    const { vendorAccountId, startDate, endDate } = filters;
-    const sqlStartDate =
-      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
-    const sqlEndDate =
-      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
-
-    const vendor = this.accountService.getAccountsByIds([vendorAccountId])[0];
-    const vendorName = vendor?.name ?? '';
-
-    const lines = this.stmGetPurchasesByVendorLines.all({
-      vendorAccountId,
-      startDate: sqlStartDate,
-      endDate: sqlEndDate,
-    }) as Array<{
+  /** roll invoice lines into item rows with per-invoice qty breakdown. */
+  private rollupPartyItemLines(
+    lines: Array<{
       inventoryId: number;
       itemName: string;
       quantity: number;
       invoiceId: number;
       invoiceNumber: number;
       date: string;
+    }>,
+  ): Array<{
+    inventoryId: number;
+    itemName: string;
+    quantity: number;
+    invoiceCount: number;
+    invoices: Array<{
+      invoiceId: number;
+      invoiceNumber: number;
+      date: string;
+      quantity: number;
     }>;
-
-    const items: PurchasesByVendorItem[] = orderBy(
+  }> {
+    return orderBy(
       Object.values(groupBy(lines, (row) => row.inventoryId)).map(
         (itemLines) => {
           const first = itemLines[0];
@@ -2336,9 +2336,77 @@ export class InvoiceService {
       [(item) => item.itemName.toLowerCase()],
       ['asc'],
     );
+  }
+
+  /** items bought from a vendor in a date range (posted purchases only, qty only). */
+  getPurchasesByVendor(
+    filters: PurchasesByVendorFilters,
+  ): PurchasesByVendorResponse {
+    const { vendorAccountId, startDate, endDate } = filters;
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+
+    const vendor = this.accountService.getAccountsByIds([vendorAccountId])[0];
+    const vendorName = vendor?.name ?? '';
+
+    const lines = this.stmGetPurchasesByVendorLines.all({
+      vendorAccountId,
+      startDate: sqlStartDate,
+      endDate: sqlEndDate,
+    }) as Array<{
+      inventoryId: number;
+      itemName: string;
+      quantity: number;
+      invoiceId: number;
+      invoiceNumber: number;
+      date: string;
+    }>;
+
+    const items: PurchasesByVendorItem[] = this.rollupPartyItemLines(lines);
 
     return {
       vendor: { id: vendorAccountId, name: vendorName },
+      kpis: {
+        itemCount: items.length,
+        totalQty: sumBy(items, 'quantity'),
+      },
+      items,
+    };
+  }
+
+  /** items sold to a customer in a date range (posted sales only, qty only). */
+  getSalesByCustomer(
+    filters: SalesByCustomerFilters,
+  ): SalesByCustomerResponse {
+    const { customerAccountId, startDate, endDate } = filters;
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+
+    const customer =
+      this.accountService.getAccountsByIds([customerAccountId])[0];
+    const customerName = customer?.name ?? '';
+
+    const lines = this.stmGetSalesByCustomerLines.all({
+      customerAccountId,
+      startDate: sqlStartDate,
+      endDate: sqlEndDate,
+    }) as Array<{
+      inventoryId: number;
+      itemName: string;
+      quantity: number;
+      invoiceId: number;
+      invoiceNumber: number;
+      date: string;
+    }>;
+
+    const items: SalesByCustomerItem[] = this.rollupPartyItemLines(lines);
+
+    return {
+      customer: { id: customerAccountId, name: customerName },
       kpis: {
         itemCount: items.length,
         totalQty: sumBy(items, 'quantity'),
@@ -2705,6 +2773,25 @@ export class InvoiceService {
         AND i.date >= @startDate
         AND i.date <= @endDate
         AND COALESCE(ii.accountId, i.accountId) = @vendorAccountId
+    `);
+
+    this.stmGetSalesByCustomerLines = this.db.prepare(`
+      SELECT
+        inv.id AS inventoryId,
+        inv.name AS itemName,
+        ii.quantity AS quantity,
+        i.id AS invoiceId,
+        i.invoiceNumber AS invoiceNumber,
+        i.date AS date
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoiceId = i.id
+      JOIN inventory inv ON inv.id = ii.inventoryId
+      WHERE i.invoiceType = 'Sale'
+        AND COALESCE(i.isQuotation, 0) = 0
+        AND COALESCE(i.isReturned, 0) = 0
+        AND i.date >= @startDate
+        AND i.date <= @endDate
+        AND COALESCE(ii.accountId, i.accountId) = @customerAccountId
     `);
   }
 }
