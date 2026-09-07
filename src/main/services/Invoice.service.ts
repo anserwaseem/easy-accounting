@@ -78,6 +78,44 @@ type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
   isQuotation?: SqliteBoolColumn;
 };
 
+type PartyItemLine = {
+  inventoryId: number;
+  itemName: string;
+  quantity: number;
+  invoiceId: number;
+  invoiceNumber: number;
+  date: string;
+};
+
+/** roll invoice lines into item rows with per-invoice qty breakdown. */
+const rollupPartyItemLines = (lines: PartyItemLine[]) =>
+  orderBy(
+    Object.values(groupBy(lines, (row) => row.inventoryId)).map((itemLines) => {
+      const first = itemLines[0];
+      const invoices = orderBy(
+        Object.values(groupBy(itemLines, (line) => line.invoiceId)).map(
+          (invoiceLines) => ({
+            invoiceId: invoiceLines[0].invoiceId,
+            invoiceNumber: invoiceLines[0].invoiceNumber,
+            date: invoiceLines[0].date,
+            quantity: sumBy(invoiceLines, 'quantity'),
+          }),
+        ),
+        ['date', 'invoiceNumber'],
+        ['asc', 'asc'],
+      );
+      return {
+        inventoryId: first.inventoryId,
+        itemName: first.itemName,
+        quantity: sumBy(itemLines, 'quantity'),
+        invoiceCount: invoices.length,
+        invoices,
+      };
+    }),
+    [(item) => item.itemName.toLowerCase()],
+    ['asc'],
+  );
+
 @logErrors
 export class InvoiceService {
   private db: Database;
@@ -155,6 +193,7 @@ export class InvoiceService {
   private stmGetInvoicesInDateRange!: Statement;
 
   private stmGetPurchasesByVendorLines!: Statement;
+
   private stmGetSalesByCustomerLines!: Statement;
 
   constructor() {
@@ -2286,58 +2325,6 @@ export class InvoiceService {
     };
   }
 
-  /** roll invoice lines into item rows with per-invoice qty breakdown. */
-  private rollupPartyItemLines(
-    lines: Array<{
-      inventoryId: number;
-      itemName: string;
-      quantity: number;
-      invoiceId: number;
-      invoiceNumber: number;
-      date: string;
-    }>,
-  ): Array<{
-    inventoryId: number;
-    itemName: string;
-    quantity: number;
-    invoiceCount: number;
-    invoices: Array<{
-      invoiceId: number;
-      invoiceNumber: number;
-      date: string;
-      quantity: number;
-    }>;
-  }> {
-    return orderBy(
-      Object.values(groupBy(lines, (row) => row.inventoryId)).map(
-        (itemLines) => {
-          const first = itemLines[0];
-          const invoices = orderBy(
-            Object.values(groupBy(itemLines, (line) => line.invoiceId)).map(
-              (invoiceLines) => ({
-                invoiceId: invoiceLines[0].invoiceId,
-                invoiceNumber: invoiceLines[0].invoiceNumber,
-                date: invoiceLines[0].date,
-                quantity: sumBy(invoiceLines, 'quantity'),
-              }),
-            ),
-            ['date', 'invoiceNumber'],
-            ['asc', 'asc'],
-          );
-          return {
-            inventoryId: first.inventoryId,
-            itemName: first.itemName,
-            quantity: sumBy(itemLines, 'quantity'),
-            invoiceCount: invoices.length,
-            invoices,
-          };
-        },
-      ),
-      [(item) => item.itemName.toLowerCase()],
-      ['asc'],
-    );
-  }
-
   /** items bought from a vendor in a date range (posted purchases only, qty only). */
   getPurchasesByVendor(
     filters: PurchasesByVendorFilters,
@@ -2355,16 +2342,9 @@ export class InvoiceService {
       vendorAccountId,
       startDate: sqlStartDate,
       endDate: sqlEndDate,
-    }) as Array<{
-      inventoryId: number;
-      itemName: string;
-      quantity: number;
-      invoiceId: number;
-      invoiceNumber: number;
-      date: string;
-    }>;
+    }) as PartyItemLine[];
 
-    const items: PurchasesByVendorItem[] = this.rollupPartyItemLines(lines);
+    const items: PurchasesByVendorItem[] = rollupPartyItemLines(lines);
 
     return {
       vendor: { id: vendorAccountId, name: vendorName },
@@ -2377,33 +2357,25 @@ export class InvoiceService {
   }
 
   /** items sold to a customer in a date range (posted sales only, qty only). */
-  getSalesByCustomer(
-    filters: SalesByCustomerFilters,
-  ): SalesByCustomerResponse {
+  getSalesByCustomer(filters: SalesByCustomerFilters): SalesByCustomerResponse {
     const { customerAccountId, startDate, endDate } = filters;
     const sqlStartDate =
       startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
     const sqlEndDate =
       endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
 
-    const customer =
-      this.accountService.getAccountsByIds([customerAccountId])[0];
+    const customer = this.accountService.getAccountsByIds([
+      customerAccountId,
+    ])[0];
     const customerName = customer?.name ?? '';
 
     const lines = this.stmGetSalesByCustomerLines.all({
       customerAccountId,
       startDate: sqlStartDate,
       endDate: sqlEndDate,
-    }) as Array<{
-      inventoryId: number;
-      itemName: string;
-      quantity: number;
-      invoiceId: number;
-      invoiceNumber: number;
-      date: string;
-    }>;
+    }) as PartyItemLine[];
 
-    const items: SalesByCustomerItem[] = this.rollupPartyItemLines(lines);
+    const items: SalesByCustomerItem[] = rollupPartyItemLines(lines);
 
     return {
       customer: { id: customerAccountId, name: customerName },
