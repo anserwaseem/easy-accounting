@@ -618,43 +618,47 @@ const PrintableInvoiceScreen = () => {
   const chromeClass = isUrdu ? urduChromeClass : '';
   const dataClass = printLatinClass;
   const urduHeadingLeadClass = isJameelUrdu
-    ? 'leading-[1.35] mb-0.5'
-    : 'leading-[1.7] mb-1';
+    ? 'leading-[1.35] mb-0.5 pt-0.5'
+    : 'leading-[1.45] mb-0.5';
   const urduContactLeadClass = isJameelUrdu
     ? 'leading-[1.25]'
-    : 'leading-normal';
-  const urduMetaBoxClass = isJameelUrdu
-    ? 'gap-0.5 my-0 leading-[1.25]'
-    : `gap-2 my-1 ${isUrdu ? 'leading-normal' : 'leading-none'}`;
+    : 'leading-[1.3]';
+  const urduMetaBoxClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    'gap-0.5 my-0 leading-[1.25]',
+    'gap-1 my-0.5 leading-[1.3]',
+    'gap-2 my-1 leading-none',
+  );
   const urduPartyRowClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    'leading-[1.3] py-0.5',
-    'pb-2 leading-[1.85]',
+    'leading-[1.3] pt-1 pb-0.5',
+    'pb-1 leading-[1.4]',
     '-mt-1',
   );
   const urduTableClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    '[&_th]:py-1 [&_th]:leading-[1.25] [&_td]:py-1 [&_td]:leading-[1.2]',
-    '[&_th]:py-1.5 [&_th]:leading-normal [&_td]:py-0 [&_td]:leading-tight',
+    '[&_th]:pt-1.5 [&_th]:pb-1 [&_th]:leading-[1.25] [&_td]:py-1 [&_td]:leading-[1.2]',
+    '[&_th]:py-1 [&_th]:leading-snug [&_td]:py-0 [&_td]:leading-tight',
     'leading-tight [&_td]:py-0 [&_th]:py-0',
   );
   const urduDescriptionPadClass = isJameelUrdu
-    ? '!px-1 !py-1 !leading-[1.3]'
-    : '!px-1.5 !py-1 !leading-[1.85]';
+    ? '!px-1 !pt-1.5 !pb-1 !leading-[1.3]'
+    : '!px-1 !py-0.5 !leading-[1.35]';
   const urduFooterNumericPadClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
+    ' !pt-1.5 !pb-2.5',
     ' !pt-1 !pb-2',
-    ' !pt-1.5 !pb-2',
     '',
   );
   const footerChromeClass = `${chromeClass} ${pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
+    '!pt-1.5 !pb-2.5 !leading-[1.35] not-italic',
     '!pt-1 !pb-2 !leading-[1.35] not-italic',
-    '!pt-1.5 !pb-2 !leading-relaxed not-italic',
     '',
   )}`.trim();
 
