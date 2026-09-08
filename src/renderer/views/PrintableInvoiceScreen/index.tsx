@@ -619,46 +619,46 @@ const PrintableInvoiceScreen = () => {
   const dataClass = printLatinClass;
   const urduHeadingLeadClass = isJameelUrdu
     ? 'leading-[1.35] mb-0.5 pt-0.5'
-    : 'leading-[1.45] mb-0.5';
+    : 'leading-[2] pt-3 mb-1.5 overflow-visible';
   const urduContactLeadClass = isJameelUrdu
     ? 'leading-[1.25]'
-    : 'leading-[1.3]';
+    : 'leading-[1.6] mt-1';
   const urduMetaBoxClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
     'gap-0.5 my-0 leading-[1.25]',
-    'gap-1 my-0.5 leading-[1.3]',
+    'gap-2.5 my-1.5 leading-[1.85]',
     'gap-2 my-1 leading-none',
   );
   const urduPartyRowClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
     'leading-[1.3] pt-1 pb-0.5',
-    'pb-1 leading-[1.4]',
+    'pt-1 pb-3 leading-[1.85]',
     '-mt-1',
   );
   const urduTableClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
     '[&_th]:pt-1.5 [&_th]:pb-1 [&_th]:leading-[1.25] [&_td]:py-1 [&_td]:leading-[1.2]',
-    '[&_th]:py-1 [&_th]:leading-snug [&_td]:py-0 [&_td]:leading-tight',
+    '[&_th]:pt-2.5 [&_th]:pb-1.5 [&_th]:leading-[1.65] [&_td]:py-1 [&_td]:leading-tight',
     'leading-tight [&_td]:py-0 [&_th]:py-0',
   );
   const urduDescriptionPadClass = isJameelUrdu
     ? '!px-1 !pt-1.5 !pb-1 !leading-[1.3]'
-    : '!px-1 !py-0.5 !leading-[1.35]';
+    : '!px-1.5 !pt-2 !pb-1.5 !leading-[1.65]';
   const urduFooterNumericPadClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    ' !pt-1.5 !pb-2.5',
-    ' !pt-1 !pb-2',
+    ' !pt-1.5 !pb-1',
+    ' !pt-2 !pb-2',
     '',
   );
   const footerChromeClass = `${chromeClass} ${pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    '!pt-1.5 !pb-2.5 !leading-[1.35] not-italic',
-    '!pt-1 !pb-2 !leading-[1.35] not-italic',
+    '!pt-1.5 !pb-1 !leading-[1.35] not-italic',
+    '!pt-2 !pb-2 !leading-[1.6] not-italic',
     '',
   )}`.trim();
 
