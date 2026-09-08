@@ -1,8 +1,10 @@
 import {
   ensureUrduInvoiceFonts,
+  getUrduFontClass,
   getUrduFontFaceCss,
   getUrduPreviewFontUrl,
   getUrduPrintFontUrl,
+  isUrduPrintFontExclusive,
   resetUrduInvoiceFontsForTests,
   setUrduPrintFontUrl,
   URDU_PREVIEW_FONT_FAMILY,
@@ -61,6 +63,29 @@ describe('urdu invoice fonts', () => {
     expect(css).toContain('https://cdn.example/JameelNooriNastaleeq.ttf');
     expect(css).toContain("format('truetype')");
     expect(css).toContain('font-display: swap');
+    expect(css).toContain(URDU_PREVIEW_FONT_FAMILY);
+    expect(getUrduFontClass()).toContain('Noto_Nastaliq_Urdu');
+    expect(isUrduPrintFontExclusive()).toBe(false);
+  });
+
+  it('exclusive electron omits Noto and uses font-display block', async () => {
+    setUrduPrintFontUrl('/jameel.woff2', { exclusive: true });
+    expect(isUrduPrintFontExclusive()).toBe(true);
+    expect(getUrduFontClass()).toBe("font-['Jameel_Noori_Nastaleeq',serif]");
+    const css = getUrduFontFaceCss();
+    expect(css).toContain(URDU_PRINT_FONT_FAMILY);
+    expect(css).toContain('font-display: block');
+    expect(css).not.toContain(URDU_PREVIEW_FONT_FAMILY);
+    await ensureUrduInvoiceFonts('preview');
+    expect(loadedFamilies).toEqual([URDU_PRINT_FONT_FAMILY]);
+  });
+
+  it('exclusive is cleared when the print url is unset', () => {
+    setUrduPrintFontUrl('/jameel.woff2', { exclusive: true });
+    setUrduPrintFontUrl(null);
+    expect(isUrduPrintFontExclusive()).toBe(false);
+    expect(getUrduFontFaceCss()).toContain(URDU_PREVIEW_FONT_FAMILY);
+    expect(getUrduFontClass()).toContain('Noto_Nastaliq_Urdu');
   });
 
   it('detects woff2 on hashed or query-string print urls', () => {

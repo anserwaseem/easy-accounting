@@ -41,18 +41,16 @@ import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
 import { Label } from 'renderer/shad/ui/label';
 import {
   ensureUrduInvoiceFonts,
+  getUrduFontClass,
   getUrduFontFaceCss,
-  urduFontClass,
 } from '@/renderer/lib/invoicePrint/urduFont';
 
 /**
  * Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity).
  * Jameel reads optically smaller than latin at the same CSS size — bump ~30%
- * so labels sit closer to number weight. Description values use a milder bump.
+ * so labels sit closer to number weight.
  */
-const urduChromeClass = `${urduFontClass} text-[1.3em]`;
-/** تفصیل body — smaller than headers/labels so rows stay closer to EN density */
-const urduDescriptionClass = `${urduFontClass} text-[1.1em]`;
+const urduChromeEmphClass = 'text-[1.3em]';
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
@@ -230,7 +228,7 @@ const PrintableInvoiceScreen = () => {
     };
   }, []);
 
-  // start Noto immediately; Jameel (if registered) prefetches in the background
+  // exclusive electron waits for Jameel; web still paints Noto and prefetches
   useEffect(() => {
     if (!isUrdu) {
       return;
@@ -594,6 +592,8 @@ const PrintableInvoiceScreen = () => {
   const discountColClass = 'text-end tabular-nums';
   // Urdu headings: start edge (visual right); EN keeps end-align over numbers
   const numHeadAlignClass = isUrdu ? 'text-start' : 'text-end';
+  // class is runtime: exclusive electron drops Noto from the stack after boot
+  const urduChromeClass = `${getUrduFontClass()} ${urduChromeEmphClass}`;
   const chromeClass = isUrdu ? urduChromeClass : '';
   const dataClass = printLatinClass;
   // Nastaliq footer labels need forced padding — table [&_td]:py-0 otherwise wins
