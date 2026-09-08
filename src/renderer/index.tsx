@@ -2,11 +2,11 @@ import { createRoot } from 'react-dom/client';
 import Routes from './routes';
 import './styles/App.global.css';
 import 'tailwindcss/tailwind.css';
-import jameelNastaleeqFontUrl from './fonts/JameelNooriNastaleeq.ttf';
+import jameelNastaleeqFontUrl from './fonts/JameelNooriNastaleeq.woff2';
 import { setUrduPrintFontUrl } from './lib/invoicePrint/urduFont';
 
-// electron-only: this entry is not used by the vite web app, so the 25MB
-// Jameel file stays out of the browser graph. web sets a CDN url (or none).
+// electron-only: this entry is not used by the vite web app, so Jameel
+// stays out of the browser graph. web serves the same woff2 from R2.
 setUrduPrintFontUrl(jameelNastaleeqFontUrl);
 
 const container = document.getElementById('root') as HTMLElement;
