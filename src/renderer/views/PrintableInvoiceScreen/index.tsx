@@ -43,7 +43,7 @@ import {
   ensureUrduInvoiceFonts,
   getUrduFontClass,
   getUrduFontFaceCss,
-  isUrduPrintFontExclusive,
+  isJameelPrintFace,
 } from '@/renderer/lib/invoicePrint/urduFont';
 
 /**
@@ -51,7 +51,7 @@ import {
  * Jameel reads optically smaller than latin — bump only on that face.
  * Noto already fills the em-box; 1.3em made it look huge.
  */
-const urduJameelEmphClass = 'text-[1.2em]';
+const urduJameelEmphClass = 'text-[1.2em] translate-y-[0.3em]';
 
 const pickPrintSpacingClass = (
   isJameel: boolean,
@@ -609,7 +609,7 @@ const PrintableInvoiceScreen = () => {
   const discountColClass = 'text-end tabular-nums';
   // Urdu headings: start edge (visual right); EN keeps end-align over numbers
   const numHeadAlignClass = isUrdu ? 'text-start' : 'text-end';
-  const isJameelUrdu = isUrdu && isUrduPrintFontExclusive();
+  const isJameelUrdu = isUrdu && isJameelPrintFace();
   const urduFontClassName = getUrduFontClass();
   // size bump is Jameel-only — Noto chrome stays at the surrounding text size
   const urduChromeClass = isJameelUrdu

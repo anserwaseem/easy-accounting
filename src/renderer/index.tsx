@@ -3,16 +3,23 @@ import Routes from './routes';
 import './styles/App.global.css';
 import 'tailwindcss/tailwind.css';
 import jameelNastaleeqFontUrl from './fonts/JameelNooriNastaleeq.woff2';
+import notoNastaliqFontUrl from './fonts/NotoNastaliqUrdu-Regular.woff2';
 import {
   ensureUrduInvoiceFonts,
   setUrduPrintFontUrl,
 } from './lib/invoicePrint/urduFont';
 
-// electron-only: this entry is not used by the vite web app, so Jameel
-// stays out of the browser graph. web serves the same woff2 from R2.
-// exclusive: do not put Noto on the stack (that was the Noto→Jameel flash).
-setUrduPrintFontUrl(jameelNastaleeqFontUrl, { exclusive: true });
-// start the 9.4MB face at boot so the first Urdu click is already Jameel
+/**
+ * local A/B only — flip this, save, let webpack rebuild, hard-reload the print view.
+ * do not swap only the url into setUrduPrintFontUrl: exclusive used to keep the
+ * Jameel family name, so Noto got Jameel's size/metrics. ship as 'jameel'.
+ */
+const URDU_ELECTRON_FACE: 'jameel' | 'noto' = 'jameel';
+
+setUrduPrintFontUrl(
+  URDU_ELECTRON_FACE === 'noto' ? notoNastaliqFontUrl : jameelNastaleeqFontUrl,
+  { exclusive: true },
+);
 ensureUrduInvoiceFonts('print').catch(() => {});
 
 const container = document.getElementById('root') as HTMLElement;

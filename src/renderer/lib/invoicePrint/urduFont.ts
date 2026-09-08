@@ -9,10 +9,12 @@ type UrduFontDisplay = 'swap' | 'block';
 
 export interface SetUrduPrintFontUrlOptions {
   /**
-   * electron only: skip Noto so the first Urdu paint cannot be a Noto→Jameel
-   * swap. web must omit this — it still needs the 261KB preview face.
+   * electron only: skip the other face so the first Urdu paint cannot swap.
+   * web must omit this — it still needs the 261KB preview face.
    */
   exclusive?: boolean;
+  /** defaults from the url (Noto vs Jameel). override if the path is opaque. */
+  family?: string;
 }
 
 /** first web print must not stall on a 25MB (or even 10MB woff2) download */
@@ -20,8 +22,24 @@ const PRINT_FONT_BUDGET_MS = 12_000;
 
 let printFontUrl: string | null = null;
 let printFontExclusive = false;
+let printFontFamily = URDU_PRINT_FONT_FAMILY;
 let previewLoad: Promise<void> | null = null;
 let printLoad: Promise<void> | null = null;
+
+const tailwindFontFamily = (family: string): string =>
+  family.replace(/ /g, '_');
+
+const inferPrintFamily = (url: string, override?: string): string => {
+  if (override?.trim()) {
+    return override.trim();
+  }
+  // local A/B: swap the woff2 in index.tsx; hashed webpack urls still contain this
+  const path = url.split('?')[0].toLowerCase();
+  if (path.includes('noto')) {
+    return URDU_PREVIEW_FONT_FAMILY;
+  }
+  return URDU_PRINT_FONT_FAMILY;
+};
 
 /** electron entry sets a bundled url; web sets VITE_URDU_PRINT_FONT_URL or null */
 export const setUrduPrintFontUrl = (
@@ -30,11 +48,19 @@ export const setUrduPrintFontUrl = (
 ): void => {
   const next = url?.trim() ? url.trim() : null;
   const nextExclusive = next !== null && Boolean(options?.exclusive);
-  if (next === printFontUrl && nextExclusive === printFontExclusive) {
+  const nextFamily = next
+    ? inferPrintFamily(next, options?.family)
+    : URDU_PRINT_FONT_FAMILY;
+  if (
+    next === printFontUrl &&
+    nextExclusive === printFontExclusive &&
+    nextFamily === printFontFamily
+  ) {
     return;
   }
   printFontUrl = next;
   printFontExclusive = nextExclusive;
+  printFontFamily = nextFamily;
   printLoad = null;
 };
 
@@ -42,15 +68,20 @@ export const getUrduPrintFontUrl = (): string | null => printFontUrl;
 
 export const isUrduPrintFontExclusive = (): boolean => printFontExclusive;
 
+export const getUrduPrintFontFamily = (): string => printFontFamily;
+
+export const isJameelPrintFace = (): boolean =>
+  printFontUrl !== null && printFontFamily === URDU_PRINT_FONT_FAMILY;
+
 export const getUrduPreviewFontUrl = (): string => notoPreviewFontUrl;
 
 /**
- * tailwind class for Urdu chrome. exclusive electron is Jameel only;
- * web keeps Noto in the stack so preview never waits on a multi-MB file.
+ * tailwind class for Urdu chrome. exclusive uses the registered face only;
+ * web keeps both so preview never waits on a multi-MB file.
  */
 export const getUrduFontClass = (): string =>
   printFontExclusive
-    ? "font-['Jameel_Noori_Nastaleeq',serif]"
+    ? `font-['${tailwindFontFamily(printFontFamily)}',serif]`
     : "font-['Jameel_Noori_Nastaleeq','Noto_Nastaliq_Urdu',serif]";
 
 const fontSourceFormat = (url: string): 'woff2' | 'truetype' => {
@@ -93,7 +124,12 @@ const fontFaceCss = (
 /** @font-face rules for the print document (printToPDF reads these) */
 export const getUrduFontFaceCss = (): string => {
   if (printFontExclusive && printFontUrl) {
-    return fontFaceCss(URDU_PRINT_FONT_FAMILY, printFontUrl, 'block', true);
+    return fontFaceCss(
+      printFontFamily,
+      printFontUrl,
+      'block',
+      printFontFamily === URDU_PRINT_FONT_FAMILY,
+    );
   }
   const faces = [
     fontFaceCss(URDU_PREVIEW_FONT_FAMILY, notoPreviewFontUrl, 'swap', false),
@@ -151,10 +187,10 @@ const prefetchPrintFont = (): void => {
     return;
   }
   printLoad = loadFace(
-    URDU_PRINT_FONT_FAMILY,
+    printFontExclusive ? printFontFamily : URDU_PRINT_FONT_FAMILY,
     printFontUrl,
     printFontExclusive ? 'block' : 'swap',
-    true,
+    printFontFamily === URDU_PRINT_FONT_FAMILY,
   );
 };
 
@@ -196,6 +232,7 @@ export const ensureUrduInvoiceFonts = async (
 export const resetUrduInvoiceFontsForTests = (): void => {
   printFontUrl = null;
   printFontExclusive = false;
+  printFontFamily = URDU_PRINT_FONT_FAMILY;
   previewLoad = null;
   printLoad = null;
 };
