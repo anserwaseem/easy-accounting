@@ -266,12 +266,14 @@ export const waitForInvoicePrintFonts = async (
   if (typeof document === 'undefined' || !document.fonts) {
     return;
   }
-  try {
-    await document.fonts.ready;
-    if (locale === 'ur') {
-      await document.fonts.load("16px 'Noto Nastaliq Urdu'");
+  if (locale !== 'ur') {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // print still proceeds
     }
-  } catch {
-    // print still proceeds; glyphs may fall back
+    return;
   }
+  const { ensureUrduInvoiceFonts } = await import('./urduFont');
+  await ensureUrduInvoiceFonts('print');
 };

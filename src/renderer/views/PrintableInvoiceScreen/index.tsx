@@ -39,11 +39,39 @@ import {
 import { getInvoicePrintReadinessGaps } from '@/renderer/lib/invoicePrint/readiness';
 import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
 import { Label } from 'renderer/shad/ui/label';
-import nastaliqFontUrl from '../../fonts/NotoNastaliqUrdu-Regular.ttf';
+import {
+  ensureUrduInvoiceFonts,
+  getUrduFontClass,
+  getUrduFontFaceCss,
+  isJameelPrintFace,
+} from '@/renderer/lib/invoicePrint/urduFont';
+
+/**
+ * Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity).
+ * Jameel reads optically smaller than latin — bump only on that face.
+ * Noto already fills the em-box; 1.3em made it look huge.
+ */
+const urduJameelEmphClass = 'text-[1.1em]';
+
+const pickPrintSpacingClass = (
+  isJameel: boolean,
+  isUrduLocale: boolean,
+  jameelClass: string,
+  notoClass: string,
+  englishClass: string,
+): string => {
+  if (isJameel) {
+    return jameelClass;
+  }
+  if (isUrduLocale) {
+    return notoClass;
+  }
+  return englishClass;
+};
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
-  'min-h-screen bg-white p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:ps-8 print:pe-0 print:pt-0 print:pb-0 print:text-black';
+  'min-h-screen bg-white p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:ps-8 print:pe-0 print:pb-0 print:text-black';
 
 /** lock controls to light surfaces so shadcn tokens (bg-background, accent) never go dark-on-dark */
 const printToolbarPanelClass =
@@ -61,8 +89,6 @@ const printToolbarKbdClass =
 const printToolbarKbdOnPrimaryClass =
   'border-white/30 bg-white/15 text-white dark:border-white/30 dark:bg-white/15 dark:text-white';
 
-/** Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity) */
-const urduChromeClass = "font-['Noto_Nastaliq_Urdu',serif]";
 /** force latin metrics so table data matches EN print */
 const printLatinClass = 'font-sans';
 
@@ -218,6 +244,14 @@ const PrintableInvoiceScreen = () => {
       dismissAllToasts();
     };
   }, []);
+
+  // exclusive electron waits for Jameel; web still paints Noto and prefetches
+  useEffect(() => {
+    if (!isUrdu) {
+      return;
+    }
+    ensureUrduInvoiceFonts('preview').catch(() => {});
+  }, [isUrdu]);
 
   useEffect(() => {
     if (!invoice) {
@@ -575,12 +609,76 @@ const PrintableInvoiceScreen = () => {
   const discountColClass = 'text-end tabular-nums';
   // Urdu headings: start edge (visual right); EN keeps end-align over numbers
   const numHeadAlignClass = isUrdu ? 'text-start' : 'text-end';
+  const isJameelUrdu = isUrdu && isJameelPrintFace();
+  const isNotoUrdu = isUrdu && !isJameelUrdu;
+  const urduFontClassName = getUrduFontClass();
+  // size bump is Jameel-only — Noto chrome stays at the surrounding text size
+  const urduChromeClass = isJameelUrdu
+    ? `${urduFontClassName} ${urduJameelEmphClass}`
+    : urduFontClassName;
   const chromeClass = isUrdu ? urduChromeClass : '';
   const dataClass = printLatinClass;
-  // Nastaliq footer labels need forced padding — table [&_td]:py-0 otherwise wins
-  const footerChromeClass = isUrdu
-    ? `${chromeClass} !py-1.5 !leading-relaxed not-italic`
-    : chromeClass;
+  // Noto ink overflows its CSS line box. leading < ~2.5 + items-baseline
+  // clips title dots, stacks بل نمبر onto بل بنام, and bleeds table rules.
+  // Jameel metrics already contain ink — leave those classes alone.
+  const urduHeadingLeadClass = isJameelUrdu
+    ? 'leading-[1.35] mb-0.5 pt-0.5'
+    : '!text-[22px] leading-[2.7] pt-6 mb-3 overflow-visible';
+  const urduContactLeadClass = isJameelUrdu
+    ? 'leading-[1.25]'
+    : 'leading-[2.2] mt-3 mb-2';
+  const urduMetaBoxClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    'gap-0.5 my-0 leading-[1.25]',
+    'gap-6 my-3 leading-[2.5] overflow-visible',
+    'gap-2 my-1 leading-none',
+  );
+  const urduPartyRowClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    'leading-[1.3] pt-1 pb-0.5',
+    'pt-3 pb-8 leading-[2.5]',
+    '-mt-1',
+  );
+  const urduFieldRowAlignClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    'items-baseline',
+    'items-start',
+    'items-baseline',
+  );
+  const urduTableClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    '[&_th]:pt-1.5 [&_th]:pb-1 [&_th]:leading-[1.25] [&_td]:py-1 [&_td]:leading-[1.2]',
+    '[&_th]:pt-4 [&_th]:pb-3 [&_th]:leading-[2.5] [&_td]:py-3 [&_td]:leading-[2.4] [&_th]:align-middle [&_td]:align-middle',
+    'leading-tight [&_td]:py-0 [&_th]:py-0',
+  );
+  const urduDescriptionPadClass = isJameelUrdu
+    ? '!px-1 !pt-1.5 !pb-1 !leading-[1.3]'
+    : '!px-1.5 !py-3.5 !leading-[2.5]';
+  const urduFooterNumericPadClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    ' !pt-1.5 !pb-1',
+    ' !py-4',
+    '',
+  );
+  const footerChromeClass = `${chromeClass} ${pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    '!pt-1.5 !pb-1 !leading-[1.35] not-italic',
+    '!py-4 !leading-[2.5] not-italic',
+    '',
+  )}`.trim();
+  const printSheetTopClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    'print:pt-0',
+    'print:pt-6',
+    'print:pt-0',
+  );
 
   /** split digits (latin) from روپے (Nastaliq) so footer amount matches EN number metrics */
   const renderPrintAmount = (amount: number) => {
@@ -718,7 +816,7 @@ const PrintableInvoiceScreen = () => {
   if (!invoice) {
     return (
       <div
-        className={`${printPreviewRootClass} flex items-center justify-center`}
+        className={`${printPreviewRootClass} ${printSheetTopClass} flex items-center justify-center`}
       >
         <p className="text-sm text-neutral-600">Loading…</p>
       </div>
@@ -727,20 +825,11 @@ const PrintableInvoiceScreen = () => {
 
   return (
     <div
-      className={printPreviewRootClass}
+      className={`${printPreviewRootClass} ${printSheetTopClass}`}
       dir={isUrdu ? 'rtl' : 'ltr'}
       lang={isUrdu ? 'ur' : 'en'}
     >
-      {isUrdu ? (
-        <style>{`
-          @font-face {
-            font-family: 'Noto Nastaliq Urdu';
-            src: url(${nastaliqFontUrl}) format('truetype');
-            font-weight: 400 700;
-            font-display: block;
-          }
-        `}</style>
-      ) : null}
+      {isUrdu ? <style>{getUrduFontFaceCss()}</style> : null}
       {isDarkAppChrome ? (
         <div
           dir="ltr"
@@ -946,12 +1035,16 @@ const PrintableInvoiceScreen = () => {
             </p>
           </div>
         ) : null}
-        <div className="flex justify-between items-center">
+        <div
+          className={`flex justify-between ${
+            isNotoUrdu ? 'items-start' : 'items-center'
+          }`}
+        >
           <div className="w-full">
             <h1
               className={`text-[26px] font-bold text-center${
                 isUrdu
-                  ? ` ${urduChromeClass} leading-[1.7] mb-1`
+                  ? ` ${urduFontClassName} ${urduHeadingLeadClass}`
                   : ' font-mono leading-6'
               }`}
             >
@@ -960,7 +1053,9 @@ const PrintableInvoiceScreen = () => {
             {companyContactParts.length > 0 ? (
               <p
                 className={`text-center text-sm${
-                  isUrdu ? ` ${urduChromeClass} leading-normal` : ' font-mono'
+                  isUrdu
+                    ? ` ${urduFontClassName} ${urduContactLeadClass}`
+                    : ' font-mono'
                 }`}
               >
                 {companyContactParts.map((part, index) => (
@@ -981,13 +1076,11 @@ const PrintableInvoiceScreen = () => {
           </div>
         </div>
 
-        <div
-          className={`flex flex-col text-base gap-2 my-1 ${
-            isUrdu ? 'leading-normal' : 'leading-none'
-          }`}
-        >
-          <div className={headerFieldsRowClass}>
-            <div className="flex gap-1 whitespace-nowrap items-baseline">
+        <div className={`flex flex-col text-base ${urduMetaBoxClass}`}>
+          <div className={`${headerFieldsRowClass} ${urduFieldRowAlignClass}`}>
+            <div
+              className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+            >
               <p className={chromeClass}>
                 {invoice.isQuotation
                   ? labels.quotationNumber
@@ -999,7 +1092,9 @@ const PrintableInvoiceScreen = () => {
                   : invoice.invoiceNumber}
               </p>
             </div>
-            <div className="flex gap-1 whitespace-nowrap items-baseline">
+            <div
+              className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+            >
               <p className={chromeClass}>{labels.date}</p>
               {(() => {
                 const dateParts = getInvoicePrintDateParts(
@@ -1035,7 +1130,9 @@ const PrintableInvoiceScreen = () => {
               })()}
             </div>
             {showBiltyField ? (
-              <div className="flex gap-1 whitespace-nowrap items-baseline">
+              <div
+                className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+              >
                 <p className={chromeClass}>{labels.bilty}</p>
                 <p>
                   <span dir="ltr" className={dataClass}>
@@ -1053,7 +1150,9 @@ const PrintableInvoiceScreen = () => {
               </div>
             ) : null}
             {showCartonsField ? (
-              <div className="flex gap-1 whitespace-nowrap items-baseline">
+              <div
+                className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+              >
                 <p className={chromeClass}>{labels.cartons}</p>
                 <p dir="ltr" className={dataClass}>
                   {invoice.cartons ?? ''}
@@ -1061,11 +1160,9 @@ const PrintableInvoiceScreen = () => {
               </div>
             ) : null}
           </div>
-          {/* EN keeps -mt-1 compact; Urdu needs descender clearance above table */}
+          {/* EN keeps -mt-1 compact; Noto Urdu needs descender clearance; Jameel uses metric overrides */}
           <div
-            className={`flex gap-1 items-baseline ${
-              isUrdu ? 'pb-2 leading-[1.85]' : '-mt-1'
-            }`}
+            className={`flex gap-1 ${urduFieldRowAlignClass} ${urduPartyRowClass}`}
           >
             <p className={`whitespace-nowrap ${chromeClass}`}>{partyLabel}</p>
             <p className={`whitespace-nowrap ${isUrdu ? chromeClass : ''}`}>
@@ -1078,11 +1175,7 @@ const PrintableInvoiceScreen = () => {
         </div>
 
         <table
-          className={`w-full text-base border-[0.5px] border-gray-400 border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${
-            isUrdu
-              ? '[&_th]:py-1.5 [&_th]:leading-normal [&_td]:py-0 [&_td]:leading-tight'
-              : 'leading-tight [&_td]:py-0 [&_th]:py-0'
-          }`}
+          className={`w-full text-base border-[0.5px] border-gray-400 border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${urduTableClass}`}
         >
           <thead>
             <tr className="[&_th]:font-semibold">
@@ -1174,7 +1267,7 @@ const PrintableInvoiceScreen = () => {
                         dir={descriptionIsUrdu ? 'rtl' : 'ltr'}
                         className={
                           descriptionIsUrdu
-                            ? `${chromeClass} !px-1.5 !py-1 !leading-[1.85]`
+                            ? `${chromeClass} ${urduDescriptionPadClass}`
                             : `${dataClass}${isUrdu ? ' text-right' : ''}`
                         }
                       >
@@ -1212,9 +1305,7 @@ const PrintableInvoiceScreen = () => {
                 {labels.totalQuantity}
               </td>
               <td
-                className={`${qtyColClass} ${dataClass} !border-[0.5px] !border-gray-400${
-                  isUrdu ? ' !py-1.5' : ''
-                }`}
+                className={`${qtyColClass} ${dataClass} !border-[0.5px] !border-gray-400${urduFooterNumericPadClass}`}
                 dir="ltr"
               >
                 {totalQuantity}
@@ -1231,9 +1322,7 @@ const PrintableInvoiceScreen = () => {
                   {labels.extraDiscount}
                 </td>
                 <td
-                  className={`text-end ${amountColClass} whitespace-nowrap !border-[0.5px] !border-gray-400${
-                    isUrdu ? ' !py-1.5' : ''
-                  }`}
+                  className={`text-end ${amountColClass} whitespace-nowrap !border-[0.5px] !border-gray-400${urduFooterNumericPadClass}`}
                 >
                   {renderPrintAmount(toNumber(invoice.extraDiscount))}
                 </td>
@@ -1250,9 +1339,7 @@ const PrintableInvoiceScreen = () => {
                 {totalAmountInWords}
               </td>
               <td
-                className={`text-end ${amountColClass} font-bold whitespace-nowrap !border-[0.5px] !border-gray-400${
-                  isUrdu ? ' !py-1.5' : ''
-                }`}
+                className={`text-end ${amountColClass} font-bold whitespace-nowrap !border-[0.5px] !border-gray-400${urduFooterNumericPadClass}`}
               >
                 {renderPrintAmount(toNumber(invoice?.totalAmount))}
               </td>

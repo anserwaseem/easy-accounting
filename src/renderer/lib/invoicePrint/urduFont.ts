@@ -1,0 +1,237 @@
+import notoPreviewFontUrl from '../../fonts/NotoNastaliqUrdu-Regular.woff2';
+
+/** small OFL face — first paint / web default. never block on this. */
+export const URDU_PREVIEW_FONT_FAMILY = 'Noto Nastaliq Urdu';
+/** print-quality face. electron registers a local url; web may omit it. */
+export const URDU_PRINT_FONT_FAMILY = 'Jameel Noori Nastaleeq';
+
+type UrduFontDisplay = 'swap' | 'block';
+
+export interface SetUrduPrintFontUrlOptions {
+  /**
+   * electron only: skip the other face so the first Urdu paint cannot swap.
+   * web must omit this — it still needs the 261KB preview face.
+   */
+  exclusive?: boolean;
+  /** defaults from the url (Noto vs Jameel). override if the path is opaque. */
+  family?: string;
+}
+
+/** first web print must not stall on a 25MB (or even 10MB woff2) download */
+const PRINT_FONT_BUDGET_MS = 12_000;
+
+let printFontUrl: string | null = null;
+let printFontExclusive = false;
+let printFontFamily = URDU_PRINT_FONT_FAMILY;
+let previewLoad: Promise<void> | null = null;
+let printLoad: Promise<void> | null = null;
+
+const tailwindFontFamily = (family: string): string =>
+  family.replace(/ /g, '_');
+
+const inferPrintFamily = (url: string, override?: string): string => {
+  if (override?.trim()) {
+    return override.trim();
+  }
+  // local A/B: swap the woff2 in index.tsx; hashed webpack urls still contain this
+  const path = url.split('?')[0].toLowerCase();
+  if (path.includes('noto')) {
+    return URDU_PREVIEW_FONT_FAMILY;
+  }
+  return URDU_PRINT_FONT_FAMILY;
+};
+
+/** electron entry sets a bundled url; web sets VITE_URDU_PRINT_FONT_URL or null */
+export const setUrduPrintFontUrl = (
+  url: string | null,
+  options?: SetUrduPrintFontUrlOptions,
+): void => {
+  const next = url?.trim() ? url.trim() : null;
+  const nextExclusive = next !== null && Boolean(options?.exclusive);
+  const nextFamily = next
+    ? inferPrintFamily(next, options?.family)
+    : URDU_PRINT_FONT_FAMILY;
+  if (
+    next === printFontUrl &&
+    nextExclusive === printFontExclusive &&
+    nextFamily === printFontFamily
+  ) {
+    return;
+  }
+  printFontUrl = next;
+  printFontExclusive = nextExclusive;
+  printFontFamily = nextFamily;
+  printLoad = null;
+};
+
+export const getUrduPrintFontUrl = (): string | null => printFontUrl;
+
+export const isUrduPrintFontExclusive = (): boolean => printFontExclusive;
+
+export const getUrduPrintFontFamily = (): string => printFontFamily;
+
+export const isJameelPrintFace = (): boolean =>
+  printFontUrl !== null && printFontFamily === URDU_PRINT_FONT_FAMILY;
+
+export const getUrduPreviewFontUrl = (): string => notoPreviewFontUrl;
+
+/**
+ * tailwind class for Urdu chrome. exclusive uses the registered face only;
+ * web keeps both so preview never waits on a multi-MB file.
+ */
+export const getUrduFontClass = (): string =>
+  printFontExclusive
+    ? `font-['${tailwindFontFamily(printFontFamily)}',serif]`
+    : "font-['Jameel_Noori_Nastaleeq','Noto_Nastaliq_Urdu',serif]";
+
+const fontSourceFormat = (url: string): 'woff2' | 'truetype' => {
+  const path = url.split('?')[0].toLowerCase();
+  return path.endsWith('.woff2') ? 'woff2' : 'truetype';
+};
+
+/**
+ * Jameel's OS/2 usWinAscent/Descent dwarf the ink — Noto does not.
+ * override the line box so Jameel rows stop looking padded; Noto is untouched.
+ */
+const JAMEEL_FACE_METRICS = {
+  // 118/22 + pb-0: empty cell tops, bari-ye tails on the bottom rule
+  ascentOverride: '98%',
+  descentOverride: '32%',
+  lineGapOverride: '0%',
+} as const;
+
+const fontFaceCss = (
+  family: string,
+  url: string,
+  display: UrduFontDisplay,
+  compactLineBox: boolean,
+): string => {
+  const metrics = compactLineBox
+    ? `
+            ascent-override: ${JAMEEL_FACE_METRICS.ascentOverride};
+            descent-override: ${JAMEEL_FACE_METRICS.descentOverride};
+            line-gap-override: ${JAMEEL_FACE_METRICS.lineGapOverride};`
+    : '';
+  return `@font-face {
+            font-family: '${family}';
+            src: url(${url}) format('${fontSourceFormat(url)}');
+            font-weight: 400 700;
+            font-display: ${display};${metrics}
+          }`;
+};
+
+/** @font-face rules for the print document (printToPDF reads these) */
+export const getUrduFontFaceCss = (): string => {
+  if (printFontExclusive && printFontUrl) {
+    return fontFaceCss(
+      printFontFamily,
+      printFontUrl,
+      'block',
+      printFontFamily === URDU_PRINT_FONT_FAMILY,
+    );
+  }
+  const faces = [
+    fontFaceCss(URDU_PREVIEW_FONT_FAMILY, notoPreviewFontUrl, 'swap', false),
+  ];
+  if (printFontUrl) {
+    faces.push(fontFaceCss(URDU_PRINT_FONT_FAMILY, printFontUrl, 'swap', true));
+  }
+  return faces.join('\n');
+};
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const loadFace = async (
+  family: string,
+  url: string,
+  display: UrduFontDisplay,
+  compactLineBox: boolean,
+): Promise<void> => {
+  if (typeof document === 'undefined' || !document.fonts) {
+    return;
+  }
+  if (typeof FontFace === 'undefined') {
+    await document.fonts.load(`16px '${family}'`);
+    return;
+  }
+  const descriptors: FontFaceDescriptors = {
+    display,
+    weight: '400 700',
+  };
+  if (compactLineBox) {
+    Object.assign(descriptors, JAMEEL_FACE_METRICS);
+  }
+  const face = new FontFace(family, `url(${url})`, descriptors);
+  document.fonts.add(face);
+  await face.load();
+};
+
+const ensurePreviewFont = (): Promise<void> => {
+  if (!previewLoad) {
+    previewLoad = loadFace(
+      URDU_PREVIEW_FONT_FAMILY,
+      notoPreviewFontUrl,
+      'swap',
+      false,
+    );
+  }
+  return previewLoad;
+};
+
+const prefetchPrintFont = (): void => {
+  if (!printFontUrl || printLoad) {
+    return;
+  }
+  printLoad = loadFace(
+    printFontExclusive ? printFontFamily : URDU_PRINT_FONT_FAMILY,
+    printFontUrl,
+    printFontExclusive ? 'block' : 'swap',
+    printFontFamily === URDU_PRINT_FONT_FAMILY,
+  );
+};
+
+/**
+ * preview: Noto (fast) + kick Jameel in the background, unless exclusive.
+ * print: wait for Jameel up to PRINT_FONT_BUDGET_MS, then proceed with Noto.
+ * exclusive (electron): never fetch Noto; wait for Jameel on preview and print.
+ */
+export const ensureUrduInvoiceFonts = async (
+  mode: 'preview' | 'print',
+): Promise<void> => {
+  if (typeof document === 'undefined' || !document.fonts) {
+    return;
+  }
+
+  prefetchPrintFont();
+
+  try {
+    await document.fonts.ready;
+
+    if (printFontExclusive) {
+      if (printLoad) {
+        await Promise.race([printLoad, sleep(PRINT_FONT_BUDGET_MS)]);
+      }
+      return;
+    }
+
+    await ensurePreviewFont();
+    if (mode === 'preview' || !printLoad) {
+      return;
+    }
+    await Promise.race([printLoad, sleep(PRINT_FONT_BUDGET_MS)]);
+  } catch {
+    // caller still prints; glyphs fall back to Noto / serif
+  }
+};
+
+/** jest helper — module-level load promises must not leak across tests */
+export const resetUrduInvoiceFontsForTests = (): void => {
+  printFontUrl = null;
+  printFontExclusive = false;
+  printFontFamily = URDU_PRINT_FONT_FAMILY;
+  previewLoad = null;
+  printLoad = null;
+};
