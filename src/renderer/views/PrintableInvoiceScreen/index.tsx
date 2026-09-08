@@ -43,6 +43,7 @@ import {
   ensureUrduInvoiceFonts,
   getUrduFontClass,
   getUrduFontFaceCss,
+  isUrduPrintFontExclusive,
 } from '@/renderer/lib/invoicePrint/urduFont';
 
 /**
@@ -51,6 +52,22 @@ import {
  * so labels sit closer to number weight.
  */
 const urduChromeEmphClass = 'text-[1.3em]';
+
+const pickPrintSpacingClass = (
+  isJameel: boolean,
+  isUrduLocale: boolean,
+  jameelClass: string,
+  notoClass: string,
+  englishClass: string,
+): string => {
+  if (isJameel) {
+    return jameelClass;
+  }
+  if (isUrduLocale) {
+    return notoClass;
+  }
+  return englishClass;
+};
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
@@ -596,10 +613,40 @@ const PrintableInvoiceScreen = () => {
   const urduChromeClass = `${getUrduFontClass()} ${urduChromeEmphClass}`;
   const chromeClass = isUrdu ? urduChromeClass : '';
   const dataClass = printLatinClass;
-  // Nastaliq footer labels need forced padding — table [&_td]:py-0 otherwise wins
-  const footerChromeClass = isUrdu
-    ? `${chromeClass} !py-1.5 !leading-relaxed not-italic`
-    : chromeClass;
+  // Jameel's em-box is huge vs Noto — compact only that path; Noto Urdu stays as-is
+  const isJameelUrdu = isUrdu && isUrduPrintFontExclusive();
+  const urduHeadingLeadClass = isJameelUrdu
+    ? 'leading-[1.15] mb-0'
+    : 'leading-[1.7] mb-1';
+  const urduContactLeadClass = isJameelUrdu ? 'leading-none' : 'leading-normal';
+  const urduMetaBoxClass = isJameelUrdu
+    ? 'gap-0 my-0 leading-none'
+    : `gap-2 my-1 ${isUrdu ? 'leading-normal' : 'leading-none'}`;
+  const urduPartyRowClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    'leading-[1.15] pb-0',
+    'pb-2 leading-[1.85]',
+    '-mt-1',
+  );
+  const urduTableClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    '[&_th]:py-0 [&_th]:leading-none [&_td]:py-0 [&_td]:leading-none',
+    '[&_th]:py-1.5 [&_th]:leading-normal [&_td]:py-0 [&_td]:leading-tight',
+    'leading-tight [&_td]:py-0 [&_th]:py-0',
+  );
+  const urduDescriptionPadClass = isJameelUrdu
+    ? '!px-1 !py-0 !leading-[1.15]'
+    : '!px-1.5 !py-1 !leading-[1.85]';
+  const urduFooterNumericPadClass = isUrdu && !isJameelUrdu ? ' !py-1.5' : '';
+  const footerChromeClass = `${chromeClass} ${pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    '!py-0 !leading-[1.15] not-italic',
+    '!py-1.5 !leading-relaxed not-italic',
+    '',
+  )}`.trim();
 
   /** split digits (latin) from روپے (Nastaliq) so footer amount matches EN number metrics */
   const renderPrintAmount = (amount: number) => {
@@ -961,7 +1008,7 @@ const PrintableInvoiceScreen = () => {
             <h1
               className={`text-[26px] font-bold text-center${
                 isUrdu
-                  ? ` ${urduChromeClass} leading-[1.7] mb-1`
+                  ? ` ${urduChromeClass} ${urduHeadingLeadClass}`
                   : ' font-mono leading-6'
               }`}
             >
@@ -970,7 +1017,9 @@ const PrintableInvoiceScreen = () => {
             {companyContactParts.length > 0 ? (
               <p
                 className={`text-center text-sm${
-                  isUrdu ? ` ${urduChromeClass} leading-normal` : ' font-mono'
+                  isUrdu
+                    ? ` ${urduChromeClass} ${urduContactLeadClass}`
+                    : ' font-mono'
                 }`}
               >
                 {companyContactParts.map((part, index) => (
@@ -991,11 +1040,7 @@ const PrintableInvoiceScreen = () => {
           </div>
         </div>
 
-        <div
-          className={`flex flex-col text-base gap-2 my-1 ${
-            isUrdu ? 'leading-normal' : 'leading-none'
-          }`}
-        >
+        <div className={`flex flex-col text-base ${urduMetaBoxClass}`}>
           <div className={headerFieldsRowClass}>
             <div className="flex gap-1 whitespace-nowrap items-baseline">
               <p className={chromeClass}>
@@ -1071,12 +1116,8 @@ const PrintableInvoiceScreen = () => {
               </div>
             ) : null}
           </div>
-          {/* EN keeps -mt-1 compact; Urdu needs descender clearance above table */}
-          <div
-            className={`flex gap-1 items-baseline ${
-              isUrdu ? 'pb-2 leading-[1.85]' : '-mt-1'
-            }`}
-          >
+          {/* EN keeps -mt-1 compact; Noto Urdu needs descender clearance; Jameel uses metric overrides */}
+          <div className={`flex gap-1 items-baseline ${urduPartyRowClass}`}>
             <p className={`whitespace-nowrap ${chromeClass}`}>{partyLabel}</p>
             <p className={`whitespace-nowrap ${isUrdu ? chromeClass : ''}`}>
               {billToName}
@@ -1088,11 +1129,7 @@ const PrintableInvoiceScreen = () => {
         </div>
 
         <table
-          className={`w-full text-base border-[0.5px] border-gray-400 border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${
-            isUrdu
-              ? '[&_th]:py-1.5 [&_th]:leading-normal [&_td]:py-0 [&_td]:leading-tight'
-              : 'leading-tight [&_td]:py-0 [&_th]:py-0'
-          }`}
+          className={`w-full text-base border-[0.5px] border-gray-400 border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${urduTableClass}`}
         >
           <thead>
             <tr className="[&_th]:font-semibold">
@@ -1184,7 +1221,7 @@ const PrintableInvoiceScreen = () => {
                         dir={descriptionIsUrdu ? 'rtl' : 'ltr'}
                         className={
                           descriptionIsUrdu
-                            ? `${chromeClass} !px-1.5 !py-1 !leading-[1.85]`
+                            ? `${chromeClass} ${urduDescriptionPadClass}`
                             : `${dataClass}${isUrdu ? ' text-right' : ''}`
                         }
                       >
@@ -1222,9 +1259,7 @@ const PrintableInvoiceScreen = () => {
                 {labels.totalQuantity}
               </td>
               <td
-                className={`${qtyColClass} ${dataClass} !border-[0.5px] !border-gray-400${
-                  isUrdu ? ' !py-1.5' : ''
-                }`}
+                className={`${qtyColClass} ${dataClass} !border-[0.5px] !border-gray-400${urduFooterNumericPadClass}`}
                 dir="ltr"
               >
                 {totalQuantity}
@@ -1241,9 +1276,7 @@ const PrintableInvoiceScreen = () => {
                   {labels.extraDiscount}
                 </td>
                 <td
-                  className={`text-end ${amountColClass} whitespace-nowrap !border-[0.5px] !border-gray-400${
-                    isUrdu ? ' !py-1.5' : ''
-                  }`}
+                  className={`text-end ${amountColClass} whitespace-nowrap !border-[0.5px] !border-gray-400${urduFooterNumericPadClass}`}
                 >
                   {renderPrintAmount(toNumber(invoice.extraDiscount))}
                 </td>
@@ -1260,9 +1293,7 @@ const PrintableInvoiceScreen = () => {
                 {totalAmountInWords}
               </td>
               <td
-                className={`text-end ${amountColClass} font-bold whitespace-nowrap !border-[0.5px] !border-gray-400${
-                  isUrdu ? ' !py-1.5' : ''
-                }`}
+                className={`text-end ${amountColClass} font-bold whitespace-nowrap !border-[0.5px] !border-gray-400${urduFooterNumericPadClass}`}
               >
                 {renderPrintAmount(toNumber(invoice?.totalAmount))}
               </td>

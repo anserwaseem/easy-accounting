@@ -66,6 +66,16 @@ describe('urdu invoice fonts', () => {
     expect(css).toContain(URDU_PREVIEW_FONT_FAMILY);
     expect(getUrduFontClass()).toContain('Noto_Nastaliq_Urdu');
     expect(isUrduPrintFontExclusive()).toBe(false);
+    expect(css).toContain('ascent-override: 80%');
+    expect(css).toContain('descent-override: 30%');
+    expect(css).toContain('line-gap-override: 0%');
+  });
+
+  it('does not crush Noto line metrics', () => {
+    const css = getUrduFontFaceCss();
+    expect(css).toContain(URDU_PREVIEW_FONT_FAMILY);
+    expect(css).not.toContain('ascent-override');
+    expect(css).not.toContain('descent-override');
   });
 
   it('exclusive electron omits Noto and uses font-display block', async () => {
@@ -75,6 +85,7 @@ describe('urdu invoice fonts', () => {
     const css = getUrduFontFaceCss();
     expect(css).toContain(URDU_PRINT_FONT_FAMILY);
     expect(css).toContain('font-display: block');
+    expect(css).toContain('ascent-override: 80%');
     expect(css).not.toContain(URDU_PREVIEW_FONT_FAMILY);
     await ensureUrduInvoiceFonts('preview');
     expect(loadedFamilies).toEqual([URDU_PRINT_FONT_FAMILY]);

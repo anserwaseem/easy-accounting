@@ -58,27 +58,46 @@ const fontSourceFormat = (url: string): 'woff2' | 'truetype' => {
   return path.endsWith('.woff2') ? 'woff2' : 'truetype';
 };
 
+/**
+ * Jameel's OS/2 usWinAscent/Descent dwarf the ink — Noto does not.
+ * override the line box so Jameel rows stop looking padded; Noto is untouched.
+ */
+const JAMEEL_FACE_METRICS = {
+  ascentOverride: '80%',
+  descentOverride: '30%',
+  lineGapOverride: '0%',
+} as const;
+
 const fontFaceCss = (
   family: string,
   url: string,
   display: UrduFontDisplay,
-): string => `@font-face {
+  compactLineBox: boolean,
+): string => {
+  const metrics = compactLineBox
+    ? `
+            ascent-override: ${JAMEEL_FACE_METRICS.ascentOverride};
+            descent-override: ${JAMEEL_FACE_METRICS.descentOverride};
+            line-gap-override: ${JAMEEL_FACE_METRICS.lineGapOverride};`
+    : '';
+  return `@font-face {
             font-family: '${family}';
             src: url(${url}) format('${fontSourceFormat(url)}');
             font-weight: 400 700;
-            font-display: ${display};
+            font-display: ${display};${metrics}
           }`;
+};
 
 /** @font-face rules for the print document (printToPDF reads these) */
 export const getUrduFontFaceCss = (): string => {
   if (printFontExclusive && printFontUrl) {
-    return fontFaceCss(URDU_PRINT_FONT_FAMILY, printFontUrl, 'block');
+    return fontFaceCss(URDU_PRINT_FONT_FAMILY, printFontUrl, 'block', true);
   }
   const faces = [
-    fontFaceCss(URDU_PREVIEW_FONT_FAMILY, notoPreviewFontUrl, 'swap'),
+    fontFaceCss(URDU_PREVIEW_FONT_FAMILY, notoPreviewFontUrl, 'swap', false),
   ];
   if (printFontUrl) {
-    faces.push(fontFaceCss(URDU_PRINT_FONT_FAMILY, printFontUrl, 'swap'));
+    faces.push(fontFaceCss(URDU_PRINT_FONT_FAMILY, printFontUrl, 'swap', true));
   }
   return faces.join('\n');
 };
@@ -92,6 +111,7 @@ const loadFace = async (
   family: string,
   url: string,
   display: UrduFontDisplay,
+  compactLineBox: boolean,
 ): Promise<void> => {
   if (typeof document === 'undefined' || !document.fonts) {
     return;
@@ -100,10 +120,14 @@ const loadFace = async (
     await document.fonts.load(`16px '${family}'`);
     return;
   }
-  const face = new FontFace(family, `url(${url})`, {
+  const descriptors: FontFaceDescriptors = {
     display,
     weight: '400 700',
-  });
+  };
+  if (compactLineBox) {
+    Object.assign(descriptors, JAMEEL_FACE_METRICS);
+  }
+  const face = new FontFace(family, `url(${url})`, descriptors);
   document.fonts.add(face);
   await face.load();
 };
@@ -114,6 +138,7 @@ const ensurePreviewFont = (): Promise<void> => {
       URDU_PREVIEW_FONT_FAMILY,
       notoPreviewFontUrl,
       'swap',
+      false,
     );
   }
   return previewLoad;
@@ -127,6 +152,7 @@ const prefetchPrintFont = (): void => {
     URDU_PRINT_FONT_FAMILY,
     printFontUrl,
     printFontExclusive ? 'block' : 'swap',
+    true,
   );
 };
 
