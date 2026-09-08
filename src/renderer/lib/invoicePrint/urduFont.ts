@@ -94,10 +94,9 @@ const fontSourceFormat = (url: string): 'woff2' | 'truetype' => {
  * override the line box so Jameel rows stop looking padded; Noto is untouched.
  */
 const JAMEEL_FACE_METRICS = {
-  // ink sits above the CSS baseline; extra ascent + less descent
-  // pulls glyphs off the cell top and eats the empty band below
-  ascentOverride: '118%',
-  descentOverride: '22%',
+  // 118/22 + pb-0: empty cell tops, bari-ye tails on the bottom rule
+  ascentOverride: '98%',
+  descentOverride: '32%',
   lineGapOverride: '0%',
 } as const;
 

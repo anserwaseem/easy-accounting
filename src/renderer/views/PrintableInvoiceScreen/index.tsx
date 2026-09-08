@@ -51,7 +51,7 @@ import {
  * Jameel reads optically smaller than latin — bump only on that face.
  * Noto already fills the em-box; 1.3em made it look huge.
  */
-const urduJameelEmphClass = 'text-[1.2em]';
+const urduJameelEmphClass = 'text-[1.1em]';
 
 const pickPrintSpacingClass = (
   isJameel: boolean,
@@ -618,43 +618,43 @@ const PrintableInvoiceScreen = () => {
   const chromeClass = isUrdu ? urduChromeClass : '';
   const dataClass = printLatinClass;
   const urduHeadingLeadClass = isJameelUrdu
-    ? 'leading-[1.6] mb-1 pt-1'
+    ? 'leading-[1.35] mb-0.5'
     : 'leading-[1.7] mb-1';
   const urduContactLeadClass = isJameelUrdu
-    ? 'leading-[1.5]'
+    ? 'leading-[1.25]'
     : 'leading-normal';
   const urduMetaBoxClass = isJameelUrdu
-    ? 'gap-1.5 my-1 leading-[1.5]'
+    ? 'gap-0.5 my-0 leading-[1.25]'
     : `gap-2 my-1 ${isUrdu ? 'leading-normal' : 'leading-none'}`;
   const urduPartyRowClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    'leading-[1.55] pt-1 pb-1',
+    'leading-[1.3] py-0.5',
     'pb-2 leading-[1.85]',
     '-mt-1',
   );
   const urduTableClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    '[&_th]:pt-3 [&_th]:pb-0 [&_th]:leading-[1.5] [&_td]:pt-2.5 [&_td]:pb-0 [&_td]:leading-[1.45]',
+    '[&_th]:py-1 [&_th]:leading-[1.25] [&_td]:py-1 [&_td]:leading-[1.2]',
     '[&_th]:py-1.5 [&_th]:leading-normal [&_td]:py-0 [&_td]:leading-tight',
     'leading-tight [&_td]:py-0 [&_th]:py-0',
   );
   const urduDescriptionPadClass = isJameelUrdu
-    ? '!px-1 !pt-3 !pb-0 !leading-[1.55]'
+    ? '!px-1 !py-1 !leading-[1.3]'
     : '!px-1.5 !py-1 !leading-[1.85]';
   const urduFooterNumericPadClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    ' !pt-3 !pb-0',
-    ' !py-1.5',
+    ' !pt-1 !pb-2',
+    ' !pt-1.5 !pb-2',
     '',
   );
   const footerChromeClass = `${chromeClass} ${pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    '!pt-3 !pb-0 !leading-[1.55] not-italic',
-    '!py-1.5 !leading-relaxed not-italic',
+    '!pt-1 !pb-2 !leading-[1.35] not-italic',
+    '!pt-1.5 !pb-2 !leading-relaxed not-italic',
     '',
   )}`.trim();
 
