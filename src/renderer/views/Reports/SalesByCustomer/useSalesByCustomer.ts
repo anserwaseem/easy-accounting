@@ -61,12 +61,20 @@ export const useSalesByCustomer = () => {
 
   const selectedCustomerLabel = useMemo(() => {
     if (selectedCustomerIds.length === 0) return '';
-    if (selectedCustomerIds.length === 1) {
-      return (
-        customers.find((account) => account.id === selectedCustomerIds[0])
-          ?.name ?? ''
-      );
+
+    const selectedAccounts = selectedCustomerIds
+      .map((id) => customers.find((account) => account.id === id))
+      .filter((account): account is Account => account != null);
+
+    if (selectedAccounts.length > 0 && selectedAccounts.length <= 3) {
+      return selectedAccounts
+        .map((account) => {
+          if (account.code == null || account.code === '') return account.name;
+          return `${account.name} (${account.code})`;
+        })
+        .join(', ');
     }
+
     return `${selectedCustomerIds.length} customers`;
   }, [selectedCustomerIds, customers]);
 

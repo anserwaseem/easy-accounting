@@ -270,23 +270,18 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
       );
     };
 
-    if (value.length === 1) {
-      const selectedOption = findOption(value[0]);
-      return selectedOption?.name || placeholder;
-    }
+    const formatOptionLabel = (opt: T | undefined): string => {
+      if (!opt?.name) return '';
+      if (opt.code == null || opt.code === '') return opt.name;
+      return `${opt.name} (${opt.code})`;
+    };
 
-    if (value.length <= 2) {
-      // show names when 2 or fewer selected (truncate if too long)
-      const selectedNames = value
-        .map((id) => findOption(id)?.name)
-        .filter(Boolean)
-        .join(', ');
-
-      // truncate if total length > 30 chars
-      if (selectedNames.length > 30) {
-        return `${value.length} selected`;
-      }
-      return selectedNames || `${value.length} selected`;
+    // show up to 3 selections inline as "Name (code)"; beyond that keep count summary
+    if (value.length <= 3) {
+      const labels = value
+        .map((id) => formatOptionLabel(findOption(id)))
+        .filter(Boolean);
+      return labels.join(', ') || `${value.length} selected`;
     }
 
     return `${value.length} selected`;
