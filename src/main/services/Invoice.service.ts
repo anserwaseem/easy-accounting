@@ -15,6 +15,9 @@ import {
   type PurchasesByVendorItem,
   type PurchasesByVendorResponse,
   type ReturnSaleInvoicePayload,
+  type SalesByCustomerFilters,
+  type SalesByCustomerItem,
+  type SalesByCustomerResponse,
   type VendorStockPurchaseLine,
 } from '../../types';
 import { logErrors } from '../errorLogger';
@@ -74,6 +77,58 @@ type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
   returnReason?: string | null;
   isQuotation?: SqliteBoolColumn;
 };
+
+type PartyItemLine = {
+  inventoryId: number;
+  itemName: string;
+  quantity: number;
+  invoiceId: number;
+  invoiceNumber: number;
+  date: string;
+  customerAccountId?: number;
+  customerName?: string;
+  customerCode?: string | number | null;
+};
+
+/** roll invoice lines into item rows with per-invoice qty breakdown. */
+const rollupPartyItemLines = (lines: PartyItemLine[]) =>
+  orderBy(
+    Object.values(groupBy(lines, (row) => row.inventoryId)).map((itemLines) => {
+      const first = itemLines[0];
+      const invoices = orderBy(
+        Object.values(
+          groupBy(itemLines, (line) =>
+            line.customerAccountId != null
+              ? `${line.invoiceId}:${line.customerAccountId}`
+              : String(line.invoiceId),
+          ),
+        ).map((invoiceLines) => ({
+          invoiceId: invoiceLines[0].invoiceId,
+          invoiceNumber: invoiceLines[0].invoiceNumber,
+          date: invoiceLines[0].date,
+          quantity: sumBy(invoiceLines, 'quantity'),
+          ...(invoiceLines[0].customerAccountId != null
+            ? {
+                customerAccountId: invoiceLines[0].customerAccountId,
+                customerName: invoiceLines[0].customerName ?? '',
+                customerCode: invoiceLines[0].customerCode ?? null,
+              }
+            : {}),
+        })),
+        ['date', 'invoiceNumber'],
+        ['asc', 'asc'],
+      );
+      return {
+        inventoryId: first.inventoryId,
+        itemName: first.itemName,
+        quantity: sumBy(itemLines, 'quantity'),
+        invoiceCount: invoices.length,
+        invoices,
+      };
+    }),
+    [(item) => item.itemName.toLowerCase()],
+    ['asc'],
+  );
 
 @logErrors
 export class InvoiceService {
@@ -2299,46 +2354,97 @@ export class InvoiceService {
       vendorAccountId,
       startDate: sqlStartDate,
       endDate: sqlEndDate,
-    }) as Array<{
-      inventoryId: number;
-      itemName: string;
-      quantity: number;
-      invoiceId: number;
-      invoiceNumber: number;
-      date: string;
-    }>;
+    }) as PartyItemLine[];
 
-    const items: PurchasesByVendorItem[] = orderBy(
-      Object.values(groupBy(lines, (row) => row.inventoryId)).map(
-        (itemLines) => {
-          const first = itemLines[0];
-          const invoices = orderBy(
-            Object.values(groupBy(itemLines, (line) => line.invoiceId)).map(
-              (invoiceLines) => ({
-                invoiceId: invoiceLines[0].invoiceId,
-                invoiceNumber: invoiceLines[0].invoiceNumber,
-                date: invoiceLines[0].date,
-                quantity: sumBy(invoiceLines, 'quantity'),
-              }),
-            ),
-            ['date', 'invoiceNumber'],
-            ['asc', 'asc'],
-          );
-          return {
-            inventoryId: first.inventoryId,
-            itemName: first.itemName,
-            quantity: sumBy(itemLines, 'quantity'),
-            invoiceCount: invoices.length,
-            invoices,
-          };
-        },
-      ),
-      [(item) => item.itemName.toLowerCase()],
-      ['asc'],
-    );
+    const items: PurchasesByVendorItem[] = rollupPartyItemLines(lines);
 
     return {
       vendor: { id: vendorAccountId, name: vendorName },
+      kpis: {
+        itemCount: items.length,
+        totalQty: sumBy(items, 'quantity'),
+      },
+      items,
+    };
+  }
+
+  /** items sold to selected customer(s) in a date range (posted sales only, qty only). */
+  getSalesByCustomer(filters: SalesByCustomerFilters): SalesByCustomerResponse {
+    const { customerAccountIds, startDate, endDate } = filters;
+    const uniqueIds = [
+      ...new Set(
+        customerAccountIds.filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    ];
+
+    if (uniqueIds.length === 0) {
+      return {
+        customers: [],
+        kpis: { itemCount: 0, totalQty: 0 },
+        items: [],
+      };
+    }
+
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+
+    const accounts = this.accountService.getAccountsByIds(uniqueIds);
+    const customers = orderBy(
+      uniqueIds.map((id) => {
+        const account = accounts.find((row) => row.id === id);
+        return { id, name: account?.name ?? '' };
+      }),
+      [(row) => row.name.toLowerCase()],
+      ['asc'],
+    );
+
+    const placeholders = uniqueIds.map(() => '?').join(',');
+    const lines = this.db
+      .prepare(
+        `
+      SELECT
+        inv.id AS inventoryId,
+        inv.name AS itemName,
+        ii.quantity AS quantity,
+        i.id AS invoiceId,
+        i.invoiceNumber AS invoiceNumber,
+        i.date AS date,
+        COALESCE(ii.accountId, i.accountId) AS customerAccountId,
+        a.name AS customerName,
+        a.code AS customerCode
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoiceId = i.id
+      JOIN inventory inv ON inv.id = ii.inventoryId
+      JOIN account a ON a.id = COALESCE(ii.accountId, i.accountId)
+      WHERE i.invoiceType = 'Sale'
+        AND COALESCE(i.isQuotation, 0) = 0
+        AND COALESCE(i.isReturned, 0) = 0
+        AND i.date >= ?
+        AND i.date <= ?
+        AND COALESCE(ii.accountId, i.accountId) IN (${placeholders})
+    `,
+      )
+      .all(sqlStartDate, sqlEndDate, ...uniqueIds) as PartyItemLine[];
+
+    const items: SalesByCustomerItem[] = rollupPartyItemLines(lines).map(
+      (item) => ({
+        ...item,
+        invoices: item.invoices.map((line) => ({
+          invoiceId: line.invoiceId,
+          invoiceNumber: line.invoiceNumber,
+          date: line.date,
+          quantity: line.quantity,
+          customerAccountId: line.customerAccountId ?? 0,
+          customerName: line.customerName ?? '',
+          customerCode: line.customerCode ?? null,
+        })),
+      }),
+    );
+
+    return {
+      customers,
       kpis: {
         itemCount: items.length,
         totalQty: sumBy(items, 'quantity'),

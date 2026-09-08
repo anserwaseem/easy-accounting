@@ -33,6 +33,8 @@ import type {
   ReportResponse,
   PurchasesByVendorFilters,
   PurchasesByVendorResponse,
+  SalesByCustomerFilters,
+  SalesByCustomerResponse,
   StockAsOfReportFilters,
   StockAsOfReportResponse,
   ApplyListPositionsResult,
@@ -493,6 +495,12 @@ const electronHandler = {
       'report:getPurchasesByVendor',
       filters,
     ) as Promise<PurchasesByVendorResponse>,
+
+  reportGetSalesByCustomer: (filters: SalesByCustomerFilters) =>
+    ipcRenderer.invoke(
+      'report:getSalesByCustomer',
+      filters,
+    ) as Promise<SalesByCustomerResponse>,
 
   printToPdf: (outputBaseName: string | number) =>
     ipcRenderer.invoke('print:toPDF', outputBaseName),

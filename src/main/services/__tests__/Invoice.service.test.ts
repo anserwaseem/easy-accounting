@@ -175,25 +175,25 @@ describe('InvoiceService.insertInvoice', () => {
 
     // parties (customers/vendors) live under Asset charts in this app.
     accountService.insertAccount({
+      ...defaultAccountFields,
       name: 'PrimaryParty',
       headName: 'Current Asset',
       code: 100,
-      ...defaultAccountFields,
     });
     accountService.insertAccount({
+      ...defaultAccountFields,
       name: 'SectionParty',
       headName: 'Current Asset',
       code: 200,
-      ...defaultAccountFields,
     });
 
     const typedPartyName = 'TypedParty';
     const typedPartyCode = 'TP';
     accountService.insertAccount({
+      ...defaultAccountFields,
       name: typedPartyName,
       headName: 'Current Asset',
       code: typedPartyCode,
-      ...defaultAccountFields,
     });
     const typedPartyId = getAccountIdByName(db, typedPartyName);
     const typedPartyChartId = Number(
@@ -208,10 +208,10 @@ describe('InvoiceService.insertInvoice', () => {
     const typedSuffixName = `${typedPartyName}-TT`;
     const typedSuffixCode = `${typedPartyCode}-TT`;
     accountService.insertAccount({
+      ...defaultAccountFields,
       name: typedSuffixName,
       headName: 'Current Asset',
       code: typedSuffixCode,
-      ...defaultAccountFields,
     });
 
     return {
@@ -1907,6 +1907,269 @@ describe('InvoiceService.insertInvoice', () => {
 
       const sectionReport = invoiceService.getPurchasesByVendor({
         vendorAccountId: acc.sectionPartyId,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      });
+      expect(sectionReport.items).toHaveLength(1);
+      expect(sectionReport.items[0].inventoryId).toBe(inv.otherItemId);
+      expect(sectionReport.items[0].quantity).toBe(8);
+    });
+  });
+
+  describe('getSalesByCustomer', () => {
+    const insertPostedSale = (params: {
+      customerId: number;
+      invoiceNumber: number;
+      date: string;
+      items: InvoiceItem[];
+      lineCustomerIds?: number[];
+    }) => {
+      const { customerId, invoiceNumber, date, items, lineCustomerIds } =
+        params;
+      invoiceService.insertInvoice('Sale' as InvoiceType, {
+        id: -1,
+        invoiceType: 'Sale' as InvoiceType,
+        date,
+        invoiceNumber,
+        extraDiscount: 0,
+        extraDiscountAccountId: undefined,
+        totalAmount: 1,
+        biltyNumber: '',
+        cartons: 0,
+        accountMapping: {
+          singleAccountId: customerId,
+          multipleAccountIds: lineCustomerIds ?? [],
+        },
+        invoiceItems: items,
+      });
+    };
+
+    const item = (
+      inventoryId: number,
+      quantity: number,
+      id: number,
+    ): InvoiceItem => ({
+      id,
+      inventoryId,
+      quantity,
+      discount: 0,
+      price: 1,
+      discountedPrice: 0,
+    });
+
+    it('rolls up qty by item for customer and date range', () => {
+      const acc = seedBaseAccounts();
+      const inv = seedInventoryAndTypes();
+
+      insertPostedSale({
+        customerId: acc.primaryPartyId,
+        invoiceNumber: 7101,
+        date: new Date('2026-02-10T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 2, 1)],
+      });
+      insertPostedSale({
+        customerId: acc.primaryPartyId,
+        invoiceNumber: 7102,
+        date: new Date('2026-03-20T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 3, 1), item(inv.otherItemId, 4, 2)],
+      });
+
+      const report = invoiceService.getSalesByCustomer({
+        customerAccountIds: [acc.primaryPartyId],
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      });
+
+      expect(report.customers).toEqual([
+        { id: acc.primaryPartyId, name: 'PrimaryParty' },
+      ]);
+      expect(report.kpis).toEqual({ itemCount: 2, totalQty: 9 });
+      expect(report.items.map((row) => row.itemName).sort()).toEqual([
+        'ItemOther',
+        'ItemPrimary',
+      ]);
+      const primary = report.items.find(
+        (row) => row.inventoryId === inv.primaryItemId,
+      );
+      expect(primary?.quantity).toBe(5);
+      expect(primary?.invoiceCount).toBe(2);
+      expect(primary?.invoices).toHaveLength(2);
+      expect(primary?.invoices.map((line) => line.quantity).sort()).toEqual([
+        2, 3,
+      ]);
+      expect(
+        primary?.invoices.every(
+          (line) =>
+            line.customerAccountId === acc.primaryPartyId &&
+            line.customerName === 'PrimaryParty' &&
+            Number(line.customerCode) === 100,
+        ),
+      ).toBe(true);
+      const other = report.items.find(
+        (row) => row.inventoryId === inv.otherItemId,
+      );
+      expect(other?.quantity).toBe(4);
+      expect(other?.invoiceCount).toBe(1);
+      expect(JSON.stringify(report)).not.toMatch(/price|amount|discount/i);
+    });
+
+    it('combines qty across multiple selected customers', () => {
+      const acc = seedBaseAccounts();
+      const inv = seedInventoryAndTypes();
+
+      insertPostedSale({
+        customerId: acc.primaryPartyId,
+        invoiceNumber: 7111,
+        date: new Date('2026-02-10T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 2, 1)],
+      });
+      insertPostedSale({
+        customerId: acc.sectionPartyId,
+        invoiceNumber: 7112,
+        date: new Date('2026-02-11T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 5, 1), item(inv.otherItemId, 1, 2)],
+      });
+
+      const report = invoiceService.getSalesByCustomer({
+        customerAccountIds: [acc.sectionPartyId, acc.primaryPartyId],
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      });
+
+      expect(report.customers.map((row) => row.name)).toEqual([
+        'PrimaryParty',
+        'SectionParty',
+      ]);
+      expect(report.kpis).toEqual({ itemCount: 2, totalQty: 8 });
+      const primary = report.items.find(
+        (row) => row.inventoryId === inv.primaryItemId,
+      );
+      expect(primary?.quantity).toBe(7);
+      expect(primary?.invoiceCount).toBe(2);
+      expect(primary?.invoices.map((line) => line.customerName).sort()).toEqual(
+        ['PrimaryParty', 'SectionParty'],
+      );
+    });
+
+    it('returns empty payload when no customers selected', () => {
+      const report = invoiceService.getSalesByCustomer({
+        customerAccountIds: [],
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      });
+      expect(report).toEqual({
+        customers: [],
+        kpis: { itemCount: 0, totalQty: 0 },
+        items: [],
+      });
+    });
+
+    it('excludes quotations, returned sales, purchases, and dates outside range', () => {
+      const acc = seedBaseAccounts();
+      const inv = seedInventoryAndTypes();
+
+      insertPostedSale({
+        customerId: acc.primaryPartyId,
+        invoiceNumber: 7201,
+        date: new Date('2026-02-01T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 5, 1)],
+      });
+      insertPostedSale({
+        customerId: acc.primaryPartyId,
+        invoiceNumber: 7202,
+        date: new Date('2026-06-01T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 7, 1)],
+      });
+      const { invoiceId: returnedId } = invoiceService.insertInvoice(
+        'Sale' as InvoiceType,
+        {
+          id: -1,
+          invoiceType: 'Sale' as InvoiceType,
+          date: new Date('2026-02-15T12:00:00.000Z').toISOString(),
+          invoiceNumber: 7203,
+          extraDiscount: 0,
+          extraDiscountAccountId: undefined,
+          totalAmount: 1,
+          biltyNumber: '',
+          cartons: 0,
+          accountMapping: {
+            singleAccountId: acc.primaryPartyId,
+            multipleAccountIds: [],
+          },
+          invoiceItems: [item(inv.otherItemId, 9, 1)],
+        },
+      );
+      invoiceService.returnSaleInvoice(returnedId, {
+        returnReason: 'test return',
+      });
+      invoiceService.insertQuotationInvoice('Sale' as InvoiceType, {
+        id: -1,
+        invoiceType: 'Sale' as InvoiceType,
+        date: new Date('2026-02-20T12:00:00.000Z').toISOString(),
+        invoiceNumber: -1,
+        extraDiscount: 0,
+        extraDiscountAccountId: undefined,
+        totalAmount: 1,
+        biltyNumber: '',
+        cartons: 0,
+        accountMapping: {
+          singleAccountId: acc.primaryPartyId,
+          multipleAccountIds: [],
+        },
+        invoiceItems: [item(inv.otherItemId, 11, 1)],
+      });
+      invoiceService.insertInvoice('Purchase' as InvoiceType, {
+        id: -1,
+        invoiceType: 'Purchase' as InvoiceType,
+        date: new Date('2026-02-25T12:00:00.000Z').toISOString(),
+        invoiceNumber: 7204,
+        extraDiscount: 0,
+        extraDiscountAccountId: undefined,
+        totalAmount: 1,
+        biltyNumber: '',
+        cartons: 0,
+        accountMapping: {
+          singleAccountId: acc.primaryPartyId,
+          multipleAccountIds: [],
+        },
+        invoiceItems: [item(inv.primaryItemId, 13, 1)],
+      });
+
+      const report = invoiceService.getSalesByCustomer({
+        customerAccountIds: [acc.primaryPartyId],
+        startDate: '2026-01-01',
+        endDate: '2026-03-31',
+      });
+
+      expect(report.items).toHaveLength(1);
+      expect(report.items[0].inventoryId).toBe(inv.primaryItemId);
+      expect(report.items[0].quantity).toBe(5);
+      expect(report.kpis).toEqual({ itemCount: 1, totalQty: 5 });
+    });
+
+    it('attributes multi-customer lines via invoice_items.accountId', () => {
+      const acc = seedBaseAccounts();
+      const inv = seedInventoryAndTypes();
+
+      insertPostedSale({
+        customerId: acc.primaryPartyId,
+        invoiceNumber: 7301,
+        date: new Date('2026-04-01T12:00:00.000Z').toISOString(),
+        items: [item(inv.primaryItemId, 2, 1), item(inv.otherItemId, 8, 2)],
+        lineCustomerIds: [acc.primaryPartyId, acc.sectionPartyId],
+      });
+
+      const primaryReport = invoiceService.getSalesByCustomer({
+        customerAccountIds: [acc.primaryPartyId],
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      });
+      expect(primaryReport.items).toHaveLength(1);
+      expect(primaryReport.items[0].inventoryId).toBe(inv.primaryItemId);
+      expect(primaryReport.items[0].quantity).toBe(2);
+
+      const sectionReport = invoiceService.getSalesByCustomer({
+        customerAccountIds: [acc.sectionPartyId],
         startDate: '2026-01-01',
         endDate: '2026-12-31',
       });

@@ -11,6 +11,7 @@ import {
   Truck,
   Scale,
   AlertCircle,
+  Users,
 } from 'lucide-react';
 import { Card } from 'renderer/shad/ui/card';
 import { Alert, AlertDescription, AlertTitle } from 'renderer/shad/ui/alert';
@@ -76,6 +77,12 @@ const operationsReports: ReportOption[] = [
     description: 'Track posted sales behavior, trends, and returns.',
     path: '/reports/sales-performance',
     icon: <TrendingUp className="h-6 w-6" />,
+  },
+  {
+    title: 'Sales by Customer',
+    description: 'Items sold to a customer between two dates.',
+    path: '/reports/sales-by-customer',
+    icon: <Users className="h-6 w-6" />,
   },
   {
     title: 'Purchases by Vendor',

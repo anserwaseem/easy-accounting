@@ -33,6 +33,7 @@ import InventoryHealthReportPage from './views/Reports/InventoryHealth';
 import StockAsOfReportPage from './views/Reports/StockAsOf';
 import SalesPerformanceReportPage from './views/Reports/SalesPerformance';
 import PurchasesByVendorPage from './views/Reports/PurchasesByVendor';
+import SalesByCustomerPage from './views/Reports/SalesByCustomer';
 import VendorStockPage from './views/VendorStock';
 import NewVendorIssuePage from './views/VendorStock/NewVendorIssue';
 import VendorStockActivityPage from './views/Reports/VendorStockActivity';
@@ -87,6 +88,10 @@ const AppRoutes: React.FC = () => (
                 <Route
                   path="sales-performance"
                   element={<SalesPerformanceReportPage />}
+                />
+                <Route
+                  path="sales-by-customer"
+                  element={<SalesByCustomerPage />}
                 />
                 <Route
                   path="purchases-by-vendor"
