@@ -175,25 +175,25 @@ describe('InvoiceService.insertInvoice', () => {
 
     // parties (customers/vendors) live under Asset charts in this app.
     accountService.insertAccount({
+      ...defaultAccountFields,
       name: 'PrimaryParty',
       headName: 'Current Asset',
       code: 100,
-      ...defaultAccountFields,
     });
     accountService.insertAccount({
+      ...defaultAccountFields,
       name: 'SectionParty',
       headName: 'Current Asset',
       code: 200,
-      ...defaultAccountFields,
     });
 
     const typedPartyName = 'TypedParty';
     const typedPartyCode = 'TP';
     accountService.insertAccount({
+      ...defaultAccountFields,
       name: typedPartyName,
       headName: 'Current Asset',
       code: typedPartyCode,
-      ...defaultAccountFields,
     });
     const typedPartyId = getAccountIdByName(db, typedPartyName);
     const typedPartyChartId = Number(
@@ -208,10 +208,10 @@ describe('InvoiceService.insertInvoice', () => {
     const typedSuffixName = `${typedPartyName}-TT`;
     const typedSuffixCode = `${typedPartyCode}-TT`;
     accountService.insertAccount({
+      ...defaultAccountFields,
       name: typedSuffixName,
       headName: 'Current Asset',
       code: typedSuffixCode,
-      ...defaultAccountFields,
     });
 
     return {
@@ -2001,7 +2001,8 @@ describe('InvoiceService.insertInvoice', () => {
         primary?.invoices.every(
           (line) =>
             line.customerAccountId === acc.primaryPartyId &&
-            line.customerName === 'PrimaryParty',
+            line.customerName === 'PrimaryParty' &&
+            Number(line.customerCode) === 100,
         ),
       ).toBe(true);
       const other = report.items.find(

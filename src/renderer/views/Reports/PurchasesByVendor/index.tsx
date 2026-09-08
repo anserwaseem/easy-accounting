@@ -48,8 +48,8 @@ const QtyCell: React.FC<QtyCellProps> = ({ quantity }: QtyCellProps) => (
   <span className="block tabular-nums">{quantity.toLocaleString()}</span>
 );
 
-const BillsHeader: React.FC = () => (
-  <span className="font-normal text-muted-foreground">Bills</span>
+const InvoicesHeader: React.FC = () => (
+  <span className="font-normal text-muted-foreground">Invoices</span>
 );
 
 const InvoiceCountCell: React.FC<SelectableItemCellProps> = ({
@@ -60,10 +60,10 @@ const InvoiceCountCell: React.FC<SelectableItemCellProps> = ({
     variant="link"
     className="ml-auto h-auto p-0 text-xs font-normal tabular-nums text-muted-foreground hover:text-foreground"
     onClick={() => onSelect(item)}
-    title={`View purchase bills for ${item.itemName}`}
-    aria-label={`View ${item.invoiceCount} purchase bills for ${item.itemName}`}
+    title={`View purchase invoices for ${item.itemName}`}
+    aria-label={`View ${item.invoiceCount} purchase invoices for ${item.itemName}`}
   >
-    {item.invoiceCount} {item.invoiceCount === 1 ? 'bill' : 'bills'}
+    {item.invoiceCount} {item.invoiceCount === 1 ? 'invoice' : 'invoices'}
   </Button>
 );
 
@@ -139,7 +139,7 @@ const PurchasesByVendorPage: React.FC = () => {
       },
       {
         accessorKey: 'invoiceCount',
-        header: BillsHeader,
+        header: InvoicesHeader,
         size: 110,
         onClick: (row) => setSelectedItem(row.original),
         // eslint-disable-next-line react/no-unstable-nested-components

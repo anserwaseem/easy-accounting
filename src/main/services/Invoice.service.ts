@@ -87,6 +87,7 @@ type PartyItemLine = {
   date: string;
   customerAccountId?: number;
   customerName?: string;
+  customerCode?: string | number | null;
 };
 
 /** roll invoice lines into item rows with per-invoice qty breakdown. */
@@ -110,6 +111,7 @@ const rollupPartyItemLines = (lines: PartyItemLine[]) =>
             ? {
                 customerAccountId: invoiceLines[0].customerAccountId,
                 customerName: invoiceLines[0].customerName ?? '',
+                customerCode: invoiceLines[0].customerCode ?? null,
               }
             : {}),
         })),
@@ -2410,7 +2412,8 @@ export class InvoiceService {
         i.invoiceNumber AS invoiceNumber,
         i.date AS date,
         COALESCE(ii.accountId, i.accountId) AS customerAccountId,
-        a.name AS customerName
+        a.name AS customerName,
+        a.code AS customerCode
       FROM invoices i
       JOIN invoice_items ii ON ii.invoiceId = i.id
       JOIN inventory inv ON inv.id = ii.inventoryId
@@ -2435,6 +2438,7 @@ export class InvoiceService {
           quantity: line.quantity,
           customerAccountId: line.customerAccountId ?? 0,
           customerName: line.customerName ?? '',
+          customerCode: line.customerCode ?? null,
         })),
       }),
     );

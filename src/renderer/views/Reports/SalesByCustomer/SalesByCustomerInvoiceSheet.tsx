@@ -22,6 +22,14 @@ const formatDate = (value: string): string => {
   return Number.isNaN(parsed.getTime()) ? value : format(parsed, 'PP');
 };
 
+const formatCustomerCell = (
+  name: string,
+  code: string | number | null | undefined,
+): string => {
+  if (code == null || code === '') return name;
+  return `${name} (${code})`;
+};
+
 export const SalesByCustomerInvoiceSheet: React.FC<
   SalesByCustomerInvoiceSheetProps
 > = ({
@@ -74,7 +82,9 @@ export const SalesByCustomerInvoiceSheet: React.FC<
                     </Link>
                   </td>
                   {showCustomerColumn ? (
-                    <td className="py-2 pr-3">{line.customerName}</td>
+                    <td className="py-2 pr-3">
+                      {formatCustomerCell(line.customerName, line.customerCode)}
+                    </td>
                   ) : null}
                   <td className="py-2 text-right tabular-nums">
                     {line.quantity}

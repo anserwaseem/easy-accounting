@@ -187,7 +187,10 @@ const SalesByCustomerPage: React.FC = () => {
         item.invoices.map((line) => ({
           date: line.date,
           invoiceNumber: line.invoiceNumber,
-          customerName: line.customerName,
+          customerName:
+            line.customerCode == null || line.customerCode === ''
+              ? line.customerName
+              : `${line.customerName} (${line.customerCode})`,
           itemName: item.itemName,
           quantity: line.quantity,
         })),
@@ -294,23 +297,21 @@ const SalesByCustomerPage: React.FC = () => {
         <div className="print-header flex flex-col gap-2 pb-2">
           <div className="flex items-center justify-between pb-2">
             <h1 className="title-new">Sales by Customer</h1>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex shrink-0 items-center gap-2">
                 <span className="text-sm text-muted-foreground">
                   Customers:
                 </span>
-                <div className="w-[220px]">
-                  <VirtualMultiSelect
-                    options={customers}
-                    value={selectedCustomerIds}
-                    onChange={handleCustomerChange}
-                    placeholder="Select customers"
-                    searchPlaceholder="Search customers..."
-                    disabled={!customers.length}
-                  />
-                </div>
+                <VirtualMultiSelect
+                  options={customers}
+                  value={selectedCustomerIds}
+                  onChange={handleCustomerChange}
+                  placeholder="Select customers"
+                  searchPlaceholder="Search customers..."
+                  disabled={!customers.length}
+                />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <span className="text-sm text-muted-foreground">Range:</span>
                 <DateRangePickerWithPresets
                   $onSelect={handleDateChange}

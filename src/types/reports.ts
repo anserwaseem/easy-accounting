@@ -143,6 +143,7 @@ export interface SalesByCustomerInvoiceLine {
   quantity: number;
   customerAccountId: number;
   customerName: string;
+  customerCode: string | number | null;
 }
 
 /** aggregated inventory item sold to selected customer(s) in the date range */
