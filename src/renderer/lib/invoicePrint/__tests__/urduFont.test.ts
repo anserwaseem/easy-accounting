@@ -67,8 +67,8 @@ describe('urdu invoice fonts', () => {
     expect(css).toContain(URDU_PREVIEW_FONT_FAMILY);
     expect(getUrduFontClass()).toContain('Noto_Nastaliq_Urdu');
     expect(isUrduPrintFontExclusive()).toBe(false);
-    expect(css).toContain('ascent-override: 105%');
-    expect(css).toContain('descent-override: 38%');
+    expect(css).toContain('ascent-override: 118%');
+    expect(css).toContain('descent-override: 22%');
     expect(css).toContain('line-gap-override: 0%');
   });
 
@@ -87,7 +87,7 @@ describe('urdu invoice fonts', () => {
     const css = getUrduFontFaceCss();
     expect(css).toContain(URDU_PRINT_FONT_FAMILY);
     expect(css).toContain('font-display: block');
-    expect(css).toContain('ascent-override: 105%');
+    expect(css).toContain('ascent-override: 118%');
     expect(css).not.toContain(URDU_PREVIEW_FONT_FAMILY);
     await ensureUrduInvoiceFonts('preview');
     expect(loadedFamilies).toEqual([URDU_PRINT_FONT_FAMILY]);

@@ -94,10 +94,10 @@ const fontSourceFormat = (url: string): 'woff2' | 'truetype' => {
  * override the line box so Jameel rows stop looking padded; Noto is untouched.
  */
 const JAMEEL_FACE_METRICS = {
-  // 80/30 clipped madda/alef at the cell top; keep compact vs native OS/2
-  // but leave room above the baseline for Nastaliq flourishes
-  ascentOverride: '105%',
-  descentOverride: '38%',
+  // ink sits above the CSS baseline; extra ascent + less descent
+  // pulls glyphs off the cell top and eats the empty band below
+  ascentOverride: '118%',
+  descentOverride: '22%',
   lineGapOverride: '0%',
 } as const;
 
