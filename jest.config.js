@@ -12,7 +12,13 @@ module.exports = {
   testEnvironmentOptions: {
     url: 'http://localhost/',
   },
-  testPathIgnorePatterns: ['release/app/dist', '.erb/dll', '__mocks__'],
+  testPathIgnorePatterns: [
+    'release/app/dist',
+    '.erb/dll',
+    '__mocks__',
+    'src/core/sync/__tests__/mockServer.ts',
+    'src/core/sync/__tests__/convergenceScenarios.ts',
+  ],
   transform: {
     '\\.(ts|tsx|js|jsx)$': 'ts-jest',
   },

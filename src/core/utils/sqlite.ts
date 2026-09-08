@@ -1,0 +1,79 @@
+/* eslint-disable no-redeclare */
+/**
+ * SQLite value helpers — pure functions shared by every platform.
+ * Moved verbatim from src/main/utils/sqlite.ts (which re-exports these
+ * for existing main-process call sites).
+ */
+
+export const raise = (err: string): never => {
+  throw new Error(err);
+};
+
+/**
+ * Represents a boolean value in SQLite, where 0 is false and 1 is true.
+ */
+export type SqliteBoolean = 0 | 1;
+
+/**
+ * Casts various types to their SQLite-compatible representations.
+ *
+ * @param value - The value to cast.
+ * @returns The SQLite-compatible representation of the input.
+ * @throws {Error} If input type is neither of the overloads.
+ */
+export function cast(value: boolean): SqliteBoolean;
+export function cast(date: Date): string;
+export function cast(value: number): string;
+export function cast(value: boolean | Date | number) {
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0;
+  }
+  if (value instanceof Date) {
+    const pad = (num: number): string => num.toString().padStart(2, '0');
+
+    const year = value.getFullYear();
+    const month = pad(value.getMonth() + 1); // Months are zero-based
+    const day = pad(value.getDate());
+    const hours = pad(value.getHours());
+    const minutes = pad(value.getMinutes());
+    const seconds = pad(value.getSeconds());
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+  if (typeof value === 'number') {
+    return String(value);
+  }
+
+  raise('Invalid input type for cast function');
+}
+
+export function uncastBoolean(
+  value: SqliteBoolean | boolean | number | null | undefined,
+) {
+  if (value == null) return value;
+  return value === true || value === 1;
+}
+
+export function normalizeSqliteBooleanFields<T extends object>(
+  row: T,
+  keys: ReadonlyArray<keyof T>,
+): T {
+  const normalized = { ...row };
+  const mutableNormalized = normalized as Record<
+    keyof T,
+    Parameters<typeof uncastBoolean>[0]
+  >;
+
+  keys.forEach((key) => {
+    mutableNormalized[key] = uncastBoolean(mutableNormalized[key]);
+  });
+
+  return normalized;
+}
+
+export function normalizeSqliteBooleanRows<T extends object>(
+  rows: T[],
+  keys: ReadonlyArray<keyof T>,
+): T[] {
+  return rows.map((row) => normalizeSqliteBooleanFields(row, keys));
+}

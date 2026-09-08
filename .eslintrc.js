@@ -73,6 +73,48 @@ module.exports = {
     ],
   },
   ignorePatterns: ['.eslintrc.js'],
+  overrides: [
+    {
+      // src/core is platform-free: no Electron, no Node builtins, no
+      // main/renderer imports. It must run unchanged in the Electron main
+      // process and in a browser web worker. Tests are exempt (they may use
+      // Node + better-sqlite3 to exercise core against a real database).
+      files: ['src/core/**/*.ts'],
+      excludedFiles: ['src/core/**/__tests__/**'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: [
+                  'electron',
+                  'electron-*',
+                  'better-sqlite3',
+                  'fs',
+                  'path',
+                  'os',
+                  'child_process',
+                  'crypto',
+                  'node:*',
+                  '**/main/**',
+                  '**/renderer/**',
+                ],
+                message:
+                  'src/core must stay platform-free — inject platform capabilities via ports (src/core/ports.ts) or the DatabaseDriver.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      files: ['src/core/sync/__tests__/convergenceScenarios.ts'],
+      rules: {
+        'jest/no-export': 'off',
+      },
+    },
+  ],
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module',

@@ -17,6 +17,7 @@ import {
 const URDU_ELECTRON_FACE: 'jameel' | 'noto' = 'jameel';
 
 setUrduPrintFontUrl(
+  // @ts-expect-error for A/B testing
   URDU_ELECTRON_FACE === 'noto' ? notoNastaliqFontUrl : jameelNastaleeqFontUrl,
   { exclusive: true },
 );
