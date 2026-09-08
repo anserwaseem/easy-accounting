@@ -1,9 +1,11 @@
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { InventoryItem } from 'types';
 import { InvoiceType } from 'types';
 import {
   lineInventoryIdsKeyFromIds,
   mergeInventoryForInvoice,
   parseLineInventoryIdsKey,
+  useInvoiceInventoryLoader,
 } from '../useNewInvoiceInventory';
 
 describe('lineInventoryIdsKeyFromIds / parseLineInventoryIdsKey', () => {
@@ -73,5 +75,85 @@ describe('mergeInventoryForInvoice', () => {
     ];
     const merged = mergeInventoryForInvoice(raw, InvoiceType.Sale, []);
     expect(merged.map((i) => i.id)).toEqual([1, 3, 2]);
+  });
+});
+
+describe('useInvoiceInventoryLoader', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('caches first fetch and refreshInventory bypasses cache', async () => {
+    const first: InventoryItem[] = [
+      {
+        id: 1,
+        name: 'Old',
+        price: 10,
+        quantity: 5,
+        itemTypeId: 1,
+        itemTypeName: 'A',
+      },
+    ];
+    const second: InventoryItem[] = [
+      {
+        id: 1,
+        name: 'New',
+        price: 12,
+        quantity: 8,
+        itemTypeId: 1,
+        itemTypeName: 'A',
+      },
+      {
+        id: 2,
+        name: 'Added',
+        price: 5,
+        quantity: 3,
+        itemTypeId: 1,
+        itemTypeName: 'A',
+      },
+    ];
+    const getInventory = jest
+      .fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    (window as unknown as { electron: { getInventory: jest.Mock } }).electron =
+      { getInventory };
+
+    const setInventory = jest.fn();
+    const { result, rerender } = renderHook(
+      ({ key }) =>
+        useInvoiceInventoryLoader(InvoiceType.Sale, key, setInventory),
+      { initialProps: { key: '' } },
+    );
+
+    await waitFor(() => {
+      expect(getInventory).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(setInventory).toHaveBeenCalled();
+    });
+    expect(setInventory.mock.calls.at(-1)?.[0]).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 1, name: 'Old' })]),
+    );
+
+    // changing line key remaps from cache — no second network call
+    setInventory.mockClear();
+    rerender({ key: '1' });
+    await waitFor(() => {
+      expect(setInventory).toHaveBeenCalled();
+    });
+    expect(getInventory).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.refreshInventory();
+    });
+
+    expect(getInventory).toHaveBeenCalledTimes(2);
+    expect(setInventory.mock.calls.at(-1)?.[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 1, name: 'New', quantity: 8 }),
+        expect.objectContaining({ id: 2, name: 'Added' }),
+      ]),
+    );
   });
 });
