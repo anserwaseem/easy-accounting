@@ -48,10 +48,10 @@ import {
 
 /**
  * Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity).
- * Jameel reads optically smaller than latin at the same CSS size — bump ~30%
- * so labels sit closer to number weight.
+ * Jameel reads optically smaller than latin — bump only on that face.
+ * Noto already fills the em-box; 1.3em made it look huge.
  */
-const urduChromeEmphClass = 'text-[1.3em]';
+const urduJameelEmphClass = 'text-[1.2em]';
 
 const pickPrintSpacingClass = (
   isJameel: boolean,
@@ -609,41 +609,51 @@ const PrintableInvoiceScreen = () => {
   const discountColClass = 'text-end tabular-nums';
   // Urdu headings: start edge (visual right); EN keeps end-align over numbers
   const numHeadAlignClass = isUrdu ? 'text-start' : 'text-end';
-  // class is runtime: exclusive electron drops Noto from the stack after boot
-  const urduChromeClass = `${getUrduFontClass()} ${urduChromeEmphClass}`;
+  const isJameelUrdu = isUrdu && isUrduPrintFontExclusive();
+  const urduFontClassName = getUrduFontClass();
+  // size bump is Jameel-only — Noto chrome stays at the surrounding text size
+  const urduChromeClass = isJameelUrdu
+    ? `${urduFontClassName} ${urduJameelEmphClass}`
+    : urduFontClassName;
   const chromeClass = isUrdu ? urduChromeClass : '';
   const dataClass = printLatinClass;
-  // Jameel's em-box is huge vs Noto — compact only that path; Noto Urdu stays as-is
-  const isJameelUrdu = isUrdu && isUrduPrintFontExclusive();
   const urduHeadingLeadClass = isJameelUrdu
-    ? 'leading-[1.15] mb-0'
+    ? 'leading-[1.45] mb-1'
     : 'leading-[1.7] mb-1';
-  const urduContactLeadClass = isJameelUrdu ? 'leading-none' : 'leading-normal';
+  const urduContactLeadClass = isJameelUrdu
+    ? 'leading-[1.4]'
+    : 'leading-normal';
   const urduMetaBoxClass = isJameelUrdu
-    ? 'gap-0 my-0 leading-none'
+    ? 'gap-1 my-0.5 leading-[1.4]'
     : `gap-2 my-1 ${isUrdu ? 'leading-normal' : 'leading-none'}`;
   const urduPartyRowClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    'leading-[1.15] pb-0',
+    'leading-[1.45] pt-0.5 pb-1',
     'pb-2 leading-[1.85]',
     '-mt-1',
   );
   const urduTableClass = pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    '[&_th]:py-0 [&_th]:leading-none [&_td]:py-0 [&_td]:leading-none',
+    '[&_th]:pt-1.5 [&_th]:pb-0.5 [&_th]:leading-[1.35] [&_td]:pt-1.5 [&_td]:pb-0.5 [&_td]:leading-[1.3]',
     '[&_th]:py-1.5 [&_th]:leading-normal [&_td]:py-0 [&_td]:leading-tight',
     'leading-tight [&_td]:py-0 [&_th]:py-0',
   );
   const urduDescriptionPadClass = isJameelUrdu
-    ? '!px-1 !py-0 !leading-[1.15]'
+    ? '!px-1 !pt-1.5 !pb-0.5 !leading-[1.45]'
     : '!px-1.5 !py-1 !leading-[1.85]';
-  const urduFooterNumericPadClass = isUrdu && !isJameelUrdu ? ' !py-1.5' : '';
+  const urduFooterNumericPadClass = pickPrintSpacingClass(
+    isJameelUrdu,
+    isUrdu,
+    ' !pt-1.5 !pb-0.5',
+    ' !py-1.5',
+    '',
+  );
   const footerChromeClass = `${chromeClass} ${pickPrintSpacingClass(
     isJameelUrdu,
     isUrdu,
-    '!py-0 !leading-[1.15] not-italic',
+    '!pt-1.5 !pb-0.5 !leading-[1.45] not-italic',
     '!py-1.5 !leading-relaxed not-italic',
     '',
   )}`.trim();
@@ -1008,7 +1018,7 @@ const PrintableInvoiceScreen = () => {
             <h1
               className={`text-[26px] font-bold text-center${
                 isUrdu
-                  ? ` ${urduChromeClass} ${urduHeadingLeadClass}`
+                  ? ` ${urduFontClassName} ${urduHeadingLeadClass}`
                   : ' font-mono leading-6'
               }`}
             >
@@ -1018,7 +1028,7 @@ const PrintableInvoiceScreen = () => {
               <p
                 className={`text-center text-sm${
                   isUrdu
-                    ? ` ${urduChromeClass} ${urduContactLeadClass}`
+                    ? ` ${urduFontClassName} ${urduContactLeadClass}`
                     : ' font-mono'
                 }`}
               >
