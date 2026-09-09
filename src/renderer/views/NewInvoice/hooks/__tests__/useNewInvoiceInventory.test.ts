@@ -16,7 +16,48 @@ describe('lineInventoryIdsKeyFromIds / parseLineInventoryIdsKey', () => {
   });
 });
 
+const inv = (overrides: Partial<InventoryItem>): InventoryItem => ({
+  id: overrides.id ?? 1,
+  name: overrides.name ?? 'Item',
+  price: overrides.price ?? 10,
+  quantity: overrides.quantity ?? 5,
+  itemTypeId: overrides.itemTypeId ?? 1,
+  itemTypeName: overrides.itemTypeName ?? 'A',
+  listPosition: overrides.listPosition,
+});
+
 describe('mergeInventoryForInvoice', () => {
+  it('purchase: includes 0-qty rows even when price is 0 (new / never-stocked)', () => {
+    const raw: InventoryItem[] = [
+      inv({ id: 1, name: 'Priced in stock', price: 10, quantity: 5 }),
+      inv({ id: 2, name: 'Sold out recently', price: 8, quantity: 0 }),
+      inv({
+        id: 3,
+        name: 'New item',
+        price: 0,
+        quantity: 0,
+      }),
+      inv({
+        id: 4,
+        name: 'Opening stock never moved',
+        price: 0,
+        quantity: 0,
+      }),
+    ];
+    const merged = mergeInventoryForInvoice(raw, InvoiceType.Purchase, []);
+    expect(merged.map((i) => i.id).sort((a, b) => a - b)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('sale: still hides 0-qty and 0-price rows that are not on the invoice', () => {
+    const raw: InventoryItem[] = [
+      inv({ id: 1, name: 'In stock', price: 10, quantity: 5 }),
+      inv({ id: 2, name: 'Sold out', price: 8, quantity: 0 }),
+      inv({ id: 3, name: 'No price', price: 0, quantity: 5 }),
+    ];
+    const merged = mergeInventoryForInvoice(raw, InvoiceType.Sale, []);
+    expect(merged.map((i) => i.id)).toEqual([1]);
+  });
+
   it('includes 0-qty rows when they are referenced by an invoice line (sale edit)', () => {
     const raw: InventoryItem[] = [
       {
