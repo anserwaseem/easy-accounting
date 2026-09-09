@@ -3,11 +3,13 @@ import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
 import { Label } from 'renderer/shad/ui/label';
 import { Input } from 'renderer/shad/ui/input';
 import { useCallback, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
+import { downloadDatabaseExport } from '@/renderer/lib/exportDatabase';
 import type {
   InvoicePrintLabelKey,
   InvoicePrintLabels,
@@ -19,6 +21,7 @@ import {
 } from '@/renderer/lib/invoicePrint/locale';
 import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
 import PublishSettings from './PublishSettings';
+import SyncSettings from './SyncSettings';
 
 const SettingsPage: React.FC = () => {
   // eslint-disable-next-line no-console
@@ -86,6 +89,22 @@ const SettingsPage: React.FC = () => {
 
   const handleResetUrduLabels = useCallback(() => {
     setDraftUrduLabelOverrides({});
+  }, []);
+
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExportDatabase = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      await downloadDatabaseExport();
+    } catch (error) {
+      toast({
+        title: 'Export failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
   }, []);
 
   const handleSaveSettings = useCallback(() => {
@@ -382,9 +401,69 @@ const SettingsPage: React.FC = () => {
         <h2 className="text-2xl font-medium">Publish Catalog</h2>
         <Separator />
       </div>
-      <div className="mt-4 mb-24">
+      <div className="mt-4 mb-8">
         <PublishSettings />
       </div>
+
+      {window.electron.supportsSync && (
+        <>
+          <div className="flex flex-col gap-2 mt-8">
+            <h2 className="text-2xl font-medium">Sync</h2>
+            <Separator />
+          </div>
+          <div className="mt-4 mb-8">
+            <SyncSettings />
+          </div>
+        </>
+      )}
+
+      {window.electron.supportsDbExport && (
+        <>
+          <div className="flex flex-col gap-2 mt-8">
+            <h2 className="text-2xl font-medium">Export my data</h2>
+            <Separator />
+          </div>
+          <div className="mt-4 flex flex-col gap-2 max-w-xl">
+            <p className="text-sm text-muted-foreground">
+              Download this browser&apos;s entire database as a standard SQLite
+              file — every account, chart, journal, inventory item and invoice.
+              The file is openable by the desktop app (via &quot;Import from
+              desktop app&quot;) or any SQLite tool, and never leaves this
+              device.
+            </p>
+            <Button
+              variant="outline"
+              className="self-start"
+              disabled={isExporting}
+              onClick={handleExportDatabase}
+            >
+              {isExporting ? 'Exporting…' : 'Export my data'}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {window.electron.supportsDbImport && (
+        <>
+          <div className="flex flex-col gap-2 mt-8">
+            <h2 className="text-2xl font-medium">Danger Zone</h2>
+            <Separator />
+          </div>
+          <div className="mt-4 flex flex-col gap-2 max-w-xl">
+            <p className="text-sm text-muted-foreground">
+              Replace all data in this browser with a database exported from the
+              desktop app. This signs you out and permanently replaces every
+              account, journal, inventory item and invoice currently stored
+              here.
+            </p>
+            <Button asChild variant="destructive" className="self-start">
+              <Link to="/import">Import from desktop app&hellip;</Link>
+            </Button>
+          </div>
+        </>
+      )}
+
+      <div className="mb-24" />
 
       <div className="fixed bottom-6 left-0 right-0 flex justify-end px-6">
         <Button variant="default" onClick={() => handleSaveSettings()}>

@@ -1,9 +1,11 @@
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { useState } from 'react';
 
 import { InvoiceType } from '@/types';
 import { AuthProvider, ThemeProvider } from './hooks';
 import { Toaster } from './shad/ui/toaster';
 import BackupToastListener from './components/BackupToastListener';
+import { consumeJoinHashFromWindow } from './lib/joinLink';
 
 import Sidebar from './components/Sidebar';
 import { AuthCheck } from './components/AuthCheck';
@@ -37,148 +39,166 @@ import SalesByCustomerPage from './views/Reports/SalesByCustomer';
 import VendorStockPage from './views/VendorStock';
 import NewVendorIssuePage from './views/VendorStock/NewVendorIssue';
 import VendorStockActivityPage from './views/Reports/VendorStockActivity';
+import ImportPage from './views/Import';
+import JoinSyncPage from './views/JoinSync';
 
-const AppRoutes: React.FC = () => (
-  <ThemeProvider>
-    <AuthProvider>
-      <MemoryRouter>
-        <Routes>
-          <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
-          <Route element={<AuthCheck />}>
-            <Route element={<Sidebar />}>
-              <Route path="/" element={<Home />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="accounts">
-                <Route index element={<AccountsPage />} />
-                <Route path=":id" element={<LedgerPage />} />
-              </Route>
-              <Route path="journals">
-                <Route index element={<JournalsPage />} />
-                <Route path="new" element={<NewJournalPage />} />
-                <Route path=":id" element={<JournalPage />} />
-              </Route>
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="vendor-stock">
-                <Route index element={<VendorStockPage />} />
-                <Route path="issues/new" element={<NewVendorIssuePage />} />
+const AppRoutes: React.FC = () => {
+  const [joinInvite] = useState(() => consumeJoinHashFromWindow());
+
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <MemoryRouter
+          initialEntries={
+            joinInvite
+              ? [{ pathname: '/join-sync', state: { joinInvite } }]
+              : ['/']
+          }
+        >
+          <Routes>
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route path="import" element={<ImportPage />} />
+            <Route path="join-sync" element={<JoinSyncPage />} />
+            <Route element={<AuthCheck />}>
+              <Route element={<Sidebar />}>
+                <Route path="/" element={<Home />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="accounts">
+                  <Route index element={<AccountsPage />} />
+                  <Route path=":id" element={<LedgerPage />} />
+                </Route>
+                <Route path="journals">
+                  <Route index element={<JournalsPage />} />
+                  <Route path="new" element={<NewJournalPage />} />
+                  <Route path=":id" element={<JournalPage />} />
+                </Route>
+                <Route path="inventory" element={<InventoryPage />} />
+                <Route path="vendor-stock">
+                  <Route index element={<VendorStockPage />} />
+                  <Route path="issues/new" element={<NewVendorIssuePage />} />
+                  <Route
+                    path="issues/:id/edit"
+                    element={<NewVendorIssuePage />}
+                  />
+                </Route>
+                <Route path="reports">
+                  <Route index element={<ReportsPage />} />
+                  <Route path="trial-balance" element={<TrialBalancePage />} />
+                  <Route
+                    path="account-balances"
+                    element={<AccountBalancesPage />}
+                  />
+                  <Route path="ledger-report" element={<LedgerReportPage />} />
+                  <Route
+                    path="average-equity-balances"
+                    element={<AverageEquityBalancesPage />}
+                  />
+                  <Route path="bills-aging" element={<BillsAgingPage />} />
+                  <Route
+                    path="inventory-health"
+                    element={<InventoryHealthReportPage />}
+                  />
+                  <Route path="stock-as-of" element={<StockAsOfReportPage />} />
+                  <Route
+                    path="sales-performance"
+                    element={<SalesPerformanceReportPage />}
+                  />
+                  <Route
+                    path="sales-by-customer"
+                    element={<SalesByCustomerPage />}
+                  />
+                  <Route
+                    path="purchases-by-vendor"
+                    element={<PurchasesByVendorPage />}
+                  />
+                  <Route
+                    path="vendor-stock-activity"
+                    element={<VendorStockActivityPage />}
+                  />
+                </Route>
+                <Route path="purchase/invoices">
+                  <Route
+                    index
+                    element={
+                      <InvoicesPage invoiceType={InvoiceType.Purchase} />
+                    }
+                  />
+                  <Route
+                    path="new"
+                    element={
+                      <NewInvoicePage invoiceType={InvoiceType.Purchase} />
+                    }
+                  />
+                  <Route
+                    path=":id/edit"
+                    element={
+                      <NewInvoicePage invoiceType={InvoiceType.Purchase} />
+                    }
+                  />
+                  <Route
+                    path=":id"
+                    element={
+                      <InvoicePage
+                        invoiceType={InvoiceType.Purchase}
+                        key={InvoiceType.Purchase}
+                      />
+                    }
+                  />
+                </Route>
+                <Route path="sale/invoices">
+                  <Route
+                    index
+                    element={<InvoicesPage invoiceType={InvoiceType.Sale} />}
+                  />
+                  <Route
+                    path="new"
+                    element={
+                      <NewInvoicePage
+                        invoiceType={InvoiceType.Sale}
+                        key={InvoiceType.Sale}
+                      />
+                    }
+                  />
+                  <Route
+                    path=":id/edit"
+                    element={
+                      <NewInvoicePage
+                        invoiceType={InvoiceType.Sale}
+                        key={`${InvoiceType.Sale}-edit`}
+                      />
+                    }
+                  />
+                  <Route
+                    path=":id"
+                    element={<InvoicePage invoiceType={InvoiceType.Sale} />}
+                  />
+                </Route>
                 <Route
-                  path="issues/:id/edit"
-                  element={<NewVendorIssuePage />}
+                  path="sale/quotations"
+                  element={<QuotationsPage invoiceType={InvoiceType.Sale} />}
                 />
-              </Route>
-              <Route path="reports">
-                <Route index element={<ReportsPage />} />
-                <Route path="trial-balance" element={<TrialBalancePage />} />
                 <Route
-                  path="account-balances"
-                  element={<AccountBalancesPage />}
-                />
-                <Route path="ledger-report" element={<LedgerReportPage />} />
-                <Route
-                  path="average-equity-balances"
-                  element={<AverageEquityBalancesPage />}
-                />
-                <Route path="bills-aging" element={<BillsAgingPage />} />
-                <Route
-                  path="inventory-health"
-                  element={<InventoryHealthReportPage />}
-                />
-                <Route path="stock-as-of" element={<StockAsOfReportPage />} />
-                <Route
-                  path="sales-performance"
-                  element={<SalesPerformanceReportPage />}
-                />
-                <Route
-                  path="sales-by-customer"
-                  element={<SalesByCustomerPage />}
-                />
-                <Route
-                  path="purchases-by-vendor"
-                  element={<PurchasesByVendorPage />}
-                />
-                <Route
-                  path="vendor-stock-activity"
-                  element={<VendorStockActivityPage />}
-                />
-              </Route>
-              <Route path="purchase/invoices">
-                <Route
-                  index
-                  element={<InvoicesPage invoiceType={InvoiceType.Purchase} />}
-                />
-                <Route
-                  path="new"
+                  path="purchase/quotations"
                   element={
-                    <NewInvoicePage invoiceType={InvoiceType.Purchase} />
+                    <QuotationsPage invoiceType={InvoiceType.Purchase} />
                   }
                 />
-                <Route
-                  path=":id/edit"
-                  element={
-                    <NewInvoicePage invoiceType={InvoiceType.Purchase} />
-                  }
-                />
-                <Route
-                  path=":id"
-                  element={
-                    <InvoicePage
-                      invoiceType={InvoiceType.Purchase}
-                      key={InvoiceType.Purchase}
-                    />
-                  }
-                />
-              </Route>
-              <Route path="sale/invoices">
-                <Route
-                  index
-                  element={<InvoicesPage invoiceType={InvoiceType.Sale} />}
-                />
-                <Route
-                  path="new"
-                  element={
-                    <NewInvoicePage
-                      invoiceType={InvoiceType.Sale}
-                      key={InvoiceType.Sale}
-                    />
-                  }
-                />
-                <Route
-                  path=":id/edit"
-                  element={
-                    <NewInvoicePage
-                      invoiceType={InvoiceType.Sale}
-                      key={`${InvoiceType.Sale}-edit`}
-                    />
-                  }
-                />
-                <Route
-                  path=":id"
-                  element={<InvoicePage invoiceType={InvoiceType.Sale} />}
-                />
+                <Route path="reports" element={<ReportsPage />} />
               </Route>
               <Route
-                path="sale/quotations"
-                element={<QuotationsPage invoiceType={InvoiceType.Sale} />}
+                path="invoices/:id/print"
+                element={<PrintableInvoiceScreen />}
               />
-              <Route
-                path="purchase/quotations"
-                element={<QuotationsPage invoiceType={InvoiceType.Purchase} />}
-              />
-              <Route path="reports" element={<ReportsPage />} />
             </Route>
-            <Route
-              path="invoices/:id/print"
-              element={<PrintableInvoiceScreen />}
-            />
-          </Route>
-          <Route path="*" element={<InvalidRoute />} />
-        </Routes>
-        <Toaster />
-        <BackupToastListener />
-      </MemoryRouter>
-    </AuthProvider>
-  </ThemeProvider>
-);
+            <Route path="*" element={<InvalidRoute />} />
+          </Routes>
+          <Toaster />
+          <BackupToastListener />
+        </MemoryRouter>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+};
 
 export default AppRoutes;

@@ -32,6 +32,7 @@ import { cn } from 'renderer/lib/utils';
 import { ModeToggle } from 'renderer/components/ModeToggle';
 import GlobalSearch from 'renderer/components/GlobalSearch';
 import BackupStatus from 'renderer/components/BackupStatus';
+import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth } from '../hooks';
 
@@ -282,6 +283,11 @@ const SidebarFooter: FC<SidebarFooterProps> = ({
   // expanded: collapse button (full-width, left-aligned) + icon-only action row
   return (
     <div className="flex flex-col py-2 px-0 gap-1">
+      {window.electron.supportsSync && (
+        <div className="px-2 pb-1">
+          <SyncIndicator />
+        </div>
+      )}
       {/* icon-only single row */}
       <div className="flex items-center gap-1 px-1">
         <Tooltip>
