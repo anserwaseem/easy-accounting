@@ -47,18 +47,13 @@ import { enrichLedgerRowsWithJournalSummaries } from './utils/ledgerJournalEnric
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
 import { MigrationRunner } from './migrations/index';
+import { createCoreServices } from './coreRuntime';
 import {
   AuthService,
-  AccountService,
   BackupService,
-  ChartService,
-  JournalService,
-  LedgerService,
-  StatementService,
   InvoiceService,
   InventoryService,
   PrintService,
-  PricingService,
   PublishService,
   VendorStockService,
 } from './services';
@@ -287,15 +282,22 @@ app
     await migrationRunner.waitForMigrations();
 
     const authService = new AuthService();
-    const chartService = new ChartService();
-    const accountService = new AccountService();
-    const journalService = new JournalService();
-    const ledgerService = new LedgerService();
-    const statementService = new StatementService();
+    // account, chart, ledger, pricing, journal, and statement are served by
+    // the platform-free core (src/core) via coreRuntime.ts. Invoice,
+    // inventory, and vendor stock stay on the Electron-coupled copies until
+    // those desktop-only paths (purchase vendor-stock, family-head remap,
+    // party reports) land in core. Auth/Print/Publish/Backup stay here.
+    const {
+      accountService,
+      chartService,
+      ledgerService,
+      pricingService,
+      journalService,
+      statementService,
+    } = createCoreServices();
     const inventoryService = new InventoryService();
     const invoiceService = new InvoiceService();
     const printService = new PrintService();
-    const pricingService = new PricingService();
     const publishService = new PublishService();
     const backupService = new BackupService();
     const vendorStockService = new VendorStockService();
@@ -388,7 +390,8 @@ app
       'balanceSheet:save',
       async (_, balanceSheet: BalanceSheet) => {
         try {
-          return statementService.saveBalanceSheet(balanceSheet);
+          const saved = await statementService.saveBalanceSheet(balanceSheet);
+          return saved;
         } catch (error) {
           log.error('Error in saveBalanceSheet', error);
         }
@@ -443,13 +446,13 @@ app
     );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) => {
-      const rows = ledgerService.getLedger(accountId);
+      const rows = await ledgerService.getLedger(accountId);
       return enrichLedgerRowsWithJournalSummaries(rows, journalService);
     });
     ipcMain.handle(
       'ledger:getBalance',
       async (_, accountId: number) =>
-        ledgerService.getBalance(accountId) ?? null,
+        (await ledgerService.getBalance(accountId)) ?? null,
     );
     ipcMain.handle(
       'ledger:getBalancesForAccountIds',
@@ -464,7 +467,7 @@ app
     ipcMain.handle(
       'ledger:getLedgerRangeForAccountIds',
       async (_, accountIds: number[], startDate: string, endDate: string) => {
-        const map = ledgerService.getLedgerRangeForAccountIds(
+        const map = await ledgerService.getLedgerRangeForAccountIds(
           accountIds,
           startDate,
           endDate,
@@ -473,7 +476,7 @@ app
           ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
         ].sort((a, b) => a - b);
         const flat = unique.flatMap((id) => map[id] ?? []);
-        const enriched = enrichLedgerRowsWithJournalSummaries(
+        const enriched = await enrichLedgerRowsWithJournalSummaries(
           flat,
           journalService,
         );
@@ -824,7 +827,7 @@ app
             closingExclusiveDate,
           ),
         ]);
-        const enrichedEntries = enrichLedgerRowsWithJournalSummaries(
+        const enrichedEntries = await enrichLedgerRowsWithJournalSummaries(
           entries,
           journalService,
         );

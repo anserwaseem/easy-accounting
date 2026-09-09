@@ -1,4 +1,10 @@
-import type { Account, InsertAccount, UpdateAccount } from 'types';
+import type {
+  Account,
+  AccountUrduBulkUpdateResult,
+  AccountUrduFieldPatch,
+  InsertAccount,
+  UpdateAccount,
+} from 'types';
 import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
 import {
@@ -152,6 +158,41 @@ const SQL = {
       SET discountProfileId = @discountProfileId
       WHERE id = @accountId
     `,
+  getAccountById: `
+      SELECT
+        a.id,
+        a.name,
+        c.name as headName,
+        a.chartId,
+        c.type,
+        a.code,
+        a.createdAt,
+        a.updatedAt,
+        a.address,
+        a.phone1,
+        a.phone2,
+        a.goodsName,
+        a.nameUrdu,
+        a.addressUrdu,
+        a.goodsNameUrdu,
+        a.isActive,
+        a.discountProfileId
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      WHERE a.id = @id AND c.userId = (
+        SELECT id
+        FROM users
+        WHERE username = @username
+      )
+      LIMIT 1
+    `,
+  updateAccountUrdu: `
+      UPDATE account
+      SET nameUrdu = @nameUrdu,
+          addressUrdu = @addressUrdu,
+          goodsNameUrdu = @goodsNameUrdu
+      WHERE id = @id
+    `,
 };
 
 /**
@@ -284,6 +325,118 @@ export class AccountService {
       username,
     });
     return Boolean(result.changes);
+  }
+
+  /**
+   * apply Urdu print fields from spreadsheet import.
+   * match by id when present, else by name (+ optional code).
+   * only keys present on the patch are written (undefined = leave unchanged).
+   */
+  async bulkUpdateUrduFields(
+    patches: AccountUrduFieldPatch[],
+  ): Promise<AccountUrduBulkUpdateResult> {
+    const username = this.session.getUsername();
+    let updated = 0;
+    let notFound = 0;
+    let ambiguous = 0;
+
+    await this.db.transaction(async () => {
+      // sequential: each patch may re-read the row the previous one wrote
+      for (const patch of patches) {
+        // eslint-disable-next-line no-await-in-loop
+        const resolved = await this.resolveAccountForUrduPatch(patch, username);
+        if (resolved === 'notFound') {
+          notFound += 1;
+          continue;
+        }
+        if (resolved === 'ambiguous') {
+          ambiguous += 1;
+          continue;
+        }
+
+        const nextNameUrdu =
+          patch.nameUrdu !== undefined
+            ? patch.nameUrdu
+            : resolved.nameUrdu ?? null;
+        const nextAddressUrdu =
+          patch.addressUrdu !== undefined
+            ? patch.addressUrdu
+            : resolved.addressUrdu ?? null;
+        const nextGoodsNameUrdu =
+          patch.goodsNameUrdu !== undefined
+            ? patch.goodsNameUrdu
+            : resolved.goodsNameUrdu ?? null;
+
+        // eslint-disable-next-line no-await-in-loop
+        const result = await this.db.run(SQL.updateAccountUrdu, {
+          id: cast(resolved.id),
+          nameUrdu: nextNameUrdu,
+          addressUrdu: nextAddressUrdu,
+          goodsNameUrdu: nextGoodsNameUrdu,
+        });
+        if (result.changes > 0) updated += 1;
+        else notFound += 1;
+      }
+    });
+
+    return { updated, notFound, ambiguous };
+  }
+
+  private async resolveAccountForUrduPatch(
+    patch: AccountUrduFieldPatch,
+    username: unknown,
+  ): Promise<Account | 'notFound' | 'ambiguous'> {
+    if (patch.id != null && Number.isFinite(patch.id) && patch.id > 0) {
+      const byId = await this.db.get<Account>(SQL.getAccountById, {
+        id: cast(patch.id),
+        username,
+      });
+      return byId
+        ? (normalizeSqliteBooleanFields(
+            byId,
+            ACCOUNT_BOOLEAN_FIELDS,
+          ) as Account)
+        : 'notFound';
+    }
+
+    const name = patch.name?.trim();
+    if (!name) return 'notFound';
+
+    const code =
+      patch.code == null || String(patch.code).trim() === ''
+        ? null
+        : String(patch.code).trim();
+
+    const matches = (
+      await this.db.all<Account>(SQL.getAccountByName, {
+        name,
+        code,
+        username,
+      })
+    ).map(
+      (row) =>
+        normalizeSqliteBooleanFields(row, ACCOUNT_BOOLEAN_FIELDS) as Account,
+    );
+
+    // getAccountByName uses LIKE; prefer exact trimmed name matches
+    const exact = matches.filter(
+      (row) => row.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    const pool = exact.length > 0 ? exact : matches;
+    if (pool.length === 0) return 'notFound';
+    if (pool.length > 1) {
+      if (code != null) {
+        const coded = pool.filter(
+          (row) => String(row.code ?? '').trim() === code,
+        );
+        if (coded.length === 1) {
+          return this.resolveAccountForUrduPatch({ id: coded[0].id }, username);
+        }
+      }
+      return 'ambiguous';
+    }
+    // re-fetch by id so Urdu columns are present (name lookup SELECT omits them)
+    return this.resolveAccountForUrduPatch({ id: pool[0].id }, username);
   }
 
   async hasJournalEntries(accountId: number): Promise<boolean> {

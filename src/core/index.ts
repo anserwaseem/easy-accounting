@@ -8,12 +8,12 @@
  *    DatabaseDriver (./db/driver), injected by whoever hosts the core:
  *    the Electron main process today, a web worker next.
  *
- * Services were ported here from src/main/services. Electron still runs
- * the main-process copies; core is landed so the PWA can share them, and
- * is not yet wired into `src/main/main.ts`. The two copies are not
- * currently identical — desktop main has vendor stock / Urdu print fields
- * that this package now also has in the frozen snapshot (and in core
- * migration 036 for older web installs).
+ * Services were ported here from src/main/services. Electron main.ts now
+ * serves account, chart, journal, ledger, pricing, and statement from this
+ * package via src/main/coreRuntime.ts. Invoice, inventory, and vendor stock
+ * still run on the main-process copies until those desktop-only paths are
+ * ported (purchase vendor-stock effects, family-head remapping, party
+ * reports).
  */
 
 export * from './ports';
