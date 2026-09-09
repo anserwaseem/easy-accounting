@@ -40,7 +40,10 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
     React.SetStateAction<RequiredAccountsExist>
   >;
   /** refetch parties only (no toast/loading — page owns combined refresh UX) */
-  refreshParties: () => Promise<void>;
+  refreshParties: () => Promise<{
+    partyAccounts: PartyAccount[];
+    partyAccountsIncludingTyped: PartyAccount[];
+  }>;
 } {
   const [parties, setParties] = useState<PartyAccount[] | undefined>();
   const [partiesIncludingTyped, setPartiesIncludingTyped] = useState<
@@ -134,6 +137,10 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
     }));
     setParties(partyAccounts);
     setPartiesIncludingTyped(partyAccountsIncludingTyped);
+    return {
+      partyAccounts,
+      partyAccountsIncludingTyped,
+    };
   }, [fetchPartiesAndRequiredAccounts]);
 
   return {

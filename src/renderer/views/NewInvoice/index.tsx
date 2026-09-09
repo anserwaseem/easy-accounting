@@ -168,10 +168,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [editHydrated, setEditHydrated] = useState(false);
 
   const [inventory, setInventory] = useState<InventoryItem[] | undefined>();
-  const [nextInvoiceNumber, setNextInvoiceNumber] = useNewInvoiceNextNumber(
-    invoiceType,
-    editInvoiceId == null,
-  );
+  const {
+    nextInvoiceNumber,
+    setNextInvoiceNumber,
+    refreshNextInvoiceNumber,
+  } = useNewInvoiceNextNumber(invoiceType, editInvoiceId == null);
   const {
     parties,
     partiesIncludingTyped,
@@ -179,6 +180,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     refreshParties,
   } = useNewInvoiceParties(invoiceType);
   const [isRefreshingLookups, setIsRefreshingLookups] = useState(false);
+  const [partyBalanceRefreshKey, setPartyBalanceRefreshKey] = useState(0);
 
   const [missingPartyForSelect, setMissingPartyForSelect] = useState<
     PartyAccount | undefined
@@ -477,41 +479,118 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     onResolved,
   });
 
-  // refresh btn: parties + inventory + resolution caches, then reprice rows + re-apply discounts
+  // refresh btn: parties + inventory + next # + balance, await resolve, then reprice/discounts
   const handleRefreshLookups = useCallback(async () => {
     setIsRefreshingLookups(true);
+    const failures: string[] = [];
     try {
-      invalidateLookupCaches();
-      const [, freshInventory] = await Promise.all([
-        refreshParties(),
-        refreshInventory(),
-      ]);
-      if (freshInventory) {
-        await refreshPricingFromInventory(freshInventory);
-      } else {
-        await recalculateAutoDiscounts();
+      const [partiesResult, inventoryResult, nextNumberResult] =
+        await Promise.allSettled([
+          refreshParties(),
+          refreshInventory(),
+          refreshNextInvoiceNumber(),
+        ]);
+
+      if (partiesResult.status === 'rejected') {
+        failures.push('accounts');
+        console.error('Error refreshing accounts:', partiesResult.reason);
       }
-      toast({
-        description: 'Accounts, inventory prices, and discounts refreshed',
-        variant: 'success',
-      });
+      if (inventoryResult.status === 'rejected') {
+        failures.push('inventory');
+        console.error('Error refreshing inventory:', inventoryResult.reason);
+      }
+      if (nextNumberResult.status === 'rejected') {
+        failures.push('invoice number');
+        console.error(
+          'Error refreshing next invoice number:',
+          nextNumberResult.reason,
+        );
+      }
+
+      const freshInventory =
+        inventoryResult.status === 'fulfilled'
+          ? inventoryResult.value
+          : undefined;
+      const freshParties =
+        partiesResult.status === 'fulfilled' ? partiesResult.value : undefined;
+
+      // bump balance hint after party refresh so it re-hits ledger IPC
+      setPartyBalanceRefreshKey((k) => k + 1);
+
+      // wait for split resolution to settle on fresh accounts before discount IPC
+      try {
+        await invalidateLookupCaches();
+      } catch (error) {
+        failures.push('account mapping');
+        console.error('Error refreshing account mapping:', error);
+      }
+
+      if (freshInventory) {
+        try {
+          await refreshPricingFromInventory(freshInventory);
+        } catch (error) {
+          failures.push(
+            invoiceType === InvoiceType.Sale ? 'prices/discounts' : 'prices',
+          );
+          console.error('Error refreshing row prices/discounts:', error);
+        }
+      } else if (inventoryResult.status === 'fulfilled') {
+        // generation raced; still re-apply discounts against current prices
+        try {
+          await recalculateAutoDiscounts();
+        } catch (error) {
+          failures.push('discounts');
+          console.error('Error recalculating discounts:', error);
+        }
+      }
+
+      const selectedId = toNumber(
+        form.getValues('accountMapping.singleAccountId'),
+      );
+      if (
+        freshParties &&
+        selectedId > 0 &&
+        !freshParties.partyAccountsIncludingTyped.some(
+          (p) => p.id === selectedId,
+        )
+      ) {
+        toast({
+          description:
+            'Selected party is no longer in the account list. Pick another.',
+          variant: 'warning',
+        });
+      }
+
+      if (failures.length > 0) {
+        toast({
+          description: `Refresh partially failed (${failures.join(', ')})`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          description:
+            invoiceType === InvoiceType.Sale
+              ? 'Accounts, inventory prices, discounts, and balance refreshed'
+              : 'Accounts, inventory prices, and balance refreshed',
+          variant: 'success',
+        });
+      }
     } catch (error) {
       toast({
-        description:
-          'Failed to refresh accounts, inventory prices, and discounts',
+        description: 'Failed to refresh lookups',
         variant: 'destructive',
       });
-      console.error(
-        'Error refreshing accounts, inventory prices, and discounts:',
-        error,
-      );
+      console.error('Error refreshing lookups:', error);
     } finally {
       setIsRefreshingLookups(false);
     }
   }, [
+    form,
     invalidateLookupCaches,
+    invoiceType,
     refreshParties,
     refreshInventory,
+    refreshNextInvoiceNumber,
     refreshPricingFromInventory,
     recalculateAutoDiscounts,
   ]);
@@ -1946,7 +2025,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               variant="outline"
               size="icon"
               onClick={handleRefreshLookups}
-              title="Refresh accounts, inventory prices, and discounts"
+              title="Refresh accounts, inventory, discounts, and balance"
               disabled={isRefreshingLookups}
             >
               <RefreshCw
@@ -2007,6 +2086,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   </FormLabel>
                                   <PartyBalanceIndicator
                                     accountId={toNumber(field.value)}
+                                    refreshKey={partyBalanceRefreshKey}
                                   />
                                 </span>
                                 <VirtualSelect
@@ -2360,7 +2440,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         . Some rows use non existing typed accounts. Create the
                         account in another window and click&nbsp;
                         <strong>
-                          Refresh accounts, inventory prices, and discounts
+                          Refresh accounts, inventory, discounts, and balance
                         </strong>{' '}
                         to link.
                       </p>

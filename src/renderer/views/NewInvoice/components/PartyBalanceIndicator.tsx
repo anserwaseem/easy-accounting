@@ -9,6 +9,8 @@ export const LARGE_DR_BALANCE_THRESHOLD = 50_000;
 interface PartyBalanceIndicatorProps {
   /** selected party account id; nothing renders until a valid id is set */
   accountId?: number;
+  /** bump to force a ledger re-fetch without changing accountId (refresh btn) */
+  refreshKey?: number;
 }
 
 type LedgerBalance = { balance: number; balanceType: BalanceType };
@@ -20,13 +22,14 @@ type LedgerBalance = { balance: number; balanceType: BalanceType };
  */
 export const PartyBalanceIndicator: React.FC<PartyBalanceIndicatorProps> = ({
   accountId,
+  refreshKey = 0,
 }: PartyBalanceIndicatorProps) => {
   // undefined = idle/loading (render nothing), null = no ledger history
   const [ledgerBalance, setLedgerBalance] = useState<
     LedgerBalance | null | undefined
   >(undefined);
 
-  // fetch the latest balance whenever the selected account changes
+  // fetch the latest balance whenever the selected account or refresh key changes
   useEffect(() => {
     const id = toNumber(accountId);
     if (!(id > 0)) {
@@ -47,7 +50,7 @@ export const PartyBalanceIndicator: React.FC<PartyBalanceIndicatorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [accountId]);
+  }, [accountId, refreshKey]);
 
   if (!(toNumber(accountId) > 0) || ledgerBalance === undefined) return null;
 

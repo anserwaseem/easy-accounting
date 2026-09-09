@@ -111,7 +111,11 @@ jest.mock('@/renderer/components/ConfirmDialog', () => ({
 
 // useInvoiceInventoryLoader uses getInventory from electron (stubbed in beforeEach)
 jest.mock('../hooks/useNewInvoiceNextNumber', () => ({
-  useNewInvoiceNextNumber: () => [1001, jest.fn()],
+  useNewInvoiceNextNumber: () => ({
+    nextInvoiceNumber: 1001,
+    setNextInvoiceNumber: jest.fn(),
+    refreshNextInvoiceNumber: jest.fn(),
+  }),
 }));
 jest.mock('../hooks/useNewInvoiceParties', () => ({
   useNewInvoiceParties: () => ({

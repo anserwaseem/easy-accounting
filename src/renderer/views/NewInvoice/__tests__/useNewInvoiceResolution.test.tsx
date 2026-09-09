@@ -469,11 +469,16 @@ describe('useNewInvoiceResolution', () => {
     await act(async () => {});
     expect(getAccounts).toHaveBeenCalledTimes(1);
 
+    // don't await invalidate inside the same act — that deadlocks (act waits on
+    // the promise, promise waits on the effect act is holding back)
+    let settled!: Promise<void>;
     await act(async () => {
-      hookResult.current.invalidateLookupCaches();
+      settled = hookResult.current.invalidateLookupCaches();
+    });
+    await act(async () => {
+      await settled;
     });
 
-    await act(async () => {});
     expect(getAccounts).toHaveBeenCalledTimes(2);
   });
 });
