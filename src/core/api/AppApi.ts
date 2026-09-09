@@ -56,6 +56,22 @@ import type {
   AttributeDefinition,
   UpsertAttributeDefinition,
   InvoiceType,
+  AccountUrduFieldPatch,
+  AccountUrduBulkUpdateResult,
+  InventoryUrduFieldPatch,
+  InventoryUrduBulkUpdateResult,
+  PurchasesByVendorFilters,
+  PurchasesByVendorResponse,
+  SalesByCustomerFilters,
+  SalesByCustomerResponse,
+  VendorStockRow,
+  VendorStockOpeningRow,
+  CreateVendorIssuePayload,
+  UpdateVendorIssuePayload,
+  VendorIssueListItem,
+  VendorIssueView,
+  VendorStockActivityFilters,
+  VendorStockActivityResponse,
 } from 'types';
 
 /*
@@ -215,6 +231,9 @@ export interface AppApi {
    * @example const account = updateAccount({ ... });
    */
   updateAccount: (account: UpdateAccount) => Promise<any>;
+  bulkUpdateAccountUrduFields: (
+    patches: AccountUrduFieldPatch[],
+  ) => Promise<AccountUrduBulkUpdateResult>;
   updateAccountDiscountProfile: (
     accountId: number,
     discountProfileId: number | null,
@@ -422,6 +441,13 @@ export interface AppApi {
   doesInventoryExist: () => Promise<any>;
   insertInventoryItem: (item: InsertInventoryItem) => Promise<any>;
   updateInventoryItem: (item: UpdateInventoryItem) => Promise<any>;
+  bulkUpdateInventoryUrduFields: (
+    patches: InventoryUrduFieldPatch[],
+  ) => Promise<InventoryUrduBulkUpdateResult>;
+  setInventoryParentId: (
+    inventoryId: number,
+    parentId: number | null,
+  ) => Promise<ApiResponse>;
   bulkUpdateInventoryPricesAndListPositions: (
     patches: BulkPriceListPositionPatch[],
   ) => Promise<BulkPriceListPositionResult>;
@@ -532,6 +558,46 @@ export interface AppApi {
   reportGetSalesPerformance: (
     filters: ReportFilters,
   ) => Promise<ReportResponse>;
+  reportGetPurchasesByVendor: (
+    filters: PurchasesByVendorFilters,
+  ) => Promise<PurchasesByVendorResponse>;
+  reportGetSalesByCustomer: (
+    filters: SalesByCustomerFilters,
+  ) => Promise<SalesByCustomerResponse>;
+
+  // ---------------------------------------------------------------------
+  // Vendor stock (WIP at vendor)
+  // ---------------------------------------------------------------------
+
+  getVendorStockOnHand: (vendorAccountId?: number) => Promise<VendorStockRow[]>;
+  getTrackedVendorAccounts: () => Promise<
+    Array<{ id: number; name: string; code?: number | string | null }>
+  >;
+  setVendorOpeningStock: (
+    vendorAccountId: number,
+    items: Array<{ name: string; quantity: number }>,
+    asOfDate: string,
+    resetOthersToZero?: boolean,
+  ) => Promise<ApiResponse>;
+  importVendorOpeningStock: (
+    rows: VendorStockOpeningRow[],
+    asOfDate: string,
+    resetOthersToZero?: boolean,
+  ) => Promise<ApiResponse>;
+  getNextVendorIssueNumber: () => Promise<number>;
+  createVendorIssue: (
+    payload: CreateVendorIssuePayload,
+  ) => Promise<ApiResponse & { issueId?: number; issueNumber?: number }>;
+  updateVendorIssue: (
+    issueId: number,
+    payload: UpdateVendorIssuePayload,
+  ) => Promise<ApiResponse & { issueId?: number; issueNumber?: number }>;
+  deleteVendorIssue: (issueId: number) => Promise<ApiResponse>;
+  getVendorIssues: () => Promise<VendorIssueListItem[]>;
+  getVendorIssue: (issueId: number) => Promise<VendorIssueView | null>;
+  getVendorStockActivity: (
+    filters: VendorStockActivityFilters,
+  ) => Promise<VendorStockActivityResponse>;
 
   // ---------------------------------------------------------------------
   // Print

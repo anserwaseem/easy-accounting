@@ -51,11 +51,8 @@ import { createCoreServices } from './coreRuntime';
 import {
   AuthService,
   BackupService,
-  InvoiceService,
-  InventoryService,
   PrintService,
   PublishService,
-  VendorStockService,
 } from './services';
 import {
   getPublishConfig,
@@ -282,11 +279,9 @@ app
     await migrationRunner.waitForMigrations();
 
     const authService = new AuthService();
-    // account, chart, ledger, pricing, journal, and statement are served by
-    // the platform-free core (src/core) via coreRuntime.ts. Invoice,
-    // inventory, and vendor stock stay on the Electron-coupled copies until
-    // those desktop-only paths (purchase vendor-stock, family-head remap,
-    // party reports) land in core. Auth/Print/Publish/Backup stay here.
+    // Business services are the platform-free core (src/core) via
+    // coreRuntime.ts. Auth/Print/Publish/Backup stay on the Electron-coupled
+    // stack (OS keychain, filesystem, native menus).
     const {
       accountService,
       chartService,
@@ -294,13 +289,13 @@ app
       pricingService,
       journalService,
       statementService,
+      inventoryService,
+      invoiceService,
+      vendorStockService,
     } = createCoreServices();
-    const inventoryService = new InventoryService();
-    const invoiceService = new InvoiceService();
     const printService = new PrintService();
     const publishService = new PublishService();
     const backupService = new BackupService();
-    const vendorStockService = new VendorStockService();
 
     // setupUser(migrationRunner, authService);
 

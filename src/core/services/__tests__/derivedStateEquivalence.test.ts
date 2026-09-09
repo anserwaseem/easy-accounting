@@ -55,6 +55,7 @@ import { LedgerService } from '../LedgerService';
 import { JournalService } from '../JournalService';
 import { InvoiceService } from '../InvoiceService';
 import { InventoryService } from '../InventoryService';
+import { VendorStockService } from '../VendorStockService';
 import { PricingService } from '../PricingService';
 import { StatementService } from '../StatementService';
 import type { SessionContext } from '../../ports';
@@ -141,14 +142,20 @@ function createServices(db: Database.Database) {
     ledgerService: ledger,
   });
   const pricing = new PricingService({ db: driver, session });
+  const vendorStock = new VendorStockService({ db: driver });
   const invoices = new InvoiceService({
     db: driver,
     session,
     journalService: journal,
     accountService: accounts,
     pricingService: pricing,
+    vendorStockService: vendorStock,
   });
-  const inventory = new InventoryService({ db: driver, session });
+  const inventory = new InventoryService({
+    db: driver,
+    session,
+    vendorStockService: vendorStock,
+  });
   const statements = new StatementService({
     db: driver,
     session,

@@ -93,6 +93,7 @@ import { JournalService } from '@core/services/JournalService';
 import { StatementService } from '@core/services/StatementService';
 import { InvoiceService } from '@core/services/InvoiceService';
 import { SettingsService } from '@core/services/SettingsService';
+import { VendorStockService } from '@core/services/VendorStockService';
 import { repairInvoiceEditedTimestamps } from '@core/sync/repairInvoiceTimestamps';
 import { INITIAL_CHARTS } from '@core/utils/constants';
 import { enrichLedgerRowsWithJournalSummaries } from '@core/utils/ledgerJournalEnrichment';
@@ -413,10 +414,12 @@ async function main(): Promise<void> {
   const chartService = new ChartService({ db: driver, session });
   const ledgerService = new LedgerService({ db: driver, session });
   const pricingService = new PricingService({ db: driver, session });
+  const vendorStockService = new VendorStockService({ db: driver });
   const inventoryService = new InventoryService({
     db: driver,
     session,
     store: webKv,
+    vendorStockService,
   });
   const journalService = new JournalService({
     db: driver,
@@ -436,6 +439,7 @@ async function main(): Promise<void> {
     journalService,
     accountService,
     pricingService,
+    vendorStockService,
   });
   const settingsService = new SettingsService({ db: driver });
 
@@ -643,6 +647,10 @@ async function main(): Promise<void> {
       accountService.updateAccount(
         account as Parameters<AccountService['updateAccount']>[0],
       ),
+    bulkUpdateAccountUrduFields: (patches) =>
+      accountService.bulkUpdateUrduFields(
+        patches as Parameters<AccountService['bulkUpdateUrduFields']>[0],
+      ),
     updateAccountDiscountProfile: (accountId, discountProfileId) =>
       accountService.updateAccountDiscountProfile(
         accountId as number,
@@ -846,6 +854,15 @@ async function main(): Promise<void> {
       inventoryService.updateItem(
         item as Parameters<InventoryService['updateItem']>[0],
       ),
+    bulkUpdateInventoryUrduFields: (patches) =>
+      inventoryService.bulkUpdateUrduFields(
+        patches as Parameters<InventoryService['bulkUpdateUrduFields']>[0],
+      ),
+    setInventoryParentId: (inventoryId, parentId) =>
+      inventoryService.setInventoryParentId(
+        inventoryId as number,
+        parentId as number | null,
+      ),
     bulkUpdateInventoryPricesAndListPositions: (patches) =>
       inventoryService.bulkUpdatePricesAndListPositions(
         patches as Parameters<
@@ -981,6 +998,55 @@ async function main(): Promise<void> {
     reportGetSalesPerformance: (filters) =>
       invoiceService.getSalesPerformance(
         filters as Parameters<InvoiceService['getSalesPerformance']>[0],
+      ),
+    reportGetPurchasesByVendor: (filters) =>
+      invoiceService.getPurchasesByVendor(
+        filters as Parameters<InvoiceService['getPurchasesByVendor']>[0],
+      ),
+    reportGetSalesByCustomer: (filters) =>
+      invoiceService.getSalesByCustomer(
+        filters as Parameters<InvoiceService['getSalesByCustomer']>[0],
+      ),
+
+    getVendorStockOnHand: (vendorAccountId) =>
+      vendorStockService.getOnHand(vendorAccountId as number | undefined),
+    getTrackedVendorAccounts: () =>
+      vendorStockService.getTrackedVendorAccounts(),
+    setVendorOpeningStock: (
+      vendorAccountId,
+      items,
+      asOfDate,
+      resetOthersToZero,
+    ) =>
+      vendorStockService.setOpeningStock(
+        vendorAccountId as number,
+        items as Parameters<VendorStockService['setOpeningStock']>[1],
+        asOfDate as string,
+        resetOthersToZero as boolean | undefined,
+      ),
+    importVendorOpeningStock: (rows, asOfDate, resetOthersToZero) =>
+      vendorStockService.importOpeningStock(
+        rows as Parameters<VendorStockService['importOpeningStock']>[0],
+        asOfDate as string,
+        resetOthersToZero as boolean | undefined,
+      ),
+    getNextVendorIssueNumber: () => vendorStockService.getNextIssueNumber(),
+    createVendorIssue: (payload) =>
+      vendorStockService.createIssue(
+        payload as Parameters<VendorStockService['createIssue']>[0],
+      ),
+    updateVendorIssue: (issueId, payload) =>
+      vendorStockService.updateIssue(
+        issueId as number,
+        payload as Parameters<VendorStockService['updateIssue']>[1],
+      ),
+    deleteVendorIssue: (issueId) =>
+      vendorStockService.deleteIssue(issueId as number),
+    getVendorIssues: () => vendorStockService.getIssues(),
+    getVendorIssue: (issueId) => vendorStockService.getIssue(issueId as number),
+    getVendorStockActivity: (filters) =>
+      vendorStockService.getActivity(
+        filters as Parameters<VendorStockService['getActivity']>[0],
       ),
 
     // -- Settings (src/core/services/SettingsService.ts, migration 028) ----

@@ -10,10 +10,8 @@
  *
  * Services were ported here from src/main/services. Electron main.ts now
  * serves account, chart, journal, ledger, pricing, and statement from this
- * package via src/main/coreRuntime.ts. Invoice, inventory, and vendor stock
- * still run on the main-process copies until those desktop-only paths are
- * ported (purchase vendor-stock effects, family-head remapping, party
- * reports).
+ * package via src/main/coreRuntime.ts. Auth, Print, Publish, and Backup
+ * stay on the Electron-coupled copies.
  */
 
 export * from './ports';
@@ -30,6 +28,7 @@ export { JournalService } from './services/JournalService';
 export { StatementService } from './services/StatementService';
 export { InvoiceService } from './services/InvoiceService';
 export { SettingsService } from './services/SettingsService';
+export { VendorStockService } from './services/VendorStockService';
 export { SyncEngine } from './sync/SyncEngine';
 export type { SyncReport } from './sync/SyncEngine';
 export type {

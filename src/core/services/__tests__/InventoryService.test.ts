@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { InventoryService } from '../InventoryService';
+import { VendorStockService } from '../VendorStockService';
 import type { SessionContext, KeyValueStore } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
 import { InventoryService as MainInventoryService } from '../../../main/services/Inventory.service';
@@ -45,9 +46,15 @@ function seedBasicSchema(db: Database.Database) {
 
 function createCore(db: Database.Database, store?: KeyValueStore) {
   const driver = new BetterSqliteDriver(db);
+  const vendorStock = new VendorStockService({ db: driver });
   return {
     driver,
-    inventory: new InventoryService({ db: driver, session, store }),
+    inventory: new InventoryService({
+      db: driver,
+      session,
+      store,
+      vendorStockService: vendorStock,
+    }),
   };
 }
 

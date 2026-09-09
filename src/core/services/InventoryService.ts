@@ -10,6 +10,8 @@ import type {
   InsertInventoryItem,
   InventoryItem,
   InventoryOpeningStock,
+  InventoryUrduBulkUpdateResult,
+  InventoryUrduFieldPatch,
   ReportResponse,
   SetOpeningStockItem,
   StockAdjustment,
@@ -24,6 +26,7 @@ import { logErrors } from '../errorLogger';
 import { itemNameError } from '../utils/itemName';
 import { cast, raise } from '../utils/sqlite';
 import { parseJsonRecord, parseListPrices } from '../utils/inventoryJson';
+import { VendorStockService } from './VendorStockService';
 
 const SQL = {
   inventoryExists: `
@@ -273,6 +276,32 @@ const SQL = {
       SELECT id FROM inventory WHERE TRIM(name) = TRIM(?)
     `,
 
+  getInventoryUrduById: `
+      SELECT id, descriptionUrdu FROM inventory WHERE id = ?
+    `,
+
+  updateInventoryUrdu: `
+      UPDATE inventory
+      SET descriptionUrdu = @descriptionUrdu
+      WHERE id = @id
+    `,
+
+  getInventoryParent: `
+      SELECT id, parentId FROM inventory WHERE id = ?
+    `,
+
+  countInventoryChildren: `
+      SELECT COUNT(*) AS c FROM inventory WHERE parentId = ?
+    `,
+
+  setInventoryParentId: `
+      UPDATE inventory SET parentId = ? WHERE id = ?
+    `,
+
+  clearInventoryParentId: `
+      UPDATE inventory SET parentId = NULL WHERE id = ?
+    `,
+
   updateInventoryListPositionById: `
       UPDATE inventory SET listPosition = ? WHERE id = ?
     `,
@@ -495,14 +524,18 @@ export class InventoryService {
 
   private store?: KeyValueStore;
 
+  private vendorStockService: VendorStockService;
+
   constructor(deps: {
     db: DatabaseDriver;
     session: SessionContext;
     store?: KeyValueStore;
+    vendorStockService: VendorStockService;
   }) {
     this.db = deps.db;
     this.session = deps.session;
     this.store = deps.store;
+    this.vendorStockService = deps.vendorStockService;
   }
 
   async doesInventoryExist(): Promise<boolean> {
@@ -774,6 +807,154 @@ export class InventoryService {
       listPosition: item.listPosition ?? null,
     });
     return Boolean(result.changes);
+  }
+
+  /**
+   * apply Urdu print description from spreadsheet import.
+   * match by id when present, else by trimmed name (SKU).
+   * only keys present on the patch are written (undefined = leave unchanged).
+   */
+  async bulkUpdateUrduFields(
+    patches: InventoryUrduFieldPatch[],
+  ): Promise<InventoryUrduBulkUpdateResult> {
+    let updated = 0;
+    let notFound = 0;
+    let ambiguous = 0;
+
+    await this.db.transaction(async () => {
+      for (const patch of patches) {
+        // eslint-disable-next-line no-await-in-loop
+        const resolved = await this.resolveInventoryForUrduPatch(patch);
+        if (resolved === 'notFound') {
+          notFound += 1;
+          continue;
+        }
+        if (resolved === 'ambiguous') {
+          ambiguous += 1;
+          continue;
+        }
+
+        const nextDescriptionUrdu =
+          patch.descriptionUrdu !== undefined
+            ? patch.descriptionUrdu?.trim() || null
+            : resolved.descriptionUrdu ?? null;
+
+        // eslint-disable-next-line no-await-in-loop
+        const result = await this.db.run(SQL.updateInventoryUrdu, {
+          id: cast(resolved.id),
+          descriptionUrdu: nextDescriptionUrdu,
+        });
+        if (result.changes > 0) updated += 1;
+        else notFound += 1;
+      }
+    });
+
+    return { updated, notFound, ambiguous };
+  }
+
+  private async resolveInventoryForUrduPatch(
+    patch: InventoryUrduFieldPatch,
+  ): Promise<
+    { id: number; descriptionUrdu: string | null } | 'notFound' | 'ambiguous'
+  > {
+    if (patch.id != null && Number.isFinite(patch.id) && patch.id > 0) {
+      const byId = await this.db.get<{
+        id: number;
+        descriptionUrdu: string | null;
+      }>(SQL.getInventoryUrduById, [cast(patch.id)]);
+      return byId ?? 'notFound';
+    }
+
+    const name = patch.name?.trim();
+    if (!name) return 'notFound';
+
+    const matches = await this.db.all<{ id: number }>(
+      SQL.getInventoryIdsByTrimName,
+      [name],
+    );
+    if (matches.length === 0) return 'notFound';
+    if (matches.length > 1) return 'ambiguous';
+
+    const byId = await this.db.get<{
+      id: number;
+      descriptionUrdu: string | null;
+    }>(SQL.getInventoryUrduById, [cast(matches[0].id)]);
+    return byId ?? 'notFound';
+  }
+
+  /**
+   * link orphan / standalone item to a family head (or clear parentId).
+   * parent must itself be a head (parentId NULL). item must not already have
+   * children. folds any vendor WIP keyed on this item into the new head.
+   */
+  async setInventoryParentId(
+    inventoryId: number,
+    parentId: number | null,
+  ): Promise<ApiResponse> {
+    try {
+      await this.db.transaction(async () => {
+        await this.setInventoryParentIdWithoutTransaction(
+          inventoryId,
+          parentId,
+        );
+      });
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
+  }
+
+  private async setInventoryParentIdWithoutTransaction(
+    inventoryId: number,
+    parentId: number | null,
+  ): Promise<void> {
+    const item = await this.db.get<{ id: number; parentId: number | null }>(
+      SQL.getInventoryParent,
+      [cast(inventoryId)],
+    );
+    if (!item) return raise('Inventory item not found');
+
+    if (parentId == null) {
+      await this.db.run(SQL.clearInventoryParentId, [cast(inventoryId)]);
+      return;
+    }
+
+    if (parentId === inventoryId) {
+      raise('An item cannot be its own family head');
+    }
+
+    const parent = await this.db.get<{ id: number; parentId: number | null }>(
+      SQL.getInventoryParent,
+      [cast(parentId)],
+    );
+    if (!parent) return raise('Family head not found');
+    if (parent.parentId != null) {
+      raise(
+        'Family head must be a head item (no parent of its own). Pick the root SKU.',
+      );
+    }
+
+    const childCount = (
+      await this.db.get<{ c: number }>(SQL.countInventoryChildren, [
+        cast(inventoryId),
+      ])
+    )?.c;
+    if ((childCount ?? 0) > 0) {
+      raise(
+        'This item is already a family head with variants. Unlink children first.',
+      );
+    }
+
+    await this.db.run(SQL.setInventoryParentId, [
+      cast(parentId),
+      cast(inventoryId),
+    ]);
+
+    // fold orphan stock into head so future purchases consume one pool
+    await this.vendorStockService.remapInventoryToFamilyHead(
+      inventoryId,
+      parentId,
+    );
   }
 
   async getOpeningStock(): Promise<InventoryOpeningStock[]> {

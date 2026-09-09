@@ -6,6 +6,7 @@ import { PricingService } from '../PricingService';
 import { LedgerService } from '../LedgerService';
 import { JournalService } from '../JournalService';
 import { InvoiceService } from '../InvoiceService';
+import { VendorStockService } from '../VendorStockService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
 import { AccountService as MainAccountService } from '../../../main/services/Account.service';
@@ -86,12 +87,14 @@ function createCore(db: Database.Database) {
     session,
     ledgerService: ledger,
   });
+  const vendorStock = new VendorStockService({ db: driver });
   const invoices = new InvoiceService({
     db: driver,
     session,
     journalService: journal,
     accountService: accounts,
     pricingService: pricing,
+    vendorStockService: vendorStock,
   });
   return { driver, accounts, pricing, ledger, journal, invoices };
 }

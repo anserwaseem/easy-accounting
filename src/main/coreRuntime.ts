@@ -2,14 +2,17 @@ import log from 'electron-log';
 import {
   AccountService,
   ChartService,
+  InventoryService,
+  InvoiceService,
   JournalService,
   LedgerService,
   PricingService,
   SettingsService,
   StatementService,
+  VendorStockService,
   setCoreLogger,
 } from '../core';
-import type { DatabaseDriver, SessionContext } from '../core';
+import type { DatabaseDriver, KeyValueStore, SessionContext } from '../core';
 import { BetterSqliteDriver } from './adapters/BetterSqliteDriver';
 import { DatabaseService } from './services/Database.service';
 import { store } from './store';
@@ -17,12 +20,8 @@ import { store } from './store';
 /**
  * Wires the platform-free core to the Electron main process: better-sqlite3
  * behind the async driver, electron-log as the core logger, electron-store
- * as the session source.
- *
- * Live IPC in main.ts currently uses this bundle for account, chart, journal,
- * ledger, pricing, and statement. Invoice and inventory stay on
- * src/main/services until vendor-stock purchase effects, family-head
- * remapping, and the purchases/sales-by-party reports are ported into core.
+ * as the session source. Auth, Print, Publish, and Backup stay on
+ * src/main/services (filesystem / OS keychain / native menus).
  */
 
 setCoreLogger({
@@ -63,6 +62,17 @@ export function getSettingsService(): SettingsService {
   return settingsServiceInstance;
 }
 
+/**
+ * Adapts electron-store to the core's `KeyValueStore` port — InventoryService
+ * reads `publish.reservedNameChars` through it (same store as the rest of
+ * the Electron app).
+ */
+const keyValueStore: KeyValueStore = {
+  get: (key) => store.get(key),
+  set: (key, value) => store.set(key, value),
+  delete: (key) => store.delete(key),
+};
+
 export function createCoreServices() {
   const db = getCoreDriver();
 
@@ -70,6 +80,13 @@ export function createCoreServices() {
   const chartService = new ChartService({ db, session });
   const ledgerService = new LedgerService({ db, session });
   const pricingService = new PricingService({ db, session });
+  const vendorStockService = new VendorStockService({ db });
+  const inventoryService = new InventoryService({
+    db,
+    session,
+    store: keyValueStore,
+    vendorStockService,
+  });
   const journalService = new JournalService({ db, session, ledgerService });
   const statementService = new StatementService({
     db,
@@ -78,6 +95,14 @@ export function createCoreServices() {
     accountService,
     ledgerService,
   });
+  const invoiceService = new InvoiceService({
+    db,
+    session,
+    journalService,
+    accountService,
+    pricingService,
+    vendorStockService,
+  });
   const settingsService = getSettingsService();
 
   return {
@@ -85,8 +110,11 @@ export function createCoreServices() {
     chartService,
     ledgerService,
     pricingService,
+    vendorStockService,
+    inventoryService,
     journalService,
     statementService,
+    invoiceService,
     settingsService,
   };
 }

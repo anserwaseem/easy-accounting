@@ -1,5 +1,5 @@
 import { write, utils } from 'xlsx';
-import { groupBy, toNumber, toString, uniq } from 'lodash';
+import { groupBy, orderBy, sumBy, toNumber, toString, uniq } from 'lodash';
 import {
   InvoiceType,
   type Invoice,
@@ -8,7 +8,14 @@ import {
   type InvoiceView,
   type InvoicesExport,
   type InvoicesView,
+  type PurchasesByVendorFilters,
+  type PurchasesByVendorItem,
+  type PurchasesByVendorResponse,
   type ReturnSaleInvoicePayload,
+  type SalesByCustomerFilters,
+  type SalesByCustomerItem,
+  type SalesByCustomerResponse,
+  type VendorStockPurchaseLine,
 } from 'types';
 import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
@@ -18,6 +25,7 @@ import { convertOrdinalDate } from '../utils/dateFormat';
 import { JournalService } from './JournalService';
 import { AccountService } from './AccountService';
 import { PricingService } from './PricingService';
+import { VendorStockService } from './VendorStockService';
 import type { SqliteBoolean } from '../utils/sqlite';
 import {
   cast,
@@ -39,6 +47,58 @@ type InvoiceListSqliteRow = Omit<InvoicesView, 'isReturned' | 'isQuotation'> & {
 };
 
 const INVOICE_LIST_SQLITE_BOOLEAN_KEYS = ['isReturned', 'isQuotation'] as const;
+
+type PartyItemLine = {
+  inventoryId: number;
+  itemName: string;
+  quantity: number;
+  invoiceId: number;
+  invoiceNumber: number;
+  date: string;
+  customerAccountId?: number;
+  customerName?: string;
+  customerCode?: string | number | null;
+};
+
+/** roll invoice lines into item rows with per-invoice qty breakdown. */
+const rollupPartyItemLines = (lines: PartyItemLine[]) =>
+  orderBy(
+    Object.values(groupBy(lines, (row) => row.inventoryId)).map((itemLines) => {
+      const first = itemLines[0];
+      const invoices = orderBy(
+        Object.values(
+          groupBy(itemLines, (line) =>
+            line.customerAccountId != null
+              ? `${line.invoiceId}:${line.customerAccountId}`
+              : String(line.invoiceId),
+          ),
+        ).map((invoiceLines) => ({
+          invoiceId: invoiceLines[0].invoiceId,
+          invoiceNumber: invoiceLines[0].invoiceNumber,
+          date: invoiceLines[0].date,
+          quantity: sumBy(invoiceLines, 'quantity'),
+          ...(invoiceLines[0].customerAccountId != null
+            ? {
+                customerAccountId: invoiceLines[0].customerAccountId,
+                customerName: invoiceLines[0].customerName ?? '',
+                customerCode: invoiceLines[0].customerCode ?? null,
+              }
+            : {}),
+        })),
+        ['date', 'invoiceNumber'],
+        ['asc', 'asc'],
+      );
+      return {
+        inventoryId: first.inventoryId,
+        itemName: first.itemName,
+        quantity: sumBy(itemLines, 'quantity'),
+        invoiceCount: invoices.length,
+        invoices,
+      };
+    }),
+    [(item) => item.itemName.toLowerCase()],
+    ['asc'],
+  );
 
 /** one joined row per line from SQL.getInvoice before aggregating to InvoiceView */
 type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
@@ -303,7 +363,13 @@ const SQL = {
       DELETE FROM invoice_items WHERE invoiceId = @invoiceId
     `,
   getInvoiceItemsForUpdate: `
-      SELECT inventoryId, quantity FROM invoice_items WHERE invoiceId = @invoiceId
+      SELECT
+        ii.inventoryId,
+        ii.quantity,
+        COALESCE(ii.accountId, i.accountId) AS accountId
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE ii.invoiceId = @invoiceId
     `,
   getInvoiceHeader: `
       SELECT invoiceNumber, invoiceType, COALESCE(isQuotation, 0) AS isQuotation
@@ -366,6 +432,9 @@ const SQL = {
         returnedAt = datetime('now', 'localtime'),
         returnReason = @returnReason
       WHERE id = @invoiceId
+    `,
+  getCurrentLocalDateTime: `
+      SELECT datetime('now', 'localtime') AS returnedAt
     `,
   getInvoicesInDateRange: `
       SELECT i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, a.name AS 'accountName', i.biltyNumber, i.cartons,
@@ -564,6 +633,24 @@ const SQL = {
         ORDER BY totalAmount DESC
 
       `,
+  getPurchasesByVendorLines: `
+      SELECT
+        inv.id AS inventoryId,
+        inv.name AS itemName,
+        ii.quantity AS quantity,
+        i.id AS invoiceId,
+        i.invoiceNumber AS invoiceNumber,
+        i.date AS date
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoiceId = i.id
+      JOIN inventory inv ON inv.id = ii.inventoryId
+      WHERE i.invoiceType = 'Purchase'
+        AND COALESCE(i.isQuotation, 0) = 0
+        AND COALESCE(i.isReturned, 0) = 0
+        AND i.date >= @startDate
+        AND i.date <= @endDate
+        AND COALESCE(ii.accountId, i.accountId) = @vendorAccountId
+    `,
 };
 
 /**
@@ -583,18 +670,22 @@ export class InvoiceService {
 
   private pricingService: PricingService;
 
+  private vendorStockService: VendorStockService;
+
   constructor(deps: {
     db: DatabaseDriver;
     session: SessionContext;
     journalService: JournalService;
     accountService: AccountService;
     pricingService: PricingService;
+    vendorStockService: VendorStockService;
   }) {
     this.db = deps.db;
     this.session = deps.session;
     this.journalService = deps.journalService;
     this.accountService = deps.accountService;
     this.pricingService = deps.pricingService;
+    this.vendorStockService = deps.vendorStockService;
   }
 
   async getNextInvoiceNumber(
@@ -644,9 +735,10 @@ export class InvoiceService {
     });
   }
 
-  async convertQuotationInvoice(
-    invoiceId: number,
-  ): Promise<{ invoiceNumber: number }> {
+  async convertQuotationInvoice(invoiceId: number): Promise<{
+    invoiceNumber: number;
+    vendorStockMessages?: string[];
+  }> {
     return this.db.transaction(async () => {
       return this.convertQuotationInvoiceWithoutTransaction(invoiceId);
     });
@@ -756,7 +848,11 @@ export class InvoiceService {
   async insertInvoice(
     invoiceType: InvoiceType,
     invoice: Invoice,
-  ): Promise<{ invoiceId: number; nextInvoiceNumber: number }> {
+  ): Promise<{
+    invoiceId: number;
+    nextInvoiceNumber: number;
+    vendorStockMessages?: string[];
+  }> {
     return this.db.transaction(async () => {
       return this.insertInvoiceWithoutTransaction(invoiceType, invoice);
     });
@@ -765,7 +861,11 @@ export class InvoiceService {
   private async insertInvoiceWithoutTransaction(
     invoiceType: InvoiceType,
     invoice: Invoice,
-  ): Promise<{ invoiceId: number; nextInvoiceNumber: number }> {
+  ): Promise<{
+    invoiceId: number;
+    nextInvoiceNumber: number;
+    vendorStockMessages?: string[];
+  }> {
     const invalid = { invoiceId: -1, nextInvoiceNumber: -1 };
     if (!invoice.invoiceNumber) {
       console.error('No invoice number found while inserting invoice', invoice);
@@ -875,6 +975,20 @@ export class InvoiceService {
           invoiceId,
         );
       }
+      if (invoiceType === InvoiceType.Purchase) {
+        const vendorStockMessages =
+          await this.applyVendorStockForPostedPurchase(
+            invoiceId,
+            invoice,
+            'purchase',
+          );
+        return {
+          invoiceId,
+          nextInvoiceNumber: invoice.invoiceNumber + 1,
+          vendorStockMessages:
+            vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+        };
+      }
       return {
         invoiceId,
         nextInvoiceNumber: invoice.invoiceNumber + 1,
@@ -910,6 +1024,16 @@ export class InvoiceService {
         );
       }
 
+      let vendorStockMessages: string[] | undefined;
+      if (invoiceType === InvoiceType.Purchase) {
+        const messages = await this.applyVendorStockForPostedPurchase(
+          invoiceId,
+          invoice,
+          'purchase',
+        );
+        if (messages.length > 0) vendorStockMessages = messages;
+      }
+
       await this.postJournalsForPersistedInvoice(
         invoiceType,
         invoiceId,
@@ -919,6 +1043,7 @@ export class InvoiceService {
       return {
         invoiceId,
         nextInvoiceNumber: invoice.invoiceNumber + 1,
+        vendorStockMessages,
       };
     }
 
@@ -1213,6 +1338,7 @@ export class InvoiceService {
     invoiceId: number,
   ): Promise<{
     invoiceNumber: number;
+    vendorStockMessages?: string[];
   }> {
     const header = await this.db.get<{
       invoiceNumber: number;
@@ -1273,6 +1399,23 @@ export class InvoiceService {
       view,
       nextNum,
     );
+    if (invType === InvoiceType.Purchase) {
+      const vendorStockMessages = await this.applyVendorStockForPostedPurchase(
+        invoiceId,
+        invoicePayload,
+        'purchase',
+      );
+      await this.postJournalsForPersistedInvoice(
+        invType,
+        invoiceId,
+        invoicePayload,
+      );
+      return {
+        invoiceNumber: nextNum,
+        vendorStockMessages:
+          vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+      };
+    }
     await this.postJournalsForPersistedInvoice(
       invType,
       invoiceId,
@@ -1447,14 +1590,18 @@ export class InvoiceService {
     invoiceType: InvoiceType,
     invoiceId: number,
     invoice: Invoice,
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ success: boolean; vendorStockMessages?: string[] }> {
     return this.db.transaction(async () => {
-      await this.updateInvoiceWithoutTransaction(
+      const vendorStockMessages = await this.updateInvoiceWithoutTransaction(
         invoiceType,
         invoiceId,
         invoice,
       );
-      return { success: true };
+      return {
+        success: true,
+        vendorStockMessages:
+          vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
+      };
     });
   }
 
@@ -1462,7 +1609,7 @@ export class InvoiceService {
     invoiceType: InvoiceType,
     invoiceId: number,
     invoice: Invoice,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const header = await this.db.get<{
       invoiceNumber: number;
       invoiceType: string;
@@ -1484,6 +1631,7 @@ export class InvoiceService {
     const oldRows = await this.db.all<{
       inventoryId: number;
       quantity: number;
+      accountId: number;
     }>(SQL.getInvoiceItemsForUpdate, { invoiceId: cast(invoiceId) });
 
     const journalIds = await this.journalService.getJournalIdsByInvoiceId(
@@ -1506,6 +1654,14 @@ export class InvoiceService {
       'reverse',
     );
 
+    if (invoiceType === InvoiceType.Purchase) {
+      await this.applyVendorStockFromStoredLines(
+        invoiceId,
+        invoice.date,
+        oldRows,
+        'purchase_return',
+      );
+    }
     const totalAmount = invoice.totalAmount ?? 0;
     const multipleIds = invoice.accountMapping.multipleAccountIds;
     const hasMultiple =
@@ -1545,6 +1701,15 @@ export class InvoiceService {
 
     await this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
 
+    let vendorStockMessages: string[] = [];
+    if (invoiceType === InvoiceType.Purchase) {
+      vendorStockMessages = await this.applyVendorStockForPostedPurchase(
+        invoiceId,
+        invoice,
+        'purchase',
+      );
+    }
+
     if (
       invoiceType === InvoiceType.Sale ||
       invoiceType === InvoiceType.Purchase
@@ -1557,6 +1722,7 @@ export class InvoiceService {
     }
 
     await this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
+    return vendorStockMessages;
   }
 
   private async updateInventoryForInvoiceLineItems(
@@ -1760,6 +1926,7 @@ export class InvoiceService {
     const items = await this.db.all<{
       inventoryId: number;
       quantity: number;
+      accountId: number;
     }>(SQL.getInvoiceItemsForUpdate, { invoiceId: cast(invoiceId) });
 
     const inventoryDelta = expectedType === InvoiceType.Sale ? 1 : -1;
@@ -1785,6 +1952,18 @@ export class InvoiceService {
       invoiceId: cast(invoiceId),
       returnReason,
     });
+
+    if (expectedType === InvoiceType.Purchase) {
+      const returnedAtRow = await this.db.get<{ returnedAt: string }>(
+        SQL.getCurrentLocalDateTime,
+      );
+      await this.applyVendorStockFromStoredLines(
+        invoiceId,
+        returnedAtRow?.returnedAt ?? new Date().toISOString(),
+        items,
+        'purchase_return',
+      );
+    }
   }
 
   private async persistInvoiceItemsAndInventory(
@@ -2470,5 +2649,184 @@ export class InvoiceService {
           }
         : {}),
     };
+  }
+
+  /** items bought from a vendor in a date range (posted purchases only, qty only). */
+  async getPurchasesByVendor(
+    filters: PurchasesByVendorFilters,
+  ): Promise<PurchasesByVendorResponse> {
+    const { vendorAccountId, startDate, endDate } = filters;
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+
+    const vendor = (
+      await this.accountService.getAccountsByIds([vendorAccountId])
+    )[0];
+    const vendorName = vendor?.name ?? '';
+
+    const lines = await this.db.all<PartyItemLine>(
+      SQL.getPurchasesByVendorLines,
+      {
+        vendorAccountId,
+        startDate: sqlStartDate,
+        endDate: sqlEndDate,
+      },
+    );
+
+    const items: PurchasesByVendorItem[] = rollupPartyItemLines(lines);
+
+    return {
+      vendor: { id: vendorAccountId, name: vendorName },
+      kpis: {
+        itemCount: items.length,
+        totalQty: sumBy(items, 'quantity'),
+      },
+      items,
+    };
+  }
+
+  /** items sold to selected customer(s) in a date range (posted sales only, qty only). */
+  async getSalesByCustomer(
+    filters: SalesByCustomerFilters,
+  ): Promise<SalesByCustomerResponse> {
+    const { customerAccountIds, startDate, endDate } = filters;
+    const uniqueIds = [
+      ...new Set(
+        customerAccountIds.filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    ];
+
+    if (uniqueIds.length === 0) {
+      return {
+        customers: [],
+        kpis: { itemCount: 0, totalQty: 0 },
+        items: [],
+      };
+    }
+
+    const sqlStartDate =
+      startDate.length === 10 ? `${startDate}T00:00:00.000Z` : startDate;
+    const sqlEndDate =
+      endDate.length === 10 ? `${endDate}T23:59:59.999Z` : endDate;
+
+    const accounts = await this.accountService.getAccountsByIds(uniqueIds);
+    const customers = orderBy(
+      uniqueIds.map((id) => {
+        const account = accounts.find((row) => row.id === id);
+        return { id, name: account?.name ?? '' };
+      }),
+      [(row) => row.name.toLowerCase()],
+      ['asc'],
+    );
+
+    const placeholders = uniqueIds.map(() => '?').join(',');
+    const lines = await this.db.all<PartyItemLine>(
+      `
+      SELECT
+        inv.id AS inventoryId,
+        inv.name AS itemName,
+        ii.quantity AS quantity,
+        i.id AS invoiceId,
+        i.invoiceNumber AS invoiceNumber,
+        i.date AS date,
+        COALESCE(ii.accountId, i.accountId) AS customerAccountId,
+        a.name AS customerName,
+        a.code AS customerCode
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoiceId = i.id
+      JOIN inventory inv ON inv.id = ii.inventoryId
+      JOIN account a ON a.id = COALESCE(ii.accountId, i.accountId)
+      WHERE i.invoiceType = 'Sale'
+        AND COALESCE(i.isQuotation, 0) = 0
+        AND COALESCE(i.isReturned, 0) = 0
+        AND i.date >= ?
+        AND i.date <= ?
+        AND COALESCE(ii.accountId, i.accountId) IN (${placeholders})
+    `,
+      [sqlStartDate, sqlEndDate, ...uniqueIds],
+    );
+
+    const items: SalesByCustomerItem[] = rollupPartyItemLines(lines).map(
+      (item) => ({
+        ...item,
+        invoices: item.invoices.map((line) => ({
+          invoiceId: line.invoiceId,
+          invoiceNumber: line.invoiceNumber,
+          date: line.date,
+          quantity: line.quantity,
+          customerAccountId: line.customerAccountId ?? 0,
+          customerName: line.customerName ?? '',
+          customerCode: line.customerCode ?? null,
+        })),
+      }),
+    );
+
+    return {
+      customers,
+      kpis: {
+        itemCount: items.length,
+        totalQty: sumBy(items, 'quantity'),
+      },
+      items,
+    };
+  }
+
+  private static buildVendorStockLinesFromInvoice(
+    invoice: Invoice,
+  ): VendorStockPurchaseLine[] {
+    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const hasMultiple =
+      Array.isArray(multipleIds) &&
+      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.every((id) => typeof id === 'number' && id > 0);
+
+    if (hasMultiple) {
+      return invoice.invoiceItems.map((item, idx) => ({
+        accountId: multipleIds[idx],
+        inventoryId: item.inventoryId,
+        quantity: item.quantity,
+      }));
+    }
+
+    const accountId = invoice.accountMapping.singleAccountId;
+    if (!accountId) return [];
+    return invoice.invoiceItems.map((item) => ({
+      accountId,
+      inventoryId: item.inventoryId,
+      quantity: item.quantity,
+    }));
+  }
+
+  private async applyVendorStockForPostedPurchase(
+    invoiceId: number,
+    invoice: Invoice,
+    direction: 'purchase' | 'purchase_return',
+  ): Promise<string[]> {
+    return this.vendorStockService.applyPurchaseEffect({
+      invoiceId,
+      date: invoice.date,
+      lines: InvoiceService.buildVendorStockLinesFromInvoice(invoice),
+      direction,
+    });
+  }
+
+  private async applyVendorStockFromStoredLines(
+    invoiceId: number,
+    date: string,
+    rows: { accountId: number; inventoryId: number; quantity: number }[],
+    direction: 'purchase' | 'purchase_return',
+  ): Promise<string[]> {
+    return this.vendorStockService.applyPurchaseEffect({
+      invoiceId,
+      date,
+      lines: rows.map((r) => ({
+        accountId: r.accountId,
+        inventoryId: r.inventoryId,
+        quantity: r.quantity,
+      })),
+      direction,
+    });
   }
 }

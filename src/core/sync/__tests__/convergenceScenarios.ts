@@ -60,6 +60,7 @@ import { ChartService } from '../../services/ChartService';
 import { LedgerService } from '../../services/LedgerService';
 import { JournalService } from '../../services/JournalService';
 import { InvoiceService } from '../../services/InvoiceService';
+import { VendorStockService } from '../../services/VendorStockService';
 import { PricingService } from '../../services/PricingService';
 import { SyncEngine } from '../SyncEngine';
 import type { SyncTransport } from '../transport';
@@ -166,12 +167,14 @@ export async function makeDevice(
     ledgerService: ledger,
   });
   const pricing = new PricingService({ db: driver, session });
+  const vendorStock = new VendorStockService({ db: driver });
   const invoices = new InvoiceService({
     db: driver,
     session,
     journalService: journal,
     accountService: accounts,
     pricingService: pricing,
+    vendorStockService: vendorStock,
   });
   const engine = new SyncEngine({ db: driver, transport });
 
