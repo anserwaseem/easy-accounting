@@ -135,23 +135,29 @@ export const usePublishSettings = () => {
   const [progress, setProgress] = useState<PublishProgressEvent | null>(null);
 
   const refresh = useCallback(async () => {
-    const [nextConfig, names, lists, previous, definitions] = await Promise.all(
-      [
+    // Settings always mounts <PublishSettings />, including on the web
+    // build where catalog publish is not wired yet (apps/web client.ts
+    // UNSUPPORTED_METHODS). Promise.all would reject the whole refresh
+    // and leave "Loading publish settings..." forever. allSettled keeps
+    // whatever succeeded and treats an unimplemented call as empty.
+    const [nextConfig, names, lists, previous, definitions] =
+      await Promise.allSettled([
         window.electron.getPublishConfig(),
         window.electron.getPriceListNames(),
         window.electron.getPriceLists(),
         window.electron.getLastPublishResult(),
         window.electron.getAttributeDefinitions(),
-      ],
-    );
-    setConfig(nextConfig);
-    setPriceListNames(names);
-    setPriceLists(lists);
-    setLastResult(previous);
+      ]);
+    if (nextConfig.status === 'fulfilled') setConfig(nextConfig.value);
+    if (names.status === 'fulfilled') setPriceListNames(names.value);
+    if (lists.status === 'fulfilled') setPriceLists(lists.value);
+    if (previous.status === 'fulfilled') setLastResult(previous.value);
     // needed so "which attributes are required" can be picked from a list: the
     // stored value is the attribute *key*, which is shown nowhere else in the
     // UI, so typing it means guessing an identifier you have never seen
-    setAttributeDefinitions(definitions);
+    if (definitions.status === 'fulfilled') {
+      setAttributeDefinitions(definitions.value);
+    }
     setLoading(false);
   }, []);
 

@@ -22,6 +22,10 @@ release/app/dist
 release/build
 .erb/dll
 
+# Self-contained Vite/browser build with its own tsconfig, node_modules and
+# lint setup — not part of the root Electron project's TS program.
+apps/web
+
 .idea
 npm-debug.log.*
 *.css.d.ts

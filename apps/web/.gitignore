@@ -1,0 +1,5 @@
+dist
+dev-dist
+test-results/*
+!test-results/.last-run.json
+playwright-report

@@ -1,0 +1,7 @@
+# SQLite-wasm OPFS requires cross-origin isolation. Without these the
+# worker cannot open the database (blank screen). Mirrors vite.config.ts's
+# `server.headers` / `preview.headers` for production (Cloudflare Pages).
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin

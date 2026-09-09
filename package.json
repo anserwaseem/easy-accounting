@@ -46,6 +46,8 @@
     "test": "ELECTRON_RUN_AS_NODE=true ./node_modules/.bin/electron ./node_modules/.bin/jest --watchAll=false",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "verify": "npm run lint && npm run typecheck && npm test",
+    "web": "npm --prefix apps/web run dev",
+    "web:build": "npm --prefix apps/web run build",
     "lint": "eslint \"**/*.{js,jsx,ts,tsx}\"",
     "lint:fix": "eslint \"**/*.{js,jsx,ts,tsx}\" --fix",
     "prepare": "husky",

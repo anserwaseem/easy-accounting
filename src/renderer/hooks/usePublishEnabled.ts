@@ -19,6 +19,14 @@ export const usePublishEnabled = (): boolean | null => {
 
   useEffect(() => {
     let cancelled = false;
+    // Web PWA cannot run a catalog publish (no SigV4/S3 path yet). Hide
+    // publish-only inventory controls even if a config arrived via sync.
+    if (window.electron.supportsDbImport) {
+      setEnabled(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     window.electron
       .getPublishConfig()
       .then((config) => {

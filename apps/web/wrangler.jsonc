@@ -1,0 +1,15 @@
+{
+  // Assets-only Worker: serves this Vite PWA's dist/.
+  // No Worker script (`main`) — sqlite-wasm runs in the browser, not here.
+  // `_headers` in dist (copied from public/) are applied by Workers static
+  // assets. SPA fallback is `not_found_handling` below — do not add a
+  // Pages-style `/* /index.html 200` `_redirects` file; Workers treats that
+  // as an infinite loop (error 100324).
+  "name": "easy-accounting-web",
+  "compatibility_date": "2026-09-03",
+  "preview_urls": true,
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
