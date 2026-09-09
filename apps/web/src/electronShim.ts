@@ -4,6 +4,7 @@ import {
   api,
   exportDatabase as workerExportDatabase,
   importDatabase as workerImportDatabase,
+  onPublishProgress,
   onSyncApplied,
   syncConnect as workerSyncConnect,
   syncDisconnect as workerSyncDisconnect,
@@ -186,21 +187,35 @@ const store: ElectronEventBridge['store'] = {
 
 /**
  * `ipcRenderer.sendMessage`/`on`/`once` push progress/status events
- * (backup-operation-*, publish-progress) from Electron's main process. There
- * is no main process here — those events never fire — so this is a
- * quiet no-op bridge: `on`/`once` never invoke `func`, and `on` still
- * returns a real unsubscribe function so callers that clean up on unmount
- * (e.g. BackupToastListener) work unmodified.
+ * (backup-operation-*, publish-progress) from Electron's main process.
+ * Backup channels never fire here. `publish-progress` is forwarded from
+ * the db worker (see onPublishProgress in ./api/client.ts) so Settings
+ * streams the same events as desktop.
  */
+const publishProgressHandlers = new Set<(...args: unknown[]) => void>();
+
+onPublishProgress((event) => {
+  publishProgressHandlers.forEach((handler) => handler(event));
+});
+
 const ipcRenderer: ElectronEventBridge['ipcRenderer'] = {
   sendMessage(): void {
     // No main process to send to.
   },
-  on(): () => void {
-    return () => {};
+  on(channel, func): () => void {
+    if (channel !== 'publish-progress') return () => {};
+    publishProgressHandlers.add(func);
+    return () => {
+      publishProgressHandlers.delete(func);
+    };
   },
-  once(): void {
-    // Never fires — nothing publishes on these channels in the browser.
+  once(channel, func): void {
+    if (channel !== 'publish-progress') return;
+    const wrap = (...args: unknown[]) => {
+      publishProgressHandlers.delete(wrap);
+      func(...args);
+    };
+    publishProgressHandlers.add(wrap);
   },
 };
 
@@ -311,7 +326,7 @@ onSyncApplied(() => {
  * rejection from `api` with one that also raises a toast, since it's the
  * one unsupported call a user can trigger from a visible, enabled button
  * (PrintableInvoiceScreen's batch print) rather than a feature that's
- * already hidden/disabled in the UI (publish/backup — see usePublishEnabled).
+ * already hidden/disabled in the UI (backup — see getOutputDir).
  * `login`/`logout` add the session-persistence side effect described above.
  * `supportsDbImport`/`importDatabase` are the web-only capability the
  * Import view (src/renderer/views/Import) gates on — see

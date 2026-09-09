@@ -13,9 +13,9 @@ import {
 } from '../utils/publishConfig';
 import {
   buildPublishTargets,
-  contentFingerprint,
   unsafeTargetReason,
 } from '../utils/publishTargets';
+import { contentFingerprint } from '../utils/publishFingerprint';
 import {
   buildSeedPlan,
   type SeedInputRow,

@@ -18,11 +18,9 @@
  * Surface: this worker backs the AppApi (src/core/api/AppApi.ts) contract
  * that src/core's platform-free services can serve — account, chart,
  * journal, ledger, invoice, inventory, pricing, statement/report, auth,
- * and settings. Catalog publish (SigV4 PUT / price-list run) is not wired
- * in this slice — those AppApi methods reject in apps/web/src/api/client.ts
- * without reaching this worker. print:* and backup:* are the same. The
- * dependency graph is the web half of what src/main/coreRuntime.ts will
- * be on Electron once that file lands.
+ * settings, and catalog publish (config in ./publishConfig.ts, run in
+ * ./publishService.ts via SigV4 PUT). print:* and backup:* still reject
+ * in apps/web/src/api/client.ts without reaching this worker.
  *
  * Two handlers are deliberately NOT part of that AppApi contract:
  *
@@ -100,6 +98,13 @@ import { enrichLedgerRowsWithJournalSummaries } from '@core/utils/ledgerJournalE
 import type { UserCredentials } from 'types';
 import { openDeserializedDatabase } from './deserializeDatabase';
 import { PLACEHOLDER_USERNAME } from './placeholderUser';
+import {
+  getWebPublishConfig,
+  getWebPublishSecrets,
+  saveWebPublishConfig,
+  migratePublishConnectionToSettings,
+} from './publishConfig';
+import { WebPublishService } from './publishService';
 import { SqliteWasmDriver } from './SqliteWasmDriver';
 import { SyncManager } from './syncManager';
 import {
@@ -443,6 +448,23 @@ async function main(): Promise<void> {
   });
   const settingsService = new SettingsService({ db: driver });
 
+  // One-time, per-device migration of the publish feature's eleven
+  // non-secret connection fields out of web_kv into the settings table
+  // (see ./publishConfig.ts). Must run after bootstrapDatabase and
+  // webKv.load(), and is deliberately NOT capture-suppressed — these
+  // copies must reach other devices.
+  await migratePublishConnectionToSettings(webKv, settingsService);
+
+  const publishService = new WebPublishService(
+    driver,
+    webKv,
+    () => getWebPublishConfig(webKv, settingsService),
+    () => getWebPublishSecrets(webKv),
+    (event) => {
+      self.postMessage({ type: 'publish-progress', event });
+    },
+  );
+
   await ensurePlaceholderDefaultUser(driver, chartService);
   // No real session persisted yet (fresh worker, never logged in on this
   // origin) — fall back to the placeholder user so the Accounts screen (and
@@ -461,8 +483,8 @@ async function main(): Promise<void> {
   // wiring for that subset (including the
   // enrichLedgerRowsWithJournalSummaries wrapping on ledger reads) so
   // src/api/client.ts can expose the real `AppApi` type directly.
-  // print:*/backup:*/publish:* are intentionally absent here — client.ts
-  // stubs those without ever reaching this worker.
+  // print:*/backup:* are intentionally absent here — client.ts stubs those
+  // without ever reaching this worker.
   const handlers: Handlers = {
     // -- Auth --------------------------------------------------------------
     login: async (user) => {
@@ -1055,6 +1077,38 @@ async function main(): Promise<void> {
     deleteSetting: (key) => settingsService.delete(key as string),
     getAllSettings: () => settingsService.getAll(),
 
+    // -- Publish (./publishConfig.ts + ./publishService.ts) ----------------
+    getPublishConfig: () => getWebPublishConfig(webKv, settingsService),
+    savePublishConfig: (input) =>
+      saveWebPublishConfig(
+        webKv,
+        settingsService,
+        input as Parameters<typeof saveWebPublishConfig>[2],
+      ),
+    getPriceListNames: () => publishService.getPriceListNames(),
+    getPriceLists: () => publishService.getPriceLists(),
+    createPriceList: (name) => publishService.createPriceList(name as string),
+    renamePriceList: (id, name) =>
+      publishService.renamePriceList(id as number, name as string),
+    setPriceListActive: (id, isActive) =>
+      publishService.setPriceListActive(id as number, isActive as boolean),
+    previewPriceListSeed: (priceListId, options, inventoryIds) =>
+      publishService.previewSeed(
+        priceListId as number,
+        options as Parameters<WebPublishService['previewSeed']>[1],
+        inventoryIds as number[] | undefined,
+      ),
+    applyPriceListSeed: (priceListId, options, inventoryIds) =>
+      publishService.applySeed(
+        priceListId as number,
+        options as Parameters<WebPublishService['applySeed']>[1],
+        inventoryIds as number[] | undefined,
+      ),
+    getItemPublishStatuses: () => publishService.getItemPublishStatuses(),
+    previewCatalog: () => publishService.previewCatalog(),
+    runPublish: (force) => publishService.publish((force as boolean) ?? false),
+    getLastPublishResult: () => Promise.resolve(publishService.getLastResult()),
+
     // -- Sync (BYOK connect wizard + background loop — see syncManager.ts) -
     'sync:getStatus': () => syncManager.getStatus(),
     'sync:connect': (config) =>
@@ -1115,6 +1169,7 @@ async function main(): Promise<void> {
 
   function isLikelyWrite(method: string, args: unknown[]): boolean {
     if (method.startsWith('sync:')) return false;
+    if (method === 'runPublish') return false; // lastResult is web_kv, not synced
     if (READ_ONLY_METHOD_PREFIXES.some((prefix) => method.startsWith(prefix)))
       return false;
     if (method === 'import:database') return args[1] === true; // only the confirmed call writes

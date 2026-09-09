@@ -1,9 +1,9 @@
 import {
   buildPublishTargets,
-  contentFingerprint,
   joinKey,
   unsafeTargetReason,
 } from '../publishTargets';
+import { contentFingerprint } from '../publishFingerprint';
 
 const config = {
   bucket: 'public-bucket',

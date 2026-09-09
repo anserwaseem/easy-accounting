@@ -35,6 +35,7 @@ const METHODS = [
   'getAccountByNameAndChart',
   'insertAccount',
   'updateAccount',
+  'bulkUpdateAccountUrduFields',
   'updateAccountDiscountProfile',
   'hasJournalEntries',
   'deleteAccount',
@@ -80,6 +81,8 @@ const METHODS = [
   'doesInventoryExist',
   'insertInventoryItem',
   'updateInventoryItem',
+  'bulkUpdateInventoryUrduFields',
+  'setInventoryParentId',
   'bulkUpdateInventoryPricesAndListPositions',
   'applyInventoryListPositions',
   'getOpeningStock',
@@ -116,27 +119,27 @@ const METHODS = [
   'reportGetInventoryHealth',
   'reportGetStockAsOf',
   'reportGetSalesPerformance',
+  'reportGetPurchasesByVendor',
+  'reportGetSalesByCustomer',
+  'getVendorStockOnHand',
+  'getTrackedVendorAccounts',
+  'setVendorOpeningStock',
+  'importVendorOpeningStock',
+  'getNextVendorIssueNumber',
+  'createVendorIssue',
+  'updateVendorIssue',
+  'deleteVendorIssue',
+  'getVendorIssues',
+  'getVendorIssue',
+  'getVendorStockActivity',
   'getSetting',
   'setSetting',
   'deleteSetting',
   'getAllSettings',
-] as const satisfies readonly (keyof AppApi)[];
-
-/**
- * AppApi members with no web implementation yet: `print:*` writes a PDF to
- * the local filesystem via Electron's print pipeline (wave B maps this UI
- * action to `window.print()` instead — see printToPdf's doc comment in
- * AppApi.ts); `backup:*` and `publish:*` (catalog config, price lists,
- * SigV4 upload) stay on desktop this slice. These never reach the worker
- * at all — calling one rejects immediately on the main thread, with a
- * message that names the method, so a renderer built against the full
- * AppApi can mount and run today without crashing the moment it touches
- * one of these, and fails loudly (not silently/hangs) if it actually
- * invokes one.
- */
-const UNSUPPORTED_METHODS = [
-  'printToPdf',
-  'getOutputDir',
+  // Publish config: only the two real secrets stay in web_kv, device-local;
+  // every other field (connection + business) goes through SettingsService
+  // and syncs (see ../worker/publishConfig.ts). Price lists, catalog preview,
+  // and the SigV4 run live in ../worker/publishService.ts.
   'getPublishConfig',
   'savePublishConfig',
   'getPriceListNames',
@@ -150,6 +153,22 @@ const UNSUPPORTED_METHODS = [
   'previewPriceListSeed',
   'applyPriceListSeed',
   'getLastPublishResult',
+] as const satisfies readonly (keyof AppApi)[];
+
+/**
+ * AppApi members with no web implementation yet: `print:*` writes a PDF to
+ * the local filesystem via Electron's print pipeline (wave B maps this UI
+ * action to `window.print()` instead — see printToPdf's doc comment in
+ * AppApi.ts); `backup:*` (`getOutputDir`) is folder backups. Catalog publish
+ * runs in the worker (SigV4 PUT). These never reach the worker at all —
+ * calling one rejects immediately on the main thread, with a message that
+ * names the method, so a renderer built against the full AppApi can mount
+ * and run today without crashing the moment it touches one of these, and
+ * fails loudly (not silently/hangs) if it actually invokes one.
+ */
+const UNSUPPORTED_METHODS = [
+  'printToPdf',
+  'getOutputDir',
 ] as const satisfies readonly (keyof AppApi)[];
 
 const worker = new Worker(new URL('../worker/db.worker.ts', import.meta.url), {
@@ -187,6 +206,28 @@ export function onSyncApplied(listener: () => void): () => void {
   return () => syncAppliedListeners.delete(listener);
 }
 
+/**
+ * Subscribers to the worker's one-way `publish-progress` notification (see
+ * rpc.ts). electronShim is the sole subscriber, turning each event into
+ * `ipcRenderer.on('publish-progress')` so shared Settings code is unchanged.
+ */
+const publishProgressListeners = new Set<
+  (event: {
+    status: 'generating' | 'uploading' | 'notifying' | 'success' | 'error';
+    message: string;
+  }) => void
+>();
+
+export function onPublishProgress(
+  listener: (event: {
+    status: 'generating' | 'uploading' | 'notifying' | 'success' | 'error';
+    message: string;
+  }) => void,
+): () => void {
+  publishProgressListeners.add(listener);
+  return () => publishProgressListeners.delete(listener);
+}
+
 worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
   const msg = event.data;
   if (msg.type === 'ready') {
@@ -199,6 +240,10 @@ worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
   }
   if (msg.type === 'sync-applied') {
     syncAppliedListeners.forEach((listener) => listener());
+    return;
+  }
+  if (msg.type === 'publish-progress') {
+    publishProgressListeners.forEach((listener) => listener(msg.event));
     return;
   }
   const entry = pending.get(msg.id);

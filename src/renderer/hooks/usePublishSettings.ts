@@ -135,11 +135,8 @@ export const usePublishSettings = () => {
   const [progress, setProgress] = useState<PublishProgressEvent | null>(null);
 
   const refresh = useCallback(async () => {
-    // Settings always mounts <PublishSettings />, including on the web
-    // build where catalog publish is not wired yet (apps/web client.ts
-    // UNSUPPORTED_METHODS). Promise.all would reject the whole refresh
-    // and leave "Loading publish settings..." forever. allSettled keeps
-    // whatever succeeded and treats an unimplemented call as empty.
+    // Settings always mounts <PublishSettings />. allSettled keeps
+    // whatever succeeded if an individual call fails.
     const [nextConfig, names, lists, previous, definitions] =
       await Promise.allSettled([
         window.electron.getPublishConfig(),

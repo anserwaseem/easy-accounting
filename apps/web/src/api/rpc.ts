@@ -26,4 +26,18 @@ export type WorkerMessage =
    * `easyaccounting:sync-applied` window event shared renderer code can
    * listen for.
    */
-  | { type: 'sync-applied' };
+  | { type: 'sync-applied' }
+  /**
+   * One-way worker->main notification during a publish run (see
+   * apps/web/src/worker/publishService.ts). Mirrors Electron's
+   * `publish-progress` IPC so Settings can stream status the same way on
+   * both platforms. Carries no `id` — not a reply to the still-pending
+   * `runPublish` RPC.
+   */
+  | {
+      type: 'publish-progress';
+      event: {
+        status: 'generating' | 'uploading' | 'notifying' | 'success' | 'error';
+        message: string;
+      };
+    };

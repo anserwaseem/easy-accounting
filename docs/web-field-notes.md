@@ -278,12 +278,46 @@ Safari tab, and vice versa.
 - `users.username` for this business is `default` (desktop import).
   Login is local (`users.password_hash`), not a network check.
 
+## Catalog publish from the browser
+
+Settings → Publish now generates the catalogs in the worker and PUTs them
+with AWS Signature Version 4 (`apps/web/src/worker/s3Put.ts`). Secrets stay
+in `web_kv` on this device; connection fields sync through `settings`.
+
+The object store must allow this origin. A typical CORS rule:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://easy-accounting-web.ansercrypto.workers.dev"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": [
+      "Authorization",
+      "Content-Type",
+      "x-amz-content-sha256",
+      "x-amz-date"
+    ],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Add `http://localhost:5173` and `http://localhost:4173` while developing.
+The images-manifest host must allow GET from the same origins (preview
+counts photographs by fetching that JSON). A failed PUT that looks like
+"Failed to fetch" is almost always CORS, not a bad signature.
+
+This code is on `feat/web-pwa`. Production still builds from
+`easy-accounting-web` until Cloudflare Git is switched — see
+`docs/web-deploy.md`.
+
 ## Remaining web work (Safari parked)
 
 Shipped: local-first PWA, BYOK sync in the browser, import, join/QR,
-export, accounting UI, report/`window.print()`, publish _config_
-storage, vendor stock / Urdu / party reports on `src/core`. Electron
-now runs those services through core.
+export, accounting UI, report/`window.print()`, catalog publish (config,
+price lists, preview, SigV4 upload), vendor stock / Urdu / party reports
+on `src/core`. Electron now runs those services through core.
 
 Still open, in useful order:
 
@@ -291,9 +325,9 @@ Still open, in useful order:
    shows 0 pending: `delete from sync_log where op = 'delete'; vacuum
 full sync_log;` and re-run `supabase/setup.sql` if statement_timeout
    is still 8s. The project log has two overlapping seeds.
-2. **Catalog publish for real on web** — upload, price-list CRUD,
-   preview, Publish now (config already saves/syncs; run is Electron-
-   only / `UNSUPPORTED_METHODS` in the PWA worker).
+2. **Prove a live web publish** against the real bucket (CORS + one
+   successful Publish now). Code is in this repo; production still
+   deploys from the clone until Git is switched.
 3. **Sync inside the Electron app** — renderer Join/Sync UI is gated on
    `supportsSync`; preload never sets it. The PWA worker already has
    `SyncManager`.
