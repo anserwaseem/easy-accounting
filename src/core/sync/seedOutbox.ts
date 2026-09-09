@@ -10,7 +10,7 @@ import {
 /**
  * {@link SYNC_TABLES}, but ordered the same way {@link BUSINESS_TABLES}
  * already is: parents before children. `SYNC_TABLES` itself is *derived*
- * from `BUSINESS_TABLES` (`.filter((t) => t !== 'ledger')` — see migration
+ * from `BUSINESS_TABLES` (minus `ledger` and `vendor_stock` — see migration
  * 029's doc comment) by array iteration, so it already preserves that order
  * today; this re-filters `BUSINESS_TABLES` directly anyway, rather than
  * trusting that derivation to keep doing so forever, because the ordering

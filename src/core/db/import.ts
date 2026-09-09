@@ -78,6 +78,10 @@ export const BUSINESS_TABLES = [
   'inventory_opening_stock',
   'inventory_prices',
   'stock_adjustments',
+  'vendor_stock',
+  'vendor_issues',
+  'vendor_issue_items',
+  'vendor_stock_movements',
   'profile_type_discounts',
   'invoices',
   'invoice_items',
@@ -106,17 +110,15 @@ export const MINIMUM_REQUIRED_TABLES = [
 /**
  * The highest migration number this build's own schema is on — the frozen
  * snapshot (src/core/db/schema.snapshot.sql / bootstrap.ts, migrations
- * 001-027) plus every migration src/core/db/migrations/index.ts's
- * CORE_MIGRATIONS has added since (028+, which never renumbers 001-027).
+ * 001-030) plus every migration src/core/db/migrations/index.ts's
+ * CORE_MIGRATIONS has added since (028+, which never renumbers 001-030).
  * An uploaded database whose own `migrations` table references a migration
  * numbered higher than this came from a newer build than this one — see
  * `validateUploadedDatabase` below. Bump this whenever CORE_MIGRATIONS
- * gains a new entry (as of migration 035 —
- * src/core/db/migrations/035_insert_timestamps_fill_only.ts, which — like
- * 034 before it — touches only trigger definitions, not `BUSINESS_TABLES`
- * — this is 35, not 34).
+ * gains a new entry (as of migration 036 —
+ * src/core/db/migrations/036_desktop_vendor_stock_and_urdu.ts).
  */
-export const SNAPSHOT_MIGRATION_VERSION = 35;
+export const SNAPSHOT_MIGRATION_VERSION = 36;
 
 export interface ImportTableSummary {
   name: string;

@@ -251,7 +251,7 @@ describe('importDatabase', () => {
   });
 
   it("preserves an already-migrated upload's own uuids instead of overwriting them", async () => {
-    const sourceDb = buildDesktopDatabase(27);
+    const sourceDb = buildDesktopDatabase(30);
     seedDesktopBusinessData(sourceDb, { withUuid: true });
     const source = new BetterSqliteDriver(sourceDb);
 
@@ -268,7 +268,7 @@ describe('importDatabase', () => {
   });
 
   it('wipes all business tables even when the upload has none of them (minimum-viable empty database)', async () => {
-    const sourceDb = buildDesktopDatabase(27);
+    const sourceDb = buildDesktopDatabase(30);
     const source = new BetterSqliteDriver(sourceDb);
 
     const { db: targetDb, driver: target } = await buildTargetDriver();
@@ -416,7 +416,7 @@ describe('importDatabase', () => {
   });
 
   it('does not duplicate journals for a source whose opening-balance rows are already migration-025+ backed (idempotent)', async () => {
-    const sourceDb = buildDesktopDatabase(27);
+    const sourceDb = buildDesktopDatabase(30);
     seedDesktopBusinessData(sourceDb, { withUuid: true });
     // Simulates a database already on migration 025+: one ledger row backed
     // by exactly the journal/journal_entry pair StatementService.setupLedgers
@@ -676,7 +676,7 @@ describe('importDatabase', () => {
   });
 
   it('reconciles an item whose stored desktop quantity includes history no fact row captures', async () => {
-    const sourceDb = buildDesktopDatabase(27);
+    const sourceDb = buildDesktopDatabase(30);
     // The field-bug shape this whole change exists for: a legacy desktop
     // item whose stored `quantity` (100) was built up partly through writes
     // that only ever touched the stored counter (item creation, direct
@@ -752,7 +752,7 @@ describe('importDatabase', () => {
   });
 
   it("adds no baseline adjustment when an item's facts already fully explain its stored quantity", async () => {
-    const sourceDb = buildDesktopDatabase(27);
+    const sourceDb = buildDesktopDatabase(30);
     // Consistent history: opening stock 10, one Sale of 3 -> 7, matching the
     // stored counter exactly. Nothing for the baseline backfill to do.
     sourceDb
@@ -804,7 +804,7 @@ describe('importDatabase', () => {
   });
 
   it("carries the source device's TRUE createdAt/updatedAt through import verbatim — the field bug migration 035 fixes, exercised end-to-end", async () => {
-    const sourceDb = buildDesktopDatabase(27);
+    const sourceDb = buildDesktopDatabase(30);
     // withUuid: true — this fixture represents the incident's actual shape:
     // a MODERN, already-migrated (024+) business file, where every row
     // (including the two planted below) genuinely carries a real uuid, same

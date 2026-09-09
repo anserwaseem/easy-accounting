@@ -1,23 +1,18 @@
 /**
  * Generates the frozen schema snapshot used to bootstrap fresh databases
- * (web / SQLite-wasm) without running the 27 historical migrations, which
- * use better-sqlite3's synchronous API and cannot run in a browser.
+ * (web / SQLite-wasm) without running the historical `src/main/migrations/*.js`
+ * files, which use better-sqlite3's synchronous API and cannot run in a browser.
  *
- * ## Schema fork (why this is not `src/sql/schema.sql` + `src/main/migrations`)
+ * Unified chain (post schema-merge):
+ *   - `scripts/frozen-web-schema/schema.sql` (shared 001-era CREATE TABLEs)
+ *   - `src/main/migrations/001.js`–`026.js` (shared 001–023 + desktop
+ *     invoice-date / vendor-stock / Urdu)
+ *   - `src/main/migrations/027.js`–`030.js` (uuid, opening-balance→journal,
+ *     lookup indexes, ledger/inventory quantity *views* — additive; the
+ *     `ledger` table remains, so Electron services can still INSERT into it)
  *
- * Desktop `main` and the web field-test clone diverged at migration 024:
- *   - desktop 024–026: invoice date format, vendor stock, Urdu print fields
- *   - web 024–027: uuid columns, opening-balance→journal, lookup indexes,
- *     ledger/inventory quantity views
- *
- * Electron still runs desktop 001–026 from `src/main/migrations`. This
- * generator — and core's in-memory tests — replay the **web** chain the
- * snapshot was frozen at: shared 001–023 from `src/main/migrations`, then
- * web 024–027 plus the web `schema.sql` from `scripts/frozen-web-schema/`.
- * Desktop 024–026 are NOT applied here. Merging those into the snapshot
- * (and adding uuid/views to live desktop DBs) is a later slice; doing it
- * now would replace `ledger` with a view while `src/main/services` still
- * writes the table.
+ * Core 028+ (`src/core/db/migrations`, plus JS twins 031.js–038.js) are NOT
+ * baked into this snapshot — `bootstrapDatabase` applies those on top.
  *
  * Two artifacts are written from a single build:
  *   - src/core/db/schema.snapshot.sql
@@ -34,15 +29,15 @@ import path from 'path';
 const ROOT_DIR = path.join(__dirname, '..');
 const FROZEN_WEB_DIR = path.join(ROOT_DIR, 'scripts/frozen-web-schema');
 const SCHEMA_SQL_PATH = path.join(FROZEN_WEB_DIR, 'schema.sql');
-const SHARED_MIGRATIONS_DIR = path.join(ROOT_DIR, 'src/main/migrations');
+const MIGRATIONS_DIR = path.join(ROOT_DIR, 'src/main/migrations');
 const SNAPSHOT_SQL_PATH = path.join(
   ROOT_DIR,
   'src/core/db/schema.snapshot.sql',
 );
 const SNAPSHOT_TS_PATH = path.join(ROOT_DIR, 'src/core/db/schemaSnapshot.ts');
 
-/** The migration range this snapshot freezes. Update if it ever moves. */
-export const FROZEN_MIGRATION_RANGE = '001-027';
+/** The migration range this snapshot freezes (filename numbers 001–030). */
+export const FROZEN_MIGRATION_RANGE = '001-030';
 
 export interface LoadedMigration {
   name: string;
@@ -58,34 +53,27 @@ function loadMigrationFile(dir: string, fileName: string): LoadedMigration {
 }
 
 /**
- * Shared 001–023 (identical on desktop and web) plus the frozen web 024–027.
- * Does not load desktop 024–026 from src/main/migrations.
+ * Historical JS migrations baked into the snapshot: 001–030.
+ * 031.js–038.js are core 028–035 twins and must NOT run here.
  */
 export function loadMigrations(): LoadedMigration[] {
-  const shared = fs
-    .readdirSync(SHARED_MIGRATIONS_DIR)
-    .filter((f) => /^(00[1-9]|01\d|02[0-3])\.js$/.test(f))
+  return fs
+    .readdirSync(MIGRATIONS_DIR)
+    .filter((f) => /^(00[1-9]|01\d|02\d|030)\.js$/.test(f))
     .sort()
-    .map((fileName) => loadMigrationFile(SHARED_MIGRATIONS_DIR, fileName));
-
-  const frozen = ['024.js', '025.js', '026.js', '027.js'].map((fileName) =>
-    loadMigrationFile(FROZEN_WEB_DIR, fileName),
-  );
-
-  return [...shared, ...frozen];
+    .map((fileName) => loadMigrationFile(MIGRATIONS_DIR, fileName));
 }
 
 /**
- * Applies the frozen web schema (schema.sql + migrations 001–027) onto `db`
- * and records those names in `migrations`. Used by core service tests so
- * they do not pick up desktop 024–026 from src/main/migrations.
+ * Applies the frozen base schema.sql + migrations 001–030 onto `db`
+ * and records those names in `migrations`.
  *
  * `upToInclusive` (filename number) stops after that migration — used by
  * import tests that replay a historical desktop-format file.
  */
 export function applyFrozenWebSchema(
   db: Database.Database,
-  upToInclusive = 27,
+  upToInclusive = 30,
 ): void {
   const schemaSql = fs.readFileSync(SCHEMA_SQL_PATH, 'utf-8');
   db.exec(schemaSql);
@@ -169,19 +157,20 @@ export function buildSnapshotSql(db: Database.Database): string {
 -- Regenerate with: npx ts-node scripts/generate-schema-snapshot.ts
 --
 -- Frozen schema snapshot for migrations ${FROZEN_MIGRATION_RANGE}
--- (src/sql/schema.sql + src/main/migrations/001.js..027.js).
+-- (scripts/frozen-web-schema/schema.sql + src/main/migrations/001.js..030.js).
 --
 -- Bootstraps a fresh database (web, and eventually new desktop installs) to
--- the exact schema state produced by running schema.sql followed by
--- migrations 001-027 through the historical (better-sqlite3-sync)
+-- the exact schema state produced by running that schema.sql followed by
+-- migrations 001-030 through the historical (better-sqlite3-sync)
 -- MigrationRunner. Includes the \`migrations\` bookkeeping table, pre-seeded
--- with rows for 001-027, so that if the desktop MigrationRunner ever opens
--- a database bootstrapped from this snapshot, it treats 001-027 as already
+-- with those names, so that if the desktop MigrationRunner ever opens a
+-- database bootstrapped from this snapshot, it treats them as already
 -- applied and does not attempt to re-run them.
 --
 -- Future schema changes belong in src/core/db/migrations (028+), written
--- platform-free against DatabaseDriver -- NOT in this file and NOT as new
--- files under src/main/migrations.
+-- platform-free against DatabaseDriver -- NOT in this file. Existing
+-- Electron installs still get 028-035 via src/main/migrations/031.js..038.js
+-- twins (same recorded names).
 `;
 
   const body = objects.map((o) => `${o.sql.trim()};`).join('\n\n');

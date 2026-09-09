@@ -131,7 +131,8 @@ const appliedNames = (db: Database.Database): string[] =>
 
 /**
  * Turn a current-schema database into one that looks like it was last touched
- * by migration 019: drop what 020-023 added, and record 001-019 as applied.
+ * by migration 019: drop what 020+ added, actually apply 001-019 (schema.sql
+ * comments those columns out as "NNN migration"), and record 001-019 as applied.
  */
 const rollbackTo019 = (db: Database.Database): void => {
   db.pragma('foreign_keys = OFF');
@@ -149,7 +150,6 @@ const rollbackTo019 = (db: Database.Database): void => {
   Object.entries(POST_019.columns).forEach(([table, columns]) => {
     columns.forEach((column) => {
       if (!columnExists(db, table, column)) return;
-      // An index over the column blocks DROP COLUMN, so clear those first.
       db.prepare(
         `SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql LIKE ?`,
       )
@@ -159,8 +159,6 @@ const rollbackTo019 = (db: Database.Database): void => {
     });
   });
 
-  // schema.sql does not carry the migrations table; the runner creates it on
-  // first launch, so a 019 database already has one.
   db.exec(`
     CREATE TABLE IF NOT EXISTS migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -168,6 +166,20 @@ const rollbackTo019 = (db: Database.Database): void => {
       applied_at DATETIME DEFAULT (DATETIME(CURRENT_TIMESTAMP, 'localtime'))
     )
   `);
+
+  fs.readdirSync(MIGRATIONS_DIR)
+    .filter((f) => /^(00[1-9]|01[0-9])\.js$/.test(f))
+    .sort()
+    .forEach((file) => {
+      // eslint-disable-next-line global-require, import/no-dynamic-require
+      const migration = require(path.join(MIGRATIONS_DIR, file));
+      const result = migration.up(db);
+      if (result !== true) {
+        throw new Error(
+          `001-019 fixture: ${migration.name} did not return true`,
+        );
+      }
+    });
 
   const names = migrationNames().filter((n) => n < '020');
   const insert = db.prepare('INSERT INTO migrations (name) VALUES (?)');
@@ -259,6 +271,18 @@ describe('migrations', () => {
         '024_normalize_invoice_date_format',
         '025_vendor_stock',
         '026_add_urdu_print_fields',
+        '024_add_uuid_to_business_tables',
+        '025_migrate_opening_balance_ledger_to_journal',
+        '026_index_journal_entry_and_ledger_lookup',
+        '027_create_ledger_and_inventory_quantity_views',
+        '028_create_settings_table',
+        '029_create_sync_tables',
+        '030_create_sync_apply_conflicts',
+        '031_replicate_blob_columns',
+        '032_redate_import_baselines',
+        '033_sync_settings',
+        '034_suppress_timestamp_triggers_during_apply',
+        '035_insert_timestamps_fill_only',
       ]);
     });
 

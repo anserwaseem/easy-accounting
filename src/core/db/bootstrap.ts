@@ -7,9 +7,9 @@ import { CORE_MIGRATIONS } from './migrations';
  *
  * - If the database is empty (no `users` table), it is created from the
  *   frozen schema snapshot (src/core/db/schemaSnapshot.ts) — the equivalent
- *   of running src/sql/schema.sql plus migrations 001-027, without needing
- *   better-sqlite3's synchronous API. The snapshot also seeds the
- *   `migrations` bookkeeping table with rows for 001-027, so the desktop
+ *   of running the frozen base schema.sql plus migrations 001-030, without
+ *   needing better-sqlite3's synchronous API. The snapshot also seeds the
+ *   `migrations` bookkeeping table with those names, so the desktop
  *   MigrationRunner (which still runs against every Electron database) sees
  *   them as already applied and does not try to re-run them.
  * - Either way (freshly bootstrapped or a pre-existing database), any

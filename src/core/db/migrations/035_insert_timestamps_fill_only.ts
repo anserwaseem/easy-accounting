@@ -280,6 +280,16 @@ function insertTriggerSql(name: string, table: string): string {
   `;
 }
 
+async function tableHasIdColumn(
+  driver: DatabaseDriver,
+  table: string,
+): Promise<boolean> {
+  const rows = await driver.all<{ name: string }>(
+    `PRAGMA table_info("${table}")`,
+  );
+  return rows.some((row) => row.name === 'id');
+}
+
 export const migration035 = {
   name: '035_insert_timestamps_fill_only',
   async up(driver: DatabaseDriver): Promise<void> {
@@ -291,6 +301,8 @@ export const migration035 = {
     for (const { name } of triggers) {
       const table = parseInsertTimestampTriggerName(name);
       if (!table) continue; // defensive — the LIKE filter above already guarantees a match
+      // eslint-disable-next-line no-await-in-loop
+      if (!(await tableHasIdColumn(driver, table))) continue;
 
       // eslint-disable-next-line no-await-in-loop
       await driver.exec(`DROP TRIGGER "${name}"`);

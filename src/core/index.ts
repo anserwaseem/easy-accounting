@@ -11,8 +11,9 @@
  * Services were ported here from src/main/services. Electron still runs
  * the main-process copies; core is landed so the PWA can share them, and
  * is not yet wired into `src/main/main.ts`. The two copies are not
- * currently identical — desktop main has vendor stock / Urdu print schema
- * that this package's frozen snapshot (web 024–027) does not.
+ * currently identical — desktop main has vendor stock / Urdu print fields
+ * that this package now also has in the frozen snapshot (and in core
+ * migration 036 for older web installs).
  */
 
 export * from './ports';

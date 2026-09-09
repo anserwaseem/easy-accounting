@@ -6,6 +6,7 @@ import { migration032 } from './032_redate_import_baselines';
 import { migration033 } from './033_sync_settings';
 import { migration034 } from './034_suppress_timestamp_triggers_during_apply';
 import { migration035 } from './035_insert_timestamps_fill_only';
+import { migration036 } from './036_desktop_vendor_stock_and_urdu';
 
 /**
  * Platform-free migration for schemas already bootstrapped from
@@ -174,4 +175,9 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // data-sweeping migrations to handle themselves). Has a desktop-side twin
   // (src/main/migrations/035.js), same as 028-034.
   migration035,
+  // Migration 036 — desktop 024–026 schema (vendor stock + Urdu print
+  // columns, plus uuid on those new tables) for databases that booted from
+  // the pre-merge web snapshot. Idempotent: fresh snapshot bootstraps already
+  // have this from JS 025–027 and no-op here.
+  migration036,
 ];

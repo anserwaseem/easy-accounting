@@ -136,10 +136,15 @@ import { BUSINESS_TABLES } from '../import';
  * assumption is enforced/relied on.
  */
 
-/** Every replicated fact table: every business table except `ledger`. */
+/** Every replicated fact table: every business table except `ledger` and `vendor_stock`.
+ * `vendor_stock` has a composite PK (no INTEGER `id`) and is a running
+ * quantity like `ledger` — movements/issues replicate; the balance table does not. */
 export const SYNC_TABLES = BUSINESS_TABLES.filter(
-  (table) => table !== 'ledger',
-) as readonly Exclude<(typeof BUSINESS_TABLES)[number], 'ledger'>[];
+  (table) => table !== 'ledger' && table !== 'vendor_stock',
+) as readonly Exclude<
+  (typeof BUSINESS_TABLES)[number],
+  'ledger' | 'vendor_stock'
+>[];
 
 /** Same version-4 (random) uuid SQL expression migration 024 uses. */
 export const UUID_V4_SQL_EXPR = `(SELECT lower(

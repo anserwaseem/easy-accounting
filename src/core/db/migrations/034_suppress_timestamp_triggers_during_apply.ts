@@ -225,6 +225,16 @@ function updateTriggerSql(name: string, table: string): string {
   `;
 }
 
+async function tableHasIdColumn(
+  driver: DatabaseDriver,
+  table: string,
+): Promise<boolean> {
+  const rows = await driver.all<{ name: string }>(
+    `PRAGMA table_info("${table}")`,
+  );
+  return rows.some((row) => row.name === 'id');
+}
+
 export const migration034 = {
   name: '034_suppress_timestamp_triggers_during_apply',
   async up(driver: DatabaseDriver): Promise<void> {
@@ -238,6 +248,10 @@ export const migration034 = {
     for (const { name } of triggers) {
       const parsed = parseTimestampTriggerName(name);
       if (!parsed) continue; // defensive — the LIKE filter above already guarantees a match
+      // vendor_stock is composite-PK (no `id`); leave its original
+      // timestamp triggers rather than rewriting `WHERE id = NEW.id`.
+      // eslint-disable-next-line no-await-in-loop
+      if (!(await tableHasIdColumn(driver, parsed.table))) continue;
 
       const sql =
         parsed.kind === 'insert'

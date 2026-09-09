@@ -52,17 +52,14 @@ function migrationsSignature(db: Database.Database): string[] {
 }
 
 describe('bootstrapDatabase', () => {
-  it('produces a schema equivalent to schema.sql + migrations 001-027', async () => {
-    // Reference: the exact production bootstrap (schema.sql + the 27
-    // historical migrations), built the same way the generator built the
-    // snapshot in the first place.
+  it('produces a schema equivalent to the frozen snapshot plus CORE_MIGRATIONS', async () => {
+    // Reference: snapshot (001-030) then the same 028+ core migrations
+    // bootstrapDatabase applies on an already-populated DB.
     const referenceDb = buildProductionDatabase();
+    await bootstrapDatabase(new BetterSqliteDriver(referenceDb));
 
-    // Subject: an empty database brought up purely through the new,
-    // platform-free bootstrap path.
     const bootstrappedDb = new Database(':memory:');
-    const driver = new BetterSqliteDriver(bootstrappedDb);
-    await bootstrapDatabase(driver);
+    await bootstrapDatabase(new BetterSqliteDriver(bootstrappedDb));
 
     expect(schemaSignature(bootstrappedDb)).toEqual(
       schemaSignature(referenceDb),
