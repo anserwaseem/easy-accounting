@@ -26,6 +26,7 @@
     "release/build",
     "release/app/dist",
     ".erb/dll",
-    "apps/web"
+    "apps/web",
+    "workers"
   ]
 }

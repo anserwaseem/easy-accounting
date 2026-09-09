@@ -1,5 +1,7 @@
 {
   // Assets-only Worker: serves this Vite PWA's dist/.
+  // Production uses the repo-root wrangler.jsonc (R2 Jameel font Worker).
+  // This file is for a local `cd apps/web && npx wrangler deploy` preview.
   // No Worker script (`main`) — sqlite-wasm runs in the browser, not here.
   // `_headers` in dist (copied from public/) are applied by Workers static
   // assets. SPA fallback is `not_found_handling` below — do not add a

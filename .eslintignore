@@ -26,6 +26,9 @@ release/build
 # lint setup — not part of the root Electron project's TS program.
 apps/web
 
+# Cloudflare Worker (R2 font) — Wrangler Env types, not the Electron TS program.
+workers
+
 .idea
 npm-debug.log.*
 *.css.d.ts
