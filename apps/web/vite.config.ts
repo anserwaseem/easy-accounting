@@ -1,10 +1,22 @@
 import path from 'node:path';
+import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
+
+// serialize-javascript@7 (via workbox → @rollup/plugin-terser) reads the
+// Web Crypto global. Node 18 — this repo's .nvmrc — does not have it.
+// Pin is in package.json overrides; this covers a worker thread that
+// still loads the old package.
+if (typeof globalThis.crypto === 'undefined') {
+  Object.defineProperty(globalThis, 'crypto', {
+    value: webcrypto,
+    configurable: true,
+  });
+}
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(dirname, '../..');
