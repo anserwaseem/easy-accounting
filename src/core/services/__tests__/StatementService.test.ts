@@ -347,8 +347,7 @@ describe('core StatementService', () => {
     db.close();
   });
 
-  // eslint-disable-next-line jest/no-disabled-tests -- schema fork: desktop 024-026 vs web 024-027
-  it.skip('matches the main-process StatementService: both fail identically for a brand-new account', async () => {
+  it('matches the main-process StatementService: both fail identically for a brand-new account', async () => {
     const dbOld = new Database(':memory:');
     const dbCore = new Database(':memory:');
     seedBasicSchema(dbOld);
@@ -368,8 +367,7 @@ describe('core StatementService', () => {
     dbCore.close();
   });
 
-  // eslint-disable-next-line jest/no-disabled-tests -- schema fork: desktop 024-026 vs web 024-027
-  it.skip('matches the main-process StatementService row for row when accounts pre-exist', async () => {
+  it('matches the main-process StatementService row for row when accounts pre-exist', async () => {
     const dbOld = new Database(':memory:');
     const dbCore = new Database(':memory:');
     const userIdOld = seedBasicSchema(dbOld);

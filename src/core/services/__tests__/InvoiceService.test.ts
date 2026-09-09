@@ -1206,8 +1206,7 @@ describe('core InvoiceService sale quotations', () => {
   });
 });
 
-// eslint-disable-next-line jest/no-disabled-tests -- schema fork: desktop 024-026 vs web 024-027
-describe.skip('core InvoiceService matches main-process InvoiceService (parity)', () => {
+describe('core InvoiceService matches main-process InvoiceService (parity)', () => {
   it('full sale invoice lifecycle: insert, read, return — identical rows on both sides', async () => {
     const dbOld = new Database(':memory:');
     const dbCore = new Database(':memory:');

@@ -12,7 +12,11 @@ import {
   OPENING_BALANCE_EQUITY_CHART_NAME,
 } from '../db/openingBalanceBackfill';
 
-const ACCOUNT_BOOLEAN_FIELDS = ['isActive', 'discountProfileIsActive'] as const;
+const ACCOUNT_BOOLEAN_FIELDS = [
+  'isActive',
+  'discountProfileIsActive',
+  'tracksVendorStock',
+] as const;
 
 const SQL = {
   // List query only. The system "Opening Balance Equity" account (under the
@@ -37,7 +41,11 @@ const SQL = {
         a.phone1,
         a.phone2,
         a.goodsName,
+        a.nameUrdu,
+        a.addressUrdu,
+        a.goodsNameUrdu,
         a.isActive,
+        COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
         a.discountProfileId,
         dp.name AS discountProfileName,
         dp.isActive AS discountProfileIsActive
@@ -52,7 +60,7 @@ const SQL = {
       AND NOT (a.name = '${OPENING_BALANCE_EQUITY_ACCOUNT_NAME}' AND c.type = '${OPENING_BALANCE_EQUITY_CHART_NAME}')
     `,
   insertAccount: `
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, isActive, discountProfileId)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, nameUrdu, addressUrdu, goodsNameUrdu, isActive, discountProfileId, tracksVendorStock)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -61,11 +69,11 @@ const SQL = {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName, 1, @discountProfileId)
+      ), @code, @address, @phone1, @phone2, @goodsName, @nameUrdu, @addressUrdu, @goodsNameUrdu, 1, @discountProfileId, COALESCE(@tracksVendorStock, 0))
     `,
   updateAccount: `
       UPDATE account
-      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, discountProfileId = @discountProfileId, chartId = (
+      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, nameUrdu = @nameUrdu, addressUrdu = @addressUrdu, goodsNameUrdu = @goodsNameUrdu, discountProfileId = @discountProfileId, tracksVendorStock = COALESCE(@tracksVendorStock, 0), chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName AND userId = (
@@ -90,7 +98,7 @@ const SQL = {
       WHERE id = @id
     `,
   getAccountByName: `
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock, a.discountProfileId
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE LOWER(a.name) LIKE LOWER(@name) AND userId = (
@@ -101,7 +109,7 @@ const SQL = {
         AND (@code IS NULL OR LOWER(a.code) LIKE LOWER(@code))
     `,
   getAccountByNameAndChart: `
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock, a.discountProfileId
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE a.chartId = @chartId
@@ -114,7 +122,7 @@ const SQL = {
       LIMIT 1
     `,
   getAccountByNameAnyChart: `
-      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, a.discountProfileId
+      SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock, a.discountProfileId
       FROM account a
       JOIN chart c ON c.id = a.chartId
       WHERE TRIM(a.name) = TRIM(@name)
@@ -189,7 +197,11 @@ export class AccountService {
         a.phone1,
         a.phone2,
         a.goodsName,
+        a.nameUrdu,
+        a.addressUrdu,
+        a.goodsNameUrdu,
         a.isActive,
+        COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
         a.discountProfileId,
         dp.name AS discountProfileName,
         dp.isActive AS discountProfileIsActive
@@ -209,6 +221,10 @@ export class AccountService {
     const username = this.session.getUsername();
     const result = await this.db.run(SQL.insertAccount, {
       ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
+      tracksVendorStock: cast(!!account.tracksVendorStock),
       username,
     });
     return Number.isSafeInteger(result.lastInsertRowid);
@@ -244,6 +260,10 @@ export class AccountService {
     const username = this.session.getUsername();
     const result = await this.db.run(SQL.insertAccount, {
       ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
+      tracksVendorStock: cast(!!account.tracksVendorStock),
       username,
     });
     return {
@@ -256,6 +276,10 @@ export class AccountService {
     const username = this.session.getUsername();
     const result = await this.db.run(SQL.updateAccount, {
       ...account,
+      nameUrdu: account.nameUrdu ?? null,
+      addressUrdu: account.addressUrdu ?? null,
+      goodsNameUrdu: account.goodsNameUrdu ?? null,
+      tracksVendorStock: cast(!!account.tracksVendorStock),
       id: cast(account.id),
       username,
     });

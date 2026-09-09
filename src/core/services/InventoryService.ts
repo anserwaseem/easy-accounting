@@ -72,14 +72,15 @@ const SQL = {
     `,
 
   insertItem: `
-      INSERT INTO inventory (name, description, price, title, itemTypeId, listPosition)
-      VALUES (@name, @description, @price, @title, @itemTypeId, @listPosition);
+      INSERT INTO inventory (name, description, descriptionUrdu, price, title, itemTypeId, listPosition)
+      VALUES (@name, @description, @descriptionUrdu, @price, @title, @itemTypeId, @listPosition);
     `,
 
   updateItem: `
       UPDATE inventory
       SET price = @price,
           description = @description,
+          descriptionUrdu = @descriptionUrdu,
           title = @title,
           itemTypeId = @itemTypeId,
           listPosition = @listPosition
@@ -710,7 +711,9 @@ export class InventoryService {
         const result = await this.db.run(SQL.insertItem, {
           name: item.name,
           description: item.description ?? null,
+          descriptionUrdu: item.descriptionUrdu?.trim() || null,
           price: item.price,
+          title: item.title?.trim() || null,
           itemTypeId: item.itemTypeId ?? null,
           listPosition: item.listPosition ?? null,
         });
@@ -746,6 +749,7 @@ export class InventoryService {
     const result = await this.db.run(SQL.insertItem, {
       ...item,
       description: item.description ?? null,
+      descriptionUrdu: item.descriptionUrdu?.trim() || null,
       // same rule as updateItem: blank stores NULL, and the key must be present
       // either way or the statement's @title parameter has nothing to bind to
       title: item.title?.trim() || null,
@@ -761,6 +765,7 @@ export class InventoryService {
       ...item,
       id: cast(item.id),
       description: item.description ?? null,
+      descriptionUrdu: item.descriptionUrdu?.trim() || null,
       // blank stores NULL, not '': "no title" must have one representation, or
       // a consumer choosing between a title and a composed one has to test for
       // both and one caller will forget
@@ -796,7 +801,9 @@ export class InventoryService {
             const result = await this.db.run(SQL.insertItem, {
               name,
               description: null,
+              descriptionUrdu: null,
               price: 0,
+              title: null,
               itemTypeId: null,
               listPosition: null,
             });

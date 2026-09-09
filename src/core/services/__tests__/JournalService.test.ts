@@ -497,8 +497,7 @@ describe('core JournalService', () => {
     db.close();
   });
 
-  // eslint-disable-next-line jest/no-disabled-tests -- schema fork: desktop 024-026 vs web 024-027
-  it.skip('matches the main-process JournalService row for row', async () => {
+  it('matches the main-process JournalService row for row', async () => {
     // Same operations against two identical databases — one through the old
     // sync service, one through core — must produce identical reads. This is
     // the no-behavior-change contract of the migration.

@@ -238,11 +238,7 @@ describe('core AccountService', () => {
     db.close();
   });
 
-  // Skipped until core AccountService selects nameUrdu/tracksVendorStock
-  // (desktop SQL already does). Schema merge put those columns on the
-  // snapshot; row-for-row equality still needs the service port.
-  // eslint-disable-next-line jest/no-disabled-tests -- core AccountService SQL does not yet select nameUrdu/tracksVendorStock; unskip after that service port
-  it.skip('matches the main-process AccountService row for row', async () => {
+  it('matches the main-process AccountService row for row', async () => {
     // Same operations against two identical databases — one through the old
     // sync service, one through core — must produce identical reads. This is
     // the no-behavior-change contract of the migration.

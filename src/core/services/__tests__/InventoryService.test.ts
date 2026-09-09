@@ -973,8 +973,7 @@ function stripUuids<T>(value: T): T {
   return value;
 }
 
-// eslint-disable-next-line jest/no-disabled-tests -- schema fork: desktop 024-026 vs web 024-027
-describe.skip('core InventoryService matches the main-process service row for row', () => {
+describe('core InventoryService matches the main-process service row for row', () => {
   it('produces identical getInventory / getInventoryHealth / getStockAsOf results', async () => {
     const dbOld = new Database(':memory:');
     const dbCore = new Database(':memory:');

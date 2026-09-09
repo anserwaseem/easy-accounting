@@ -473,8 +473,7 @@ describe('core LedgerService — canonical reads (ledger_view, migration 028)', 
   });
 });
 
-// eslint-disable-next-line jest/no-disabled-tests -- schema fork: desktop 024-026 vs web 024-027
-describe.skip('core LedgerService — parity with the main-process (legacy) LedgerService', () => {
+describe('core LedgerService — parity with the main-process (legacy) LedgerService', () => {
   it('write-path primitives (insertLedger, stored reads) produce identical stored rows', async () => {
     // The old main-process service only ever reads the stored `ledger`
     // table — it has no view-backed equivalent, so a full parity check now
