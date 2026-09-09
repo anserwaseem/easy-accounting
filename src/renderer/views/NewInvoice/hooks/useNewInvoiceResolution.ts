@@ -1,5 +1,5 @@
 import { pick, toNumber, toString, trim } from 'lodash';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { Account, InventoryItem } from 'types';
 import { InvoiceType } from 'types';
@@ -67,6 +67,8 @@ export function useNewInvoiceResolution(
   resolvedRowLabels: string[];
   resolvedRowCodes: string[];
   resolutionFallbacks: ResolutionFallback[];
+  /** drop cached accounts/item-types so next resolve hits IPC (refresh btn) */
+  invalidateLookupCaches: () => void;
 } {
   const {
     invoiceType,
@@ -90,6 +92,16 @@ export function useNewInvoiceResolution(
   const itemTypesRef = useRef<ItemTypeOption[] | null>(null);
   const primaryItemTypeRef = useRef<number | undefined>(undefined);
   const primaryItemTypeLoadedRef = useRef(false);
+  // bumping forces the resolve effect to re-hit IPC after invalidateLookupCaches
+  const [lookupCacheEpoch, setLookupCacheEpoch] = useState(0);
+
+  const invalidateLookupCaches = useCallback(() => {
+    allAccountsRef.current = null;
+    itemTypesRef.current = null;
+    primaryItemTypeRef.current = undefined;
+    primaryItemTypeLoadedRef.current = false;
+    setLookupCacheEpoch((n) => n + 1);
+  }, []);
 
   // Resolve each line-item row to a typed/suffixed customer account when split-by-item-type is on.
   // Runs when resolutionTrigger changes (item added/removed/selected, split toggled, or header customer changes).
@@ -347,6 +359,7 @@ export function useNewInvoiceResolution(
     form,
     invoiceType,
     inventory,
+    lookupCacheEpoch,
     onResolved,
     parties,
     resolutionTrigger,
@@ -355,5 +368,10 @@ export function useNewInvoiceResolution(
     watchedSingleAccountId,
   ]);
 
-  return { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks };
+  return {
+    resolvedRowLabels,
+    resolvedRowCodes,
+    resolutionFallbacks,
+    invalidateLookupCaches,
+  };
 }

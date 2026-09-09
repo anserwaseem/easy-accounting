@@ -182,4 +182,80 @@ describe('useNewInvoiceDiscounts', () => {
     expect(form.getValues('invoiceItems.0.discount')).toBe(10);
     expect(form.getValues('invoiceItems.1.discount')).toBe(20);
   });
+
+  it('recalculateAutoDiscounts re-fetches policy % via getAutoDiscount (refresh path)', async () => {
+    const getAutoDiscount = jest
+      .fn()
+      .mockResolvedValueOnce(5)
+      .mockResolvedValueOnce(15);
+    (window as any).electron = { getAutoDiscount };
+
+    const Wrapper = ({ children }: { children: React.ReactNode }) => {
+      const form = useForm<FormShape>({
+        defaultValues: {
+          accountMapping: { singleAccountId: 10, multipleAccountIds: [] },
+          invoiceItems: [
+            {
+              id: 1,
+              inventoryId: 100,
+              quantity: 1,
+              discount: 0,
+              price: 100,
+              discountedPrice: 0,
+            },
+          ],
+        },
+      });
+      (Wrapper as { form?: ReturnType<typeof useForm<FormShape>> }).form = form;
+      return children;
+    };
+
+    const { result } = renderHook(
+      () => {
+        const form = (
+          Wrapper as { form?: ReturnType<typeof useForm<FormShape>> }
+        ).form as ReturnType<typeof useForm<FormShape>>;
+        return useNewInvoiceDiscounts({
+          invoiceType: InvoiceType.Sale,
+          form: form as unknown as any,
+          useSingleAccount: true,
+          useSingleAccountRef: {
+            current: true,
+          } as React.MutableRefObject<boolean>,
+          splitByItemTypeRef: {
+            current: false,
+          } as React.MutableRefObject<boolean>,
+          parties: [
+            {
+              id: 10,
+              name: 'Party',
+              type: undefined as unknown as any,
+              code: 'P',
+              chartId: 1,
+              discountProfileId: 1,
+              discountProfileIsActive: true,
+            },
+          ],
+          sections: [],
+          rowSectionMap: {},
+          watchedSingleAccountId: 10,
+        });
+      },
+      { wrapper: Wrapper },
+    );
+
+    const form = (Wrapper as { form?: ReturnType<typeof useForm<FormShape>> })
+      .form as ReturnType<typeof useForm<FormShape>>;
+
+    await act(async () => {
+      await result.current.recalculateAutoDiscounts();
+    });
+    expect(form.getValues('invoiceItems.0.discount')).toBe(5);
+
+    await act(async () => {
+      await result.current.recalculateAutoDiscounts();
+    });
+    expect(getAutoDiscount).toHaveBeenCalledTimes(2);
+    expect(form.getValues('invoiceItems.0.discount')).toBe(15);
+  });
 });

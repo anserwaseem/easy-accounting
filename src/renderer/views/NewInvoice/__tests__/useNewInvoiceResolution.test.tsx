@@ -440,4 +440,40 @@ describe('useNewInvoiceResolution', () => {
     expect(hookResult.current.resolutionFallbacks).toEqual([]);
     expect(hookResult.current.resolvedRowLabels[0]).toBe('Acme');
   });
+
+  it('invalidateLookupCaches clears account cache and re-fetches on next resolve', async () => {
+    const party = makeParty({ id: 10, name: 'Acme', code: 'AC', chartId: 111 });
+    const getAccounts = jest.fn(async () => [
+      {
+        id: party.id,
+        name: party.name ?? '',
+        type: Number(party.type ?? 1),
+        code: String(party.code ?? ''),
+        chartId: party.chartId ?? 0,
+        discountProfileId: null,
+        discountProfileIsActive: null,
+      },
+    ]);
+
+    const { hookResult } = setup({
+      party,
+      parties: [party],
+      inventory: [
+        makeInv({ id: 100, itemTypeId: 1, itemTypeName: 'T' }),
+      ],
+      primaryItemTypeId: 1,
+      getAccounts,
+      invoiceItems: [{ id: 1, inventoryId: 100 }],
+    });
+
+    await act(async () => {});
+    expect(getAccounts).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      hookResult.current.invalidateLookupCaches();
+    });
+
+    await act(async () => {});
+    expect(getAccounts).toHaveBeenCalledTimes(2);
+  });
 });

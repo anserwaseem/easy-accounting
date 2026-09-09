@@ -39,7 +39,7 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
   setRequiredAccountsExist: React.Dispatch<
     React.SetStateAction<RequiredAccountsExist>
   >;
-  /** refetch parties only (no toast/loading — page owns refresh UX with inventory) */
+  /** refetch parties only (no toast/loading — page owns combined refresh UX) */
   refreshParties: () => Promise<void>;
 } {
   const [parties, setParties] = useState<PartyAccount[] | undefined>();

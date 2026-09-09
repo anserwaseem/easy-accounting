@@ -251,26 +251,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     setInventory,
   );
 
-  // refresh btn: parties + inventory (inventory loader caches raw until refresh)
-  const handleRefreshLookups = useCallback(async () => {
-    setIsRefreshingLookups(true);
-    try {
-      await Promise.all([refreshParties(), refreshInventory()]);
-      toast({
-        description: 'Accounts and inventory refreshed successfully',
-        variant: 'success',
-      });
-    } catch (error) {
-      toast({
-        description: 'Failed to refresh accounts and inventory',
-        variant: 'destructive',
-      });
-      console.error('Error refreshing accounts and inventory:', error);
-    } finally {
-      setIsRefreshingLookups(false);
-    }
-  }, [refreshParties, refreshInventory]);
-
   const inventoryById = useMemo(() => {
     const next = new Map<number, InventoryItem>();
     (inventory ?? []).forEach((item) => {
@@ -479,18 +459,52 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [applyAutoDiscountForRow],
   );
 
-  const { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks } =
-    useNewInvoiceResolution({
-      invoiceType,
-      useSingleAccount,
-      splitByItemType,
-      form: form as unknown as UseFormReturn<Record<string, unknown>>,
-      parties,
-      inventory,
-      resolutionTrigger,
-      watchedSingleAccountId,
-      onResolved,
-    });
+  const {
+    resolvedRowLabels,
+    resolvedRowCodes,
+    resolutionFallbacks,
+    invalidateLookupCaches,
+  } = useNewInvoiceResolution({
+    invoiceType,
+    useSingleAccount,
+    splitByItemType,
+    form: form as unknown as UseFormReturn<Record<string, unknown>>,
+    parties,
+    inventory,
+    resolutionTrigger,
+    watchedSingleAccountId,
+    onResolved,
+  });
+
+  // refresh btn: parties + inventory + resolution caches, then re-apply auto discounts
+  const handleRefreshLookups = useCallback(async () => {
+    setIsRefreshingLookups(true);
+    try {
+      invalidateLookupCaches();
+      await Promise.all([refreshParties(), refreshInventory()]);
+      await recalculateAutoDiscounts();
+      toast({
+        description: 'Accounts, inventory, and discounts refreshed',
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        description: 'Failed to refresh accounts, inventory, and discounts',
+        variant: 'destructive',
+      });
+      console.error(
+        'Error refreshing accounts, inventory, and discounts:',
+        error,
+      );
+    } finally {
+      setIsRefreshingLookups(false);
+    }
+  }, [
+    invalidateLookupCaches,
+    refreshParties,
+    refreshInventory,
+    recalculateAutoDiscounts,
+  ]);
 
   // sale split-by-type needs a primary item type for typed ledgers; warn once if it is missing and reset flags when mode is off
   useEffect(() => {
@@ -1922,7 +1936,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               variant="outline"
               size="icon"
               onClick={handleRefreshLookups}
-              title="Refresh accounts and inventory"
+              title="Refresh accounts, inventory, and discounts"
               disabled={isRefreshingLookups}
             >
               <RefreshCw
@@ -2335,7 +2349,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         ))}
                         . Some rows use non existing typed accounts. Create the
                         account in another window and click&nbsp;
-                        <strong>Refresh accounts and inventory</strong> to link.
+                        <strong>Refresh accounts, inventory, and discounts</strong>{' '}
+                        to link.
                       </p>
                       {splitTypedAccountStrictBlock ? (
                         <p>
