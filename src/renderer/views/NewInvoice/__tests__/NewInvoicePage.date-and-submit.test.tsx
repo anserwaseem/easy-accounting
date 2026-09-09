@@ -135,6 +135,7 @@ jest.mock('../hooks/useNewInvoiceDiscounts', () => ({
   useNewInvoiceDiscounts: () => ({
     applyAutoDiscountForRow: jest.fn(),
     recalculateAutoDiscounts: jest.fn(),
+    refreshPricingFromInventory: jest.fn(),
     recalculateAutoDiscountsRef: { current: jest.fn() },
     manualDiscountRows: {},
     setManualDiscountRows: jest.fn(),
@@ -151,7 +152,9 @@ jest.mock('../hooks/useNewInvoiceDiscounts', () => ({
 jest.mock('../hooks/useNewInvoiceResolution', () => ({
   useNewInvoiceResolution: () => ({
     resolvedRowLabels: [],
+    resolvedRowCodes: [],
     resolutionFallbacks: [],
+    invalidateLookupCaches: jest.fn(),
   }),
 }));
 jest.mock('../hooks/useNewInvoiceColumns', () => ({

@@ -331,6 +331,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const {
     applyAutoDiscountForRow,
     recalculateAutoDiscounts,
+    refreshPricingFromInventory,
     manualDiscountRows,
     setManualDiscountRows,
     enableCumulativeDiscount,
@@ -476,24 +477,32 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     onResolved,
   });
 
-  // refresh btn: parties + inventory + resolution caches, then re-apply auto discounts
+  // refresh btn: parties + inventory + resolution caches, then reprice rows + re-apply discounts
   const handleRefreshLookups = useCallback(async () => {
     setIsRefreshingLookups(true);
     try {
       invalidateLookupCaches();
-      await Promise.all([refreshParties(), refreshInventory()]);
-      await recalculateAutoDiscounts();
+      const [, freshInventory] = await Promise.all([
+        refreshParties(),
+        refreshInventory(),
+      ]);
+      if (freshInventory) {
+        await refreshPricingFromInventory(freshInventory);
+      } else {
+        await recalculateAutoDiscounts();
+      }
       toast({
-        description: 'Accounts, inventory, and discounts refreshed',
+        description: 'Accounts, inventory prices, and discounts refreshed',
         variant: 'success',
       });
     } catch (error) {
       toast({
-        description: 'Failed to refresh accounts, inventory, and discounts',
+        description:
+          'Failed to refresh accounts, inventory prices, and discounts',
         variant: 'destructive',
       });
       console.error(
-        'Error refreshing accounts, inventory, and discounts:',
+        'Error refreshing accounts, inventory prices, and discounts:',
         error,
       );
     } finally {
@@ -503,6 +512,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     invalidateLookupCaches,
     refreshParties,
     refreshInventory,
+    refreshPricingFromInventory,
     recalculateAutoDiscounts,
   ]);
 
@@ -1936,7 +1946,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               variant="outline"
               size="icon"
               onClick={handleRefreshLookups}
-              title="Refresh accounts, inventory, and discounts"
+              title="Refresh accounts, inventory prices, and discounts"
               disabled={isRefreshingLookups}
             >
               <RefreshCw
@@ -2349,7 +2359,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         ))}
                         . Some rows use non existing typed accounts. Create the
                         account in another window and click&nbsp;
-                        <strong>Refresh accounts, inventory, and discounts</strong>{' '}
+                        <strong>
+                          Refresh accounts, inventory prices, and discounts
+                        </strong>{' '}
                         to link.
                       </p>
                       {splitTypedAccountStrictBlock ? (

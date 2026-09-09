@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { FF_INVOICE_DISCOUNT_EDIT_ENABLED } from 'renderer/lib/constants';
 import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
+import type { InventoryItem } from 'types';
 import { InvoiceType } from 'types';
 import type { CustomerSection } from '../components/CustomerSectionsBlock';
 import type { PartyAccount } from './useNewInvoiceParties';
@@ -28,6 +29,10 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
     forcedAccountId?: number,
   ) => Promise<void>;
   recalculateAutoDiscounts: () => Promise<void>;
+  /** push latest catalog prices onto rows, then refresh discounts / discounted totals */
+  refreshPricingFromInventory: (
+    inventory: InventoryItem[],
+  ) => Promise<void>;
   recalculateAutoDiscountsRef: React.MutableRefObject<() => Promise<void>>;
   manualDiscountRows: Record<number, boolean>;
   setManualDiscountRows: React.Dispatch<
@@ -229,6 +234,69 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
     manualDiscountRows,
   ]);
 
+  // refresh btn: rewrite row prices from catalog, then auto-discount (sale) or
+  // recompute discountedPrice with the existing discount (purchase / manual rows)
+  const refreshPricingFromInventory = useCallback(
+    async (inventory: InventoryItem[]) => {
+      const priceById = new Map<number, number>();
+      inventory.forEach((item) => {
+        priceById.set(item.id, item.price);
+      });
+
+      const items = form.getValues('invoiceItems') as Array<{ id?: number }>;
+      const setOpts = {
+        shouldValidate: false,
+        shouldDirty: true,
+      };
+
+      for (let rowIndex = 0; rowIndex < items.length; rowIndex += 1) {
+        const invId = toNumber(
+          form.getValues(`invoiceItems.${rowIndex}.inventoryId`),
+        );
+        if (!(invId > 0) || !priceById.has(invId)) continue;
+        const nextPrice = toNumber(priceById.get(invId));
+        (form.setValue as (name: string, value: number, opts?: object) => void)(
+          `invoiceItems.${rowIndex}.price`,
+          nextPrice,
+          setOpts,
+        );
+      }
+
+      await recalculateAutoDiscounts();
+
+      for (let rowIndex = 0; rowIndex < items.length; rowIndex += 1) {
+        const rowId = toNumber(items[rowIndex]?.id);
+        const skippedAuto =
+          invoiceType !== InvoiceType.Sale ||
+          (isDiscountEditEnabled && rowId > 0 && manualDiscountRows[rowId]);
+        if (!skippedAuto) continue;
+
+        const invId = toNumber(
+          form.getValues(`invoiceItems.${rowIndex}.inventoryId`),
+        );
+        if (!(invId > 0)) continue;
+
+        const discountedPrice = computeInvoiceItemTotal(
+          toNumber(form.getValues(`invoiceItems.${rowIndex}.quantity`)),
+          toNumber(form.getValues(`invoiceItems.${rowIndex}.discount`)),
+          toNumber(form.getValues(`invoiceItems.${rowIndex}.price`)),
+        );
+        (form.setValue as (name: string, value: number, opts?: object) => void)(
+          `invoiceItems.${rowIndex}.discountedPrice`,
+          discountedPrice,
+          setOpts,
+        );
+      }
+    },
+    [
+      form,
+      invoiceType,
+      isDiscountEditEnabled,
+      manualDiscountRows,
+      recalculateAutoDiscounts,
+    ],
+  );
+
   const recalculateAutoDiscountsRef = useRef(recalculateAutoDiscounts);
   recalculateAutoDiscountsRef.current = recalculateAutoDiscounts;
 
@@ -236,6 +304,7 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
     getRowAccountId,
     applyAutoDiscountForRow,
     recalculateAutoDiscounts,
+    refreshPricingFromInventory,
     recalculateAutoDiscountsRef,
     manualDiscountRows,
     setManualDiscountRows,

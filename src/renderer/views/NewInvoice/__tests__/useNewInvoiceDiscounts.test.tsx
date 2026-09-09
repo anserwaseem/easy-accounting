@@ -258,4 +258,84 @@ describe('useNewInvoiceDiscounts', () => {
     expect(getAutoDiscount).toHaveBeenCalledTimes(2);
     expect(form.getValues('invoiceItems.0.discount')).toBe(15);
   });
+
+  it('refreshPricingFromInventory updates row prices then reapplies auto discount', async () => {
+    const getAutoDiscount = jest.fn().mockResolvedValue(10);
+    (window as any).electron = { getAutoDiscount };
+
+    const Wrapper = ({ children }: { children: React.ReactNode }) => {
+      const form = useForm<FormShape>({
+        defaultValues: {
+          accountMapping: { singleAccountId: 10, multipleAccountIds: [] },
+          invoiceItems: [
+            {
+              id: 1,
+              inventoryId: 100,
+              quantity: 2,
+              discount: 0,
+              price: 50,
+              discountedPrice: 100,
+            },
+          ],
+        },
+      });
+      (Wrapper as { form?: ReturnType<typeof useForm<FormShape>> }).form = form;
+      return children;
+    };
+
+    const { result } = renderHook(
+      () => {
+        const form = (
+          Wrapper as { form?: ReturnType<typeof useForm<FormShape>> }
+        ).form as ReturnType<typeof useForm<FormShape>>;
+        return useNewInvoiceDiscounts({
+          invoiceType: InvoiceType.Sale,
+          form: form as unknown as any,
+          useSingleAccount: true,
+          useSingleAccountRef: {
+            current: true,
+          } as React.MutableRefObject<boolean>,
+          splitByItemTypeRef: {
+            current: false,
+          } as React.MutableRefObject<boolean>,
+          parties: [
+            {
+              id: 10,
+              name: 'Party',
+              type: undefined as unknown as any,
+              code: 'P',
+              chartId: 1,
+              discountProfileId: 1,
+              discountProfileIsActive: true,
+            },
+          ],
+          sections: [],
+          rowSectionMap: {},
+          watchedSingleAccountId: 10,
+        });
+      },
+      { wrapper: Wrapper },
+    );
+
+    const form = (Wrapper as { form?: ReturnType<typeof useForm<FormShape>> })
+      .form as ReturnType<typeof useForm<FormShape>>;
+
+    await act(async () => {
+      await result.current.refreshPricingFromInventory([
+        {
+          id: 100,
+          name: 'Item',
+          price: 200,
+          quantity: 5,
+        } as any,
+      ]);
+    });
+
+    expect(form.getValues('invoiceItems.0.price')).toBe(200);
+    expect(form.getValues('invoiceItems.0.discount')).toBe(10);
+    expect(form.getValues('invoiceItems.0.discountedPrice')).toBe(
+      2 * 200 * (1 - 10 / 100),
+    );
+    expect(getAutoDiscount).toHaveBeenCalledWith(10, 100);
+  });
 });
