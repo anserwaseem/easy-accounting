@@ -27,7 +27,8 @@ interface PartyBalanceIndicatorProps {
 /**
  * compact outstanding-balance hint under the party select on New Invoice.
  * sums latest running ledger balances for the selected party and its item-type
- * typed/suffixed accounts (Acme + Acme-T + Acme-TT), Dr-positive net.
+ * typed/suffixed accounts matched by account **code** (KAR-USMANIA + KAR-USMANIA-T),
+ * not display name — many shops share trade names.
  */
 export const PartyBalanceIndicator: React.FC<PartyBalanceIndicatorProps> = ({
   accountId,
@@ -67,7 +68,9 @@ export const PartyBalanceIndicator: React.FC<PartyBalanceIndicatorProps> = ({
         setFamilySize(familyIds.length);
 
         if (familyIds.length <= 1) {
-          const res = await window.electron.getLedgerBalance?.(familyIds[0] ?? id);
+          const res = await window.electron.getLedgerBalance?.(
+            familyIds[0] ?? id,
+          );
           if (!cancelled) setLedgerBalance(res ?? null);
           return;
         }

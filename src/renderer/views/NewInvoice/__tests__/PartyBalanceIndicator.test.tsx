@@ -137,7 +137,7 @@ describe('PartyBalanceIndicator', () => {
     );
   });
 
-  it('sums balances across base + typed family accounts', async () => {
+  it('sums balances across code-matched family only (not same display name)', async () => {
     const { getLedgerBalance, getLedgerBalancesForAccountIds, getItemTypes } =
       setElectronBalance({
         balance: 999,
@@ -148,15 +148,21 @@ describe('PartyBalanceIndicator', () => {
       { id: 2, name: 'TT' },
     ]);
     getLedgerBalancesForAccountIds.mockResolvedValue({
-      10: { balance: 10000, balanceType: BalanceType.Dr },
-      11: { balance: 5000, balanceType: BalanceType.Dr },
-      12: { balance: 2000, balanceType: BalanceType.Cr },
+      10: { balance: 91708, balanceType: BalanceType.Dr },
+      11: { balance: 14231, balanceType: BalanceType.Dr },
     });
 
+    // two shops share trade name "MAKTABA USMANIA" — only KAR-* is this party
     const partyAccounts = [
-      { id: 10, name: 'Acme', code: 'AC', chartId: 1 },
-      { id: 11, name: 'Acme-T', code: 'AC-T', chartId: 1 },
-      { id: 12, name: 'Acme-TT', code: 'AC-TT', chartId: 1 },
+      { id: 10, name: 'MAKTABA USMANIA', code: 'KAR-USMANIA', chartId: 14 },
+      { id: 11, name: 'MAKTABA USMANIA', code: 'KAR-USMANIA-T', chartId: 14 },
+      { id: 20, name: 'MAKTABA USMANIA', code: 'RWP-USMANIA', chartId: 10 },
+      {
+        id: 21,
+        name: 'MAKTABA USMANIA-T',
+        code: 'RWP-USMANIA-T',
+        chartId: 10,
+      },
     ];
 
     render(
@@ -165,9 +171,9 @@ describe('PartyBalanceIndicator', () => {
 
     const el = await screen.findByText(/Balance \(all\):/);
     expect(getLedgerBalance).not.toHaveBeenCalled();
-    expect(getLedgerBalancesForAccountIds).toHaveBeenCalledWith([10, 11, 12]);
-    // 10000 + 5000 - 2000 = 13000 Dr
+    expect(getLedgerBalancesForAccountIds).toHaveBeenCalledWith([10, 11]);
+    // 91708 + 14231 = 105939 Dr — must NOT include RWP-T 16576
     expect(el).toHaveTextContent(/Dr/);
-    expect(el).toHaveTextContent(/13/);
+    expect(el).toHaveTextContent(/105,939|105939/);
   });
 });

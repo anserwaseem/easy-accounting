@@ -1,4 +1,3 @@
-import { trim } from 'lodash';
 import { toLowerTrim } from '@/renderer/lib/utils';
 import { BalanceType } from 'types';
 import {
@@ -6,8 +5,8 @@ import {
   findBasePartyRowForSingleAccountId,
   isTypedPartyAccount,
   splitPartyCode,
-  splitPartyName,
   type PartyLikeForTyping,
+  type PartyTypingContext,
 } from './partyAccountTyping';
 
 export type LedgerBalanceLike = {
@@ -15,10 +14,22 @@ export type LedgerBalanceLike = {
   balanceType: BalanceType;
 };
 
+/** true when account code is baseCode-{itemType} for this family's base code */
+function isTypedCodeSibling(
+  account: PartyLikeForTyping,
+  baseCodeLower: string,
+  ctx: PartyTypingContext,
+): boolean {
+  const { baseCode, suffix } = splitPartyCode(String(account.code ?? ''));
+  if (!suffix) return false;
+  if (toLowerTrim(baseCode) !== baseCodeLower) return false;
+  return ctx.itemTypeSuffixesLower.has(suffix.toLowerCase());
+}
+
 /**
- * account ids for the selected party “family”: base row + all item-type
- * typed/suffixed variants (e.g. Acme, Acme-T, Acme-TT). isolated accounts
- * that are not typed return just themselves.
+ * account ids for the selected party “family”: base row + item-type typed
+ * variants matched by **account code** (e.g. KAR-USMANIA + KAR-USMANIA-T).
+ * display name is NOT used — many distinct customers share trade names.
  */
 export function getPartyFamilyAccountIds(
   selectedId: number,
@@ -46,22 +57,17 @@ export function getPartyFamilyAccountIds(
     return [selectedId];
   }
 
-  const baseNameLower = trim(base.name ?? '').toLowerCase();
   const baseCodeLower = toLowerTrim(String(base.code ?? ''));
+  if (!baseCodeLower) {
+    return [base.id, selectedId].filter(
+      (id, i, arr) => id > 0 && arr.indexOf(id) === i,
+    );
+  }
 
   const familyIds = accounts
     .filter((account) => {
       if (account.id === base.id) return true;
-      if (!isTypedPartyAccount(account, ctx)) return false;
-
-      const { baseName } = splitPartyName(account.name ?? '');
-      if (baseName.toLowerCase() === baseNameLower) return true;
-
-      if (baseCodeLower.length > 0) {
-        const { baseCode } = splitPartyCode(String(account.code ?? ''));
-        if (toLowerTrim(baseCode) === baseCodeLower) return true;
-      }
-      return false;
+      return isTypedCodeSibling(account, baseCodeLower, ctx);
     })
     .map((account) => account.id);
 
@@ -88,7 +94,8 @@ export function sumLedgerBalances(
   balances: Record<number, LedgerBalanceLike | undefined | null>,
 ): LedgerBalanceLike | null {
   const values = Object.values(balances).filter(
-    (b): b is LedgerBalanceLike => b != null && Number.isFinite(Number(b.balance)),
+    (b): b is LedgerBalanceLike =>
+      b != null && Number.isFinite(Number(b.balance)),
   );
   if (!values.length) return null;
 
