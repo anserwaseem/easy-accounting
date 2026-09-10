@@ -17,8 +17,85 @@ import {
   INVOICE_PRINT_LABEL_KEYS,
   INVOICE_PRINT_LABEL_TITLES,
 } from '@/renderer/lib/invoicePrint/locale';
+import {
+  EXAMPLE_INVOICE_PRINT_NOTE_EN,
+  EXAMPLE_INVOICE_PRINT_NOTE_UR,
+} from '@/renderer/lib/invoicePrint/notes';
 import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
 import PublishSettings from './PublishSettings';
+
+interface InvoicePrintLabelsAccordionProps {
+  title: string;
+  hint: string;
+  resetLabel: string;
+  expanded: boolean;
+  onToggle: () => void;
+  overrides: Partial<InvoicePrintLabels>;
+  placeholders: InvoicePrintLabels;
+  inputDir?: 'ltr' | 'rtl';
+  inputLang?: string;
+  idPrefix: string;
+  onChange: (key: InvoicePrintLabelKey, value: string) => void;
+  onReset: () => void;
+}
+
+const InvoicePrintLabelsAccordion: React.FC<
+  InvoicePrintLabelsAccordionProps
+> = ({
+  title,
+  hint,
+  resetLabel,
+  expanded,
+  onToggle,
+  overrides,
+  placeholders,
+  inputDir,
+  inputLang,
+  idPrefix,
+  onChange,
+  onReset,
+}: InvoicePrintLabelsAccordionProps) => (
+  <div className="mt-6 border rounded-md">
+    <button
+      type="button"
+      className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm font-medium hover:bg-muted/50"
+      onClick={onToggle}
+      aria-expanded={expanded}
+    >
+      {expanded ? (
+        <ChevronDown size={16} className="shrink-0" />
+      ) : (
+        <ChevronRight size={16} className="shrink-0" />
+      )}
+      {title}
+    </button>
+    {expanded ? (
+      <div className="border-t px-3 pb-3 pt-2 space-y-3">
+        <p className="text-xs text-muted-foreground">{hint}</p>
+        <div className="grid grid-cols-1 gap-3">
+          {INVOICE_PRINT_LABEL_KEYS.map((key) => (
+            <div className="flex flex-col gap-1.5" key={key}>
+              <Label htmlFor={`${idPrefix}-${key}`} className="font-normal">
+                {INVOICE_PRINT_LABEL_TITLES[key]}
+              </Label>
+              <Input
+                id={`${idPrefix}-${key}`}
+                dir={inputDir}
+                lang={inputLang}
+                value={overrides[key] ?? ''}
+                placeholder={placeholders[key]}
+                onChange={(e) => onChange(key, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={onReset}>
+          {resetLabel}
+        </Button>
+      </div>
+    ) : null}
+  </div>
+);
 
 const SettingsPage: React.FC = () => {
   // eslint-disable-next-line no-console
@@ -45,6 +122,18 @@ const SettingsPage: React.FC = () => {
   const [draftCompanyAddressUrdu, setDraftCompanyAddressUrdu] = useState(
     companyProfile.addressUrdu,
   );
+  const [draftCompanyWhatsapp, setDraftCompanyWhatsapp] = useState(
+    companyProfile.whatsapp,
+  );
+  const [draftCompanyWebsite, setDraftCompanyWebsite] = useState(
+    companyProfile.website,
+  );
+  const [draftCompanyPrintNote, setDraftCompanyPrintNote] = useState(
+    companyProfile.printNote,
+  );
+  const [draftCompanyPrintNoteUrdu, setDraftCompanyPrintNoteUrdu] = useState(
+    companyProfile.printNoteUrdu,
+  );
 
   const {
     settings: invoicePrintSettings,
@@ -54,9 +143,19 @@ const SettingsPage: React.FC = () => {
   const [draftPrintLocale, setDraftPrintLocale] = useState<InvoicePrintLocale>(
     invoicePrintSettings.locale,
   );
+  const [draftShowPartyBalances, setDraftShowPartyBalances] = useState(
+    invoicePrintSettings.showPartyBalances,
+  );
+  const [draftShowAgent, setDraftShowAgent] = useState(
+    invoicePrintSettings.showAgent,
+  );
+  const [draftEnglishLabelOverrides, setDraftEnglishLabelOverrides] = useState<
+    Partial<InvoicePrintLabels>
+  >(() => ({ ...invoicePrintSettings.englishLabelOverrides }));
   const [draftUrduLabelOverrides, setDraftUrduLabelOverrides] = useState<
     Partial<InvoicePrintLabels>
   >(() => ({ ...invoicePrintSettings.urduLabelOverrides }));
+  const [englishLabelsExpanded, setEnglishLabelsExpanded] = useState(false);
   const [urduLabelsExpanded, setUrduLabelsExpanded] = useState(false);
 
   const [
@@ -68,6 +167,25 @@ const SettingsPage: React.FC = () => {
         BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY,
       ) === false,
   );
+
+  const handleEnglishLabelChange = useCallback(
+    (key: InvoicePrintLabelKey, value: string) => {
+      setDraftEnglishLabelOverrides((prev) => {
+        const next = { ...prev };
+        if (value.trim().length === 0) {
+          delete next[key];
+        } else {
+          next[key] = value;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleResetEnglishLabels = useCallback(() => {
+    setDraftEnglishLabelOverrides({});
+  }, []);
 
   const handleUrduLabelChange = useCallback(
     (key: InvoicePrintLabelKey, value: string) => {
@@ -101,11 +219,18 @@ const SettingsPage: React.FC = () => {
       email: draftCompanyEmail.trim(),
       nameUrdu: draftCompanyNameUrdu.trim(),
       addressUrdu: draftCompanyAddressUrdu,
+      whatsapp: draftCompanyWhatsapp.trim(),
+      website: draftCompanyWebsite.trim(),
+      printNote: draftCompanyPrintNote,
+      printNoteUrdu: draftCompanyPrintNoteUrdu,
     });
 
     saveInvoicePrintSettings({
       locale: draftPrintLocale,
+      englishLabelOverrides: draftEnglishLabelOverrides,
       urduLabelOverrides: draftUrduLabelOverrides,
+      showPartyBalances: draftShowPartyBalances,
+      showAgent: draftShowAgent,
     });
 
     window.electron.store.set(
@@ -127,8 +252,15 @@ const SettingsPage: React.FC = () => {
     draftCompanyEmail,
     draftCompanyNameUrdu,
     draftCompanyAddressUrdu,
+    draftCompanyWhatsapp,
+    draftCompanyWebsite,
+    draftCompanyPrintNote,
+    draftCompanyPrintNoteUrdu,
     saveInvoicePrintSettings,
     draftPrintLocale,
+    draftShowPartyBalances,
+    draftShowAgent,
+    draftEnglishLabelOverrides,
     draftUrduLabelOverrides,
   ]);
 
@@ -255,6 +387,80 @@ const SettingsPage: React.FC = () => {
             onChange={(e) => setDraftCompanyAddressUrdu(e.target.value)}
           />
         </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="companyProfileWhatsapp">WhatsApp</Label>
+          <Input
+            id="companyProfileWhatsapp"
+            value={draftCompanyWhatsapp}
+            placeholder="e.g., 03xx-xxxxxxx"
+            onChange={(e) => setDraftCompanyWhatsapp(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="companyProfileWebsite">Website</Label>
+          <Input
+            id="companyProfileWebsite"
+            value={draftCompanyWebsite}
+            placeholder="e.g., https://example.com"
+            onChange={(e) => setDraftCompanyWebsite(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2 md:col-span-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="companyProfilePrintNote">Invoice print note</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0 px-2 text-xs"
+              disabled={draftCompanyPrintNote === EXAMPLE_INVOICE_PRINT_NOTE_EN}
+              onClick={() =>
+                setDraftCompanyPrintNote(EXAMPLE_INVOICE_PRINT_NOTE_EN)
+              }
+            >
+              Use default
+            </Button>
+          </div>
+          <textarea
+            id="companyProfilePrintNote"
+            value={draftCompanyPrintNote}
+            placeholder="Optional terms on sale invoices"
+            onChange={(e) => setDraftCompanyPrintNote(e.target.value)}
+            rows={3}
+            className="flex min-h-[4.5rem] w-full rounded-md border border-input bg-background my-2 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
+        <div className="flex flex-col gap-2 md:col-span-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="companyProfilePrintNoteUrdu">
+              Invoice print note (Urdu)
+            </Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0 px-2 text-xs"
+              disabled={
+                draftCompanyPrintNoteUrdu === EXAMPLE_INVOICE_PRINT_NOTE_UR
+              }
+              onClick={() =>
+                setDraftCompanyPrintNoteUrdu(EXAMPLE_INVOICE_PRINT_NOTE_UR)
+              }
+            >
+              Use default
+            </Button>
+          </div>
+          <textarea
+            id="companyProfilePrintNoteUrdu"
+            value={draftCompanyPrintNoteUrdu}
+            dir="rtl"
+            lang="ur"
+            placeholder="اختیاری نوٹ برائے سیل بل"
+            onChange={(e) => setDraftCompanyPrintNoteUrdu(e.target.value)}
+            rows={3}
+            className="flex min-h-[4.5rem] w-full rounded-md border border-input bg-background my-2 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 mt-8">
@@ -323,59 +529,74 @@ const SettingsPage: React.FC = () => {
           falls back to English). Item codes and numbers stay Latin digits.
         </p>
 
-        <div className="mt-6 border rounded-md">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm font-medium hover:bg-muted/50"
-            onClick={() => setUrduLabelsExpanded((open) => !open)}
-            aria-expanded={urduLabelsExpanded}
-          >
-            {urduLabelsExpanded ? (
-              <ChevronDown size={16} className="shrink-0" />
-            ) : (
-              <ChevronRight size={16} className="shrink-0" />
-            )}
-            Urdu print labels
-          </button>
-          {urduLabelsExpanded ? (
-            <div className="border-t px-3 pb-3 pt-2 space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Have a native speaker review before production. Leave a field
-                empty to keep the built-in default.
-              </p>
-              <div className="grid grid-cols-1 gap-3">
-                {INVOICE_PRINT_LABEL_KEYS.map((key) => (
-                  <div className="flex flex-col gap-1.5" key={key}>
-                    <Label
-                      htmlFor={`urduPrintLabel-${key}`}
-                      className="font-normal"
-                    >
-                      {INVOICE_PRINT_LABEL_TITLES[key]}
-                    </Label>
-                    <Input
-                      id={`urduPrintLabel-${key}`}
-                      dir="rtl"
-                      lang="ur"
-                      value={draftUrduLabelOverrides[key] ?? ''}
-                      placeholder={invoicePrintDefaults.urduLabels[key]}
-                      onChange={(e) =>
-                        handleUrduLabelChange(key, e.target.value)
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleResetUrduLabels}
-              >
-                Reset Urdu labels to defaults
-              </Button>
-            </div>
-          ) : null}
+        <div className="flex items-start gap-3 mt-6">
+          <Checkbox
+            id="printShowPartyBalances"
+            checked={draftShowPartyBalances}
+            onCheckedChange={(v) => setDraftShowPartyBalances(v === true)}
+            className="mt-1"
+          />
+          <div className="flex flex-col gap-1">
+            <Label
+              htmlFor="printShowPartyBalances"
+              className="font-normal cursor-pointer"
+            >
+              Show previous and new balance
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Prints سابقہ بقایا / نیا بقایا (previous and new balance) for
+              named parties. Override on the print screen for a single invoice.
+            </p>
+          </div>
         </div>
+
+        <div className="flex items-start gap-3 mt-6">
+          <Checkbox
+            id="printShowAgent"
+            checked={draftShowAgent}
+            onCheckedChange={(v) => setDraftShowAgent(v === true)}
+            className="mt-1"
+          />
+          <div className="flex flex-col gap-1">
+            <Label
+              htmlFor="printShowAgent"
+              className="font-normal cursor-pointer"
+            >
+              Show marketing representative / custom head
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Prints the chart head (marketing representative) next to the party
+              name. Override on the print screen for a single invoice.
+            </p>
+          </div>
+        </div>
+
+        <InvoicePrintLabelsAccordion
+          idPrefix="enPrintLabel"
+          title="English print labels"
+          hint="Leave a field empty to keep the built-in default."
+          resetLabel="Reset English labels to defaults"
+          expanded={englishLabelsExpanded}
+          onToggle={() => setEnglishLabelsExpanded((open) => !open)}
+          overrides={draftEnglishLabelOverrides}
+          placeholders={invoicePrintDefaults.englishLabels}
+          onChange={handleEnglishLabelChange}
+          onReset={handleResetEnglishLabels}
+        />
+        <InvoicePrintLabelsAccordion
+          idPrefix="urduPrintLabel"
+          title="Urdu print labels"
+          hint="Have a native speaker review before production. Leave a field empty to keep the built-in default."
+          resetLabel="Reset Urdu labels to defaults"
+          expanded={urduLabelsExpanded}
+          onToggle={() => setUrduLabelsExpanded((open) => !open)}
+          overrides={draftUrduLabelOverrides}
+          placeholders={invoicePrintDefaults.urduLabels}
+          inputDir="rtl"
+          inputLang="ur"
+          onChange={handleUrduLabelChange}
+          onReset={handleResetUrduLabels}
+        />
       </div>
 
       <div className="flex flex-col gap-2 mt-8">

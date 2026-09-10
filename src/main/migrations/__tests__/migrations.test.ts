@@ -259,6 +259,7 @@ describe('migrations', () => {
         '024_normalize_invoice_date_format',
         '025_vendor_stock',
         '026_add_urdu_print_fields',
+        '027_add_chart_nameUrdu',
       ]);
     });
 
@@ -276,6 +277,7 @@ describe('migrations', () => {
         expect(columnExists(db, 'account', c)).toBe(true),
       );
       expect(columnExists(db, 'inventory', 'descriptionUrdu')).toBe(true);
+      expect(columnExists(db, 'chart', 'nameUrdu')).toBe(true);
       expect(columnExists(db, 'attribute_definitions', 'isPublic')).toBe(true);
     });
 

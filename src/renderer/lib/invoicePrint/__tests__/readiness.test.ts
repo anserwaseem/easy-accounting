@@ -15,6 +15,8 @@ describe('getInvoicePrintReadinessGaps', () => {
     goodsNameUrdu: 'کتب',
     showGoodsField: true,
     missingItemDescriptionUrduCount: 0,
+    agentNameEnglish: 'Shahbaz',
+    agentNameUrdu: 'شہباز',
   };
 
   it('returns no gaps for english locale', () => {
@@ -68,5 +70,25 @@ describe('getInvoicePrintReadinessGaps', () => {
       key: 'itemDescriptions',
       label: 'Item description (Urdu): 3 missing',
     });
+  });
+
+  it('lists missing agent Urdu when a custom head is present', () => {
+    const gaps = getInvoicePrintReadinessGaps({
+      ...base,
+      agentNameUrdu: '',
+    });
+    expect(gaps.find((g) => g.key === 'agentName')).toEqual({
+      key: 'agentName',
+      label: 'Marketing representative / head name (Urdu)',
+    });
+  });
+
+  it('skips agent gap when there is no custom head', () => {
+    const gaps = getInvoicePrintReadinessGaps({
+      ...base,
+      agentNameEnglish: '',
+      agentNameUrdu: '',
+    });
+    expect(gaps.find((g) => g.key === 'agentName')).toBeUndefined();
   });
 });

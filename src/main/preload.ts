@@ -535,6 +535,10 @@ const electronHandler = {
    */
   insertCustomHead: (chart: InsertChart) =>
     ipcRenderer.invoke('chart:insertCustomHead', chart),
+  updateCustomHeadName: (chartId: number, name: string) =>
+    ipcRenderer.invoke('chart:updateCustomHeadName', chartId, name),
+  updateCustomHeadUrdu: (chartId: number, nameUrdu: string | null) =>
+    ipcRenderer.invoke('chart:updateCustomHeadUrdu', chartId, nameUrdu),
   /**
    * Insert an account
    * @param account The account to insert

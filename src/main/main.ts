@@ -799,6 +799,16 @@ app
     ipcMain.handle('chart:insertCustomHead', (_, chart: InsertChart) =>
       chartService.insertCustomHead(chart),
     );
+    ipcMain.handle(
+      'chart:updateCustomHeadName',
+      (_, chartId: number, name: string) =>
+        chartService.updateCustomHeadName(chartId, name),
+    );
+    ipcMain.handle(
+      'chart:updateCustomHeadUrdu',
+      (_, chartId: number, nameUrdu: string | null) =>
+        chartService.updateCustomHeadUrdu(chartId, nameUrdu),
+    );
 
     ipcMain.handle(
       'report:getLedgerRange',

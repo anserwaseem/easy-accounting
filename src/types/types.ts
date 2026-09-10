@@ -164,8 +164,12 @@ export interface Chart extends BaseEntity {
   name: string;
   type: AccountType;
   parentId?: number;
+  /** optional Urdu print name for custom heads (agent); empty falls back to name */
+  nameUrdu?: string | null;
 }
-export type InsertChart = Pick<Chart, 'name' | 'type' | 'parentId'>;
+export type InsertChart = Pick<Chart, 'name' | 'type' | 'parentId'> & {
+  nameUrdu?: string | null;
+};
 
 /** Ledger */
 export interface Ledger extends BaseEntity {
@@ -557,6 +561,10 @@ export type InvoiceView = Prettify<
     accountAddressUrdu?: string | null;
     accountGoodsName?: string | null;
     accountGoodsNameUrdu?: string | null;
+    /** custom chart head of header party (agent); null for built-in heads */
+    accountHeadName?: string | null;
+    /** urdu custom-head name; empty falls back to accountHeadName */
+    accountHeadNameUrdu?: string | null;
     invoiceItems: Array<InvoiceItemView>;
     /** sale quotation until converted to a numbered invoice */
     isQuotation?: boolean;

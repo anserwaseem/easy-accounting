@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS "chart" (
   "code" INTEGER,
   "type" STRING NOT NULL CHECK ("type" IN ('Asset', 'Liability', 'Equity')), -- 'Revenue', 'Expense' -- "001 migration"
   -- "parentId" INTEGER REFERENCES "chart"("id"), -- only used for custom heads e.g. "Agent abc", would be NULL for normal heads e.g. "Current Asset" -- "006 migration"
+  -- "nameUrdu" TEXT, -- "027 migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 
