@@ -168,10 +168,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [editHydrated, setEditHydrated] = useState(false);
 
   const [inventory, setInventory] = useState<InventoryItem[] | undefined>();
-  const [nextInvoiceNumber, setNextInvoiceNumber] = useNewInvoiceNextNumber(
-    invoiceType,
-    editInvoiceId == null,
-  );
+  const {
+    nextInvoiceNumber,
+    setNextInvoiceNumber,
+    refreshNextInvoiceNumber,
+  } = useNewInvoiceNextNumber(invoiceType, editInvoiceId == null);
   const {
     parties,
     partiesIncludingTyped,
@@ -179,6 +180,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     refreshParties,
   } = useNewInvoiceParties(invoiceType);
   const [isRefreshingLookups, setIsRefreshingLookups] = useState(false);
+  const [partyBalanceRefreshKey, setPartyBalanceRefreshKey] = useState(0);
 
   const [missingPartyForSelect, setMissingPartyForSelect] = useState<
     PartyAccount | undefined
@@ -250,26 +252,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     lineInventoryIdsKey,
     setInventory,
   );
-
-  // refresh btn: parties + inventory (inventory loader caches raw until refresh)
-  const handleRefreshLookups = useCallback(async () => {
-    setIsRefreshingLookups(true);
-    try {
-      await Promise.all([refreshParties(), refreshInventory()]);
-      toast({
-        description: 'Accounts and inventory refreshed successfully',
-        variant: 'success',
-      });
-    } catch (error) {
-      toast({
-        description: 'Failed to refresh accounts and inventory',
-        variant: 'destructive',
-      });
-      console.error('Error refreshing accounts and inventory:', error);
-    } finally {
-      setIsRefreshingLookups(false);
-    }
-  }, [refreshParties, refreshInventory]);
 
   const inventoryById = useMemo(() => {
     const next = new Map<number, InventoryItem>();
@@ -351,6 +333,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const {
     applyAutoDiscountForRow,
     recalculateAutoDiscounts,
+    refreshPricingFromInventory,
     manualDiscountRows,
     setManualDiscountRows,
     enableCumulativeDiscount,
@@ -479,18 +462,138 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     [applyAutoDiscountForRow],
   );
 
-  const { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks } =
-    useNewInvoiceResolution({
-      invoiceType,
-      useSingleAccount,
-      splitByItemType,
-      form: form as unknown as UseFormReturn<Record<string, unknown>>,
-      parties,
-      inventory,
-      resolutionTrigger,
-      watchedSingleAccountId,
-      onResolved,
-    });
+  const {
+    resolvedRowLabels,
+    resolvedRowCodes,
+    resolutionFallbacks,
+    invalidateLookupCaches,
+  } = useNewInvoiceResolution({
+    invoiceType,
+    useSingleAccount,
+    splitByItemType,
+    form: form as unknown as UseFormReturn<Record<string, unknown>>,
+    parties,
+    inventory,
+    resolutionTrigger,
+    watchedSingleAccountId,
+    onResolved,
+  });
+
+  // refresh btn: parties + inventory + next # + balance, await resolve, then reprice/discounts
+  const handleRefreshLookups = useCallback(async () => {
+    setIsRefreshingLookups(true);
+    const failures: string[] = [];
+    try {
+      const [partiesResult, inventoryResult, nextNumberResult] =
+        await Promise.allSettled([
+          refreshParties(),
+          refreshInventory(),
+          refreshNextInvoiceNumber(),
+        ]);
+
+      if (partiesResult.status === 'rejected') {
+        failures.push('accounts');
+        console.error('Error refreshing accounts:', partiesResult.reason);
+      }
+      if (inventoryResult.status === 'rejected') {
+        failures.push('inventory');
+        console.error('Error refreshing inventory:', inventoryResult.reason);
+      }
+      if (nextNumberResult.status === 'rejected') {
+        failures.push('invoice number');
+        console.error(
+          'Error refreshing next invoice number:',
+          nextNumberResult.reason,
+        );
+      }
+
+      const freshInventory =
+        inventoryResult.status === 'fulfilled'
+          ? inventoryResult.value
+          : undefined;
+      const freshParties =
+        partiesResult.status === 'fulfilled' ? partiesResult.value : undefined;
+
+      // bump balance hint after party refresh so it re-hits ledger IPC
+      setPartyBalanceRefreshKey((k) => k + 1);
+
+      // wait for split resolution to settle on fresh accounts before discount IPC
+      try {
+        await invalidateLookupCaches();
+      } catch (error) {
+        failures.push('account mapping');
+        console.error('Error refreshing account mapping:', error);
+      }
+
+      if (freshInventory) {
+        try {
+          await refreshPricingFromInventory(freshInventory);
+        } catch (error) {
+          failures.push(
+            invoiceType === InvoiceType.Sale ? 'prices/discounts' : 'prices',
+          );
+          console.error('Error refreshing row prices/discounts:', error);
+        }
+      } else if (inventoryResult.status === 'fulfilled') {
+        // generation raced; still re-apply discounts against current prices
+        try {
+          await recalculateAutoDiscounts();
+        } catch (error) {
+          failures.push('discounts');
+          console.error('Error recalculating discounts:', error);
+        }
+      }
+
+      const selectedId = toNumber(
+        form.getValues('accountMapping.singleAccountId'),
+      );
+      if (
+        freshParties &&
+        selectedId > 0 &&
+        !freshParties.partyAccountsIncludingTyped.some(
+          (p) => p.id === selectedId,
+        )
+      ) {
+        toast({
+          description:
+            'Selected party is no longer in the account list. Pick another.',
+          variant: 'warning',
+        });
+      }
+
+      if (failures.length > 0) {
+        toast({
+          description: `Refresh partially failed (${failures.join(', ')})`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          description:
+            invoiceType === InvoiceType.Sale
+              ? 'Accounts, inventory prices, discounts, and balance refreshed'
+              : 'Accounts, inventory prices, and balance refreshed',
+          variant: 'success',
+        });
+      }
+    } catch (error) {
+      toast({
+        description: 'Failed to refresh lookups',
+        variant: 'destructive',
+      });
+      console.error('Error refreshing lookups:', error);
+    } finally {
+      setIsRefreshingLookups(false);
+    }
+  }, [
+    form,
+    invalidateLookupCaches,
+    invoiceType,
+    refreshParties,
+    refreshInventory,
+    refreshNextInvoiceNumber,
+    refreshPricingFromInventory,
+    recalculateAutoDiscounts,
+  ]);
 
   // sale split-by-type needs a primary item type for typed ledgers; warn once if it is missing and reset flags when mode is off
   useEffect(() => {
@@ -1922,7 +2025,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               variant="outline"
               size="icon"
               onClick={handleRefreshLookups}
-              title="Refresh accounts and inventory"
+              title="Refresh accounts, inventory, discounts, and balance"
               disabled={isRefreshingLookups}
             >
               <RefreshCw
@@ -1983,6 +2086,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   </FormLabel>
                                   <PartyBalanceIndicator
                                     accountId={toNumber(field.value)}
+                                    refreshKey={partyBalanceRefreshKey}
                                   />
                                 </span>
                                 <VirtualSelect
@@ -2335,7 +2439,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         ))}
                         . Some rows use non existing typed accounts. Create the
                         account in another window and click&nbsp;
-                        <strong>Refresh accounts and inventory</strong> to link.
+                        <strong>
+                          Refresh accounts, inventory, discounts, and balance
+                        </strong>{' '}
+                        to link.
                       </p>
                       {splitTypedAccountStrictBlock ? (
                         <p>

@@ -95,4 +95,27 @@ describe('PartyBalanceIndicator', () => {
     rerender(<PartyBalanceIndicator accountId={undefined} />);
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
+
+  it('re-fetches when refreshKey bumps without changing accountId', async () => {
+    const getLedgerBalance = setElectronBalance({
+      balance: 100,
+      balanceType: BalanceType.Dr,
+    });
+    const { rerender } = render(
+      <PartyBalanceIndicator accountId={20} refreshKey={0} />,
+    );
+    await screen.findByText(/Balance:/);
+    expect(getLedgerBalance).toHaveBeenCalledTimes(1);
+
+    getLedgerBalance.mockResolvedValue({
+      balance: 250,
+      balanceType: BalanceType.Dr,
+    });
+    rerender(<PartyBalanceIndicator accountId={20} refreshKey={1} />);
+
+    await waitFor(() => {
+      expect(getLedgerBalance).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText(/Balance:/)).toHaveTextContent(/250|250\.00/);
+  });
 });
