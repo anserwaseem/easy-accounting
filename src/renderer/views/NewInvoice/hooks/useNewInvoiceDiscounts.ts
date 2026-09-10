@@ -30,9 +30,7 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
   ) => Promise<void>;
   recalculateAutoDiscounts: () => Promise<void>;
   /** push latest catalog prices onto rows, then refresh discounts / discounted totals */
-  refreshPricingFromInventory: (
-    inventory: InventoryItem[],
-  ) => Promise<void>;
+  refreshPricingFromInventory: (inventory: InventoryItem[]) => Promise<void>;
   recalculateAutoDiscountsRef: React.MutableRefObject<() => Promise<void>>;
   manualDiscountRows: Record<number, boolean>;
   setManualDiscountRows: React.Dispatch<

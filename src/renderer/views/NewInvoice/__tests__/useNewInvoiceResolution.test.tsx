@@ -458,9 +458,7 @@ describe('useNewInvoiceResolution', () => {
     const { hookResult } = setup({
       party,
       parties: [party],
-      inventory: [
-        makeInv({ id: 100, itemTypeId: 1, itemTypeName: 'T' }),
-      ],
+      inventory: [makeInv({ id: 100, itemTypeId: 1, itemTypeName: 'T' })],
       primaryItemTypeId: 1,
       getAccounts,
       invoiceItems: [{ id: 1, inventoryId: 100 }],

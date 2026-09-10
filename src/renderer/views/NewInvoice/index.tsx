@@ -168,11 +168,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const [editHydrated, setEditHydrated] = useState(false);
 
   const [inventory, setInventory] = useState<InventoryItem[] | undefined>();
-  const {
-    nextInvoiceNumber,
-    setNextInvoiceNumber,
-    refreshNextInvoiceNumber,
-  } = useNewInvoiceNextNumber(invoiceType, editInvoiceId == null);
+  const { nextInvoiceNumber, setNextInvoiceNumber, refreshNextInvoiceNumber } =
+    useNewInvoiceNextNumber(invoiceType, editInvoiceId == null);
   const {
     parties,
     partiesIncludingTyped,
@@ -2086,6 +2083,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   </FormLabel>
                                   <PartyBalanceIndicator
                                     accountId={toNumber(field.value)}
+                                    partyAccounts={partiesIncludingTyped}
                                     refreshKey={partyBalanceRefreshKey}
                                   />
                                 </span>
