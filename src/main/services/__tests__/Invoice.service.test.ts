@@ -6,14 +6,14 @@ import type {
   InsertAccount,
   Invoice,
   InvoiceItem,
-  InvoiceType,
   UserCredentials,
 } from '../../../types';
-import { BalanceType } from '../../../types';
+import { AccountType, BalanceType, InvoiceType } from '../../../types';
 import { MigrationRunner } from '../../migrations';
 import {
   AccountService,
   AuthService,
+  ChartService,
   DatabaseService,
   InvoiceService,
   LedgerService,
@@ -1214,6 +1214,7 @@ describe('InvoiceService.insertInvoice', () => {
     expect(view.invoiceType).toBe('Sale');
     expect(Number(view.totalAmount)).toBe(uiTotal);
     expect(view.accountName).toBe('PrimaryParty');
+    expect(view.accountHeadName).toBeFalsy();
     expect(Number(view.extraDiscount ?? 0)).toBe(0);
     expect(Number(view.biltyNumber)).toBe(55);
     expect(view.cartons).toBe(2);
@@ -1240,6 +1241,77 @@ describe('InvoiceService.insertInvoice', () => {
     expect(Number(listRow!.biltyNumber)).toBe(55);
     expect(listRow!.cartons).toBe(2);
     expect(Number(listRow!.linkedJournalCount)).toBeGreaterThan(0);
+  });
+
+  it('getInvoice exposes custom chart head and hides built-in heads', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const chartService = new ChartService();
+    const currentAsset = chartService
+      .getCharts()
+      .find((chart) => chart.name === 'Current Asset');
+    expect(currentAsset?.id).toBeGreaterThan(0);
+
+    chartService.insertCustomHead({
+      name: 'Shahbaz',
+      type: AccountType.Asset,
+      parentId: currentAsset!.id,
+      nameUrdu: 'شہباز',
+    });
+    accountService.insertAccount({
+      ...defaultAccountFields,
+      name: 'Quetta Shop',
+      headName: 'Shahbaz',
+      code: 501,
+    });
+    const partyId = getAccountIdByName(db, 'Quetta Shop');
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 1,
+        discount: 0,
+        price: 101,
+        discountedPrice: computeUiRowTotal({
+          quantity: 1,
+          price: 101,
+          discount: 0,
+        }),
+      },
+    ];
+    const { invoiceId } = invoiceService.insertInvoice('Sale' as InvoiceType, {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-05-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: 9301,
+      extraDiscount: 0,
+      totalAmount: computeUiTotal([items], 0),
+      accountMapping: {
+        singleAccountId: partyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    });
+
+    const customHeadView = invoiceService.getInvoice(invoiceId);
+    expect(customHeadView.accountHeadName).toBe('Shahbaz');
+    expect(customHeadView.accountHeadNameUrdu).toBe('شہباز');
+
+    const builtInId = invoiceService.insertInvoice('Sale' as InvoiceType, {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-05-02T12:00:00.000Z').toISOString(),
+      invoiceNumber: 9302,
+      extraDiscount: 0,
+      totalAmount: computeUiTotal([items], 0),
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    }).invoiceId;
+    expect(invoiceService.getInvoice(builtInId).accountHeadName).toBeFalsy();
   });
 
   it('getInvoice shows per-line account names when invoice_items map to different parties', () => {

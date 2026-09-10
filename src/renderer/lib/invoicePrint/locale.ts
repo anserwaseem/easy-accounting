@@ -27,6 +27,13 @@ export interface InvoicePrintLabels {
   returnedBanner: string;
   returnedOn: string;
   currencyWordsPrefix: string;
+  billBalance: string;
+  previousBalance: string;
+  newBalance: string;
+  agent: string;
+  note: string;
+  whatsapp: string;
+  website: string;
 }
 
 export type InvoicePrintLabelKey = keyof InvoicePrintLabels;
@@ -56,6 +63,13 @@ export const INVOICE_PRINT_LABEL_KEYS: InvoicePrintLabelKey[] = [
   'returnedBanner',
   'returnedOn',
   'currencyWordsPrefix',
+  'billBalance',
+  'previousBalance',
+  'newBalance',
+  'agent',
+  'note',
+  'whatsapp',
+  'website',
 ];
 
 /** english UI titles for Settings label editor */
@@ -85,6 +99,13 @@ export const INVOICE_PRINT_LABEL_TITLES: Record<InvoicePrintLabelKey, string> =
     returnedBanner: 'Returned banner',
     returnedOn: 'Returned on label',
     currencyWordsPrefix: 'Currency in words',
+    billBalance: 'Credit-sale stamp',
+    previousBalance: 'Previous balance row',
+    newBalance: 'New balance row',
+    agent: 'Marketing representative / custom head label',
+    note: 'Footer note label',
+    whatsapp: 'WhatsApp label',
+    website: 'Website label',
   };
 
 const ENGLISH_LABELS: InvoicePrintLabels = {
@@ -112,6 +133,13 @@ const ENGLISH_LABELS: InvoicePrintLabels = {
   returnedBanner: 'RETURNED',
   returnedOn: 'Returned on',
   currencyWordsPrefix: 'Rs.',
+  billBalance: 'CREDIT',
+  previousBalance: 'Previous Balance:',
+  newBalance: 'New Balance:',
+  agent: 'Marketing Representative:',
+  note: 'Note:',
+  whatsapp: 'WhatsApp:',
+  website: 'Website:',
 };
 
 /** commercial Urdu defaults — editable in Settings for a native-speaker pass */
@@ -140,6 +168,13 @@ const URDU_LABELS: InvoicePrintLabels = {
   returnedBanner: 'واپس شدہ',
   returnedOn: 'واپسی کی تاریخ:',
   currencyWordsPrefix: 'روپے',
+  billBalance: 'ادھار',
+  previousBalance: 'سابقہ بقایا:',
+  newBalance: 'نیا بقایا:',
+  agent: 'نمائندہ:',
+  note: 'نوٹ:',
+  whatsapp: 'واٹس ایپ:',
+  website: 'ویب سائٹ:',
 };
 
 export const getDefaultInvoicePrintLabels = (
@@ -152,7 +187,7 @@ export const getInvoicePrintLabels = (
   overrides?: Partial<InvoicePrintLabels> | null,
 ): InvoicePrintLabels => {
   const base = getDefaultInvoicePrintLabels(locale);
-  if (locale !== 'ur' || !overrides) return base;
+  if (!overrides) return base;
 
   const merged = { ...base };
   INVOICE_PRINT_LABEL_KEYS.forEach((key) => {
@@ -244,20 +279,11 @@ export const pickPrintLocalizedText = (
   return String(english ?? '').trim();
 };
 
-export const formatInvoicePrintCurrency = (
-  amount: number,
-  locale: InvoicePrintLocale,
-): string => {
-  const formatted = new Intl.NumberFormat('en-PK', {
+export const formatInvoicePrintCurrency = (amount: number): string =>
+  new Intl.NumberFormat('en-PK', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
-
-  if (locale === 'ur') {
-    return `${formatted} روپے`;
-  }
-  return `PKR ${formatted}`;
-};
 
 /** wait for document fonts (esp. Nastaliq) before printToPDF / window.print */
 export const waitForInvoicePrintFonts = async (

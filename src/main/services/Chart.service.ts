@@ -15,6 +15,10 @@ export class ChartService {
 
   private stmInsertChart!: Statement;
 
+  private stmUpdateCustomHeadName!: Statement;
+
+  private stmUpdateCustomHeadUrdu!: Statement;
+
   private stmGetCustomHeads!: Statement;
 
   private stmInsertChartWithDate!: Statement;
@@ -73,6 +77,29 @@ export class ChartService {
     const username = store.get('username');
     return this.stmInsertChart.run({
       ...chart,
+      nameUrdu: chart.nameUrdu?.trim() || null,
+      username,
+    });
+  }
+
+  updateCustomHeadName(chartId: number, name: string) {
+    const username = store.get('username');
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new Error('Custom head name cannot be empty');
+    }
+    return this.stmUpdateCustomHeadName.run({
+      id: chartId,
+      name: trimmed,
+      username,
+    });
+  }
+
+  updateCustomHeadUrdu(chartId: number, nameUrdu: string | null) {
+    const username = store.get('username');
+    return this.stmUpdateCustomHeadUrdu.run({
+      id: chartId,
+      nameUrdu: nameUrdu?.trim() || null,
       username,
     });
   }
@@ -179,6 +206,7 @@ export class ChartService {
       type: chartType,
       username,
       parentId,
+      nameUrdu: null,
     });
 
     return customHeadResult.lastInsertRowid;
@@ -217,12 +245,29 @@ export class ChartService {
     `);
 
     this.stmInsertChart = this.db.prepare(`
-      INSERT INTO chart (name, type, userId, parentId)
+      INSERT INTO chart (name, type, userId, parentId, nameUrdu)
       VALUES (
         @name,
         @type,
         (SELECT id FROM users WHERE username = @username),
-        @parentId
+        @parentId,
+        @nameUrdu
+      )
+    `);
+
+    this.stmUpdateCustomHeadName = this.db.prepare(`
+      UPDATE chart
+      SET name = @name
+      WHERE id = @id AND parentId IS NOT NULL AND userId = (
+        SELECT id FROM users WHERE username = @username
+      )
+    `);
+
+    this.stmUpdateCustomHeadUrdu = this.db.prepare(`
+      UPDATE chart
+      SET nameUrdu = @nameUrdu
+      WHERE id = @id AND parentId IS NOT NULL AND userId = (
+        SELECT id FROM users WHERE username = @username
       )
     `);
 

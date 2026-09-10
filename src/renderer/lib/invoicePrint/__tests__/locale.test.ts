@@ -7,6 +7,15 @@ import {
 } from '../locale';
 
 describe('invoicePrint locale helpers', () => {
+  it('returns English chrome labels', () => {
+    const labels = getInvoicePrintLabels('en');
+    expect(labels.billBalance).toBe('CREDIT');
+    expect(labels.previousBalance).toBe('Previous Balance:');
+    expect(labels.newBalance).toBe('New Balance:');
+    expect(labels.note).toBe('Note:');
+    expect(labels.agent).toBe('Marketing Representative:');
+  });
+
   it('returns Urdu chrome labels', () => {
     const labels = getInvoicePrintLabels('ur');
     expect(labels.billTo).toBe('بل بنام:');
@@ -15,6 +24,19 @@ describe('invoicePrint locale helpers', () => {
     expect(labels.returnedBanner).toBe('واپس شدہ');
     expect(labels.totalQuantity).toBe('کل مقدار:');
     expect(labels.currencyWordsPrefix).toBe('روپے');
+    expect(labels.billBalance).toBe('ادھار');
+    expect(labels.previousBalance).toBe('سابقہ بقایا:');
+    expect(labels.newBalance).toBe('نیا بقایا:');
+    expect(labels.note).toBe('نوٹ:');
+  });
+
+  it('applies non-empty English overrides', () => {
+    const labels = getInvoicePrintLabels('en', {
+      invoiceNumber: '  Inv #:  ',
+      agent: '',
+    });
+    expect(labels.invoiceNumber).toBe('Inv #:');
+    expect(labels.agent).toBe('Marketing Representative:');
   });
 
   it('applies non-empty Urdu overrides only', () => {
@@ -53,7 +75,7 @@ describe('invoicePrint locale helpers', () => {
     expect(pickPrintLocalizedText('English Co', '  ', 'ur')).toBe('English Co');
   });
 
-  it('formats Urdu currency with Western digits', () => {
-    expect(formatInvoicePrintCurrency(85680, 'ur')).toBe('85,680.00 روپے');
+  it('formats print amounts as digits only', () => {
+    expect(formatInvoicePrintCurrency(85680)).toBe('85,680.00');
   });
 });
