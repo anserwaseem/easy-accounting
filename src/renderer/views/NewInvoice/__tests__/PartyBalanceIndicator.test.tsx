@@ -1,7 +1,7 @@
 /**
  * PartyBalanceIndicator: compact outstanding-balance hint under the party
  * select on New Invoice. Covers: shows on selection, red tint for large Dr,
- * "No balance" for zero/no-history, hides when nothing selected.
+ * "No balance" for zero/no-history, hides when nothing selected, sums family.
  */
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -16,15 +16,31 @@ type LedgerBalance = { balance: number; balanceType: BalanceType } | null;
 
 function setElectronBalance(result: LedgerBalance) {
   const getLedgerBalance = jest.fn(async () => result);
+  const getItemTypes = jest.fn(async () => [{ id: 1, name: 'T' }]);
+  const getLedgerBalancesForAccountIds = jest.fn(async () => ({}));
   (
-    window as unknown as { electron: { getLedgerBalance: jest.Mock } }
-  ).electron = { getLedgerBalance };
-  return getLedgerBalance;
+    window as unknown as {
+      electron: {
+        getLedgerBalance: jest.Mock;
+        getItemTypes: jest.Mock;
+        getLedgerBalancesForAccountIds: jest.Mock;
+      };
+    }
+  ).electron = {
+    getLedgerBalance,
+    getItemTypes,
+    getLedgerBalancesForAccountIds,
+  };
+  return {
+    getLedgerBalance,
+    getItemTypes,
+    getLedgerBalancesForAccountIds,
+  };
 }
 
 describe('PartyBalanceIndicator', () => {
   it('renders nothing and skips the IPC when no account is selected', () => {
-    const getLedgerBalance = setElectronBalance({
+    const { getLedgerBalance } = setElectronBalance({
       balance: 100,
       balanceType: BalanceType.Dr,
     });
@@ -34,7 +50,7 @@ describe('PartyBalanceIndicator', () => {
   });
 
   it('shows the latest balance with Dr/Cr marker once an account is selected', async () => {
-    const getLedgerBalance = setElectronBalance({
+    const { getLedgerBalance } = setElectronBalance({
       balance: 13498,
       balanceType: BalanceType.Dr,
     });
@@ -97,7 +113,7 @@ describe('PartyBalanceIndicator', () => {
   });
 
   it('re-fetches when refreshKey bumps without changing accountId', async () => {
-    const getLedgerBalance = setElectronBalance({
+    const { getLedgerBalance } = setElectronBalance({
       balance: 100,
       balanceType: BalanceType.Dr,
     });
@@ -116,6 +132,42 @@ describe('PartyBalanceIndicator', () => {
     await waitFor(() => {
       expect(getLedgerBalance).toHaveBeenCalledTimes(2);
     });
-    expect(await screen.findByText(/Balance:/)).toHaveTextContent(/250|250\.00/);
+    expect(await screen.findByText(/Balance:/)).toHaveTextContent(
+      /250|250\.00/,
+    );
+  });
+
+  it('sums balances across base + typed family accounts', async () => {
+    const { getLedgerBalance, getLedgerBalancesForAccountIds, getItemTypes } =
+      setElectronBalance({
+        balance: 999,
+        balanceType: BalanceType.Dr,
+      });
+    getItemTypes.mockResolvedValue([
+      { id: 1, name: 'T' },
+      { id: 2, name: 'TT' },
+    ]);
+    getLedgerBalancesForAccountIds.mockResolvedValue({
+      10: { balance: 10000, balanceType: BalanceType.Dr },
+      11: { balance: 5000, balanceType: BalanceType.Dr },
+      12: { balance: 2000, balanceType: BalanceType.Cr },
+    });
+
+    const partyAccounts = [
+      { id: 10, name: 'Acme', code: 'AC', chartId: 1 },
+      { id: 11, name: 'Acme-T', code: 'AC-T', chartId: 1 },
+      { id: 12, name: 'Acme-TT', code: 'AC-TT', chartId: 1 },
+    ];
+
+    render(
+      <PartyBalanceIndicator accountId={10} partyAccounts={partyAccounts} />,
+    );
+
+    const el = await screen.findByText(/Balance \(all\):/);
+    expect(getLedgerBalance).not.toHaveBeenCalled();
+    expect(getLedgerBalancesForAccountIds).toHaveBeenCalledWith([10, 11, 12]);
+    // 10000 + 5000 - 2000 = 13000 Dr
+    expect(el).toHaveTextContent(/Dr/);
+    expect(el).toHaveTextContent(/13/);
   });
 });

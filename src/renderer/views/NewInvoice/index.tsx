@@ -2086,6 +2086,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   </FormLabel>
                                   <PartyBalanceIndicator
                                     accountId={toNumber(field.value)}
+                                    partyAccounts={partiesIncludingTyped}
                                     refreshKey={partyBalanceRefreshKey}
                                   />
                                 </span>
