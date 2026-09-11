@@ -27,7 +27,21 @@ interface ManagePriceListsProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+const DEFAULT_MULTIPLIER = '1.2';
 const DEFAULT_ROUND_TO = '10';
+export const SEED_MULTIPLIER_STORE_KEY = 'inventory.priceListSeedMultiplier';
+export const SEED_ROUND_TO_STORE_KEY = 'inventory.priceListSeedRoundTo';
+
+const getStoredMultiplier = (): string =>
+  String(
+    window.electron?.store?.get(SEED_MULTIPLIER_STORE_KEY) ??
+      DEFAULT_MULTIPLIER,
+  );
+
+const getStoredRoundTo = (): string =>
+  String(
+    window.electron?.store?.get(SEED_ROUND_TO_STORE_KEY) ?? DEFAULT_ROUND_TO,
+  );
 
 /**
  * Create, rename, deactivate and bulk-seed named price lists.
@@ -60,8 +74,8 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
   // seeding state
   const [seedListId, setSeedListId] = useState<number | null>(null);
   const [source, setSource] = useState<SeedSource>('base');
-  const [multiplier, setMultiplier] = useState('1.2');
-  const [roundTo, setRoundTo] = useState(DEFAULT_ROUND_TO);
+  const [multiplier, setMultiplier] = useState(getStoredMultiplier);
+  const [roundTo, setRoundTo] = useState(getStoredRoundTo);
   const [overwrite, setOverwrite] = useState(false);
   const [scopeFiltered, setScopeFiltered] = useState(true);
   const [plan, setPlan] = useState<SeedPlan | null>(null);
@@ -72,7 +86,11 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
   }, []);
 
   useEffect(() => {
-    if (open) load();
+    if (open) {
+      load();
+      setMultiplier(getStoredMultiplier());
+      setRoundTo(getStoredRoundTo());
+    }
   }, [open, load]);
 
   const seedList = useMemo(
@@ -84,8 +102,8 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
     setSeedListId(null);
     setPlan(null);
     setSource('base');
-    setMultiplier('1.2');
-    setRoundTo(DEFAULT_ROUND_TO);
+    setMultiplier(getStoredMultiplier());
+    setRoundTo(getStoredRoundTo());
     setOverwrite(false);
     setScopeFiltered(true);
   }, []);
@@ -176,6 +194,8 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
         seedOptions,
         scopeIds,
       );
+      window.electron?.store?.set(SEED_MULTIPLIER_STORE_KEY, multiplier);
+      window.electron?.store?.set(SEED_ROUND_TO_STORE_KEY, roundTo);
       toast({
         description: `${applied} price${applied === 1 ? '' : 's'} updated`,
         variant: 'success',
@@ -191,6 +211,8 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
     optionsValid,
     seedOptions,
     scopeIds,
+    multiplier,
+    roundTo,
     resetSeed,
     load,
     onUpdated,
