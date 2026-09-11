@@ -168,8 +168,8 @@ describe('core migration 035 (insert-timestamp triggers fill only, never overwri
 
     it('an INSERT with NO createdAt/updatedAt still gets both stamped to now — legacy fill behavior intact for every ordinary application write', () => {
       db.prepare(
-        `INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount)
-         VALUES (3003, @accountId, 'Sale', '2020-01-01', 50)`,
+        `INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, uuid)
+         VALUES (3003, @accountId, 'Sale', '2020-01-01', 50, 'fixture-uuid-3003')`,
       ).run({ accountId });
 
       const row = invoiceTimestamps(db, 3003);

@@ -6,7 +6,7 @@ import {
 describe('example invoice print notes', () => {
   it('keeps the commercial Urdu adda / WhatsApp wording as a settings hint', () => {
     expect(EXAMPLE_INVOICE_PRINT_NOTE_UR).toBe(
-      '15 دن کے اندر اڈے سے اپنا مال وصول کر لیں ورنہ کمپنی ذمہ دار نہیں ہوگی ۔ مال کی کمی بیشی کی صورت میں کھینچ کے واٹس ایپ پر ویڈیو بنا کر بھیجیں ۔',
+      '15 دن کے اندر اڈے سے اپنا مال وصول کر لیں ورنہ کمپنی ذمہ دار نہیں ہوگی۔ مال کی کمی بیشی کی صورت میں ویڈیو بنا کے واٹس ایپ پر بھیجیں۔',
     );
   });
 

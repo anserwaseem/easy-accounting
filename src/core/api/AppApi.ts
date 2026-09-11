@@ -278,6 +278,11 @@ export interface AppApi {
    * @example const isInserted = insertCustomHead({ ... });
    */
   insertCustomHead: (chart: InsertChart) => Promise<any>;
+  updateCustomHeadName: (chartId: number, name: string) => Promise<any>;
+  updateCustomHeadUrdu: (
+    chartId: number,
+    nameUrdu: string | null,
+  ) => Promise<any>;
 
   // ---------------------------------------------------------------------
   // Journal

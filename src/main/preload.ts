@@ -854,7 +854,35 @@ const electronHandler = {
       'vendorStock:getActivity',
       filters,
     ) as Promise<VendorStockActivityResponse>,
+
+  supportsSync: true as const,
+
+  syncGetStatus: () => ipcRenderer.invoke('sync:getStatus'),
+
+  syncConnect: (config: {
+    url: string;
+    anonKey: string;
+    mock?: boolean;
+    force?: boolean;
+  }) => ipcRenderer.invoke('sync:connect', config),
+
+  syncDisconnect: () => ipcRenderer.invoke('sync:disconnect'),
+
+  syncNow: () => ipcRenderer.invoke('sync:syncNow'),
+
+  syncJoin: (config: { url: string; anonKey: string; mock?: boolean }) =>
+    ipcRenderer.invoke('sync:join', config),
+
+  syncRebuild: () => ipcRenderer.invoke('sync:rebuild'),
+
+  syncGetJoinInvite: () => ipcRenderer.invoke('sync:getJoinInvite'),
+
+  renderJoinQr: (text: string) => ipcRenderer.invoke('sync:renderJoinQr', text),
 };
+
+ipcRenderer.on('sync:applied', () => {
+  window.dispatchEvent(new CustomEvent('easyaccounting:sync-applied'));
+});
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
 

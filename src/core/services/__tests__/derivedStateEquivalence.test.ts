@@ -109,6 +109,11 @@ const defaultAccountFields = {
 /** Every chart type the schema's CHECK allows post-migration-001: all five. */
 function seedFullSchema(db: Database.Database): number {
   applyFrozenWebSchema(db);
+  try {
+    db.prepare(`ALTER TABLE chart ADD COLUMN nameUrdu TEXT`).run();
+  } catch {
+    // column already exists
+  }
   db.prepare(
     `INSERT INTO users (username, password_hash, status) VALUES (?, ?, 1)`,
   ).run(USERNAME, Buffer.from('x'));

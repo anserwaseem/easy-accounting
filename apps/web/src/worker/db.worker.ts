@@ -694,6 +694,13 @@ async function main(): Promise<void> {
       chartService.insertCustomHead(
         chart as Parameters<ChartService['insertCustomHead']>[0],
       ),
+    updateCustomHeadName: (chartId, name) =>
+      chartService.updateCustomHeadName(chartId as number, name as string),
+    updateCustomHeadUrdu: (chartId, nameUrdu) =>
+      chartService.updateCustomHeadUrdu(
+        chartId as number,
+        nameUrdu as string | null,
+      ),
 
     // -- Journal ---------------------------------------------------------
     getNextJournalId: () => journalService.getNextJournalId(),

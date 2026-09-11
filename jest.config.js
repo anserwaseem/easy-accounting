@@ -18,6 +18,7 @@ module.exports = {
     '__mocks__',
     'src/core/sync/__tests__/mockServer.ts',
     'src/core/sync/__tests__/convergenceScenarios.ts',
+    '<rootDir>/apps/web/',
   ],
   transform: {
     '\\.(ts|tsx|js|jsx)$': 'ts-jest',

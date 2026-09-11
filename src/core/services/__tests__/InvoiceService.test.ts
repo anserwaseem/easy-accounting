@@ -57,6 +57,11 @@ const defaultAccountFields = {
 
 function seedBasicSchema(db: Database.Database) {
   applyFrozenWebSchema(db);
+  try {
+    db.prepare(`ALTER TABLE chart ADD COLUMN nameUrdu TEXT`).run();
+  } catch {
+    // column already exists
+  }
   db.prepare(
     `INSERT INTO users (username, password_hash, status) VALUES (?, ?, 1)`,
   ).run(USERNAME, Buffer.from('x'));

@@ -114,6 +114,34 @@ export class ChartService {
     });
   }
 
+  async updateCustomHeadName(chartId: number, name: string) {
+    const username = this.session.getUsername();
+    const trimmed = name?.trim();
+    if (!trimmed) {
+      throw new Error('Custom head name cannot be empty');
+    }
+    return this.db.run(
+      `UPDATE chart
+       SET name = @name
+       WHERE id = @id
+         AND parentId IS NOT NULL
+         AND userId = (SELECT id FROM users WHERE username = @username)`,
+      { id: chartId, name: trimmed, username },
+    );
+  }
+
+  async updateCustomHeadUrdu(chartId: number, nameUrdu: string | null) {
+    const username = this.session.getUsername();
+    return this.db.run(
+      `UPDATE chart
+       SET nameUrdu = @nameUrdu
+       WHERE id = @id
+         AND parentId IS NOT NULL
+         AND userId = (SELECT id FROM users WHERE username = @username)`,
+      { id: chartId, nameUrdu: nameUrdu?.trim() || null, username },
+    );
+  }
+
   static getChartName = (
     name: string,
     section: SingularSection,

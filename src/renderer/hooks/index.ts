@@ -7,3 +7,4 @@ export * from './useCmdOrCtrlShortcut';
 export * from './useEscapeKey';
 export * from './usePublishSettings';
 export * from './useSyncStatus';
+export * from './useIsMobile';

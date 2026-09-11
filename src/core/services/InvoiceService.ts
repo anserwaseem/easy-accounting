@@ -121,6 +121,9 @@ type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
   invoiceAccountAddressUrdu?: string | null;
   invoiceAccountGoodsName?: string | null;
   invoiceAccountGoodsNameUrdu?: string | null;
+  invoiceAccountHeadName?: string | null;
+  invoiceAccountHeadNameUrdu?: string | null;
+  invoiceAccountHeadParentId?: number | null;
   itemRowAccountId?: number | null;
   accountCode?: number | string | null;
   accountNameUrdu?: string | null;
@@ -269,6 +272,9 @@ const SQL = {
         a.addressUrdu AS 'invoiceAccountAddressUrdu',
         a.goodsName AS 'invoiceAccountGoodsName',
         a.goodsNameUrdu AS 'invoiceAccountGoodsNameUrdu',
+        headerChart.name AS 'invoiceAccountHeadName',
+        headerChart.nameUrdu AS 'invoiceAccountHeadNameUrdu',
+        headerChart.parentId AS 'invoiceAccountHeadParentId',
         ii.inventoryId,
         ii.quantity,
         ii.price,
@@ -292,6 +298,7 @@ const SQL = {
         ) AS 'accountCode'
       FROM invoices i
       JOIN account a ON i.accountId = a.id
+      JOIN chart headerChart ON headerChart.id = a.chartId
       JOIN invoice_items ii ON i.id = ii.invoiceId
       JOIN inventory iii ON iii.id = ii.inventoryId
       LEFT JOIN item_types it ON it.id = iii.itemTypeId
@@ -806,6 +813,16 @@ export class InvoiceService {
         prev.accountAddressUrdu = cur.invoiceAccountAddressUrdu ?? null;
         prev.accountGoodsName = cur.invoiceAccountGoodsName ?? null;
         prev.accountGoodsNameUrdu = cur.invoiceAccountGoodsNameUrdu ?? null;
+        prev.accountHeadName =
+          cur.invoiceAccountHeadParentId != null &&
+          Number(cur.invoiceAccountHeadParentId) > 0
+            ? cur.invoiceAccountHeadName ?? null
+            : null;
+        prev.accountHeadNameUrdu =
+          cur.invoiceAccountHeadParentId != null &&
+          Number(cur.invoiceAccountHeadParentId) > 0
+            ? cur.invoiceAccountHeadNameUrdu ?? null
+            : null;
         prev.invoiceItems = [];
       }
       prev.invoiceItems.push({

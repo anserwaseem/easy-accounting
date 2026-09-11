@@ -18,6 +18,7 @@ import {
   FileOutput,
   Home,
   LogOut,
+  Menu,
   Plus,
   Quote,
   Settings,
@@ -27,14 +28,15 @@ import {
   Warehouse,
 } from 'lucide-react';
 import type { FC, PropsWithChildren, ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from 'renderer/lib/utils';
 import { ModeToggle } from 'renderer/components/ModeToggle';
 import GlobalSearch from 'renderer/components/GlobalSearch';
 import BackupStatus from 'renderer/components/BackupStatus';
 import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
-import { useAuth } from '../hooks';
+import { useAuth, useIsMobile } from '../hooks';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 const ITEM_BUTTON_CLASSNAME = 'px-3';
 
@@ -246,12 +248,14 @@ interface SidebarFooterProps {
   collapsed: boolean;
   onToggle: () => void;
   onLogout: () => void;
+  isMobile?: boolean;
 }
 
 const SidebarFooter: FC<SidebarFooterProps> = ({
   collapsed,
   onToggle,
   onLogout,
+  isMobile = false,
 }: SidebarFooterProps) => {
   const mod = getOsModifierLabel();
   // collapsed: only show the expand chevron
@@ -320,18 +324,22 @@ const SidebarFooter: FC<SidebarFooterProps> = ({
             <Button
               variant="secondary"
               onClick={onToggle}
-              className="gap-2"
-              aria-label="Collapse sidebar border-0"
+              className="gap-2 min-h-10"
+              aria-label={isMobile ? 'Close menu' : 'Collapse sidebar border-0'}
               type="button"
             >
               <ChevronLeft size={16} aria-hidden />
-              <span>Collapse</span>
+              <span>{isMobile ? 'Close' : 'Collapse'}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <KbdGroup>
-              Collapse <Kbd>{mod}</Kbd> + <Kbd>[</Kbd>
-            </KbdGroup>
+            {isMobile ? (
+              'Close menu'
+            ) : (
+              <KbdGroup>
+                Collapse <Kbd>{mod}</Kbd> + <Kbd>[</Kbd>
+              </KbdGroup>
+            )}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -350,11 +358,16 @@ const clearGeneratedInvoicesFromStore = () => {
 const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
   useAppNavigationShortcuts();
   const { logout } = useAuth();
+  const isMobile = useIsMobile();
 
-  // persist collapsed state across restarts
+  // persist collapsed state across restarts (desktop icon-only mode only —
+  // on mobile the sidebar is an off-canvas overlay instead, see mobileOpen)
   const [collapsed, setCollapsed] = useState<boolean>(
     () => !!window.electron.store.get('sidebarCollapsed'),
   );
+
+  // Off-canvas nav overlay, collapsed (closed) by default — mobile only.
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -374,18 +387,53 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
     window.electron.store.set('sidebarCollapsed', false);
   });
 
+  useEscapeKey(() => setMobileOpen(false), mobileOpen);
+
+  // The mobile overlay never makes sense mid-desktop-resize; drop it if the
+  // viewport crosses back above the breakpoint while it happens to be open.
+  useEffect(() => {
+    if (!isMobile) setMobileOpen(false);
+  }, [isMobile]);
+
+  // On mobile the nav is always shown expanded (icon + label) regardless of
+  // the desktop icon-only preference — an icon-only overlay defeats the
+  // point of opening it. Desktop rendering (isMobile === false) is
+  // unaffected: effectiveCollapsed === collapsed there.
+  const effectiveCollapsed = collapsed && !isMobile;
+
+  // Mobile: the footer's "Collapse" action closes the overlay instead of
+  // persisting icon-only mode (which mobile never uses, see above).
+  const handleFooterToggle = isMobile
+    ? () => setMobileOpen(false)
+    : toggleCollapsed;
+
+  // Closes the overlay when a nav link is followed — delegated at the
+  // sidebar root rather than threaded through every link component.
+  const handleSidebarClick: React.MouseEventHandler<HTMLElement> = (e) => {
+    if (!isMobile) return;
+    if ((e.target as HTMLElement).closest('a')) setMobileOpen(false);
+  };
+
   return (
     <TooltipProvider>
       <div className="flex h-screen overflow-hidden">
+        {/* Backdrop — mobile overlay only */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+        )}
         <ShadSidebar
-          title={<SidebarHeader collapsed={collapsed} />}
+          title={<SidebarHeader collapsed={effectiveCollapsed} />}
           items={[
             <SidebarOutlineLink
               key="accounts"
               to="/accounts"
               icon={<Table2 size={18} />}
               label="Accounts"
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
             <SidebarListPlusNewRow
               key="journals"
@@ -394,14 +442,14 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               icon={<FileCheck2 size={18} />}
               label="Journals"
               plusShortcut={{ digit: '1', noun: 'journal' }}
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
             <SidebarOutlineLink
               key="inventory"
               to="/inventory"
               icon={<Store size={18} />}
               label="Inventory"
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
             <SidebarListPlusNewRow
               key="purchase-invoices"
@@ -411,14 +459,14 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               label="Purchase Invoices"
               onListButtonClick={clearGeneratedInvoicesFromStore}
               plusShortcut={{ digit: '2', noun: 'purchase invoice' }}
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
             <SidebarOutlineLink
               key="purchase-quotations"
               to="/purchase/quotations"
               icon={<TextQuote size={18} />}
               label="Purchase Quotations"
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
             <SidebarListPlusNewRow
               key="sale-invoices"
@@ -428,14 +476,14 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               label="Sale Invoices"
               onListButtonClick={clearGeneratedInvoicesFromStore}
               plusShortcut={{ digit: '3', noun: 'sale invoice' }}
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
             <SidebarOutlineLink
               key="sale-quotations"
               to="/sale/quotations"
               icon={<Quote size={18} />}
               label="Sale Quotations"
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
             <SidebarListPlusNewRow
               key="vendor-stock"
@@ -444,34 +492,65 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               icon={<Warehouse size={18} />}
               label="Vendor Stock"
               plusShortcut={{ digit: '4', noun: 'send to vendor' }}
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
             <SidebarOutlineLink
               key="reports"
               to="/reports"
               icon={<BarChart3 size={18} />}
               label="Reports"
-              collapsed={collapsed}
+              collapsed={effectiveCollapsed}
             />,
           ]}
           footer={
             <>
               {/* always-visible backup staleness indicator */}
-              <div className={cn(collapsed ? 'flex justify-center' : 'px-1')}>
-                <BackupStatus collapsed={collapsed} />
+              <div
+                className={cn(
+                  effectiveCollapsed ? 'flex justify-center' : 'px-1',
+                )}
+              >
+                <BackupStatus collapsed={effectiveCollapsed} />
               </div>
               <SidebarFooter
-                collapsed={collapsed}
-                onToggle={toggleCollapsed}
+                collapsed={effectiveCollapsed}
+                onToggle={handleFooterToggle}
                 onLogout={logout}
+                isMobile={isMobile}
               />
             </>
           }
-          className="print:hidden h-full"
-          collapsed={collapsed}
+          onClick={handleSidebarClick}
+          className={cn(
+            'print:hidden h-full fixed inset-y-0 left-0 z-50 shadow-xl transition-transform duration-200 md:static md:z-auto md:shadow-none md:translate-x-0',
+            mobileOpen ? 'translate-x-0' : '-translate-x-full',
+          )}
+          collapsed={effectiveCollapsed}
         />
         <div className="flex flex-col flex-grow min-w-0 overflow-hidden">
-          <div className="flex-grow overflow-y-auto p-4">
+          {/* Mobile top bar — hamburger opens the off-canvas nav. Hidden at
+              md+, where the persistent sidebar (collapsed or not) is
+              always visible instead. */}
+          <div className="flex items-center gap-1 h-14 px-2 border-b bg-background flex-shrink-0 md:hidden print:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+              type="button"
+            >
+              <Menu size={20} aria-hidden />
+            </Button>
+            <Link
+              to="/"
+              className="font-semibold text-base truncate"
+              aria-label="Go to home"
+            >
+              Easy Accounting
+            </Link>
+          </div>
+          <div className="flex-grow overflow-y-auto overflow-x-hidden p-3 md:p-4">
             {children}
             <Outlet />
           </div>

@@ -7,6 +7,7 @@ import { migration033 } from './033_sync_settings';
 import { migration034 } from './034_suppress_timestamp_triggers_during_apply';
 import { migration035 } from './035_insert_timestamps_fill_only';
 import { migration036 } from './036_desktop_vendor_stock_and_urdu';
+import { migration037 } from './037_add_chart_nameUrdu';
 
 /**
  * Platform-free migration for schemas already bootstrapped from
@@ -180,4 +181,6 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // the pre-merge web snapshot. Idempotent: fresh snapshot bootstraps already
   // have this from JS 025–027 and no-op here.
   migration036,
+  // Migration 037 — chart.nameUrdu for custom heads (matching desktop 039/027_add_chart_nameUrdu).
+  migration037,
 ];

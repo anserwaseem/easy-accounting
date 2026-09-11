@@ -52,9 +52,13 @@ const InvoicePage: React.FC<InvoiceProps> = ({
   }, [id, previewId, propInvoices]);
 
   return (
-    <div className="flex flex-row h-screen">
+    <div className="flex flex-col md:flex-row h-screen">
       {propInvoices ? null : (
-        <div className="w-1/4 overflow-y-scroll scrollbar">
+        // Invoice-switcher mini rail — desktop only, same rationale as the
+        // Ledger view's account rail (see src/renderer/views/Ledger/
+        // index.tsx): the sidebar's own list link covers switching on
+        // mobile, and the space is better spent on the invoice itself.
+        <div className="hidden md:block md:w-1/4 overflow-y-scroll scrollbar">
           {leftRailIsQuotation ? (
             <QuotationsPage invoiceType={invoiceType} isMini />
           ) : (
@@ -64,8 +68,8 @@ const InvoicePage: React.FC<InvoiceProps> = ({
       )}
       <div
         className={`${
-          propInvoices ? 'w-full mb-6' : 'w-3/4'
-        } overflow-y-auto scrollbar justify-between items-center p-4 pl-8`}
+          propInvoices ? 'w-full mb-6' : 'w-full md:w-3/4'
+        } overflow-y-auto scrollbar justify-between items-center p-3 md:p-4 md:pl-8`}
       >
         <InvoiceDetails
           invoiceType={invoiceType}

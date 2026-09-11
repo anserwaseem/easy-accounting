@@ -170,8 +170,8 @@ describe('core migration 034 (suppress add_timestamp triggers during sync apply)
       // sync_state.applying is unset by default — this is the ordinary,
       // pre-034 desktop/web write path.
       db.prepare(
-        `INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount)
-         VALUES (2001, @accountId, 'Sale', '2020-01-01', 50)`,
+        `INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, uuid)
+         VALUES (2001, @accountId, 'Sale', '2020-01-01', 50, 'fixture-uuid-2001')`,
       ).run({ accountId });
       const inserted = invoiceTimestamps(db, 2001);
       expect(inserted.createdAt).not.toBeNull();

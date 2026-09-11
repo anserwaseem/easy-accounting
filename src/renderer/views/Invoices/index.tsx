@@ -327,6 +327,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
               size: 100,
+              // Low-value on a narrow screen — the account name/customer
+              // column already identifies the party.
+              responsiveClassName: 'hidden sm:table-cell',
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -353,6 +356,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
               size: 72,
+              responsiveClassName: 'hidden sm:table-cell',
             },
             {
               accessorKey: 'cartons',
@@ -362,6 +366,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
               size: 56,
+              // Kept visible at every width, unlike Code/Bilty# above
+              // — cartons is the core figure this business's invoice
+              // list workflow is read for.
             },
             createInvoiceEditColumn(
               invoiceType,
@@ -546,7 +553,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
         open={!isNil(previewInvoiceId)}
         onOpenChange={() => setPreviewInvoiceId(undefined)}
       >
-        <DialogContent className="max-h-[90%] overflow-hidden max-w-[60%]">
+        <DialogContent className="max-h-[90dvh] overflow-hidden sm:max-w-[60%]">
           <InvoicePage invoiceType={invoiceType} previewId={previewInvoiceId} />
         </DialogContent>
       </Dialog>

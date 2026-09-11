@@ -51,3 +51,14 @@ export type {
   DuplicateSeedRiskInput,
   DuplicateSeedRiskWarning,
 } from './sync/connectGuard';
+export { SyncManager } from './sync/SyncManager';
+export type {
+  SyncKv,
+  SyncErrorKind,
+  SyncErrorInfo,
+  SyncStatusPayload,
+  SyncConnectResult,
+  SyncJoinResult,
+  SyncRebuildResult,
+  SyncNotifyMessage,
+} from './sync/SyncManager';

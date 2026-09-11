@@ -7,7 +7,14 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, dialog, shell, ipcMain } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  shell,
+  ipcMain,
+  type IpcMainInvokeEvent,
+} from 'electron';
 import log from 'electron-log';
 import type {
   UserCredentials,
@@ -40,6 +47,7 @@ import { InvoiceType } from 'types';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
 import { isNil } from 'lodash';
 import { addDays, format, parse } from 'date-fns';
+import QRCode from 'qrcode';
 import { parseAttributeKeyList } from './utils/catalog';
 import MenuBuilder from './menu';
 import { formatString, resolveHtmlPath, raise } from './utils/general';
@@ -47,7 +55,8 @@ import { enrichLedgerRowsWithJournalSummaries } from './utils/ledgerJournalEnric
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
 import { MigrationRunner } from './migrations/index';
-import { createCoreServices } from './coreRuntime';
+import { SyncManager, type SyncKv } from '../core';
+import { createCoreServices, getCoreDriver } from './coreRuntime';
 import {
   AuthService,
   BackupService,
@@ -297,6 +306,109 @@ app
     const publishService = new PublishService();
     const backupService = new BackupService();
 
+    const syncKv: SyncKv = {
+      get: (key: string) => store.get(key),
+      setAwaited: async (key: string, value: unknown) => {
+        store.set(key, value);
+      },
+      deleteAwaited: async (key: string) => {
+        store.delete(key);
+      },
+    };
+
+    const syncManager = new SyncManager({
+      db: getCoreDriver(),
+      kv: syncKv,
+      notify: (msg) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('sync:applied', msg);
+        }
+      },
+    });
+
+    try {
+      await syncManager.bootIfConfigured();
+    } catch (err) {
+      log.warn('Sync boot failed:', err);
+    }
+
+    const READ_ONLY_CHANNEL_PREFIXES = [
+      'get',
+      'find',
+      'search',
+      'check',
+      'is',
+      'can',
+      'does',
+      'has',
+      'report',
+      'export',
+      'preview',
+    ];
+
+    const isLikelyWriteChannel = (channel: string): boolean => {
+      if (channel.startsWith('sync:')) return false;
+      if (channel.startsWith('publish:')) return false;
+      if (channel.startsWith('backup:')) return false;
+      if (channel.startsWith('auth:')) return false;
+      const method = channel.includes(':') ? channel.split(':')[1] : channel;
+      return !READ_ONLY_CHANNEL_PREFIXES.some((prefix) =>
+        method.startsWith(prefix),
+      );
+    };
+
+    const rawHandle = ipcMain.handle.bind(ipcMain);
+    ipcMain.handle = ((
+      channel: string,
+      listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown,
+    ) => {
+      return rawHandle(channel, async (event, ...args) => {
+        const result = await listener(event, ...args);
+        if (isLikelyWriteChannel(channel)) {
+          syncManager.scheduleDebouncedSync();
+        }
+        return result;
+      });
+    }) as typeof ipcMain.handle;
+
+    ipcMain.handle('sync:getStatus', async () => syncManager.getStatus());
+    ipcMain.handle(
+      'sync:connect',
+      async (
+        _,
+        config: {
+          url: string;
+          anonKey: string;
+          mock?: boolean;
+          force?: boolean;
+        },
+      ) => syncManager.connect(config),
+    );
+    ipcMain.handle('sync:disconnect', async () => syncManager.disconnect());
+    ipcMain.handle('sync:syncNow', async () => syncManager.syncNow());
+    ipcMain.handle(
+      'sync:join',
+      async (
+        _,
+        config: {
+          url: string;
+          anonKey: string;
+          mock?: boolean;
+        },
+      ) => syncManager.join(config),
+    );
+    ipcMain.handle('sync:rebuild', async () => syncManager.rebuild());
+    ipcMain.handle('sync:getJoinInvite', async () =>
+      syncManager.getJoinInvite(),
+    );
+    ipcMain.handle('sync:renderJoinQr', async (_, text: string) =>
+      QRCode.toDataURL(text, {
+        width: 240,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+      }),
+    );
+
     // setupUser(migrationRunner, authService);
 
     ipcMain.handle('publish:getConfig', async () => getPublishConfig());
@@ -362,7 +474,11 @@ app
     );
 
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
-      return authService.login(user);
+      const result = await authService.login(user);
+      if (result) {
+        syncManager.resumeBackgroundLoop();
+      }
+      return result;
     });
     ipcMain.handle('auth:register', async (_, user: UserCredentials) => {
       return authService.register(user);
