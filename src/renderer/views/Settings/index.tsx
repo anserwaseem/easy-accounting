@@ -436,7 +436,7 @@ const SettingsPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-full bg-background text-foreground pb-20">
       {/* Header */}
-      <div className="border-b px-8 py-5">
+      <div className="border-b py-5">
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Manage company metadata, invoice templates, validation rules, and sync
@@ -445,7 +445,7 @@ const SettingsPage: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto py-6">
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
@@ -897,7 +897,7 @@ const SettingsPage: React.FC = () => {
 
       {/* Persistent Bottom Action Bar */}
       {isDirty && (
-        <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-8 py-3.5 flex items-center justify-between z-20 shadow-lg">
+        <div className="fixed bottom-0 left-0 right-0 border-t bg-background/40 backdrop-blur px-8 py-3.5 flex items-center justify-between z-20 shadow-lg">
           <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 font-medium">
             <Info className="w-4 h-4" />
             <span>You have unsaved changes.</span>
