@@ -43,6 +43,7 @@ interface AddCustomHeadProps {
 
 const formSchema = z.object({
   name: z.string().min(1, 'Name is required'),
+  nameUrdu: z.string().optional(),
   parentId: z.number().min(1, 'Parent head is required'),
 });
 
@@ -64,6 +65,7 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
+      nameUrdu: '',
       parentId: 0,
     },
   });
@@ -75,6 +77,7 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
     try {
       await window.electron.insertCustomHead({
         name: values.name,
+        nameUrdu: values.nameUrdu?.trim() || null,
         type: parentChart.type,
         parentId: values.parentId,
       });
@@ -153,9 +156,22 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Head Name</FormLabel>
+                  <FormLabel>Head Name (English)</FormLabel>
                   <FormControl>
                     <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="nameUrdu"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Head Name (Urdu)</FormLabel>
+                  <FormControl>
+                    <Input {...field} dir="rtl" lang="ur" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -166,6 +182,77 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
             </Button>
           </form>
         </Form>
+        {charts.some((chart) => chart.parentId) ? (
+          <div className="space-y-3 border-t pt-4">
+            <p className="text-sm font-medium">Existing heads</p>
+            {charts
+              .filter((chart) => chart.parentId)
+              .map((head) => (
+                <div className="flex flex-col gap-1.5" key={head.id}>
+                  <Input
+                    id={`customHeadName-${head.id}`}
+                    key={`${head.id}:en:${head.name}`}
+                    defaultValue={head.name}
+                    placeholder="English name"
+                    onBlur={async (event) => {
+                      const next = event.target.value.trim();
+                      if (!next) {
+                        toast({
+                          description: 'English head name cannot be empty',
+                          variant: 'destructive',
+                        });
+                        event.target.value = head.name;
+                        return;
+                      }
+                      if (next === head.name) return;
+                      try {
+                        await window.electron.updateCustomHeadName(
+                          head.id,
+                          next,
+                        );
+                        onHeadAdded();
+                      } catch (error) {
+                        console.error(
+                          'Failed to update head English name',
+                          error,
+                        );
+                        toast({
+                          description: `Failed to update "${head.name}" English name`,
+                          variant: 'destructive',
+                        });
+                      }
+                    }}
+                  />
+                  <Input
+                    id={`customHeadUrdu-${head.id}`}
+                    key={`${head.id}:ur:${head.nameUrdu ?? ''}`}
+                    defaultValue={head.nameUrdu ?? ''}
+                    dir="rtl"
+                    lang="ur"
+                    placeholder="اردو نام برائے پرنٹ"
+                    onBlur={async (event) => {
+                      const next = event.target.value.trim() || null;
+                      const current = head.nameUrdu?.trim() || null;
+                      if (next === current) return;
+                      try {
+                        await window.electron.updateCustomHeadUrdu(
+                          head.id,
+                          next,
+                        );
+                        onHeadAdded();
+                      } catch (error) {
+                        console.error('Failed to update head Urdu name', error);
+                        toast({
+                          description: `Failed to update "${head.name}" Urdu name`,
+                          variant: 'destructive',
+                        });
+                      }
+                    }}
+                  />
+                </div>
+              ))}
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

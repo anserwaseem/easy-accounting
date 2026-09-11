@@ -1,5 +1,5 @@
 import { pick, toNumber, toString, trim } from 'lodash';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { Account, InventoryItem } from 'types';
 import { InvoiceType } from 'types';
@@ -67,6 +67,8 @@ export function useNewInvoiceResolution(
   resolvedRowLabels: string[];
   resolvedRowCodes: string[];
   resolutionFallbacks: ResolutionFallback[];
+  /** drop cached accounts/item-types; resolves when the following resolve cycle finishes */
+  invalidateLookupCaches: () => Promise<void>;
 } {
   const {
     invoiceType,
@@ -90,12 +92,48 @@ export function useNewInvoiceResolution(
   const itemTypesRef = useRef<ItemTypeOption[] | null>(null);
   const primaryItemTypeRef = useRef<number | undefined>(undefined);
   const primaryItemTypeLoadedRef = useRef(false);
+  // bumping forces the resolve effect to re-hit IPC after invalidateLookupCaches
+  const [lookupCacheEpoch, setLookupCacheEpoch] = useState(0);
+  const lookupCacheEpochRef = useRef(0);
+  const epochWaitersRef = useRef<Map<number, Array<() => void>>>(new Map());
+
+  const flushEpochWaiters = useCallback((epoch: number) => {
+    const waiters = epochWaitersRef.current.get(epoch);
+    if (!waiters?.length) return;
+    epochWaitersRef.current.delete(epoch);
+    waiters.forEach((resolve) => resolve());
+  }, []);
+
+  const invalidateLookupCaches = useCallback((): Promise<void> => {
+    allAccountsRef.current = null;
+    itemTypesRef.current = null;
+    primaryItemTypeRef.current = undefined;
+    primaryItemTypeLoadedRef.current = false;
+    const nextEpoch = lookupCacheEpochRef.current + 1;
+    lookupCacheEpochRef.current = nextEpoch;
+    setLookupCacheEpoch(nextEpoch);
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const existing = epochWaitersRef.current.get(nextEpoch) ?? [];
+      existing.push(finish);
+      epochWaitersRef.current.set(nextEpoch, existing);
+      // safety: never deadlock refresh if effect is skipped (e.g. unmount)
+      setTimeout(finish, 2000);
+    });
+  }, []);
 
   // Resolve each line-item row to a typed/suffixed customer account when split-by-item-type is on.
   // Runs when resolutionTrigger changes (item added/removed/selected, split toggled, or header customer changes).
   // Resolves entirely in-memory from the cached account list to avoid per-row IPC.
   // Writes multipleAccountIds to form and fires onResolved for auto-discount.
   useEffect(() => {
+    const effectEpoch = lookupCacheEpoch;
+
     if (
       invoiceType !== InvoiceType.Sale ||
       !useSingleAccount ||
@@ -107,6 +145,7 @@ export function useNewInvoiceResolution(
       setResolvedRowLabels([]);
       setResolvedRowCodes([]);
       previousResolvedAccountByRowIdRef.current = {};
+      flushEpochWaiters(effectEpoch);
       return undefined;
     }
     const singleId = toNumber(form.getValues('accountMapping.singleAccountId'));
@@ -115,6 +154,7 @@ export function useNewInvoiceResolution(
       setResolvedRowLabels([]);
       setResolvedRowCodes([]);
       previousResolvedAccountByRowIdRef.current = {};
+      flushEpochWaiters(effectEpoch);
       return undefined;
     }
 
@@ -338,15 +378,25 @@ export function useNewInvoiceResolution(
       }
     };
 
-    runResolution();
+    (async () => {
+      try {
+        await runResolution();
+      } finally {
+        if (!cancelled) {
+          flushEpochWaiters(effectEpoch);
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
   }, [
+    flushEpochWaiters,
     form,
     invoiceType,
     inventory,
+    lookupCacheEpoch,
     onResolved,
     parties,
     resolutionTrigger,
@@ -355,5 +405,10 @@ export function useNewInvoiceResolution(
     watchedSingleAccountId,
   ]);
 
-  return { resolvedRowLabels, resolvedRowCodes, resolutionFallbacks };
+  return {
+    resolvedRowLabels,
+    resolvedRowCodes,
+    resolutionFallbacks,
+    invalidateLookupCaches,
+  };
 }

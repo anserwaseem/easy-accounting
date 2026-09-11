@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { InvoiceType } from 'types';
 
 /** loads next invoice number for the given invoice type when not yet set */
 export function useNewInvoiceNextNumber(
   invoiceType: InvoiceType,
   enabled = true,
-): [
-  number | undefined,
-  React.Dispatch<React.SetStateAction<number | undefined>>,
-] {
+): {
+  nextInvoiceNumber: number | undefined;
+  setNextInvoiceNumber: React.Dispatch<
+    React.SetStateAction<number | undefined>
+  >;
+  /** re-fetch from IPC; no-op when disabled (edit mode) */
+  refreshNextInvoiceNumber: () => Promise<number | undefined>;
+} {
   const [nextInvoiceNumber, setNextInvoiceNumber] = useState<
     number | undefined
   >(enabled ? -1 : undefined);
@@ -24,5 +28,16 @@ export function useNewInvoiceNextNumber(
     })();
   }, [enabled, invoiceType, nextInvoiceNumber]);
 
-  return [nextInvoiceNumber, setNextInvoiceNumber];
+  const refreshNextInvoiceNumber = useCallback(async () => {
+    if (!enabled) return undefined;
+    const next = await window.electron.getNextInvoiceNumber(invoiceType);
+    setNextInvoiceNumber(next);
+    return next;
+  }, [enabled, invoiceType]);
+
+  return {
+    nextInvoiceNumber,
+    setNextInvoiceNumber,
+    refreshNextInvoiceNumber,
+  };
 }

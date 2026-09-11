@@ -111,7 +111,11 @@ jest.mock('@/renderer/components/ConfirmDialog', () => ({
 
 // useInvoiceInventoryLoader uses getInventory from electron (stubbed in beforeEach)
 jest.mock('../hooks/useNewInvoiceNextNumber', () => ({
-  useNewInvoiceNextNumber: () => [1001, jest.fn()],
+  useNewInvoiceNextNumber: () => ({
+    nextInvoiceNumber: 1001,
+    setNextInvoiceNumber: jest.fn(),
+    refreshNextInvoiceNumber: jest.fn(),
+  }),
 }));
 jest.mock('../hooks/useNewInvoiceParties', () => ({
   useNewInvoiceParties: () => ({
@@ -135,6 +139,7 @@ jest.mock('../hooks/useNewInvoiceDiscounts', () => ({
   useNewInvoiceDiscounts: () => ({
     applyAutoDiscountForRow: jest.fn(),
     recalculateAutoDiscounts: jest.fn(),
+    refreshPricingFromInventory: jest.fn(),
     recalculateAutoDiscountsRef: { current: jest.fn() },
     manualDiscountRows: {},
     setManualDiscountRows: jest.fn(),
@@ -151,7 +156,9 @@ jest.mock('../hooks/useNewInvoiceDiscounts', () => ({
 jest.mock('../hooks/useNewInvoiceResolution', () => ({
   useNewInvoiceResolution: () => ({
     resolvedRowLabels: [],
+    resolvedRowCodes: [],
     resolutionFallbacks: [],
+    invalidateLookupCaches: jest.fn(),
   }),
 }));
 jest.mock('../hooks/useNewInvoiceColumns', () => ({

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 export interface CompanyProfile {
   name: string;
@@ -9,6 +9,12 @@ export interface CompanyProfile {
   nameUrdu: string;
   /** optional Urdu print address; empty falls back to address */
   addressUrdu: string;
+  whatsapp: string;
+  website: string;
+  /** english print footer terms; empty hides the note block */
+  printNote: string;
+  /** urdu print footer terms; empty falls back to printNote */
+  printNoteUrdu: string;
 }
 
 const COMPANY_PROFILE_KEYS = {
@@ -18,6 +24,10 @@ const COMPANY_PROFILE_KEYS = {
   email: 'companyProfile.email',
   nameUrdu: 'companyProfile.nameUrdu',
   addressUrdu: 'companyProfile.addressUrdu',
+  whatsapp: 'companyProfile.whatsapp',
+  website: 'companyProfile.website',
+  printNote: 'companyProfile.printNote',
+  printNoteUrdu: 'companyProfile.printNoteUrdu',
 } as const;
 
 const readCompanyProfile = (): CompanyProfile => ({
@@ -39,6 +49,18 @@ const readCompanyProfile = (): CompanyProfile => ({
   addressUrdu: String(
     window.electron.store.get(COMPANY_PROFILE_KEYS.addressUrdu) ?? '',
   ),
+  whatsapp: String(
+    window.electron.store.get(COMPANY_PROFILE_KEYS.whatsapp) ?? '',
+  ).trim(),
+  website: String(
+    window.electron.store.get(COMPANY_PROFILE_KEYS.website) ?? '',
+  ).trim(),
+  printNote: String(
+    window.electron.store.get(COMPANY_PROFILE_KEYS.printNote) ?? '',
+  ),
+  printNoteUrdu: String(
+    window.electron.store.get(COMPANY_PROFILE_KEYS.printNoteUrdu) ?? '',
+  ),
 });
 
 export const useCompanyProfile = () => {
@@ -59,6 +81,13 @@ export const useCompanyProfile = () => {
     window.electron.store.set(
       COMPANY_PROFILE_KEYS.addressUrdu,
       next.addressUrdu,
+    );
+    window.electron.store.set(COMPANY_PROFILE_KEYS.whatsapp, next.whatsapp);
+    window.electron.store.set(COMPANY_PROFILE_KEYS.website, next.website);
+    window.electron.store.set(COMPANY_PROFILE_KEYS.printNote, next.printNote);
+    window.electron.store.set(
+      COMPANY_PROFILE_KEYS.printNoteUrdu,
+      next.printNoteUrdu,
     );
     setProfile(next);
   }, []);

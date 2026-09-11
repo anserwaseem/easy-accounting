@@ -88,7 +88,7 @@ export function useInvoiceInventoryLoader(
   lineInventoryIdsKey: string,
   setInventory: Dispatch<SetStateAction<InventoryItem[] | undefined>>,
 ): {
-  refreshInventory: () => Promise<void>;
+  refreshInventory: () => Promise<InventoryItem[] | undefined>;
 } {
   const rawInventoryRef = useRef<InventoryItem[] | null>(null);
   // bumps on every network fetch so a stale in-flight load cannot overwrite a newer refresh
@@ -101,15 +101,15 @@ export function useInvoiceInventoryLoader(
   const refreshInventory = useCallback(async () => {
     const generation = ++fetchGenerationRef.current;
     const raw: InventoryItem[] = await window.electron.getInventory();
-    if (generation !== fetchGenerationRef.current) return;
+    if (generation !== fetchGenerationRef.current) return undefined;
     rawInventoryRef.current = raw;
-    setInventory(
-      mergeInventoryForInvoice(
-        raw,
-        invoiceTypeRef.current,
-        parseLineInventoryIdsKey(lineInventoryIdsKeyRef.current),
-      ),
+    const merged = mergeInventoryForInvoice(
+      raw,
+      invoiceTypeRef.current,
+      parseLineInventoryIdsKey(lineInventoryIdsKeyRef.current),
     );
+    setInventory(merged);
+    return merged;
   }, [setInventory]);
 
   useEffect(() => {

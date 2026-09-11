@@ -145,7 +145,8 @@ describe('useInvoiceInventoryLoader', () => {
     expect(getInventory).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      await result.current.refreshInventory();
+      const merged = await result.current.refreshInventory();
+      expect(merged?.map((i) => i.id).sort((a, b) => a - b)).toEqual([1, 2]);
     });
 
     expect(getInventory).toHaveBeenCalledTimes(2);

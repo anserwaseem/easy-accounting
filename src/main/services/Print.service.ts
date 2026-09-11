@@ -33,6 +33,7 @@ export class PrintService {
 
       const data = await win.webContents.printToPDF({
         printBackground: true,
+        preferCSSPageSize: true,
         margins: {
           marginType: 'none',
         },

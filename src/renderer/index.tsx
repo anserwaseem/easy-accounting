@@ -14,7 +14,7 @@ import {
  * do not swap only the url into setUrduPrintFontUrl: exclusive used to keep the
  * Jameel family name, so Noto got Jameel's size/metrics. ship as 'jameel'.
  */
-const URDU_ELECTRON_FACE: 'jameel' | 'noto' = 'jameel';
+const URDU_ELECTRON_FACE = 'jameel' as 'jameel' | 'noto';
 
 setUrduPrintFontUrl(
   // @ts-expect-error for A/B testing

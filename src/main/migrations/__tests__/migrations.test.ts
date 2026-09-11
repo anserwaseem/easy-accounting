@@ -283,6 +283,7 @@ describe('migrations', () => {
         '033_sync_settings',
         '034_suppress_timestamp_triggers_during_apply',
         '035_insert_timestamps_fill_only',
+        '027_add_chart_nameUrdu',
       ]);
     });
 
@@ -300,6 +301,7 @@ describe('migrations', () => {
         expect(columnExists(db, 'account', c)).toBe(true),
       );
       expect(columnExists(db, 'inventory', 'descriptionUrdu')).toBe(true);
+      expect(columnExists(db, 'chart', 'nameUrdu')).toBe(true);
       expect(columnExists(db, 'attribute_definitions', 'isPublic')).toBe(true);
     });
 
