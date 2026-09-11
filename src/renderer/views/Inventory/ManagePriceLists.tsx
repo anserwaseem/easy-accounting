@@ -32,16 +32,69 @@ const DEFAULT_ROUND_TO = '10';
 export const SEED_MULTIPLIER_STORE_KEY = 'inventory.priceListSeedMultiplier';
 export const SEED_ROUND_TO_STORE_KEY = 'inventory.priceListSeedRoundTo';
 
-const getStoredMultiplier = (): string =>
-  String(
-    window.electron?.store?.get(SEED_MULTIPLIER_STORE_KEY) ??
-      DEFAULT_MULTIPLIER,
-  );
+export const getListMultiplierStoreKey = (listId: number) =>
+  `${SEED_MULTIPLIER_STORE_KEY}_${listId}`;
 
-const getStoredRoundTo = (): string =>
-  String(
-    window.electron?.store?.get(SEED_ROUND_TO_STORE_KEY) ?? DEFAULT_ROUND_TO,
-  );
+export const getListRoundToStoreKey = (listId: number) =>
+  `${SEED_ROUND_TO_STORE_KEY}_${listId}`;
+
+export const getStoredMultiplier = (
+  listId?: number | null,
+  isOnlyList = false,
+): string => {
+  if (listId != null) {
+    const listKey = getListMultiplierStoreKey(listId);
+    const listVal = window.electron?.store?.get(listKey);
+    if (
+      listVal !== undefined &&
+      listVal !== null &&
+      String(listVal).trim() !== ''
+    ) {
+      return String(listVal);
+    }
+    // migrate legacy single-list preference for list 1 or single remaining list
+    if (listId === 1 || isOnlyList) {
+      const globalVal = window.electron?.store?.get(SEED_MULTIPLIER_STORE_KEY);
+      if (globalVal != null && String(globalVal).trim() !== '') {
+        window.electron?.store?.set(listKey, String(globalVal));
+        return String(globalVal);
+      }
+    }
+    return DEFAULT_MULTIPLIER;
+  }
+  const globalVal = window.electron?.store?.get(SEED_MULTIPLIER_STORE_KEY);
+  if (globalVal != null && String(globalVal).trim() !== '') {
+    return String(globalVal);
+  }
+  return DEFAULT_MULTIPLIER;
+};
+
+export const getStoredRoundTo = (
+  listId?: number | null,
+  isOnlyList = false,
+): string => {
+  if (listId != null) {
+    const listKey = getListRoundToStoreKey(listId);
+    const listVal = window.electron?.store?.get(listKey);
+    if (listVal != null && String(listVal).trim() !== '') {
+      return String(listVal);
+    }
+    // migrate legacy single-list preference for list 1 or single remaining list
+    if (listId === 1 || isOnlyList) {
+      const globalVal = window.electron?.store?.get(SEED_ROUND_TO_STORE_KEY);
+      if (globalVal != null && String(globalVal).trim() !== '') {
+        window.electron?.store?.set(listKey, String(globalVal));
+        return String(globalVal);
+      }
+    }
+    return DEFAULT_ROUND_TO;
+  }
+  const globalVal = window.electron?.store?.get(SEED_ROUND_TO_STORE_KEY);
+  if (globalVal != null && String(globalVal).trim() !== '') {
+    return String(globalVal);
+  }
+  return DEFAULT_ROUND_TO;
+};
 
 /**
  * Create, rename, deactivate and bulk-seed named price lists.
@@ -74,8 +127,8 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
   // seeding state
   const [seedListId, setSeedListId] = useState<number | null>(null);
   const [source, setSource] = useState<SeedSource>('base');
-  const [multiplier, setMultiplier] = useState(getStoredMultiplier);
-  const [roundTo, setRoundTo] = useState(getStoredRoundTo);
+  const [multiplier, setMultiplier] = useState(DEFAULT_MULTIPLIER);
+  const [roundTo, setRoundTo] = useState(DEFAULT_ROUND_TO);
   const [overwrite, setOverwrite] = useState(false);
   const [scopeFiltered, setScopeFiltered] = useState(true);
   const [plan, setPlan] = useState<SeedPlan | null>(null);
@@ -88,10 +141,18 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
   useEffect(() => {
     if (open) {
       load();
-      setMultiplier(getStoredMultiplier());
-      setRoundTo(getStoredRoundTo());
     }
   }, [open, load]);
+
+  const handleStartSeed = useCallback(
+    (id: number) => {
+      setSeedListId(id);
+      setMultiplier(getStoredMultiplier(id, priceLists.length === 1));
+      setRoundTo(getStoredRoundTo(id, priceLists.length === 1));
+      setPlan(null);
+    },
+    [priceLists.length],
+  );
 
   const seedList = useMemo(
     () => priceLists.find((l) => l.id === seedListId) ?? null,
@@ -102,8 +163,8 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
     setSeedListId(null);
     setPlan(null);
     setSource('base');
-    setMultiplier(getStoredMultiplier());
-    setRoundTo(getStoredRoundTo());
+    setMultiplier(DEFAULT_MULTIPLIER);
+    setRoundTo(DEFAULT_ROUND_TO);
     setOverwrite(false);
     setScopeFiltered(true);
   }, []);
@@ -194,6 +255,11 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
         seedOptions,
         scopeIds,
       );
+      window.electron?.store?.set(
+        getListMultiplierStoreKey(seedListId),
+        multiplier,
+      );
+      window.electron?.store?.set(getListRoundToStoreKey(seedListId), roundTo);
       window.electron?.store?.set(SEED_MULTIPLIER_STORE_KEY, multiplier);
       window.electron?.store?.set(SEED_ROUND_TO_STORE_KEY, roundTo);
       toast({
@@ -297,10 +363,7 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
                     size="sm"
                     variant="secondary"
                     className="gap-1"
-                    onClick={() => {
-                      setSeedListId(list.id);
-                      setPlan(null);
-                    }}
+                    onClick={() => handleStartSeed(list.id)}
                   >
                     <ListPlus size={14} />
                     Set prices
@@ -378,6 +441,18 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
                     setMultiplier(e.target.value);
                     setPlan(null);
                   }}
+                  onBlur={() => {
+                    if (
+                      seedListId !== null &&
+                      Number.isFinite(Number(multiplier)) &&
+                      Number(multiplier) > 0
+                    ) {
+                      window.electron?.store?.set(
+                        getListMultiplierStoreKey(seedListId),
+                        multiplier,
+                      );
+                    }
+                  }}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -391,6 +466,18 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
                   onChange={(e) => {
                     setRoundTo(e.target.value);
                     setPlan(null);
+                  }}
+                  onBlur={() => {
+                    if (
+                      seedListId !== null &&
+                      Number.isInteger(Number(roundTo)) &&
+                      Number(roundTo) > 0
+                    ) {
+                      window.electron?.store?.set(
+                        getListRoundToStoreKey(seedListId),
+                        roundTo,
+                      );
+                    }
                   }}
                 />
               </div>
