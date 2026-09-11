@@ -118,7 +118,7 @@ describe('SettingsPage', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('switches to Invoicing tab and toggles Live Preview', () => {
+  it('switches to Invoicing tab and displays print configuration', () => {
     render(<SettingsPage />);
 
     const invoicingTab = screen.getByRole('tab', { name: /invoicing/i });
@@ -128,20 +128,9 @@ describe('SettingsPage', () => {
     });
 
     expect(screen.getByText(/invoice print layout/i)).toBeInTheDocument();
-
-    // Preview should initially be hidden
-    expect(
-      screen.queryByText(/simulated invoice preview/i),
-    ).not.toBeInTheDocument();
-
-    // Toggle live preview
-    const previewButton = screen.getByRole('button', { name: /live preview/i });
-    fireEvent.click(previewButton);
-
-    expect(screen.getByText(/simulated invoice preview/i)).toBeInTheDocument();
-    expect(screen.getByText('Test Company')).toBeInTheDocument();
-    expect(screen.getByText('ٹیسٹ کمپنی')).toBeInTheDocument();
-    expect(screen.getByText(/inv-2026-001/i)).toBeInTheDocument();
+    expect(screen.getByText(/show customer balances/i)).toBeInTheDocument();
+    expect(screen.getByText(/show sales agent/i)).toBeInTheDocument();
+    expect(screen.getByText(/print language format/i)).toBeInTheDocument();
   });
 
   it('switches to Rules tab and displays validation constraint switch', () => {

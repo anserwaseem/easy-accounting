@@ -6,8 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   Cloud,
-  Eye,
-  EyeOff,
   Info,
   Languages,
   Printer,
@@ -139,7 +137,6 @@ const DEFAULT_LABELS = [' ', '0', '-', 'X'];
 
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('profile');
-  const [showPreview, setShowPreview] = useState(false);
   const [isSavedRecently, setIsSavedRecently] = useState(false);
 
   // company profile
@@ -748,29 +745,11 @@ const SettingsPage: React.FC = () => {
           <TabsContent value="invoicing" className="space-y-6 max-w-4xl">
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle>Invoice Print Layout</CardTitle>
-                    <CardDescription>
-                      Configure printing language, party balance visibility, and
-                      label overrides.
-                    </CardDescription>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => setShowPreview(!showPreview)}
-                  >
-                    {showPreview ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                    {showPreview ? 'Hide Preview' : 'Live Preview'}
-                  </Button>
-                </div>
+                <CardTitle>Invoice Print Layout</CardTitle>
+                <CardDescription>
+                  Configure printing language, party balance visibility, and
+                  label overrides.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -836,163 +815,6 @@ const SettingsPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* Live Preview Modal / Inset */}
-                {showPreview && (
-                  <div className="mt-4 p-5 rounded-md border bg-muted/30 font-sans text-xs space-y-3">
-                    <div className="flex items-center justify-between border-b pb-2 text-muted-foreground text-[11px]">
-                      <span className="font-semibold uppercase tracking-wider">
-                        Simulated Invoice Preview (
-                        {draftPrintLocale === 'ur'
-                          ? 'Urdu Layout'
-                          : 'English Layout'}
-                        )
-                      </span>
-                      <span>Paper Size: A4 / Half Page</span>
-                    </div>
-
-                    {/* Header */}
-                    <div className="text-center space-y-1 py-1">
-                      <div className="font-bold text-base tracking-tight">
-                        {draftCompanyName || 'YOUR COMPANY NAME'}
-                      </div>
-                      {draftCompanyNameUrdu && (
-                        <div
-                          className="font-serif text-sm text-foreground"
-                          dir="rtl"
-                          lang="ur"
-                        >
-                          {draftCompanyNameUrdu}
-                        </div>
-                      )}
-                      <div className="text-muted-foreground text-[11px] flex flex-wrap justify-center gap-x-3 gap-y-0.5">
-                        {draftCompanyPhone && (
-                          <span>Tel: {draftCompanyPhone}</span>
-                        )}
-                        {draftCompanyWhatsapp && (
-                          <span>WA: {draftCompanyWhatsapp}</span>
-                        )}
-                        {draftCompanyEmail && (
-                          <span>Email: {draftCompanyEmail}</span>
-                        )}
-                        {draftCompanyWebsite && (
-                          <span>Web: {draftCompanyWebsite}</span>
-                        )}
-                      </div>
-                      {(draftCompanyAddress || draftCompanyAddressUrdu) && (
-                        <div className="text-muted-foreground text-[11px] pt-0.5">
-                          {draftCompanyAddress && (
-                            <span>{draftCompanyAddress}</span>
-                          )}
-                          {draftCompanyAddress && draftCompanyAddressUrdu && (
-                            <span> • </span>
-                          )}
-                          {draftCompanyAddressUrdu && (
-                            <span dir="rtl" lang="ur" className="font-serif">
-                              {draftCompanyAddressUrdu}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Sample Metadata */}
-                    <div className="py-2 px-3 rounded bg-background/70 border border-dashed flex flex-wrap justify-between gap-2 text-[11px]">
-                      <div className="space-y-0.5">
-                        <div>
-                          <span className="font-medium">
-                            {draftPrintLocale === 'ur'
-                              ? draftUrduLabelOverrides.invoiceNumber ||
-                                invoicePrintDefaults.urduLabels.invoiceNumber
-                              : draftEnglishLabelOverrides.invoiceNumber ||
-                                invoicePrintDefaults.englishLabels
-                                  .invoiceNumber}
-                          </span>{' '}
-                          INV-2026-001
-                        </div>
-                        <div>
-                          <span className="font-medium">
-                            {draftPrintLocale === 'ur'
-                              ? draftUrduLabelOverrides.date ||
-                                invoicePrintDefaults.urduLabels.date
-                              : draftEnglishLabelOverrides.date ||
-                                invoicePrintDefaults.englishLabels.date}
-                          </span>{' '}
-                          11-09-2026
-                        </div>
-                      </div>
-                      <div className="space-y-0.5 text-right">
-                        <div>
-                          <span className="font-medium">
-                            {draftPrintLocale === 'ur'
-                              ? draftUrduLabelOverrides.billTo ||
-                                invoicePrintDefaults.urduLabels.billTo
-                              : draftEnglishLabelOverrides.billTo ||
-                                invoicePrintDefaults.englishLabels.billTo}
-                          </span>{' '}
-                          Al-Madina Traders
-                        </div>
-                        {draftShowAgent && (
-                          <div className="text-muted-foreground">
-                            <span className="font-medium">
-                              {draftPrintLocale === 'ur'
-                                ? draftUrduLabelOverrides.agent ||
-                                  invoicePrintDefaults.urduLabels.agent
-                                : draftEnglishLabelOverrides.agent ||
-                                  invoicePrintDefaults.englishLabels.agent}
-                            </span>{' '}
-                            Tariq Mahmood
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Balances preview */}
-                    {draftShowPartyBalances && (
-                      <div className="flex justify-between px-3 py-1.5 bg-muted/50 rounded text-[11px] font-mono">
-                        <span>
-                          {draftPrintLocale === 'ur'
-                            ? draftUrduLabelOverrides.previousBalance ||
-                              invoicePrintDefaults.urduLabels.previousBalance
-                            : draftEnglishLabelOverrides.previousBalance ||
-                              invoicePrintDefaults.englishLabels
-                                .previousBalance}{' '}
-                          Rs. 15,000
-                        </span>
-                        <span>Invoice Amount: Rs. 27,500</span>
-                        <span className="font-semibold">
-                          {draftPrintLocale === 'ur'
-                            ? draftUrduLabelOverrides.newBalance ||
-                              invoicePrintDefaults.urduLabels.newBalance
-                            : draftEnglishLabelOverrides.newBalance ||
-                              invoicePrintDefaults.englishLabels
-                                .newBalance}{' '}
-                          Rs. 42,500
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Footer Notes */}
-                    {(draftCompanyPrintNote || draftCompanyPrintNoteUrdu) && (
-                      <div className="pt-2 border-t border-dashed space-y-1.5">
-                        {draftCompanyPrintNote && (
-                          <div className="text-center text-muted-foreground italic">
-                            {draftCompanyPrintNote}
-                          </div>
-                        )}
-                        {draftCompanyPrintNoteUrdu && (
-                          <div
-                            className="text-center font-serif text-[12px] text-muted-foreground"
-                            dir="rtl"
-                            lang="ur"
-                          >
-                            {draftCompanyPrintNoteUrdu}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Print Label Accordions */}
                 <div className="space-y-3 pt-2">
