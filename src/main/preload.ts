@@ -50,8 +50,8 @@ import type {
   VendorIssueView,
   VendorStockActivityFilters,
   VendorStockActivityResponse,
-} from 'types';
-import { InvoiceType } from 'types';
+  InvoiceType,
+} from '../types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
 import type {
   CatalogPreview,

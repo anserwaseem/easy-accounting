@@ -1,4 +1,4 @@
-import { BalanceType, type Ledger } from 'types';
+import { BalanceType, type Ledger } from '../../types';
 import type { DatabaseDriver, RunResult } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { logErrors } from '../errorLogger';

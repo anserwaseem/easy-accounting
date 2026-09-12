@@ -16,6 +16,10 @@ import {
   type IpcMainInvokeEvent,
 } from 'electron';
 import log from 'electron-log';
+import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
+import { isNil } from 'lodash';
+import { addDays, format, parse } from 'date-fns';
+import QRCode from 'qrcode';
 import type {
   UserCredentials,
   BalanceSheet,
@@ -42,12 +46,8 @@ import type {
   UpdateVendorIssuePayload,
   VendorStockOpeningRow,
   VendorStockActivityFilters,
-} from 'types';
-import { InvoiceType } from 'types';
-import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
-import { isNil } from 'lodash';
-import { addDays, format, parse } from 'date-fns';
-import QRCode from 'qrcode';
+  InvoiceType,
+} from '../types';
 import { parseAttributeKeyList } from './utils/catalog';
 import MenuBuilder from './menu';
 import { formatString, resolveHtmlPath, raise } from './utils/general';

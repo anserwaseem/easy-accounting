@@ -72,7 +72,7 @@ import type {
   VendorIssueView,
   VendorStockActivityFilters,
   VendorStockActivityResponse,
-} from 'types';
+} from '../../types';
 
 /*
  * Publish-domain support types.

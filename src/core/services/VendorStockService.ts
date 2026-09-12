@@ -12,7 +12,7 @@ import type {
   VendorStockOpeningRow,
   VendorStockPurchaseLine,
   VendorStockRow,
-} from 'types';
+} from '../../types';
 import { familyHeadId } from '../../lib/inventoryFamily';
 import type { DatabaseDriver } from '../db/driver';
 import { logErrors } from '../errorLogger';

@@ -1,5 +1,10 @@
-import type { Chart, InsertChart, SingularSection, SectionType } from 'types';
 import { capitalize, isEmpty, isNil } from 'lodash';
+import type {
+  Chart,
+  InsertChart,
+  SingularSection,
+  SectionType,
+} from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { logErrors } from '../errorLogger';

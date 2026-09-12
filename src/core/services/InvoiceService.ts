@@ -16,7 +16,7 @@ import {
   type SalesByCustomerItem,
   type SalesByCustomerResponse,
   type VendorStockPurchaseLine,
-} from 'types';
+} from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { logErrors } from '../errorLogger';

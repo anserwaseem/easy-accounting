@@ -18,7 +18,7 @@ import type {
   StockAsOfReportResponse,
   StockAsOfRow,
   UpdateInventoryItem,
-} from 'types';
+} from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import { INVENTORY_BASELINE_REASON } from '../db/inventoryBaselineBackfill';
 import type { KeyValueStore, SessionContext } from '../ports';

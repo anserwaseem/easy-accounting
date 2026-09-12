@@ -1,4 +1,4 @@
-import type { JournalNarrationSummary } from 'types';
+import type { JournalNarrationSummary } from '../../types';
 import { extractJournalIdFromParticulars } from '../../shared/journalParticulars';
 import type { JournalService } from '../services/JournalService';
 

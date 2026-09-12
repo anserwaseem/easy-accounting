@@ -1,4 +1,5 @@
 /* eslint-disable no-lonely-if */
+import { compact, get, has, omit } from 'lodash';
 import {
   AccountType,
   BalanceType,
@@ -7,8 +8,7 @@ import {
   type JournalNarrationSummary,
   type Ledger,
   type UpdateJournalFields,
-} from 'types';
-import { compact, get, has, omit } from 'lodash';
+} from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { cast, raise } from '../utils/sqlite';

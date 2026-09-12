@@ -1,11 +1,13 @@
-import type {
-  BalanceSheet,
-  ReportAccount,
-  SingularSection,
-  SectionType,
-} from 'types';
 import { capitalize, get, isEmpty, isNil } from 'lodash';
-import { BalanceType, SectionTypes, SingularSections } from 'types';
+import {
+  BalanceType,
+  SectionTypes,
+  SingularSections,
+  type BalanceSheet,
+  type ReportAccount,
+  type SingularSection,
+  type SectionType,
+} from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { logErrors } from '../errorLogger';

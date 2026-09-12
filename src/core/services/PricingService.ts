@@ -1,5 +1,9 @@
-import type { DiscountProfile, ItemType, ProfileTypeDiscount } from 'types';
 import { uniq } from 'lodash';
+import type {
+  DiscountProfile,
+  ItemType,
+  ProfileTypeDiscount,
+} from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { cast, normalizeSqliteBooleanRows } from '../utils/sqlite';

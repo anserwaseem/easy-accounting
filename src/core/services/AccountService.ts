@@ -4,7 +4,7 @@ import type {
   AccountUrduFieldPatch,
   InsertAccount,
   UpdateAccount,
-} from 'types';
+} from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
 import {
