@@ -37,44 +37,45 @@ export const useInvoiceDateValidation = ({
     });
     if (accountIds.length === 0) return null;
 
-    // sale edit: allow changing date only within adjacent invoice dates for this customer
-    if (
-      invoiceType === InvoiceType.Sale &&
-      editInvoiceId != null &&
-      useSingleAccount &&
-      !splitByItemType
-    ) {
-      const accountId = accountIds[0];
-      const invoiceNumber = toNumber(values.invoiceNumber);
-      if (accountId > 0 && invoiceNumber > 0) {
-        const bounds = await window.electron.getSaleInvoiceEditDateBounds(
-          editInvoiceId,
-          accountId,
-          invoiceNumber,
-        );
-        const prevTime =
-          bounds.prevDate != null
-            ? new Date(bounds.prevDate).setHours(0, 0, 0, 0)
-            : null;
-        const nextTime =
-          bounds.nextDate != null
-            ? new Date(bounds.nextDate).setHours(0, 0, 0, 0)
-            : null;
+    const partyLabel = invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
 
-        if (prevTime != null && invoiceDate.getTime() < prevTime) {
-          return `Invoice date must be on or after ${format(
-            new Date(prevTime),
-            'PPP',
-          )} for this customer (previous invoice date).`;
-        }
-        if (nextTime != null && invoiceDate.getTime() > nextTime) {
-          return `Invoice date must be on or before ${format(
-            new Date(nextTime),
-            'PPP',
-          )} for this customer (next invoice date).`;
-        }
-        return null;
+    // edit: keep date between this party's previous and next invoice of the same type.
+    // last-ledger min-date is a create-time rule and would block saving older bills.
+    if (editInvoiceId != null) {
+      const headerAccountId = toNumber(values.accountMapping.singleAccountId);
+      const accountId = headerAccountId > 0 ? headerAccountId : accountIds[0];
+      const invoiceNumber = toNumber(values.invoiceNumber);
+      if (!(accountId > 0 && invoiceNumber > 0)) return null;
+
+      const bounds = await window.electron.getInvoiceEditDateBounds(
+        editInvoiceId,
+        accountId,
+        invoiceNumber,
+        invoiceType,
+      );
+      if (bounds == null) return null;
+      const prevTime =
+        bounds.prevDate != null
+          ? new Date(bounds.prevDate).setHours(0, 0, 0, 0)
+          : null;
+      const nextTime =
+        bounds.nextDate != null
+          ? new Date(bounds.nextDate).setHours(0, 0, 0, 0)
+          : null;
+
+      if (prevTime != null && invoiceDate.getTime() < prevTime) {
+        return `Invoice date must be on or after ${format(
+          new Date(prevTime),
+          'PPP',
+        )} for this ${partyLabel} (previous invoice date).`;
       }
+      if (nextTime != null && invoiceDate.getTime() > nextTime) {
+        return `Invoice date must be on or before ${format(
+          new Date(nextTime),
+          'PPP',
+        )} for this ${partyLabel} (next invoice date).`;
+      }
+      return null;
     }
 
     const lastDatesResults = await Promise.all(
@@ -94,7 +95,6 @@ export const useInvoiceDateValidation = ({
     minRequired.setHours(0, 0, 0, 0);
     if (invoiceDate >= minRequired) return null;
 
-    const partyLabel = invoiceType === InvoiceType.Sale ? 'customer' : 'vendor';
     return `Invoice date must be on or after ${format(
       minRequired,
       'PPP',

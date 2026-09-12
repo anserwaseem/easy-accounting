@@ -389,16 +389,18 @@ const electronHandler = {
     payload?: ReturnSaleInvoicePayload,
   ) => ipcRenderer.invoke('invoice:returnPurchase', invoiceId, payload),
 
-  getSaleInvoiceEditDateBounds: (
+  getInvoiceEditDateBounds: (
     invoiceId: number,
     accountId: number,
     invoiceNumber: number,
+    invoiceType: InvoiceType,
   ) =>
     ipcRenderer.invoke(
-      'invoice:getSaleEditDateBounds',
+      'invoice:getEditDateBounds',
       invoiceId,
       accountId,
       invoiceNumber,
+      invoiceType,
     ) as Promise<{ prevDate: string | null; nextDate: string | null }>,
 
   updateInvoiceBiltyAndCartons: (
