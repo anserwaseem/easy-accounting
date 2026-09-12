@@ -717,12 +717,19 @@ app
         invoiceService.returnPurchaseInvoice(invoiceId, payload),
     );
     ipcMain.handle(
-      'invoice:getSaleEditDateBounds',
-      (_, invoiceId: number, accountId: number, invoiceNumber: number) =>
-        invoiceService.getSaleInvoiceEditDateBounds(
+      'invoice:getEditDateBounds',
+      (
+        _,
+        invoiceId: number,
+        accountId: number,
+        invoiceNumber: number,
+        invoiceType: InvoiceType,
+      ) =>
+        invoiceService.getInvoiceEditDateBounds(
           invoiceId,
           accountId,
           invoiceNumber,
+          invoiceType,
         ),
     );
     ipcMain.handle(
