@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { logErrors } from '../errorLogger';
 import { raise } from '../utils/general';
+import { getInvoicePdfPrintOptions } from './invoicePdfPrintOptions';
 
 @logErrors
 export class PrintService {
@@ -31,13 +32,9 @@ export class PrintService {
       const safeBase = outputBaseName.replace(/[^a-zA-Z0-9._-]/g, '_');
       const outputPath = path.join(this.outputDir, `${safeBase}.pdf`);
 
-      const data = await win.webContents.printToPDF({
-        printBackground: true,
-        preferCSSPageSize: true,
-        margins: {
-          marginType: 'none',
-        },
-      });
+      const data = await win.webContents.printToPDF(
+        getInvoicePdfPrintOptions(),
+      );
 
       fs.writeFileSync(outputPath, Uint8Array.from(data));
 
