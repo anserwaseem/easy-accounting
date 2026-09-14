@@ -1,7 +1,8 @@
 /**
- * Chromium printToPDF options for batch invoice PDFs.
+ * Chromium printToPDF options for invoice PDFs (batch save + UI Print).
  * Page stamps need displayHeaderFooter + a non-zero bottom margin band;
  * CSS @page margins alone do not reserve space for the footer template.
+ * window.print() cannot use these options — Print routes through printToPDF.
  */
 export const INVOICE_PDF_PAGE_FOOTER_TEMPLATE = `
   <div style="width:100%;text-align:center;font-size:9px;color:#444;padding-top:2px;">

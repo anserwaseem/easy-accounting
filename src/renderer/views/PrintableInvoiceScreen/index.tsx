@@ -398,7 +398,21 @@ const PrintableInvoiceScreen = () => {
   const handlePrint = async () => {
     dismissAllToasts();
     await waitForInvoicePrintFonts(effectiveLocale);
-    window.print();
+    // printToPDF stamps page numbers; window.print() cannot
+    const result = await window.electron.printWithDialog();
+    if (!result.success && !result.cancelled) {
+      let description = 'Could not open the print dialog.';
+      if (typeof result.error === 'string') {
+        description = result.error;
+      } else if (result.error instanceof Error) {
+        description = result.error.message;
+      }
+      toast({
+        title: 'Print failed',
+        description,
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleBatchPrint = async () => {

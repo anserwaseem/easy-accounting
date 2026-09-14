@@ -802,6 +802,7 @@ app
     ipcMain.handle('print:toPDF', (_, outputBaseName: string | number) =>
       printService.printPDF(String(outputBaseName)),
     );
+    ipcMain.handle('print:withDialog', () => printService.printWithDialog());
     ipcMain.handle('print:outputDir', () => printService.outputDirectory);
     ipcMain.handle('chart:insertCustomHead', (_, chart: InsertChart) =>
       chartService.insertCustomHead(chart),

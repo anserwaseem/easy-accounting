@@ -17,27 +17,66 @@ jest.mock('electron-log', () => ({
   },
 }));
 
-const printToPDF = jest.fn();
-const focusedWindow = {
-  webContents: {
-    printToPDF,
-  },
+type PrintWindowMock = {
+  loadURL: jest.Mock;
+  close: jest.Mock;
+  isDestroyed: jest.Mock;
+  webContents: { print: jest.Mock };
 };
 
-jest.mock('electron', () => ({
-  app: {
-    getPath: jest.fn(() => '/tmp/easy-accounting-test-userData'),
-  },
-  BrowserWindow: {
-    getFocusedWindow: jest.fn(),
-  },
-}));
+type BrowserWindowMock = jest.Mock & {
+  getFocusedWindow: jest.Mock;
+  getPrintWindow: () => PrintWindowMock;
+};
+
+jest.mock('electron', () => {
+  const printWin: PrintWindowMock = {
+    loadURL: jest.fn().mockResolvedValue(undefined),
+    close: jest.fn(),
+    isDestroyed: jest.fn(() => false),
+    webContents: {
+      print: jest.fn(
+        (
+          _opts: unknown,
+          cb: (success: boolean, failureReason?: string) => void,
+        ) => {
+          cb(true);
+        },
+      ),
+    },
+  };
+
+  const BrowserWindowMock = jest.fn(() => printWin) as BrowserWindowMock;
+  BrowserWindowMock.getFocusedWindow = jest.fn();
+  BrowserWindowMock.getPrintWindow = () => printWin;
+
+  return {
+    app: {
+      getPath: jest.fn((name: string) =>
+        name === 'temp'
+          ? '/tmp/easy-accounting-test-temp'
+          : '/tmp/easy-accounting-test-userData',
+      ),
+    },
+    BrowserWindow: BrowserWindowMock,
+  };
+});
 
 jest.mock('fs', () => ({
   existsSync: jest.fn(),
   mkdirSync: jest.fn(),
   writeFileSync: jest.fn(),
+  unlinkSync: jest.fn(),
 }));
+
+const mockBrowserWindow = BrowserWindow as unknown as BrowserWindowMock;
+const printWin = mockBrowserWindow.getPrintWindow();
+
+const focusedWindow = {
+  webContents: {
+    printToPDF: jest.fn(),
+  },
+};
 
 describe('PrintService.printPDF', () => {
   let printService: PrintService;
@@ -45,18 +84,26 @@ describe('PrintService.printPDF', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (fs.existsSync as jest.Mock).mockReturnValue(true);
-    (BrowserWindow.getFocusedWindow as jest.Mock).mockReturnValue(
-      focusedWindow,
+    mockBrowserWindow.getFocusedWindow.mockReturnValue(focusedWindow);
+    focusedWindow.webContents.printToPDF.mockResolvedValue(
+      Buffer.from('%PDF-page-stamp-test'),
     );
-    printToPDF.mockResolvedValue(Buffer.from('%PDF-page-stamp-test'));
+    // clearAllMocks strips getPath impl — restore
+    (app.getPath as jest.Mock).mockImplementation((name: string) =>
+      name === 'temp'
+        ? '/tmp/easy-accounting-test-temp'
+        : '/tmp/easy-accounting-test-userData',
+    );
     printService = new PrintService();
   });
 
   it('passes page-number print options to printToPDF', async () => {
     const result = await printService.printPDF('sale-12');
 
-    expect(printToPDF).toHaveBeenCalledTimes(1);
-    expect(printToPDF).toHaveBeenCalledWith(getInvoicePdfPrintOptions());
+    expect(focusedWindow.webContents.printToPDF).toHaveBeenCalledTimes(1);
+    expect(focusedWindow.webContents.printToPDF).toHaveBeenCalledWith(
+      getInvoicePdfPrintOptions(),
+    );
     expect(result).toEqual({
       success: true,
       path: path.join(
@@ -76,7 +123,7 @@ describe('PrintService.printPDF', () => {
         'invoices',
         'purchase-3.pdf',
       ),
-      expect.any(Uint8Array),
+      expect.any(Buffer),
     );
   });
 
@@ -89,7 +136,7 @@ describe('PrintService.printPDF', () => {
         'invoices',
         'inv_12_foo_bar.pdf',
       ),
-      expect.any(Uint8Array),
+      expect.any(Buffer),
     );
   });
 
@@ -106,17 +153,19 @@ describe('PrintService.printPDF', () => {
   });
 
   it('returns failure when no focused window is available', async () => {
-    (BrowserWindow.getFocusedWindow as jest.Mock).mockReturnValue(null);
+    mockBrowserWindow.getFocusedWindow.mockReturnValue(null);
 
     const result = await printService.printPDF('12');
 
     expect(result.success).toBe(false);
     expect(result).toHaveProperty('error');
-    expect(printToPDF).not.toHaveBeenCalled();
+    expect(focusedWindow.webContents.printToPDF).not.toHaveBeenCalled();
   });
 
   it('returns failure when printToPDF rejects', async () => {
-    printToPDF.mockRejectedValue(new Error('pdf boom'));
+    focusedWindow.webContents.printToPDF.mockRejectedValue(
+      new Error('pdf boom'),
+    );
 
     const result = await printService.printPDF('12');
 
@@ -124,5 +173,105 @@ describe('PrintService.printPDF', () => {
       success: false,
       error: 'pdf boom',
     });
+  });
+});
+
+describe('PrintService.printWithDialog', () => {
+  let printService: PrintService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (fs.existsSync as jest.Mock).mockReturnValue(true);
+    mockBrowserWindow.getFocusedWindow.mockReturnValue(focusedWindow);
+    focusedWindow.webContents.printToPDF.mockResolvedValue(
+      Buffer.from('%PDF-print-dialog-test'),
+    );
+    printWin.loadURL.mockResolvedValue(undefined);
+    printWin.isDestroyed.mockReturnValue(false);
+    printWin.webContents.print.mockImplementation(
+      (
+        _opts: unknown,
+        cb: (success: boolean, failureReason?: string) => void,
+      ) => {
+        cb(true);
+      },
+    );
+    (app.getPath as jest.Mock).mockImplementation((name: string) =>
+      name === 'temp'
+        ? '/tmp/easy-accounting-test-temp'
+        : '/tmp/easy-accounting-test-userData',
+    );
+    printService = new PrintService();
+  });
+
+  it('stamps PDF then opens the system print dialog', async () => {
+    const result = await printService.printWithDialog();
+
+    expect(focusedWindow.webContents.printToPDF).toHaveBeenCalledWith(
+      getInvoicePdfPrintOptions(),
+    );
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^\/tmp\/easy-accounting-test-temp\/easy-accounting-print-\d+\.pdf$/,
+      ),
+      expect.any(Buffer),
+    );
+    expect(mockBrowserWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        show: false,
+        webPreferences: expect.objectContaining({ plugins: true }),
+      }),
+    );
+    expect(printWin.loadURL).toHaveBeenCalledWith(
+      expect.stringMatching(/^file:\/\/\/tmp\/easy-accounting-test-temp\//),
+    );
+    expect(printWin.webContents.print).toHaveBeenCalledWith(
+      { silent: false, printBackground: true },
+      expect.any(Function),
+    );
+    expect(printWin.close).toHaveBeenCalled();
+    expect(fs.unlinkSync).toHaveBeenCalled();
+    expect(result).toEqual({ success: true });
+  });
+
+  it('treats print dialog cancel as cancelled, not hard failure', async () => {
+    printWin.webContents.print.mockImplementation(
+      (
+        _opts: unknown,
+        cb: (success: boolean, failureReason?: string) => void,
+      ) => {
+        cb(false, 'cancelled');
+      },
+    );
+
+    const result = await printService.printWithDialog();
+
+    expect(result).toEqual({ success: false, cancelled: true });
+    expect(printWin.close).toHaveBeenCalled();
+    expect(fs.unlinkSync).toHaveBeenCalled();
+  });
+
+  it('returns failure when printToPDF rejects', async () => {
+    focusedWindow.webContents.printToPDF.mockRejectedValue(
+      new Error('stamp boom'),
+    );
+
+    const result = await printService.printWithDialog();
+
+    expect(result).toEqual({
+      success: false,
+      error: 'stamp boom',
+    });
+    expect(printWin.webContents.print).not.toHaveBeenCalled();
+  });
+
+  it('returns failure when no focused window is available', async () => {
+    mockBrowserWindow.getFocusedWindow.mockReturnValue(null);
+
+    const result = await printService.printWithDialog();
+
+    expect(result.success).toBe(false);
+    expect(result).toHaveProperty('error');
+    expect(focusedWindow.webContents.printToPDF).not.toHaveBeenCalled();
   });
 });
