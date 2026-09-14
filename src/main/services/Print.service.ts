@@ -56,7 +56,7 @@ export class PrintService {
   }
 
   /**
-   * UI Print path: stamp pages via printToPDF, then open the PDF in the OS
+   * Open PDF button path: stamp pages via printToPDF, then open in the OS
    * viewer (Preview on macOS). Loading that PDF in a hidden BrowserWindow and
    * calling webContents.print() yields an empty 1-page job on Electron/macOS —
    * the PDF plugin content is not what gets printed.

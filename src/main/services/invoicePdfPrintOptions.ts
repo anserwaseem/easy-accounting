@@ -1,9 +1,10 @@
 /**
- * Chromium printToPDF options for invoice PDFs (batch save + UI Print).
+ * Chromium printToPDF options for invoice PDFs (batch save + Open PDF).
  * Page stamps need displayHeaderFooter + a non-zero bottom margin band;
  * CSS @page margins alone do not reserve space for the footer template.
- * UI Print opens the stamped PDF in the OS viewer — window.print() and
- * printing a PDF via a hidden BrowserWindow cannot use these stamps reliably.
+ * Open PDF opens the stamped file in the OS viewer — window.print() (Print
+ * button) cannot stamp pages, and printing a PDF via a hidden BrowserWindow
+ * is unreliable on Electron/macOS.
  */
 export const INVOICE_PDF_PAGE_FOOTER_TEMPLATE = `
   <div style="width:100%;text-align:center;font-size:9px;color:#444;padding-top:2px;">
