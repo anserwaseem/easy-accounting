@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { logErrors } from '../errorLogger';
@@ -56,78 +56,37 @@ export class PrintService {
   }
 
   /**
-   * UI Print button path: stamp pages via printToPDF, then open the system
-   * print dialog on that PDF so stamps match batch save (window.print cannot).
+   * UI Print path: stamp pages via printToPDF, then open the PDF in the OS
+   * viewer (Preview on macOS). Loading that PDF in a hidden BrowserWindow and
+   * calling webContents.print() yields an empty 1-page job on Electron/macOS —
+   * the PDF plugin content is not what gets printed.
    */
   // instance method for IPC parity with printPDF; no instance state needed
   // eslint-disable-next-line class-methods-use-this
   async printWithDialog(): Promise<PrintResult> {
-    let tmpPath: string | null = null;
-    let printWin: BrowserWindow | null = null;
-
     try {
       const win = BrowserWindow.getFocusedWindow() ?? raise('No active window');
       const data = await renderStampedPdf(win);
 
-      tmpPath = path.join(
+      // keep the file — Preview/reader needs it after openPath returns
+      const tmpPath = path.join(
         app.getPath('temp'),
         `easy-accounting-print-${Date.now()}.pdf`,
       );
       fs.writeFileSync(tmpPath, data);
 
-      printWin = new BrowserWindow({
-        show: false,
-        webPreferences: {
-          plugins: true,
-          contextIsolation: true,
-        },
-      });
-
-      await printWin.loadURL(`file://${tmpPath}`);
-
-      const dialogWin = printWin;
-      const printOutcome = await new Promise<{
-        ok: boolean;
-        failureReason?: string;
-      }>((resolve) => {
-        dialogWin.webContents.print(
-          { silent: false, printBackground: true },
-          (success, failureReason) => {
-            resolve({ ok: success, failureReason });
-          },
-        );
-      });
-
-      if (!printOutcome.ok) {
-        const reason = (printOutcome.failureReason ?? '').toLowerCase();
-        const cancelled =
-          reason.includes('cancel') || reason === '' || reason.includes('user');
-        return cancelled
-          ? { success: false, cancelled: true }
-          : {
-              success: false,
-              error: printOutcome.failureReason ?? 'Print failed',
-            };
+      const openError = await shell.openPath(tmpPath);
+      if (openError) {
+        return { success: false, error: openError };
       }
 
-      return { success: true };
+      return { success: true, path: tmpPath };
     } catch (error: unknown) {
       console.error('Failed to print invoice:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : error,
       };
-    } finally {
-      if (printWin && !printWin.isDestroyed()) {
-        printWin.close();
-      }
-      if (tmpPath) {
-        try {
-          fs.unlinkSync(tmpPath);
-        } catch {
-          // temp cleanup is best-effort
-        }
-      }
     }
   }
 }

@@ -398,10 +398,11 @@ const PrintableInvoiceScreen = () => {
   const handlePrint = async () => {
     dismissAllToasts();
     await waitForInvoicePrintFonts(effectiveLocale);
-    // printToPDF stamps page numbers; window.print() cannot
+    // stamped PDF via printToPDF, then OS viewer (Preview). Hidden-window
+    // webContents.print on a PDF file prints blank on Electron/macOS.
     const result = await window.electron.printWithDialog();
     if (!result.success && !result.cancelled) {
-      let description = 'Could not open the print dialog.';
+      let description = 'Could not open the stamped PDF.';
       if (typeof result.error === 'string') {
         description = result.error;
       } else if (result.error instanceof Error) {
