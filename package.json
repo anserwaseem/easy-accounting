@@ -132,6 +132,7 @@
     "css-minimizer-webpack-plugin": "^5.0.0",
     "date-fns": "^3.6.0",
     "detect-port": "^1.5.1",
+    "dotenv": "^9.0.2",
     "electron": "^25.9.8",
     "electron-builder": "^24.2.1",
     "electronmon": "^2.0.2",

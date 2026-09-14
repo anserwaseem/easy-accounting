@@ -38,7 +38,7 @@ export class BackupService {
 
   private backupDir!: string;
 
-  private supabase: SupabaseClient;
+  private supabase: SupabaseClient | null = null;
 
   private bucketName:
     | `${typeof this.BACKUP_PREFIX}_${typeof process.platform}_${string}_${string}`
@@ -49,10 +49,24 @@ export class BackupService {
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
 
-    this.supabase = createClient(
-      process.env.SUPABASE_URL || '',
-      process.env.SUPABASE_ANON_KEY || '',
-    );
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        this.supabase = createClient(supabaseUrl, supabaseAnonKey);
+      } catch (err) {
+        log.error(
+          `${this.logPrefix}: Failed to initialize Supabase client`,
+          err,
+        );
+        this.supabase = null;
+      }
+    } else {
+      this.supabase = null;
+      log.warn(
+        `${this.logPrefix}: SUPABASE_URL or SUPABASE_ANON_KEY is not set. Cloud backups are disabled.`,
+      );
+    }
     this.setupBucketName();
   }
 
@@ -95,6 +109,22 @@ export class BackupService {
       backupDb.close();
 
       log.info(`Database backup created locally at ${backupPath}`);
+
+      if (!this.supabase) {
+        log.warn(
+          `${this.logPrefix}: Skipping cloud backup upload (Supabase credentials not configured).`,
+        );
+        new Notification({
+          title: 'Backup Created',
+          body: `Database backup created locally`,
+          silent: false,
+          icon:
+            process.platform === 'win32'
+              ? path.join(process.resourcesPath, 'assets/icon.png')
+              : undefined,
+        }).show();
+        return { success: true, path: backupPath };
+      }
 
       const isonline = await isOnline();
       log.info(`isOnline: ${isonline}`);
@@ -201,6 +231,13 @@ export class BackupService {
       if (backup.type === 'local')
         return this.restoreFromBackup(backup.filename);
 
+      if (!this.supabase) {
+        return {
+          success: false,
+          error: 'Cloud backup storage is not configured.',
+        };
+      }
+
       if (!isOnline())
         return {
           success: false,
@@ -291,7 +328,7 @@ export class BackupService {
 
     // get cloud backups
     let cloudBackups: BackupMetadata[] = [];
-    if (this.bucketName && (await isOnline())) {
+    if (this.supabase && this.bucketName && (await isOnline())) {
       const { data: cloudFiles, error: listError } = await this.supabase.storage
         .from(this.bucketName)
         .list();

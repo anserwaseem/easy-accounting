@@ -47,6 +47,9 @@ describe('BackupService', () => {
     jest.clearAllMocks();
     jest.resetModules();
 
+    process.env.SUPABASE_URL = 'https://mock.supabase.co';
+    process.env.SUPABASE_ANON_KEY = 'mock-key';
+
     (store.get as jest.Mock).mockImplementation((key) => {
       if (key === 'username') return 'test-user';
     });
@@ -304,6 +307,47 @@ describe('BackupService', () => {
       jest.advanceTimersByTime(60 * 60 * 1000); // Advance time by 1 hour
 
       expect(backupService.createBackup).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('when Supabase credentials are not configured', () => {
+    let unconfiguredService: BackupService;
+
+    beforeEach(() => {
+      delete process.env.SUPABASE_URL;
+      delete process.env.SUPABASE_ANON_KEY;
+      unconfiguredService = new BackupService();
+    });
+
+    it('should initialize without throwing', () => {
+      expect(unconfiguredService).toBeDefined();
+    });
+
+    it('should create local backup and skip cloud upload even when online', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
+      (fs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('test'));
+      (isOnline as jest.Mock).mockReturnValue(true);
+
+      const result = await unconfiguredService.createBackup();
+
+      expect(result.success).toBe(true);
+      expect(result.path).toContain('database-backup');
+      expect(Notification).toHaveBeenCalledWith({
+        title: 'Backup Created',
+        body: 'Database backup created locally',
+        silent: false,
+        icon: undefined,
+      });
+    });
+
+    it('should return error when attempting cloud restore', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readdirSync as jest.Mock).mockReturnValue([]);
+
+      const result = await unconfiguredService.restoreFromDate('2025-01-25');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No backup found for date 2025-01-25');
     });
   });
 });

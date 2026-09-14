@@ -6,6 +6,7 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
+import dotenv from 'dotenv';
 import path from 'path';
 import {
   app,
@@ -71,6 +72,8 @@ import {
 import type { SeedOptions } from './utils/priceSeeding';
 import { ErrorManager } from './errorManager';
 import { DEFAULT_USER } from './utils/constants';
+
+dotenv.config();
 
 // set proper app name for Windows notifications
 if (process.platform === 'win32') {
