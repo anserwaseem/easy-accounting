@@ -507,6 +507,13 @@ const electronHandler = {
   printToPdf: (outputBaseName: string | number) =>
     ipcRenderer.invoke('print:toPDF', outputBaseName),
 
+  printWithDialog: () =>
+    ipcRenderer.invoke('print:withDialog') as Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: unknown;
+    }>,
+
   getOutputDir: () => ipcRenderer.invoke('print:outputDir'),
 
   /**
