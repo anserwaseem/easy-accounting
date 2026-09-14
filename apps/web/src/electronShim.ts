@@ -94,6 +94,7 @@ interface ElectronEventBridge {
    * on.
    */
   supportsSync?: true;
+  supportsBackup?: true;
   syncGetStatus?: () => Promise<SyncStatusPayload>;
   syncConnect?: (config: {
     url: string;

@@ -504,14 +504,16 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           ]}
           footer={
             <>
-              {/* always-visible backup staleness indicator */}
-              <div
-                className={cn(
-                  effectiveCollapsed ? 'flex justify-center' : 'px-1',
-                )}
-              >
-                <BackupStatus collapsed={effectiveCollapsed} />
-              </div>
+              {/* always-visible backup staleness indicator on platforms with local backup */}
+              {window.electron.supportsBackup && (
+                <div
+                  className={cn(
+                    effectiveCollapsed ? 'flex justify-center' : 'px-1',
+                  )}
+                >
+                  <BackupStatus collapsed={effectiveCollapsed} />
+                </div>
+              )}
               <SidebarFooter
                 collapsed={effectiveCollapsed}
                 onToggle={handleFooterToggle}

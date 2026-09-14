@@ -856,6 +856,7 @@ const electronHandler = {
     ) as Promise<VendorStockActivityResponse>,
 
   supportsSync: true as const,
+  supportsBackup: true as const,
 
   syncGetStatus: () => ipcRenderer.invoke('sync:getStatus'),
 
