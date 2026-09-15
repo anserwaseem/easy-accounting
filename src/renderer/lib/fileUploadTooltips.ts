@@ -24,5 +24,5 @@ export const FILE_UPLOAD_HINT_INVOICE_ITEMS =
 export const FILE_UPLOAD_HINT_ACCOUNT_URDU =
   'Excel: header row with Id (preferred) or Name/Code to match accounts, plus Name (Urdu), Address (Urdu), and/or Goods Name (Urdu). Empty Urdu cells clear the field.\nFiles: .xlsx, .xls, .csv.';
 
-export const FILE_UPLOAD_HINT_INVENTORY_URDU =
-  'Excel: header row with Id (preferred) or Name to match items, plus Description (Urdu). Empty Urdu cells clear the field.\nFiles: .xlsx, .xls, .csv.';
+export const FILE_UPLOAD_HINT_INVENTORY_ATTRIBUTES =
+  'Excel: header row with Id (preferred) or Name to match items, plus Description (Urdu) and/or attribute columns (by label or key). Empty cells clear that field. Columns not present are left unchanged.\nFiles: .xlsx, .xls, .csv.';

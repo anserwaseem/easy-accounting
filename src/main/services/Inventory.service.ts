@@ -11,6 +11,8 @@ import type {
   InsertInventoryItem,
   InventoryItem,
   InventoryOpeningStock,
+  InventoryAttributeBulkUpdateResult,
+  InventoryAttributeFieldPatch,
   InventoryUrduBulkUpdateResult,
   InventoryUrduFieldPatch,
   ReportResponse,
@@ -92,7 +94,7 @@ export class InventoryService {
 
   private stmGetInventoryIdsByTrimName!: Statement;
 
-  private stmGetInventoryUrduById!: Statement;
+  private stmGetInventoryAttributeFieldsById!: Statement;
 
   private stmUpdateInventoryUrdu!: Statement;
 
@@ -384,13 +386,25 @@ export class InventoryService {
   bulkUpdateUrduFields(
     patches: InventoryUrduFieldPatch[],
   ): InventoryUrduBulkUpdateResult {
+    return this.bulkUpdateAttributeFields(patches);
+  }
+
+  /**
+   * apply custom attributes and/or Urdu description from spreadsheet import.
+   * match by id when present, else by trimmed name (SKU).
+   * only keys present on the patch are written (undefined = leave unchanged);
+   * attribute values of null clear that key; other attribute keys are preserved.
+   */
+  bulkUpdateAttributeFields(
+    patches: InventoryAttributeFieldPatch[],
+  ): InventoryAttributeBulkUpdateResult {
     let updated = 0;
     let notFound = 0;
     let ambiguous = 0;
 
     const run = this.db.transaction(() => {
       patches.forEach((patch) => {
-        const resolved = this.resolveInventoryForUrduPatch(patch);
+        const resolved = this.resolveInventoryForAttributePatch(patch);
         if (resolved === 'notFound') {
           notFound += 1;
           return;
@@ -400,16 +414,35 @@ export class InventoryService {
           return;
         }
 
-        const nextDescriptionUrdu =
-          patch.descriptionUrdu !== undefined
-            ? patch.descriptionUrdu?.trim() || null
-            : resolved.descriptionUrdu ?? null;
+        let wrote = false;
 
-        const result = this.stmUpdateInventoryUrdu.run({
-          id: cast(resolved.id),
-          descriptionUrdu: nextDescriptionUrdu,
-        });
-        if (result.changes > 0) updated += 1;
+        if (patch.descriptionUrdu !== undefined) {
+          const nextDescriptionUrdu = patch.descriptionUrdu?.trim() || null;
+          this.stmUpdateInventoryUrdu.run({
+            id: cast(resolved.id),
+            descriptionUrdu: nextDescriptionUrdu,
+          });
+          wrote = true;
+        }
+
+        if (patch.attributes !== undefined) {
+          const nextAttrs: Record<string, unknown> = {
+            ...resolved.attributes,
+          };
+          Object.entries(patch.attributes).forEach(([key, value]) => {
+            if (value === null || value === '' || value === undefined) {
+              delete nextAttrs[key];
+            } else {
+              nextAttrs[key] = value;
+            }
+          });
+          // resolved id already proven to exist; treat the merge as an update
+          // even when the resulting JSON is unchanged
+          this.updateInventoryAttributes(resolved.id, nextAttrs);
+          wrote = true;
+        }
+
+        if (wrote) updated += 1;
         else notFound += 1;
       });
     });
@@ -418,14 +451,37 @@ export class InventoryService {
     return { updated, notFound, ambiguous };
   }
 
-  private resolveInventoryForUrduPatch(
-    patch: InventoryUrduFieldPatch,
-  ): { id: number; descriptionUrdu: string | null } | 'notFound' | 'ambiguous' {
+  private resolveInventoryForAttributePatch(
+    patch: InventoryAttributeFieldPatch,
+  ):
+    | {
+        id: number;
+        descriptionUrdu: string | null;
+        attributes: Record<string, unknown>;
+      }
+    | 'notFound'
+    | 'ambiguous' {
+    const toResolved = (row: {
+      id: number;
+      descriptionUrdu: string | null;
+      attributes?: string | null;
+    }) => ({
+      id: row.id,
+      descriptionUrdu: row.descriptionUrdu,
+      attributes: parseJsonRecord(row.attributes),
+    });
+
     if (patch.id != null && Number.isFinite(patch.id) && patch.id > 0) {
-      const byId = this.stmGetInventoryUrduById.get(cast(patch.id)) as
-        | { id: number; descriptionUrdu: string | null }
+      const byId = this.stmGetInventoryAttributeFieldsById.get(
+        cast(patch.id),
+      ) as
+        | {
+            id: number;
+            descriptionUrdu: string | null;
+            attributes?: string | null;
+          }
         | undefined;
-      return byId ?? 'notFound';
+      return byId ? toResolved(byId) : 'notFound';
     }
 
     const name = patch.name?.trim();
@@ -437,10 +493,16 @@ export class InventoryService {
     if (matches.length === 0) return 'notFound';
     if (matches.length > 1) return 'ambiguous';
 
-    const byId = this.stmGetInventoryUrduById.get(cast(matches[0].id)) as
-      | { id: number; descriptionUrdu: string | null }
+    const byId = this.stmGetInventoryAttributeFieldsById.get(
+      cast(matches[0].id),
+    ) as
+      | {
+          id: number;
+          descriptionUrdu: string | null;
+          attributes?: string | null;
+        }
       | undefined;
-    return byId ?? 'notFound';
+    return byId ? toResolved(byId) : 'notFound';
   }
 
   /**
@@ -1368,8 +1430,8 @@ export class InventoryService {
       SELECT id FROM inventory WHERE TRIM(name) = TRIM(?)
     `);
 
-    this.stmGetInventoryUrduById = this.db.prepare(`
-      SELECT id, descriptionUrdu FROM inventory WHERE id = ?
+    this.stmGetInventoryAttributeFieldsById = this.db.prepare(`
+      SELECT id, descriptionUrdu, attributes FROM inventory WHERE id = ?
     `);
 
     this.stmUpdateInventoryUrdu = this.db.prepare(`

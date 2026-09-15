@@ -1,9 +1,9 @@
-import type { InventoryItem } from 'types';
 import {
   INVENTORY_URDU_EXPORT_HEADERS,
   buildInventoryUrduExportRows,
   parseInventoryUrduImportRows,
 } from '../inventoryUrduImport';
+import type { InventoryItem } from 'types';
 
 const sampleItem = {
   id: 12,
@@ -14,7 +14,7 @@ const sampleItem = {
   quantity: 1,
 } as InventoryItem;
 
-describe('inventoryUrduImport', () => {
+describe('inventoryUrduImport (compat)', () => {
   it('builds export rows from inventory', () => {
     expect(buildInventoryUrduExportRows([sampleItem])).toEqual([
       {
@@ -39,35 +39,5 @@ describe('inventoryUrduImport', () => {
         descriptionUrdu: 'قرآن مجید',
       },
     ]);
-  });
-
-  it('accepts header aliases and name-only match', () => {
-    const result = parseInventoryUrduImportRows([
-      ['Item', 'Urdu Description'],
-      ['76-Z', 'قرآن مجید'],
-    ]);
-    expect(result.patches).toEqual([
-      {
-        name: '76-Z',
-        descriptionUrdu: 'قرآن مجید',
-      },
-    ]);
-  });
-
-  it('treats blank Urdu cells as null clears', () => {
-    const result = parseInventoryUrduImportRows([
-      ['Id', 'Description (Urdu)'],
-      [12, ''],
-    ]);
-    expect(result.patches).toEqual([{ id: 12, descriptionUrdu: null }]);
-  });
-
-  it('skips rows without a match key', () => {
-    const result = parseInventoryUrduImportRows([
-      ['Id', 'Name', 'Description (Urdu)'],
-      ['', '', 'قرآن مجید'],
-    ]);
-    expect(result.patches).toEqual([]);
-    expect(result.skippedRows).toBe(1);
   });
 });

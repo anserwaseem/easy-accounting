@@ -159,6 +159,24 @@ export type InventoryUrduBulkUpdateResult = {
   ambiguous: number;
 };
 
+/**
+ * one row from inventory attributes spreadsheet import.
+ * only keys present on the patch are written (undefined = leave unchanged);
+ * attribute values of null clear that key.
+ */
+export type InventoryAttributeFieldPatch = {
+  id?: number;
+  name?: string;
+  descriptionUrdu?: string | null;
+  attributes?: Record<string, unknown | null>;
+};
+
+export type InventoryAttributeBulkUpdateResult = {
+  updated: number;
+  notFound: number;
+  ambiguous: number;
+};
+
 /** Chart */
 export interface Chart extends BaseEntity {
   name: string;
