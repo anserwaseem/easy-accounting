@@ -16,6 +16,7 @@ import type {
   UpdateAccount,
   AccountUrduFieldPatch,
   InventoryUrduFieldPatch,
+  InventoryAttributeFieldPatch,
   Journal,
   LedgerView,
   InventoryItem,
@@ -573,6 +574,11 @@ app
       'inventory:bulkUpdateUrduFields',
       async (_, patches: InventoryUrduFieldPatch[]) =>
         inventoryService.bulkUpdateUrduFields(patches),
+    );
+    ipcMain.handle(
+      'inventory:bulkUpdateAttributeFields',
+      async (_, patches: InventoryAttributeFieldPatch[]) =>
+        inventoryService.bulkUpdateAttributeFields(patches),
     );
     ipcMain.handle(
       'inventory:setParentId',

@@ -827,6 +827,92 @@ describe('InventoryService attribute definitions', () => {
   });
 });
 
+describe('InventoryService.bulkUpdateAttributeFields', () => {
+  it('merges attribute patches and clears blanks without dropping other keys', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    db.prepare(
+      `INSERT INTO attribute_definitions (key, label, valueType, sortOrder, isActive, isPublic)
+       VALUES ('binding', 'Binding', 'text', 1, 1, 0),
+              ('pages', 'Pages', 'number', 2, 1, 0)`,
+    ).run();
+    const id = db
+      .prepare(
+        `INSERT INTO inventory (name, price, quantity, description, descriptionUrdu, attributes)
+         VALUES (?, 1, 0, ?, ?, ?)`,
+      )
+      .run(
+        '76-Z',
+        'Old English',
+        'قرآن',
+        JSON.stringify({ binding: 'Hard Binding', pages: 568, keep: 'yes' }),
+      ).lastInsertRowid as number;
+
+    const service = createTestDb(db);
+    const result = service.bulkUpdateAttributeFields([
+      {
+        id,
+        description: 'The Holy Quran',
+        descriptionUrdu: 'قرآن مجید',
+        attributes: { binding: 'Soft Binding', pages: null },
+      },
+    ]);
+    expect(result).toEqual({ updated: 1, notFound: 0, ambiguous: 0 });
+
+    const row = db
+      .prepare(
+        'SELECT description, descriptionUrdu, attributes FROM inventory WHERE id = ?',
+      )
+      .get(id) as {
+      description: string;
+      descriptionUrdu: string;
+      attributes: string;
+    };
+    expect(row.description).toBe('The Holy Quran');
+    expect(row.descriptionUrdu).toBe('قرآن مجید');
+    expect(JSON.parse(row.attributes)).toEqual({
+      binding: 'Soft Binding',
+      keep: 'yes',
+    });
+    db.close();
+  });
+
+  it('matches by name and reports notFound / ambiguous', () => {
+    const db = new Database(':memory:');
+    seedBasicSchema(db);
+    db.prepare(
+      `INSERT INTO attribute_definitions (key, label, valueType, sortOrder, isActive, isPublic)
+       VALUES ('binding', 'Binding', 'text', 1, 1, 0)`,
+    ).run();
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity) VALUES (?, 1, 0)',
+    ).run('Unique');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity) VALUES (?, 1, 0)',
+    ).run('Dup');
+    db.prepare(
+      'INSERT INTO inventory (name, price, quantity) VALUES (?, 1, 0)',
+    ).run('Dup');
+
+    const service = createTestDb(db);
+    expect(
+      service.bulkUpdateAttributeFields([
+        { name: 'Unique', attributes: { binding: 'Hard Binding' } },
+        { name: 'Missing', attributes: { binding: 'X' } },
+        { name: 'Dup', attributes: { binding: 'Y' } },
+      ]),
+    ).toEqual({ updated: 1, notFound: 1, ambiguous: 1 });
+
+    const unique = db
+      .prepare("SELECT attributes FROM inventory WHERE name = 'Unique'")
+      .get() as { attributes: string };
+    expect(JSON.parse(unique.attributes)).toEqual({
+      binding: 'Hard Binding',
+    });
+    db.close();
+  });
+});
+
 describe('InventoryService display title (migration 023)', () => {
   const setup = () => {
     const db = new Database(':memory:');
