@@ -133,6 +133,28 @@ interface StoredSyncConfig {
 const CONFIG_KEY = 'sync.config';
 const DEVICE_ID_KEY = 'sync.deviceId';
 
+/**
+ * generates a unique v4 UUID, using global WebCrypto when available
+ * with an RFC4122 v4 fallback for environments where crypto is undefined.
+ */
+function generateDeviceId(): string {
+  try {
+    if (
+      typeof globalThis !== 'undefined' &&
+      typeof globalThis.crypto?.randomUUID === 'function'
+    ) {
+      return globalThis.crypto.randomUUID();
+    }
+  } catch {
+    // fall through to fallback generator
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16);
+    const v = c === 'x' ? r : (r % 4) + 8;
+    return v.toString(16);
+  });
+}
+
 /** Steady-state pull/push cadence once connected and healthy. */
 const FIXED_INTERVAL_MS = 30_000;
 /** First retry delay after a syncOnce failure; doubles from here, see scheduleNext. */
@@ -922,7 +944,7 @@ export class SyncManager {
   private async ensureDeviceId(): Promise<string> {
     const existing = this.kv.get(DEVICE_ID_KEY) as string | undefined;
     if (existing) return existing;
-    const id = crypto.randomUUID();
+    const id = generateDeviceId();
     await this.kv.setAwaited(DEVICE_ID_KEY, id);
     return id;
   }

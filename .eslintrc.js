@@ -3,6 +3,7 @@ module.exports = {
   plugins: ['@typescript-eslint'],
   globals: {
     React: 'readonly',
+    globalThis: 'readonly',
   },
   rules: {
     // A temporary hack related to IDE not resolving correct package.json

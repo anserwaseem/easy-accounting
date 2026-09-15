@@ -8,6 +8,7 @@
  */
 import dotenv from 'dotenv';
 import path from 'path';
+import nodeCrypto from 'crypto';
 import {
   app,
   BrowserWindow,
@@ -74,6 +75,22 @@ import { ErrorManager } from './errorManager';
 import { DEFAULT_USER } from './utils/constants';
 
 dotenv.config();
+
+// polyfill globalThis.crypto in Electron main process (Node 18.15 does not expose webcrypto on globalThis)
+if (
+  typeof globalThis.crypto === 'undefined' ||
+  typeof globalThis.crypto.randomUUID === 'undefined'
+) {
+  try {
+    Object.defineProperty(globalThis, 'crypto', {
+      value: (nodeCrypto.webcrypto ?? nodeCrypto) as unknown as Crypto,
+      configurable: true,
+      writable: true,
+    });
+  } catch {
+    // ignore if cannot define property
+  }
+}
 
 // set proper app name for Windows notifications
 if (process.platform === 'win32') {
