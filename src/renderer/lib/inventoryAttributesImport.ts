@@ -18,6 +18,7 @@ export interface InventoryAttributesPatch {
   /** preferred match key when present and valid */
   id?: number;
   name?: string;
+  description?: string | null;
   descriptionUrdu?: string | null;
   /**
    * only keys present here are written.
@@ -196,9 +197,13 @@ export const parseInventoryAttributesImportRows = (
     headerRow,
     definitions,
   );
-  if (fixed.descriptionUrdu == null && attrCols.length === 0) {
+  if (
+    fixed.description == null &&
+    fixed.descriptionUrdu == null &&
+    attrCols.length === 0
+  ) {
     throw new Error(
-      'Attributes import needs Description (Urdu) or at least one attribute column.',
+      'Attributes import needs Description, Description (Urdu), or at least one attribute column.',
     );
   }
   if (fixed.id == null && fixed.name == null) {
@@ -230,6 +235,10 @@ export const parseInventoryAttributesImportRows = (
     const patch: InventoryAttributesPatch = {};
     if (id != null && Number.isFinite(id) && id > 0) patch.id = id;
     if (name) patch.name = name;
+
+    if (fixed.description != null) {
+      patch.description = cellText(row[fixed.description]) || null;
+    }
 
     if (fixed.descriptionUrdu != null) {
       patch.descriptionUrdu = cellText(row[fixed.descriptionUrdu]) || null;

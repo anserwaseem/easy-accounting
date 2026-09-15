@@ -838,11 +838,12 @@ describe('InventoryService.bulkUpdateAttributeFields', () => {
     ).run();
     const id = db
       .prepare(
-        `INSERT INTO inventory (name, price, quantity, descriptionUrdu, attributes)
-         VALUES (?, 1, 0, ?, ?)`,
+        `INSERT INTO inventory (name, price, quantity, description, descriptionUrdu, attributes)
+         VALUES (?, 1, 0, ?, ?, ?)`,
       )
       .run(
         '76-Z',
+        'Old English',
         'قرآن',
         JSON.stringify({ binding: 'Hard Binding', pages: 568, keep: 'yes' }),
       ).lastInsertRowid as number;
@@ -851,6 +852,7 @@ describe('InventoryService.bulkUpdateAttributeFields', () => {
     const result = service.bulkUpdateAttributeFields([
       {
         id,
+        description: 'The Holy Quran',
         descriptionUrdu: 'قرآن مجید',
         attributes: { binding: 'Soft Binding', pages: null },
       },
@@ -859,9 +861,14 @@ describe('InventoryService.bulkUpdateAttributeFields', () => {
 
     const row = db
       .prepare(
-        'SELECT descriptionUrdu, attributes FROM inventory WHERE id = ?',
+        'SELECT description, descriptionUrdu, attributes FROM inventory WHERE id = ?',
       )
-      .get(id) as { descriptionUrdu: string; attributes: string };
+      .get(id) as {
+      description: string;
+      descriptionUrdu: string;
+      attributes: string;
+    };
+    expect(row.description).toBe('The Holy Quran');
     expect(row.descriptionUrdu).toBe('قرآن مجید');
     expect(JSON.parse(row.attributes)).toEqual({
       binding: 'Soft Binding',

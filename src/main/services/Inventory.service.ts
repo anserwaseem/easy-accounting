@@ -390,7 +390,7 @@ export class InventoryService {
   }
 
   /**
-   * apply custom attributes and/or Urdu description from spreadsheet import.
+   * apply custom attributes and/or descriptions from spreadsheet import.
    * match by id when present, else by trimmed name (SKU).
    * only keys present on the patch are written (undefined = leave unchanged);
    * attribute values of null clear that key; other attribute keys are preserved.
@@ -415,6 +415,14 @@ export class InventoryService {
         }
 
         let wrote = false;
+
+        if (patch.description !== undefined) {
+          this.stmUpdateInventoryDescription.run({
+            id: cast(resolved.id),
+            description: patch.description?.trim() || null,
+          });
+          wrote = true;
+        }
 
         if (patch.descriptionUrdu !== undefined) {
           const nextDescriptionUrdu = patch.descriptionUrdu?.trim() || null;

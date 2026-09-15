@@ -143,6 +143,23 @@ describe('inventoryAttributesImport', () => {
     ]);
   });
 
+  it('parses Description and clears blanks', () => {
+    const result = parseInventoryAttributesImportRows(
+      [
+        ['Id', 'Description', 'Description (Urdu)'],
+        [12, 'New English', ''],
+      ],
+      defs,
+    );
+    expect(result.patches).toEqual([
+      {
+        id: 12,
+        description: 'New English',
+        descriptionUrdu: null,
+      },
+    ]);
+  });
+
   it('still accepts Urdu-only sheets', () => {
     const result = parseInventoryAttributesImportRows(
       [
@@ -155,6 +172,7 @@ describe('inventoryAttributesImport', () => {
       {
         id: 12,
         name: '76-Z',
+        description: 'The Holy Quran',
         descriptionUrdu: 'قرآن مجید',
       },
     ]);

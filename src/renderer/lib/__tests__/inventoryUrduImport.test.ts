@@ -36,6 +36,7 @@ describe('inventoryUrduImport (compat)', () => {
       {
         id: 12,
         name: '76-Z',
+        description: 'The Holy Quran',
         descriptionUrdu: 'قرآن مجید',
       },
     ]);

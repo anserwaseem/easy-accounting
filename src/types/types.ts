@@ -167,6 +167,7 @@ export type InventoryUrduBulkUpdateResult = {
 export type InventoryAttributeFieldPatch = {
   id?: number;
   name?: string;
+  description?: string | null;
   descriptionUrdu?: string | null;
   attributes?: Record<string, unknown | null>;
 };
