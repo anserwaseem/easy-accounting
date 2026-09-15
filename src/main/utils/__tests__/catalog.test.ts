@@ -616,9 +616,9 @@ describe('title (migration 023)', () => {
     expect(cat.items[0].name).toBe('S-23-G');
   });
 
-  it('is not a publish blocker', () => {
-    // most items should never need one; requiring it would hold back a
-    // catalogue that is otherwise complete
+  it('is not a publish blocker unless the installation says so', () => {
+    // null is the ordinary state for a business that composes names downstream.
+    // requiring a title is a flag, not the default — same shape as requireImage.
     expect(publishBlockers(row({ title: null }), OPTS)).toEqual([]);
     expect(isPublishable(row({ title: null }), OPTS)).toBe(true);
   });
@@ -627,5 +627,32 @@ describe('title (migration 023)', () => {
     const cat = buildPublicCatalog([row({ title: 'Anything' })], OPTS);
     expect(JSON.stringify(cat)).not.toContain('900');
     expect('basePrice' in cat.items[0]).toBe(false);
+  });
+});
+
+describe('requireTitle (a URL written from a code is a frozen wrong name)', () => {
+  const titled = row({ title: 'Quran Majeed 16 Lines' });
+  const untitled = row({ title: null });
+  const blank = row({ title: '   ' });
+  const required = { ...OPTS, requireTitle: true };
+
+  it('withholds an untitled item when the flag is on', () => {
+    expect(publishBlockers(untitled, required)).toEqual(['no title']);
+    expect(isPublishable(untitled, required)).toBe(false);
+  });
+
+  it('treats a blank title as unset', () => {
+    expect(publishBlockers(blank, required)).toEqual(['no title']);
+  });
+
+  it('publishes one that has a title', () => {
+    expect(publishBlockers(titled, required)).toEqual([]);
+    expect(isPublishable(titled, required)).toBe(true);
+  });
+
+  it('does not override an explicit hold-back', () => {
+    const held = row({ title: 'Named', excludeFromCatalog: true });
+    expect(isPublishable(held, required)).toBe(false);
+    expect(publishBlockers(held, required)).toEqual([]);
   });
 });

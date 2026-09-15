@@ -19,6 +19,12 @@ export interface PublishConfig {
    */
   publishWithoutImages: boolean;
   /**
+   * Require a display title before an item can publish. On by default: a
+   * storefront that freezes a URL from the title at create would otherwise
+   * publish the identifying code and need a slug rewrite when a name is filled.
+   */
+  requireTitle: boolean;
+  /**
    * Attribute keys an item must carry before it can publish, comma separated.
    * A structural attribute a consumer branches on belongs here: without it the
    * item is filed under some default and looks correct while being wrong.
@@ -114,6 +120,7 @@ const EMPTY_CONFIG: PublishConfig = {
   publicPrefix: 'catalog/public',
   publicPriceList: '',
   publishWithoutImages: false,
+  requireTitle: true,
   requiredAttributeKeys: '',
   reservedNameChars: '',
   imagesManifestUrl: '',

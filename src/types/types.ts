@@ -301,7 +301,8 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   excludeFromCatalog?: 0 | 1;
   /**
    * customer-facing name, distinct from the identifying `name` (migration 023).
-   * Null/absent is normal: a consumer then composes a title of its own.
+   * Null/absent is normal unless this installation requires a display title
+   * to publish; a consumer may then compose a title of its own.
    */
   title?: string | null;
 }
