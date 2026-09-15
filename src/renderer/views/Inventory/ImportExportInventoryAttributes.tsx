@@ -1,8 +1,6 @@
 import {
-  buildInventoryAttributesExportHeaders,
-  buildInventoryAttributesExportRows,
+  buildInventoryAttributesAoa,
   parseInventoryAttributesImportRows,
-  attributeDefsForExport,
 } from '@/renderer/lib/inventoryAttributesImport';
 import { FILE_UPLOAD_HINT_INVENTORY_ATTRIBUTES } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from '@/renderer/lib/lib';
@@ -22,7 +20,7 @@ interface ImportExportInventoryAttributesProps {
   refetchInventory: () => void | Promise<void>;
 }
 
-/** Manage-menu items for inventory attributes (+ Urdu) spreadsheet import/export */
+/** Manage-menu items for inventory attributes spreadsheet import/export */
 export const ImportExportInventoryAttributes: React.FC<
   ImportExportInventoryAttributesProps
 > = ({ refetchInventory }: ImportExportInventoryAttributesProps) => {
@@ -34,19 +32,7 @@ export const ImportExportInventoryAttributes: React.FC<
         window.electron.getInventory(),
         window.electron.getAttributeDefinitions(),
       ])) as [InventoryItem[], AttributeDefinition[]];
-      const defs = attributeDefsForExport(definitions);
-      const headers = buildInventoryAttributesExportHeaders(definitions);
-      const rows = buildInventoryAttributesExportRows(items, definitions);
-      const aoa: (string | number)[][] = [
-        headers,
-        ...rows.map((row) => [
-          row.id,
-          row.name,
-          row.description,
-          row.descriptionUrdu,
-          ...defs.map((def) => row.attributes[def.key] ?? ''),
-        ]),
-      ];
+      const aoa = buildInventoryAttributesAoa(items, definitions);
       const wb = utils.book_new();
       utils.book_append_sheet(
         wb,
@@ -65,10 +51,11 @@ export const ImportExportInventoryAttributes: React.FC<
       link.click();
       URL.revokeObjectURL(url);
 
+      const rowCount = Math.max(aoa.length - 1, 0);
       toast({
-        description: `Exported ${rows.length} inventory row${
-          rows.length === 1 ? '' : 's'
-        } (${defs.length} attribute column${defs.length === 1 ? '' : 's'}).`,
+        description: `Exported ${rowCount} inventory row${
+          rowCount === 1 ? '' : 's'
+        }.`,
         variant: 'success',
       });
     } catch (error) {

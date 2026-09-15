@@ -1,18 +1,8 @@
 import type { AttributeDefinition, InventoryItem } from 'types';
 import {
-  INVENTORY_URDU_EXPORT_HEADERS,
-  attributeExportHeader,
-  buildInventoryAttributesExportHeaders,
-  buildInventoryAttributesExportRows,
-  buildInventoryUrduExportRows,
+  buildInventoryAttributesAoa,
   parseInventoryAttributesImportRows,
-  parseInventoryUrduImportRows,
 } from '../inventoryAttributesImport';
-import {
-  coerceAttributeValue,
-  formatAttributeValueForExport,
-  parseAttributeValueFromImport,
-} from '../attributeValues';
 
 const sampleItem = {
   id: 12,
@@ -67,59 +57,28 @@ const defs = [
   },
 ] as AttributeDefinition[];
 
-describe('attributeValues', () => {
-  it('formats and parses spreadsheet cells by type', () => {
-    expect(formatAttributeValueForExport(true, 'bool')).toBe('true');
-    expect(formatAttributeValueForExport(false, 'bool')).toBe('');
-    expect(formatAttributeValueForExport(568, 'number')).toBe('568');
-    expect(parseAttributeValueFromImport('false', 'bool')).toBeNull();
-    expect(parseAttributeValueFromImport('yes', 'bool')).toBe(true);
-    expect(parseAttributeValueFromImport('568', 'number')).toBe(568);
-    expect(coerceAttributeValue('  Art ', 'text')).toBe('Art');
-  });
-});
-
 describe('inventoryAttributesImport', () => {
-  it('builds export rows with active attribute columns only', () => {
-    expect(buildInventoryAttributesExportHeaders(defs)).toEqual([
-      'Id',
-      'Name',
-      'Description',
-      'Description (Urdu)',
-      'Binding',
-      'Pages',
-      'Tajweedi',
+  it('builds a sheet with active attribute columns only', () => {
+    expect(buildInventoryAttributesAoa([sampleItem], defs)).toEqual([
+      [
+        'Id',
+        'Name',
+        'Description',
+        'Description (Urdu)',
+        'Binding',
+        'Pages',
+        'Tajweedi',
+      ],
+      [
+        12,
+        '76-Z',
+        'The Holy Quran',
+        'قرآن مجید',
+        'Hard Binding',
+        '568',
+        'true',
+      ],
     ]);
-    expect(buildInventoryAttributesExportRows([sampleItem], defs)).toEqual([
-      {
-        id: 12,
-        name: '76-Z',
-        description: 'The Holy Quran',
-        descriptionUrdu: 'قرآن مجید',
-        attributes: {
-          binding: 'Hard Binding',
-          pages: '568',
-          tajweedi: 'true',
-        },
-      },
-    ]);
-  });
-
-  it('disambiguates attribute headers that collide with fixed columns', () => {
-    const colliding = [
-      {
-        id: 1,
-        key: 'item_name',
-        label: 'Name',
-        valueType: 'text',
-        sortOrder: 1,
-        isActive: 1,
-        isPublic: 0,
-      },
-    ] as AttributeDefinition[];
-    expect(attributeExportHeader(colliding[0], colliding)).toBe(
-      'Name (item_name)',
-    );
   });
 
   it('parses attribute columns by label and clears blanks', () => {
@@ -143,7 +102,7 @@ describe('inventoryAttributesImport', () => {
     ]);
   });
 
-  it('parses Description and clears blanks', () => {
+  it('parses Description columns and clears blanks', () => {
     const result = parseInventoryAttributesImportRows(
       [
         ['Id', 'Description', 'Description (Urdu)'],
@@ -160,39 +119,17 @@ describe('inventoryAttributesImport', () => {
     ]);
   });
 
-  it('still accepts Urdu-only sheets', () => {
+  it('accepts key headers and name-only match', () => {
     const result = parseInventoryAttributesImportRows(
       [
-        [...INVENTORY_URDU_EXPORT_HEADERS],
-        [12, '76-Z', 'The Holy Quran', 'قرآن مجید'],
+        ['Item', 'binding'],
+        ['76-Z', 'Soft Binding'],
       ],
       defs,
     );
     expect(result.patches).toEqual([
-      {
-        id: 12,
-        name: '76-Z',
-        description: 'The Holy Quran',
-        descriptionUrdu: 'قرآن مجید',
-      },
+      { name: '76-Z', attributes: { binding: 'Soft Binding' } },
     ]);
-  });
-
-  it('keeps deprecated Urdu helpers working', () => {
-    expect(buildInventoryUrduExportRows([sampleItem])).toEqual([
-      {
-        id: 12,
-        name: '76-Z',
-        description: 'The Holy Quran',
-        descriptionUrdu: 'قرآن مجید',
-      },
-    ]);
-    expect(
-      parseInventoryUrduImportRows([
-        ['Item', 'Urdu Description'],
-        ['76-Z', 'قرآن مجید'],
-      ]).patches,
-    ).toEqual([{ name: '76-Z', descriptionUrdu: 'قرآن مجید' }]);
   });
 
   it('skips rows without a match key', () => {

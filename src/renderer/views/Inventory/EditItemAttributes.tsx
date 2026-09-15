@@ -13,7 +13,6 @@ import { Label } from '@/renderer/shad/ui/label';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { SuggestionInput } from '@/renderer/components/SuggestionInput';
 import type { AttributeDefinition, InventoryItem } from 'types';
-import { coerceAttributeValue } from '@/renderer/lib/attributeValues';
 import {
   CopyAttributesPanel,
   CopyAttributesTrigger,
@@ -32,8 +31,20 @@ const toInputValue = (value: unknown): string => {
   return String(value);
 };
 
-// re-export for existing tests that imported from this module
-export { coerceAttributeValue };
+/** converts an edited string back to the type the definition declares */
+export const coerceAttributeValue = (
+  raw: string,
+  valueType: AttributeDefinition['valueType'],
+): unknown => {
+  const trimmed = raw.trim();
+  if (trimmed === '') return '';
+  if (valueType === 'number') {
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : trimmed;
+  }
+  if (valueType === 'bool') return true;
+  return trimmed;
+};
 
 /**
  * Per-item editor for the custom attributes defined by the business.
