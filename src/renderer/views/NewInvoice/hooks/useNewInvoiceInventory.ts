@@ -21,8 +21,10 @@ function filterInventoryForInvoice(
 ): InventoryItem[] {
   const picked = items.map((item) => pick(item, [...INVENTORY_PICK]));
   if (invoiceType === InvoiceType.Purchase) {
-    // purchase: any qty (including 0); still require a positive price for line defaults
-    return picked.filter((item) => item.price > 0);
+    // restock path: include qty 0 and price 0. new items and opening-stock
+    // rows default to both; sale-gated `price > 0` hid them while recently
+    // sold-out rows (must have had a selling price) still appeared.
+    return picked;
   }
   // sale: only in-stock, priced items
   return picked.filter((item) => item.quantity > 0 && item.price > 0);
