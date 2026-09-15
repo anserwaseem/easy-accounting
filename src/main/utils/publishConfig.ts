@@ -26,6 +26,7 @@ export const PUBLISH_KEYS = {
   publicPrefix: 'publish.publicPrefix',
   publicPriceList: 'publish.publicPriceList',
   publishWithoutImages: 'publish.publishWithoutImages',
+  requireTitle: 'publish.requireTitle',
   reservedNameChars: 'publish.reservedNameChars',
   requiredAttributeKeys: 'publish.requiredAttributeKeys',
   imagesManifestUrl: 'publish.imagesManifestUrl',
@@ -61,6 +62,12 @@ export interface PublishConfig {
   requiredAttributeKeys: string;
   /** Publish items with no photograph yet — testing only, never for a live shop. */
   publishWithoutImages: boolean;
+  /**
+   * Require a display title before an item can publish. Missing key = on, so an
+   * existing install that freezes URLs from titles does not silently keep
+   * publishing hawala numbers. Set false to let a consumer compose a name.
+   */
+  requireTitle: boolean;
   imagesManifestUrl: string;
   webhookUrl: string;
   /** True when a secret access key is stored (the value itself never leaves main). */
@@ -123,6 +130,7 @@ export function getPublishConfig(): PublishConfig {
     publicPrefix: str(PUBLISH_KEYS.publicPrefix, DEFAULTS.publicPrefix),
     publicPriceList: str(PUBLISH_KEYS.publicPriceList),
     publishWithoutImages: str(PUBLISH_KEYS.publishWithoutImages) === 'true',
+    requireTitle: str(PUBLISH_KEYS.requireTitle) !== 'false',
     reservedNameChars: str(PUBLISH_KEYS.reservedNameChars),
     requiredAttributeKeys: str(PUBLISH_KEYS.requiredAttributeKeys),
     imagesManifestUrl: str(PUBLISH_KEYS.imagesManifestUrl),
@@ -175,6 +183,10 @@ export function savePublishConfig(input: PublishConfigInput): PublishConfig {
     input.publishWithoutImages === undefined
       ? undefined
       : String(input.publishWithoutImages),
+  );
+  setIfDefined(
+    PUBLISH_KEYS.requireTitle,
+    input.requireTitle === undefined ? undefined : String(input.requireTitle),
   );
   setIfDefined(PUBLISH_KEYS.imagesManifestUrl, input.imagesManifestUrl?.trim());
   setIfDefined(PUBLISH_KEYS.webhookUrl, input.webhookUrl?.trim());

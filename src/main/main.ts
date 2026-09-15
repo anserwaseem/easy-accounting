@@ -317,6 +317,7 @@ app
         publicPriceList: config.publicPriceList,
         imagesManifestUrl: config.imagesManifestUrl,
         requireImage: !config.publishWithoutImages,
+        requireTitle: config.requireTitle,
         requiredAttributeKeys: parseAttributeKeyList(
           config.requiredAttributeKeys,
         ),
@@ -329,6 +330,7 @@ app
         publicAttributeKeys: publishService.getPublicAttributeKeys(),
         imagesManifestUrl: config.imagesManifestUrl,
         requireImage: !config.publishWithoutImages,
+        requireTitle: config.requireTitle,
         requiredAttributeKeys: parseAttributeKeyList(
           config.requiredAttributeKeys,
         ),

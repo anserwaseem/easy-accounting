@@ -151,7 +151,7 @@ export type PublishFilter =
   | 'not ready'
   | 'not a candidate';
 
-/** an item with no title publishes under its item name, which is the default */
+/** an item with no title is a gap when the install requires one to publish */
 export type DisplayTitleFilter = 'any' | 'set' | 'unset';
 
 export type FamilyFilter = 'any' | 'heads' | 'variants' | 'standalone';
