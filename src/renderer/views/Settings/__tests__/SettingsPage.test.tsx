@@ -30,6 +30,7 @@ describe('SettingsPage', () => {
       'print.locale': 'en',
       'print.showPartyBalances': true,
       'print.showAgent': true,
+      'print.showBillBalance': true,
       'print.englishLabelOverrides': {},
       'print.urduLabelOverrides': {},
       debitCreditDefaultLabel: '0',
