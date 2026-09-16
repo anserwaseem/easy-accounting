@@ -196,16 +196,23 @@ const PrintableInvoiceScreen = () => {
   const [sessionShowAgent, setSessionShowAgent] = useState<boolean | null>(
     null,
   );
+  const [sessionShowBillBalance, setSessionShowBillBalance] = useState<
+    boolean | null
+  >(null);
   const effectiveLocale = sessionLocale ?? invoicePrintSettings.locale;
   const effectiveShowPartyBalances =
     sessionShowPartyBalances ?? invoicePrintSettings.showPartyBalances;
   const effectiveShowAgent = sessionShowAgent ?? invoicePrintSettings.showAgent;
+  const effectiveShowBillBalance =
+    sessionShowBillBalance ?? invoicePrintSettings.showBillBalance;
   const isPrintSessionOverride =
     (sessionLocale != null && sessionLocale !== invoicePrintSettings.locale) ||
     (sessionShowPartyBalances != null &&
       sessionShowPartyBalances !== invoicePrintSettings.showPartyBalances) ||
     (sessionShowAgent != null &&
-      sessionShowAgent !== invoicePrintSettings.showAgent);
+      sessionShowAgent !== invoicePrintSettings.showAgent) ||
+    (sessionShowBillBalance != null &&
+      sessionShowBillBalance !== invoicePrintSettings.showBillBalance);
   const isUrdu = effectiveLocale === 'ur';
   const labels = useMemo(
     () =>
@@ -1031,7 +1038,8 @@ const PrintableInvoiceScreen = () => {
     !isPurchase &&
     !invoice?.isQuotation &&
     !invoice?.isReturned &&
-    isNamedParty;
+    isNamedParty &&
+    effectiveShowBillBalance;
   const showRunningBalances =
     Boolean(invoice) &&
     !invoice?.isQuotation &&
@@ -1310,6 +1318,24 @@ const PrintableInvoiceScreen = () => {
                 },
                 {
                   id: 'printSessionAgentOff',
+                  value: 'off',
+                  caption: 'Hide',
+                },
+              ]}
+            />
+            <PrintSessionChoiceRow
+              label="Credit / Udhar"
+              value={effectiveShowBillBalance ? 'on' : 'off'}
+              disabled={isBatchPrinting}
+              onValueChange={(v) => setSessionShowBillBalance(v === 'on')}
+              options={[
+                {
+                  id: 'printSessionBillBalanceOn',
+                  value: 'on',
+                  caption: 'Show',
+                },
+                {
+                  id: 'printSessionBillBalanceOff',
                   value: 'off',
                   caption: 'Hide',
                 },

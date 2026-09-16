@@ -186,6 +186,9 @@ const SettingsPage: React.FC = () => {
   const [draftShowAgent, setDraftShowAgent] = useState(
     invoicePrintSettings.showAgent,
   );
+  const [draftShowBillBalance, setDraftShowBillBalance] = useState(
+    invoicePrintSettings.showBillBalance,
+  );
   const [draftEnglishLabelOverrides, setDraftEnglishLabelOverrides] = useState<
     Partial<InvoicePrintLabels>
   >(() => ({ ...invoicePrintSettings.englishLabelOverrides }));
@@ -241,6 +244,7 @@ const SettingsPage: React.FC = () => {
     setDraftPrintLocale(invoicePrintSettings.locale);
     setDraftShowPartyBalances(invoicePrintSettings.showPartyBalances);
     setDraftShowAgent(invoicePrintSettings.showAgent);
+    setDraftShowBillBalance(invoicePrintSettings.showBillBalance);
     setDraftEnglishLabelOverrides({
       ...invoicePrintSettings.englishLabelOverrides,
     });
@@ -265,6 +269,7 @@ const SettingsPage: React.FC = () => {
       draftPrintLocale !== invoicePrintSettings.locale ||
       draftShowPartyBalances !== invoicePrintSettings.showPartyBalances ||
       draftShowAgent !== invoicePrintSettings.showAgent ||
+      draftShowBillBalance !== invoicePrintSettings.showBillBalance ||
       !isEqual(
         draftEnglishLabelOverrides,
         invoicePrintSettings.englishLabelOverrides,
@@ -294,6 +299,7 @@ const SettingsPage: React.FC = () => {
     draftPrintLocale,
     draftShowPartyBalances,
     draftShowAgent,
+    draftShowBillBalance,
     draftEnglishLabelOverrides,
     draftUrduLabelOverrides,
     invoicePrintSettings,
@@ -356,6 +362,7 @@ const SettingsPage: React.FC = () => {
     setDraftPrintLocale(invoicePrintSettings.locale);
     setDraftShowPartyBalances(invoicePrintSettings.showPartyBalances);
     setDraftShowAgent(invoicePrintSettings.showAgent);
+    setDraftShowBillBalance(invoicePrintSettings.showBillBalance);
     setDraftEnglishLabelOverrides({
       ...invoicePrintSettings.englishLabelOverrides,
     });
@@ -396,6 +403,7 @@ const SettingsPage: React.FC = () => {
       urduLabelOverrides: draftUrduLabelOverrides,
       showPartyBalances: draftShowPartyBalances,
       showAgent: draftShowAgent,
+      showBillBalance: draftShowBillBalance,
     });
 
     window.electron.store.set(
@@ -428,6 +436,7 @@ const SettingsPage: React.FC = () => {
     draftPrintLocale,
     draftShowPartyBalances,
     draftShowAgent,
+    draftShowBillBalance,
     draftEnglishLabelOverrides,
     draftUrduLabelOverrides,
     draftStrictSplitRule,
@@ -811,6 +820,22 @@ const SettingsPage: React.FC = () => {
                       <Switch
                         checked={draftShowAgent}
                         onCheckedChange={setDraftShowAgent}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 border rounded-md">
+                      <div className="space-y-0.5 pr-2">
+                        <Label className="text-sm font-medium">
+                          Show Credit / Udhar Stamp
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Prints the CREDIT / ادھار box on named-party sale
+                          invoices (not purchases or quotations)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={draftShowBillBalance}
+                        onCheckedChange={setDraftShowBillBalance}
                       />
                     </div>
                   </div>

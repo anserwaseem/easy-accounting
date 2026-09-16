@@ -19,6 +19,8 @@ export interface InvoicePrintSettings {
   showPartyBalances: boolean;
   /** custom-head / marketing representative name on the party row */
   showAgent: boolean;
+  /** CREDIT / ادھار stamp on named-party sale invoices */
+  showBillBalance: boolean;
 }
 
 const INVOICE_PRINT_KEYS = {
@@ -27,6 +29,7 @@ const INVOICE_PRINT_KEYS = {
   urduLabelOverrides: 'print.urduLabelOverrides',
   showPartyBalances: 'print.showPartyBalances',
   showAgent: 'print.showAgent',
+  showBillBalance: 'print.showBillBalance',
   /** legacy key removed from Settings UI; ignored when present */
   totalQuantityLabel: 'print.totalQuantityLabel',
 } as const;
@@ -34,6 +37,7 @@ const INVOICE_PRINT_KEYS = {
 const DEFAULT_LOCALE: InvoicePrintLocale = 'en';
 const DEFAULT_SHOW_PARTY_BALANCES = true;
 const DEFAULT_SHOW_AGENT = true;
+const DEFAULT_SHOW_BILL_BALANCE = true;
 
 const parseLocale = (value: unknown): InvoicePrintLocale =>
   value === 'ur' ? 'ur' : DEFAULT_LOCALE;
@@ -67,6 +71,9 @@ const readInvoicePrintSettings = (): InvoicePrintSettings => ({
   showAgent: parseShowPartyBalances(
     window.electron.store.get(INVOICE_PRINT_KEYS.showAgent),
   ),
+  showBillBalance: parseShowPartyBalances(
+    window.electron.store.get(INVOICE_PRINT_KEYS.showBillBalance),
+  ),
 });
 
 export const useInvoicePrintSettings = () => {
@@ -93,6 +100,10 @@ export const useInvoicePrintSettings = () => {
       next.showPartyBalances,
     );
     window.electron.store.set(INVOICE_PRINT_KEYS.showAgent, next.showAgent);
+    window.electron.store.set(
+      INVOICE_PRINT_KEYS.showBillBalance,
+      next.showBillBalance,
+    );
     setSettings(next);
   }, []);
 
@@ -104,6 +115,7 @@ export const useInvoicePrintSettings = () => {
         locale: DEFAULT_LOCALE,
         showPartyBalances: DEFAULT_SHOW_PARTY_BALANCES,
         showAgent: DEFAULT_SHOW_AGENT,
+        showBillBalance: DEFAULT_SHOW_BILL_BALANCE,
         englishLabels: getDefaultInvoicePrintLabels('en'),
         urduLabels: getDefaultInvoicePrintLabels('ur'),
       },
