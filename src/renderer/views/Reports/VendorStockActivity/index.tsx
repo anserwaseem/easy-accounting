@@ -572,6 +572,11 @@ const VendorStockActivityPage: React.FC = () => {
         <DataTable
           columns={columns}
           data={response.items}
+          virtual
+          virtualHeightMode="fill"
+          compact
+          defaultSortField="inventoryName"
+          defaultSortDirection="asc"
           searchFields={['inventoryName']}
           searchPlaceholder="Search items..."
           searchPersistenceKey="vendor-stock-activity-search"
