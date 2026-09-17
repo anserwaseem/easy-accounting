@@ -50,14 +50,18 @@ interface ItemNameCellProps {
   ) => void;
 }
 
+const clickableClassName =
+  'cursor-pointer underline decoration-dotted decoration-muted-foreground/70 underline-offset-4 hover:decoration-solid hover:decoration-foreground';
+
 const ItemNameCell: React.FC<ItemNameCellProps> = ({
   item,
   onSelect,
 }: ItemNameCellProps) => (
   <button
     type="button"
-    className="min-w-0 cursor-pointer truncate text-left hover:underline"
+    className={cn('min-w-0 truncate text-left', clickableClassName)}
     onClick={() => onSelect(item, 'all')}
+    title="View movements in this range"
   >
     {item.inventoryName}
   </button>
@@ -68,6 +72,7 @@ interface QtyCellProps {
   onClick?: () => void;
   emphasize?: boolean;
   destructive?: boolean;
+  title?: string;
 }
 
 const QtyCell: React.FC<QtyCellProps> = ({
@@ -75,6 +80,7 @@ const QtyCell: React.FC<QtyCellProps> = ({
   onClick,
   emphasize,
   destructive,
+  title,
 }: QtyCellProps) => {
   const className = cn(
     'tabular-nums',
@@ -87,8 +93,9 @@ const QtyCell: React.FC<QtyCellProps> = ({
   return (
     <button
       type="button"
-      className={cn(className, 'cursor-pointer hover:underline')}
+      className={cn(className, clickableClassName)}
       onClick={onClick}
+      title={title}
     >
       {quantity.toLocaleString()}
     </button>
@@ -296,6 +303,7 @@ const VendorStockActivityPage: React.FC = () => {
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.issued}
+            title="View send documents"
             onClick={
               itemHasFilterMovements(row.original, 'issue')
                 ? () => openItem(row.original, 'issue')
@@ -313,6 +321,7 @@ const VendorStockActivityPage: React.FC = () => {
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.purchased}
+            title="View purchase invoices"
             onClick={
               itemHasFilterMovements(row.original, 'purchase')
                 ? () => openItem(row.original, 'purchase')
@@ -330,6 +339,7 @@ const VendorStockActivityPage: React.FC = () => {
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.purchaseReturned}
+            title="View purchase returns"
             onClick={
               itemHasFilterMovements(row.original, 'purchase_return')
                 ? () => openItem(row.original, 'purchase_return')
@@ -347,6 +357,7 @@ const VendorStockActivityPage: React.FC = () => {
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.adjusted}
+            title="View adjustments"
             onClick={
               itemHasFilterMovements(row.original, 'adjusted')
                 ? () => openItem(row.original, 'adjusted')
@@ -366,6 +377,7 @@ const VendorStockActivityPage: React.FC = () => {
             quantity={row.original.closing}
             emphasize
             destructive
+            title="View movements in this range"
             onClick={() => openItem(row.original, 'all')}
           />
         ),
