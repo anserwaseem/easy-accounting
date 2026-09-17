@@ -480,6 +480,18 @@ export interface VendorStockActivityFilters {
   endDate: string;
 }
 
+export interface VendorStockActivityMovement {
+  id: number;
+  date: string;
+  movementType: VendorStockMovementType;
+  quantityDelta: number;
+  notes?: string | null;
+  referenceType?: string | null;
+  referenceId?: number | null;
+  issueNumber?: number | null;
+  invoiceNumber?: number | null;
+}
+
 export interface VendorStockActivityItem {
   inventoryId: number;
   inventoryName: string;
@@ -489,6 +501,7 @@ export interface VendorStockActivityItem {
   purchaseReturned: number;
   adjusted: number;
   closing: number;
+  movements: VendorStockActivityMovement[];
 }
 
 export interface VendorStockActivityResponse {

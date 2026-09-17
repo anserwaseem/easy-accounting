@@ -1324,7 +1324,7 @@ const PrintableInvoiceScreen = () => {
               ]}
             />
             <PrintSessionChoiceRow
-              label="Credit / Udhar"
+              label="Credit"
               value={effectiveShowBillBalance ? 'on' : 'off'}
               disabled={isBatchPrinting}
               onValueChange={(v) => setSessionShowBillBalance(v === 'on')}

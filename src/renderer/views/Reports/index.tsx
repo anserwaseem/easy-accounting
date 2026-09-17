@@ -93,7 +93,7 @@ const operationsReports: ReportOption[] = [
   {
     title: 'At-vendor activity',
     description:
-      'Reconcile a vendor balance or investigate how its current quantity changed.',
+      'Opening + sent − bought back at a vendor. Click numbers for the documents.',
     path: '/reports/vendor-stock-activity',
     icon: <Package className="h-6 w-6" />,
   },

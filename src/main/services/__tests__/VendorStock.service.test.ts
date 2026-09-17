@@ -212,6 +212,16 @@ describe('VendorStockService', () => {
     expect(row.issued).toBe(40);
     expect(row.purchased).toBe(25);
     expect(row.closing).toBe(115);
+    expect(row.movements).toHaveLength(2);
+    expect(row.movements[0]).toMatchObject({
+      movementType: 'issue',
+      quantityDelta: 40,
+      issueNumber: 1,
+    });
+    expect(row.movements[1]).toMatchObject({
+      movementType: 'purchase',
+      quantityDelta: -25,
+    });
 
     db.close();
   });
