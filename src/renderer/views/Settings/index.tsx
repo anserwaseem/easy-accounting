@@ -826,7 +826,7 @@ const SettingsPage: React.FC = () => {
                     <div className="flex items-center justify-between p-3 border rounded-md">
                       <div className="space-y-0.5 pr-2">
                         <Label className="text-sm font-medium">
-                          Show Credit / Udhar Stamp
+                          Show Credit Stamp
                         </Label>
                         <p className="text-xs text-muted-foreground">
                           Prints the CREDIT / ادھار box on named-party sale
