@@ -267,6 +267,23 @@ const PurchasesByVendorPage: React.FC = () => {
                     placeholder="Select vendor"
                     searchPlaceholder="Search vendors..."
                     autoFocusTrigger={selectedVendorId == null}
+                    renderSelectItem={(account) => (
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2>{account.name}</h2>
+                          {account.tracksVendorStock ? (
+                            <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
+                              Stock
+                            </span>
+                          ) : null}
+                        </div>
+                        {account.code != null && account.code !== '' ? (
+                          <p className="text-xs text-slate-400">
+                            {account.code}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
                   />
                 </div>
               </div>
