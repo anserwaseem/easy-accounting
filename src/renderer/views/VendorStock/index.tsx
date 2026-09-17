@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { PackageOpen, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { sumBy } from 'lodash';
+import {
+  Download,
+  PackageOpen,
+  Plus,
+  Printer,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
@@ -9,6 +18,7 @@ import { DateHeader } from '@/renderer/components/common/DateHeader';
 import { Badge } from '@/renderer/shad/ui/badge';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { cn } from '@/renderer/lib/utils';
+import { exportReportWorkbook } from '@/renderer/lib/reportExport';
 import {
   dateFormatOptions,
   datetimeFormatOptions,
@@ -24,6 +34,10 @@ import {
   DialogTitle,
 } from '@/renderer/shad/ui/dialog';
 import { ImportVendorOpeningStock } from './ImportVendorOpeningStock';
+import { printVendorStockIframe } from './printVendorStock';
+
+const sanitizeFilePart = (value: string): string =>
+  value.replace(/\s+/g, '_').replace(/[^\w.-]/g, '');
 
 const SELECTED_VENDOR_STORE_KEY = 'vendorStockSelectedVendorId';
 
@@ -51,6 +65,9 @@ const VendorStockPage: React.FC = () => {
   const [issueToDelete, setIssueToDelete] =
     useState<VendorIssueListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [gridViewRows, setGridViewRows] = useState<VendorStockRow[] | null>(
+    null,
+  );
 
   const applyVendorId = useCallback((vendorId: number | undefined) => {
     setSelectedVendorId(vendorId);
@@ -93,6 +110,10 @@ const VendorStockPage: React.FC = () => {
     load();
   }, [load]);
 
+  useEffect(() => {
+    setGridViewRows(null);
+  }, [onHand]);
+
   const handleConfirmDelete = async () => {
     if (!issueToDelete) return;
     setDeleting(true);
@@ -131,6 +152,115 @@ const VendorStockPage: React.FC = () => {
     ],
     [vendors],
   );
+
+  const selectedVendorLabel = useMemo(() => {
+    if (selectedVendorId == null) return 'All tracked vendors';
+    const vendor = vendors.find((v) => v.id === selectedVendorId);
+    if (!vendor) return 'Vendor';
+    return vendor.code != null
+      ? `${vendor.code} — ${vendor.name}`
+      : vendor.name;
+  }, [selectedVendorId, vendors]);
+
+  const handleGridViewModelChange = useCallback((next: VendorStockRow[]) => {
+    setGridViewRows((prev) => {
+      if (
+        prev &&
+        prev.length === next.length &&
+        prev.every((row, index) => row === next[index])
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
+  const exportPrintRows = gridViewRows ?? onHand;
+  const includeVendor = selectedVendorId == null;
+  const itemCount = exportPrintRows.length;
+  const totalQty = useMemo(
+    () => sumBy(exportPrintRows, 'quantity'),
+    [exportPrintRows],
+  );
+  const canExport = !isLoading && itemCount > 0;
+
+  const handleExport = useCallback(() => {
+    if (!canExport) return;
+    try {
+      const vendorPart = sanitizeFilePart(selectedVendorLabel || 'vendor');
+      const today = format(new Date(), 'yyyy-MM-dd');
+      exportReportWorkbook(
+        [
+          {
+            title: 'Vendor Stock',
+            subtitle: selectedVendorLabel,
+            sheetName: 'At vendor',
+            columns: [
+              ...(includeVendor
+                ? [
+                    {
+                      key: 'vendorAccountName',
+                      header: 'Vendor',
+                      format: 'string' as const,
+                      width: 28,
+                    },
+                  ]
+                : []),
+              {
+                key: 'inventoryName',
+                header: 'Item',
+                format: 'string' as const,
+                width: 28,
+              },
+              {
+                key: 'quantity',
+                header: 'Qty',
+                format: 'number' as const,
+                width: 10,
+              },
+            ],
+            rows: exportPrintRows as unknown as Array<Record<string, unknown>>,
+            footerRow: { quantity: totalQty },
+          },
+        ],
+        `Vendor_Stock_${vendorPart}_${today}.xlsx`,
+      );
+      toast({
+        title: 'Success',
+        description: 'Vendor stock exported to Excel.',
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to export vendor stock.',
+        variant: 'destructive',
+      });
+    }
+  }, [
+    canExport,
+    exportPrintRows,
+    includeVendor,
+    selectedVendorLabel,
+    totalQty,
+  ]);
+
+  const handlePrint = useCallback(() => {
+    if (!canExport) return;
+    printVendorStockIframe({
+      rows: exportPrintRows,
+      vendorLabel: selectedVendorLabel,
+      totalQty,
+      includeVendor,
+    });
+  }, [
+    canExport,
+    exportPrintRows,
+    includeVendor,
+    selectedVendorLabel,
+    totalQty,
+  ]);
 
   const onHandColumns: ColumnDef<VendorStockRow>[] = useMemo(
     () => [
@@ -257,6 +387,26 @@ const VendorStockPage: React.FC = () => {
     [navigate, selectedVendorId],
   );
 
+  const onHandSearchFields = useMemo(
+    () =>
+      includeVendor
+        ? ['vendorAccountName', 'inventoryName']
+        : ['inventoryName'],
+    [includeVendor],
+  );
+
+  const stickyFooterRow = useMemo(() => {
+    const qtyCell = (
+      <span
+        key="qty-total"
+        className="block font-semibold tabular-nums whitespace-nowrap"
+      >
+        {totalQty.toLocaleString()}
+      </span>
+    );
+    return includeVendor ? [null, null, qtyCell] : [null, qtyCell];
+  }, [includeVendor, totalQty]);
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -279,8 +429,29 @@ const VendorStockPage: React.FC = () => {
             size="sm"
             onClick={load}
             disabled={isLoading}
+            title="Refresh"
           >
             <RefreshCw size={16} />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleExport}
+            title="Export to Excel"
+            disabled={!canExport}
+            aria-label="Export to Excel"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handlePrint}
+            title="Print report"
+            disabled={!canExport}
+            aria-label="Print report"
+          >
+            <Printer className="h-4 w-4" />
           </Button>
         </div>
       </header>
@@ -318,8 +489,29 @@ const VendorStockPage: React.FC = () => {
       )}
 
       <section className="space-y-2">
-        <h2 className="text-lg font-medium">At vendor</h2>
-        <DataTable columns={onHandColumns} data={onHand} />
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-medium">At vendor</h2>
+          {itemCount > 0 && (
+            <span className="text-sm text-muted-foreground">
+              {totalQty.toLocaleString()} at vendor
+            </span>
+          )}
+        </div>
+        <DataTable
+          key={includeVendor ? 'all-vendors' : 'one-vendor'}
+          columns={onHandColumns}
+          data={onHand}
+          defaultSortField={
+            includeVendor ? 'vendorAccountName' : 'inventoryName'
+          }
+          defaultSortDirection="asc"
+          searchFields={onHandSearchFields}
+          searchPlaceholder="Search items..."
+          searchPersistenceKey="vendor-stock-on-hand-search"
+          getRowKey={(row) => `${row.vendorAccountId}-${row.inventoryId}`}
+          stickyFooterRow={itemCount > 0 ? stickyFooterRow : undefined}
+          onViewModelChange={handleGridViewModelChange}
+        />
       </section>
 
       <section className="space-y-2">
