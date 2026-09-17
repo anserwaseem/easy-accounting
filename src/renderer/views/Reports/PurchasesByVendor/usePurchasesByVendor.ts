@@ -6,6 +6,7 @@ import {
   saveSavedFilters,
   makeSavedState,
 } from '@/renderer/lib/reportFilters';
+import { pinStockAccounts } from '@/renderer/lib/pinStockAccounts';
 import { toLowerTrim } from '@/renderer/lib/utils';
 import type { Account, PurchasesByVendorResponse } from 'types';
 import { AccountType, InvoiceType, REPORT_FILTER_KEYS } from 'types';
@@ -54,7 +55,11 @@ export const usePurchasesByVendor = () => {
   );
   const filterRef = useRef(0);
 
-  const vendors = useMemo(() => accounts.filter(isVendorParty), [accounts]);
+  // stock-tracking vendors are the usual pick for this report — pin them first
+  const vendors = useMemo(
+    () => pinStockAccounts(accounts.filter(isVendorParty)),
+    [accounts],
+  );
 
   const selectedVendorName = useMemo(() => {
     if (selectedVendorId == null) return '';
