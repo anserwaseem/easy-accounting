@@ -1,5 +1,5 @@
 import type { Database, Statement } from 'better-sqlite3';
-import { get, toNumber } from 'lodash';
+import { get, groupBy, toNumber } from 'lodash';
 import { familyHeadId } from '../../lib/inventoryFamily';
 import type {
   ApiResponse,
@@ -9,6 +9,7 @@ import type {
   VendorIssueView,
   VendorStockActivityFilters,
   VendorStockActivityItem,
+  VendorStockActivityMovement,
   VendorStockActivityResponse,
   VendorStockMovementType,
   VendorStockOpeningRow,
@@ -75,6 +76,8 @@ export class VendorStockService {
   private stmGetAccountName!: Statement;
 
   private stmGetInventoryIdsWithVendorStock!: Statement;
+
+  private stmGetActivityMovementsInRange!: Statement;
 
   constructor(db?: Database) {
     this.db = db ?? DatabaseService.getInstance().getDatabase();
@@ -514,6 +517,24 @@ export class VendorStockService {
       vendorAccountId: cast(vendorAccountId),
     }) as Array<{ inventoryId: number; inventoryName: string }>;
 
+    const movementRows = this.stmGetActivityMovementsInRange.all({
+      vendorAccountId: cast(vendorAccountId),
+      startDate,
+      endDate,
+    }) as Array<{
+      id: number;
+      inventoryId: number;
+      date: string;
+      movementType: VendorStockMovementType;
+      quantityDelta: number;
+      notes?: string | null;
+      referenceType?: string | null;
+      referenceId?: number | null;
+      issueNumber?: number | null;
+      invoiceNumber?: number | null;
+    }>;
+    const movementsByInventoryId = groupBy(movementRows, 'inventoryId');
+
     const items: VendorStockActivityItem[] = idRows.map((row) => {
       const opening = this.sumMovementsBefore(
         vendorAccountId,
@@ -542,6 +563,19 @@ export class VendorStockService {
         purchaseReturned: range.purchaseReturned,
         adjusted: range.adjusted,
         closing,
+        movements: (movementsByInventoryId[row.inventoryId] ?? []).map(
+          (movement): VendorStockActivityMovement => ({
+            id: movement.id,
+            date: movement.date,
+            movementType: movement.movementType,
+            quantityDelta: movement.quantityDelta,
+            notes: movement.notes,
+            referenceType: movement.referenceType,
+            referenceId: movement.referenceId,
+            issueNumber: movement.issueNumber,
+            invoiceNumber: movement.invoiceNumber,
+          }),
+        ),
       };
     });
 
@@ -1008,6 +1042,29 @@ export class VendorStockService {
         WHERE m.vendorAccountId = @vendorAccountId
       )
       ORDER BY inventoryName COLLATE NOCASE
+    `);
+
+    this.stmGetActivityMovementsInRange = this.db.prepare(`
+      SELECT
+        m.id,
+        m.inventoryId,
+        m.date,
+        m.movementType,
+        m.quantityDelta,
+        m.notes,
+        m.referenceType,
+        m.referenceId,
+        vi.issueNumber AS issueNumber,
+        invc.invoiceNumber AS invoiceNumber
+      FROM vendor_stock_movements m
+      LEFT JOIN vendor_issues vi
+        ON m.referenceType = 'vendor_issue' AND vi.id = m.referenceId
+      LEFT JOIN invoices invc
+        ON m.referenceType = 'invoice' AND invc.id = m.referenceId
+      WHERE m.vendorAccountId = @vendorAccountId
+        AND datetime(m.date) >= datetime(@startDate)
+        AND datetime(m.date) < datetime(@endDate, '+1 day')
+      ORDER BY datetime(m.date), m.id
     `);
   }
 }

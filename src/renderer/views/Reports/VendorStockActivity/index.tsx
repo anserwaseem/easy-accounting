@@ -28,79 +28,72 @@ import type {
 import { REPORT_FILTER_KEYS } from 'types';
 import { printStyles } from '../components/printStyles';
 import { EmptyState, LoadingState } from '../components';
+import {
+  ACTIVITY_COLUMN_HEADERS,
+  ACTIVITY_EQUATION,
+  activityMovementLabel,
+  itemHasFilterMovements,
+  type ActivityMovementFilter,
+} from './activityPresentation';
 import { printVendorStockActivityIframe } from './printVendorStockActivity';
+import { VendorStockActivitySheet } from './VendorStockActivitySheet';
 
 interface VendorStockActivityLocationState {
   vendorAccountId?: number;
 }
 
-const COLUMNS: ColumnDef<VendorStockActivityItem>[] = [
-  {
-    accessorKey: 'inventoryName',
-    header: 'Family',
-    headerTooltip:
-      'Shared quantity pool at this vendor. Purchases of the head or any linked variant affect this row.',
-  },
-  {
-    accessorKey: 'opening',
-    header: 'Opening',
-    headerTooltip: 'Quantity held before the selected start date.',
-    cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.opening}</span>
-    ),
-  },
-  {
-    accessorKey: 'issued',
-    header: 'Issued',
-    headerTooltip: 'Quantity sent to this vendor during the selected range.',
-    cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.issued}</span>
-    ),
-  },
-  {
-    accessorKey: 'purchased',
-    header: 'Received via purchase',
-    headerTooltip:
-      'Finished quantity bought back during the selected range, including linked variants.',
-    cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.purchased}</span>
-    ),
-  },
-  {
-    accessorKey: 'purchaseReturned',
-    header: 'Purchase returns',
-    headerTooltip:
-      'Purchase quantity returned during the selected range; added back to quantity at vendor.',
-    cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.purchaseReturned}</span>
-    ),
-  },
-  {
-    accessorKey: 'adjusted',
-    header: 'Adjusted',
-    headerTooltip:
-      'Corrections and starting-quantity imports dated inside the selected range.',
-    cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.adjusted}</span>
-    ),
-  },
-  {
-    accessorKey: 'closing',
-    header: 'Closing',
-    headerTooltip:
-      'Opening + issued − received via purchase + purchase returns + adjusted.',
-    cell: ({ row }) => (
-      <span
-        className={cn(
-          'tabular-nums font-medium',
-          row.original.closing < 0 && 'text-destructive',
-        )}
-      >
-        {row.original.closing}
-      </span>
-    ),
-  },
-];
+interface ItemNameCellProps {
+  item: VendorStockActivityItem;
+  onSelect: (
+    item: VendorStockActivityItem,
+    filter: ActivityMovementFilter,
+  ) => void;
+}
+
+const ItemNameCell: React.FC<ItemNameCellProps> = ({
+  item,
+  onSelect,
+}: ItemNameCellProps) => (
+  <button
+    type="button"
+    className="min-w-0 cursor-pointer truncate text-left hover:underline"
+    onClick={() => onSelect(item, 'all')}
+  >
+    {item.inventoryName}
+  </button>
+);
+
+interface QtyCellProps {
+  quantity: number;
+  onClick?: () => void;
+  emphasize?: boolean;
+  destructive?: boolean;
+}
+
+const QtyCell: React.FC<QtyCellProps> = ({
+  quantity,
+  onClick,
+  emphasize,
+  destructive,
+}: QtyCellProps) => {
+  const className = cn(
+    'tabular-nums',
+    emphasize && 'font-medium',
+    destructive && quantity < 0 && 'text-destructive',
+  );
+  if (!onClick) {
+    return <span className={className}>{quantity.toLocaleString()}</span>;
+  }
+  return (
+    <button
+      type="button"
+      className={cn(className, 'cursor-pointer hover:underline')}
+      onClick={onClick}
+    >
+      {quantity.toLocaleString()}
+    </button>
+  );
+};
 
 const VendorStockActivityPage: React.FC = () => {
   const location = useLocation();
@@ -148,6 +141,10 @@ const VendorStockActivityPage: React.FC = () => {
   const [gridViewRows, setGridViewRows] = useState<
     VendorStockActivityItem[] | null
   >(null);
+  const [selectedItem, setSelectedItem] =
+    useState<VendorStockActivityItem | null>(null);
+  const [selectedFilter, setSelectedFilter] =
+    useState<ActivityMovementFilter>('all');
 
   const vendorOptions = useMemo(
     () =>
@@ -187,6 +184,7 @@ const VendorStockActivityPage: React.FC = () => {
         });
         setResponse(result);
         setGridViewRows(null);
+        setSelectedItem(null);
       } catch (error) {
         toast({
           description: String(error),
@@ -261,46 +259,212 @@ const VendorStockActivityPage: React.FC = () => {
     [fetchReport, persistFilters, presetValue, selectedVendorId],
   );
 
+  const openItem = useCallback(
+    (item: VendorStockActivityItem, filter: ActivityMovementFilter) => {
+      setSelectedFilter(filter);
+      setSelectedItem(item);
+    },
+    [],
+  );
+
+  const columns = useMemo<ColumnDef<VendorStockActivityItem>[]>(
+    () => [
+      {
+        accessorKey: 'inventoryName',
+        header: ACTIVITY_COLUMN_HEADERS.inventoryName,
+        headerTooltip:
+          'Shared quantity pool at this vendor. Send or buy a variant and it still hits this row.',
+        onClick: (row) => openItem(row.original, 'all'),
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <ItemNameCell item={row.original} onSelect={openItem} />
+        ),
+      },
+      {
+        accessorKey: 'opening',
+        header: ACTIVITY_COLUMN_HEADERS.opening,
+        headerTooltip: 'Qty already at this vendor before the start date.',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => <QtyCell quantity={row.original.opening} />,
+      },
+      {
+        accessorKey: 'issued',
+        header: ACTIVITY_COLUMN_HEADERS.issued,
+        headerTooltip:
+          'Goods sent to this vendor in the range. Click for send documents.',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <QtyCell
+            quantity={row.original.issued}
+            onClick={
+              itemHasFilterMovements(row.original, 'issue')
+                ? () => openItem(row.original, 'issue')
+                : undefined
+            }
+          />
+        ),
+      },
+      {
+        accessorKey: 'purchased',
+        header: ACTIVITY_COLUMN_HEADERS.purchased,
+        headerTooltip:
+          'Finished goods bought back on a purchase invoice. Reduces qty at vendor. Click for invoices.',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <QtyCell
+            quantity={row.original.purchased}
+            onClick={
+              itemHasFilterMovements(row.original, 'purchase')
+                ? () => openItem(row.original, 'purchase')
+                : undefined
+            }
+          />
+        ),
+      },
+      {
+        accessorKey: 'purchaseReturned',
+        header: ACTIVITY_COLUMN_HEADERS.purchaseReturned,
+        headerTooltip:
+          'Purchase returns in the range. Adds qty back at vendor. Click for documents.',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <QtyCell
+            quantity={row.original.purchaseReturned}
+            onClick={
+              itemHasFilterMovements(row.original, 'purchase_return')
+                ? () => openItem(row.original, 'purchase_return')
+                : undefined
+            }
+          />
+        ),
+      },
+      {
+        accessorKey: 'adjusted',
+        header: ACTIVITY_COLUMN_HEADERS.adjusted,
+        headerTooltip:
+          'Opening imports dated inside the range, plus corrections. Click for lines.',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <QtyCell
+            quantity={row.original.adjusted}
+            onClick={
+              itemHasFilterMovements(row.original, 'adjusted')
+                ? () => openItem(row.original, 'adjusted')
+                : undefined
+            }
+          />
+        ),
+      },
+      {
+        accessorKey: 'closing',
+        header: ACTIVITY_COLUMN_HEADERS.closing,
+        headerTooltip: ACTIVITY_EQUATION,
+        onClick: (row) => openItem(row.original, 'all'),
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => (
+          <QtyCell
+            quantity={row.original.closing}
+            emphasize
+            destructive
+            onClick={() => openItem(row.original, 'all')}
+          />
+        ),
+      },
+    ],
+    [openItem],
+  );
+
+  const dateSubtitle = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return '';
+    return `${format(dateRange.from, 'PP')} – ${format(dateRange.to, 'PP')}`;
+  }, [dateRange]);
+
   const exportRows = gridViewRows ?? response?.items ?? [];
 
   const handleExport = () => {
     if (!response) return;
+    const subtitle = `${response.vendorAccountName} · ${dateSubtitle}`;
+    const movementRows = exportRows.flatMap((item) =>
+      item.movements.map((movement) => ({
+        date: movement.date,
+        source: activityMovementLabel(movement),
+        inventoryName: item.inventoryName,
+        quantityDelta: movement.quantityDelta,
+      })),
+    );
     exportReportWorkbook(
       [
         {
-          title: 'Vendor stock activity',
-          subtitle: `${response.vendorAccountName} · ${response.startDate} to ${response.endDate}`,
+          title: 'At-vendor activity',
+          subtitle: `${subtitle} · ${ACTIVITY_EQUATION}`,
           sheetName: 'Activity',
           columns: [
             {
               key: 'inventoryName',
-              header: 'Family',
+              header: ACTIVITY_COLUMN_HEADERS.inventoryName,
               format: 'string',
               width: 28,
             },
-            { key: 'opening', header: 'Opening', format: 'number', width: 10 },
-            { key: 'issued', header: 'Issued', format: 'number', width: 10 },
             {
-              key: 'purchased',
-              header: 'Received via purchase',
-              format: 'number',
-              width: 14,
-            },
-            {
-              key: 'purchaseReturned',
-              header: 'Purchase returns',
-              format: 'number',
-              width: 14,
-            },
-            {
-              key: 'adjusted',
-              header: 'Adjusted',
+              key: 'opening',
+              header: ACTIVITY_COLUMN_HEADERS.opening,
               format: 'number',
               width: 10,
             },
-            { key: 'closing', header: 'Closing', format: 'number', width: 10 },
+            {
+              key: 'issued',
+              header: ACTIVITY_COLUMN_HEADERS.issued,
+              format: 'number',
+              width: 10,
+            },
+            {
+              key: 'purchased',
+              header: ACTIVITY_COLUMN_HEADERS.purchased,
+              format: 'number',
+              width: 12,
+            },
+            {
+              key: 'purchaseReturned',
+              header: ACTIVITY_COLUMN_HEADERS.purchaseReturned,
+              format: 'number',
+              width: 10,
+            },
+            {
+              key: 'adjusted',
+              header: ACTIVITY_COLUMN_HEADERS.adjusted,
+              format: 'number',
+              width: 10,
+            },
+            {
+              key: 'closing',
+              header: ACTIVITY_COLUMN_HEADERS.closing,
+              format: 'number',
+              width: 10,
+            },
           ],
           rows: exportRows as unknown as Array<Record<string, unknown>>,
+        },
+        {
+          title: 'At-vendor activity — Movements',
+          subtitle,
+          sheetName: 'Movements',
+          columns: [
+            { key: 'date', header: 'Date', format: 'date', width: 14 },
+            { key: 'source', header: 'Source', format: 'string', width: 22 },
+            {
+              key: 'inventoryName',
+              header: ACTIVITY_COLUMN_HEADERS.inventoryName,
+              format: 'string',
+              width: 28,
+            },
+            {
+              key: 'quantityDelta',
+              header: 'At vendor',
+              format: 'number',
+              width: 12,
+            },
+          ],
+          rows: movementRows as unknown as Array<Record<string, unknown>>,
         },
       ],
       `vendor-stock-activity-${response.vendorAccountName}`,
@@ -312,8 +476,7 @@ const VendorStockActivityPage: React.FC = () => {
     printVendorStockActivityIframe({
       rows: exportRows,
       vendorName: response.vendorAccountName,
-      startDate: response.startDate,
-      endDate: response.endDate,
+      dateSubtitle,
     });
   };
 
@@ -325,8 +488,11 @@ const VendorStockActivityPage: React.FC = () => {
           <div>
             <h1 className="title-new">At-vendor activity</h1>
             <p className="text-sm text-muted-foreground">
-              Use this to reconcile a vendor&apos;s physical count, investigate
-              a negative balance, or explain how current quantity changed.
+              Qty held at this vendor — not warehouse stock. Click a number to
+              see the sends or purchases behind it.
+            </p>
+            <p className="mt-1 text-sm font-medium tabular-nums">
+              {ACTIVITY_EQUATION}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 print:hidden">
@@ -374,6 +540,15 @@ const VendorStockActivityPage: React.FC = () => {
         </div>
       }
     >
+      <VendorStockActivitySheet
+        item={selectedItem}
+        filter={selectedFilter}
+        vendorName={response?.vendorAccountName ?? ''}
+        dateSubtitle={dateSubtitle}
+        onOpenChange={(open) => {
+          if (!open) setSelectedItem(null);
+        }}
+      />
       {isLoading && <LoadingState />}
       {!isLoading && !response && (
         <EmptyState message="Select a vendor to see activity." />
@@ -383,8 +558,12 @@ const VendorStockActivityPage: React.FC = () => {
       )}
       {!isLoading && response && response.items.length > 0 && (
         <DataTable
-          columns={COLUMNS}
+          columns={columns}
           data={response.items}
+          searchFields={['inventoryName']}
+          searchPlaceholder="Search items..."
+          searchPersistenceKey="vendor-stock-activity-search"
+          getRowKey={(row) => row.inventoryId}
           onViewModelChange={setGridViewRows}
         />
       )}
