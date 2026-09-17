@@ -33,23 +33,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/renderer/shad/ui/dialog';
+import {
+  persistVendorStockVendorId,
+  readStoredVendorStockVendorId,
+} from '@/renderer/lib/vendorStockSelection';
 import { ImportVendorOpeningStock } from './ImportVendorOpeningStock';
 import { printVendorStockIframe } from './printVendorStock';
 
 const sanitizeFilePart = (value: string): string =>
   value.replace(/\s+/g, '_').replace(/[^\w.-]/g, '');
-
-const SELECTED_VENDOR_STORE_KEY = 'vendorStockSelectedVendorId';
-
-const readStoredVendorId = (): number | undefined => {
-  const stored = window.electron.store.get(SELECTED_VENDOR_STORE_KEY);
-  const id = Number(stored);
-  return Number.isInteger(id) && id > 0 ? id : undefined;
-};
-
-const persistVendorId = (vendorId: number | undefined): void => {
-  window.electron.store.set(SELECTED_VENDOR_STORE_KEY, vendorId ?? null);
-};
 
 const VendorStockPage: React.FC = () => {
   const navigate = useNavigate();
@@ -57,7 +49,7 @@ const VendorStockPage: React.FC = () => {
     Array<{ id: number; name: string; code?: number | string | null }>
   >([]);
   const [selectedVendorId, setSelectedVendorId] = useState<number | undefined>(
-    readStoredVendorId,
+    readStoredVendorStockVendorId,
   );
   const [onHand, setOnHand] = useState<VendorStockRow[]>([]);
   const [issues, setIssues] = useState<VendorIssueListItem[]>([]);
@@ -71,7 +63,7 @@ const VendorStockPage: React.FC = () => {
 
   const applyVendorId = useCallback((vendorId: number | undefined) => {
     setSelectedVendorId(vendorId);
-    persistVendorId(vendorId);
+    persistVendorStockVendorId(vendorId);
   }, []);
 
   const load = useCallback(async () => {
@@ -480,6 +472,11 @@ const VendorStockPage: React.FC = () => {
           <Button variant="link" className="px-0" asChild>
             <Link
               to="/reports/vendor-stock-activity"
+              state={
+                selectedVendorId != null
+                  ? { vendorAccountId: selectedVendorId }
+                  : undefined
+              }
               title="Reconcile or investigate this vendor balance"
             >
               Reconcile activity

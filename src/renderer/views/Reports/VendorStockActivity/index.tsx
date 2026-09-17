@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { Download, Printer } from 'lucide-react';
@@ -8,6 +9,15 @@ import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
+import {
+  loadSavedFilters,
+  makeSavedState,
+  saveSavedFilters,
+} from '@/renderer/lib/reportFilters';
+import {
+  pickTrackedVendorId,
+  readStoredVendorStockVendorId,
+} from '@/renderer/lib/vendorStockSelection';
 import { cn } from '@/renderer/lib/utils';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
@@ -15,9 +25,14 @@ import type {
   VendorStockActivityItem,
   VendorStockActivityResponse,
 } from 'types';
+import { REPORT_FILTER_KEYS } from 'types';
 import { printStyles } from '../components/printStyles';
 import { EmptyState, LoadingState } from '../components';
 import { printVendorStockActivityIframe } from './printVendorStockActivity';
+
+interface VendorStockActivityLocationState {
+  vendorAccountId?: number;
+}
 
 const COLUMNS: ColumnDef<VendorStockActivityItem>[] = [
   {
@@ -88,21 +103,43 @@ const COLUMNS: ColumnDef<VendorStockActivityItem>[] = [
 ];
 
 const VendorStockActivityPage: React.FC = () => {
-  const defaultDateRange = useMemo<DateRange>(
-    () => ({
-      from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-      to: new Date(),
-    }),
+  const location = useLocation();
+  const saved = useMemo(
+    () => loadSavedFilters(REPORT_FILTER_KEYS.vendorStockActivity),
     [],
   );
+  const defaultDateRange = useMemo<DateRange>(() => {
+    if (saved.dateRange?.from && saved.dateRange?.to) {
+      return {
+        from: new Date(saved.dateRange.from),
+        to: new Date(saved.dateRange.to),
+      };
+    }
+    return {
+      from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      to: new Date(),
+    };
+  }, [saved.dateRange]);
   const [vendors, setVendors] = useState<
     Array<{ id: number; name: string; code?: number | string | null }>
   >([]);
-  const [selectedVendorId, setSelectedVendorId] = useState<
-    number | undefined
-  >();
+  const [selectedVendorId, setSelectedVendorId] = useState<number | undefined>(
+    () => {
+      const navId = (location.state as VendorStockActivityLocationState | null)
+        ?.vendorAccountId;
+      if (navId != null && Number.isInteger(navId) && navId > 0) return navId;
+      const savedId = saved.accountIds?.[0];
+      if (savedId != null && Number.isInteger(savedId) && savedId > 0) {
+        return savedId;
+      }
+      return undefined;
+    },
+  );
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     defaultDateRange,
+  );
+  const [presetValue, setPresetValue] = useState<string | undefined>(
+    saved.presetValue ?? 'current-month',
   );
   const [response, setResponse] = useState<VendorStockActivityResponse | null>(
     null,
@@ -119,6 +156,23 @@ const VendorStockActivityPage: React.FC = () => {
         name: v.code != null ? `${v.code} — ${v.name}` : v.name,
       })),
     [vendors],
+  );
+
+  const persistFilters = useCallback(
+    (
+      range: DateRange | undefined,
+      vendorId: number | undefined,
+      preset: string | undefined,
+    ) => {
+      saveSavedFilters(
+        REPORT_FILTER_KEYS.vendorStockActivity,
+        makeSavedState(range, undefined, {
+          ...(preset ? { presetValue: preset } : {}),
+          ...(vendorId != null ? { accountIds: [vendorId] } : {}),
+        }),
+      );
+    },
+    [],
   );
 
   const fetchReport = useCallback(
@@ -152,9 +206,24 @@ const VendorStockActivityPage: React.FC = () => {
       .then((rows) => {
         if (!active) return;
         setVendors(rows);
-        if (rows.length === 1) {
-          setSelectedVendorId(rows[0].id);
-          fetchReport(rows[0].id, defaultDateRange);
+        const nextVendorId = pickTrackedVendorId(
+          rows.map((row) => row.id),
+          [
+            selectedVendorId,
+            readStoredVendorStockVendorId(),
+            rows.length === 1 ? rows[0].id : undefined,
+          ],
+        );
+        if (nextVendorId !== selectedVendorId) {
+          setSelectedVendorId(nextVendorId);
+          persistFilters(dateRange, nextVendorId, presetValue);
+          if (nextVendorId != null && dateRange?.from && dateRange.to) {
+            fetchReport(nextVendorId, dateRange);
+          }
+          return;
+        }
+        if (nextVendorId != null) {
+          persistFilters(dateRange, nextVendorId, presetValue);
         }
       })
       .catch((error) => {
@@ -170,21 +239,26 @@ const VendorStockActivityPage: React.FC = () => {
     (value: string | number) => {
       const vendorId = Number(value);
       setSelectedVendorId(vendorId);
+      persistFilters(dateRange, vendorId, presetValue);
       if (dateRange?.from && dateRange.to) {
         fetchReport(vendorId, dateRange);
       }
     },
-    [dateRange, fetchReport],
+    [dateRange, fetchReport, persistFilters, presetValue],
   );
 
   const handleDateChange = useCallback(
-    (range?: DateRange) => {
+    (range?: DateRange, selectValue?: string) => {
+      if (!range) return;
       setDateRange(range);
-      if (selectedVendorId && range?.from && range.to) {
+      const nextPreset = selectValue || presetValue;
+      if (selectValue) setPresetValue(selectValue);
+      persistFilters(range, selectedVendorId, nextPreset);
+      if (selectedVendorId && range.from && range.to) {
         fetchReport(selectedVendorId, range);
       }
     },
-    [fetchReport, selectedVendorId],
+    [fetchReport, persistFilters, presetValue, selectedVendorId],
   );
 
   const exportRows = gridViewRows ?? response?.items ?? [];
@@ -273,7 +347,7 @@ const VendorStockActivityPage: React.FC = () => {
               <DateRangePickerWithPresets
                 $onSelect={handleDateChange}
                 initialRange={defaultDateRange}
-                initialSelectValue="current-month"
+                initialSelectValue={presetValue}
               />
             </div>
             <Button
