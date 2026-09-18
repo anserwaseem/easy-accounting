@@ -159,6 +159,26 @@ const InventoryVirtualGrid = memo(
 );
 InventoryVirtualGrid.displayName = 'InventoryVirtualGrid';
 
+interface InventoryNameCellProps {
+  item: InventoryItem;
+}
+
+const InventoryNameCell: React.FC<InventoryNameCellProps> = ({
+  item,
+}: InventoryNameCellProps) => {
+  const isActive = item.isActive !== 0 && item.isActive !== false;
+  return (
+    <div className={cn('flex items-center gap-1.5', !isActive && 'opacity-60')}>
+      <span>{item.name}</span>
+      {!isActive && (
+        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800">
+          Inactive
+        </span>
+      )}
+    </div>
+  );
+};
+
 interface InventoryTableProps {
   refetchInventory: () => void;
   options: {
@@ -802,8 +822,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         accessorKey: 'name',
         header: 'Name',
-        size: 102,
+        size: 110,
         enableSorting: !editMode,
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }: { row: { original: InventoryItem } }) => (
+          <InventoryNameCell item={row.original} />
+        ),
       },
       ...(visibleCoreColumnIds.includes('family')
         ? [
@@ -1193,9 +1217,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             )}
           </div>
         ),
-        // three 32px icon buttons + gaps; a shrink-to-fit width made the third
-        // button overflow the column
-        size: 112,
+        // five 32px icon buttons + gaps: AdjustStock, EditItemAttributes,
+        // ToggleActive, Delete, and Edit
+        size: 180,
       },
     ];
     // updateItemType closes over itemTypes/editMode; columns rebuild when those

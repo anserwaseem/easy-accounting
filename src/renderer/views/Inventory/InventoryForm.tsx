@@ -16,7 +16,7 @@ import {
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
-import { get, keys, map, merge } from 'lodash';
+import { capitalize, get, keys, map, merge } from 'lodash';
 import { baseEntityKeys } from '@/renderer/lib/constants';
 import { useMemo } from 'react';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
@@ -81,7 +81,7 @@ export const InventoryForm = <
     // "title" alone reads as a synonym for the name field directly above it
     if (key === 'title') return 'Display title';
     if (key === 'descriptionUrdu') return 'Description (Urdu)';
-    return key;
+    return capitalize(key);
   };
 
   const fields = map(

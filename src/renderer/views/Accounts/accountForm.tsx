@@ -95,7 +95,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           name="headName"
           render={({ field }) => (
             <FormItem labelPosition="start">
-              <FormLabel>Account Head</FormLabel>
+              <FormLabel>Head</FormLabel>
               <FormControl>
                 <ChartSelect
                   charts={charts}
@@ -115,7 +115,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           name="accountName"
           render={({ field }) => (
             <FormItem labelPosition="start">
-              <FormLabel>Account Name</FormLabel>
+              <FormLabel>Name</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -128,7 +128,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           name="nameUrdu"
           render={({ field }) => (
             <FormItem labelPosition="start">
-              <FormLabel>Account Name (Urdu)</FormLabel>
+              <FormLabel>Name (Urdu)</FormLabel>
               <FormControl>
                 <Input
                   {...field}
@@ -146,7 +146,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           name="accountCode"
           render={({ field }) => (
             <FormItem labelPosition="start">
-              <FormLabel>Account Code</FormLabel>
+              <FormLabel>Code</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -187,32 +187,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({
         />
         <FormField
           control={form.control}
-          name="phone1"
-          render={({ field }) => (
-            <FormItem labelPosition="start">
-              <FormLabel>Phone 1</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone2"
-          render={({ field }) => (
-            <FormItem labelPosition="start">
-              <FormLabel>Phone 2</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
           name="goodsName"
           render={({ field }) => (
             <FormItem labelPosition="start">
@@ -237,6 +211,32 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                   lang="ur"
                   placeholder="اردو مال برداری نام"
                 />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone1"
+          render={({ field }) => (
+            <FormItem labelPosition="start">
+              <FormLabel>Phone 1</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone2"
+          render={({ field }) => (
+            <FormItem labelPosition="start">
+              <FormLabel>Phone 2</FormLabel>
+              <FormControl>
+                <Input {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

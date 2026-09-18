@@ -144,6 +144,28 @@ const electronHandler = {
   updateInventoryItem: (item: UpdateInventoryItem) =>
     ipcRenderer.invoke('inventory:update', item),
 
+  toggleInventoryActive: (id: number, isActive: boolean) =>
+    ipcRenderer.invoke(
+      'inventory:toggleActive',
+      id,
+      isActive,
+    ) as Promise<boolean>,
+
+  hasInventoryInvoiceItems: (id: number) =>
+    ipcRenderer.invoke('inventory:hasInvoiceItems', id) as Promise<boolean>,
+
+  canDeleteInventoryItem: (id: number) =>
+    ipcRenderer.invoke('inventory:canDelete', id) as Promise<{
+      canDelete: boolean;
+      reason?: string;
+    }>,
+
+  deleteInventoryItem: (id: number) =>
+    ipcRenderer.invoke('inventory:delete', id) as Promise<{
+      success: boolean;
+      error?: string;
+    }>,
+
   setInventoryParentId: (inventoryId: number, parentId: number | null) =>
     ipcRenderer.invoke(
       'inventory:setParentId',

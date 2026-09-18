@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS "inventory" ( -- "002 migration"
     -- "parentId" INTEGER REFERENCES "inventory"("id"), -- variant grouping: head item of the family -- "020 migration"
     -- "attributes" TEXT, -- JSON object keyed by attribute_definitions.key -- "020 migration"
     -- "excludeFromCatalog" BOOLEAN NOT NULL DEFAULT 0, -- "022 migration"
+    -- "title" TEXT, -- "023 migration"
+    -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "028 migration"
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

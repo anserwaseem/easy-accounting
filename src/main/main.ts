@@ -573,6 +573,20 @@ app
       inventoryService.updateItem(item),
     );
     ipcMain.handle(
+      'inventory:toggleActive',
+      (_, id: number, isActive: boolean) =>
+        inventoryService.toggleInventoryActive(id, isActive),
+    );
+    ipcMain.handle('inventory:hasInvoiceItems', (_, id: number) =>
+      inventoryService.hasInvoiceItems(id),
+    );
+    ipcMain.handle('inventory:canDelete', (_, id: number) =>
+      inventoryService.canDeleteInventoryItem(id),
+    );
+    ipcMain.handle('inventory:delete', (_, id: number) =>
+      inventoryService.deleteInventoryItem(id),
+    );
+    ipcMain.handle(
       'inventory:bulkUpdateUrduFields',
       async (_, patches: InventoryUrduFieldPatch[]) =>
         inventoryService.bulkUpdateUrduFields(patches),
