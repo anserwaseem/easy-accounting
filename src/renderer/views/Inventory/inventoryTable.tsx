@@ -46,6 +46,7 @@ import {
   emptyInventoryFilters,
   formatAttributeValue,
   inventoryFamilyLabel,
+  isItemActive,
   matchesInventoryFilters,
   type InventoryFilters,
 } from './inventoryQuery';
@@ -166,7 +167,7 @@ interface InventoryNameCellProps {
 const InventoryNameCell: React.FC<InventoryNameCellProps> = ({
   item,
 }: InventoryNameCellProps) => {
-  const isActive = item.isActive !== 0 && item.isActive !== false;
+  const isActive = isItemActive(item);
   return (
     <div className={cn('flex items-center gap-1.5', !isActive && 'opacity-60')}>
       <span>{item.name}</span>
@@ -183,6 +184,7 @@ interface InventoryTableProps {
   refetchInventory: () => void;
   options: {
     refresh?: boolean;
+    hideInactive?: boolean;
     hideZeroQuantity?: boolean;
     hideZeroPrice?: boolean;
     hideNegativeQuantity?: boolean;
@@ -375,6 +377,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   // stable reference unless inventory/filters change — new array each render remounts Virtuoso cells
   const filteredInventory = useMemo(() => {
     const rows = inventory?.filter((i) => {
+      if (options?.hideInactive && !isItemActive(i)) {
+        return false;
+      }
       if (options?.hideNegativeQuantity && i.quantity < 0) {
         return false;
       }
@@ -402,6 +407,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     return byListPosition(rows || []);
   }, [
     inventory,
+    options?.hideInactive,
     options?.hideNegativeQuantity,
     options?.hideZeroQuantity,
     options?.hideZeroPrice,

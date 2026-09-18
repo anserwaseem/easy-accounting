@@ -210,6 +210,10 @@ export const inventoryFamilyLabel = (
   return 'Own head';
 };
 
+/** an item is active unless explicitly set to false or 0 */
+export const isItemActive = (item: Pick<InventoryItem, 'isActive'>): boolean =>
+  item.isActive !== false && item.isActive !== 0;
+
 export interface InventoryFilters {
   attributes: AttributeFilters;
   publish: PublishFilter;
