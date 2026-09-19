@@ -533,8 +533,12 @@ async function main(): Promise<void> {
       // Re-join can apply a users row whose password_hash was NULL in the
       // log (origin capture racing the hash insert). Dashboard still worked
       // via the leftover session; after logout nothing verifies. If this
-      // device already has business data, the typed password becomes the
-      // local hash and sign-in succeeds.
+      // device already has accounts or journals, the typed password becomes
+      // the local hash and sign-in succeeds.
+      //
+      // Fresh boot `default` (PLACEHOLDER_USERNAME, null hash, INITIAL_CHARTS
+      // only) does NOT take this path: 0 accounts, 0 journals → login
+      // still fails. That is load-bearing — do not drop the count check.
       if (!isValid && !isUsablePasswordHash(storedHash)) {
         const accounts = await driver.get<{ c: number }>(
           `SELECT COUNT(*) AS c FROM account`,

@@ -514,7 +514,7 @@ export class SyncManager {
    * exactly the confusing dead end a user hits after typo-ing their way to
    * a fresh project or joining before the first device ever synced.
    *
-   * ## Why the boot placeholder has to be cleared first
+   * ## Why the boot placeholder is cleared only after the log is proven non-empty
    *
    * `db.worker.ts`'s `ensurePlaceholderDefaultUser` runs unconditionally on
    * every fresh worker boot, inserting a `'default'`-username user (NULL
@@ -533,6 +533,11 @@ export class SyncManager {
    * its own ever reaches the shared log — the pulled data (its own real
    * users/charts, each with their own uuid from the origin device) ends up
    * being the *only* thing this device has once join completes.
+   *
+   * That wipe must not run when we are about to refuse the join (empty
+   * log, or `currentSeq` failing). `ensurePlaceholderDefaultUser` only
+   * re-inserts on worker boot; "Try again" reuses this worker. Empty-log
+   * check therefore happens first.
    *
    * ## Single-flight guard against a stale prior loop
    *
@@ -701,14 +706,11 @@ export class SyncManager {
     const resume =
       sameStoredProject(this.currentConfig, probed.stored) ||
       (!this.currentConfig && storedCursor > 0);
-    if (!resume) {
-      await this.clearBootPlaceholder();
-    }
 
-    // Probed here, before the rebuild below, purely to give the empty-log
-    // case a join-specific answer instead of surfacing rebuildFromServer's
-    // own (repair-flavored) refusal message — the engine still re-checks
-    // for itself, so this is UX, not the safety guard.
+    // empty-log check BEFORE clearBootPlaceholder: a valid-but-empty
+    // project is a hard refuse (first device must Connect, not Join). if
+    // we wipe the local placeholder first, "Try again" in this same
+    // worker has no default user/charts until a full reload reboots it.
     let serverMaxSeq: number;
     try {
       serverMaxSeq = await probed.transport.currentSeq();
@@ -730,6 +732,10 @@ export class SyncManager {
             'project URL for a typo.',
         },
       };
+    }
+
+    if (!resume) {
+      await this.clearBootPlaceholder();
     }
 
     // Persist BEFORE the long pull so a dropped fetch (Safari "Load
