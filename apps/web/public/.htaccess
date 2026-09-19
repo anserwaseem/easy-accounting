@@ -1,0 +1,25 @@
+<IfModule mod_headers.c>
+    # SQLite-wasm OPFS requires Cross-Origin Isolation:
+    Header set Cross-Origin-Opener-Policy "same-origin"
+    Header set Cross-Origin-Embedder-Policy "require-corp"
+    Header set Cross-Origin-Resource-Policy "same-origin"
+</IfModule>
+
+<IfModule mod_mime.c>
+    AddType application/wasm .wasm
+    AddType font/woff2 .woff2
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Serve existing files directly
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # SPA Fallback: route everything else to index.html
+    RewriteRule ^ index.html [L]
+</IfModule>
