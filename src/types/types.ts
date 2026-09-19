@@ -305,6 +305,8 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
    * to publish; a consumer may then compose a title of its own.
    */
   title?: string | null;
+  /** active flag for inventory lifecycle (migration 028) */
+  isActive?: boolean | 0 | 1;
 }
 export interface UpdateInventoryItem {
   id: number;
@@ -318,11 +320,13 @@ export interface UpdateInventoryItem {
   title?: string | null;
   itemTypeId?: number | null;
   listPosition?: number | null;
+  isActive?: boolean | 0 | 1;
 }
 export interface InsertInventoryItem {
   name: string;
   price: number;
   description?: string;
+  isActive?: boolean | 0 | 1;
   /** optional Urdu print description; blank stores NULL */
   descriptionUrdu?: string | null;
   /** customer-facing name; blank stores NULL (migration 023) */

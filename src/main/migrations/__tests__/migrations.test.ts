@@ -70,7 +70,13 @@ const POST_019 = {
     'vendor_stock_movements',
   ],
   columns: {
-    inventory: ['parentId', 'attributes', 'excludeFromCatalog', 'title'],
+    inventory: [
+      'parentId',
+      'attributes',
+      'excludeFromCatalog',
+      'title',
+      'isActive',
+    ],
     account: ['tracksVendorStock'],
   } as Record<string, string[]>,
 };
@@ -260,6 +266,7 @@ describe('migrations', () => {
         '025_vendor_stock',
         '026_add_urdu_print_fields',
         '027_add_chart_nameUrdu',
+        '028_add_isActive_to_inventory',
       ]);
     });
 

@@ -46,6 +46,7 @@ import {
   emptyInventoryFilters,
   formatAttributeValue,
   inventoryFamilyLabel,
+  isItemActive,
   matchesInventoryFilters,
   type InventoryFilters,
 } from './inventoryQuery';
@@ -56,9 +57,7 @@ import {
   PublishStatusProvider,
   usePublishStatuses,
 } from './PublishStatus';
-import { EditItemAttributes } from './EditItemAttributes';
 import { EditInventoryItem } from './editInventoryItem';
-import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
 import { InventoryBulkEditCell } from './InventoryBulkEditCell';
 import { InventoryBulkFamilyCell } from './InventoryBulkFamilyCell';
@@ -159,10 +158,31 @@ const InventoryVirtualGrid = memo(
 );
 InventoryVirtualGrid.displayName = 'InventoryVirtualGrid';
 
+interface InventoryNameCellProps {
+  item: InventoryItem;
+}
+
+const InventoryNameCell: React.FC<InventoryNameCellProps> = ({
+  item,
+}: InventoryNameCellProps) => {
+  const isActive = isItemActive(item);
+  return (
+    <div className={cn('flex items-center gap-1.5', !isActive && 'opacity-60')}>
+      <span>{item.name}</span>
+      {!isActive && (
+        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800">
+          Inactive
+        </span>
+      )}
+    </div>
+  );
+};
+
 interface InventoryTableProps {
   refetchInventory: () => void;
   options: {
     refresh?: boolean;
+    hideInactive?: boolean;
     hideZeroQuantity?: boolean;
     hideZeroPrice?: boolean;
     hideNegativeQuantity?: boolean;
@@ -355,6 +375,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   // stable reference unless inventory/filters change — new array each render remounts Virtuoso cells
   const filteredInventory = useMemo(() => {
     const rows = inventory?.filter((i) => {
+      if (options?.hideInactive && !isItemActive(i)) {
+        return false;
+      }
       if (options?.hideNegativeQuantity && i.quantity < 0) {
         return false;
       }
@@ -382,6 +405,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     return byListPosition(rows || []);
   }, [
     inventory,
+    options?.hideInactive,
     options?.hideNegativeQuantity,
     options?.hideZeroQuantity,
     options?.hideZeroPrice,
@@ -802,8 +826,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         accessorKey: 'name',
         header: 'Name',
-        size: 102,
+        size: 110,
         enableSorting: !editMode,
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }: { row: { original: InventoryItem } }) => (
+          <InventoryNameCell item={row.original} />
+        ),
       },
       ...(visibleCoreColumnIds.includes('family')
         ? [
@@ -1172,30 +1200,19 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             {editMode ? (
               <span className="ml-2 text-xs text-muted-foreground">—</span>
             ) : (
-              <>
-                <AdjustStock
-                  item={row.original}
-                  refetchInventory={refetchInventory}
-                />
-                <EditItemAttributes
-                  item={row.original}
-                  onUpdated={refetchAll}
-                />
-                <EditInventoryItem
-                  row={row}
-                  refetchInventory={refetchAll}
-                  refreshPublishStatuses={refreshPublishStatuses}
-                  showPublishControls={publishEnabled && showPublishColumn}
-                  priceLists={priceLists}
-                  inventoryItems={inventory ?? []}
-                />
-              </>
+              <EditInventoryItem
+                row={row}
+                refetchInventory={refetchAll}
+                refreshPublishStatuses={refreshPublishStatuses}
+                showPublishControls={publishEnabled && showPublishColumn}
+                priceLists={priceLists}
+                inventoryItems={inventory ?? []}
+              />
             )}
           </div>
         ),
-        // three 32px icon buttons + gaps; a shrink-to-fit width made the third
-        // button overflow the column
-        size: 112,
+        // two 32px icon buttons + gaps: Edit, More Actions
+        size: 70,
       },
     ];
     // updateItemType closes over itemTypes/editMode; columns rebuild when those

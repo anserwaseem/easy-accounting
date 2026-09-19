@@ -1,6 +1,13 @@
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { Input } from 'renderer/shad/ui/input';
 import { Label } from 'renderer/shad/ui/label';
+import { Info } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from 'renderer/shad/ui/tooltip';
 
 /**
  * Per-item price-list prices, inside the edit dialog.
@@ -36,7 +43,26 @@ export const ItemPriceLists: React.FC<ItemPriceListsProps> = ({
 
   return (
     <div className="flex flex-col gap-2 border-t pt-3">
-      <span className="text-sm font-medium">Price lists</span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm font-medium">Price lists</span>
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-pointer text-muted-foreground hover:text-foreground inline-flex items-center">
+                <Info className="h-3.5 w-3.5" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              align="start"
+              className="max-w-xs text-xs"
+            >
+              An empty price means the item is not sold on that list, which is
+              not the same as a price of zero.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
       {priceLists.map((list) => (
         <div key={list.id} className="flex items-center gap-2">
           <Label
@@ -55,10 +81,6 @@ export const ItemPriceLists: React.FC<ItemPriceListsProps> = ({
           />
         </div>
       ))}
-      <span className="text-xs text-muted-foreground">
-        An empty price means the item is not sold on that list, which is not the
-        same as a price of zero.
-      </span>
     </div>
   );
 };

@@ -95,44 +95,31 @@ const InvoiceDuplicateActionCell: FC<InvoiceEditActionCellProps> = ({
   </EditActionButton>
 );
 
-const createInvoiceDuplicateColumn = (
+const createInvoiceActionsColumn = (
   invoiceType: InvoiceType,
   navigate: NavigateFunction,
   isPreviewMode: boolean,
 ): ColumnDef<InvoicesView> => ({
-  id: 'duplicate',
-  header: 'Copy',
-  size: 56,
+  id: 'actions',
+  header: 'Actions',
+  size: 80,
   onClick: () => undefined,
   cell({ row }) {
     return (
-      <InvoiceDuplicateActionCell
-        row={row}
-        invoiceType={invoiceType}
-        navigate={navigate}
-        isPreviewMode={isPreviewMode}
-      />
-    );
-  },
-});
-
-const createInvoiceEditColumn = (
-  invoiceType: InvoiceType,
-  navigate: NavigateFunction,
-  isPreviewMode: boolean,
-): ColumnDef<InvoicesView> => ({
-  id: 'edit',
-  header: 'Edit',
-  size: 56,
-  onClick: () => undefined,
-  cell({ row }) {
-    return (
-      <InvoiceEditActionCell
-        row={row}
-        invoiceType={invoiceType}
-        navigate={navigate}
-        isPreviewMode={isPreviewMode}
-      />
+      <div className="flex items-center gap-1">
+        <InvoiceEditActionCell
+          row={row}
+          invoiceType={invoiceType}
+          navigate={navigate}
+          isPreviewMode={isPreviewMode}
+        />
+        <InvoiceDuplicateActionCell
+          row={row}
+          invoiceType={invoiceType}
+          navigate={navigate}
+          isPreviewMode={isPreviewMode}
+        />
+      </div>
     );
   },
 });
@@ -363,12 +350,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   : navigateToInvoice(row.original.id),
               size: 56,
             },
-            createInvoiceEditColumn(
-              invoiceType,
-              navigate,
-              propInvoices != null,
-            ),
-            createInvoiceDuplicateColumn(
+            createInvoiceActionsColumn(
               invoiceType,
               navigate,
               propInvoices != null,

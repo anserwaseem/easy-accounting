@@ -24,13 +24,28 @@ import { Calendar } from '@/renderer/shad/ui/calendar';
 interface AdjustStockProps {
   item: InventoryItem;
   refetchInventory: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode | null;
 }
 
 export const AdjustStock: React.FC<AdjustStockProps> = ({
   item,
   refetchInventory,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+  trigger,
 }: AdjustStockProps) => {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (isControlled) {
+      setControlledOpen?.(next);
+    } else {
+      setInternalOpen(next);
+    }
+  };
   const [quantityDelta, setQuantityDelta] = useState(0);
   const [reason, setReason] = useState('');
   const [date, setDate] = useState(() => toLocalDateInputValue(new Date()));
@@ -79,17 +94,21 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          title="Adjust stock"
-          aria-label="Adjust stock"
-        >
-          <SlidersHorizontal size={16} />
-        </Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title="Adjust stock"
+              aria-label="Adjust stock"
+            >
+              <SlidersHorizontal size={16} />
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Adjust stock</DialogTitle>

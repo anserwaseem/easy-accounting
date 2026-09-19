@@ -992,4 +992,151 @@ describe('InventoryService display title (migration 023)', () => {
     ).toBe('H ALI');
     db.close();
   });
+
+  describe('active status and deletion', () => {
+    it('defaults isActive to 1 and allows toggling', () => {
+      const { db, typeId, service } = setup();
+      service.insertItem({
+        name: 'ACTIVE-TEST',
+        price: 50,
+        itemTypeId: typeId,
+      });
+      const { id, isActive } = db
+        .prepare('SELECT id, isActive FROM inventory WHERE name = ?')
+        .get('ACTIVE-TEST') as { id: number; isActive: number };
+
+      expect(isActive).toBe(1);
+
+      const deactivated = service.toggleInventoryActive(id, false);
+      expect(deactivated).toBe(true);
+      const afterDeactivate = db
+        .prepare('SELECT isActive FROM inventory WHERE id = ?')
+        .get(id) as { isActive: number };
+      expect(afterDeactivate.isActive).toBe(0);
+
+      const reactivated = service.toggleInventoryActive(id, true);
+      expect(reactivated).toBe(true);
+      const afterReactivate = db
+        .prepare('SELECT isActive FROM inventory WHERE id = ?')
+        .get(id) as { isActive: number };
+      expect(afterReactivate.isActive).toBe(1);
+      db.close();
+    });
+
+    it('safely deletes an unused inventory item and cleans up auxiliary tables', () => {
+      const { db, typeId, service } = setup();
+      service.insertItem({
+        name: 'CLEAN-DELETE',
+        price: 100,
+        itemTypeId: typeId,
+      });
+      const { id } = db
+        .prepare('SELECT id FROM inventory WHERE name = ?')
+        .get('CLEAN-DELETE') as { id: number };
+
+      // add auxiliary records
+      db.prepare(
+        'INSERT INTO stock_adjustments (inventoryId, quantityDelta, reason, date) VALUES (?, 5, ?, ?)',
+      ).run(id, 'init', '2026-01-01');
+      db.prepare(
+        'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate, old_quantity) VALUES (?, 10, ?, 0)',
+      ).run(id, '2026-01-01');
+
+      const check = service.canDeleteInventoryItem(id);
+      expect(check.canDelete).toBe(true);
+
+      const res = service.deleteInventoryItem(id);
+      expect(res.success).toBe(true);
+
+      const itemInDb = db
+        .prepare('SELECT id FROM inventory WHERE id = ?')
+        .get(id);
+      expect(itemInDb).toBeUndefined();
+
+      const adjInDb = db
+        .prepare('SELECT id FROM stock_adjustments WHERE inventoryId = ?')
+        .get(id);
+      expect(adjInDb).toBeUndefined();
+
+      const openingInDb = db
+        .prepare('SELECT id FROM inventory_opening_stock WHERE inventoryId = ?')
+        .get(id);
+      expect(openingInDb).toBeUndefined();
+
+      db.close();
+    });
+
+    it('blocks deleting an inventory item with invoice records', () => {
+      const { db, typeId, service } = setup();
+      service.insertItem({
+        name: 'INVOICED-ITEM',
+        price: 200,
+        itemTypeId: typeId,
+      });
+      const { id: inventoryId } = db
+        .prepare('SELECT id FROM inventory WHERE name = ?')
+        .get('INVOICED-ITEM') as { id: number };
+
+      // create a dummy invoice and item
+      db.prepare(
+        `INSERT INTO invoices (id, invoiceNumber, accountId, invoiceType, date, totalAmount)
+         VALUES (99999, 99999, 1, 'Sale', '2026-01-01', 200)`,
+      ).run();
+      db.prepare(
+        `INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price)
+         VALUES (99999, ?, 1, 200)`,
+      ).run(inventoryId);
+
+      const check = service.canDeleteInventoryItem(inventoryId);
+      expect(check.canDelete).toBe(false);
+      expect(check.reason).toContain('invoice records');
+
+      const res = service.deleteInventoryItem(inventoryId);
+      expect(res.success).toBe(false);
+      expect(res.error).toContain('invoice records');
+
+      // item remains untouched
+      const itemInDb = db
+        .prepare('SELECT id FROM inventory WHERE id = ?')
+        .get(inventoryId);
+      expect(itemInDb).toBeDefined();
+
+      db.close();
+    });
+
+    it('blocks deleting a family head that has child variants', () => {
+      const { db, typeId, service } = setup();
+      service.insertItem({
+        name: 'HEAD-ITEM',
+        price: 100,
+        itemTypeId: typeId,
+      });
+      const { id: headId } = db
+        .prepare('SELECT id FROM inventory WHERE name = ?')
+        .get('HEAD-ITEM') as { id: number };
+
+      service.insertItem({
+        name: 'CHILD-ITEM',
+        price: 100,
+        itemTypeId: typeId,
+      });
+      const { id: childId } = db
+        .prepare('SELECT id FROM inventory WHERE name = ?')
+        .get('CHILD-ITEM') as { id: number };
+
+      db.prepare('UPDATE inventory SET parentId = ? WHERE id = ?').run(
+        headId,
+        childId,
+      );
+
+      const check = service.canDeleteInventoryItem(headId);
+      expect(check.canDelete).toBe(false);
+      expect(check.reason).toContain('child variants');
+
+      const res = service.deleteInventoryItem(headId);
+      expect(res.success).toBe(false);
+
+      db.close();
+    });
+  });
 });
