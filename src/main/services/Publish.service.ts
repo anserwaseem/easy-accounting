@@ -56,6 +56,8 @@ interface GenerateCatalogOptions {
    * done — see CatalogOptions.requireImage.
    */
   requireImage?: boolean;
+  /** Whether a display title is required to publish — see CatalogOptions. */
+  requireTitle?: boolean;
   /** Attribute keys an item must carry to publish — see CatalogOptions. */
   requiredAttributeKeys?: readonly string[];
   /** Overridable for deterministic output; defaults to now (ISO). */
@@ -338,6 +340,7 @@ export class PublishService {
       publicPriceList: options.publicPriceList,
       publicAttributeKeys: options.publicAttributeKeys,
       requireImage: options.requireImage ?? true,
+      requireTitle: options.requireTitle ?? false,
       requiredAttributeKeys: options.requiredAttributeKeys,
     };
 
@@ -379,6 +382,7 @@ export class PublishService {
     imagesManifestUrl?: string;
     /** Must match what a publish would do, or the column reports a lie. */
     requireImage?: boolean;
+    requireTitle?: boolean;
     requiredAttributeKeys?: readonly string[];
   }): Promise<ItemPublishStatusReport> {
     // the frequent caller — served from cache between image rebuilds
@@ -415,6 +419,7 @@ export class PublishService {
     imagesManifestUrl?: string;
     /** Must match what a publish would do, or the readiness panel reports a lie. */
     requireImage?: boolean;
+    requireTitle?: boolean;
     requiredAttributeKeys?: readonly string[];
   }): Promise<CatalogPreview> {
     const { skus: imageSkus, error: imagesManifestError } =
@@ -491,6 +496,7 @@ export class PublishService {
         publicAttributeKeys: this.getPublicAttributeKeys(),
         imageSkus,
         requireImage: !config.publishWithoutImages,
+        requireTitle: config.requireTitle,
         requiredAttributeKeys: parseAttributeKeyList(
           config.requiredAttributeKeys,
         ),

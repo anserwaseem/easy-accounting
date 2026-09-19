@@ -1,18 +1,21 @@
 import { escape } from 'lodash';
 import type { VendorStockActivityItem } from 'types';
+import {
+  ACTIVITY_COLUMN_HEADERS,
+  ACTIVITY_EQUATION,
+} from './activityPresentation';
 
 interface PrintVendorStockActivityOptions {
   rows: VendorStockActivityItem[];
   vendorName: string;
-  startDate: string;
-  endDate: string;
+  dateSubtitle: string;
 }
 
 /** print full activity rows without opening an Electron browser window */
 export const printVendorStockActivityIframe = (
   options: PrintVendorStockActivityOptions,
 ): void => {
-  const { rows, vendorName, startDate, endDate } = options;
+  const { rows, vendorName, dateSubtitle } = options;
   if (rows.length === 0) return;
 
   const iframe = document.createElement('iframe');
@@ -39,6 +42,11 @@ export const printVendorStockActivityIframe = (
     .map(
       (row) => `<tr>
         <td>${escape(row.inventoryName)}</td>
+        <td class="num">${escape(String(row.opening))}</td>
+        <td class="num">${escape(String(row.issued))}</td>
+        <td class="num">${escape(String(row.purchased))}</td>
+        <td class="num">${escape(String(row.purchaseReturned))}</td>
+        <td class="num">${escape(String(row.adjusted))}</td>
         <td class="num">${escape(String(row.closing))}</td>
       </tr>`,
     )
@@ -65,10 +73,19 @@ export const printVendorStockActivityIframe = (
 </head>
 <body>
   <h1>At-vendor activity — ${escape(vendorName)}</h1>
-  <p>${escape(startDate)} to ${escape(endDate)}</p>
+  <p>${escape(dateSubtitle)}</p>
+  <p>${escape(ACTIVITY_EQUATION)}</p>
   <table>
     <thead>
-      <tr><th>Family</th><th class="num">Closing</th></tr>
+      <tr>
+        <th>${ACTIVITY_COLUMN_HEADERS.inventoryName}</th>
+        <th class="num">${ACTIVITY_COLUMN_HEADERS.opening}</th>
+        <th class="num">${ACTIVITY_COLUMN_HEADERS.issued}</th>
+        <th class="num">${ACTIVITY_COLUMN_HEADERS.purchased}</th>
+        <th class="num">${ACTIVITY_COLUMN_HEADERS.purchaseReturned}</th>
+        <th class="num">${ACTIVITY_COLUMN_HEADERS.adjusted}</th>
+        <th class="num">${ACTIVITY_COLUMN_HEADERS.closing}</th>
+      </tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
   </table>

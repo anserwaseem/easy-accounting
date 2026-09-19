@@ -8,6 +8,7 @@ import { migration034 } from './034_suppress_timestamp_triggers_during_apply';
 import { migration035 } from './035_insert_timestamps_fill_only';
 import { migration036 } from './036_desktop_vendor_stock_and_urdu';
 import { migration037 } from './037_add_chart_nameUrdu';
+import { migration038 } from './038_add_isActive_to_inventory';
 
 /**
  * Platform-free migration for schemas already bootstrapped from
@@ -183,4 +184,6 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration036,
   // Migration 037 — chart.nameUrdu for custom heads (matching desktop 039/027_add_chart_nameUrdu).
   migration037,
+  // Migration 038 — inventory.isActive (matching desktop 040/028_add_isActive_to_inventory).
+  migration038,
 ];

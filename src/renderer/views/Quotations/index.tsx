@@ -1,5 +1,5 @@
 import type { Row } from '@tanstack/react-table';
-import { FileText, Info } from 'lucide-react';
+import { Copy, FileText, Info } from 'lucide-react';
 import { toNumber } from 'lodash';
 import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
@@ -66,21 +66,47 @@ const QuotationEditActionCell: FC<QuotationEditActionCellProps> = ({
   );
 };
 
-const createQuotationEditColumn = (
+const QuotationDuplicateActionCell: FC<QuotationEditActionCellProps> = ({
+  row,
+  invoiceType,
+  navigate,
+}) => (
+  <EditActionButton
+    title="Duplicate quotation"
+    aria-label="Duplicate quotation"
+    onClick={(e) => {
+      e.stopPropagation();
+      navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
+        state: { duplicateFromId: row.original.id },
+      });
+    }}
+  >
+    <Copy className="h-4 w-4" />
+  </EditActionButton>
+);
+
+const createQuotationActionsColumn = (
   invoiceType: InvoiceType,
   navigate: NavigateFunction,
 ): ColumnDef<InvoicesView> => ({
-  id: 'edit',
-  header: 'Edit',
-  size: 56,
+  id: 'actions',
+  header: 'Actions',
+  size: 80,
   onClick: () => undefined,
   cell({ row }) {
     return (
-      <QuotationEditActionCell
-        row={row}
-        invoiceType={invoiceType}
-        navigate={navigate}
-      />
+      <div className="flex items-center gap-1">
+        <QuotationEditActionCell
+          row={row}
+          invoiceType={invoiceType}
+          navigate={navigate}
+        />
+        <QuotationDuplicateActionCell
+          row={row}
+          invoiceType={invoiceType}
+          navigate={navigate}
+        />
+      </div>
     );
   },
 });
@@ -274,7 +300,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               onClick: (r) => navigateToRow(r.original.id),
               size: 140,
             },
-            createQuotationEditColumn(invoiceType, navigate),
+            createQuotationActionsColumn(invoiceType, navigate),
             /* eslint-enable react/no-unstable-nested-components */
           ],
     [invoiceType, isMini, listTitle, navigate, navigateToRow, partyLabel],

@@ -16,7 +16,6 @@ import { AccountForm, type AccountFormData } from './accountForm';
 interface AddAccountProps {
   refetchAccounts: () => void;
   charts: Chart[];
-  clearRef: React.RefObject<HTMLButtonElement>;
   btnClassName?: string;
   initialValues?: Partial<AccountFormData>;
   isOpen?: boolean;
@@ -27,7 +26,6 @@ interface AddAccountProps {
 export const AddAccount: React.FC<AddAccountProps> = ({
   refetchAccounts,
   charts,
-  clearRef,
   btnClassName,
   initialValues,
   isOpen,
@@ -74,7 +72,6 @@ export const AddAccount: React.FC<AddAccountProps> = ({
         successMessage: `"${values.accountName}" account created successfully`,
         errorMessage: 'Failed to create account',
         onSuccess: () => {
-          clearRef.current?.click();
           setOpenCreateForm(false);
           refetchAccounts();
         },
@@ -108,7 +105,6 @@ export const AddAccount: React.FC<AddAccountProps> = ({
         <AccountForm
           onSubmit={onSubmit}
           charts={charts}
-          clearRef={clearRef}
           initialValues={{ headName: accountHead, ...initialValues }}
           onHeadNameChange={(value) => {
             setAccountHead(value);

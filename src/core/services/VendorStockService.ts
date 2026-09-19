@@ -1,4 +1,4 @@
-import { get, toNumber } from 'lodash';
+import { get, groupBy, toNumber } from 'lodash';
 import type {
   ApiResponse,
   CreateVendorIssuePayload,
@@ -7,6 +7,7 @@ import type {
   VendorIssueView,
   VendorStockActivityFilters,
   VendorStockActivityItem,
+  VendorStockActivityMovement,
   VendorStockActivityResponse,
   VendorStockMovementType,
   VendorStockOpeningRow,
@@ -228,6 +229,28 @@ const SQL = {
         WHERE m.vendorAccountId = @vendorAccountId
       )
       ORDER BY inventoryName COLLATE NOCASE
+    `,
+  getActivityMovementsInRange: `
+      SELECT
+        m.id,
+        m.inventoryId,
+        m.date,
+        m.movementType,
+        m.quantityDelta,
+        m.notes,
+        m.referenceType,
+        m.referenceId,
+        vi.issueNumber AS issueNumber,
+        invc.invoiceNumber AS invoiceNumber
+      FROM vendor_stock_movements m
+      LEFT JOIN vendor_issues vi
+        ON m.referenceType = 'vendor_issue' AND vi.id = m.referenceId
+      LEFT JOIN invoices invc
+        ON m.referenceType = 'invoice' AND invc.id = m.referenceId
+      WHERE m.vendorAccountId = @vendorAccountId
+        AND datetime(m.date) >= datetime(@startDate)
+        AND datetime(m.date) < datetime(@endDate, '+1 day')
+      ORDER BY datetime(m.date), m.id
     `,
 };
 
@@ -664,6 +687,24 @@ export class VendorStockService {
       vendorAccountId: cast(vendorAccountId),
     });
 
+    const movementRows = await this.db.all<{
+      id: number;
+      inventoryId: number;
+      date: string;
+      movementType: VendorStockMovementType;
+      quantityDelta: number;
+      notes?: string | null;
+      referenceType?: string | null;
+      referenceId?: number | null;
+      issueNumber?: number | null;
+      invoiceNumber?: number | null;
+    }>(SQL.getActivityMovementsInRange, {
+      vendorAccountId: cast(vendorAccountId),
+      startDate,
+      endDate,
+    });
+    const movementsByInventoryId = groupBy(movementRows, 'inventoryId');
+
     const items: VendorStockActivityItem[] = [];
     for (const row of idRows) {
       // eslint-disable-next-line no-await-in-loop
@@ -695,6 +736,19 @@ export class VendorStockService {
         purchaseReturned: range.purchaseReturned,
         adjusted: range.adjusted,
         closing,
+        movements: (movementsByInventoryId[row.inventoryId] ?? []).map(
+          (movement): VendorStockActivityMovement => ({
+            id: movement.id,
+            date: movement.date,
+            movementType: movement.movementType,
+            quantityDelta: movement.quantityDelta,
+            notes: movement.notes,
+            referenceType: movement.referenceType,
+            referenceId: movement.referenceId,
+            issueNumber: movement.issueNumber,
+            invoiceNumber: movement.invoiceNumber,
+          }),
+        ),
       });
     }
 

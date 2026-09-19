@@ -11,6 +11,8 @@ import type {
   InsertInventoryItem,
   InventoryItem,
   InventoryOpeningStock,
+  InventoryAttributeBulkUpdateResult,
+  InventoryAttributeFieldPatch,
   InventoryUrduBulkUpdateResult,
   InventoryUrduFieldPatch,
   ReportResponse,
@@ -92,7 +94,7 @@ export class InventoryService {
 
   private stmGetInventoryIdsByTrimName!: Statement;
 
-  private stmGetInventoryUrduById!: Statement;
+  private stmGetInventoryAttributeFieldsById!: Statement;
 
   private stmUpdateInventoryUrdu!: Statement;
 
@@ -129,6 +131,24 @@ export class InventoryService {
   private stmRemoveAttributeFromItems!: Statement;
 
   private stmDeleteInventoryPrice!: Statement;
+
+  private stmToggleInventoryActive!: Statement;
+
+  private stmHasInvoiceItems!: Statement;
+
+  private stmHasVendorIssueItems!: Statement;
+
+  private stmHasChildVariants!: Statement;
+
+  private stmDeleteInventoryItem!: Statement;
+
+  private stmDeleteInventoryPricesByInventoryId!: Statement;
+
+  private stmDeleteStockAdjustmentsByInventoryId!: Statement;
+
+  private stmDeleteOpeningStockByInventoryId!: Statement;
+
+  private stmDeleteVendorStockByInventoryId!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
@@ -376,6 +396,80 @@ export class InventoryService {
     return Boolean(result.changes);
   }
 
+  toggleInventoryActive(id: number, isActive: boolean): boolean {
+    const result = this.stmToggleInventoryActive.run({
+      id: cast(id),
+      isActive: cast(isActive),
+    });
+    return Boolean(result.changes);
+  }
+
+  hasInvoiceItems(id: number): boolean {
+    const result = this.stmHasInvoiceItems.get(cast(id)) as
+      | { count: number }
+      | undefined;
+    return Boolean(result && result.count > 0);
+  }
+
+  canDeleteInventoryItem(id: number): { canDelete: boolean; reason?: string } {
+    const invId = cast(id);
+    const invoiceItemCheck = this.stmHasInvoiceItems.get(invId) as
+      | { count: number }
+      | undefined;
+    if (invoiceItemCheck && invoiceItemCheck.count > 0) {
+      return {
+        canDelete: false,
+        reason:
+          'Cannot delete an inventory item that has invoice records. Please deactivate it instead.',
+      };
+    }
+
+    const vendorIssueCheck = this.stmHasVendorIssueItems.get(invId) as
+      | { count: number }
+      | undefined;
+    if (vendorIssueCheck && vendorIssueCheck.count > 0) {
+      return {
+        canDelete: false,
+        reason:
+          'Cannot delete an inventory item that has vendor issue records. Please deactivate it instead.',
+      };
+    }
+
+    const childVariantCheck = this.stmHasChildVariants.get(invId) as
+      | { count: number }
+      | undefined;
+    if (childVariantCheck && childVariantCheck.count > 0) {
+      return {
+        canDelete: false,
+        reason:
+          'Cannot delete a family head item that has child variants. Please reassign or delete the variants first.',
+      };
+    }
+
+    return { canDelete: true };
+  }
+
+  deleteInventoryItem(id: number): { success: boolean; error?: string } {
+    const check = this.canDeleteInventoryItem(id);
+    if (!check.canDelete) {
+      return { success: false, error: check.reason };
+    }
+
+    const invId = cast(id);
+    try {
+      this.db.transaction(() => {
+        this.stmDeleteInventoryPricesByInventoryId.run(invId);
+        this.stmDeleteStockAdjustmentsByInventoryId.run(invId);
+        this.stmDeleteOpeningStockByInventoryId.run(invId);
+        this.stmDeleteVendorStockByInventoryId.run(invId);
+        this.stmDeleteInventoryItem.run(invId);
+      })();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  }
+
   /**
    * apply Urdu print description from spreadsheet import.
    * match by id when present, else by trimmed name (SKU).
@@ -384,13 +478,25 @@ export class InventoryService {
   bulkUpdateUrduFields(
     patches: InventoryUrduFieldPatch[],
   ): InventoryUrduBulkUpdateResult {
+    return this.bulkUpdateAttributeFields(patches);
+  }
+
+  /**
+   * apply custom attributes and/or descriptions from spreadsheet import.
+   * match by id when present, else by trimmed name (SKU).
+   * only keys present on the patch are written (undefined = leave unchanged);
+   * attribute values of null clear that key; other attribute keys are preserved.
+   */
+  bulkUpdateAttributeFields(
+    patches: InventoryAttributeFieldPatch[],
+  ): InventoryAttributeBulkUpdateResult {
     let updated = 0;
     let notFound = 0;
     let ambiguous = 0;
 
     const run = this.db.transaction(() => {
       patches.forEach((patch) => {
-        const resolved = this.resolveInventoryForUrduPatch(patch);
+        const resolved = this.resolveInventoryForAttributePatch(patch);
         if (resolved === 'notFound') {
           notFound += 1;
           return;
@@ -400,16 +506,43 @@ export class InventoryService {
           return;
         }
 
-        const nextDescriptionUrdu =
-          patch.descriptionUrdu !== undefined
-            ? patch.descriptionUrdu?.trim() || null
-            : resolved.descriptionUrdu ?? null;
+        let wrote = false;
 
-        const result = this.stmUpdateInventoryUrdu.run({
-          id: cast(resolved.id),
-          descriptionUrdu: nextDescriptionUrdu,
-        });
-        if (result.changes > 0) updated += 1;
+        if (patch.description !== undefined) {
+          this.stmUpdateInventoryDescription.run({
+            id: cast(resolved.id),
+            description: patch.description?.trim() || null,
+          });
+          wrote = true;
+        }
+
+        if (patch.descriptionUrdu !== undefined) {
+          const nextDescriptionUrdu = patch.descriptionUrdu?.trim() || null;
+          this.stmUpdateInventoryUrdu.run({
+            id: cast(resolved.id),
+            descriptionUrdu: nextDescriptionUrdu,
+          });
+          wrote = true;
+        }
+
+        if (patch.attributes !== undefined) {
+          const nextAttrs: Record<string, unknown> = {
+            ...resolved.attributes,
+          };
+          Object.entries(patch.attributes).forEach(([key, value]) => {
+            if (value === null || value === '' || value === undefined) {
+              delete nextAttrs[key];
+            } else {
+              nextAttrs[key] = value;
+            }
+          });
+          // resolved id already proven to exist; treat the merge as an update
+          // even when the resulting JSON is unchanged
+          this.updateInventoryAttributes(resolved.id, nextAttrs);
+          wrote = true;
+        }
+
+        if (wrote) updated += 1;
         else notFound += 1;
       });
     });
@@ -418,14 +551,37 @@ export class InventoryService {
     return { updated, notFound, ambiguous };
   }
 
-  private resolveInventoryForUrduPatch(
-    patch: InventoryUrduFieldPatch,
-  ): { id: number; descriptionUrdu: string | null } | 'notFound' | 'ambiguous' {
+  private resolveInventoryForAttributePatch(
+    patch: InventoryAttributeFieldPatch,
+  ):
+    | {
+        id: number;
+        descriptionUrdu: string | null;
+        attributes: Record<string, unknown>;
+      }
+    | 'notFound'
+    | 'ambiguous' {
+    const toResolved = (row: {
+      id: number;
+      descriptionUrdu: string | null;
+      attributes?: string | null;
+    }) => ({
+      id: row.id,
+      descriptionUrdu: row.descriptionUrdu,
+      attributes: parseJsonRecord(row.attributes),
+    });
+
     if (patch.id != null && Number.isFinite(patch.id) && patch.id > 0) {
-      const byId = this.stmGetInventoryUrduById.get(cast(patch.id)) as
-        | { id: number; descriptionUrdu: string | null }
+      const byId = this.stmGetInventoryAttributeFieldsById.get(
+        cast(patch.id),
+      ) as
+        | {
+            id: number;
+            descriptionUrdu: string | null;
+            attributes?: string | null;
+          }
         | undefined;
-      return byId ?? 'notFound';
+      return byId ? toResolved(byId) : 'notFound';
     }
 
     const name = patch.name?.trim();
@@ -437,10 +593,16 @@ export class InventoryService {
     if (matches.length === 0) return 'notFound';
     if (matches.length > 1) return 'ambiguous';
 
-    const byId = this.stmGetInventoryUrduById.get(cast(matches[0].id)) as
-      | { id: number; descriptionUrdu: string | null }
+    const byId = this.stmGetInventoryAttributeFieldsById.get(
+      cast(matches[0].id),
+    ) as
+      | {
+          id: number;
+          descriptionUrdu: string | null;
+          attributes?: string | null;
+        }
       | undefined;
-    return byId ?? 'notFound';
+    return byId ? toResolved(byId) : 'notFound';
   }
 
   /**
@@ -1368,8 +1530,8 @@ export class InventoryService {
       SELECT id FROM inventory WHERE TRIM(name) = TRIM(?)
     `);
 
-    this.stmGetInventoryUrduById = this.db.prepare(`
-      SELECT id, descriptionUrdu FROM inventory WHERE id = ?
+    this.stmGetInventoryAttributeFieldsById = this.db.prepare(`
+      SELECT id, descriptionUrdu, attributes FROM inventory WHERE id = ?
     `);
 
     this.stmUpdateInventoryUrdu = this.db.prepare(`
@@ -1539,6 +1701,50 @@ export class InventoryService {
       FROM stock_adjustments
       WHERE date > ?
       GROUP BY inventoryId
+    `);
+
+    this.stmToggleInventoryActive = this.db.prepare(`
+      UPDATE inventory
+      SET isActive = @isActive
+      WHERE id = @id;
+    `);
+
+    this.stmHasInvoiceItems = this.db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM invoice_items
+      WHERE inventoryId = ?;
+    `);
+
+    this.stmHasVendorIssueItems = this.db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM vendor_issue_items
+      WHERE inventoryId = ?;
+    `);
+
+    this.stmHasChildVariants = this.db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM inventory
+      WHERE parentId = ?;
+    `);
+
+    this.stmDeleteInventoryPricesByInventoryId = this.db.prepare(`
+      DELETE FROM inventory_prices WHERE inventoryId = ?;
+    `);
+
+    this.stmDeleteStockAdjustmentsByInventoryId = this.db.prepare(`
+      DELETE FROM stock_adjustments WHERE inventoryId = ?;
+    `);
+
+    this.stmDeleteOpeningStockByInventoryId = this.db.prepare(`
+      DELETE FROM inventory_opening_stock WHERE inventoryId = ?;
+    `);
+
+    this.stmDeleteVendorStockByInventoryId = this.db.prepare(`
+      DELETE FROM vendor_stock WHERE inventoryId = ?;
+    `);
+
+    this.stmDeleteInventoryItem = this.db.prepare(`
+      DELETE FROM inventory WHERE id = ?;
     `);
   }
 }

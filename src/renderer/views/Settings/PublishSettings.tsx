@@ -93,6 +93,7 @@ const PublishSettings: React.FC = () => {
   const [publicList, setPublicList] = useState('');
   const [reservedNameChars, setReservedNameChars] = useState('');
   const [publishWithoutImages, setPublishWithoutImages] = useState(false);
+  const [requireTitle, setRequireTitle] = useState(true);
   const [requiredAttributeKeys, setRequiredAttributeKeys] = useState('');
 
   // stored as a comma-separated string so the config format is unchanged and a
@@ -142,6 +143,7 @@ const PublishSettings: React.FC = () => {
     setPublicList(config.publicPriceList);
     setReservedNameChars(config.reservedNameChars);
     setPublishWithoutImages(config.publishWithoutImages);
+    setRequireTitle(config.requireTitle);
     setRequiredAttributeKeys(config.requiredAttributeKeys);
   }, [loading, config]);
 
@@ -184,6 +186,7 @@ const PublishSettings: React.FC = () => {
       publicList !== config.publicPriceList ||
       reservedNameChars !== config.reservedNameChars ||
       publishWithoutImages !== config.publishWithoutImages ||
+      requireTitle !== config.requireTitle ||
       requiredAttributeKeys !== config.requiredAttributeKeys,
     [
       config,
@@ -202,6 +205,7 @@ const PublishSettings: React.FC = () => {
       publicList,
       reservedNameChars,
       publishWithoutImages,
+      requireTitle,
       requiredAttributeKeys,
     ],
   );
@@ -222,6 +226,7 @@ const PublishSettings: React.FC = () => {
         publicPriceList: publicList,
         reservedNameChars,
         publishWithoutImages,
+        requireTitle,
         requiredAttributeKeys,
         ...(secretTouched ? { secretAccessKey } : {}),
         ...(webhookTokenTouched ? { webhookToken: webhookToken.trim() } : {}),
@@ -249,6 +254,7 @@ const PublishSettings: React.FC = () => {
     publicList,
     publicPrefix,
     publishWithoutImages,
+    requireTitle,
     region,
     requiredAttributeKeys,
     savePublishConfig,
@@ -504,6 +510,29 @@ const PublishSettings: React.FC = () => {
                   is done — the shop shows a placeholder image. Turn this off
                   before going live: the next publish then withdraws every item
                   still lacking a photograph.
+                </span>
+              </span>
+            </label>
+            <label
+              htmlFor="publish-require-title"
+              className="flex items-start gap-2 rounded-md border p-3"
+            >
+              <input
+                id="publish-require-title"
+                type="checkbox"
+                className="mt-1"
+                checked={requireTitle}
+                onChange={(e) => setRequireTitle(e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium">
+                  Require a display title to publish
+                </span>
+                <span className="mt-1 block text-muted-foreground">
+                  An item with no display title is held back. Turn this on when
+                  the storefront freezes a URL from the title at create — a
+                  first name written from the item code would need rewriting
+                  later. Leave off if a consumer composes names itself.
                 </span>
               </span>
             </label>

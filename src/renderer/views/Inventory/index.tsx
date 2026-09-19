@@ -13,7 +13,7 @@ import {
 } from '@/renderer/shad/ui/dropdown-menu';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
-import { ImportExportInventoryUrdu } from './ImportExportInventoryUrdu';
+import { ImportExportInventoryAttributes } from './ImportExportInventoryAttributes';
 import { ManageItemTypes } from './ManageItemTypes';
 import { ManagePriceLists } from './ManagePriceLists';
 import { ManageAttributes } from './ManageAttributes';
@@ -25,6 +25,7 @@ const InventoryPage: React.FC = () => {
       ?.openManageItemTypes === true;
 
   const [refresh, setRefresh] = useState(false);
+  const [hideInactive, setHideInactive] = useState(true);
   const [hideZeroQuantity, setHideZeroQuantity] = useState(true);
   const [hideZeroPrice, setHideZeroPrice] = useState(true);
   const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
@@ -92,7 +93,7 @@ const InventoryPage: React.FC = () => {
                     Attributes
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <ImportExportInventoryUrdu
+                  <ImportExportInventoryAttributes
                     refetchInventory={refetchInventory}
                   />
                 </DropdownMenuContent>
@@ -117,6 +118,7 @@ const InventoryPage: React.FC = () => {
             id="filter-hide-all"
             disabled={bulkEditActive}
             checked={
+              hideInactive &&
               hideNegativeQuantity &&
               hideZeroQuantity &&
               hideZeroPrice &&
@@ -125,6 +127,7 @@ const InventoryPage: React.FC = () => {
             onCheckedChange={(checked) => {
               if (bulkEditActive) return;
               const value = checked === true;
+              setHideInactive(value);
               setHideNegativeQuantity(value);
               setHideZeroQuantity(value);
               setHideZeroPrice(value);
@@ -132,6 +135,23 @@ const InventoryPage: React.FC = () => {
             }}
           />
           <span>All</span>
+        </Label>
+        <Label
+          htmlFor="filter-hide-inactive"
+          className={`flex items-center gap-2 text-sm font-normal ${
+            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+          }`}
+        >
+          <Checkbox
+            id="filter-hide-inactive"
+            disabled={bulkEditActive}
+            checked={hideInactive}
+            onCheckedChange={(checked) => {
+              if (bulkEditActive) return;
+              setHideInactive(checked === true);
+            }}
+          />
+          <span>Inactive</span>
         </Label>
         <Label
           htmlFor="filter-hide-negative-qty"
@@ -232,6 +252,7 @@ const InventoryPage: React.FC = () => {
         onFilteredIdsChange={handleFilteredIdsChange}
         options={{
           refresh,
+          hideInactive,
           hideZeroQuantity,
           hideZeroPrice,
           hideNegativeQuantity,

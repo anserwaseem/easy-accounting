@@ -782,6 +782,198 @@ describe('InvoiceService.insertInvoice', () => {
     expect(invRow.quantity).toBe(50);
   });
 
+  const makeSimplePurchase = (
+    acc: SeededAccounts,
+    inv: SeededInventory,
+    invoiceNumber: number,
+    dateIso: string,
+    quantity = 2,
+  ): Invoice => {
+    const price = 10;
+    return {
+      id: -1,
+      invoiceType: InvoiceType.Purchase,
+      date: dateIso,
+      invoiceNumber,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: quantity * price,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity,
+          discount: 0,
+          price,
+          discountedPrice: quantity * price,
+        },
+      ],
+    };
+  };
+
+  it('purchase: editing an earlier bill keeps original date even when a later bill exists', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const first = makeSimplePurchase(
+      acc,
+      inv,
+      5101,
+      new Date('2026-03-01T12:00:00.000Z').toISOString(),
+    );
+    const second = makeSimplePurchase(
+      acc,
+      inv,
+      5102,
+      new Date('2026-03-20T12:00:00.000Z').toISOString(),
+    );
+    const { invoiceId: firstId } = invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      first,
+    );
+    invoiceService.insertInvoice(InvoiceType.Purchase, second);
+
+    const updated: Invoice = {
+      ...first,
+      id: firstId,
+      invoiceNumber: first.invoiceNumber,
+    };
+    expect(() =>
+      invoiceService.updateInvoice(InvoiceType.Purchase, firstId, updated),
+    ).not.toThrow();
+
+    const header = db
+      .prepare(`SELECT date, totalAmount FROM invoices WHERE id = ?`)
+      .get([firstId]) as { date: string; totalAmount: number };
+    expect(header.date).toBe(first.date);
+    expect(Number(header.totalAmount)).toBe(first.totalAmount);
+  });
+
+  it('purchase: edit cannot move date after the next invoice for that vendor', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const first = makeSimplePurchase(
+      acc,
+      inv,
+      5201,
+      new Date('2026-03-01T12:00:00.000Z').toISOString(),
+    );
+    const second = makeSimplePurchase(
+      acc,
+      inv,
+      5202,
+      new Date('2026-03-20T12:00:00.000Z').toISOString(),
+    );
+    const { invoiceId: firstId } = invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      first,
+    );
+    invoiceService.insertInvoice(InvoiceType.Purchase, second);
+
+    const updated: Invoice = {
+      ...first,
+      id: firstId,
+      invoiceNumber: first.invoiceNumber,
+      date: new Date('2026-03-25T12:00:00.000Z').toISOString(),
+    };
+    expect(() =>
+      invoiceService.updateInvoice(InvoiceType.Purchase, firstId, updated),
+    ).toThrow(/cannot be after the next invoice date/);
+  });
+
+  it('purchase: edit cannot move date before the previous invoice for that vendor', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const first = makeSimplePurchase(
+      acc,
+      inv,
+      5301,
+      new Date('2026-03-01T12:00:00.000Z').toISOString(),
+    );
+    const second = makeSimplePurchase(
+      acc,
+      inv,
+      5302,
+      new Date('2026-03-20T12:00:00.000Z').toISOString(),
+    );
+    invoiceService.insertInvoice(InvoiceType.Purchase, first);
+    const { invoiceId: secondId } = invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      second,
+    );
+
+    const updated: Invoice = {
+      ...second,
+      id: secondId,
+      invoiceNumber: second.invoiceNumber,
+      date: new Date('2026-02-20T12:00:00.000Z').toISOString(),
+    };
+    expect(() =>
+      invoiceService.updateInvoice(InvoiceType.Purchase, secondId, updated),
+    ).toThrow(/cannot be before the previous invoice date/);
+  });
+
+  it('getInvoiceEditDateBounds returns prev/next purchase dates for the vendor', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const { invoiceId: firstId } = invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      makeSimplePurchase(
+        acc,
+        inv,
+        5401,
+        new Date('2026-03-01T12:00:00.000Z').toISOString(),
+      ),
+    );
+    const { invoiceId: middleId } = invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      makeSimplePurchase(
+        acc,
+        inv,
+        5402,
+        new Date('2026-03-10T12:00:00.000Z').toISOString(),
+      ),
+    );
+    invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      makeSimplePurchase(
+        acc,
+        inv,
+        5403,
+        new Date('2026-03-20T12:00:00.000Z').toISOString(),
+      ),
+    );
+
+    const bounds = invoiceService.getInvoiceEditDateBounds(
+      middleId,
+      acc.primaryPartyId,
+      5402,
+      InvoiceType.Purchase,
+    );
+    expect(bounds.prevDate).toBe(
+      new Date('2026-03-01T12:00:00.000Z').toISOString(),
+    );
+    expect(bounds.nextDate).toBe(
+      new Date('2026-03-20T12:00:00.000Z').toISOString(),
+    );
+
+    const firstBounds = invoiceService.getInvoiceEditDateBounds(
+      firstId,
+      acc.primaryPartyId,
+      5401,
+      InvoiceType.Purchase,
+    );
+    expect(firstBounds.prevDate).toBeNull();
+    expect(firstBounds.nextDate).toBe(
+      new Date('2026-03-10T12:00:00.000Z').toISOString(),
+    );
+  });
+
   it('sale: invoices + invoice_items + journal + journal_entry + chart/account + inventory + item_types + discount_profiles + profile_type_discounts align', () => {
     const acc = seedBaseAccounts();
     const inv = seedInventoryAndTypes();

@@ -23,7 +23,8 @@ export interface CatalogSourceRow {
    * folder holding its photographs, the SKU on a storefront and the id in an ad
    * feed, so it cannot change, and it is frequently a code rather than a name.
    * A consumer that needs something to show a customer should prefer this and
-   * fall back to composing one; null is the ordinary state, not a defect.
+   * fall back to composing one; null is the ordinary state, not a defect,
+   * unless `requireTitle` is on.
    */
   title?: string | null;
   parentSku: string | null;
@@ -73,6 +74,17 @@ export interface CatalogOptions {
    * for anyone to remember.
    */
   requireImage?: boolean;
+  /**
+   * Whether an item still needs a display title to be publishable. Defaults to
+   * false: null is the ordinary state, and a consumer that wants a name can
+   * compose one from attributes.
+   *
+   * Turned on when the storefront freezes a URL from the title at create. An
+   * item published under its identifying code then needs a slug rewrite the
+   * moment a real name is filled in. Holding it back until it has a title
+   * means the first create writes the right URL.
+   */
+  requireTitle?: boolean;
   /**
    * Attribute keys an item must carry before it can be published.
    *
@@ -162,6 +174,7 @@ export type PublishBlocker =
   | 'no image'
   | 'no public price'
   | 'no public attributes'
+  | 'no title'
   | `missing ${string}`;
 
 /**
@@ -195,6 +208,9 @@ export function publishBlockers(
   }
   if (!hasAttributes(publicAttributesOf(row, options.publicAttributeKeys))) {
     blockers.push('no public attributes');
+  }
+  if (options.requireTitle && !(row.title ?? '').trim()) {
+    blockers.push('no title');
   }
   // named individually: "missing product_type" says what to set, where a
   // generic "missing a required attribute" would leave you hunting

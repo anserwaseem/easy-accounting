@@ -19,6 +19,7 @@ module.exports = {
     'src/core/sync/__tests__/mockServer.ts',
     'src/core/sync/__tests__/convergenceScenarios.ts',
     '<rootDir>/apps/web/',
+    '\\.kilo',
   ],
   transform: {
     '\\.(ts|tsx|js|jsx)$': 'ts-jest',

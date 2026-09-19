@@ -170,4 +170,5 @@ export const REPORT_FILTER_KEYS = {
   stockAsOf: 'reports.stockAsOf.filters',
   purchasesByVendor: 'reports.purchasesByVendor.filters',
   salesByCustomer: 'reports.salesByCustomer.filters',
+  vendorStockActivity: 'reports.vendorStockActivity.filters',
 } as const;

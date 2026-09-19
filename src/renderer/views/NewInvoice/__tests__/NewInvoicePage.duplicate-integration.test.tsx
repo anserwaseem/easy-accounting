@@ -178,7 +178,7 @@ function setupElectron(inv: InvoiceView | undefined, overrides: any = {}) {
     getAccountByName: jest.fn(async () => null),
     getLedger: jest.fn(async () => []),
     getLedgerBalance,
-    getSaleInvoiceEditDateBounds: jest.fn(async () => ({
+    getInvoiceEditDateBounds: jest.fn(async () => ({
       prevDate: null,
       nextDate: null,
     })),

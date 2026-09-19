@@ -12,6 +12,8 @@ import type {
   InventoryOpeningStock,
   InventoryUrduBulkUpdateResult,
   InventoryUrduFieldPatch,
+  InventoryAttributeBulkUpdateResult,
+  InventoryAttributeFieldPatch,
   ReportResponse,
   SetOpeningStockItem,
   StockAdjustment,
@@ -88,6 +90,44 @@ const SQL = {
           itemTypeId = @itemTypeId,
           listPosition = @listPosition
       WHERE id = @id;
+    `,
+
+  toggleInventoryActive: `
+      UPDATE inventory
+      SET isActive = @isActive
+      WHERE id = @id;
+    `,
+
+  hasInvoiceItems: `
+      SELECT COUNT(*) AS count
+      FROM invoice_items
+      WHERE inventoryId = ?;
+    `,
+
+  hasVendorIssueItems: `
+      SELECT COUNT(*) AS count
+      FROM vendor_issue_items
+      WHERE inventoryId = ?;
+    `,
+
+  deleteInventoryPricesByInventoryId: `
+      DELETE FROM inventory_prices WHERE inventoryId = ?;
+    `,
+
+  deleteStockAdjustmentsByInventoryId: `
+      DELETE FROM stock_adjustments WHERE inventoryId = ?;
+    `,
+
+  deleteOpeningStockByInventoryId: `
+      DELETE FROM inventory_opening_stock WHERE inventoryId = ?;
+    `,
+
+  deleteVendorStockByInventoryId: `
+      DELETE FROM vendor_stock WHERE inventoryId = ?;
+    `,
+
+  deleteInventoryItem: `
+      DELETE FROM inventory WHERE id = ?;
     `,
 
   getOpeningStock: `
@@ -276,13 +316,19 @@ const SQL = {
       SELECT id FROM inventory WHERE TRIM(name) = TRIM(?)
     `,
 
-  getInventoryUrduById: `
-      SELECT id, descriptionUrdu FROM inventory WHERE id = ?
+  getInventoryAttributeFieldsById: `
+      SELECT id, descriptionUrdu, attributes FROM inventory WHERE id = ?
     `,
 
   updateInventoryUrdu: `
       UPDATE inventory
       SET descriptionUrdu = @descriptionUrdu
+      WHERE id = @id
+    `,
+
+  updateInventoryDescription: `
+      UPDATE inventory
+      SET description = @description
       WHERE id = @id
     `,
 
@@ -809,6 +855,87 @@ export class InventoryService {
     return Boolean(result.changes);
   }
 
+  async toggleInventoryActive(id: number, isActive: boolean): Promise<boolean> {
+    const result = await this.db.run(SQL.toggleInventoryActive, {
+      id: cast(id),
+      isActive: cast(isActive),
+    });
+    return Boolean(result.changes);
+  }
+
+  async hasInvoiceItems(id: number): Promise<boolean> {
+    const result = await this.db.get<{ count: number }>(SQL.hasInvoiceItems, [
+      cast(id),
+    ]);
+    return Boolean(result && result.count > 0);
+  }
+
+  async canDeleteInventoryItem(
+    id: number,
+  ): Promise<{ canDelete: boolean; reason?: string }> {
+    const invId = cast(id);
+    const invoiceItemCheck = await this.db.get<{ count: number }>(
+      SQL.hasInvoiceItems,
+      [invId],
+    );
+    if (invoiceItemCheck && invoiceItemCheck.count > 0) {
+      return {
+        canDelete: false,
+        reason:
+          'Cannot delete an inventory item that has invoice records. Please deactivate it instead.',
+      };
+    }
+
+    const vendorIssueCheck = await this.db.get<{ count: number }>(
+      SQL.hasVendorIssueItems,
+      [invId],
+    );
+    if (vendorIssueCheck && vendorIssueCheck.count > 0) {
+      return {
+        canDelete: false,
+        reason:
+          'Cannot delete an inventory item that has vendor issue records. Please deactivate it instead.',
+      };
+    }
+
+    const childVariantCheck = await this.db.get<{ c: number }>(
+      SQL.countInventoryChildren,
+      [invId],
+    );
+    if (childVariantCheck && childVariantCheck.c > 0) {
+      return {
+        canDelete: false,
+        reason:
+          'Cannot delete a family head item that has child variants. Please reassign or delete the variants first.',
+      };
+    }
+
+    return { canDelete: true };
+  }
+
+  async deleteInventoryItem(
+    id: number,
+  ): Promise<{ success: boolean; error?: string }> {
+    const check = await this.canDeleteInventoryItem(id);
+    if (!check.canDelete) {
+      return { success: false, error: check.reason };
+    }
+
+    const invId = cast(id);
+    try {
+      await this.db.transaction(async () => {
+        await this.db.run(SQL.deleteInventoryPricesByInventoryId, [invId]);
+        await this.db.run(SQL.deleteStockAdjustmentsByInventoryId, [invId]);
+        await this.db.run(SQL.deleteOpeningStockByInventoryId, [invId]);
+        await this.db.run(SQL.deleteVendorStockByInventoryId, [invId]);
+        await this.db.run(SQL.deleteInventoryItem, [invId]);
+      });
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  }
+
   /**
    * apply Urdu print description from spreadsheet import.
    * match by id when present, else by trimmed name (SKU).
@@ -817,6 +944,18 @@ export class InventoryService {
   async bulkUpdateUrduFields(
     patches: InventoryUrduFieldPatch[],
   ): Promise<InventoryUrduBulkUpdateResult> {
+    return this.bulkUpdateAttributeFields(patches);
+  }
+
+  /**
+   * apply custom attributes and/or descriptions from spreadsheet import.
+   * match by id when present, else by trimmed name (SKU).
+   * only keys present on the patch are written (undefined = leave unchanged);
+   * attribute values of null clear that key; other attribute keys are preserved.
+   */
+  async bulkUpdateAttributeFields(
+    patches: InventoryAttributeFieldPatch[],
+  ): Promise<InventoryAttributeBulkUpdateResult> {
     let updated = 0;
     let notFound = 0;
     let ambiguous = 0;
@@ -824,7 +963,7 @@ export class InventoryService {
     await this.db.transaction(async () => {
       for (const patch of patches) {
         // eslint-disable-next-line no-await-in-loop
-        const resolved = await this.resolveInventoryForUrduPatch(patch);
+        const resolved = await this.resolveInventoryForAttributePatch(patch);
         if (resolved === 'notFound') {
           notFound += 1;
           continue;
@@ -834,17 +973,46 @@ export class InventoryService {
           continue;
         }
 
-        const nextDescriptionUrdu =
-          patch.descriptionUrdu !== undefined
-            ? patch.descriptionUrdu?.trim() || null
-            : resolved.descriptionUrdu ?? null;
+        let wrote = false;
 
-        // eslint-disable-next-line no-await-in-loop
-        const result = await this.db.run(SQL.updateInventoryUrdu, {
-          id: cast(resolved.id),
-          descriptionUrdu: nextDescriptionUrdu,
-        });
-        if (result.changes > 0) updated += 1;
+        if (patch.description !== undefined) {
+          // eslint-disable-next-line no-await-in-loop
+          await this.db.run(SQL.updateInventoryDescription, {
+            id: cast(resolved.id),
+            description: patch.description?.trim() || null,
+          });
+          wrote = true;
+        }
+
+        if (patch.descriptionUrdu !== undefined) {
+          const nextDescriptionUrdu = patch.descriptionUrdu?.trim() || null;
+          // eslint-disable-next-line no-await-in-loop
+          await this.db.run(SQL.updateInventoryUrdu, {
+            id: cast(resolved.id),
+            descriptionUrdu: nextDescriptionUrdu,
+          });
+          wrote = true;
+        }
+
+        if (patch.attributes !== undefined) {
+          const nextAttrs: Record<string, unknown> = {
+            ...resolved.attributes,
+          };
+          Object.entries(patch.attributes).forEach(([key, value]) => {
+            if (value === null || value === '' || value === undefined) {
+              delete nextAttrs[key];
+            } else {
+              nextAttrs[key] = value;
+            }
+          });
+          // resolved id already proven to exist; treat the merge as an update
+          // even when the resulting JSON is unchanged
+          // eslint-disable-next-line no-await-in-loop
+          await this.updateInventoryAttributes(resolved.id, nextAttrs);
+          wrote = true;
+        }
+
+        if (wrote) updated += 1;
         else notFound += 1;
       }
     });
@@ -852,17 +1020,34 @@ export class InventoryService {
     return { updated, notFound, ambiguous };
   }
 
-  private async resolveInventoryForUrduPatch(
-    patch: InventoryUrduFieldPatch,
+  private async resolveInventoryForAttributePatch(
+    patch: InventoryAttributeFieldPatch,
   ): Promise<
-    { id: number; descriptionUrdu: string | null } | 'notFound' | 'ambiguous'
+    | {
+        id: number;
+        descriptionUrdu: string | null;
+        attributes: Record<string, unknown>;
+      }
+    | 'notFound'
+    | 'ambiguous'
   > {
+    const toResolved = (row: {
+      id: number;
+      descriptionUrdu: string | null;
+      attributes?: string | null;
+    }) => ({
+      id: row.id,
+      descriptionUrdu: row.descriptionUrdu,
+      attributes: parseJsonRecord(row.attributes),
+    });
+
     if (patch.id != null && Number.isFinite(patch.id) && patch.id > 0) {
       const byId = await this.db.get<{
         id: number;
         descriptionUrdu: string | null;
-      }>(SQL.getInventoryUrduById, [cast(patch.id)]);
-      return byId ?? 'notFound';
+        attributes?: string | null;
+      }>(SQL.getInventoryAttributeFieldsById, [cast(patch.id)]);
+      return byId ? toResolved(byId) : 'notFound';
     }
 
     const name = patch.name?.trim();
@@ -878,8 +1063,9 @@ export class InventoryService {
     const byId = await this.db.get<{
       id: number;
       descriptionUrdu: string | null;
-    }>(SQL.getInventoryUrduById, [cast(matches[0].id)]);
-    return byId ?? 'notFound';
+      attributes?: string | null;
+    }>(SQL.getInventoryAttributeFieldsById, [cast(matches[0].id)]);
+    return byId ? toResolved(byId) : 'notFound';
   }
 
   /**

@@ -9,6 +9,7 @@ import type {
   UpdateAccount,
   AccountUrduFieldPatch,
   InventoryUrduFieldPatch,
+  InventoryAttributeFieldPatch,
   Journal,
   JournalNarrationSummary,
   LedgerView,
@@ -142,6 +143,28 @@ const electronHandler = {
 
   updateInventoryItem: (item: UpdateInventoryItem) =>
     ipcRenderer.invoke('inventory:update', item),
+
+  toggleInventoryActive: (id: number, isActive: boolean) =>
+    ipcRenderer.invoke(
+      'inventory:toggleActive',
+      id,
+      isActive,
+    ) as Promise<boolean>,
+
+  hasInventoryInvoiceItems: (id: number) =>
+    ipcRenderer.invoke('inventory:hasInvoiceItems', id) as Promise<boolean>,
+
+  canDeleteInventoryItem: (id: number) =>
+    ipcRenderer.invoke('inventory:canDelete', id) as Promise<{
+      canDelete: boolean;
+      reason?: string;
+    }>,
+
+  deleteInventoryItem: (id: number) =>
+    ipcRenderer.invoke('inventory:delete', id) as Promise<{
+      success: boolean;
+      error?: string;
+    }>,
 
   setInventoryParentId: (inventoryId: number, parentId: number | null) =>
     ipcRenderer.invoke(
@@ -389,16 +412,18 @@ const electronHandler = {
     payload?: ReturnSaleInvoicePayload,
   ) => ipcRenderer.invoke('invoice:returnPurchase', invoiceId, payload),
 
-  getSaleInvoiceEditDateBounds: (
+  getInvoiceEditDateBounds: (
     invoiceId: number,
     accountId: number,
     invoiceNumber: number,
+    invoiceType: InvoiceType,
   ) =>
     ipcRenderer.invoke(
-      'invoice:getSaleEditDateBounds',
+      'invoice:getEditDateBounds',
       invoiceId,
       accountId,
       invoiceNumber,
+      invoiceType,
     ) as Promise<{ prevDate: string | null; nextDate: string | null }>,
 
   updateInvoiceBiltyAndCartons: (
@@ -505,6 +530,13 @@ const electronHandler = {
   printToPdf: (outputBaseName: string | number) =>
     ipcRenderer.invoke('print:toPDF', outputBaseName),
 
+  printWithDialog: () =>
+    ipcRenderer.invoke('print:withDialog') as Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: unknown;
+    }>,
+
   getOutputDir: () => ipcRenderer.invoke('print:outputDir'),
 
   /**
@@ -565,6 +597,18 @@ const electronHandler = {
 
   bulkUpdateInventoryUrduFields: (patches: InventoryUrduFieldPatch[]) =>
     ipcRenderer.invoke('inventory:bulkUpdateUrduFields', patches) as Promise<{
+      updated: number;
+      notFound: number;
+      ambiguous: number;
+    }>,
+
+  bulkUpdateInventoryAttributeFields: (
+    patches: InventoryAttributeFieldPatch[],
+  ) =>
+    ipcRenderer.invoke(
+      'inventory:bulkUpdateAttributeFields',
+      patches,
+    ) as Promise<{
       updated: number;
       notFound: number;
       ambiguous: number;

@@ -19,7 +19,14 @@ function filterInventoryForInvoice(
   items: InventoryItem[],
   invoiceType: InvoiceType,
 ): InventoryItem[] {
-  const picked = items.map((item) => pick(item, [...INVENTORY_PICK]));
+  // only active items are candidates for new invoice lines
+  const activeItems = items.filter(
+    (item) =>
+      item.isActive === undefined ||
+      item.isActive === true ||
+      item.isActive === 1,
+  );
+  const picked = activeItems.map((item) => pick(item, [...INVENTORY_PICK]));
   if (invoiceType === InvoiceType.Purchase) {
     // purchase: any qty (including 0); still require a positive price for line defaults
     return picked.filter((item) => item.price > 0);

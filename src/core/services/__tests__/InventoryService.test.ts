@@ -6,6 +6,7 @@ import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
 import { InventoryService as MainInventoryService } from '../../../main/services/Inventory.service';
 import { INVENTORY_BASELINE_REASON } from '../../db/inventoryBaselineBackfill';
 import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
+import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -42,6 +43,17 @@ const session: SessionContext = { getUsername: () => USERNAME };
  */
 function seedBasicSchema(db: Database.Database) {
   applyFrozenWebSchema(db);
+  // frozen snapshot is 001-030; inventory.isActive lands as desktop 040 /
+  // core 038. main InventoryService prepares that column in init, so the
+  // parity fixture has to carry it even when we skip the rest of CORE_MIGRATIONS.
+  const cols = db.prepare(`PRAGMA table_info("inventory")`).all() as {
+    name: string;
+  }[];
+  if (!cols.some((c) => c.name === 'isActive')) {
+    db.exec(
+      `ALTER TABLE inventory ADD COLUMN isActive BOOLEAN NOT NULL DEFAULT 1`,
+    );
+  }
 }
 
 function createCore(db: Database.Database, store?: KeyValueStore) {
@@ -1061,6 +1073,160 @@ describe('BetterSqliteDriver transactions (InventoryService)', () => {
     // neither patch took effect — the whole transaction rolled back
     expect(rows.find((r) => r.id === idA)?.price).toBe(10);
     expect(rows.find((r) => r.id === idB)?.price).toBe(20);
+    db.close();
+  });
+});
+
+describe('core InventoryService active status and deletion', () => {
+  const setup = async () => {
+    const db = new Database(':memory:');
+    const driver = new BetterSqliteDriver(db);
+    await bootstrapDatabase(driver);
+    const typeId = seedItemType(db, 'T1');
+    const { inventory } = createCore(db);
+    return { db, typeId, inventory };
+  };
+
+  it('defaults isActive to 1 and allows toggling', async () => {
+    const { db, typeId, inventory } = await setup();
+    await inventory.insertItem({
+      name: 'ACTIVE-TEST',
+      price: 50,
+      itemTypeId: typeId,
+    });
+    const { id, isActive } = db
+      .prepare('SELECT id, isActive FROM inventory WHERE name = ?')
+      .get('ACTIVE-TEST') as { id: number; isActive: number };
+
+    expect(isActive).toBe(1);
+
+    const deactivated = await inventory.toggleInventoryActive(id, false);
+    expect(deactivated).toBe(true);
+    const afterDeactivate = db
+      .prepare('SELECT isActive FROM inventory WHERE id = ?')
+      .get(id) as { isActive: number };
+    expect(afterDeactivate.isActive).toBe(0);
+
+    const reactivated = await inventory.toggleInventoryActive(id, true);
+    expect(reactivated).toBe(true);
+    const afterReactivate = db
+      .prepare('SELECT isActive FROM inventory WHERE id = ?')
+      .get(id) as { isActive: number };
+    expect(afterReactivate.isActive).toBe(1);
+    db.close();
+  });
+
+  it('safely deletes an unused inventory item and cleans up auxiliary tables', async () => {
+    const { db, typeId, inventory } = await setup();
+    await inventory.insertItem({
+      name: 'CLEAN-DELETE',
+      price: 100,
+      itemTypeId: typeId,
+    });
+    const { id } = db
+      .prepare('SELECT id FROM inventory WHERE name = ?')
+      .get('CLEAN-DELETE') as { id: number };
+
+    db.prepare(
+      'INSERT INTO stock_adjustments (inventoryId, quantityDelta, reason, date) VALUES (?, 5, ?, ?)',
+    ).run(id, 'init', '2026-01-01');
+    db.prepare(
+      'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate, old_quantity) VALUES (?, 10, ?, 0)',
+    ).run(id, '2026-01-01');
+
+    const check = await inventory.canDeleteInventoryItem(id);
+    expect(check.canDelete).toBe(true);
+
+    const res = await inventory.deleteInventoryItem(id);
+    expect(res.success).toBe(true);
+
+    expect(
+      db.prepare('SELECT id FROM inventory WHERE id = ?').get(id),
+    ).toBeUndefined();
+    expect(
+      db
+        .prepare('SELECT id FROM stock_adjustments WHERE inventoryId = ?')
+        .get(id),
+    ).toBeUndefined();
+    expect(
+      db
+        .prepare('SELECT id FROM inventory_opening_stock WHERE inventoryId = ?')
+        .get(id),
+    ).toBeUndefined();
+
+    db.close();
+  });
+
+  it('blocks deleting an inventory item with invoice records', async () => {
+    const { db, typeId, inventory } = await setup();
+    await inventory.insertItem({
+      name: 'INVOICED-ITEM',
+      price: 200,
+      itemTypeId: typeId,
+    });
+    const { id: inventoryId } = db
+      .prepare('SELECT id FROM inventory WHERE name = ?')
+      .get('INVOICED-ITEM') as { id: number };
+
+    // dummy invoice row only has to exist for the invoice_items lookup;
+    // skip referential checks so we do not have to seed a full chart/account.
+    db.pragma('foreign_keys = OFF');
+    db.prepare(
+      `INSERT INTO invoices (id, invoiceNumber, accountId, invoiceType, date, totalAmount)
+       VALUES (99999, 99999, 1, 'Sale', '2026-01-01', 200)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price)
+       VALUES (99999, ?, 1, 200)`,
+    ).run(inventoryId);
+
+    const check = await inventory.canDeleteInventoryItem(inventoryId);
+    expect(check.canDelete).toBe(false);
+    expect(check.reason).toContain('invoice records');
+
+    const res = await inventory.deleteInventoryItem(inventoryId);
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('invoice records');
+
+    expect(
+      db.prepare('SELECT id FROM inventory WHERE id = ?').get(inventoryId),
+    ).toBeDefined();
+
+    db.close();
+  });
+
+  it('blocks deleting a family head that has child variants', async () => {
+    const { db, typeId, inventory } = await setup();
+    await inventory.insertItem({
+      name: 'HEAD-ITEM',
+      price: 100,
+      itemTypeId: typeId,
+    });
+    const { id: headId } = db
+      .prepare('SELECT id FROM inventory WHERE name = ?')
+      .get('HEAD-ITEM') as { id: number };
+
+    await inventory.insertItem({
+      name: 'CHILD-ITEM',
+      price: 100,
+      itemTypeId: typeId,
+    });
+    const { id: childId } = db
+      .prepare('SELECT id FROM inventory WHERE name = ?')
+      .get('CHILD-ITEM') as { id: number };
+
+    db.prepare('UPDATE inventory SET parentId = ? WHERE id = ?').run(
+      headId,
+      childId,
+    );
+
+    const check = await inventory.canDeleteInventoryItem(headId);
+    expect(check.canDelete).toBe(false);
+    expect(check.reason).toContain('child variants');
+
+    const res = await inventory.deleteInventoryItem(headId);
+    expect(res.success).toBe(false);
+
     db.close();
   });
 });

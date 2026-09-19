@@ -27,6 +27,7 @@ const ready = {
   publicPrefix: 'catalog/public',
   publicPriceList: 'Retail',
   publishWithoutImages: false,
+  requireTitle: true,
   requiredAttributeKeys: '',
   reservedNameChars: '',
   imagesManifestUrl: '',

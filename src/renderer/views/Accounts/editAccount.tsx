@@ -1,4 +1,4 @@
-import { Ban, Copy, Power, Trash2 } from 'lucide-react';
+import { Ban, Copy, Power, Trash2, MoreHorizontal } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,13 @@ import {
   DialogDescription,
   DialogTrigger,
 } from 'renderer/shad/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from 'renderer/shad/ui/dropdown-menu';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
@@ -22,14 +29,12 @@ interface EditAccountProps {
   };
   refetchAccounts: () => void;
   charts: Chart[];
-  clearRef: React.RefObject<HTMLButtonElement>;
 }
 
 export const EditAccount: React.FC<EditAccountProps> = ({
   row,
   refetchAccounts,
   charts,
-  clearRef,
 }: EditAccountProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -167,60 +172,69 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     <>
       {/* -ml-2 lines first glyph up with Actions header — same as inventory */}
       <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          title={toggleLabel}
-          aria-label={toggleLabel}
-          onClick={handleToggleActive}
-        >
-          {isActive ? (
-            <Ban className="h-4 w-4" />
-          ) : (
-            <Power className="h-4 w-4" />
-          )}
-        </Button>
-
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          title="Delete account"
-          aria-label="Delete account"
-          onClick={() => setIsDeleteDialogOpen(true)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <EditActionButton aria-label="Edit account" title="Edit account" />
           </DialogTrigger>
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[425px]">
-            <DialogHeader>
+            <DialogHeader className="flex flex-row items-center justify-between space-y-0 pr-7">
               <DialogTitle>Edit Account</DialogTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCreateCopy}
+                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                title="Create a copy of this account"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Create a copy
+              </Button>
             </DialogHeader>
             <AccountForm
               onSubmit={onSubmit}
               charts={charts}
-              clearRef={clearRef}
               initialValues={mapRowToFormData(row.original)}
             />
-            <DialogFooter className="!justify-start">
-              <Button
-                variant="outline"
-                onClick={handleCreateCopy}
-                className="flex items-center"
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Create a Copy
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title="More actions"
+              aria-label="More actions"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={handleCreateCopy}>
+              <Copy className="mr-2 h-4 w-4" />
+              Create a copy
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleToggleActive}>
+              {isActive ? (
+                <Ban className="mr-2 h-4 w-4" />
+              ) : (
+                <Power className="mr-2 h-4 w-4" />
+              )}
+              {toggleLabel}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setIsDeleteDialogOpen(true)}
+              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete account
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -250,7 +264,6 @@ export const EditAccount: React.FC<EditAccountProps> = ({
         <AddAccount
           refetchAccounts={refetchAccounts}
           charts={charts}
-          clearRef={clearRef}
           initialValues={accountToCopy}
           isOpen={!!accountToCopy}
           onOpenChange={(open: boolean) => {

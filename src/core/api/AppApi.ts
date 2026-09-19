@@ -60,6 +60,8 @@ import type {
   AccountUrduBulkUpdateResult,
   InventoryUrduFieldPatch,
   InventoryUrduBulkUpdateResult,
+  InventoryAttributeFieldPatch,
+  InventoryAttributeBulkUpdateResult,
   PurchasesByVendorFilters,
   PurchasesByVendorResponse,
   SalesByCustomerFilters,
@@ -404,10 +406,11 @@ export interface AppApi {
     invoiceId: number,
     payload?: ReturnSaleInvoicePayload,
   ) => Promise<any>;
-  getSaleInvoiceEditDateBounds: (
+  getInvoiceEditDateBounds: (
     invoiceId: number,
     accountId: number,
     invoiceNumber: number,
+    invoiceType: InvoiceType,
   ) => Promise<{ prevDate: string | null; nextDate: string | null }>;
   updateInvoiceBiltyAndCartons: (
     invoiceId: number,
@@ -446,9 +449,20 @@ export interface AppApi {
   doesInventoryExist: () => Promise<any>;
   insertInventoryItem: (item: InsertInventoryItem) => Promise<any>;
   updateInventoryItem: (item: UpdateInventoryItem) => Promise<any>;
+  toggleInventoryActive: (id: number, isActive: boolean) => Promise<boolean>;
+  hasInventoryInvoiceItems: (id: number) => Promise<boolean>;
+  canDeleteInventoryItem: (
+    id: number,
+  ) => Promise<{ canDelete: boolean; reason?: string }>;
+  deleteInventoryItem: (
+    id: number,
+  ) => Promise<{ success: boolean; error?: string }>;
   bulkUpdateInventoryUrduFields: (
     patches: InventoryUrduFieldPatch[],
   ) => Promise<InventoryUrduBulkUpdateResult>;
+  bulkUpdateInventoryAttributeFields: (
+    patches: InventoryAttributeFieldPatch[],
+  ) => Promise<InventoryAttributeBulkUpdateResult>;
   setInventoryParentId: (
     inventoryId: number,
     parentId: number | null,

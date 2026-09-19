@@ -1137,14 +1137,13 @@ export class InvoiceService {
       : invoice.accountMapping.singleAccountId ??
         raise('Select a customer or vendor account');
 
-    if (invoiceType === InvoiceType.Sale) {
-      this.assertInvoiceDateWithinNeighborRangeForAccount(
-        invoiceId,
-        primaryAccountId,
-        invoiceHeader.invoiceNumber,
-        invoice.date,
-      );
-    }
+    this.assertInvoiceDateWithinNeighborRangeForAccount(
+      invoiceId,
+      primaryAccountId,
+      invoiceHeader.invoiceNumber,
+      invoice.date,
+      invoiceType,
+    );
 
     const extraDiscAcct =
       invoice.extraDiscountAccountId != null
@@ -1228,14 +1227,15 @@ export class InvoiceService {
   }
 
   /**
-   * Sale edit rule: invoice date must stay within the same customer's adjacent invoice dates
-   * (previous/next invoice by invoiceNumber).
+   * edit rule: invoice date must stay within the same party's adjacent invoice dates
+   * (previous/next invoice by invoiceNumber, same invoice type).
    */
   private assertInvoiceDateWithinNeighborRangeForAccount(
     invoiceId: number,
     accountId: number,
     invoiceNumber: number,
     newDateIso: string,
+    invoiceType: InvoiceType,
   ): void {
     const normalize = (iso: string): number => {
       const d = new Date(iso);
@@ -1246,7 +1246,7 @@ export class InvoiceService {
 
     const nextPrevParams = {
       accountId: cast(accountId),
-      invoiceType: InvoiceType.Sale,
+      invoiceType,
       invoiceNumber: cast(invoiceNumber),
       invoiceId: cast(invoiceId),
     };
@@ -1277,17 +1277,18 @@ export class InvoiceService {
   }
 
   /**
-   * Renderer helper for sale edit date bounds. Returns the previous and next invoice dates
-   * (by invoiceNumber) for the given account, excluding this invoice itself.
+   * renderer helper for edit date bounds. returns previous and next invoice dates
+   * (by invoiceNumber) for the given account and type, excluding this invoice itself.
    */
-  getSaleInvoiceEditDateBounds(
+  getInvoiceEditDateBounds(
     invoiceId: number,
     accountId: number,
     invoiceNumber: number,
+    invoiceType: InvoiceType,
   ): { prevDate: string | null; nextDate: string | null } {
     const params = {
       accountId: cast(accountId),
-      invoiceType: InvoiceType.Sale,
+      invoiceType,
       invoiceNumber: cast(invoiceNumber),
       invoiceId: cast(invoiceId),
     };

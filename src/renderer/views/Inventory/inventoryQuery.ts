@@ -151,7 +151,7 @@ export type PublishFilter =
   | 'not ready'
   | 'not a candidate';
 
-/** an item with no title publishes under its item name, which is the default */
+/** an item with no title is a gap when the install requires one to publish */
 export type DisplayTitleFilter = 'any' | 'set' | 'unset';
 
 export type FamilyFilter = 'any' | 'heads' | 'variants' | 'standalone';
@@ -209,6 +209,10 @@ export const inventoryFamilyLabel = (
     return `Head · ${childCount} variant${childCount === 1 ? '' : 's'}`;
   return 'Own head';
 };
+
+/** an item is active unless explicitly set to false or 0 */
+export const isItemActive = (item: Pick<InventoryItem, 'isActive'>): boolean =>
+  item.isActive !== false && item.isActive !== 0;
 
 export interface InventoryFilters {
   attributes: AttributeFilters;

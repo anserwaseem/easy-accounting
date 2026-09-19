@@ -159,6 +159,25 @@ export type InventoryUrduBulkUpdateResult = {
   ambiguous: number;
 };
 
+/**
+ * one row from inventory attributes spreadsheet import.
+ * only keys present on the patch are written (undefined = leave unchanged);
+ * attribute values of null clear that key.
+ */
+export type InventoryAttributeFieldPatch = {
+  id?: number;
+  name?: string;
+  description?: string | null;
+  descriptionUrdu?: string | null;
+  attributes?: Record<string, unknown | null>;
+};
+
+export type InventoryAttributeBulkUpdateResult = {
+  updated: number;
+  notFound: number;
+  ambiguous: number;
+};
+
 /** Chart */
 export interface Chart extends BaseEntity {
   name: string;
@@ -282,9 +301,12 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
   excludeFromCatalog?: 0 | 1;
   /**
    * customer-facing name, distinct from the identifying `name` (migration 023).
-   * Null/absent is normal: a consumer then composes a title of its own.
+   * Null/absent is normal unless this installation requires a display title
+   * to publish; a consumer may then compose a title of its own.
    */
   title?: string | null;
+  /** active flag for inventory lifecycle (migration 028) */
+  isActive?: boolean | 0 | 1;
 }
 export interface UpdateInventoryItem {
   id: number;
@@ -298,11 +320,13 @@ export interface UpdateInventoryItem {
   title?: string | null;
   itemTypeId?: number | null;
   listPosition?: number | null;
+  isActive?: boolean | 0 | 1;
 }
 export interface InsertInventoryItem {
   name: string;
   price: number;
   description?: string;
+  isActive?: boolean | 0 | 1;
   /** optional Urdu print description; blank stores NULL */
   descriptionUrdu?: string | null;
   /** customer-facing name; blank stores NULL (migration 023) */
@@ -460,6 +484,18 @@ export interface VendorStockActivityFilters {
   endDate: string;
 }
 
+export interface VendorStockActivityMovement {
+  id: number;
+  date: string;
+  movementType: VendorStockMovementType;
+  quantityDelta: number;
+  notes?: string | null;
+  referenceType?: string | null;
+  referenceId?: number | null;
+  issueNumber?: number | null;
+  invoiceNumber?: number | null;
+}
+
 export interface VendorStockActivityItem {
   inventoryId: number;
   inventoryName: string;
@@ -469,6 +505,7 @@ export interface VendorStockActivityItem {
   purchaseReturned: number;
   adjusted: number;
   closing: number;
+  movements: VendorStockActivityMovement[];
 }
 
 export interface VendorStockActivityResponse {

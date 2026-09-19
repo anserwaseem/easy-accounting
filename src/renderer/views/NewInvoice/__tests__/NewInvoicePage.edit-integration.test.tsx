@@ -150,7 +150,7 @@ function setupElectronForSaleEdit(inv: InvoiceView, overrides: any = {}) {
     getPrimaryItemType: jest.fn(async () => 1),
     getAccountByName: jest.fn(async () => null),
     getLedger: jest.fn(async () => []),
-    getSaleInvoiceEditDateBounds: jest.fn(async () => ({
+    getInvoiceEditDateBounds: jest.fn(async () => ({
       prevDate: null,
       nextDate: null,
     })),
@@ -213,7 +213,10 @@ function renderPurchaseEdit(
     getPrimaryItemType: jest.fn(),
     getAccountByName: jest.fn(async () => null),
     getLedger: jest.fn(async () => []),
-    getSaleInvoiceEditDateBounds: jest.fn(),
+    getInvoiceEditDateBounds: jest.fn(async () => ({
+      prevDate: null,
+      nextDate: null,
+    })),
     getAccountByNameAndCode: jest.fn(),
     getAccountByNameAndChart: jest.fn(),
     updateInvoice: jest.fn(async () => ({ success: true })),
@@ -360,7 +363,10 @@ describe('NewInvoicePage edit integration', () => {
       getPrimaryItemType: jest.fn(),
       getAccountByName: jest.fn(async () => null),
       getLedger: jest.fn(async () => []),
-      getSaleInvoiceEditDateBounds: jest.fn(),
+      getInvoiceEditDateBounds: jest.fn(async () => ({
+        prevDate: null,
+        nextDate: null,
+      })),
       getAccountByNameAndCode: jest.fn(),
       getAccountByNameAndChart: jest.fn(),
       updateInvoice: jest.fn(async () => ({ success: true })),

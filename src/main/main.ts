@@ -29,6 +29,7 @@ import type {
   UpdateAccount,
   AccountUrduFieldPatch,
   InventoryUrduFieldPatch,
+  InventoryAttributeFieldPatch,
   Journal,
   LedgerView,
   InventoryItem,
@@ -445,6 +446,7 @@ app
         publicPriceList: config.publicPriceList,
         imagesManifestUrl: config.imagesManifestUrl,
         requireImage: !config.publishWithoutImages,
+        requireTitle: config.requireTitle,
         requiredAttributeKeys: parseAttributeKeyList(
           config.requiredAttributeKeys,
         ),
@@ -457,6 +459,7 @@ app
         publicAttributeKeys: publishService.getPublicAttributeKeys(),
         imagesManifestUrl: config.imagesManifestUrl,
         requireImage: !config.publishWithoutImages,
+        requireTitle: config.requireTitle,
         requiredAttributeKeys: parseAttributeKeyList(
           config.requiredAttributeKeys,
         ),
@@ -704,9 +707,28 @@ app
       inventoryService.updateItem(item),
     );
     ipcMain.handle(
+      'inventory:toggleActive',
+      (_, id: number, isActive: boolean) =>
+        inventoryService.toggleInventoryActive(id, isActive),
+    );
+    ipcMain.handle('inventory:hasInvoiceItems', (_, id: number) =>
+      inventoryService.hasInvoiceItems(id),
+    );
+    ipcMain.handle('inventory:canDelete', (_, id: number) =>
+      inventoryService.canDeleteInventoryItem(id),
+    );
+    ipcMain.handle('inventory:delete', (_, id: number) =>
+      inventoryService.deleteInventoryItem(id),
+    );
+    ipcMain.handle(
       'inventory:bulkUpdateUrduFields',
       async (_, patches: InventoryUrduFieldPatch[]) =>
         inventoryService.bulkUpdateUrduFields(patches),
+    );
+    ipcMain.handle(
+      'inventory:bulkUpdateAttributeFields',
+      async (_, patches: InventoryAttributeFieldPatch[]) =>
+        inventoryService.bulkUpdateAttributeFields(patches),
     );
     ipcMain.handle(
       'inventory:setParentId',
@@ -851,12 +873,19 @@ app
         invoiceService.returnPurchaseInvoice(invoiceId, payload),
     );
     ipcMain.handle(
-      'invoice:getSaleEditDateBounds',
-      (_, invoiceId: number, accountId: number, invoiceNumber: number) =>
-        invoiceService.getSaleInvoiceEditDateBounds(
+      'invoice:getEditDateBounds',
+      (
+        _,
+        invoiceId: number,
+        accountId: number,
+        invoiceNumber: number,
+        invoiceType: InvoiceType,
+      ) =>
+        invoiceService.getInvoiceEditDateBounds(
           invoiceId,
           accountId,
           invoiceNumber,
+          invoiceType,
         ),
     );
     ipcMain.handle(
@@ -929,6 +958,7 @@ app
     ipcMain.handle('print:toPDF', (_, outputBaseName: string | number) =>
       printService.printPDF(String(outputBaseName)),
     );
+    ipcMain.handle('print:withDialog', () => printService.printWithDialog());
     ipcMain.handle('print:outputDir', () => printService.outputDirectory);
     ipcMain.handle('chart:insertCustomHead', (_, chart: InsertChart) =>
       chartService.insertCustomHead(chart),

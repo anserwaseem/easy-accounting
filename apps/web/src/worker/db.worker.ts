@@ -816,11 +816,19 @@ async function main(): Promise<void> {
         invoiceId as number,
         payload as Parameters<InvoiceService['returnPurchaseInvoice']>[1],
       ),
-    getSaleInvoiceEditDateBounds: (invoiceId, accountId, invoiceNumber) =>
-      invoiceService.getSaleInvoiceEditDateBounds(
+    getInvoiceEditDateBounds: (
+      invoiceId,
+      accountId,
+      invoiceNumber,
+      invoiceType,
+    ) =>
+      invoiceService.getInvoiceEditDateBounds(
         invoiceId as number,
         accountId as number,
         invoiceNumber as number,
+        invoiceType as Parameters<
+          InvoiceService['getInvoiceEditDateBounds']
+        >[3],
       ),
     updateInvoiceBiltyAndCartons: (invoiceId, biltyNumber, cartons) =>
       invoiceService.updateInvoiceBiltyAndCartons(
@@ -883,9 +891,21 @@ async function main(): Promise<void> {
       inventoryService.updateItem(
         item as Parameters<InventoryService['updateItem']>[0],
       ),
+    toggleInventoryActive: (id, isActive) =>
+      inventoryService.toggleInventoryActive(id as number, isActive as boolean),
+    hasInventoryInvoiceItems: (id) =>
+      inventoryService.hasInvoiceItems(id as number),
+    canDeleteInventoryItem: (id) =>
+      inventoryService.canDeleteInventoryItem(id as number),
+    deleteInventoryItem: (id) =>
+      inventoryService.deleteInventoryItem(id as number),
     bulkUpdateInventoryUrduFields: (patches) =>
       inventoryService.bulkUpdateUrduFields(
         patches as Parameters<InventoryService['bulkUpdateUrduFields']>[0],
+      ),
+    bulkUpdateInventoryAttributeFields: (patches) =>
+      inventoryService.bulkUpdateAttributeFields(
+        patches as Parameters<InventoryService['bulkUpdateAttributeFields']>[0],
       ),
     setInventoryParentId: (inventoryId, parentId) =>
       inventoryService.setInventoryParentId(

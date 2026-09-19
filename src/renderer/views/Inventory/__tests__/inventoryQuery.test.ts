@@ -11,6 +11,7 @@ import {
   formatAttributeValue,
   inventoryFamilyLabel,
   isAttributeUnset,
+  isItemActive,
   matchesAttributeFilters,
   matchesFamilyFilter,
   type AttributeFilters,
@@ -333,6 +334,19 @@ describe('inventory family projection', () => {
   it('keeps an explicitly independent item as own head despite matching text', () => {
     expect(matchesFamilyFilter(independent, 'standalone', index)).toBe(true);
     expect(inventoryFamilyLabel(independent, index)).toBe('Own head');
+  });
+});
+
+describe('isItemActive', () => {
+  it('treats 1, true, and undefined as active', () => {
+    expect(isItemActive({ isActive: 1 })).toBe(true);
+    expect(isItemActive({ isActive: true })).toBe(true);
+    expect(isItemActive({ isActive: undefined })).toBe(true);
+  });
+
+  it('treats 0 and false as inactive', () => {
+    expect(isItemActive({ isActive: 0 })).toBe(false);
+    expect(isItemActive({ isActive: false })).toBe(false);
   });
 });
 
