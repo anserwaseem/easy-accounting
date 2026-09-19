@@ -56,7 +56,11 @@ import {
   EXAMPLE_INVOICE_PRINT_NOTE_EN,
   EXAMPLE_INVOICE_PRINT_NOTE_UR,
 } from '@/renderer/lib/invoicePrint/notes';
-import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
+import {
+  useAppVersion,
+  useCompanyProfile,
+  useInvoicePrintSettings,
+} from '@/renderer/hooks';
 import PublishSettings from './PublishSettings';
 import BackupSettings from './BackupSettings';
 import SyncSettings from './SyncSettings';
@@ -142,6 +146,7 @@ const DEFAULT_LABELS = [' ', '0', '-', 'X'];
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [isSavedRecently, setIsSavedRecently] = useState(false);
+  const appVersion = useAppVersion();
 
   // company profile
   const { profile: companyProfile, saveCompanyProfile } = useCompanyProfile();
@@ -465,11 +470,19 @@ const SettingsPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-full bg-background text-foreground pb-20">
       {/* Header */}
-      <div className="border-b py-5">
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage company metadata, invoice templates, validation rules, and sync
-          options.
+      <div className="border-b py-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage company metadata, invoice templates, validation rules, and
+            sync options.
+          </p>
+        </div>
+        <p
+          className="text-xs text-muted-foreground tabular-nums shrink-0"
+          data-testid="app-version"
+        >
+          Version {appVersion}
         </p>
       </div>
 

@@ -20,6 +20,7 @@ import {
   type SyncStatusPayload,
 } from './api/client';
 import QRCode from 'qrcode';
+import { APP_VERSION } from '@/lib/appVersion';
 
 /**
  * Mirrors src/renderer/preload.d.ts's private `Channels`/`ElectronEventBridge`
@@ -139,6 +140,8 @@ interface ElectronEventBridge {
    * present, so the desktop build never has to resolve that package.
    */
   renderJoinQr?: (text: string) => Promise<string>;
+  /** Running app version. Desktop: `app.getVersion()`. Web: root package.json. */
+  getAppVersion: () => Promise<string>;
 }
 
 declare global {
@@ -377,5 +380,6 @@ export const installElectronShim = (): void => {
         margin: 1,
         errorCorrectionLevel: 'M',
       }),
+    getAppVersion: () => Promise.resolve(APP_VERSION),
   };
 };

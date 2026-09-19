@@ -377,6 +377,7 @@ app
       if (channel.startsWith('publish:')) return false;
       if (channel.startsWith('backup:')) return false;
       if (channel.startsWith('auth:')) return false;
+      if (channel.startsWith('app:')) return false;
       const method = channel.includes(':') ? channel.split(':')[1] : channel;
       return !READ_ONLY_CHANNEL_PREFIXES.some((prefix) =>
         method.startsWith(prefix),
@@ -505,6 +506,9 @@ app
     ipcMain.handle('backup:saveConfig', async (_, input: BackupConfigInput) =>
       saveBackupConfig(input),
     );
+
+    // packaged version from release/app/package.json; dev reads root package.json
+    ipcMain.handle('app:getVersion', async () => app.getVersion());
 
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
       const result = await authService.login(user);

@@ -820,6 +820,9 @@ const electronHandler = {
       'publish:getLastResult',
     ) as Promise<PublishResult | null>,
 
+  /** Running app version (`app.getVersion()` — packaged binary, not webpack bake). */
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>,
+
   /** Metadata about the most recent backup (read-only; no paths or secrets). */
   getLastBackupInfo: () =>
     ipcRenderer.invoke('backup:lastInfo') as Promise<BackupLastInfo>,
