@@ -102,19 +102,19 @@ describe('joinLink', () => {
     expect(isLoopbackOrigin('http://127.0.0.1:4173')).toBe(true);
     expect(isLoopbackOrigin('http://localhost:4173')).toBe(true);
     expect(
-      isLoopbackOrigin('https://easy-accounting-web.ansercrypto.workers.dev'),
+      isLoopbackOrigin('https://easy-accounting-web.example.workers.dev'),
     ).toBe(false);
     expect(parsePublicOrigin('http://insecure.example')).toBeNull();
     expect(parsePublicOrigin('https://127.0.0.1')).toBeNull();
     expect(
-      parsePublicOrigin('https://easy-accounting-web.ansercrypto.workers.dev/'),
-    ).toBe('https://easy-accounting-web.ansercrypto.workers.dev');
+      parsePublicOrigin('https://easy-accounting-web.example.workers.dev/'),
+    ).toBe('https://easy-accounting-web.example.workers.dev');
     expect(
       resolveJoinOrigin(
         'http://127.0.0.1:4173',
-        'https://easy-accounting-web.ansercrypto.workers.dev',
+        'https://easy-accounting-web.example.workers.dev',
       ),
-    ).toBe('https://easy-accounting-web.ansercrypto.workers.dev');
+    ).toBe('https://easy-accounting-web.example.workers.dev');
     expect(resolveJoinOrigin('http://127.0.0.1:4173', null)).toBeNull();
     expect(
       resolveJoinOrigin('https://app.example.com', 'https://other.example'),
