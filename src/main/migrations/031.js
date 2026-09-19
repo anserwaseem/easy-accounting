@@ -1,23 +1,46 @@
-// Migration 028 — creates the `settings` table business settings move into
-// (company profile, invoice print settings, and a handful of non-secret
-// publish-catalog fields today; more will follow as Phase 2 continues). See
-// src/core/services/SettingsService.ts for the reader/writer and
-// src/core/db/migrations/index.ts for the platform-free twin of this exact
-// migration ('028_create_settings_table') — that file's doc comment explains
-// in full why this schema change is written twice (once here, sync against
-// better-sqlite3, for existing desktop installs; once there, async against
-// DatabaseDriver, for the web build and any fresh bootstrap) and why the DDL
-// below must stay word-for-word identical to the one there.
+// Performance prerequisite for docs/derived-state-design.md §4's ledger_view
+// (and §5's inventory_quantity_view): none of these lookup columns are
+// indexed today (see the design doc's §1.1), so every account/journal/
+// inventory lookup the view relies on is a full scan. Purely additive —
+// six `CREATE INDEX IF NOT EXISTS` statements, no table/column changes.
+//
+// `idx_ledger_accountId_date` is kept temporarily even though `ledger` is on
+// its way out (design doc §6/029): the equivalence harness that gates the
+// view cutover (§7) still queries the stored `ledger` table directly and
+// needs this index to do so at any real scale. It is dropped alongside the
+// table itself in migration 029.
 module.exports = {
-  name: '028_create_settings_table',
+  name: '026_index_journal_entry_and_ledger_lookup',
   up: (db) => {
     try {
-      db.prepare(
-        `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updatedAt DATETIME)`,
-      ).run();
+      db.transaction(() => {
+        db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_journal_entry_journalId ON journal_entry(journalId);`,
+        ).run();
+        db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_journal_entry_accountId ON journal_entry(accountId);`,
+        ).run();
+        db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_ledger_accountId_date ON ledger(accountId, date, id);`,
+        ).run();
+        db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_invoice_items_inventoryId ON invoice_items(inventoryId);`,
+        ).run();
+        db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_invoice_items_invoiceId ON invoice_items(invoiceId);`,
+        ).run();
+        db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_stock_adjustments_inventoryId ON stock_adjustments(inventoryId);`,
+        ).run();
+      })();
+
       return true;
     } catch (error) {
+      console.log('026 migration error!');
+      console.error(error);
       return error;
+    } finally {
+      console.log('026 migration completed!');
     }
   },
 };

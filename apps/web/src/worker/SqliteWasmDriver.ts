@@ -54,9 +54,19 @@ export class SqliteWasmDriver implements DatabaseDriver {
   /** Savepoint depth for transactions opened inside transactions. */
   private txDepth = 0;
 
+  private mutationListener: (() => void) | undefined;
+
   constructor(sqlite3: Sqlite3Static, db: Sqlite3Database) {
     this.sqlite3 = sqlite3;
     this.db = db;
+  }
+
+  setMutationListener(listener: (() => void) | undefined): void {
+    this.mutationListener = listener;
+  }
+
+  private notifyMutation(): void {
+    this.mutationListener?.();
   }
 
   private prepare(sql: string): PreparedStatement {
@@ -160,6 +170,7 @@ export class SqliteWasmDriver implements DatabaseDriver {
         const lastInsertRowid = SqliteWasmDriver.normalizeRowid(
           this.sqlite3.capi.sqlite3_last_insert_rowid(this.db.pointer!),
         );
+        this.notifyMutation();
         return { changes, lastInsertRowid };
       } finally {
         stmt.reset();
@@ -205,6 +216,7 @@ export class SqliteWasmDriver implements DatabaseDriver {
   async exec(sql: string): Promise<void> {
     return this.enqueue(async () => {
       this.db.exec(sql);
+      this.notifyMutation();
     });
   }
 

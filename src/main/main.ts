@@ -9,14 +9,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import nodeCrypto from 'crypto';
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  shell,
-  ipcMain,
-  type IpcMainInvokeEvent,
-} from 'electron';
+import { app, BrowserWindow, dialog, shell, ipcMain } from 'electron';
 import log from 'electron-log';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
 import { isNil } from 'lodash';
@@ -352,51 +345,15 @@ app
       },
     });
 
+    getCoreDriver().setMutationListener?.(() => {
+      syncManager.scheduleDebouncedSync();
+    });
+
     try {
       await syncManager.bootIfConfigured();
     } catch (err) {
       log.warn('Sync boot failed:', err);
     }
-
-    const READ_ONLY_CHANNEL_PREFIXES = [
-      'get',
-      'find',
-      'search',
-      'check',
-      'is',
-      'can',
-      'does',
-      'has',
-      'report',
-      'export',
-      'preview',
-    ];
-
-    const isLikelyWriteChannel = (channel: string): boolean => {
-      if (channel.startsWith('sync:')) return false;
-      if (channel.startsWith('publish:')) return false;
-      if (channel.startsWith('backup:')) return false;
-      if (channel.startsWith('auth:')) return false;
-      if (channel.startsWith('app:')) return false;
-      const method = channel.includes(':') ? channel.split(':')[1] : channel;
-      return !READ_ONLY_CHANNEL_PREFIXES.some((prefix) =>
-        method.startsWith(prefix),
-      );
-    };
-
-    const rawHandle = ipcMain.handle.bind(ipcMain);
-    ipcMain.handle = ((
-      channel: string,
-      listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown,
-    ) => {
-      return rawHandle(channel, async (event, ...args) => {
-        const result = await listener(event, ...args);
-        if (isLikelyWriteChannel(channel)) {
-          syncManager.scheduleDebouncedSync();
-        }
-        return result;
-      });
-    }) as typeof ipcMain.handle;
 
     ipcMain.handle('sync:getStatus', async () => syncManager.getStatus());
     ipcMain.handle(

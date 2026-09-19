@@ -49,7 +49,7 @@ export interface CoreMigration {
  * not by a SQL default, since the driver interface has no portable "now"
  * expression guaranteed identical across better-sqlite3 and SQLite-wasm.
  *
- * IMPORTANT — kept in sync by hand with src/main/migrations/028.js:
+ * IMPORTANT — kept in sync by hand with src/main/migrations/033.js:
  * this is the one core migration with a desktop-side twin. Every other
  * migration in this array reaches desktop databases for free, because
  * bootstrapDatabase() (which applies CORE_MIGRATIONS) runs for the web
@@ -87,7 +87,7 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // Migration 029 — client half of multi-device sync: sync_outbox/
   // sync_state/sync_rejected plus per-table capture triggers. See
   // src/core/db/migrations/029_create_sync_tables.ts's doc comment and
-  // src/core/sync/*. Has a desktop-side twin (src/main/migrations/029.js),
+  // src/core/sync/*. Has a desktop-side twin (src/main/migrations/034.js),
   // same as 028 — see that migration's doc comment just above for why. No
   // app-level wiring rides on this migration yet (no UI, no worker/service
   // usage of the tables/triggers it creates) — only the schema groundwork,
@@ -101,7 +101,7 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // src/core/db/migrations/030_create_sync_apply_conflicts.ts's doc
   // comment for the real incident this guards against and the
   // "advance the cursor past it anyway" trade-off it encodes. Has a
-  // desktop-side twin (src/main/migrations/030.js), same as 028/029.
+  // desktop-side twin (src/main/migrations/035.js), same as 028/029.
   migration030,
   // Migration 031 — fixes a field bug in migration 029's capture triggers:
   // a declared-BLOB column (today, only users.password_hash) was excluded
@@ -112,7 +112,7 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // column as a `<col>`/`<col>__hex` typed pair) and why this migration
   // additionally has to re-emit corrective `users` row images, not just fix
   // the triggers going forward. Has a desktop-side twin
-  // (src/main/migrations/031.js), same as 028/029/030.
+  // (src/main/migrations/036.js), same as 028/029/030.
   migration031,
   // Migration 032 — re-dates/renames the import-baseline `stock_adjustments`
   // rows `inventoryBaselineBackfill.ts`'s `backfillInventoryBaseline` wrote
@@ -122,7 +122,7 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // src/core/db/migrations/032_redate_import_baselines.ts's doc comment for
   // the full investigation and why the old reason literal is intentionally
   // frozen there rather than imported. Has a desktop-side twin
-  // (src/main/migrations/032.js), same as 028-031.
+  // (src/main/migrations/037.js), same as 028-031.
   migration032,
   // Migration 033 — rebuilds `settings` (migration 028) to the standard
   // replicated-table shape (INTEGER id + uuid) and installs the same
@@ -134,7 +134,7 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // design (per-key last-writer-wins, not per-row — the apply-side half of
   // that lives in SyncEngine, not here) and
   // src/core/services/settingsSecrets.ts for why secrets can never be among
-  // the seeded rows. Has a desktop-side twin (src/main/migrations/033.js),
+  // the seeded rows. Has a desktop-side twin (src/main/migrations/038.js),
   // same as 028-032.
   migration033,
   // Migration 034 — the sync-apply timestamp-fidelity fix: the schema's
@@ -152,7 +152,7 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // doc comment for the full incident, why every trigger body is
   // regenerated from its own name rather than parsed out of
   // `sqlite_master`, and why local/user-initiated writes are entirely
-  // unaffected. Has a desktop-side twin (src/main/migrations/034.js), same
+  // unaffected. Has a desktop-side twin (src/main/migrations/039.js), same
   // as 028-033.
   migration034,
   // Migration 035 — the third wave of the timestamp-fidelity saga: a plain
@@ -175,15 +175,15 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   // already cover import, and the historic uuid-backfill UPDATE sweep this
   // migration deliberately does NOT fix (a known, documented cost for future
   // data-sweeping migrations to handle themselves). Has a desktop-side twin
-  // (src/main/migrations/035.js), same as 028-034.
+  // (src/main/migrations/040.js), same as 028-034.
   migration035,
   // Migration 036 — desktop 024–026 schema (vendor stock + Urdu print
   // columns, plus uuid on those new tables) for databases that booted from
   // the pre-merge web snapshot. Idempotent: fresh snapshot bootstraps already
   // have this from JS 025–027 and no-op here.
   migration036,
-  // Migration 037 — chart.nameUrdu for custom heads (matching desktop 039/027_add_chart_nameUrdu).
+  // chart.nameUrdu — same name as released desktop 027.js.
   migration037,
-  // Migration 038 — inventory.isActive (matching desktop 040/028_add_isActive_to_inventory).
+  // inventory.isActive — same name as released desktop 028.js.
   migration038,
 ];

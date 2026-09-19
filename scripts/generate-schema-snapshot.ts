@@ -7,11 +7,11 @@
  *   - `scripts/frozen-web-schema/schema.sql` (shared 001-era CREATE TABLEs)
  *   - `src/main/migrations/001.js`–`026.js` (shared 001–023 + desktop
  *     invoice-date / vendor-stock / Urdu)
- *   - `src/main/migrations/027.js`–`030.js` (uuid, opening-balance→journal,
- *     lookup indexes, ledger/inventory quantity *views* — additive; the
- *     `ledger` table remains, so Electron services can still INSERT into it)
+ *   - `src/main/migrations/027.js`–`032.js` (released nameUrdu/isActive,
+ *     then uuid, opening-balance→journal, lookup indexes, ledger/inventory
+ *     quantity *views* — additive; the `ledger` table remains)
  *
- * Core 028+ (`src/core/db/migrations`, plus JS twins 031.js–038.js) are NOT
+ * Core 028+ (`src/core/db/migrations`, plus JS twins 033.js–040.js) are NOT
  * baked into this snapshot — `bootstrapDatabase` applies those on top.
  *
  * Two artifacts are written from a single build:
@@ -36,8 +36,8 @@ const SNAPSHOT_SQL_PATH = path.join(
 );
 const SNAPSHOT_TS_PATH = path.join(ROOT_DIR, 'src/core/db/schemaSnapshot.ts');
 
-/** The migration range this snapshot freezes (filename numbers 001–030). */
-export const FROZEN_MIGRATION_RANGE = '001-030';
+/** The migration range this snapshot freezes (filename numbers 001–032). */
+export const FROZEN_MIGRATION_RANGE = '001-032';
 
 export interface LoadedMigration {
   name: string;
@@ -53,19 +53,19 @@ function loadMigrationFile(dir: string, fileName: string): LoadedMigration {
 }
 
 /**
- * Historical JS migrations baked into the snapshot: 001–030.
- * 031.js–038.js are core 028–035 twins and must NOT run here.
+ * Historical JS migrations baked into the snapshot: 001–032.
+ * 033.js–040.js are core 028–035 twins and must NOT run here.
  */
 export function loadMigrations(): LoadedMigration[] {
   return fs
     .readdirSync(MIGRATIONS_DIR)
-    .filter((f) => /^(00[1-9]|01\d|02\d|030)\.js$/.test(f))
+    .filter((f) => /^(00[1-9]|01\d|02\d|03[0-2])\.js$/.test(f))
     .sort()
     .map((fileName) => loadMigrationFile(MIGRATIONS_DIR, fileName));
 }
 
 /**
- * Applies the frozen base schema.sql + migrations 001–030 onto `db`
+ * Applies the frozen base schema.sql + migrations 001–032 onto `db`
  * and records those names in `migrations`.
  *
  * `upToInclusive` (filename number) stops after that migration — used by
@@ -73,7 +73,7 @@ export function loadMigrations(): LoadedMigration[] {
  */
 export function applyFrozenWebSchema(
   db: Database.Database,
-  upToInclusive = 30,
+  upToInclusive = 32,
 ): void {
   const schemaSql = fs.readFileSync(SCHEMA_SQL_PATH, 'utf-8');
   db.exec(schemaSql);
@@ -157,11 +157,11 @@ export function buildSnapshotSql(db: Database.Database): string {
 -- Regenerate with: npx ts-node scripts/generate-schema-snapshot.ts
 --
 -- Frozen schema snapshot for migrations ${FROZEN_MIGRATION_RANGE}
--- (scripts/frozen-web-schema/schema.sql + src/main/migrations/001.js..030.js).
+-- (scripts/frozen-web-schema/schema.sql + src/main/migrations/001.js..032.js).
 --
 -- Bootstraps a fresh database (web, and eventually new desktop installs) to
 -- the exact schema state produced by running that schema.sql followed by
--- migrations 001-030 through the historical (better-sqlite3-sync)
+-- migrations 001-032 through the historical (better-sqlite3-sync)
 -- MigrationRunner. Includes the \`migrations\` bookkeeping table, pre-seeded
 -- with those names, so that if the desktop MigrationRunner ever opens a
 -- database bootstrapped from this snapshot, it treats them as already
@@ -169,7 +169,7 @@ export function buildSnapshotSql(db: Database.Database): string {
 --
 -- Future schema changes belong in src/core/db/migrations (028+), written
 -- platform-free against DatabaseDriver -- NOT in this file. Existing
--- Electron installs still get 028-035 via src/main/migrations/031.js..038.js
+-- Electron installs still get 028-035 via src/main/migrations/033.js..040.js
 -- twins (same recorded names).
 `;
 

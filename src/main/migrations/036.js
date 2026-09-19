@@ -1,27 +1,45 @@
-// Migration 033 — desktop-side twin of the platform-free
-// '033_sync_settings' migration (src/core/db/migrations/033_sync_settings.ts)
-// — see that file's doc comment for the full design (why `settings` needed
-// a schema rebuild before it could replicate, per-key last-writer-wins
-// instead of per-row, and why secret setting keys are excluded from the
-// corrective outbox seeding). Needed for the same reason migrations
-// 028-032 have desktop twins (see 030.js's own comment): the existing
+// Migration 031 — desktop-side twin of the platform-free
+// '031_replicate_blob_columns' migration (src/core/db/migrations/
+// 031_replicate_blob_columns.ts) — see that file's doc comment for the full
+// design (the field bug this fixes: a declared-BLOB column, today only
+// users.password_hash, was excluded from every captured row image
+// entirely, so `users` replicated with no credential material and a second
+// device could never log in). Needed for the same reason migrations
+// 028/029/030 have desktop twins (see 030.js's own comment): the existing
 // Electron install path runs schema changes exclusively through this
 // synchronous MigrationRunner, which never calls bootstrapDatabase, so a
 // schema change meant to reach it has to be expressed twice. Shares the
 // exact migration `name` with the core version so both runners share one
 // bookkeeping row. Duplicates 029.js's trigger-generation algorithm
-// statement for statement (same reason 029.js/031.js/032.js don't import
-// the core .ts modules — a plain synchronous `require()` cannot load a .ts
+// statement for statement (same reason 029.js itself doesn't import the
+// core .ts builder — a plain synchronous `require()` cannot load a .ts
 // module without a build step) rather than re-requiring 029.js, whose
 // helpers are private to its own `up` closure and not exported.
-//
-// SECRET_SETTING_KEYS below is duplicated by hand from
-// src/core/services/settingsSecrets.ts for the same reason — keep both
-// lists in sync.
 module.exports = {
-  name: '033_sync_settings',
+  name: '031_replicate_blob_columns',
   up: (db) => {
     try {
+      // Same list as 029.js's own SYNC_TABLES (src/core/db/import.ts's
+      // BUSINESS_TABLES minus `ledger`).
+      const SYNC_TABLES = [
+        'users',
+        'chart',
+        'discount_profiles',
+        'item_types',
+        'price_lists',
+        'attribute_definitions',
+        'account',
+        'inventory',
+        'inventory_opening_stock',
+        'inventory_prices',
+        'stock_adjustments',
+        'profile_type_discounts',
+        'invoices',
+        'invoice_items',
+        'journal',
+        'journal_entry',
+      ];
+
       const UUID_V4_SQL_EXPR = `(SELECT lower(
           hex(randomblob(4)) || '-' ||
           hex(randomblob(2)) || '-4' ||
@@ -38,14 +56,6 @@ module.exports = {
         'createdAt',
         'updatedAt',
       ]);
-
-      // Kept in sync by hand with
-      // src/core/services/settingsSecrets.ts's SECRET_SETTING_KEYS.
-      const SECRET_SETTING_KEYS = [
-        'publish.secretAccessKeyEnc',
-        'publish.webhookTokenEnc',
-        'backup.supabaseAnonKeyEnc',
-      ];
 
       const allColumnInfo = (table) =>
         db
@@ -154,97 +164,62 @@ module.exports = {
       };
 
       db.transaction(() => {
-        const settingsCols = db.prepare(`PRAGMA table_info("settings")`).all();
-        const hasId = settingsCols.some((c) => c.name === 'id');
+        // Recreate the capture triggers for every replicated table that has
+        // at least one declared-blob column (today: only `users`) — see the
+        // core migration's doc comment for why every other table is left
+        // untouched.
+        SYNC_TABLES.forEach((table) => {
+          const columns = allColumnInfo(table);
+          if (!columns.some((c) => c.isBlob)) return;
 
-        if (!hasId) {
           db.prepare(
-            `
-              CREATE TABLE settings_sync_rebuild (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT NOT NULL UNIQUE,
-                value TEXT,
-                updatedAt DATETIME,
-                uuid TEXT
-              )
-            `,
+            `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_insert"`,
           ).run();
           db.prepare(
-            `INSERT INTO settings_sync_rebuild (key, value, updatedAt)
-             SELECT key, value, updatedAt FROM settings`,
+            `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_update"`,
           ).run();
-          db.prepare(`DROP TABLE settings`).run();
           db.prepare(
-            `ALTER TABLE settings_sync_rebuild RENAME TO settings`,
+            `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_delete"`,
           ).run();
-        }
-
-        const pending = db
-          .prepare(`SELECT id FROM settings WHERE uuid IS NULL`)
-          .all();
-        const setUuid = db.prepare(
-          `UPDATE settings SET uuid = ${UUID_V4_SQL_EXPR} WHERE id = ?`,
-        );
-        pending.forEach((row) => setUuid.run(row.id));
-
-        db.prepare(
-          `CREATE UNIQUE INDEX IF NOT EXISTS "idx_settings_uuid" ON "settings"("uuid")`,
-        ).run();
-
-        // Drop before recreating, unconditionally — see the core twin
-        // (src/core/db/migrations/033_sync_settings.ts)'s doc comment for
-        // why: on a brand-new install, migration 029 (which now includes
-        // `settings` in its SYNC_TABLES, derived live from BUSINESS_TABLES)
-        // already installs a trigger for it while `settings` still has the
-        // old, pre-rebuild shape; `CREATE TRIGGER IF NOT EXISTS` alone would
-        // silently keep that stale trigger instead of replacing it.
-        db.prepare(
-          `DROP TRIGGER IF EXISTS "trg_sync_capture_settings_insert"`,
-        ).run();
-        db.prepare(
-          `DROP TRIGGER IF EXISTS "trg_sync_capture_settings_update"`,
-        ).run();
-        db.prepare(
-          `DROP TRIGGER IF EXISTS "trg_sync_capture_settings_delete"`,
-        ).run();
-        createCaptureTriggers('settings');
-
-        // One row at a time, not a single bulk INSERT...SELECT — see the
-        // core twin's doc comment: UUID_V4_SQL_EXPR is a non-correlated
-        // scalar subquery, which SQLite evaluates ONCE per statement, not
-        // once per output row, so a bulk SELECT covering more than one
-        // matching setting would give every seeded row the SAME
-        // idempotencyKey and hit sync_outbox's UNIQUE constraint on it.
-        const excluded = SECRET_SETTING_KEYS.map((k) => `'${k}'`).join(', ');
-        const toSeed = db
-          .prepare(
-            `SELECT key, value, updatedAt, uuid FROM settings WHERE key NOT IN (${excluded})`,
-          )
-          .all();
-        const insertOutbox = db.prepare(
-          `INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
-           VALUES (${UUID_V4_SQL_EXPR}, 'settings', ?, 'put', ?, datetime('now'))`,
-        );
-        toSeed.forEach((setting) => {
-          insertOutbox.run(
-            setting.uuid,
-            JSON.stringify({
-              key: setting.key,
-              value: setting.value,
-              updatedAt: setting.updatedAt,
-              uuid: setting.uuid,
-            }),
-          );
+          createCaptureTriggers(table);
         });
+
+        // Corrective row images for `users` only — the `password_hash IS
+        // NOT NULL` guard is load-bearing: see the core migration's doc
+        // comment for why a device holding a hash-less local copy (one that
+        // joined sync before this fix) must NOT re-emit it, which would
+        // clobber a genuinely-good row via last-writer-wins log order.
+        const usersColumns = allColumnInfo('users');
+        const usersFks = foreignKeys('users');
+        const usersSelfJson = jsonObjectExpr(
+          usersColumns,
+          usersFks,
+          (c) => `u."${c}"`,
+        );
+
+        // idempotencyKey derived from the row's own uuid, not
+        // UUID_V4_SQL_EXPR: the latter is a non-correlated scalar subquery
+        // SQLite evaluates once per STATEMENT, so a bulk seed matching two
+        // or more users (any multi-employee business) would give every row
+        // the same key and fail on sync_outbox's UNIQUE constraint — see
+        // the core twin's comment.
+        db.prepare(
+          `
+            INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
+            SELECT u."uuid" || ':corrective-031', 'users', u."uuid", 'put', ${usersSelfJson}, datetime('now')
+            FROM "users" u
+            WHERE u."password_hash" IS NOT NULL
+          `,
+        ).run();
       })();
 
       return true;
     } catch (error) {
-      console.log('033 migration error!');
+      console.log('031 migration error!');
       console.error(error);
       return error;
     } finally {
-      console.log('033 migration completed!');
+      console.log('031 migration completed!');
     }
   },
 };

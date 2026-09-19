@@ -33,18 +33,14 @@
 -- OR REPLACE, or (for policies, which Postgres has no CREATE ... IF NOT
 -- EXISTS form for) drops and recreates by name.
 --
--- ⚠️  TEST-PROJECT RLS POLICY — NOT THE PRODUCTION POSTURE  ⚠️
+-- ⚠️  NOT ZERO-KNOWLEDGE. NOT REALTIME. EXPERIMENTAL RLS.  ⚠️
 -- --------------------------------------------------------------------------
--- The policies in section 4 below grant `select` on sync_log and `execute`
--- on sync_push to BOTH the `anon` and `authenticated` Supabase roles. That
--- is intentionally permissive for this early integration-testing phase (no
--- auth wizard exists yet on the client, so there is no signed-in
--- `authenticated` session to require). Once the auth wizard lands, this
--- file's production revision must tighten these policies to
--- `authenticated`-only and drop `anon` entirely — anyone holding this
--- project's anon key would otherwise be able to read and append to the
--- business's entire sync log. Do not copy this section's grants into a
--- production setup script without making that change first.
+-- The client stores row images as plaintext JSON in sync_log. Anyone with
+-- the project URL + anon key (including a scanned join QR) can read and
+-- append the whole log. Sync is a 30s poll plus write-triggered push, not
+-- postgres_changes. The policies in section 4 grant `anon` select +
+-- sync_push execute for this BYOK "the QR is the password" model. Do not
+-- describe this as zero-knowledge or production multi-tenant auth.
 --
 -- What's deliberately NOT here yet
 -- --------------------------------------------------------------------------

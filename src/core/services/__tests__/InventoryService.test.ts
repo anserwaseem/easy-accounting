@@ -43,9 +43,7 @@ const session: SessionContext = { getUsername: () => USERNAME };
  */
 function seedBasicSchema(db: Database.Database) {
   applyFrozenWebSchema(db);
-  // frozen snapshot is 001-030; inventory.isActive lands as desktop 040 /
-  // core 038. main InventoryService prepares that column in init, so the
-  // parity fixture has to carry it even when we skip the rest of CORE_MIGRATIONS.
+  // frozen snapshot is 001-032 and already carries inventory.isActive.
   const cols = db.prepare(`PRAGMA table_info("inventory")`).all() as {
     name: string;
   }[];

@@ -11,17 +11,14 @@ async function columnNames(
 }
 
 /**
- * inventory.isActive (mirroring account.isActive). desktop twin is
- * src/main/migrations/040.js, recorded as 028_add_isActive_to_inventory so
- * installs that already ran #174 skip it. this core name is sequential
- * (038) because web never had that desktop 028 name — same split as
- * 037_add_chart_nameUrdu vs desktop 039/027_add_chart_nameUrdu.
- *
- * inactive items cannot be added to new invoices or vendor issues, but
- * existing invoices and historical reports continue to resolve them.
+ * inventory.isActive (mirroring account.isActive). same recorded name as
+ * src/main/migrations/028.js so Electron DBs that already ran #174 skip it
+ * and web/desktop share one identity. inactive items cannot be added to
+ * new invoices or vendor issues, but existing invoices and historical
+ * reports continue to resolve them.
  */
 export const migration038 = {
-  name: '038_add_isActive_to_inventory',
+  name: '028_add_isActive_to_inventory',
   async up(driver: DatabaseDriver): Promise<void> {
     const cols = await columnNames(driver, 'inventory');
     if (!cols.includes('isActive')) {

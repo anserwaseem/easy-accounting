@@ -51,9 +51,6 @@ import { toast } from 'renderer/shad/ui/use-toast';
 
 type Step = 'select' | 'preview' | 'importing' | 'done' | 'error';
 
-/** Mirrors src/core/db/import.ts's `SNAPSHOT_MIGRATION_VERSION` — bump together. */
-const REQUIRED_MIGRATION_VERSION = 28;
-
 const TableCountList = ({
   tables,
 }: {
@@ -265,17 +262,6 @@ const ImportPage: React.FC = () => {
                 of this file. This cannot be undone.
               </AlertDescription>
             </Alert>
-
-            {preview.sourceMigrationVersion < REQUIRED_MIGRATION_VERSION && (
-              <Alert>
-                <AlertTitle>Older database</AlertTitle>
-                <AlertDescription>
-                  This file is from an older version of the app (migration{' '}
-                  {preview.sourceMigrationVersion}). Missing fields will be
-                  filled in automatically.
-                </AlertDescription>
-              </Alert>
-            )}
 
             {preview.warnings.map((warning) => (
               <Alert key={warning} variant="warning">

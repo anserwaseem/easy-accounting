@@ -11,7 +11,10 @@ async function columnNames(
 }
 
 export const migration037 = {
-  name: '037_add_chart_nameUrdu',
+  // same recorded name as src/main/migrations/027.js (released on main).
+  // web snapshot 001-032 already has this row; bootstrap skips it. kept
+  // here so an OPFS db from the old 001-030 snapshot still picks it up.
+  name: '027_add_chart_nameUrdu',
   async up(driver: DatabaseDriver): Promise<void> {
     const cols = await columnNames(driver, 'chart');
     if (!cols.includes('nameUrdu')) {

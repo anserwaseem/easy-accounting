@@ -41,7 +41,7 @@
  * Kept here (not in `src/main/utils/publishConfig.ts`) precisely so both
  * platforms' secret storage AND the shared `settings`-table guard can import
  * one list without either pulling in the other's platform-specific code.
- * The desktop migration twin (`src/main/migrations/036.js`) cannot import
+ * The desktop migration twin (`src/main/migrations/038.js`) cannot import
  * this module either (a plain synchronous `require()` cannot load a .ts
  * module without a build step — same reason 029.js/031.js/032.js duplicate
  * their core twins' logic instead of importing it) and so duplicates these

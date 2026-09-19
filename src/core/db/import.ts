@@ -10,6 +10,8 @@ import {
   verifyInventoryReconciliation,
   type InventoryBaselineBackfillResult,
 } from './inventoryBaselineBackfill';
+import { unknownMigrationNames } from './knownMigrations';
+import { rebuildDerivedState } from './rebuildDerivedState';
 
 /**
  * "Bring your database" import: replaces this app's business data with the
@@ -107,19 +109,6 @@ export const MINIMUM_REQUIRED_TABLES = [
   'invoices',
 ] as const;
 
-/**
- * The highest migration number this build's own schema is on — the frozen
- * snapshot (src/core/db/schema.snapshot.sql / bootstrap.ts, migrations
- * 001-030) plus every migration src/core/db/migrations/index.ts's
- * CORE_MIGRATIONS has added since (028+, which never renumbers 001-030).
- * An uploaded database whose own `migrations` table references a migration
- * numbered higher than this came from a newer build than this one — see
- * `validateUploadedDatabase` below. Bump this whenever CORE_MIGRATIONS
- * gains a new entry (as of migration 036 —
- * src/core/db/migrations/036_desktop_vendor_stock_and_urdu.ts).
- */
-export const SNAPSHOT_MIGRATION_VERSION = 36;
-
 export interface ImportTableSummary {
   name: string;
   rows: number;
@@ -212,17 +201,24 @@ function migrationNumber(name: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** Highest migration number recorded in `source`'s own `migrations` table, or 0 if it has none/is empty. */
-export async function readSourceMigrationVersion(
+/** Highest migration number recorded in `source`'s own `migrations` table, or 0 if it has none/is empty. Display only — not a schema clock. */
+export async function readSourceMigrationNames(
   source: DatabaseDriver,
-): Promise<number> {
-  if (!(await tableExists(source, 'migrations'))) return 0;
+): Promise<string[]> {
+  if (!(await tableExists(source, 'migrations'))) return [];
   const rows = await source.all<{ name: string }>(
     `SELECT name FROM migrations`,
   );
+  return rows.map((row) => row.name);
+}
+
+export async function readSourceMigrationVersion(
+  source: DatabaseDriver,
+): Promise<number> {
+  const names = await readSourceMigrationNames(source);
   let max = 0;
-  for (const row of rows) {
-    const n = migrationNumber(row.name);
+  for (const name of names) {
+    const n = migrationNumber(name);
     if (n !== null && n > max) max = n;
   }
   return max;
@@ -249,15 +245,25 @@ export async function validateUploadedDatabase(
     }
   }
 
-  const sourceMigrationVersion = await readSourceMigrationVersion(source);
-  if (sourceMigrationVersion > SNAPSHOT_MIGRATION_VERSION) {
+  const sourceNames = await readSourceMigrationNames(source);
+  const unknown = unknownMigrationNames(sourceNames);
+  if (unknown.length > 0) {
+    const shown = unknown.slice(0, 3).join(', ');
+    const extra = unknown.length > 3 ? ` (+${unknown.length - 3} more)` : '';
     return {
       ok: false,
       reason:
         `This database was created by a newer version of Easy Accounting ` +
-        `(migration ${sourceMigrationVersion}) than this app supports ` +
-        `(up to ${SNAPSHOT_MIGRATION_VERSION}). Update the app, then try importing again.`,
+        `(unknown migration${
+          unknown.length === 1 ? '' : 's'
+        } ${shown}${extra}). ` +
+        `Update the app, then try importing again.`,
     };
+  }
+  let sourceMigrationVersion = 0;
+  for (const name of sourceNames) {
+    const n = migrationNumber(name);
+    if (n !== null && n > sourceMigrationVersion) sourceMigrationVersion = n;
   }
 
   const warnings: string[] = [];
@@ -278,10 +284,13 @@ export async function validateUploadedDatabase(
     tables.push({ name: table, rows: await countRows(source, table) });
   }
 
-  if (sourceMigrationVersion < SNAPSHOT_MIGRATION_VERSION) {
+  const sourceNameSet = new Set(sourceNames);
+  const onCurrentSchema =
+    sourceNameSet.has('035_insert_timestamps_fill_only') ||
+    sourceNameSet.has('036_desktop_vendor_stock_and_urdu');
+  if (!onCurrentSchema) {
     warnings.push(
-      `Source database is older (migration ${sourceMigrationVersion}) than this ` +
-        `app's schema (migration ${SNAPSHOT_MIGRATION_VERSION}) — columns it doesn't ` +
+      `Source database is older than this app's schema — columns it doesn't ` +
         `have yet will be filled by this app's defaults/triggers (e.g. row uuids).`,
     );
   }
@@ -1017,6 +1026,7 @@ export async function importDatabase(params: {
     // is not load-bearing (the two touch disjoint tables), but keeps every
     // "make the imported data reconcile with itself" step grouped together.
     inventoryBaseline = await backfillInventoryBaseline(target);
+    await rebuildDerivedState(target);
   });
 
   const warnings = [

@@ -123,15 +123,14 @@ interface ElectronEventBridge {
    * apps/web/src/worker/syncManager.ts's `SyncManager.rebuild` and
    * src/renderer/views/Settings/SyncSettings.tsx, its only caller, which
    * offers this only from the connected card's "Advanced" row). Same
-   * `supportsSync` gate as the calls above — desktop's `window.electron`
-   * never sets this either. Unlike `syncConnect`/`syncJoin`, requires an
+   * `supportsSync` gate as the calls above. Unlike `syncConnect`/`syncJoin`, requires an
    * already-connected transport — see `SyncManager.rebuild`'s doc comment.
    */
   syncRebuild?: () => Promise<SyncRebuildResult>;
   /**
    * Project URL + anon key of the currently-connected project, for the
    * Settings "Add a device" QR / copy-link. Null when disconnected or mock.
-   * Same `supportsSync` gate — desktop never sets this.
+   * Same `supportsSync` gate.
    */
   syncGetJoinInvite?: () => Promise<SyncJoinInvite | null>;
   /**

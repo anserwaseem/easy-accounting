@@ -159,24 +159,6 @@ export class BackupService {
       // emit progress for upload starting
       this.emitProgress('started', 'Uploading backup to cloud storage...');
 
-      // ensure bucket exists
-      const { error: bucketError } = await supabase.storage.createBucket(
-        this.bucketName,
-        { public: false },
-      );
-
-      if (
-        bucketError &&
-        bucketError?.message !== 'The resource already exists'
-      ) {
-        this.emitProgress(
-          'failed',
-          `Failed to create cloud bucket: ${bucketError.message}`,
-        );
-        log.error(`Supabase bucket creation failed: ${bucketError.message}`);
-        return { success: false, error: bucketError.message };
-      }
-
       // upload backup db
       this.emitProgress('processing', 'Reading local backup file...');
       const fileBuffer = fs.readFileSync(backupPath);
@@ -196,9 +178,14 @@ export class BackupService {
         });
 
       if (uploadError) {
+        const hint = /bucket|not found|does not exist/i.test(
+          uploadError.message,
+        )
+          ? ' Create a private Storage bucket named after this app in the Supabase dashboard first — the client cannot create buckets with the anon key.'
+          : '';
         this.emitProgress('failed', `Upload failed: ${uploadError.message}`);
         log.error(`Supabase file uploading failed: ${uploadError.message}`);
-        return { success: false, error: uploadError.message };
+        return { success: false, error: `${uploadError.message}.${hint}` };
       }
 
       this.emitProgress(

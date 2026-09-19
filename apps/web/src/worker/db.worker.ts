@@ -401,6 +401,9 @@ async function main(): Promise<void> {
     kv: webKv,
     notify: (message) => self.postMessage(message),
   });
+  driver.setMutationListener(() => {
+    syncManager.scheduleDebouncedSync();
+  });
   await syncManager.bootIfConfigured({ startLoop: hasRealSession });
 
   // Session: which user is "logged in" right now. Sourced from web_kv's
@@ -1177,36 +1180,6 @@ async function main(): Promise<void> {
     'sync:getJoinInvite': () => Promise.resolve(syncManager.getJoinInvite()),
   };
 
-  /**
-   * Read-only-by-name prefixes: a handler whose method name starts with one
-   * of these never writes to the database, so it never needs to schedule a
-   * sync. Everything else is treated as a write — see this function's call
-   * site below for the one exception that needs its own args-aware check
-   * (`import:database`'s preview call, `confirm: false`, writes nothing).
-   * Deliberately a conservative (over-inclusive on the "is a write" side)
-   * heuristic rather than an exhaustive hand-maintained list: scheduling an
-   * unnecessary debounced sync after a read that slipped through is
-   * harmless (the next syncOnce just finds an empty outbox), while missing
-   * a real write would silently delay that change reaching the server.
-   */
-  const READ_ONLY_METHOD_PREFIXES = [
-    'get',
-    'does',
-    'has',
-    'report',
-    'export',
-    'preview',
-  ];
-
-  function isLikelyWrite(method: string, args: unknown[]): boolean {
-    if (method.startsWith('sync:')) return false;
-    if (method === 'runPublish') return false; // lastResult is web_kv, not synced
-    if (READ_ONLY_METHOD_PREFIXES.some((prefix) => method.startsWith(prefix)))
-      return false;
-    if (method === 'import:database') return args[1] === true; // only the confirmed call writes
-    return true;
-  }
-
   self.onmessage = (event: MessageEvent<RpcCall>) => {
     const { id, method, args } = event.data;
     const handler = handlers[method];
@@ -1221,13 +1194,6 @@ async function main(): Promise<void> {
     }
     handler(...args).then(
       (result) => {
-        // Any local write schedules a debounced background sync (see
-        // syncManager.ts's `scheduleDebouncedSync` — a no-op while
-        // disconnected) — this is the one place every mutating RPC call
-        // passes through, regardless of which service handled it.
-        if (isLikelyWrite(method, args)) {
-          syncManager.scheduleDebouncedSync();
-        }
         // `export:database`'s ArrayBuffer result is transferred (zero-copy)
         // rather than structured-cloned — the only handler that currently
         // returns one; anything else takes the normal (cloned) path.

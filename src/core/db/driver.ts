@@ -41,4 +41,10 @@ export interface DatabaseDriver {
    * never observe an interleaved transaction.
    */
   transaction<T>(fn: () => Promise<T>): Promise<T>;
+
+  /**
+   * Optional. Fired after a mutating `run`/`exec`. Sync uses this instead
+   * of guessing from IPC method names. No-op implementations are fine.
+   */
+  setMutationListener?(listener: (() => void) | undefined): void;
 }

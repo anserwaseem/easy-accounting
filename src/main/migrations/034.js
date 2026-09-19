@@ -1,26 +1,26 @@
-// Migration 031 — desktop-side twin of the platform-free
-// '031_replicate_blob_columns' migration (src/core/db/migrations/
-// 031_replicate_blob_columns.ts) — see that file's doc comment for the full
-// design (the field bug this fixes: a declared-BLOB column, today only
-// users.password_hash, was excluded from every captured row image
-// entirely, so `users` replicated with no credential material and a second
-// device could never log in). Needed for the same reason migrations
-// 028/029/030 have desktop twins (see 030.js's own comment): the existing
-// Electron install path runs schema changes exclusively through this
+// Migration 029 — desktop-side twin of the platform-free
+// '029_create_sync_tables' migration (src/core/db/migrations/
+// 029_create_sync_tables.ts) — see that file's doc comment for the full
+// design (which tables replicate and why, the two undefined-trigger-order
+// hazards this works around, echo suppression, FK-as-uuid row images).
+// Needed for the same reason migration 028 has one (see 028.js's own
+// comment): existing Electron installs run exclusively through this
 // synchronous MigrationRunner, which never calls bootstrapDatabase, so a
-// schema change meant to reach it has to be expressed twice. Shares the
+// schema change meant to reach them has to be expressed twice. Shares the
 // exact migration `name` with the core version so both runners share one
-// bookkeeping row. Duplicates 029.js's trigger-generation algorithm
-// statement for statement (same reason 029.js itself doesn't import the
-// core .ts builder — a plain synchronous `require()` cannot load a .ts
-// module without a build step) rather than re-requiring 029.js, whose
-// helpers are private to its own `up` closure and not exported.
+// bookkeeping row (whichever gets there first marks it applied), and the
+// generated DDL is kept logically identical (whitespace aside) — this file
+// mirrors the core version's trigger-generation algorithm statement for
+// statement rather than importing it (a plain synchronous `require()`, the
+// way both scripts/generate-schema-snapshot.ts and every *.test.ts here
+// load migrations/*.js, cannot load a .ts module without a build step).
 module.exports = {
-  name: '031_replicate_blob_columns',
+  name: '029_create_sync_tables',
   up: (db) => {
     try {
-      // Same list as 029.js's own SYNC_TABLES (src/core/db/import.ts's
-      // BUSINESS_TABLES minus `ledger`).
+      // Same list as src/core/db/import.ts's BUSINESS_TABLES minus
+      // `ledger` and `vendor_stock` (derived running-quantity tables —
+      // never synced, see the core migration's doc comment).
       const SYNC_TABLES = [
         'users',
         'chart',
@@ -38,6 +38,9 @@ module.exports = {
         'invoice_items',
         'journal',
         'journal_entry',
+        'vendor_issues',
+        'vendor_issue_items',
+        'vendor_stock_movements',
       ];
 
       const UUID_V4_SQL_EXPR = `(SELECT lower(
@@ -57,6 +60,11 @@ module.exports = {
         'updatedAt',
       ]);
 
+      // Every column on `table`, tagged with whether its declared type is
+      // BLOB — mirrors the core migration's `allColumnInfo`/`ColumnInfo`
+      // (src/core/db/migrations/029_create_sync_tables.ts). See that file's
+      // doc comment for why a declared-blob column is captured (not
+      // skipped) as a two-key `<col>`/`<col>__hex` pair below.
       const allColumnInfo = (table) =>
         db
           .prepare(`PRAGMA table_info("${table}")`)
@@ -75,6 +83,12 @@ module.exports = {
         return result;
       };
 
+      // Mirrors the core migration's `jsonObjectExpr` (same file/link as
+      // above) — a declared-blob column gets a `'col'`/`'col__hex'` pair
+      // (NULL/hex-of-the-blob, chosen by the value's *runtime* typeof())
+      // instead of a single plain key, so it round-trips through
+      // json_object() without either dropping it or erroring on an actual
+      // blob value.
       const jsonObjectExpr = (columns, fks, ref) => {
         const parts = [];
         columns.forEach((col) => {
@@ -115,6 +129,10 @@ module.exports = {
         const selfJson = jsonObjectExpr(columns, fks, (c) => `t."${c}"`);
         const oldJson = jsonObjectExpr(columns, fks, (c) => `OLD."${c}"`);
 
+        // Drop migration 024's post-hoc uuid-assignment trigger and fold
+        // its logic into the front of the insert-capture trigger — see
+        // the core migration's doc comment for why relying on undefined
+        // cross-trigger firing order here is unsafe.
         db.prepare(`DROP TRIGGER IF EXISTS "trg_${table}_uuid"`).run();
 
         db.prepare(
@@ -163,63 +181,79 @@ module.exports = {
         ).run();
       };
 
-      db.transaction(() => {
-        // Recreate the capture triggers for every replicated table that has
-        // at least one declared-blob column (today: only `users`) — see the
-        // core migration's doc comment for why every other table is left
-        // untouched.
-        SYNC_TABLES.forEach((table) => {
-          const columns = allColumnInfo(table);
-          if (!columns.some((c) => c.isBlob)) return;
+      const ensureUsersUuid = () => {
+        const hasUuid = db
+          .prepare(`PRAGMA table_info("users")`)
+          .all()
+          .some((c) => c.name === 'uuid');
+        if (!hasUuid) {
+          db.prepare(`ALTER TABLE "users" ADD COLUMN "uuid" TEXT`).run();
+        }
 
-          db.prepare(
-            `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_insert"`,
-          ).run();
-          db.prepare(
-            `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_update"`,
-          ).run();
-          db.prepare(
-            `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_delete"`,
-          ).run();
-          createCaptureTriggers(table);
-        });
-
-        // Corrective row images for `users` only — the `password_hash IS
-        // NOT NULL` guard is load-bearing: see the core migration's doc
-        // comment for why a device holding a hash-less local copy (one that
-        // joined sync before this fix) must NOT re-emit it, which would
-        // clobber a genuinely-good row via last-writer-wins log order.
-        const usersColumns = allColumnInfo('users');
-        const usersFks = foreignKeys('users');
-        const usersSelfJson = jsonObjectExpr(
-          usersColumns,
-          usersFks,
-          (c) => `u."${c}"`,
+        const pending = db
+          .prepare(`SELECT "id" FROM "users" WHERE "uuid" IS NULL`)
+          .all();
+        const setUuid = db.prepare(
+          `UPDATE "users" SET "uuid" = ${UUID_V4_SQL_EXPR} WHERE "id" = ?`,
         );
+        pending.forEach((row) => setUuid.run(row.id));
 
-        // idempotencyKey derived from the row's own uuid, not
-        // UUID_V4_SQL_EXPR: the latter is a non-correlated scalar subquery
-        // SQLite evaluates once per STATEMENT, so a bulk seed matching two
-        // or more users (any multi-employee business) would give every row
-        // the same key and fail on sync_outbox's UNIQUE constraint — see
-        // the core twin's comment.
+        db.prepare(
+          `CREATE UNIQUE INDEX IF NOT EXISTS "idx_users_uuid" ON "users"("uuid")`,
+        ).run();
+      };
+
+      db.transaction(() => {
+        ensureUsersUuid();
+
         db.prepare(
           `
-            INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
-            SELECT u."uuid" || ':corrective-031', 'users', u."uuid", 'put', ${usersSelfJson}, datetime('now')
-            FROM "users" u
-            WHERE u."password_hash" IS NOT NULL
+            CREATE TABLE IF NOT EXISTS sync_outbox (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              idempotencyKey TEXT UNIQUE,
+              tableName TEXT NOT NULL,
+              rowUuid TEXT NOT NULL,
+              op TEXT NOT NULL CHECK (op IN ('put', 'delete')),
+              rowJson TEXT NOT NULL,
+              createdAt DATETIME
+            )
           `,
         ).run();
+
+        db.prepare(
+          `
+            CREATE TABLE IF NOT EXISTS sync_state (
+              key TEXT PRIMARY KEY,
+              value TEXT
+            )
+          `,
+        ).run();
+
+        db.prepare(
+          `
+            CREATE TABLE IF NOT EXISTS sync_rejected (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              idempotencyKey TEXT,
+              tableName TEXT NOT NULL,
+              rowUuid TEXT NOT NULL,
+              op TEXT NOT NULL CHECK (op IN ('put', 'delete')),
+              rowJson TEXT NOT NULL,
+              reason TEXT,
+              rejectedAt DATETIME
+            )
+          `,
+        ).run();
+
+        SYNC_TABLES.forEach((table) => createCaptureTriggers(table));
       })();
 
       return true;
     } catch (error) {
-      console.log('031 migration error!');
+      console.log('029 migration error!');
       console.error(error);
       return error;
     } finally {
-      console.log('031 migration completed!');
+      console.log('029 migration completed!');
     }
   },
 };

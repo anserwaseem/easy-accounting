@@ -1,5 +1,6 @@
 import type { DatabaseDriver } from '../db/driver';
 import { SYNC_TABLES } from '../db/migrations/029_create_sync_tables';
+import { rebuildDerivedState } from '../db/rebuildDerivedState';
 import type { CoreLogger } from '../ports';
 import { getCoreLogger } from '../ports';
 import { INITIAL_CHARTS } from '../utils/constants';
@@ -1276,6 +1277,17 @@ export class SyncEngine {
         }
         break;
       }
+    }
+
+    if (applied > 0) {
+      await this.db.transaction(async () => {
+        await this.setApplying(true);
+        try {
+          await rebuildDerivedState(this.db);
+        } finally {
+          await this.setApplying(false);
+        }
+      });
     }
 
     // Self-cleaning pass over previously-recorded `sync_apply_conflicts`

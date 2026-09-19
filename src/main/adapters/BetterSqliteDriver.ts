@@ -24,8 +24,18 @@ export class BetterSqliteDriver implements DatabaseDriver {
   /** Savepoint depth for transactions opened inside transactions. */
   private txDepth = 0;
 
+  private mutationListener: (() => void) | undefined;
+
   constructor(db: BetterSqlite3.Database) {
     this.db = db;
+  }
+
+  setMutationListener(listener: (() => void) | undefined): void {
+    this.mutationListener = listener;
+  }
+
+  private notifyMutation(): void {
+    this.mutationListener?.();
   }
 
   private prepare(sql: string): BetterSqlite3.Statement {
@@ -45,6 +55,7 @@ export class BetterSqliteDriver implements DatabaseDriver {
   async run(sql: string, params?: SqlParams): Promise<RunResult> {
     const stm = this.prepare(sql);
     const result = stm.run(...BetterSqliteDriver.bind(stm, params));
+    this.notifyMutation();
     return {
       changes: result.changes,
       lastInsertRowid: result.lastInsertRowid,
@@ -66,6 +77,7 @@ export class BetterSqliteDriver implements DatabaseDriver {
 
   async exec(sql: string): Promise<void> {
     this.db.exec(sql);
+    this.notifyMutation();
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {

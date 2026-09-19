@@ -277,6 +277,8 @@ describe('migrations', () => {
         '024_normalize_invoice_date_format',
         '025_vendor_stock',
         '026_add_urdu_print_fields',
+        '027_add_chart_nameUrdu',
+        '028_add_isActive_to_inventory',
         '024_add_uuid_to_business_tables',
         '025_migrate_opening_balance_ledger_to_journal',
         '026_index_journal_entry_and_ledger_lookup',
@@ -289,8 +291,6 @@ describe('migrations', () => {
         '033_sync_settings',
         '034_suppress_timestamp_triggers_during_apply',
         '035_insert_timestamps_fill_only',
-        '027_add_chart_nameUrdu',
-        '028_add_isActive_to_inventory',
       ]);
     });
 

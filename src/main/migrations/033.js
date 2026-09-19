@@ -1,31 +1,19 @@
-// Migration 030 — desktop-side twin of the platform-free
-// '030_create_sync_apply_conflicts' migration (src/core/db/migrations/
-// 030_create_sync_apply_conflicts.ts) — see that file's doc comment for the
-// full design (the real duplicate-seed incident this table's the audit
-// trail for, and the "advance the cursor past a conflicted row anyway"
-// trade-off it encodes). Needed for the same reason migrations 028/029 have
-// desktop twins (see 028.js's own comment): the existing Electron install
-// path runs schema changes exclusively through this synchronous
-// MigrationRunner, which never calls bootstrapDatabase, so a schema change
-// meant to reach it has to be expressed twice. Shares the exact migration
-// `name` with the core version so both runners share one bookkeeping row.
+// Migration 028 — creates the `settings` table business settings move into
+// (company profile, invoice print settings, and a handful of non-secret
+// publish-catalog fields today; more will follow as Phase 2 continues). See
+// src/core/services/SettingsService.ts for the reader/writer and
+// src/core/db/migrations/index.ts for the platform-free twin of this exact
+// migration ('028_create_settings_table') — that file's doc comment explains
+// in full why this schema change is written twice (once here, sync against
+// better-sqlite3, for existing desktop installs; once there, async against
+// DatabaseDriver, for the web build and any fresh bootstrap) and why the DDL
+// below must stay word-for-word identical to the one there.
 module.exports = {
-  name: '030_create_sync_apply_conflicts',
+  name: '028_create_settings_table',
   up: (db) => {
     try {
       db.prepare(
-        `
-          CREATE TABLE IF NOT EXISTS sync_apply_conflicts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            seq INTEGER NOT NULL,
-            tableName TEXT NOT NULL,
-            rowUuid TEXT NOT NULL,
-            op TEXT NOT NULL CHECK (op IN ('put', 'delete')),
-            rowJson TEXT NOT NULL,
-            error TEXT NOT NULL,
-            createdAt DATETIME
-          )
-        `,
+        `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updatedAt DATETIME)`,
       ).run();
       return true;
     } catch (error) {

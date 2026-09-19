@@ -269,9 +269,9 @@ function projectHostOf(config: StoredSyncConfig): string {
  *    write, or a manual "Sync now") sets a `rerunRequested` flag rather
  *    than starting a second overlapping run, and that rerun happens
  *    immediately once the in-flight one settles.
- *  - **Write-triggered syncing**: `scheduleDebouncedSync()` — called by
- *    db.worker.ts's RPC dispatch after any call it judges to be a write —
- *    coalesces a burst of local writes into one sync `DEBOUNCE_MS` after
+ *  - **Write-triggered syncing**: `scheduleDebouncedSync()` — called from
+ *    the database driver's mutation listener after a real `run`/`exec`,
+ *    not from IPC/RPC method-name guessing. Coalesces a burst of local
  *    the last of them, rather than one sync per individual write.
  *  - **Status for the UI**: `getStatus()` — connected/host, last sync time,
  *    live outbox depth (a fresh `COUNT(*)` against `sync_outbox`, not a
