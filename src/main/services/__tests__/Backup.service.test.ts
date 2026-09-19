@@ -8,6 +8,7 @@ import { BackupService } from '../Backup.service';
 import { DatabaseService } from '../Database.service';
 import { isOnline } from '../../utils/general';
 import { store } from '../../store';
+import { getBackupCredentials } from '../../utils/backupConfig';
 
 jest.mock('fs');
 jest.mock('path', () => jest.requireActual('path'));
@@ -28,6 +29,12 @@ jest.mock('../../store', () => ({
     onDidChange: jest.fn(),
   },
 }));
+jest.mock('../../utils/backupConfig', () => ({
+  getBackupCredentials: jest.fn(() => ({
+    url: 'https://mock.supabase.co',
+    anonKey: 'mock-key',
+  })),
+}));
 jest.mock('../Database.service', () => ({
   DatabaseService: {
     getInstance: jest.fn().mockReturnValue({
@@ -46,6 +53,11 @@ describe('BackupService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.resetModules();
+
+    (getBackupCredentials as jest.Mock).mockReturnValue({
+      url: 'https://mock.supabase.co',
+      anonKey: 'mock-key',
+    });
 
     (store.get as jest.Mock).mockImplementation((key) => {
       if (key === 'username') return 'test-user';
@@ -304,6 +316,46 @@ describe('BackupService', () => {
       jest.advanceTimersByTime(60 * 60 * 1000); // Advance time by 1 hour
 
       expect(backupService.createBackup).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('when Supabase credentials are not configured', () => {
+    let unconfiguredService: BackupService;
+
+    beforeEach(() => {
+      (getBackupCredentials as jest.Mock).mockReturnValue(null);
+      unconfiguredService = new BackupService();
+    });
+
+    it('should initialize without throwing', () => {
+      expect(unconfiguredService).toBeDefined();
+    });
+
+    it('should create local backup and skip cloud upload even when online', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
+      (fs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('test'));
+      (isOnline as jest.Mock).mockReturnValue(true);
+
+      const result = await unconfiguredService.createBackup();
+
+      expect(result.success).toBe(true);
+      expect(result.path).toContain('database-backup');
+      expect(Notification).toHaveBeenCalledWith({
+        title: 'Backup Created',
+        body: 'Database backup created locally',
+        silent: false,
+        icon: undefined,
+      });
+    });
+
+    it('should return error when attempting cloud restore', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readdirSync as jest.Mock).mockReturnValue([]);
+
+      const result = await unconfiguredService.restoreFromDate('2025-01-25');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No backup found for date 2025-01-25');
     });
   });
 });

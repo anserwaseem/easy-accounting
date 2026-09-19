@@ -31,12 +31,15 @@ const LedgerPage: React.FC = () => {
   }, [id]);
 
   return (
-    <div className="flex flex-row h-screen">
-      <div className="w-1/4 overflow-y-scroll scrollbar">
+    <div className="flex flex-col md:flex-row h-screen">
+      {/* Account-switcher mini rail — desktop only. On mobile the sidebar's
+          own Accounts link already covers switching accounts, and the
+          space is better spent on the ledger itself. */}
+      <div className="hidden md:block md:w-1/4 overflow-y-scroll scrollbar">
         <AccountsPage isMini onRowClick={onRowClick} />
       </div>
-      <div className="w-3/4 overflow-y-auto scrollbar justify-between items-center px-4 py-5">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-x-4">
+      <div className="w-full md:w-3/4 overflow-y-auto scrollbar justify-between items-center px-3 py-4 md:px-4 md:py-5">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-x-4 gap-y-2">
           <div>
             <p className="text-sm text-slate-400 whitespace-normal break-words">
               {headName}

@@ -51,9 +51,10 @@ import type {
   VendorIssueView,
   VendorStockActivityFilters,
   VendorStockActivityResponse,
-} from 'types';
-import { InvoiceType } from 'types';
+  InvoiceType,
+} from '../types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
+import type { BackupConfig, BackupConfigInput } from './utils/backupConfig';
 import type {
   CatalogPreview,
   PriceListSummary,
@@ -819,9 +820,19 @@ const electronHandler = {
       'publish:getLastResult',
     ) as Promise<PublishResult | null>,
 
+  /** Running app version (`app.getVersion()` — packaged binary, not webpack bake). */
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>,
+
   /** Metadata about the most recent backup (read-only; no paths or secrets). */
   getLastBackupInfo: () =>
     ipcRenderer.invoke('backup:lastInfo') as Promise<BackupLastInfo>,
+
+  /** Cloud-backup supabase config (the anon key is write-only; never returned). */
+  getBackupConfig: () =>
+    ipcRenderer.invoke('backup:getConfig') as Promise<BackupConfig>,
+
+  saveBackupConfig: (input: BackupConfigInput) =>
+    ipcRenderer.invoke('backup:saveConfig', input) as Promise<BackupConfig>,
 
   /** Create a backup now — same operation as the Backup menu. */
   createBackup: () =>
@@ -898,7 +909,36 @@ const electronHandler = {
       'vendorStock:getActivity',
       filters,
     ) as Promise<VendorStockActivityResponse>,
+
+  supportsSync: true as const,
+  supportsBackup: true as const,
+
+  syncGetStatus: () => ipcRenderer.invoke('sync:getStatus'),
+
+  syncConnect: (config: {
+    url: string;
+    anonKey: string;
+    mock?: boolean;
+    force?: boolean;
+  }) => ipcRenderer.invoke('sync:connect', config),
+
+  syncDisconnect: () => ipcRenderer.invoke('sync:disconnect'),
+
+  syncNow: () => ipcRenderer.invoke('sync:syncNow'),
+
+  syncJoin: (config: { url: string; anonKey: string; mock?: boolean }) =>
+    ipcRenderer.invoke('sync:join', config),
+
+  syncRebuild: () => ipcRenderer.invoke('sync:rebuild'),
+
+  syncGetJoinInvite: () => ipcRenderer.invoke('sync:getJoinInvite'),
+
+  renderJoinQr: (text: string) => ipcRenderer.invoke('sync:renderJoinQr', text),
 };
+
+ipcRenderer.on('sync:applied', () => {
+  window.dispatchEvent(new CustomEvent('easyaccounting:sync-applied'));
+});
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
 

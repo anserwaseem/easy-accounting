@@ -455,10 +455,10 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             ) : null}
           </div>
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-8">
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-8">
           <div className="flex flex-col gap-2 mt-8">
-            <div className="flex gap-8 items-center">
-              <p className="font-extrabold text-md w-[160px]">
+            <div className="flex gap-4 sm:gap-8 items-center">
+              <p className="font-extrabold text-md w-[110px] sm:w-[160px]">
                 {invoice?.isQuotation ? 'Quotation #:' : 'Invoice #:'}
               </p>
               <div className="flex flex-wrap items-center gap-2">
@@ -492,8 +492,8 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 ) : null}
               </div>
             </div>
-            <div className="flex gap-8">
-              <p className="font-medium text-md min-w-[160px]">{`${
+            <div className="flex gap-4 sm:gap-8">
+              <p className="font-medium text-md min-w-[110px] sm:min-w-[160px]">{`${
                 invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
               }:`}</p>
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -510,8 +510,10 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 ) : null}
               </div>
             </div>
-            <div className="flex gap-8">
-              <p className="font-medium text-md w-[160px]">Date:</p>
+            <div className="flex gap-4 sm:gap-8">
+              <p className="font-medium text-md w-[110px] sm:w-[160px]">
+                Date:
+              </p>
               <p>
                 {invoice?.date
                   ? new Date(invoice.date).toLocaleString(
@@ -522,8 +524,10 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               </p>
             </div>
             {invoice?.isReturned && invoice.returnedAt ? (
-              <div className="flex gap-8">
-                <p className="font-medium text-md w-[160px]">Returned:</p>
+              <div className="flex gap-4 sm:gap-8">
+                <p className="font-medium text-md w-[110px] sm:w-[160px]">
+                  Returned:
+                </p>
                 <p>
                   {new Date(invoice.returnedAt).toLocaleString(
                     'en-US',
@@ -535,8 +539,8 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             {invoice?.isReturned &&
             invoice.returnReason != null &&
             String(invoice.returnReason).trim() !== '' ? (
-              <div className="flex gap-8">
-                <p className="font-medium text-md w-[160px] self-start">
+              <div className="flex gap-4 sm:gap-8">
+                <p className="font-medium text-md w-[110px] sm:w-[160px] self-start">
                   Return note:
                 </p>
                 <p className="whitespace-pre-wrap">{invoice.returnReason}</p>
@@ -546,29 +550,33 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 book a sale return an agent collected. each hides when unset. */}
             {invoice?.biltyNumber != null &&
               String(invoice.biltyNumber).trim() !== '' && (
-                <div className="flex gap-8">
-                  <p className="font-medium text-md w-[160px]">Bilty #:</p>
+                <div className="flex gap-4 sm:gap-8">
+                  <p className="font-medium text-md w-[110px] sm:w-[160px]">
+                    Bilty #:
+                  </p>
                   <p>{invoice.biltyNumber}</p>
                 </div>
               )}
             {!!invoice?.cartons && (
-              <div className="flex gap-8">
-                <p className="font-medium text-md w-[160px]">Cartons:</p>
+              <div className="flex gap-4 sm:gap-8">
+                <p className="font-medium text-md w-[110px] sm:w-[160px]">
+                  Cartons:
+                </p>
                 <p>{invoice.cartons}</p>
               </div>
             )}
             {invoiceType === InvoiceType.Sale ? (
               <>
                 {invoice != null && toNumber(invoice.extraDiscount) > 0 ? (
-                  <div className="flex gap-8">
-                    <p className="font-medium text-md w-[160px]">
+                  <div className="flex gap-4 sm:gap-8">
+                    <p className="font-medium text-md w-[110px] sm:w-[160px]">
                       Extra Discount:
                     </p>
                     <p>{getFormattedCurrencySafe(invoice.extraDiscount)}</p>
                   </div>
                 ) : null}
-                <div className="flex gap-8">
-                  <p className="font-medium text-md w-[160px] self-center">
+                <div className="flex gap-4 sm:gap-8">
+                  <p className="font-medium text-md w-[110px] sm:w-[160px] self-center">
                     Amount:
                   </p>
                   <p className="border-2 border-green-500 rounded-lg -ml-2 p-2">
@@ -583,10 +591,10 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             ) : null}
           </div>
 
-          <div className="flex flex-col justify-end gap-4 w-32 ml-auto">
+          <div className="flex flex-col justify-end gap-4 w-full sm:w-32 sm:ml-auto mt-4 sm:mt-0">
             <Button
               onClick={handlePrintClick}
-              className="px-4 py-8"
+              className="px-4 py-4 sm:py-8 min-h-10"
               disabled={invoice?.id == null}
             >
               {invoice?.isQuotation

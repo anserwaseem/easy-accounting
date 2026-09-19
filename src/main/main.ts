@@ -6,9 +6,15 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
+import dotenv from 'dotenv';
 import path from 'path';
+import nodeCrypto from 'crypto';
 import { app, BrowserWindow, dialog, shell, ipcMain } from 'electron';
 import log from 'electron-log';
+import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
+import { isNil } from 'lodash';
+import { addDays, format, parse } from 'date-fns';
+import QRCode from 'qrcode';
 import type {
   UserCredentials,
   BalanceSheet,
@@ -36,11 +42,8 @@ import type {
   UpdateVendorIssuePayload,
   VendorStockOpeningRow,
   VendorStockActivityFilters,
-} from 'types';
-import { InvoiceType } from 'types';
-import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
-import { isNil } from 'lodash';
-import { addDays, format, parse } from 'date-fns';
+  InvoiceType,
+} from '../types';
 import { parseAttributeKeyList } from './utils/catalog';
 import MenuBuilder from './menu';
 import { formatString, resolveHtmlPath, raise } from './utils/general';
@@ -48,29 +51,44 @@ import { enrichLedgerRowsWithJournalSummaries } from './utils/ledgerJournalEnric
 import { store } from './store';
 import { AppUpdater } from './appUpdater';
 import { MigrationRunner } from './migrations/index';
+import { SyncManager, type SyncKv } from '../core';
+import { createCoreServices, getCoreDriver } from './coreRuntime';
 import {
   AuthService,
-  AccountService,
   BackupService,
-  ChartService,
-  JournalService,
-  LedgerService,
-  StatementService,
-  InvoiceService,
-  InventoryService,
   PrintService,
-  PricingService,
   PublishService,
-  VendorStockService,
 } from './services';
 import {
   getPublishConfig,
   savePublishConfig,
   type PublishConfigInput,
 } from './utils/publishConfig';
+import {
+  getBackupConfig,
+  saveBackupConfig,
+  type BackupConfigInput,
+} from './utils/backupConfig';
 import type { SeedOptions } from './utils/priceSeeding';
 import { ErrorManager } from './errorManager';
-import { DEFAULT_USER } from './utils/constants';
+
+dotenv.config(); // still loads `.env` so backupConfig can migrate url/anon key once
+
+// polyfill globalThis.crypto in Electron main process (Node 18.15 does not expose webcrypto on globalThis)
+if (
+  typeof globalThis.crypto === 'undefined' ||
+  typeof globalThis.crypto.randomUUID === 'undefined'
+) {
+  try {
+    Object.defineProperty(globalThis, 'crypto', {
+      value: (nodeCrypto.webcrypto ?? nodeCrypto) as unknown as Crypto,
+      configurable: true,
+      writable: true,
+    });
+  } catch {
+    // ignore if cannot define property
+  }
+}
 
 // set proper app name for Windows notifications
 if (process.platform === 'win32') {
@@ -209,22 +227,6 @@ const createWindow = async () => {
   setInterval(() => AppUpdater.checkForUpdates(), 60 * 60 * 1000);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const setupUser = (
-  migrationRunner: MigrationRunner,
-  authService: AuthService,
-) => {
-  migrationRunner
-    .waitForMigrations()
-    .then(() => {
-      const userExists = authService.login(DEFAULT_USER);
-      if (!userExists) {
-        authService.register(DEFAULT_USER);
-      }
-    })
-    .catch((err) => log.error(err));
-};
-
 /**
  * Add event listeners...
  */
@@ -288,20 +290,91 @@ app
     await migrationRunner.waitForMigrations();
 
     const authService = new AuthService();
-    const chartService = new ChartService();
-    const accountService = new AccountService();
-    const journalService = new JournalService();
-    const ledgerService = new LedgerService();
-    const statementService = new StatementService();
-    const inventoryService = new InventoryService();
-    const invoiceService = new InvoiceService();
+    // Business services are the platform-free core (src/core) via
+    // coreRuntime.ts. Auth/Print/Publish/Backup stay on the Electron-coupled
+    // stack (OS keychain, filesystem, native menus).
+    const {
+      accountService,
+      chartService,
+      ledgerService,
+      pricingService,
+      journalService,
+      statementService,
+      inventoryService,
+      invoiceService,
+      vendorStockService,
+    } = createCoreServices();
     const printService = new PrintService();
-    const pricingService = new PricingService();
     const publishService = new PublishService();
     const backupService = new BackupService();
-    const vendorStockService = new VendorStockService();
 
-    // setupUser(migrationRunner, authService);
+    const syncKv: SyncKv = {
+      get: (key: string) => store.get(key),
+      setAwaited: async (key: string, value: unknown) => {
+        store.set(key, value);
+      },
+      deleteAwaited: async (key: string) => {
+        store.delete(key);
+      },
+    };
+
+    const syncManager = new SyncManager({
+      db: getCoreDriver(),
+      kv: syncKv,
+      notify: (msg) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('sync:applied', msg);
+        }
+      },
+    });
+
+    getCoreDriver().setMutationListener?.(() => {
+      syncManager.scheduleDebouncedSync();
+    });
+
+    try {
+      await syncManager.bootIfConfigured();
+    } catch (err) {
+      log.warn('Sync boot failed:', err);
+    }
+
+    ipcMain.handle('sync:getStatus', async () => syncManager.getStatus());
+    ipcMain.handle(
+      'sync:connect',
+      async (
+        _,
+        config: {
+          url: string;
+          anonKey: string;
+          mock?: boolean;
+          force?: boolean;
+        },
+      ) => syncManager.connect(config),
+    );
+    ipcMain.handle('sync:disconnect', async () => syncManager.disconnect());
+    ipcMain.handle('sync:syncNow', async () => syncManager.syncNow());
+    ipcMain.handle(
+      'sync:join',
+      async (
+        _,
+        config: {
+          url: string;
+          anonKey: string;
+          mock?: boolean;
+        },
+      ) => syncManager.join(config),
+    );
+    ipcMain.handle('sync:rebuild', async () => syncManager.rebuild());
+    ipcMain.handle('sync:getJoinInvite', async () =>
+      syncManager.getJoinInvite(),
+    );
+    ipcMain.handle('sync:renderJoinQr', async (_, text: string) =>
+      QRCode.toDataURL(text, {
+        width: 240,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+      }),
+    );
 
     ipcMain.handle('publish:getConfig', async () => getPublishConfig());
     ipcMain.handle('publish:saveConfig', async (_, input: PublishConfigInput) =>
@@ -367,8 +440,20 @@ app
       PublishService.getLastResult(),
     );
 
+    ipcMain.handle('backup:getConfig', async () => getBackupConfig());
+    ipcMain.handle('backup:saveConfig', async (_, input: BackupConfigInput) =>
+      saveBackupConfig(input),
+    );
+
+    // packaged version from release/app/package.json; dev reads root package.json
+    ipcMain.handle('app:getVersion', async () => app.getVersion());
+
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {
-      return authService.login(user);
+      const result = await authService.login(user);
+      if (result) {
+        syncManager.resumeBackgroundLoop();
+      }
+      return result;
     });
     ipcMain.handle('auth:register', async (_, user: UserCredentials) => {
       return authService.register(user);
@@ -391,7 +476,8 @@ app
       'balanceSheet:save',
       async (_, balanceSheet: BalanceSheet) => {
         try {
-          return statementService.saveBalanceSheet(balanceSheet);
+          const saved = await statementService.saveBalanceSheet(balanceSheet);
+          return saved;
         } catch (error) {
           log.error('Error in saveBalanceSheet', error);
         }
@@ -446,13 +532,13 @@ app
     );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) => {
-      const rows = ledgerService.getLedger(accountId);
+      const rows = await ledgerService.getLedger(accountId);
       return enrichLedgerRowsWithJournalSummaries(rows, journalService);
     });
     ipcMain.handle(
       'ledger:getBalance',
       async (_, accountId: number) =>
-        ledgerService.getBalance(accountId) ?? null,
+        (await ledgerService.getBalance(accountId)) ?? null,
     );
     ipcMain.handle(
       'ledger:getBalancesForAccountIds',
@@ -467,7 +553,7 @@ app
     ipcMain.handle(
       'ledger:getLedgerRangeForAccountIds',
       async (_, accountIds: number[], startDate: string, endDate: string) => {
-        const map = ledgerService.getLedgerRangeForAccountIds(
+        const map = await ledgerService.getLedgerRangeForAccountIds(
           accountIds,
           startDate,
           endDate,
@@ -476,7 +562,7 @@ app
           ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
         ].sort((a, b) => a - b);
         const flat = unique.flatMap((id) => map[id] ?? []);
-        const enriched = enrichLedgerRowsWithJournalSummaries(
+        const enriched = await enrichLedgerRowsWithJournalSummaries(
           flat,
           journalService,
         );
@@ -864,7 +950,7 @@ app
             closingExclusiveDate,
           ),
         ]);
-        const enrichedEntries = enrichLedgerRowsWithJournalSummaries(
+        const enrichedEntries = await enrichLedgerRowsWithJournalSummaries(
           entries,
           journalService,
         );

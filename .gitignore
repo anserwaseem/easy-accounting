@@ -37,6 +37,10 @@ TODOS.md
 
 .claude/settings.local.json
 
+# wrangler types --include-runtime (578KB). we keep workers/env.d.ts instead.
+worker-configuration.d.ts
+.wrangler
+
 # working databases; only the schema-only release/app/database.db is tracked
 *.db.bak
 release/app/database-*.db
