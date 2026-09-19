@@ -8,6 +8,7 @@ import { BackupService } from '../Backup.service';
 import { DatabaseService } from '../Database.service';
 import { isOnline } from '../../utils/general';
 import { store } from '../../store';
+import { getBackupCredentials } from '../../utils/backupConfig';
 
 jest.mock('fs');
 jest.mock('path', () => jest.requireActual('path'));
@@ -28,6 +29,12 @@ jest.mock('../../store', () => ({
     onDidChange: jest.fn(),
   },
 }));
+jest.mock('../../utils/backupConfig', () => ({
+  getBackupCredentials: jest.fn(() => ({
+    url: 'https://mock.supabase.co',
+    anonKey: 'mock-key',
+  })),
+}));
 jest.mock('../Database.service', () => ({
   DatabaseService: {
     getInstance: jest.fn().mockReturnValue({
@@ -47,8 +54,10 @@ describe('BackupService', () => {
     jest.clearAllMocks();
     jest.resetModules();
 
-    process.env.SUPABASE_URL = 'https://mock.supabase.co';
-    process.env.SUPABASE_ANON_KEY = 'mock-key';
+    (getBackupCredentials as jest.Mock).mockReturnValue({
+      url: 'https://mock.supabase.co',
+      anonKey: 'mock-key',
+    });
 
     (store.get as jest.Mock).mockImplementation((key) => {
       if (key === 'username') return 'test-user';
@@ -314,8 +323,7 @@ describe('BackupService', () => {
     let unconfiguredService: BackupService;
 
     beforeEach(() => {
-      delete process.env.SUPABASE_URL;
-      delete process.env.SUPABASE_ANON_KEY;
+      (getBackupCredentials as jest.Mock).mockReturnValue(null);
       unconfiguredService = new BackupService();
     });
 

@@ -18,13 +18,14 @@
  * but the migration excludes them anyway rather than trusting that
  * invariant blindly).
  *
- * Today this is the publish feature's two secrets — the object-storage
- * secret access key and the outbound webhook token
- * (src/main/utils/publishConfig.ts's `PUBLISH_KEYS.secretAccessKeyEnc` /
- * `.webhookToken`, whose *values* are these exact literal strings; kept as
- * literals here rather than importing that module, which pulls in
+ * Today this is the publish feature's two secrets plus the backup module's
+ * supabase anon key — the object-storage secret access key, the outbound
+ * webhook token (src/main/utils/publishConfig.ts's
+ * `PUBLISH_KEYS.secretAccessKeyEnc` / `.webhookToken`), and
+ * `backup.supabaseAnonKeyEnc` (src/main/utils/backupConfig.ts). Kept as
+ * literals here rather than importing those modules, which pull in
  * Electron's `safeStorage` and cannot be imported from platform-free
- * `src/core` code). Where each secret actually lives instead, per platform:
+ * `src/core` code. Where each secret actually lives instead, per platform:
  *
  *  - **Desktop**: `electron-store`, encrypted at rest with Electron's
  *    `safeStorage` (OS keychain — Keychain / DPAPI / libsecret). Never
@@ -40,15 +41,16 @@
  * Kept here (not in `src/main/utils/publishConfig.ts`) precisely so both
  * platforms' secret storage AND the shared `settings`-table guard can import
  * one list without either pulling in the other's platform-specific code.
- * The desktop migration twin (`src/main/migrations/033.js`) cannot import
+ * The desktop migration twin (`src/main/migrations/036.js`) cannot import
  * this module either (a plain synchronous `require()` cannot load a .ts
  * module without a build step — same reason 029.js/031.js/032.js duplicate
  * their core twins' logic instead of importing it) and so duplicates these
- * two literals by hand; keep both lists in sync.
+ * literals by hand; keep both lists in sync.
  */
 export const SECRET_SETTING_KEYS: readonly string[] = [
   'publish.secretAccessKeyEnc',
   'publish.webhookTokenEnc',
+  'backup.supabaseAnonKeyEnc',
 ];
 
 export function isSecretSettingKey(key: string): boolean {

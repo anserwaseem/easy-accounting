@@ -58,6 +58,7 @@ import {
 } from '@/renderer/lib/invoicePrint/notes';
 import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
 import PublishSettings from './PublishSettings';
+import BackupSettings from './BackupSettings';
 import SyncSettings from './SyncSettings';
 
 interface InvoicePrintLabelsAccordionProps {
@@ -935,6 +936,7 @@ const SettingsPage: React.FC = () => {
           {/* Tab 4: Cloud Sync / Publish */}
           <TabsContent value="sync" className="space-y-6 max-w-4xl">
             <PublishSettings />
+            {window.electron.supportsBackup && <BackupSettings />}
             {window.electron.supportsSync && <SyncSettings />}
             {window.electron.supportsDbExport && (
               <Card>

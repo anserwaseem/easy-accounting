@@ -54,6 +54,7 @@ import type {
   InvoiceType,
 } from '../types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
+import type { BackupConfig, BackupConfigInput } from './utils/backupConfig';
 import type {
   CatalogPreview,
   PriceListSummary,
@@ -822,6 +823,13 @@ const electronHandler = {
   /** Metadata about the most recent backup (read-only; no paths or secrets). */
   getLastBackupInfo: () =>
     ipcRenderer.invoke('backup:lastInfo') as Promise<BackupLastInfo>,
+
+  /** Cloud-backup supabase config (the anon key is write-only; never returned). */
+  getBackupConfig: () =>
+    ipcRenderer.invoke('backup:getConfig') as Promise<BackupConfig>,
+
+  saveBackupConfig: (input: BackupConfigInput) =>
+    ipcRenderer.invoke('backup:saveConfig', input) as Promise<BackupConfig>,
 
   /** Create a backup now — same operation as the Backup menu. */
   createBackup: () =>

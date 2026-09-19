@@ -12,6 +12,11 @@ jest.mock('../PublishSettings', () => ({
   ),
 }));
 
+jest.mock('../BackupSettings', () => ({
+  __esModule: true,
+  default: () => <div data-testid="backup-settings">Backup Settings Mock</div>,
+}));
+
 describe('SettingsPage', () => {
   let store: Record<string, unknown> = {};
 
@@ -40,6 +45,7 @@ describe('SettingsPage', () => {
     (
       window as unknown as {
         electron: {
+          supportsBackup?: true;
           store: {
             get: (key: string, defaultVal?: unknown) => unknown;
             set: (key: string, val: unknown) => void;
@@ -47,6 +53,7 @@ describe('SettingsPage', () => {
         };
       }
     ).electron = {
+      supportsBackup: true,
       store: {
         get: jest.fn((key: string, defaultVal?: unknown) =>
           store[key] !== undefined ? store[key] : defaultVal,
@@ -151,7 +158,7 @@ describe('SettingsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('switches to Sync tab and renders PublishSettings', () => {
+  it('switches to Sync tab and renders PublishSettings and BackupSettings', () => {
     render(<SettingsPage />);
 
     const syncTab = screen.getByRole('tab', { name: /sync/i });
@@ -161,5 +168,6 @@ describe('SettingsPage', () => {
     });
 
     expect(screen.getByTestId('publish-settings')).toBeInTheDocument();
+    expect(screen.getByTestId('backup-settings')).toBeInTheDocument();
   });
 });

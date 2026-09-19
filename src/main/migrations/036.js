@@ -44,6 +44,7 @@ module.exports = {
       const SECRET_SETTING_KEYS = [
         'publish.secretAccessKeyEnc',
         'publish.webhookTokenEnc',
+        'backup.supabaseAnonKeyEnc',
       ];
 
       const allColumnInfo = (table) =>

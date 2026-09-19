@@ -71,11 +71,16 @@ import {
   savePublishConfig,
   type PublishConfigInput,
 } from './utils/publishConfig';
+import {
+  getBackupConfig,
+  saveBackupConfig,
+  type BackupConfigInput,
+} from './utils/backupConfig';
 import type { SeedOptions } from './utils/priceSeeding';
 import { ErrorManager } from './errorManager';
 import { DEFAULT_USER } from './utils/constants';
 
-dotenv.config();
+dotenv.config(); // still loads `.env` so backupConfig can migrate url/anon key once
 
 // polyfill globalThis.crypto in Electron main process (Node 18.15 does not expose webcrypto on globalThis)
 if (
@@ -494,6 +499,11 @@ app
     );
     ipcMain.handle('publish:getLastResult', async () =>
       PublishService.getLastResult(),
+    );
+
+    ipcMain.handle('backup:getConfig', async () => getBackupConfig());
+    ipcMain.handle('backup:saveConfig', async (_, input: BackupConfigInput) =>
+      saveBackupConfig(input),
     );
 
     ipcMain.handle('auth:login', async (_, user: UserCredentials) => {

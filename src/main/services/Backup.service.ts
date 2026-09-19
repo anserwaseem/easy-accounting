@@ -19,6 +19,7 @@ import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
 import { raise, getComputerName, isOnline } from '../utils/general';
 import { store } from '../store';
+import { getBackupCredentials } from '../utils/backupConfig';
 
 /** read-only metadata about the most recent backup, for the sidebar indicator */
 export type BackupLastInfo = {
@@ -40,6 +41,8 @@ export class BackupService {
 
   private supabase: SupabaseClient | null = null;
 
+  private supabaseFingerprint = '';
+
   private bucketName:
     | `${typeof this.BACKUP_PREFIX}_${typeof process.platform}_${string}_${string}`
     | undefined;
@@ -48,26 +51,37 @@ export class BackupService {
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
-
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-    if (supabaseUrl && supabaseAnonKey) {
-      try {
-        this.supabase = createClient(supabaseUrl, supabaseAnonKey);
-      } catch (err) {
-        log.error(
-          `${this.logPrefix}: Failed to initialize Supabase client`,
-          err,
-        );
-        this.supabase = null;
-      }
-    } else {
-      this.supabase = null;
-      log.warn(
-        `${this.logPrefix}: SUPABASE_URL or SUPABASE_ANON_KEY is not set. Cloud backups are disabled.`,
-      );
-    }
     this.setupBucketName();
+  }
+
+  /**
+   * rebuilds the supabase client when Settings credentials change. local
+   * backups still run when this returns null — only cloud upload/list/restore
+   * are skipped.
+   */
+  private getSupabase(): SupabaseClient | null {
+    const creds = getBackupCredentials();
+    if (!creds) {
+      this.supabase = null;
+      this.supabaseFingerprint = '';
+      return null;
+    }
+
+    const fingerprint = `${creds.url}\0${creds.anonKey}`;
+    if (this.supabase && this.supabaseFingerprint === fingerprint) {
+      return this.supabase;
+    }
+
+    try {
+      this.supabase = createClient(creds.url, creds.anonKey);
+      this.supabaseFingerprint = fingerprint;
+      return this.supabase;
+    } catch (err) {
+      log.error(`${this.logPrefix}: Failed to initialize Supabase client`, err);
+      this.supabase = null;
+      this.supabaseFingerprint = '';
+      return null;
+    }
   }
 
   // emit progress event to all open browser windows
@@ -110,7 +124,8 @@ export class BackupService {
 
       log.info(`Database backup created locally at ${backupPath}`);
 
-      if (!this.supabase) {
+      const supabase = this.getSupabase();
+      if (!supabase) {
         log.warn(
           `${this.logPrefix}: Skipping cloud backup upload (Supabase credentials not configured).`,
         );
@@ -145,7 +160,7 @@ export class BackupService {
       this.emitProgress('started', 'Uploading backup to cloud storage...');
 
       // ensure bucket exists
-      const { error: bucketError } = await this.supabase.storage.createBucket(
+      const { error: bucketError } = await supabase.storage.createBucket(
         this.bucketName,
         { public: false },
       );
@@ -173,7 +188,7 @@ export class BackupService {
           2,
         )} MB to cloud...`,
       );
-      const { error: uploadError } = await this.supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from(this.bucketName)
         .upload(fileName, fileBuffer, {
           contentType: 'application/octet-stream',
@@ -231,7 +246,8 @@ export class BackupService {
       if (backup.type === 'local')
         return this.restoreFromBackup(backup.filename);
 
-      if (!this.supabase) {
+      const supabase = this.getSupabase();
+      if (!supabase) {
         return {
           success: false,
           error: 'Cloud backup storage is not configured.',
@@ -249,7 +265,7 @@ export class BackupService {
         `Downloading backup from cloud...`,
         'download',
       );
-      const { data, error: downloadError } = await this.supabase.storage
+      const { data, error: downloadError } = await supabase.storage
         .from(this.bucketName)
         .download(backup.filename);
 
@@ -328,8 +344,9 @@ export class BackupService {
 
     // get cloud backups
     let cloudBackups: BackupMetadata[] = [];
-    if (this.supabase && this.bucketName && (await isOnline())) {
-      const { data: cloudFiles, error: listError } = await this.supabase.storage
+    const supabase = this.getSupabase();
+    if (supabase && this.bucketName && (await isOnline())) {
+      const { data: cloudFiles, error: listError } = await supabase.storage
         .from(this.bucketName)
         .list();
 
