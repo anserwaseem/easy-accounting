@@ -1,0 +1,32 @@
+name: deploy-web-dispatch
+
+# When web-related code is pushed to feat/web-pwa or main, optionally notify
+# azs-ops to run deploy-ea-web. Skipped if AZS_OPS_DISPATCH_TOKEN is not configured
+# in repository secrets (keeps this public repo completely generic and decoupled).
+
+on:
+  push:
+    branches:
+      - main
+      - feat/web-pwa
+    paths:
+      - 'apps/web/**'
+      - 'src/renderer/**'
+      - 'src/shared/**'
+      - 'src/types/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch deploy event to azs-ops
+        if: "${{ secrets.AZS_OPS_DISPATCH_TOKEN != '' }}"
+        run: |
+          curl -s -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.AZS_OPS_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/anserwaseem/azs-ops/dispatches \
+            -d "{\"event_type\": \"deploy-web\", \"client_payload\": {\"ref\": \"${{ github.ref_name }}\", \"sha\": \"${{ github.sha }}\"}}"
+          echo "Dispatched deploy-web event to azs-ops for ${{ github.ref_name }}@${{ github.sha }}"
