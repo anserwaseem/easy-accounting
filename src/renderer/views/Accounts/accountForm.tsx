@@ -64,7 +64,6 @@ interface AccountFormProps {
   onReset?: () => void;
   initialValues?: Partial<AccountFormData>;
   charts: Chart[];
-  clearRef?: React.RefObject<HTMLButtonElement>;
   onHeadNameChange?: (value: string) => void;
 }
 
@@ -73,7 +72,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   onReset,
   initialValues,
   charts,
-  clearRef,
   onHeadNameChange,
 }: AccountFormProps) => {
   const form = useForm<AccountFormData>({
@@ -272,14 +270,9 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           )}
         />
 
-        <div className="flex justify-between">
-          <Button type="submit" className="w-1/2">
-            Submit
-          </Button>
-          <Button type="reset" variant="ghost" ref={clearRef}>
-            Clear
-          </Button>
-        </div>
+        <Button type="submit" className="w-full">
+          Submit
+        </Button>
       </form>
     </Form>
   );

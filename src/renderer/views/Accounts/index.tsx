@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Columns3, Plus, Settings2 } from 'lucide-react';
 import { Button } from 'renderer/shad/ui/button';
@@ -211,7 +211,6 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   );
   const [pricingAccountId, setPricingAccountId] = useState<number | null>(null);
   const [newDialog, setNewDialog] = useState<'account' | 'head' | null>(null);
-  const clearRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
   const refetchAccounts = useCallback(async () => {
@@ -463,7 +462,6 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   row={row}
                   refetchAccounts={refetchAccounts}
                   charts={charts}
-                  clearRef={clearRef}
                 />
               ),
               // three 32px icon buttons + gaps — match inventory Actions width
@@ -641,7 +639,6 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 </DropdownMenu>
                 <AddAccount
                   charts={charts}
-                  clearRef={clearRef}
                   refetchAccounts={refetchAccounts}
                   hideButton
                   isOpen={newDialog === 'account'}

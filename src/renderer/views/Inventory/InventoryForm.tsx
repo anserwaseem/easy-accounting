@@ -15,10 +15,12 @@ import {
   FormMessage,
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
+import { Textarea } from 'renderer/shad/ui/textarea';
+import { Label } from 'renderer/shad/ui/label';
 import { Button } from 'renderer/shad/ui/button';
 import { capitalize, get, keys, map, merge } from 'lodash';
 import { baseEntityKeys } from '@/renderer/lib/constants';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 
 interface InventoryFormProps<
@@ -39,6 +41,8 @@ interface InventoryFormProps<
    */
   hiddenFields?: string[];
   itemTypes?: ItemType[];
+  showClear?: boolean;
+  children?: ReactNode;
 }
 
 export const InventoryForm = <
@@ -51,6 +55,8 @@ export const InventoryForm = <
   disabledFields = [],
   hiddenFields = [],
   itemTypes = [],
+  showClear = true,
+  children,
 }: InventoryFormProps<T>) => {
   const form = useForm<T>({
     resolver: zodResolver(schema),
@@ -99,6 +105,68 @@ export const InventoryForm = <
     }),
   );
 
+  const hasType = fields.some((f) => f.name === 'itemTypeId');
+  const hasList = fields.some((f) => f.name === 'listPosition');
+
+  const renderField = (name: Path<T>) => {
+    const fieldItem = fields.find((f) => f.name === name);
+    if (!fieldItem) return null;
+    const { label, type } = fieldItem;
+    const isTextArea =
+      name === 'title' || name === 'description' || name === 'descriptionUrdu';
+    const isUrdu = name === 'descriptionUrdu';
+
+    return (
+      <FormField
+        key={name}
+        control={form.control}
+        name={name}
+        disabled={disabledFields.includes(name)}
+        render={({ field }) => {
+          let inputControl: ReactNode;
+          if (name === 'itemTypeId') {
+            inputControl = (
+              <VirtualSelect
+                options={[{ id: 0, name: 'No type' }, ...itemTypes]}
+                value={field.value as string | number | null | undefined}
+                onChange={(value) => field.onChange(Number(value))}
+                placeholder="Select item type"
+                searchPlaceholder="Search item types..."
+              />
+            );
+          } else if (isTextArea) {
+            inputControl = (
+              <Textarea
+                {...field}
+                rows={name === 'title' ? 2 : 3}
+                dir={isUrdu ? 'rtl' : undefined}
+                lang={isUrdu ? 'ur' : undefined}
+                className={isUrdu ? 'text-right' : undefined}
+                value={(field.value ?? '') as string}
+              />
+            );
+          } else {
+            inputControl = (
+              <Input
+                {...field}
+                type={type}
+                value={(field.value ?? '') as string | number}
+              />
+            );
+          }
+
+          return (
+            <FormItem labelPosition="start">
+              <FormLabel>{label}</FormLabel>
+              <FormControl>{inputControl}</FormControl>
+              <FormMessage />
+            </FormItem>
+          );
+        }}
+      />
+    );
+  };
+
   return (
     <Form {...form}>
       <form
@@ -108,44 +176,101 @@ export const InventoryForm = <
           form.reset(resetValues as T);
         }}
       >
-        {fields.map(({ name, label, type }) => (
-          <FormField
-            key={name}
-            control={form.control}
-            name={name}
-            disabled={disabledFields.includes(name)}
-            render={({ field }) => (
-              <FormItem labelPosition="start">
-                <FormLabel>{label}</FormLabel>
-                <FormControl>
-                  {name === 'itemTypeId' ? (
-                    <VirtualSelect
-                      options={[{ id: 0, name: 'No type' }, ...itemTypes]}
-                      value={field.value as string | number | null | undefined}
-                      onChange={(value) => field.onChange(Number(value))}
-                      placeholder="Select item type"
-                      searchPlaceholder="Search item types..."
-                    />
-                  ) : (
-                    <Input
-                      {...field}
-                      type={type}
-                      value={(field.value ?? '') as string | number}
-                    />
+        {renderField('name' as Path<T>)}
+        {renderField('quantity' as Path<T>)}
+        {renderField('price' as Path<T>)}
+
+        {hasType && hasList ? (
+          <div className="space-y-2 grid grid-cols-[1fr,2fr] items-center">
+            <Label className="text-sm font-medium leading-none">Type</Label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <FormField
+                  control={form.control}
+                  name={'itemTypeId' as Path<T>}
+                  disabled={disabledFields.includes('itemTypeId')}
+                  render={({ field }) => (
+                    <FormItem className="space-y-0">
+                      <FormControl>
+                        <VirtualSelect
+                          options={[{ id: 0, name: 'No type' }, ...itemTypes]}
+                          value={
+                            field.value as string | number | null | undefined
+                          }
+                          onChange={(value) => field.onChange(Number(value))}
+                          placeholder="Select item type"
+                          searchPlaceholder="Search item types..."
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ))}
-        <div className="flex justify-between">
-          <Button type="submit" className="w-1/2">
+                />
+              </div>
+              <span className="shrink-0 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                List #
+              </span>
+              <div className="w-28 shrink-0">
+                <FormField
+                  control={form.control}
+                  name={'listPosition' as Path<T>}
+                  disabled={disabledFields.includes('listPosition')}
+                  render={({ field }) => (
+                    <FormItem className="space-y-0">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="number"
+                          placeholder="—"
+                          className="text-center font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={(field.value ?? '') as string | number}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {renderField('itemTypeId' as Path<T>)}
+            {renderField('listPosition' as Path<T>)}
+          </>
+        )}
+
+        {renderField('title' as Path<T>)}
+        {renderField('description' as Path<T>)}
+        {renderField('descriptionUrdu' as Path<T>)}
+
+        {fields
+          .filter(
+            (f) =>
+              ![
+                'name',
+                'quantity',
+                'price',
+                'itemTypeId',
+                'listPosition',
+                'title',
+                'description',
+                'descriptionUrdu',
+              ].includes(f.name),
+          )
+          .map((f) => renderField(f.name))}
+
+        {children}
+
+        <div className="flex justify-between pt-2">
+          <Button type="submit" className={showClear ? 'w-1/2' : 'w-full'}>
             Submit
           </Button>
-          <Button type="reset" variant="ghost">
-            Clear
-          </Button>
+          {showClear && (
+            <Button type="reset" variant="ghost">
+              Clear
+            </Button>
+          )}
         </div>
       </form>
     </Form>

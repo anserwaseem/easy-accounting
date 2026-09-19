@@ -14,7 +14,13 @@ import { Label } from '@/renderer/shad/ui/label';
 import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateInventoryItem, ItemType, InventoryItem } from '@/types';
 import { useEffect, useMemo, useState } from 'react';
-import { Trash2, Ban, Power } from 'lucide-react';
+import { Trash2, Ban, Power, Info } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/renderer/shad/ui/tooltip';
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { editInventorySchema } from './inventorySchemas';
 import { InventoryForm } from './InventoryForm';
@@ -139,11 +145,15 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
       });
       return;
     }
-    // only the badges are refreshed here. Refetching the inventory would swap
-    // the row data beneath this dialog, which is what closed it mid-click; the
-    // rows are reconciled when the dialog closes instead.
+    // row data is reconciled when the dialog closes via needsRefetch, avoiding
+    // table re-renders that would unmount and close this dialog mid-interaction.
     setNeedsRefetch(true);
-    refreshPublishStatuses?.();
+    toast({
+      description: next
+        ? `Item "${row.original.name}" excluded from catalog`
+        : `Item "${row.original.name}" included in catalog`,
+      variant: next ? 'warning' : 'success',
+    });
   };
 
   const onParentChange = async (next: number | null) => {
@@ -324,85 +334,101 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
         <DialogTrigger asChild>
           <EditActionButton aria-label="Edit inventory item" />
         </DialogTrigger>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Edit Inventory Item</DialogTitle>
-          </DialogHeader>
-          <InventoryForm
-            schema={editInventorySchema}
-            defaultValues={defaultValues}
-            onSubmit={onEdit}
-            disabledFields={['name', 'quantity']}
-            hiddenFields={showPublishControls ? [] : ['title']}
-            itemTypes={itemTypes}
-          />
-          <ItemPriceLists
-            priceLists={priceLists}
-            values={listPrices}
-            onChange={(id, value) =>
-              setListPrices((prev) => ({ ...prev, [id]: value }))
-            }
-          />
-          <div className="flex items-start gap-2 border-t pt-3">
-            <Checkbox
-              id={`active-${row.original.id}`}
-              checked={isActive}
-              onCheckedChange={handleToggleActive}
-            />
-            <div className="flex flex-col gap-0.5">
-              <Label
-                htmlFor={`active-${row.original.id}`}
-                className="text-sm font-normal"
-              >
-                Active item
-              </Label>
-              <span className="text-xs text-muted-foreground">
-                Inactive items cannot be selected on new invoices, but
-                historical records remain intact.
-              </span>
-            </div>
-          </div>
-          {showPublishControls ? (
-            <div className="flex items-start gap-2 border-t pt-3">
-              <Checkbox
-                id={`exclude-${row.original.id}`}
-                checked={excluded}
-                onCheckedChange={(checked) =>
-                  onToggleExcluded(checked === true)
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
+          <TooltipProvider delayDuration={150}>
+            <DialogHeader>
+              <DialogTitle>Edit Inventory Item</DialogTitle>
+            </DialogHeader>
+            <InventoryForm
+              schema={editInventorySchema}
+              defaultValues={defaultValues}
+              onSubmit={onEdit}
+              disabledFields={['name', 'quantity']}
+              hiddenFields={showPublishControls ? [] : ['title']}
+              itemTypes={itemTypes}
+              showClear={false}
+            >
+              <ItemPriceLists
+                priceLists={priceLists}
+                values={listPrices}
+                onChange={(id, value) =>
+                  setListPrices((prev) => ({ ...prev, [id]: value }))
                 }
               />
-              <div className="flex flex-col gap-0.5">
-                <Label
-                  htmlFor={`exclude-${row.original.id}`}
-                  className="text-sm font-normal"
-                >
-                  Keep out of the published catalog
-                </Label>
-                <span className="text-xs text-muted-foreground">
-                  Applies immediately. The item stays in your inventory and
-                  invoices; it just never goes on sale online, even with a price
-                  and a photo.
-                </span>
+            </InventoryForm>
+            {showPublishControls ? (
+              <div className="flex items-center gap-2 border-t pt-3">
+                <Checkbox
+                  id={`exclude-${row.original.id}`}
+                  checked={excluded}
+                  onCheckedChange={(checked) =>
+                    onToggleExcluded(checked === true)
+                  }
+                />
+                <div className="flex items-center gap-1.5">
+                  <Label
+                    htmlFor={`exclude-${row.original.id}`}
+                    className="cursor-pointer text-sm font-normal"
+                  >
+                    Keep out of the published catalog
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex cursor-pointer items-center text-muted-foreground hover:text-foreground">
+                        <Info className="h-3.5 w-3.5" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      align="start"
+                      className="max-w-xs text-xs"
+                    >
+                      Applies immediately. The item stays in your inventory and
+                      invoices; it just never goes on sale online, even with a
+                      price and a photo.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
+            ) : null}
+            <div className="space-y-1.5 border-t pt-3">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-sm font-normal">Family head</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex cursor-pointer items-center text-muted-foreground hover:text-foreground">
+                      <Info className="h-3.5 w-3.5" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    align="start"
+                    className="max-w-xs text-xs"
+                  >
+                    Links this item under a parent family head for catalog
+                    grouping and publishing.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              {canSetFamilyHead ? (
+                <FamilyHeadPicker
+                  key={isOpen ? `open-${row.original.id}` : 'closed'}
+                  options={familyHeadOptions}
+                  value={parentId}
+                  onChange={onParentChange}
+                />
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Info className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  <span>
+                    This item is head of {variantChildCount} variant
+                    {variantChildCount === 1 ? '' : 's'} — cannot nest under
+                    another.
+                  </span>
+                </div>
+              )}
             </div>
-          ) : null}
-          <div className="space-y-1.5 border-t pt-3">
-            <Label className="text-sm font-normal">Family head</Label>
-            {canSetFamilyHead ? (
-              <FamilyHeadPicker
-                key={isOpen ? `open-${row.original.id}` : 'closed'}
-                options={familyHeadOptions}
-                value={parentId}
-                onChange={onParentChange}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                This item is head of {variantChildCount} variant
-                {variantChildCount === 1 ? '' : 's'} — cannot nest under
-                another.
-              </p>
-            )}
-          </div>
+          </TooltipProvider>
         </DialogContent>
       </Dialog>
 

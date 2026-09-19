@@ -94,7 +94,7 @@ export const AddInventoryItem: React.FC<AddInventoryItemProps> = ({
           New item
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Create Inventory Item</DialogTitle>
         </DialogHeader>

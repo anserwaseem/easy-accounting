@@ -22,14 +22,12 @@ interface EditAccountProps {
   };
   refetchAccounts: () => void;
   charts: Chart[];
-  clearRef: React.RefObject<HTMLButtonElement>;
 }
 
 export const EditAccount: React.FC<EditAccountProps> = ({
   row,
   refetchAccounts,
   charts,
-  clearRef,
 }: EditAccountProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -200,25 +198,25 @@ export const EditAccount: React.FC<EditAccountProps> = ({
             <EditActionButton aria-label="Edit account" title="Edit account" />
           </DialogTrigger>
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[425px]">
-            <DialogHeader>
+            <DialogHeader className="flex flex-row items-center justify-between space-y-0 pr-7">
               <DialogTitle>Edit Account</DialogTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCreateCopy}
+                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                title="Create a copy of this account"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Create a copy
+              </Button>
             </DialogHeader>
             <AccountForm
               onSubmit={onSubmit}
               charts={charts}
-              clearRef={clearRef}
               initialValues={mapRowToFormData(row.original)}
             />
-            <DialogFooter className="!justify-start">
-              <Button
-                variant="outline"
-                onClick={handleCreateCopy}
-                className="flex items-center"
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Create a Copy
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
@@ -250,7 +248,6 @@ export const EditAccount: React.FC<EditAccountProps> = ({
         <AddAccount
           refetchAccounts={refetchAccounts}
           charts={charts}
-          clearRef={clearRef}
           initialValues={accountToCopy}
           isOpen={!!accountToCopy}
           onOpenChange={(open: boolean) => {
