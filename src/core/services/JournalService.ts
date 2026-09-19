@@ -87,10 +87,7 @@ const SQL = {
     `,
 };
 
-/**
- * Platform-free port of src/main/services/Journal.service.ts — identical SQL
- * and behavior, async against the DatabaseDriver, session injected.
- */
+/** Journal CRUD. Async against DatabaseDriver, session injected. */
 @logErrors
 export class JournalService {
   private db: DatabaseDriver;

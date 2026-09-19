@@ -3,7 +3,6 @@ import { AccountService } from '../AccountService';
 import { ChartService } from '../ChartService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { AccountService as MainAccountService } from '../../../main/services/Account.service';
 import { OPENING_BALANCE_EQUITY_ACCOUNT_NAME } from '../../db/openingBalanceBackfill';
 import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
 
@@ -59,16 +58,6 @@ function createCore(db: Database.Database) {
     accounts: new AccountService({ db: driver, session }),
     charts: new ChartService({ db: driver, session }),
   };
-}
-
-/** The old main-process service, bound to a given db the way its tests do. */
-function createMainService(db: Database.Database): MainAccountService {
-  const service = Object.create(MainAccountService.prototype);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (service as any).db = db;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (service as any).initPreparedStatements();
-  return service as MainAccountService;
 }
 
 const anAccount = (overrides: Record<string, unknown> = {}) =>
@@ -236,51 +225,6 @@ describe('core AccountService', () => {
     );
     expect(found?.id).toBe(acc.id);
     db.close();
-  });
-
-  it('matches the main-process AccountService row for row', async () => {
-    // Same operations against two identical databases — one through the old
-    // sync service, one through core — must produce identical reads. This is
-    // the no-behavior-change contract of the migration.
-    const dbOld = new Database(':memory:');
-    const dbCore = new Database(':memory:');
-    seedBasicSchema(dbOld);
-    seedBasicSchema(dbCore);
-
-    const oldService = createMainService(dbOld);
-    const { accounts: coreService } = createCore(dbCore);
-
-    const inputs = [
-      anAccount(),
-      anAccount({
-        name: 'Supplier X',
-        headName: 'Current Liability',
-        code: 201,
-      }),
-    ];
-    inputs.forEach((account) => oldService.insertAccount(account));
-    await inputs.reduce(
-      (chain, account) =>
-        chain.then(async () => {
-          await coreService.insertAccount(account);
-        }),
-      Promise.resolve(),
-    );
-
-    oldService.updateAccount(anAccount({ id: 1, name: 'Customer A2' }));
-    await coreService.updateAccount(anAccount({ id: 1, name: 'Customer A2' }));
-    oldService.toggleAccountActive(2, false);
-    await coreService.toggleAccountActive(2, false);
-
-    const oldRows = oldService.getAccounts();
-    const coreRows = await coreService.getAccounts();
-    expect(coreRows).toEqual(oldRows);
-
-    expect(await coreService.getAccountByName('Customer A2')).toEqual(
-      oldService.getAccountByName('Customer A2'),
-    );
-    dbOld.close();
-    dbCore.close();
   });
 });
 

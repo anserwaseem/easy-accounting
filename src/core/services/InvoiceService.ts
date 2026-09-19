@@ -454,7 +454,7 @@ const SQL = {
       GROUP BY i.id
       ORDER BY i.invoiceNumber
     `,
-  // sales performance report (getSalesPerformance) — static queries, unchanged from src/main/services/Invoice.service.ts
+  // sales performance report (getSalesPerformance) — static queries
   salesPerfPostedTotals: `
         SELECT
           COUNT(id) AS invoiceCount,
@@ -661,9 +661,8 @@ const SQL = {
 };
 
 /**
- * Platform-free port of src/main/services/Invoice.service.ts — identical SQL
- * and behavior, async against the DatabaseDriver, session and other core
- * services injected.
+ * Invoice lifecycle (sale/purchase, return, quotation). Async against
+ * DatabaseDriver, session and sibling core services injected.
  */
 @logErrors
 export class InvoiceService {

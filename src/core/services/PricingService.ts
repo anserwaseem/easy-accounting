@@ -167,10 +167,7 @@ const SQL = {
     `,
 };
 
-/**
- * Platform-free port of src/main/services/Pricing.service.ts — identical SQL
- * and behavior, async against the DatabaseDriver, session injected.
- */
+/** Item types and discount profiles. Async against DatabaseDriver, session injected. */
 @logErrors
 export class PricingService {
   private db: DatabaseDriver;

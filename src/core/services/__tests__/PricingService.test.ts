@@ -2,7 +2,6 @@ import Database from 'better-sqlite3';
 import { PricingService } from '../PricingService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { PricingService as MainPricingService } from '../../../main/services/Pricing.service';
 import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
 
 jest.mock('electron-log', () => ({
@@ -84,16 +83,6 @@ function createCore(db: Database.Database) {
     driver,
     pricing: new PricingService({ db: driver, session }),
   };
-}
-
-/** The old main-process service, bound to a given db the way its tests do. */
-function createMainService(db: Database.Database): MainPricingService {
-  const service = Object.create(MainPricingService.prototype);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (service as any).db = db;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (service as any).initPreparedStatements();
-  return service as MainPricingService;
 }
 
 describe('core PricingService', () => {
@@ -387,54 +376,6 @@ describe('core PricingService', () => {
       ).toBeUndefined();
       db.close();
     });
-  });
-
-  it('matches the main-process PricingService row for row', async () => {
-    // Same operations against two identical databases — one through the old
-    // sync service, one through core — must produce identical reads. This is
-    // the no-behavior-change contract of the migration.
-    const dbOld = new Database(':memory:');
-    const dbCore = new Database(':memory:');
-    seedBasicSchema(dbOld);
-    seedBasicSchema(dbCore);
-
-    const oldService = createMainService(dbOld);
-    const { pricing: coreService } = createCore(dbCore);
-
-    oldService.insertItemType('Widgets');
-    await coreService.insertItemType('Widgets');
-    oldService.insertItemType('Gadgets');
-    await coreService.insertItemType('Gadgets');
-
-    oldService.setPrimaryItemType(1);
-    await coreService.setPrimaryItemType(1);
-
-    oldService.insertDiscountProfile('VIP');
-    await coreService.insertDiscountProfile('VIP');
-
-    oldService.saveProfileTypeDiscounts(1, [
-      { itemTypeId: 1, discountPercent: 12 },
-      { itemTypeId: 2, discountPercent: 8 },
-    ]);
-    await coreService.saveProfileTypeDiscounts(1, [
-      { itemTypeId: 1, discountPercent: 12 },
-      { itemTypeId: 2, discountPercent: 8 },
-    ]);
-
-    const oldTypes = oldService.getItemTypes();
-    const coreTypes = await coreService.getItemTypes();
-    expect(coreTypes).toEqual(oldTypes);
-
-    const oldProfiles = oldService.getDiscountProfiles();
-    const coreProfiles = await coreService.getDiscountProfiles();
-    expect(coreProfiles).toEqual(oldProfiles);
-
-    const oldDiscounts = oldService.getProfileTypeDiscounts(1);
-    const coreDiscounts = await coreService.getProfileTypeDiscounts(1);
-    expect(coreDiscounts).toEqual(oldDiscounts);
-
-    dbOld.close();
-    dbCore.close();
   });
 });
 

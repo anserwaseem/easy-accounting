@@ -3,7 +3,6 @@ import { InventoryService } from '../InventoryService';
 import { VendorStockService } from '../VendorStockService';
 import type { SessionContext, KeyValueStore } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { InventoryService as MainInventoryService } from '../../../main/services/Inventory.service';
 import { INVENTORY_BASELINE_REASON } from '../../db/inventoryBaselineBackfill';
 import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
 import { bootstrapDatabase } from '../../db/bootstrap';
@@ -66,16 +65,6 @@ function createCore(db: Database.Database, store?: KeyValueStore) {
       vendorStockService: vendorStock,
     }),
   };
-}
-
-/** The old main-process service, bound to a given db the way its tests do. */
-function createMainService(db: Database.Database): MainInventoryService {
-  const service = Object.create(MainInventoryService.prototype);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (service as any).db = db;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (service as any).initPreparedStatements();
-  return service as MainInventoryService;
 }
 
 const DATES = { startDate: '2025-01-01', endDate: '2025-12-31' };
@@ -963,91 +952,6 @@ describe('core InventoryService excludes import baseline rows from lists/indicat
     const row = res.rows.find((r) => r.itemId === invId);
     expect(row?.quantityAsOf).toBe(100);
     db.close();
-  });
-});
-
-/**
- * Migration 024 gives every inventory row a globally unique uuid, generated
- * independently per database. Two separately-seeded in-memory databases
- * therefore never share a uuid for "the same" row even when every other
- * column matches — so this parity check confirms each side produced a
- * well-formed uuid and then excludes it before the row-for-row comparison.
- */
-const UUID_V4 =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-
-function stripUuids<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((item) => stripUuids(item)) as unknown as T;
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(([key]) => key !== 'uuid')
-        .map(([key, val]) => [key, stripUuids(val)]),
-    ) as T;
-  }
-  return value;
-}
-
-describe('core InventoryService matches the main-process service row for row', () => {
-  it('produces identical getInventory / getInventoryHealth / getStockAsOf results', async () => {
-    const dbOld = new Database(':memory:');
-    const dbCore = new Database(':memory:');
-    seedBasicSchema(dbOld);
-    seedBasicSchema(dbCore);
-
-    const oldService = createMainService(dbOld);
-    const { inventory: coreService } = createCore(dbCore);
-
-    const t1Old = seedItemType(dbOld, 'T1');
-    const t1Core = seedItemType(dbCore, 'T1');
-    expect(t1Old).toBe(t1Core);
-
-    oldService.insertItem({
-      name: 'Widget',
-      price: 25,
-      itemTypeId: t1Old,
-      description: 'd',
-    });
-    await coreService.insertItem({
-      name: 'Widget',
-      price: 25,
-      itemTypeId: t1Core,
-      description: 'd',
-    });
-    oldService.insertItem({ name: 'Gadget', price: 40 });
-    await coreService.insertItem({ name: 'Gadget', price: 40 });
-
-    oldService.applyStockAdjustment({
-      inventoryId: 1,
-      quantityDelta: 7,
-      date: '2025-02-01T00:00:00.000Z',
-    });
-    await coreService.applyStockAdjustment({
-      inventoryId: 1,
-      quantityDelta: 7,
-      date: '2025-02-01T00:00:00.000Z',
-    });
-
-    const oldRows = oldService.getInventory();
-    const coreRows = await coreService.getInventory();
-    [...oldRows, ...coreRows].forEach((r) =>
-      expect((r as unknown as { uuid: string }).uuid).toMatch(UUID_V4),
-    );
-    expect(stripUuids(coreRows)).toEqual(stripUuids(oldRows));
-
-    const oldHealth = oldService.getInventoryHealth(DATES);
-    const coreHealth = await coreService.getInventoryHealth(DATES);
-    expect(stripUuids(coreHealth.rows)).toEqual(stripUuids(oldHealth.rows));
-    expect(coreHealth.kpis).toEqual(oldHealth.kpis);
-
-    const oldAsOf = oldService.getStockAsOf({ asOfDate: '2025-06-01' });
-    const coreAsOf = await coreService.getStockAsOf({ asOfDate: '2025-06-01' });
-    expect(stripUuids(coreAsOf)).toEqual(stripUuids(oldAsOf));
-
-    dbOld.close();
-    dbCore.close();
   });
 });
 

@@ -6,10 +6,6 @@ import { LedgerService } from '../LedgerService';
 import { StatementService } from '../StatementService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { AccountService as MainAccountService } from '../../../main/services/Account.service';
-import { ChartService as MainChartService } from '../../../main/services/Chart.service';
-import { LedgerService as MainLedgerService } from '../../../main/services/Ledger.service';
-import { StatementService as MainStatementService } from '../../../main/services/Statement.service';
 import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
 
 jest.mock('electron-log', () => ({
@@ -63,14 +59,12 @@ function seedBasicSchema(db: Database.Database) {
 }
 
 /**
- * Statement.service's setupLedgers calls accountService.insertAccountIfNotExists
- * WITHOUT a `discountProfileId` key (see src/main/services/Statement.service.ts:112-121,
- * preserved verbatim in the port). insertAccount's SQL binds `@discountProfileId` as a
+ * StatementService.setupLedgers calls accountService.insertAccountIfNotExists
+ * WITHOUT a `discountProfileId` key. insertAccount's SQL binds `@discountProfileId` as a
  * named parameter, and better-sqlite3 throws "Missing named parameter" when a brand new
- * account must be inserted through this path — a pre-existing bug in the original
- * service, not introduced by the port (see the "matches main-process" and "surfaces the
- * pre-existing insertAccountIfNotExists bug" tests below, which confirm main and core
- * fail identically). insertAccountIfNotExists only reaches the INSERT when no matching
+ * account must be inserted through this path — a pre-existing bug, not introduced by
+ * the core port (see the "surfaces the pre-existing insertAccountIfNotExists bug" test
+ * below). insertAccountIfNotExists only reaches the INSERT when no matching
  * account already exists, so tests that want a clean end-to-end run pre-seed the account.
  */
 function seedExistingAccount(
@@ -106,28 +100,6 @@ function createCore(db: Database.Database) {
     ledger: ledgerService,
     statements: statementService,
   };
-}
-
-/** The old main-process services, bound to a given db the way their own tests do. */
-function createMainService(db: Database.Database): MainStatementService {
-  const chartService = Object.create(MainChartService.prototype);
-  (chartService as any).db = db;
-  (chartService as any).initPreparedStatements();
-
-  const accountService = Object.create(MainAccountService.prototype);
-  (accountService as any).db = db;
-  (accountService as any).initPreparedStatements();
-
-  const ledgerService = Object.create(MainLedgerService.prototype);
-  (ledgerService as any).db = db;
-  (ledgerService as any).initPreparedStatements();
-
-  const statementService = Object.create(MainStatementService.prototype);
-  (statementService as any).db = db;
-  (statementService as any).chartService = chartService;
-  (statementService as any).accountService = accountService;
-  (statementService as any).ledgerService = ledgerService;
-  return statementService as MainStatementService;
 }
 
 const aBalanceSheet = (overrides: Partial<BalanceSheet> = {}): BalanceSheet =>
@@ -350,115 +322,6 @@ describe('core StatementService', () => {
       'Current Asset',
     );
     db.close();
-  });
-
-  it('matches the main-process StatementService: both fail identically for a brand-new account', async () => {
-    const dbOld = new Database(':memory:');
-    const dbCore = new Database(':memory:');
-    seedBasicSchema(dbOld);
-    seedBasicSchema(dbCore);
-
-    const oldService = createMainService(dbOld);
-    const { statements: coreService } = createCore(dbCore);
-
-    const balanceSheet = aBalanceSheet();
-    expect(oldService.saveBalanceSheet(balanceSheet)).toBe(false);
-    expect(await coreService.saveBalanceSheet(balanceSheet)).toBe(false);
-
-    expect(dbOld.prepare(`SELECT COUNT(*) as c FROM account`).get()).toEqual(
-      dbCore.prepare(`SELECT COUNT(*) as c FROM account`).get(),
-    );
-    dbOld.close();
-    dbCore.close();
-  });
-
-  it('matches the main-process StatementService row for row when accounts pre-exist', async () => {
-    const dbOld = new Database(':memory:');
-    const dbCore = new Database(':memory:');
-    const userIdOld = seedBasicSchema(dbOld);
-    const userIdCore = seedBasicSchema(dbCore);
-    seedExistingAccount(
-      dbOld,
-      userIdOld,
-      'Accounts Payable',
-      'Current Liability',
-    );
-    seedExistingAccount(
-      dbOld,
-      userIdOld,
-      'Retained Earnings',
-      'Current Liability',
-    );
-    seedExistingAccount(
-      dbCore,
-      userIdCore,
-      'Accounts Payable',
-      'Current Liability',
-    );
-    seedExistingAccount(
-      dbCore,
-      userIdCore,
-      'Retained Earnings',
-      'Current Liability',
-    );
-
-    const oldService = createMainService(dbOld);
-    const { statements: coreService, accounts: coreAccounts } =
-      createCore(dbCore);
-
-    const balanceSheet = aBalanceSheet({
-      assets: {
-        current: {},
-        totalCurrent: 0,
-        fixed: {},
-        totalFixed: 0,
-        total: 0,
-      },
-      liabilities: {
-        current: { '': [{ name: 'Accounts Payable', amount: 2000 }] },
-        totalCurrent: 2000,
-        fixed: {},
-        totalFixed: 0,
-        total: 2000,
-      },
-      equity: {
-        current: { '': [{ name: 'Retained Earnings', amount: 750 }] },
-        total: 750,
-      },
-    });
-
-    expect(oldService.saveBalanceSheet(balanceSheet)).toBe(true);
-    expect(await coreService.saveBalanceSheet(balanceSheet)).toBe(true);
-
-    const oldAccounts = Object.create(MainAccountService.prototype);
-    (oldAccounts as any).db = dbOld;
-    (oldAccounts as any).initPreparedStatements();
-
-    const oldRows = (oldAccounts as MainAccountService).getAccounts();
-    // coreAccounts.getAccounts() (the list query) now also excludes the
-    // system "Opening Balance Equity" account — see AccountService's
-    // getAccounts SQL comment — so it matches old row for old row directly,
-    // with no need to filter it out by hand any more.
-    const coreRows = await coreAccounts.getAccounts();
-    expect(coreRows).toEqual(oldRows);
-
-    // The account still exists underneath (see the comment block on
-    // StatementService.setupLedgers) — just hidden from the list — so its
-    // presence is confirmed via a direct query, the same way this file
-    // confirms other structural-record side effects (e.g. journalCount
-    // below) that the list-facing service methods now hide by design.
-    const equityAccountRow = dbCore
-      .prepare(
-        `SELECT a.name, c.name as headName FROM account a
-         JOIN chart c ON c.id = a.chartId
-         WHERE a.name = 'Opening Balance Equity'`,
-      )
-      .get() as { name: string; headName: string } | undefined;
-    expect(equityAccountRow).toBeDefined();
-    expect(equityAccountRow!.headName).toBe('Equity');
-
-    dbOld.close();
-    dbCore.close();
   });
 
   describe('dual write: journal facts alongside the unchanged ledger row', () => {

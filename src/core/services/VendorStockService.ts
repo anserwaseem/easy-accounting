@@ -255,8 +255,7 @@ const SQL = {
 };
 
 /**
- * Platform-free port of src/main/services/VendorStock.service.ts — identical
- * SQL and behavior, async against the DatabaseDriver.
+ * Vendor stock cache and movement ledger. Async against DatabaseDriver.
  */
 @logErrors
 export class VendorStockService {

@@ -413,7 +413,7 @@ async function copyTable(
  *    that path. If a journal was ever deleted a different way — direct SQL,
  *    an admin script, an older code path that predates this pairing (every
  *    caller today pairs `removeLedgerEffectOfJournals` with
- *    `deleteJournalsByIds` — see `InvoiceService.ts`/`Invoice.service.ts` —
+ *    `deleteJournalsByIds` — see `InvoiceService.ts` —
  *    but a stray historical write need not have) — the stored `ledger` row
  *    survives with no journal behind it at all: `ledger_view` (a pure
  *    projection of `journal`/`journal_entry`) has no row for it, so

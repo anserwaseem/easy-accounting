@@ -211,8 +211,7 @@ const SQL = {
 };
 
 /**
- * Platform-free port of src/main/services/Ledger.service.ts — identical SQL
- * and behavior, async against the DatabaseDriver, session injected.
+ * Ledger reads/writes. Async against DatabaseDriver, session injected.
  *
  * See the module-level comment above `SQL` for the migration-028 read/write
  * split (view-canon reads vs. legacy-stored write-path helpers).

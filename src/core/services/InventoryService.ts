@@ -547,8 +547,7 @@ const SQL = {
 const STOCKTAKE_RESET_REASON = 'Stocktake correction (opening stock reset)';
 
 /**
- * Platform-free port of src/main/services/Inventory.service.ts — identical
- * SQL and behavior, async against the DatabaseDriver.
+ * Inventory CRUD, stock, attributes, health. Async against DatabaseDriver.
  *
  * Not user-scoped (inventory is installation-wide, unlike account/chart), so
  * `session` is accepted only for constructor-shape consistency with the rest

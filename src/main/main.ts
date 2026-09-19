@@ -71,7 +71,6 @@ import {
 } from './utils/backupConfig';
 import type { SeedOptions } from './utils/priceSeeding';
 import { ErrorManager } from './errorManager';
-import { DEFAULT_USER } from './utils/constants';
 
 dotenv.config(); // still loads `.env` so backupConfig can migrate url/anon key once
 
@@ -228,22 +227,6 @@ const createWindow = async () => {
   setInterval(() => AppUpdater.checkForUpdates(), 60 * 60 * 1000);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const setupUser = (
-  migrationRunner: MigrationRunner,
-  authService: AuthService,
-) => {
-  migrationRunner
-    .waitForMigrations()
-    .then(() => {
-      const userExists = authService.login(DEFAULT_USER);
-      if (!userExists) {
-        authService.register(DEFAULT_USER);
-      }
-    })
-    .catch((err) => log.error(err));
-};
-
 /**
  * Add event listeners...
  */
@@ -392,8 +375,6 @@ app
         errorCorrectionLevel: 'M',
       }),
     );
-
-    // setupUser(migrationRunner, authService);
 
     ipcMain.handle('publish:getConfig', async () => getPublishConfig());
     ipcMain.handle('publish:saveConfig', async (_, input: PublishConfigInput) =>

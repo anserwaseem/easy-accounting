@@ -59,8 +59,7 @@ const SQL = {
 };
 
 /**
- * Platform-free port of src/main/services/Chart.service.ts — identical SQL
- * and behavior, async against the DatabaseDriver, session injected.
+ * Chart CRUD. Async against DatabaseDriver, session injected.
  */
 @logErrors
 export class ChartService {

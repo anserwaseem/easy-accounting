@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3';
-import { omit } from 'lodash';
 import { BalanceType } from 'types';
 import type { Journal, JournalEntry } from 'types';
 import { AccountService } from '../AccountService';
@@ -7,9 +6,6 @@ import { LedgerService } from '../LedgerService';
 import { JournalService } from '../JournalService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { AccountService as MainAccountService } from '../../../main/services/Account.service';
-import { LedgerService as MainLedgerService } from '../../../main/services/Ledger.service';
-import { JournalService as MainJournalService } from '../../../main/services/Journal.service';
 import { OPENING_BALANCE_PARTICULARS } from '../../db/openingBalanceBackfill';
 import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
 
@@ -81,39 +77,6 @@ function createCore(db: Database.Database) {
     ledgerService: ledger,
   });
   return { driver, accounts, ledger, journal };
-}
-
-/** The old main-process services, bound to a given db the way their tests do. */
-function createMainServices(db: Database.Database): {
-  accounts: MainAccountService;
-  ledger: MainLedgerService;
-  journal: MainJournalService;
-} {
-  const accounts = Object.create(MainAccountService.prototype);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (accounts as any).db = db;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (accounts as any).initPreparedStatements();
-
-  const ledger = Object.create(MainLedgerService.prototype);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (ledger as any).db = db;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (ledger as any).initPreparedStatements();
-
-  const journal = Object.create(MainJournalService.prototype);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (journal as any).db = db;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (journal as any).ledgerService = ledger;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (journal as any).initPreparedStatements();
-
-  return {
-    accounts: accounts as MainAccountService,
-    ledger: ledger as MainLedgerService,
-    journal: journal as MainJournalService,
-  };
 }
 
 /** insert an account directly (via the given AccountService), returns its id. */
@@ -495,107 +458,5 @@ describe('core JournalService', () => {
     expect(cashLedgerAfterDelete.at(-1)!.balance).toBe(200);
     expect(await journal.getJournal(firstJournalId)).toEqual({});
     db.close();
-  });
-
-  it('matches the main-process JournalService row for row', async () => {
-    // Same operations against two identical databases — one through the old
-    // sync service, one through core — must produce identical reads. This is
-    // the no-behavior-change contract of the migration.
-    const dbOld = new Database(':memory:');
-    const dbCore = new Database(':memory:');
-    seedBasicSchema(dbOld);
-    seedBasicSchema(dbCore);
-
-    const oldServices = createMainServices(dbOld);
-    const {
-      accounts: coreAccounts,
-      ledger: coreLedger,
-      journal: coreJournal,
-    } = createCore(dbCore);
-
-    const oldCash = await insertAccount(
-      dbOld,
-      new AccountService({ db: new BetterSqliteDriver(dbOld), session }),
-      'Cash',
-      'Current Asset',
-    );
-    const oldSale = await insertAccount(
-      dbOld,
-      new AccountService({ db: new BetterSqliteDriver(dbOld), session }),
-      'Sale',
-      'Revenue',
-    );
-    const coreCash = await insertAccount(
-      dbCore,
-      coreAccounts,
-      'Cash',
-      'Current Asset',
-    );
-    const coreSale = await insertAccount(
-      dbCore,
-      coreAccounts,
-      'Sale',
-      'Revenue',
-    );
-    expect(coreCash).toBe(oldCash);
-    expect(coreSale).toBe(oldSale);
-
-    const journals = [
-      aJournal({
-        date: '2025-02-10',
-        narration: 'Sale one',
-        journalEntries: [
-          { accountId: oldCash, debitAmount: 1000, creditAmount: 0 },
-          { accountId: oldSale, debitAmount: 0, creditAmount: 1000 },
-        ] as JournalEntry[],
-      }),
-      aJournal({
-        date: '2025-02-05',
-        narration: 'Past dated sale',
-        journalEntries: [
-          { accountId: oldCash, debitAmount: 400, creditAmount: 0 },
-          { accountId: oldSale, debitAmount: 0, creditAmount: 400 },
-        ] as JournalEntry[],
-      }),
-    ];
-
-    journals.forEach((j) => oldServices.journal.insertJournal(j));
-    await journals.reduce(
-      (chain, j) =>
-        chain.then(async () => {
-          await coreJournal.insertJournal(j);
-        }),
-      Promise.resolve(),
-    );
-
-    // docs/derived-state-design.md §6 migration 028: coreLedger.getLedger
-    // now reads ledger_view (canon), oldServices.ledger.getLedger still
-    // reads the stored `ledger` table directly. Facts (date, particulars,
-    // debit, credit, linkedAccountId/Name/Code, and the derived
-    // balance/balanceType) must still agree row-for-row for ordinary
-    // journal-sourced data with no D1/D2 divergence trigger (no exact-zero
-    // balance, no StatementService opening-balance import) — this DB has
-    // neither. `id`/`createdAt`/`updatedAt` no longer compare: ledger_view
-    // has no physical row, so core surfaces the originating
-    // journal_entry.id as `id` (a different numeric domain from the stored
-    // ledger.id) and has no createdAt/updatedAt equivalent (both optional
-    // on the Ledger type, unused by every current reader).
-    const stripRowIdentity = <
-      T extends { id: unknown; createdAt?: unknown; updatedAt?: unknown },
-    >(
-      rows: T[],
-    ) => rows.map((row) => omit(row, ['id', 'createdAt', 'updatedAt']));
-    expect(stripRowIdentity(await coreLedger.getLedger(coreCash))).toEqual(
-      stripRowIdentity(oldServices.ledger.getLedger(oldCash)),
-    );
-    expect(stripRowIdentity(await coreLedger.getLedger(coreSale))).toEqual(
-      stripRowIdentity(oldServices.ledger.getLedger(oldSale)),
-    );
-    expect(await coreJournal.getJournals()).toEqual(
-      oldServices.journal.getJournals(),
-    );
-
-    dbOld.close();
-    dbCore.close();
   });
 });

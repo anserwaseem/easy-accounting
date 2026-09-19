@@ -31,9 +31,8 @@ const SQL = {
 };
 
 /**
- * Platform-free port of src/main/services/Statement.service.ts — identical
- * SQL (via the injected ChartService/AccountService/LedgerService) and
- * behavior, async against the DatabaseDriver, session injected.
+ * Balance sheet / opening balances. Async against DatabaseDriver, session
+ * injected. Uses ChartService, AccountService, LedgerService.
  */
 @logErrors
 export class StatementService {

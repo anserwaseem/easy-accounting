@@ -8,10 +8,9 @@
  *    DatabaseDriver (./db/driver), injected by whoever hosts the core:
  *    the Electron main process today, a web worker next.
  *
- * Services were ported here from src/main/services. Electron main.ts now
- * serves account, chart, journal, ledger, pricing, and statement from this
- * package via src/main/coreRuntime.ts. Auth, Print, Publish, and Backup
- * stay on the Electron-coupled copies.
+ * Business services live here. Electron main.ts serves them via
+ * src/main/coreRuntime.ts. Auth, Print, Publish, and Backup stay on
+ * src/main/services (OS / filesystem / native menus).
  */
 
 export * from './ports';

@@ -195,10 +195,7 @@ const SQL = {
     `,
 };
 
-/**
- * Platform-free port of src/main/services/Account.service.ts — identical SQL
- * and behavior, async against the DatabaseDriver, session injected.
- */
+/** Account CRUD. Async against DatabaseDriver, session injected. */
 @logErrors
 export class AccountService {
   private db: DatabaseDriver;

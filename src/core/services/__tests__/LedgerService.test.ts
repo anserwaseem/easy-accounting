@@ -4,7 +4,6 @@ import { AccountService } from '../AccountService';
 import { LedgerService } from '../LedgerService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { LedgerService as MainLedgerService } from '../../../main/services/Ledger.service';
 import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
 
 jest.mock('electron-log', () => ({
@@ -59,16 +58,6 @@ function createCore(db: Database.Database) {
     accounts: new AccountService({ db: driver, session }),
     ledger: new LedgerService({ db: driver, session }),
   };
-}
-
-/** The old main-process service, bound to a given db the way its tests do. */
-function createMainService(db: Database.Database): MainLedgerService {
-  const service = Object.create(MainLedgerService.prototype);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (service as any).db = db;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (service as any).initPreparedStatements();
-  return service as MainLedgerService;
 }
 
 /** insert an account directly (FK target for ledger rows), returns its id. */
@@ -470,66 +459,5 @@ describe('core LedgerService — canonical reads (ledger_view, migration 028)', 
       await ledger.getLedgerRangeForAccountIds([], '2025-01-01', '2025-01-31'),
     ).toEqual({});
     db.close();
-  });
-});
-
-describe('core LedgerService — parity with the main-process (legacy) LedgerService', () => {
-  it('write-path primitives (insertLedger, stored reads) produce identical stored rows', async () => {
-    // The old main-process service only ever reads the stored `ledger`
-    // table — it has no view-backed equivalent, so a full parity check now
-    // only makes sense for the write-path side (insertLedger + the new
-    // getStoredLedger/getStoredBalance helpers), which is exactly what
-    // stayed unchanged by migration 028. Read-side (view-canon) parity
-    // between the two write paths (JournalService/StatementService) and the
-    // views is covered instead by
-    // src/core/services/__tests__/derivedStateEquivalence.test.ts, which
-    // drives the real services rather than raw `ledger` table pokes (raw
-    // pokes have no backing journal_entry, so they are invisible to
-    // ledger_view by construction — see insertJournalPair's comment above).
-    const dbOld = new Database(':memory:');
-    const dbCore = new Database(':memory:');
-    seedBasicSchema(dbOld);
-    seedBasicSchema(dbCore);
-
-    const oldService = createMainService(dbOld);
-    const { accounts: coreAccounts, ledger: coreLedger } = createCore(dbCore);
-
-    const accountIdOld = await insertAccount(
-      dbOld,
-      new AccountService({ db: new BetterSqliteDriver(dbOld), session }),
-      'Customer A',
-      101,
-    );
-    const accountIdCore = await insertAccount(
-      dbCore,
-      coreAccounts,
-      'Customer A',
-      101,
-    );
-    expect(accountIdCore).toBe(accountIdOld);
-
-    const entries = [
-      aLedgerEntry(accountIdOld, { date: '2025-01-01', balance: 100 }),
-      aLedgerEntry(accountIdOld, { date: '2025-01-05', balance: 400 }),
-      aLedgerEntry(accountIdOld, { date: '2025-01-03', balance: 200 }),
-    ];
-    entries.forEach((entry) => oldService.insertLedger(entry));
-    await entries.reduce(
-      (chain, entry) =>
-        chain.then(async () => {
-          await coreLedger.insertLedger(entry);
-        }),
-      Promise.resolve(),
-    );
-
-    expect(await coreLedger.getStoredLedger(accountIdCore)).toEqual(
-      oldService.getLedger(accountIdOld),
-    );
-    expect(await coreLedger.getStoredBalance(accountIdCore)).toEqual(
-      oldService.getBalance(accountIdOld),
-    );
-
-    dbOld.close();
-    dbCore.close();
   });
 });
