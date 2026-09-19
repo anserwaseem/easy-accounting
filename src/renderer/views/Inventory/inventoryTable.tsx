@@ -57,9 +57,7 @@ import {
   PublishStatusProvider,
   usePublishStatuses,
 } from './PublishStatus';
-import { EditItemAttributes } from './EditItemAttributes';
 import { EditInventoryItem } from './editInventoryItem';
-import { AdjustStock } from './AdjustStock';
 import { StockHistoryDialog } from './StockHistoryDialog';
 import { InventoryBulkEditCell } from './InventoryBulkEditCell';
 import { InventoryBulkFamilyCell } from './InventoryBulkFamilyCell';
@@ -1202,30 +1200,19 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             {editMode ? (
               <span className="ml-2 text-xs text-muted-foreground">—</span>
             ) : (
-              <>
-                <AdjustStock
-                  item={row.original}
-                  refetchInventory={refetchInventory}
-                />
-                <EditItemAttributes
-                  item={row.original}
-                  onUpdated={refetchAll}
-                />
-                <EditInventoryItem
-                  row={row}
-                  refetchInventory={refetchAll}
-                  refreshPublishStatuses={refreshPublishStatuses}
-                  showPublishControls={publishEnabled && showPublishColumn}
-                  priceLists={priceLists}
-                  inventoryItems={inventory ?? []}
-                />
-              </>
+              <EditInventoryItem
+                row={row}
+                refetchInventory={refetchAll}
+                refreshPublishStatuses={refreshPublishStatuses}
+                showPublishControls={publishEnabled && showPublishColumn}
+                priceLists={priceLists}
+                inventoryItems={inventory ?? []}
+              />
             )}
           </div>
         ),
-        // five 32px icon buttons + gaps: AdjustStock, EditItemAttributes,
-        // ToggleActive, Delete, and Edit
-        size: 180,
+        // two 32px icon buttons + gaps: Edit, More Actions
+        size: 70,
       },
     ];
     // updateItemType closes over itemTypes/editMode; columns rebuild when those

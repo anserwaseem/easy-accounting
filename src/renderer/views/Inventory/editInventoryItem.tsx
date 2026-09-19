@@ -14,7 +14,22 @@ import { Label } from '@/renderer/shad/ui/label';
 import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateInventoryItem, ItemType, InventoryItem } from '@/types';
 import { useEffect, useMemo, useState } from 'react';
-import { Trash2, Ban, Power, Info } from 'lucide-react';
+import {
+  Trash2,
+  Ban,
+  Power,
+  Info,
+  MoreHorizontal,
+  Tag,
+  SlidersHorizontal,
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/renderer/shad/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -22,6 +37,8 @@ import {
   TooltipTrigger,
 } from '@/renderer/shad/ui/tooltip';
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
+import { AdjustStock } from './AdjustStock';
+import { EditItemAttributes } from './EditItemAttributes';
 import { editInventorySchema } from './inventorySchemas';
 import { InventoryForm } from './InventoryForm';
 import { ItemPriceLists } from './ItemPriceLists';
@@ -84,6 +101,8 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   const [listPrices, setListPrices] =
     useState<Record<number, string>>(priceListText);
   const [isOpen, setIsOpen] = useState(false);
+  const [openAdjustStock, setOpenAdjustStock] = useState(false);
+  const [openAttributes, setOpenAttributes] = useState(false);
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [excluded, setExcluded] = useState(
     Boolean(row.original.excludeFromCatalog),
@@ -294,30 +313,6 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 shrink-0"
-        title={toggleLabel}
-        aria-label={toggleLabel}
-        onClick={handleToggleActive}
-      >
-        {isActive ? <Ban className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-      </Button>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 shrink-0"
-        title="Delete item"
-        aria-label="Delete item"
-        onClick={handleDeleteClick}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
-
       <Dialog
         open={isOpen}
         onOpenChange={(next) => {
@@ -332,7 +327,10 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
         }}
       >
         <DialogTrigger asChild>
-          <EditActionButton aria-label="Edit inventory item" />
+          <EditActionButton
+            aria-label="Edit inventory item"
+            title="Edit inventory item"
+          />
         </DialogTrigger>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
           <TooltipProvider delayDuration={150}>
@@ -431,6 +429,62 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
           </TooltipProvider>
         </DialogContent>
       </Dialog>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            title="More actions"
+            aria-label="More actions"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onClick={() => setOpenAttributes(true)}>
+            <Tag className="mr-2 h-4 w-4" />
+            Attributes
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setOpenAdjustStock(true)}>
+            <SlidersHorizontal className="mr-2 h-4 w-4" />
+            Adjust stock
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleToggleActive}>
+            {isActive ? (
+              <Ban className="mr-2 h-4 w-4" />
+            ) : (
+              <Power className="mr-2 h-4 w-4" />
+            )}
+            {toggleLabel}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={handleDeleteClick}
+            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete item
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AdjustStock
+        item={row.original as unknown as InventoryItem}
+        refetchInventory={refetchInventory}
+        open={openAdjustStock}
+        onOpenChange={setOpenAdjustStock}
+        trigger={null}
+      />
+      <EditItemAttributes
+        item={row.original as unknown as InventoryItem}
+        onUpdated={refetchInventory}
+        open={openAttributes}
+        onOpenChange={setOpenAttributes}
+        trigger={null}
+      />
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

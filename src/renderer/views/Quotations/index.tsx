@@ -96,12 +96,12 @@ const createQuotationActionsColumn = (
   cell({ row }) {
     return (
       <div className="flex items-center gap-1">
-        <QuotationDuplicateActionCell
+        <QuotationEditActionCell
           row={row}
           invoiceType={invoiceType}
           navigate={navigate}
         />
-        <QuotationEditActionCell
+        <QuotationDuplicateActionCell
           row={row}
           invoiceType={invoiceType}
           navigate={navigate}

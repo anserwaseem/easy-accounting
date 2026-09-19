@@ -22,6 +22,9 @@ import { distinctAttributeValues } from './inventoryQuery';
 interface EditItemAttributesProps {
   item: InventoryItem;
   onUpdated?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode | null;
 }
 
 /** attribute values are stored as JSON, so normalise everything to a string for editing */
@@ -56,8 +59,23 @@ export const coerceAttributeValue = (
 export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
   item,
   onUpdated,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+  trigger,
 }: EditItemAttributesProps) => {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (isControlled) {
+        setControlledOpen?.(next);
+      } else {
+        setInternalOpen(next);
+      }
+    },
+    [isControlled, setControlledOpen],
+  );
   const [definitions, setDefinitions] = useState<AttributeDefinition[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -207,21 +225,25 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [definitions, values, undefinedKeys, item, onUpdated]);
+  }, [definitions, values, undefinedKeys, item, onUpdated, setOpen]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          title="Edit attributes"
-          aria-label="Edit attributes"
-        >
-          <Tag size={16} />
-        </Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title="Edit attributes"
+              aria-label="Edit attributes"
+            >
+              <Tag size={16} />
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       {/* fixed height: the body swaps between the form and the copy picker, so
           the dialog never grows past the viewport */}
       <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">

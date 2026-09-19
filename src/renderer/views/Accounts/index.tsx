@@ -464,8 +464,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   charts={charts}
                 />
               ),
-              // three 32px icon buttons + gaps — match inventory Actions width
-              size: 112,
+              // two 32px icon buttons + gaps — match inventory Actions width
+              size: 70,
             },
           ].filter(
             (column) =>

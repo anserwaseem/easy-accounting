@@ -107,13 +107,13 @@ const createInvoiceActionsColumn = (
   cell({ row }) {
     return (
       <div className="flex items-center gap-1">
-        <InvoiceDuplicateActionCell
+        <InvoiceEditActionCell
           row={row}
           invoiceType={invoiceType}
           navigate={navigate}
           isPreviewMode={isPreviewMode}
         />
-        <InvoiceEditActionCell
+        <InvoiceDuplicateActionCell
           row={row}
           invoiceType={invoiceType}
           navigate={navigate}
