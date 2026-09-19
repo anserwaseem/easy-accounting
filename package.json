@@ -52,7 +52,7 @@
     "lint:fix": "eslint \"**/*.{js,jsx,ts,tsx}\" --fix",
     "prepare": "husky",
     "patch": "npm version patch --no-git-tag-version",
-    "patch:release": "npm run patch && cd release/app && npm run patch && cd ../.."
+    "patch:release": "npm run patch && npm --prefix release/app run patch && npm --prefix apps/web run patch"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

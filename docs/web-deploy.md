@@ -49,6 +49,12 @@ SQLite-wasm's OPFS VFS needs the page to be cross-origin isolated
 copied into `dist/` by the Vite build. Without them the worker cannot
 open the database and the app shows a blank screen.
 
+The same `_headers` file also sets `Cache-Control: no-cache` on `sw.js`,
+`registerSW.js`, and `manifest.webmanifest`. Installed PWAs discover a
+new deploy by re-fetching those unhashed files; a CDN cache on `sw.js`
+would leave phones on the old service worker. Hashed `/assets/*` chunks
+stay cacheable.
+
 Wrangler's `assets.not_found_handling = "single-page-application"` is
 the SPA fallback so `/join-sync` and `/settings` still serve
 `index.html`. Do **not** add a Pages-style `/* /index.html 200` file at

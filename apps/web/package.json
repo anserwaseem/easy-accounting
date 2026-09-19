@@ -1,6 +1,6 @@
 {
   "name": "easy-accounting-web",
-  "version": "0.0.0",
+  "version": "0.2.18",
   "private": true,
   "description": "Browser build of Easy Accounting — real core services on SQLite-wasm/OPFS in a Web Worker. Mounts src/renderer behind electronShim; Join/Sync UI is a later merge.",
   "type": "module",
@@ -9,7 +9,8 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "patch": "npm version patch --no-git-tag-version"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",

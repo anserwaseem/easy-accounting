@@ -118,7 +118,9 @@ export default defineConfig({
       // 'generateSW' (the default strategy) builds the service worker from
       // `workbox.globPatterns` below rather than a hand-written SW source —
       // plenty for an app-shell + precache setup with no custom routing
-      // logic needed.
+      // logic needed. production `_headers` must no-cache `/sw.js` or a
+      // CDN-cached worker script never updates installed phones — see
+      // apps/web/public/_headers.
       registerType: 'autoUpdate',
       // The manifest icons (below) are already under public/icons and thus
       // already picked up by workbox.globPatterns — skip the plugin's

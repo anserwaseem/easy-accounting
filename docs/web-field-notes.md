@@ -135,10 +135,12 @@ a log it had already seen after its cursor was lost).
 ## Updating the app in place
 
 A rebuilt deploy (or `npm run build && npm run preview` locally) reaches
-the installed PWA through the service worker on the next reload — OPFS
-data, sync config, and device id all survive. Updating the app never
+the installed PWA through the service worker on the next **online** open —
+OPFS data, sync config, and device id all survive. Updating the app never
 requires re-importing or re-joining. Only wiping the origin's site data
-resets the device.
+resets the device. Production `_headers` must keep `sw.js` uncached
+(`apps/web/public/_headers`); a cached worker script is how a deploy
+never arrives.
 
 Offline PWA locally is `npm run web:build && npm --prefix apps/web run
 preview`. Vite **dev has no service worker**.

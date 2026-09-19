@@ -1,7 +1,20 @@
 # SQLite-wasm OPFS requires cross-origin isolation. Without these the
 # worker cannot open the database (blank screen). Mirrors vite.config.ts's
-# `server.headers` / `preview.headers` for production (Cloudflare Pages).
+# `server.headers` / `preview.headers` for production (Cloudflare Pages /
+# Workers static assets).
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
   Cross-Origin-Resource-Policy: same-origin
+
+# PWA updates: browsers only notice a new release by re-fetching these
+# unhashed files. If a CDN caches them, installed phones keep the old
+# service worker forever. Hashed /assets/* stay cacheable.
+/sw.js
+  Cache-Control: no-cache
+
+/registerSW.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
