@@ -29,7 +29,10 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+      # src/core imports lodash/xlsx/date-fns; tsc resolves those from the
+      # repo root (parent of src/core), not apps/web/node_modules. ignore-
+      # scripts skips better-sqlite3 native compile — web does not need it.
+      - run: npm ci --ignore-scripts
       - run: npm ci
         working-directory: apps/web
       - run: npm run typecheck
