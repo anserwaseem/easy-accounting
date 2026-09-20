@@ -153,7 +153,7 @@ const SQL = {
       SET invoiceNumber = @invoiceNumber, isQuotation = 0
       WHERE id = @invoiceId
     `,
-  // docs/derived-state-design.md §6 migration 028: "have" is a pure
+  // docs/derived-state-design.md §6 service cutover: "have" is a pure
   // informational read (shown to the user in the shortage error message,
   // gating whether a sale quotation may convert) that does not feed any
   // subsequent write's math — swapped to inventory_quantity_view (canon),
@@ -417,7 +417,7 @@ const SQL = {
         extraDiscountAccountId = @extraDiscountAccountId
       WHERE id = @invoiceId
     `,
-  // Write-path-only, unchanged by migration 028: both queries below feed
+  // Write-path-only, unchanged by the read-side cutover: both queries below feed
   // assertInventoryNonNegative, which runs immediately AFTER
   // updateInventoryItem's relative write to validate THAT stored write's
   // own result won't go negative — it must keep reading the stored

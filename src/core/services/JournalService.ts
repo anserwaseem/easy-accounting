@@ -318,7 +318,7 @@ export class JournalService {
   }
 
   private async rebuildLedger(accountId: number): Promise<void> {
-    // docs/derived-state-design.md §6 migration 028: replays the STORED
+    // docs/derived-state-design.md §6 service cutover: replays the STORED
     // ledger table (not ledger_view) — this write path computes what gets
     // written back into that legacy table, so its input must stay the
     // stored rows, unchanged by the read-side cutover.

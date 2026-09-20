@@ -120,7 +120,7 @@ test.describe('bring your database — import from desktop app', () => {
 
   /**
    * Real production bug this covers (see src/core/db/openingBalanceBackfill.ts's
-   * doc comment): a desktop database that predates migration 025 has
+   * doc comment): a desktop database that predates migration 030 has
    * "Opening Balance from B/S" `ledger` rows written straight to that table
    * with no backing `journal`/`journal_entry` rows at all. Post migration
    * 028's cutover, every screen in this app reads from `ledger_view` — a

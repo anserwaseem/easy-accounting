@@ -1,8 +1,8 @@
 import type { DatabaseDriver } from '../driver';
 
 /** Lookup indexes for `ledger_view` / `inventory_quantity_view`. Additive. */
-export const migration026 = {
-  name: '026_index_journal_entry_and_ledger_lookup',
+export const migration031 = {
+  name: '031_index_journal_entry_and_ledger_lookup',
   async up(driver: DatabaseDriver): Promise<void> {
     await driver.exec(
       `CREATE INDEX IF NOT EXISTS idx_journal_entry_journalId ON journal_entry(journalId)`,

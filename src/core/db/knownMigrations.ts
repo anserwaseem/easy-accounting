@@ -2,16 +2,14 @@
  * Every `migrations.name` this build will ever record.
  *
  * Import rejects a file that contains any name not in this set — that file
- * came from a newer app. Compare the full `name` string, never the numeric
- * prefix: `027_add_chart_nameUrdu` (desktop 027.js) and
- * `027_create_ledger_and_inventory_quantity_views` (CORE) both exist.
+ * came from a newer app. Identity is the full `name` string.
  *
- * `DESKTOP_MIGRATION_NAMES` = `src/main/migrations/*.js` `name` exports
- * (released origin/main `001`–`028`). `CORE_MIGRATION_NAMES` = post-main
- * chain in `src/core/db/migrations`. Keep both lists in lockstep with
- * those sources — `knownMigrations.test.ts` fails if they drift.
+ * `DESKTOP_MIGRATION_NAMES` = frozen `001.js`–`028.js`.
+ * `CORE_MIGRATION_NAMES` = `029_…`–`040_…` (next unused `041_…`).
+ * Keep both lists in lockstep with those sources —
+ * `knownMigrations.test.ts` fails if they drift.
  *
- * Do not import CORE_MIGRATIONS from here — `029_create_sync_tables`
+ * Do not import CORE_MIGRATIONS from here — `034_create_sync_tables`
  * already imports this module via import.ts, and that cycle left
  * CORE_MIGRATIONS half-initialized at bootstrap.
  */
@@ -48,18 +46,18 @@ export const DESKTOP_MIGRATION_NAMES: readonly string[] = [
 
 /** Must match CORE_MIGRATIONS[].name in array order. */
 export const CORE_MIGRATION_NAMES: readonly string[] = [
-  '024_add_uuid_to_business_tables',
-  '025_migrate_opening_balance_ledger_to_journal',
-  '026_index_journal_entry_and_ledger_lookup',
-  '027_create_ledger_and_inventory_quantity_views',
-  '028_create_settings_table',
-  '029_create_sync_tables',
-  '030_create_sync_apply_conflicts',
-  '031_replicate_blob_columns',
-  '032_redate_import_baselines',
-  '033_sync_settings',
-  '034_suppress_timestamp_triggers_during_apply',
-  '035_insert_timestamps_fill_only',
+  '029_add_uuid_to_business_tables',
+  '030_migrate_opening_balance_ledger_to_journal',
+  '031_index_journal_entry_and_ledger_lookup',
+  '032_create_ledger_and_inventory_quantity_views',
+  '033_create_settings_table',
+  '034_create_sync_tables',
+  '035_create_sync_apply_conflicts',
+  '036_replicate_blob_columns',
+  '037_redate_import_baselines',
+  '038_sync_settings',
+  '039_suppress_timestamp_triggers_during_apply',
+  '040_insert_timestamps_fill_only',
 ];
 
 export function knownMigrationNames(): Set<string> {

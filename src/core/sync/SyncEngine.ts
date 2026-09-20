@@ -1,5 +1,5 @@
 import type { DatabaseDriver } from '../db/driver';
-import { SYNC_TABLES } from '../db/migrations/029_create_sync_tables';
+import { SYNC_TABLES } from '../db/migrations/034_create_sync_tables';
 import { rebuildDerivedState } from '../db/rebuildDerivedState';
 import type { CoreLogger } from '../ports';
 import { getCoreLogger } from '../ports';
@@ -10,7 +10,7 @@ import type { LogRow, OutboxEntry, SyncTransport } from './transport';
 
 /**
  * Single source of truth for "which tables does this client's apply path
- * know how to write." Re-exported from migration 029 (the same array its
+ * know how to write." Re-exported from migration 034 (the same array its
  * capture triggers are generated from — see that file's doc comment) rather
  * than duplicated here, so the push side (what a capture trigger can
  * produce) and the apply side (what {@link SyncEngine.applyRow} will
@@ -19,7 +19,7 @@ import type { LogRow, OutboxEntry, SyncTransport } from './transport';
  */
 const SYNC_TABLE_SET: ReadonlySet<string> = new Set(SYNC_TABLES);
 
-/** Local mirror of the `sync_outbox` row shape (migration 029). */
+/** Local mirror of the `sync_outbox` row shape (migration 034). */
 interface OutboxRow {
   id: number;
   idempotencyKey: string;
@@ -162,8 +162,8 @@ const INITIAL_CHART_NAMES: ReadonlySet<string> = new Set(
  * row's `uuid`, mapped to that key's column name. Every other replicated
  * table's identity IS its `uuid` — two devices independently creating "the
  * same" row (two accounts both named "Cash", say) are, by design, two
- * different rows that both survive. `settings` (migration 033 —
- * src/core/db/migrations/033_sync_settings.ts) is deliberately different:
+ * different rows that both survive. `settings` (migration 038 —
+ * src/core/db/migrations/038_sync_settings.ts) is deliberately different:
  * there is meant to be exactly one row per `key` project-wide, so when two
  * devices each set `companyProfile.name` before ever syncing with each
  * other, the project must converge on ONE value, not end up with two rows
@@ -200,7 +200,7 @@ function isDuplicateSeedApplyError(message: string): boolean {
 
 /**
  * Decodes an uppercase (or any-case) hex string — as produced by SQLite's
- * `hex()`, which migration 029's capture triggers use to encode a
+ * `hex()`, which migration 034's capture triggers use to encode a
  * declared-blob column's actual runtime blob value into a row image's
  * `<col>__hex` key (see that migration's `jsonObjectExpr` doc comment) —
  * into a `Uint8Array` of the original bytes. Written by hand rather than via
@@ -222,8 +222,8 @@ function hexToBytes(hex: string): Uint8Array {
  * pulls and applies the server's append-only log. Platform- and
  * backend-free — depends only on {@link DatabaseDriver} and the
  * {@link SyncTransport} port (../transport.ts), never on a concrete
- * transport implementation. See migration 029
- * (src/core/db/migrations/029_create_sync_tables.ts) for how rows get into
+ * transport implementation. See migration 034
+ * (src/core/db/migrations/034_create_sync_tables.ts) for how rows get into
  * `sync_outbox` in the first place, and that file's doc comment for the
  * capture-trigger design this engine is the other half of.
  *
@@ -251,7 +251,7 @@ function hexToBytes(hex: string): Uint8Array {
  * ## Echo suppression
  *
  * Every page's apply transaction sets `sync_state.applying = '1'` before
- * writing, and clears it before committing. Migration 029's capture
+ * writing, and clears it before committing. Migration 034's capture
  * triggers are gated on that flag being unset, so applying a peer's row
  * (even a peer's row that happens to be a delayed echo of this very
  * device's own earlier push) never re-enters this device's outbox.
@@ -528,8 +528,8 @@ export class SyncEngine {
       try {
         // `ledger` (BUSINESS_TABLES — src/core/db/import.ts) is
         // deliberately the one business table excluded from SYNC_TABLES
-        // (see migration 029's `SYNC_TABLES` doc comment): every read now
-        // goes through `ledger_view` (migration 027), computed fresh from
+        // (see migration 034's `SYNC_TABLES` doc comment): every read now
+        // goes through `ledger_view` (migration 032), computed fresh from
         // `journal_entry`, not this physical table — see
         // `docs/derived-state-design.md`'s §6 migration-028 cutover and
         // `LedgerService`'s top doc comment. But a device that has actually
@@ -640,7 +640,7 @@ export class SyncEngine {
   /**
    * Drains `sync_outbox` in insertion-order batches. A batch that pushes
    * successfully has its accepted rows deleted and its rejected rows moved
-   * to `sync_rejected` (see migration 029's doc comment — no server-side
+   * to `sync_rejected` (see migration 034's doc comment — no server-side
    * validation exists yet, so `rejected` is expected to stay empty against
    * every transport this ships with; the plumbing exists for when Phase-3
    * validation lands). A batch is never partially left in the outbox on a
@@ -736,7 +736,7 @@ export class SyncEngine {
    * server — and the apply path died with a raw `SQLITE_ERROR: no such
    * table`, taking the whole sync loop down with it. Every row's
    * `tableName` is checked against {@link SYNC_TABLE_SET} (derived from
-   * migration 029's `SYNC_TABLES` — the same list that generated this
+   * migration 034's `SYNC_TABLES` — the same list that generated this
    * device's own capture triggers) *before* `applyRow` ever touches it. A
    * row for a table not in that set is counted in the returned
    * `skippedUnknownTable`/`unknownTables` and warn-logged exactly once per
@@ -833,7 +833,7 @@ export class SyncEngine {
    *
    * REAL INCIDENT this guards against: two browser origins each
    * independently imported the same desktop database (fresh uuids assigned
-   * by each import — see migration 029's capture triggers), then both
+   * by each import — see migration 034's capture triggers), then both
    * connected to the *same* sync project. Both devices' `users` tables now
    * have a row with the same `username` but two different `uuid`s (same
    * story for `account(chartId, name, code)`, `item_types.name`,
@@ -863,7 +863,7 @@ export class SyncEngine {
    * savepoint rolls back — every other row already applied in the page
    * stays applied, and every row still to come in the page still gets its
    * own chance. The failure is recorded into `sync_apply_conflicts`
-   * (migration 030) with the row's table, uuid, op, full row image, and the
+   * (migration 035) with the row's table, uuid, op, full row image, and the
    * real error text, and **the cursor still advances past it** once the
    * page finishes.
    *
@@ -948,7 +948,7 @@ export class SyncEngine {
    *     one placeholder generation is exactly 8 rows (1 `users` + 7
    *     `chart`), all captured into the origin device's `sync_outbox` back
    *     to back by the same boot-time write and pushed as one batch (see
-   *     migration 029's capture-trigger doc comment) — so they always land
+   *     migration 034's capture-trigger doc comment) — so they always land
    *     together, at consecutive `seq` values, on a shared server. That is
    *     far under `DEFAULT_PULL_PAGE_SIZE` (200), so they always land in
    *     the SAME pull page, hence the same `pullAndApply` run — there is no
@@ -1039,7 +1039,7 @@ export class SyncEngine {
    *
    * {@link seedOutboxFromLocalData} inserts directly into `sync_outbox`
    * against the already-applied business tables; it never issues a write
-   * against a `SYNC_TABLES` table itself, so migration 029's capture
+   * against a `SYNC_TABLES` table itself, so migration 034's capture
    * triggers never fire for it and `sync_state.applying` is irrelevant
    * here — unlike this method's own apply loop below, which does need that
    * flag (see "Echo suppression" in this class's top doc comment).
@@ -1337,7 +1337,7 @@ export class SyncEngine {
   }
 
   /**
-   * Deletes already-recorded `sync_apply_conflicts` (migration 030) rows
+   * Deletes already-recorded `sync_apply_conflicts` (migration 035) rows
    * that turn out, in hindsight, to be exactly the boot-placeholder noise
    * `pullAndApply`'s "Second-generation boot placeholders" doc comment (and
    * `applyRow`'s "users.username collision" section it references)
@@ -1372,7 +1372,7 @@ export class SyncEngine {
    * **(a) `tableName = 'users'`**: the recorded `rowJson` has BOTH
    * `password_hash IS NULL` AND `password_hash__hex IS NULL` (a genuinely
    * passwordless incoming row — not merely one whose hex sibling was
-   * omitted; see migration 029's `jsonObjectExpr` doc comment on why a
+   * omitted; see migration 034's `jsonObjectExpr` doc comment on why a
    * declared-blob column's real value only ever lives in one of the two
    * keys, never neither, for a row that legitimately carries one) AND the
    * LOCAL `users` table holds a row with that same `username` where
@@ -1582,7 +1582,7 @@ export class SyncEngine {
    * (`INSERT ... ON CONFLICT("uuid") DO UPDATE`), leaving the local integer
    * `id` alone in both branches — a fresh insert gets whatever id this
    * device's own AUTOINCREMENT assigns, never the origin device's id (see
-   * migration 029's doc comment for why the row image carries FK columns
+   * migration 034's doc comment for why the row image carries FK columns
    * as uuids for exactly this reason).
    *
    * Column selection is the intersection of this device's own schema
@@ -1596,7 +1596,7 @@ export class SyncEngine {
    *
    * A non-FK column whose row image carries a non-null `<column>__hex`
    * string is a declared-blob column that was an actual runtime blob on the
-   * origin device (see migration 029's `jsonObjectExpr` doc comment) —
+   * origin device (see migration 034's `jsonObjectExpr` doc comment) —
    * {@link hexToBytes} decodes it back into a `Uint8Array` and that, not
    * `json[column]` (which is NULL in that case), is what gets bound. A
    * declared-blob column holding an ordinary TEXT value (the common case for
@@ -1655,12 +1655,12 @@ export class SyncEngine {
    *
    * The fix actually implemented below compares, not just deletes:
    * `settings.updatedAt` is trustworthy for this precisely BECAUSE
-   * `settings` is unlike every other replicated table — migration 028
+   * `settings` is unlike every other replicated table — migration 033
    * created it with no schema-snapshot `after_insert/update_..._add_timestamp`
    * trigger (those triggers only exist for tables from the 001-028
    * snapshot; `settings` is CORE and postdates it), so nothing ever stomps the
    * `updatedAt` `SettingsService.set()` stamps at the moment of a real
-   * local write — contrast migration 029's doc comment, which documents
+   * local write — contrast migration 034's doc comment, which documents
    * exactly that stomping as a KNOWN, un-worked-around gap for every other
    * table's `createdAt`/`updatedAt`. That makes `settings.updatedAt` a
    * genuine, comparable wall-clock write time, faithfully carried in the
@@ -1700,7 +1700,7 @@ export class SyncEngine {
    * "applying"-flagged transaction as everything else in `pullAndApply`'s
    * page loop (`setApplying(true)` is set for the whole page before any row
    * is applied — see that method). `settings`'s own delete-capture trigger
-   * (migration 033, built by the same `createCaptureTriggers` every
+   * (migration 038, built by the same `createCaptureTriggers` every
    * replicated table uses) is therefore suppressed by the `APPLYING_GUARD`
    * exactly like any other write made while applying a pull: this pre-step
    * never re-enters `sync_outbox` as a spurious delete of the device's own
@@ -1831,7 +1831,7 @@ export class SyncEngine {
         const hexKey = `${column}__hex`;
         const hexValue = json[hexKey];
         if (typeof hexValue === 'string') {
-          // Declared-blob column (see migration 029's jsonObjectExpr doc
+          // Declared-blob column (see migration 034's jsonObjectExpr doc
           // comment): the origin device's value was an actual runtime blob,
           // hex-encoded because JSON cannot hold one directly. Decode it
           // back into real bytes rather than falling through to the plain
@@ -1887,15 +1887,15 @@ export class SyncEngine {
     // push, or a peer's later edit of a row this device already has —
     // never regresses an existing local `createdAt` to whatever the
     // *origin* device's capture trigger happened to see. That value is
-    // frequently NULL: migration 029's capture trigger can legitimately
+    // frequently NULL: migration 034's capture trigger can legitimately
     // fire before the schema's own `after_insert_<table>_add_timestamp`
     // trigger stamps `createdAt` (SQLite's firing order for two AFTER
-    // INSERT triggers on the same table is undefined — see migration 029's
+    // INSERT triggers on the same table is undefined — see migration 034's
     // doc comment), so `rowJson.createdAt` is not something to trust on an
     // UPDATE conflict the way every other column's incoming value is.
     // `updatedAt`, by contrast, IS written on the UPDATE branch (via
-    // `excluded."updatedAt"` below) and — since migration 034
-    // (src/core/db/migrations/034_suppress_timestamp_triggers_during_apply.ts)
+    // `excluded."updatedAt"` below) and — since migration 039
+    // (src/core/db/migrations/039_suppress_timestamp_triggers_during_apply.ts)
     // — that write is exactly what sticks. Before 034, the pre-existing
     // `after_update_<table>_add_timestamp` trigger unconditionally
     // re-stamped `updatedAt` to THIS (receiving) device's local clock on
@@ -1903,14 +1903,14 @@ export class SyncEngine {
     // silently discarded the incoming row image's real `updatedAt` and,
     // worse, made a plain re-delivery of an unchanged row look "just
     // edited" to any `updatedAt > createdAt` check (e.g. the invoice list's
-    // "Edited" pill — src/renderer/lib/invoiceUtils.ts). Migration 034
+    // "Edited" pill — src/renderer/lib/invoiceUtils.ts). Migration 039
     // prepends the same `sync_state.applying`-gated `WHEN` guard migration
     // 029's own capture triggers already use to both `_add_timestamp`
     // triggers, so neither one fires while this method's caller
-    // (`pullAndApply`) has that flag set — see migration 034's doc comment
+    // (`pullAndApply`) has that flag set — see migration 039's doc comment
     // for the full incident and fix. `createdAt` above still needs its own
     // exclusion regardless: that column's fragility is on the CAPTURING
-    // (origin) device's side (migration 029's insert-capture trigger can
+    // (origin) device's side (migration 034's insert-capture trigger can
     // legitimately race `after_insert_<table>_add_timestamp` there and
     // capture a `NULL`), which 034 does not and cannot fix from the
     // receiving end.
@@ -2042,7 +2042,7 @@ export class SyncEngine {
 
   /**
    * Records a row `applyRow` failed to apply into `sync_apply_conflicts`
-   * (migration 030) — the audit trail for the "advance the cursor past it
+   * (migration 035) — the audit trail for the "advance the cursor past it
    * anyway" trade-off described in `pullAndApply`'s doc comment. Called
    * from inside the same outer page transaction `pullAndApply` already has
    * open, after the row's own nested savepoint has rolled back — this is

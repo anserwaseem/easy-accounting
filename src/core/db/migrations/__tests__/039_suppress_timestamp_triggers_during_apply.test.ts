@@ -21,8 +21,8 @@ jest.mock('electron-log', () => ({
  * handle — the exact mechanism `SyncEngine.setApplying` uses (see
  * `SyncEngine.ts`'s "Echo suppression" doc comment) — so these tests can
  * exercise the guarded triggers without spinning up a full `SyncEngine` +
- * transport + second device. Migration 029 guarantees `sync_state` exists
- * by the time migration 034 (and therefore this test's `bootstrapDatabase`)
+ * transport + second device. Migration 034 guarantees `sync_state` exists
+ * by the time migration 039 (and therefore this test's `bootstrapDatabase`)
  * has run — see 034's own doc comment ("Why no runtime guard on
  * `sync_state` existing").
  */
@@ -53,14 +53,14 @@ function invoiceTimestamps(
     .get(invoiceNumber) as InvoiceTimestamps;
 }
 
-describe('core migration 034 (suppress add_timestamp triggers during sync apply)', () => {
+describe('core migration 039 (suppress add_timestamp triggers during sync apply)', () => {
   it('is registered exactly once in CORE_MIGRATIONS, immediately after 033', () => {
     const names = CORE_MIGRATIONS.map((m) => m.name);
     expect(
-      names.filter((n) => n === '034_suppress_timestamp_triggers_during_apply'),
+      names.filter((n) => n === '039_suppress_timestamp_triggers_during_apply'),
     ).toHaveLength(1);
-    expect(names.indexOf('034_suppress_timestamp_triggers_during_apply')).toBe(
-      names.indexOf('033_sync_settings') + 1,
+    expect(names.indexOf('039_suppress_timestamp_triggers_during_apply')).toBe(
+      names.indexOf('038_sync_settings') + 1,
     );
   });
 
@@ -74,7 +74,7 @@ describe('core migration 034 (suppress add_timestamp triggers during sync apply)
 
     const applied = db
       .prepare(
-        `SELECT COUNT(*) AS c FROM migrations WHERE name = '034_suppress_timestamp_triggers_during_apply'`,
+        `SELECT COUNT(*) AS c FROM migrations WHERE name = '039_suppress_timestamp_triggers_during_apply'`,
       )
       .get() as { c: number };
     expect(applied.c).toBe(1);
@@ -177,19 +177,19 @@ describe('core migration 034 (suppress add_timestamp triggers during sync apply)
       expect(inserted.createdAt).not.toBeNull();
       expect(inserted.createdAt).toBe(inserted.updatedAt);
 
-      // As of 034 ALONE (i.e. if migration 035 had never landed), an INSERT
+      // As of 034 ALONE (i.e. if migration 040 had never landed), an INSERT
       // that explicitly supplies old timestamps outside of an apply would
       // still have been overridden — 034's insert trigger's UPDATE was
       // unconditional whenever APPLYING_GUARD passed, `applying` or not.
       // But this suite bootstraps the FULL migration chain, and 035 (see
-      // src/core/db/migrations/035_insert_timestamps_fill_only.ts) changes
+      // src/core/db/migrations/040_insert_timestamps_fill_only.ts) changes
       // exactly this: the insert trigger now only FILLS a column the INSERT
       // left NULL, regardless of `applying` — so by the time this test runs,
       // explicit old timestamps on an ordinary local write are kept
       // verbatim, same as they would be under sync apply or import. This is
       // the CURRENT, correct behavior, not a regression of 034's own fix.
       //
-      // uuid is supplied explicitly too — migration 029's own
+      // uuid is supplied explicitly too — migration 034's own
       // `trg_sync_capture_invoices_insert` backfills a NULL uuid via its own
       // UPDATE, and (unrelated to anything 034/035 change) that backfill
       // cascades into `after_update_invoices_add_timestamp` regardless of

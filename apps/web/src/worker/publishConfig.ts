@@ -6,10 +6,10 @@
  * ## Storage split (as of `migratePublishConnectionToSettings` below)
  *
  * Fourteen of the sixteen `PUBLISH_KEYS` below live in the `settings` table
- * (src/core/services/SettingsService.ts), which migration 033 replicates to
+ * (src/core/services/SettingsService.ts), which migration 038 replicates to
  * every device on a sync project, identically on both platforms:
  *  - the three original business fields — `publicPriceList`,
- *    `requiredAttributeKeys`, `publishWithoutImages` (migration 028) — which
+ *    `requiredAttributeKeys`, `publishWithoutImages` (migration 033) — which
  *    price list is public and what an item must have before it can publish;
  *  - the eleven S3-connection fields — `endpoint`, `region`, `bucket`,
  *    `privateBucket`, `accessKeyId`, `publicBaseUrl`, `privatePrefix`,
@@ -40,7 +40,7 @@
  * `SettingsService.set` refuses to write them into a table that replicates
  * off this device. Not encrypted (a browser has no OS-keychain equivalent to
  * call into), but `web_kv` is intentionally outside
- * {@link import('@core/db/import').BUSINESS_TABLES} and migration 029's
+ * {@link import('@core/db/import').BUSINESS_TABLES} and migration 034's
  * `SYNC_TABLES` — nothing in it ever syncs or leaves this browser. This is
  * the "on-device storage" `PublishConfig.encryptionAvailable` reports as
  * available for on THIS platform (see that field's doc comment in
@@ -96,7 +96,7 @@ const PUBLISH_KEYS = {
  * read/write through {@link SettingsService} today. Named explicitly (not
  * derived by filtering `PUBLISH_KEYS`) so it's obvious at a glance which
  * keys these are: `PUBLISH_KEYS` also holds the 3 business keys (already
- * migrated separately, by migration 028) and the 2 secret keys, neither of
+ * migrated separately, by migration 033) and the 2 secret keys, neither of
  * which belongs in this list. Kept string-for-string identical to desktop's
  * `CONNECTION_SETTING_KEYS` (src/main/utils/publishConfig.ts).
  */

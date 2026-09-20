@@ -7,12 +7,16 @@ superseded — nothing on the live path instantiates them (`coreRuntime.ts` impo
 `../core`) — so they are out of scope for the migration itself, but are noted where their tests
 would need the same fixture treatment if they are ever deleted.
 
-Context this design builds on: migration `024_add_uuid_to_business_tables.js` already added a
+Context this design builds on: CORE `029_add_uuid_to_business_tables` already added a
 `uuid` column + backfill + insert trigger to every "business table" it lists, **including
 `ledger` and `inventory`**. That list is effectively "tables the sync layer will replicate by
 identity." This document's central claim is that `ledger` (whole table) and `inventory.quantity`
 (one column) must come **out** of that replicated set before a sync layer is built on top of
-migration 024, because both are currently mutated as running counters.
+CORE 029, because both are currently mutated as running counters.
+
+(Proposal numbering in the sections below — 025 backfill, 026 indexes, 027 views, 028
+service cutover, 029 DROP COLUMN — is historical. Shipped CORE clock is 030/031/032
+for backfill/indexes/views; settings is 033; sync starts at 034.)
 
 ---
 
@@ -444,12 +448,12 @@ to `0` via the `COALESCE(os.quantity, 0)` — matching `inventory.quantity`'s ow
 
 ## 6. Migration sequence
 
-`src/main/migrations/` currently ends at `024_add_uuid_to_business_tables.js`. Migrations below
+`src/main/migrations/` currently ends at `029_add_uuid_to_business_tables.js`. Migrations below
 start at **025** and are written in the same idiom as the existing files (`hasColumn` guard,
 `db.transaction(() => {...})()`, `console.log`/`console.error` around a try/catch, exported as
 `{ name, up }`) — see `src/main/migrations/016.js` and `023.js` for the reference shape.
 
-**025 — `025_migrate_opening_balance_ledger_to_journal.js`** (prerequisite; ledger only)
+**025 — `030_migrate_opening_balance_ledger_to_journal.js`** (prerequisite; ledger only)
 
 - For every `ledger` row with `particulars = 'Opening Balance from B/S'` (the only rows with no
   backing journal — §2), synthesize a `journal` row (`narration = 'Opening Balance from B/S'`,
@@ -464,7 +468,7 @@ start at **025** and are written in the same idiom as the existing files (`hasCo
   migration — it only adds the missing `journal`/`journal_entry` rows so §2's "pure projection"
   claim becomes true. Verification (§7) runs after this migration and before 026.
 
-**026 — `026_index_journal_entry_and_ledger_lookup.js`** (performance prerequisite for the view)
+**026 — `031_index_journal_entry_and_ledger_lookup.js`** (performance prerequisite for the view)
 
 - `CREATE INDEX IF NOT EXISTS idx_journal_entry_journalId ON journal_entry(journalId);`
 - `CREATE INDEX IF NOT EXISTS idx_journal_entry_accountId ON journal_entry(accountId);`
@@ -477,7 +481,7 @@ start at **025** and are written in the same idiom as the existing files (`hasCo
   (`inventory_opening_stock.inventoryId` is already indexed via its `UNIQUE` constraint,
   `schema.sql:213`.)
 
-**027 — `027_create_ledger_and_inventory_quantity_views.js`**
+**027 — `032_create_ledger_and_inventory_quantity_views.js`**
 
 - Creates `journal_entry_pairs`, `ledger_lines`, `ledger_view` (§4.1) and
   `inventory_quantity_view` (§5) as plain SQL views (`CREATE VIEW IF NOT EXISTS ...`). Additive

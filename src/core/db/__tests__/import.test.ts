@@ -109,7 +109,7 @@ function seedDesktopBusinessData(
   ).run();
 
   if (opts.withUuid) {
-    // Migration 024 added `uuid` on these tables — only stamp it when the
+    // Migration 029 added `uuid` on these tables — only stamp it when the
     // fixture is meant to represent an upload already on that migration.
     for (const table of [
       'chart',
@@ -181,7 +181,7 @@ describe('validateUploadedDatabase', () => {
     db.close();
   });
 
-  it('accepts and previews an older upload (pre-024, no uuid columns) with a warning', async () => {
+  it('accepts and previews an older upload (pre-029, no uuid columns) with a warning', async () => {
     const db = buildDesktopDatabase(23);
     seedDesktopBusinessData(db, { withUuid: false });
     const driver = new BetterSqliteDriver(db);
@@ -230,7 +230,7 @@ describe('importDatabase', () => {
     expect(users.map((u) => u.username)).toEqual(['imported-user']);
 
     // uuid backfilled by the target schema's own AFTER INSERT trigger,
-    // since the pre-024 source had no uuid column to copy.
+    // since the pre-029 source had no uuid column to copy.
     const account = await target.get<{ uuid: string | null }>(
       'SELECT uuid FROM account WHERE id = 1',
     );
@@ -418,9 +418,9 @@ describe('importDatabase', () => {
   it('does not duplicate journals for a source whose opening-balance rows are already migration-025+ backed (idempotent)', async () => {
     const sourceDb = await buildCurrentDesktopDatabase();
     seedDesktopBusinessData(sourceDb, { withUuid: true });
-    // Simulates a database already on migration 025+: one ledger row backed
+    // Simulates a database already on migration 030+: one ledger row backed
     // by exactly the journal/journal_entry pair StatementService.setupLedgers
-    // (or migration 025 itself) would have written — own side on the real
+    // (or migration 030 itself) would have written — own side on the real
     // account, contra side on the Equity account.
     const equityChartId = Number(
       sourceDb
@@ -803,20 +803,20 @@ describe('importDatabase', () => {
     sourceDb.close();
   });
 
-  it("carries the source device's TRUE createdAt/updatedAt through import verbatim — the field bug migration 035 fixes, exercised end-to-end", async () => {
+  it("carries the source device's TRUE createdAt/updatedAt through import verbatim — the field bug migration 040 fixes, exercised end-to-end", async () => {
     const sourceDb = await buildCurrentDesktopDatabase();
     // withUuid: true — this fixture represents the incident's actual shape:
-    // a MODERN, already-migrated (024+) business file, where every row
+    // a MODERN, already-migrated (029+) business file, where every row
     // (including the two planted below) genuinely carries a real uuid, same
     // as `copyTable` (src/core/db/import.ts) would copy from any real
-    // source on 024+. This matters beyond realism: an invoice inserted with
-    // a NULL uuid gets one backfilled by migration 029's own
+    // source on 029+. This matters beyond realism: an invoice inserted with
+    // a NULL uuid gets one backfilled by migration 034's own
     // `trg_sync_capture_invoices_insert` on the TARGET side during import,
     // and that backfill `UPDATE` cascades into `after_update_invoices_
     // add_timestamp` (untouched by 035) regardless of this fix — see 035's
     // own doc comment ("A second, independent source of the exact same
     // cascade") for why that's a narrower, separately-documented residual
-    // case (a pre-024 source with no uuid column at all), not this test's.
+    // case (a pre-029 source with no uuid column at all), not this test's.
     seedDesktopBusinessData(sourceDb, { withUuid: true });
 
     // Plant two more invoices with known, old timestamps, emulating years of

@@ -6,15 +6,13 @@ import { logErrors } from '../errorLogger';
 type GetBalance = { balance: number; balanceType: BalanceType };
 
 /**
- * docs/derived-state-design.md §6 migration 028 (service cutover).
+ * docs/derived-state-design.md §6 service cutover.
  *
- * `ledger_view` (migration 027) is now canon for every READ this service
+ * `ledger_view` (CORE 032) is now canon for every READ this service
  * serves to the rest of the app (IPC/AppApi, reports, invoice details, etc.).
  * The stored `ledger` table is demoted to a write-only legacy replica, kept
- * in sync by JournalService's existing insert/rebuild machinery so that
- * migration 029 (the destructive drop, not part of this change) has
- * something trivial to remove later and rollback stays a no-op revert of
- * this file, per the design doc's rollback story.
+ * in sync by JournalService's existing insert/rebuild machinery so a later
+ * DROP COLUMN / DROP TABLE (not shipped) has something trivial to remove.
  *
  * Two SQL sets below reflect that split:
  *  - The public, app-facing methods (`getLedger`, `getBalance`,

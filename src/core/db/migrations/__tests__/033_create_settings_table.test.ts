@@ -32,10 +32,10 @@ const appliedNames = (db: Database.Database): string[] =>
     }[]
   ).map((r) => r.name);
 
-describe('core migration 028 (settings table) — platform-free runner', () => {
+describe('core migration 033 (settings table) — platform-free runner', () => {
   it('is registered exactly once in CORE_MIGRATIONS', () => {
     const matches = CORE_MIGRATIONS.filter(
-      (m) => m.name === '028_create_settings_table',
+      (m) => m.name === '033_create_settings_table',
     );
     expect(matches).toHaveLength(1);
   });
@@ -47,7 +47,7 @@ describe('core migration 028 (settings table) — platform-free runner', () => {
 
     expect(tableExists(db, 'settings')).toBe(true);
     expect(
-      appliedNames(db).filter((n) => n === '028_create_settings_table'),
+      appliedNames(db).filter((n) => n === '033_create_settings_table'),
     ).toHaveLength(1);
     db.close();
   });
@@ -61,7 +61,7 @@ describe('core migration 028 (settings table) — platform-free runner', () => {
     await bootstrapDatabase(driver);
 
     expect(
-      appliedNames(db).filter((n) => n === '028_create_settings_table'),
+      appliedNames(db).filter((n) => n === '033_create_settings_table'),
     ).toHaveLength(1);
     db.close();
   });

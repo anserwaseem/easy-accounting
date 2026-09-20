@@ -7,8 +7,8 @@
  *   - `scripts/frozen-web-schema/schema.sql` (shared 001-era CREATE TABLEs)
  *   - `src/main/migrations/001.js`–`028.js` (origin/main, released)
  *
- * CORE (`src/core/db/migrations`, names `024_add_uuid`–`035_insert_timestamps`
- * then `036_…`) is NOT baked into this snapshot — `bootstrapDatabase`
+ * CORE (`src/core/db/migrations`, names `029_add_uuid`–`040_insert_timestamps`
+ * then `041_…`) is NOT baked into this snapshot — `bootstrapDatabase`
  * applies those on both web and Electron.
  *
  * Two artifacts are written from a single build:

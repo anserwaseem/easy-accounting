@@ -17,7 +17,7 @@ src/main/                  ← Main process (Node/Electron)
 src/core/                  ← Platform-free business logic (Electron + PWA)
 ├── services/              ← Account, Chart, Invoice, Inventory, Ledger,
 │                            Journal, Pricing, Statement, VendorStock, Settings
-├── db/migrations/         ← All new schema (DatabaseDriver). Next name 036_…
+├── db/migrations/         ← All new schema (DatabaseDriver). Next name 041_…
 └── db/bootstrap.ts        ← Snapshot 001-028 + CORE_MIGRATIONS
 
 src/renderer/              ← Shared React UI (views, components, hooks, shad/ui)
@@ -155,7 +155,7 @@ The invoice line-item table uses `useFieldArray` with `react-virtuoso` (virtual 
 - Customer item-type tier for sale invoices uses **account code** only (`getHeaderTypedSuffixFromCode`): split-by-type row resolution and split-off mismatch warnings; display names are not authoritative.
 - **Printed/saved invoice filenames go through `getInvoiceDocumentBaseName` (`src/lib/invoiceDocumentName.ts`)**, shared by `InvoiceService.getInvoicePdfOutputBaseName` (batch PDF save) and the print screen's `document.title` (print dialog's suggested name) so the two never diverge. Invoice numbers restart per type, so purchase rows are prefixed (`purchase-12`, `purchase-quotation-5`); sale rows stay bare (`12`, `quotation-5`) because `PrintService` writes every PDF into one flat folder and renaming sale files would orphan previously saved ones.
 - **`src/sql/schema.sql` is the base schema, not the current one.** A fresh install execs it and then runs migrations. Tests that need the real shape call `bootstrapDatabase` (snapshot `001–028` + `CORE_MIGRATIONS`).
-- **Released JS migrations are `001.js`–`028.js` (origin/main).** Do not add, edit, or renumber them. New schema: append `src/core/db/migrations`, next unused `name` (`036_…`), list it in `CORE_MIGRATION_NAMES`. Electron runs `MigrationRunner` then `bootstrapDatabase`; web runs `bootstrapDatabase` only.
+- **Released JS migrations are `001.js`–`028.js` (origin/main).** Do not add, edit, or renumber them. New schema: append `src/core/db/migrations`, next unused `name` (`041_…`), list it in `CORE_MIGRATION_NAMES`. Electron runs `MigrationRunner` then `bootstrapDatabase`; web runs `bootstrapDatabase` only.
 - **Never change a recorded `migrations.name`.** The runner keys applied state on the `name` field, so changing a name re-runs the migration and changing the body of an already-recorded name silently skips it.
 - **Do not add "rename item" without a migration path.** `inventory.name` is the SKU (Woo `sku`, R2 prefix, image folder). `InventoryService` UPDATE does not set `name`; `editInventoryItem.tsx` disables it. A coordinated azs-ops rename map is required if it is ever allowed.
 

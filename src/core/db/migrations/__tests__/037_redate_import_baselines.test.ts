@@ -32,14 +32,14 @@ interface OutboxRow {
   rowJson: string;
 }
 
-describe('core migration 032 (re-date import baselines)', () => {
+describe('core migration 037 (re-date import baselines)', () => {
   it('is registered exactly once in CORE_MIGRATIONS, immediately after 031', () => {
     const names = CORE_MIGRATIONS.map((m) => m.name);
     expect(
-      names.filter((n) => n === '032_redate_import_baselines'),
+      names.filter((n) => n === '037_redate_import_baselines'),
     ).toHaveLength(1);
-    expect(names.indexOf('032_redate_import_baselines')).toBe(
-      names.indexOf('031_replicate_blob_columns') + 1,
+    expect(names.indexOf('037_redate_import_baselines')).toBe(
+      names.indexOf('036_replicate_blob_columns') + 1,
     );
   });
 
@@ -71,14 +71,14 @@ describe('core migration 032 (re-date import baselines)', () => {
       `INSERT INTO stock_adjustments (inventoryId, quantityDelta, reason, date) VALUES (?, ?, ?, ?)`,
     ).run(inventoryId, -5, 'Damaged in transit', '2026-05-01');
 
-    // Isolate migration 032's own effect from whatever the inserts above
+    // Isolate migration 037's own effect from whatever the inserts above
     // captured into sync_outbox.
     db.exec(`DELETE FROM sync_outbox`);
 
-    const migration032 = CORE_MIGRATIONS.find(
-      (m) => m.name === '032_redate_import_baselines',
+    const migration037 = CORE_MIGRATIONS.find(
+      (m) => m.name === '037_redate_import_baselines',
     )!;
-    await migration032.up(driver);
+    await migration037.up(driver);
 
     const rows = db
       .prepare(
@@ -114,7 +114,7 @@ describe('core migration 032 (re-date import baselines)', () => {
     // Second run: WHERE clause matches nothing (reason is already the new
     // value) — idempotent by construction, no further sync_outbox rows.
     db.exec(`DELETE FROM sync_outbox`);
-    await migration032.up(driver);
+    await migration037.up(driver);
 
     const rowsAfterSecondRun = db
       .prepare(`SELECT reason, date FROM stock_adjustments ORDER BY id`)
@@ -141,7 +141,7 @@ describe('core migration 032 (re-date import baselines)', () => {
 
     const applied = db
       .prepare(
-        `SELECT COUNT(*) AS c FROM migrations WHERE name = '032_redate_import_baselines'`,
+        `SELECT COUNT(*) AS c FROM migrations WHERE name = '037_redate_import_baselines'`,
       )
       .get() as { c: number };
     expect(applied.c).toBe(1);

@@ -54,12 +54,12 @@ import { rebuildDerivedState } from './rebuildDerivedState';
  * `web_kv` (web-only session/settings storage with no desktop counterpart
  * to import from at all).
  *
- * `settings` (migration 028; rebuilt into a normal replicated-table shape
- * by migration 033 — src/core/db/migrations/033_sync_settings.ts) joined
- * this list in migration 033: company profile, invoice print settings, and
+ * `settings` (migration 033; rebuilt into a normal replicated-table shape
+ * by migration 038 — src/core/db/migrations/038_sync_settings.ts) joined
+ * this list in migration 038: company profile, invoice print settings, and
  * the publish feature's non-secret business fields are business data like
  * everything else here, so "bring your database" import carries them too.
- * An uploaded database that predates migration 028 simply has no `settings`
+ * An uploaded database that predates migration 033 simply has no `settings`
  * table — `validateUploadedDatabase` below already tolerates any
  * `BUSINESS_TABLES` entry being absent from an older upload (its benign
  * "nothing to import for it" warning), so no special-casing was needed for
@@ -195,7 +195,7 @@ async function countRows(db: DatabaseDriver, name: string): Promise<number> {
   return row?.c ?? 0;
 }
 
-/** Parses the leading migration number off names like `'024_add_uuid_to_business_tables'`. */
+/** Parses the leading migration number off names like `'029_add_uuid_to_business_tables'`. */
 function migrationNumber(name: string): number | null {
   const match = /^(\d+)_/.exec(name);
   return match ? Number(match[1]) : null;
@@ -285,7 +285,7 @@ export async function validateUploadedDatabase(
   }
 
   const sourceNameSet = new Set(sourceNames);
-  const onCurrentSchema = sourceNameSet.has('035_insert_timestamps_fill_only');
+  const onCurrentSchema = sourceNameSet.has('040_insert_timestamps_fill_only');
   if (!onCurrentSchema) {
     warnings.push(
       `Source database is older than this app's schema — columns it doesn't ` +
@@ -381,7 +381,7 @@ async function copyTable(
  * count equal the imported `ledger` table's row count — the two are
  * expected to differ by exactly the number of `'Opening Balance from B/S'`
  * journals present (whether written natively by `StatementService` on
- * migration 025+ or just synthesized by the backfill above). Every such
+ * migration 030+ or just synthesized by the backfill above). Every such
  * journal has two `journal_entry` rows (the account's own side and the
  * "Opening Balance Equity" contra side), so `ledger_view` — a pure
  * projection of `journal`/`journal_entry` — materializes two rows per
@@ -802,7 +802,7 @@ async function checkImportIntegrity(
 ): Promise<string[]> {
   const warnings: string[] = [];
 
-  // Trial balance: `ledger_view` (migration 027) is a pure reconstruction
+  // Trial balance: `ledger_view` (migration 032) is a pure reconstruction
   // from `journal`/`journal_entry` alone — it never reads the stored
   // `ledger` table. Every journal this schema allows balances by
   // construction (JournalService.insertJournal rejects an unbalanced one),
@@ -1016,7 +1016,7 @@ export async function importDatabase(params: {
     // quantity edits from older app versions) updated with no backing fact
     // row at all — so `inventory_quantity_view` (a pure reconstruction from
     // `inventory_opening_stock` + `invoices`/`invoice_items` +
-    // `stock_adjustments`, migration 027) can come out wildly divorced from
+    // `stock_adjustments`, migration 032) can come out wildly divorced from
     // the stored counter the owner actually trusts. Runs inside this same
     // transaction — nested via a SAVEPOINT, see
     // `backfillInventoryBaseline`'s doc comment — so a failure here rolls

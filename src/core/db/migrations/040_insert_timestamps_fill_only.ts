@@ -1,14 +1,14 @@
 import type { DatabaseDriver } from '../driver';
 
 /**
- * Migration 035 — the third wave of the same timestamp-fidelity saga
- * migration 034's doc comment tells the first two chapters of (`sync apply`
+ * Migration 040 — the third wave of the same timestamp-fidelity saga
+ * migration 039's doc comment tells the first two chapters of (`sync apply`
  * clobbering a pulled row's true timestamps, fixed by suppressing the
  * `_add_timestamp` triggers while `sync_state.applying` is set) and, before
- * that, `029_create_sync_tables.ts`'s own doc comment ("The `createdAt`/
+ * that, `034_create_sync_tables.ts`'s own doc comment ("The `createdAt`/
  * `updatedAt` stomping ... is consciously NOT worked around the same way").
  * This one is a plain desktop-file import, no sync involved at all.
- * Applied by `bootstrapDatabase` on Electron and web. No JS twin.
+ * Applied by `bootstrapDatabase` on Electron and web.
  *
  * ## The bug
  *
@@ -17,7 +17,7 @@ import type { DatabaseDriver } from '../driver';
  * source row's TRUE `createdAt`/`updatedAt` in the INSERT's own explicit
  * column list (see `copyTable`'s doc comment — `id`s and every intersecting
  * column, including these two, are preserved verbatim). But
- * `after_insert_<table>_add_timestamp` — even after migration 034 — still
+ * `after_insert_<table>_add_timestamp` — even after migration 039 — still
  * unconditionally sets BOTH columns to `datetime(CURRENT_TIMESTAMP,
  * 'localtime')` on any INSERT that isn't running under
  * `sync_state.applying`, and a plain "bring your database" import is
@@ -26,7 +26,7 @@ import type { DatabaseDriver } from '../driver';
  * trigger stomps right back over the row image `copyTable` just inserted —
  * proven with a probe: an INSERT carrying explicit `'2015-05-30 10:00:00'`
  * `createdAt`/`updatedAt` reads back stamped with today's date the instant
- * the statement completes, same mechanism migration 034 diagnosed for sync,
+ * the statement completes, same mechanism migration 039 diagnosed for sync,
  * just triggered by a different caller.
  *
  * In the field this (compounded by the historic migration-era `UPDATE`
@@ -43,7 +43,7 @@ import type { DatabaseDriver } from '../driver';
  * happen here. Import is a DIFFERENT write path with the SAME property
  * (the row's real history predates this device seeing it) but it was never
  * routed through `sync_state.applying`, and it shouldn't be: `applying` also
- * suppresses migration 029's capture triggers (`trg_sync_capture_<table>_*`
+ * suppresses migration 034's capture triggers (`trg_sync_capture_<table>_*`
  * — see that migration's "Echo suppression" doc comment), and an imported
  * row is real, new, user-visible data on this device that a sync project
  * this device later joins DOES need to know about — it must still be
@@ -138,10 +138,10 @@ import type { DatabaseDriver } from '../driver';
  *
  * The two-`UPDATE` shape above stops THIS trigger's own fill from causing
  * the cascade. It cannot stop a DIFFERENT trigger's `UPDATE` from doing the
- * same thing, and one already exists: migration 029's
+ * same thing, and one already exists: migration 034's
  * `trg_sync_capture_<table>_insert` backfills a NULL `uuid` on every INSERT
  * via its own `UPDATE "<table>" SET uuid = ... WHERE id = NEW.id AND uuid IS
- * NULL` (`029_create_sync_tables.ts`). `after_update_<table>_add_timestamp`
+ * NULL` (`034_create_sync_tables.ts`). `after_update_<table>_add_timestamp`
  * has no `AFTER UPDATE OF <columns>` restriction — by design, since it must
  * bump `updatedAt` no matter WHICH real column changed — so it cannot tell
  * "a genuine edit to a business column" apart from "a uuid backfill that
@@ -156,7 +156,7 @@ import type { DatabaseDriver } from '../driver';
  * this migration's fix: it is complete only for rows whose `uuid` the
  * INSERT already supplied. `copyTable` copies `uuid` like any other
  * intersecting column (`import.ts`'s own doc comment), so a source database
- * already on migration 024+ — which is to say the overwhelming majority of
+ * already on migration 029+ — which is to say the overwhelming majority of
  * real imports, since 024 shipped years before this incident and every row
  * written since then (via `trg_sync_capture_<table>_insert` itself) already
  * carries one — imports with `uuid` intact and hits none of this. A source
@@ -185,7 +185,7 @@ import type { DatabaseDriver } from '../driver';
  * non-apply `UPDATE` — a genuine local edit, on an imported row or any
  * other, must still bump `updatedAt` to when the edit actually happened, or
  * this app would silently lose its own ability to timestamp real edits made
- * after import. Migration 032's "IMPORTANT" callout on
+ * after import. Migration 037's "IMPORTANT" callout on
  * `openingBalanceBackfill.ts`'s use of a frozen reason literal is the same
  * shape of decision as this one: apply-time-of-fix history and
  * origin-time-of-fact history are different things, and only the latter is
@@ -202,7 +202,7 @@ import type { DatabaseDriver } from '../driver';
  * ## What this migration does NOT fix — the historic uuid-backfill `UPDATE`
  * sweep, a known, accepted cost
  *
- * Migration 024 (`add_uuid_to_business_tables`) backfilled a `uuid` onto
+ * Migration 029 (`add_uuid_to_business_tables`) backfilled a `uuid` onto
  * every pre-existing row of every business table via a bulk `UPDATE`, and
  * any future migration that needs to sweep-`UPDATE` populated rows (not
  * just `ALTER TABLE ADD COLUMN`, which touches no existing row's
@@ -235,7 +235,7 @@ import type { DatabaseDriver } from '../driver';
  * `createdAt`/`updatedAt` through end to end, faithfully.
  */
 
-/** Same guard migration 029's capture triggers and migration 034 use — see 034's doc comment. */
+/** Same guard migration 034's capture triggers and migration 039 use — see 034's doc comment. */
 const APPLYING_GUARD = `(SELECT value FROM sync_state WHERE key = 'applying') IS NULL`;
 
 /**
@@ -286,8 +286,8 @@ async function tableHasIdColumn(
   return rows.some((row) => row.name === 'id');
 }
 
-export const migration035 = {
-  name: '035_insert_timestamps_fill_only',
+export const migration040 = {
+  name: '040_insert_timestamps_fill_only',
   async up(driver: DatabaseDriver): Promise<void> {
     const triggers = await driver.all<{ name: string }>(
       `SELECT name FROM sqlite_master WHERE type = 'trigger' AND

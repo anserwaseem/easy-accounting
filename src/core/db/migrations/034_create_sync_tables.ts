@@ -2,9 +2,9 @@ import type { DatabaseDriver } from '../driver';
 import { BUSINESS_TABLES } from '../import';
 
 /**
- * Migration 029 — client half of multi-device sync (`sync_outbox` /
+ * Migration 034 — client half of multi-device sync (`sync_outbox` /
  * `sync_state` / `sync_rejected` plus per-table capture triggers).
- * Electron and web both apply this via `bootstrapDatabase`. No JS twin.
+ * Electron and web both apply this via `bootstrapDatabase`.
  *
  * ## Which tables replicate
  *
@@ -12,8 +12,8 @@ import { BUSINESS_TABLES } from '../import';
  * list the "bring your database" import feature already treats as "the
  * business data") **minus `ledger`**. `ledger` is excluded deliberately:
  * per docs/derived-state-design.md, `ledger` is a stored running-balance
- * table with no self-healing story for out-of-order writes — migrations
- * 025-027 already demoted it to a derived view (`ledger_view`, computed
+ * table with no self-healing story for out-of-order writes — CORE
+ * 030–032 already demoted it to a derived view (`ledger_view`, computed
  * live from `journal`/`journal_entry`, both of which DO replicate) for
  * exactly this reason. Replicating `ledger` itself would resurrect the
  * "two devices decrement/increment the same running counter concurrently"
@@ -23,18 +23,18 @@ import { BUSINESS_TABLES } from '../import';
  * `users` DOES replicate (it was already in `BUSINESS_TABLES`) — this is a
  * deliberate decision, not an oversight: `users` is how *employees* (login
  * accounts operating the books) exist on every device, and `chart.userId`
- * is a real foreign key into it. Migration 024 skipped adding a `uuid`
+ * is a real foreign key into it. Migration 029 skipped adding a `uuid`
  * column to `users` ("neither is business data that sync will ever merge
  * across devices" — true of `migrations`, not of `users` once multi-device
  * sync is the point), so this migration backfills one here, the same way
- * migration 024 did for every other business table.
+ * migration 029 did for every other business table.
  *
  * ## Row image capture, and the two ordering bugs this migration works
  * around
  *
  * Every replicated table already carries two other AFTER-INSERT/AFTER-UPDATE
  * triggers from the frozen schema snapshot (see schema.snapshot.sql):
- *   - `trg_<table>_uuid` (migration 024) — assigns a uuid post-hoc when a
+ *   - `trg_<table>_uuid` (migration 029) — assigns a uuid post-hoc when a
  *     plain `INSERT` omits one.
  *   - `after_insert_<table>_add_timestamp` / `after_update_..._add_timestamp`
  *     — unconditionally stamp `createdAt`/`updatedAt` to the local device's
@@ -61,7 +61,7 @@ import { BUSINESS_TABLES } from '../import';
  *    `trg_<table>_uuid` has already run. **This migration therefore drops
  *    every `trg_<table>_uuid` trigger for a replicated table and folds its
  *    exact uuid-assignment logic into the front of the new capture
- *    trigger's own body** (same version-4 uuid SQL expression migration 024
+ *    trigger's own body** (same version-4 uuid SQL expression migration 029
  *    uses), so uuid assignment and the row-image capture that depends on it
  *    happen as two sequential statements *inside one trigger body* — where
  *    SQLite statement order is, unlike cross-trigger order, fully
@@ -86,11 +86,11 @@ import { BUSINESS_TABLES } from '../import';
  * as a known gap for whoever builds the Phase-3 server / a future
  * timestamp-fidelity pass, not fixed in this migration.
  *
- * **Update — fixed by migration 034.** That future pass turned out to be
+ * **Update — fixed by migration 039.** That future pass turned out to be
  * needed sooner than "Phase-3 server": a real field report (a device that
  * had just joined a sync project saw the "Edited" pill lit on every single
- * invoice) traced directly to the gap described just above. Migration 034
- * (src/core/db/migrations/034_suppress_timestamp_triggers_during_apply.ts)
+ * invoice) traced directly to the gap described just above. Migration 039
+ * (src/core/db/migrations/039_suppress_timestamp_triggers_during_apply.ts)
  * prepends this same `APPLYING_GUARD` to both `after_insert_<table>_
  * add_timestamp` and `after_update_<table>_add_timestamp`, so a sync apply
  * no longer re-stamps either column — `SyncEngine.applyRow` writes the row
@@ -138,7 +138,7 @@ export const SYNC_TABLES = BUSINESS_TABLES.filter(
   'ledger' | 'vendor_stock'
 >[];
 
-/** Same version-4 (random) uuid SQL expression migration 024 uses. */
+/** Same version-4 (random) uuid SQL expression migration 029 uses. */
 export const UUID_V4_SQL_EXPR = `(SELECT lower(
     hex(randomblob(4)) || '-' ||
     hex(randomblob(2)) || '-4' ||
@@ -330,7 +330,7 @@ function realChangeGuardExpr(columns: string[]): string {
 /**
  * Builds (or, called again after a `DROP TRIGGER IF EXISTS` on all three,
  * rebuilds) `table`'s three capture triggers from its current schema.
- * Exported so migration 031 (src/core/db/migrations/031_replicate_blob_columns.ts)
+ * Exported so migration 036 (src/core/db/migrations/036_replicate_blob_columns.ts)
  * can reuse this exact builder against an already-bootstrapped database
  * rather than duplicating the trigger SQL.
  */
@@ -346,7 +346,7 @@ export async function createCaptureTriggers(
   const selfJson = jsonObjectExpr(columns, fks, selfRef);
   const oldJson = jsonObjectExpr(columns, fks, oldRef);
 
-  // Migration 024 created "trg_<table>_uuid" for every business table
+  // Migration 029 created "trg_<table>_uuid" for every business table
   // except `users` (excluded there) and `ledger` stays untouched (not
   // replicated). Drop it and fold its exact logic into the front of the
   // insert-capture trigger below — see this file's doc comment for why
@@ -393,7 +393,7 @@ export async function createCaptureTriggers(
   `);
 }
 
-/** `users` never got a uuid column from migration 024 — give it one now, same shape as every other business table. */
+/** `users` never got a uuid column from migration 029 — give it one now, same shape as every other business table. */
 async function ensureUsersUuid(driver: DatabaseDriver): Promise<void> {
   const cols = await columnNames(driver, 'users');
   if (!cols.includes('uuid')) {
@@ -416,8 +416,8 @@ async function ensureUsersUuid(driver: DatabaseDriver): Promise<void> {
   );
 }
 
-export const migration029 = {
-  name: '029_create_sync_tables',
+export const migration034 = {
+  name: '034_create_sync_tables',
   async up(driver: DatabaseDriver): Promise<void> {
     await ensureUsersUuid(driver);
 

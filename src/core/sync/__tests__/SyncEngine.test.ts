@@ -1,5 +1,5 @@
 /**
- * Crown-jewel convergence suite for `SyncEngine` + migration 029's capture
+ * Crown-jewel convergence suite for `SyncEngine` + migration 034's capture
  * triggers, against `MockSyncServer` (./mockServer.ts) as the reference
  * server. Two simulated devices (A, B), each an independent in-memory
  * SQLite database bootstrapped the same way production does
@@ -9,7 +9,7 @@
  * Every scenario drives real core services (AccountService, ChartService,
  * JournalService, InvoiceService, PricingService) to generate the writes on
  * each device, exactly like every other core service test in this repo —
- * so migration 029's capture triggers are exercised against real workloads,
+ * so migration 034's capture triggers are exercised against real workloads,
  * not hand-crafted SQL.
  *
  * Scenarios (a), (b), (e) live in ./convergenceScenarios.ts, shared
@@ -440,7 +440,7 @@ describe('SyncEngine convergence', () => {
     // same username, same uuid as the origin device — which is exactly
     // what the Login screen's post-join success note ("sign in with your
     // existing account") promises. `password_hash` is a declared-BLOB
-    // column, but migration 029's capture triggers (fixed by migration
+    // column, but migration 034's capture triggers (fixed by migration
     // 031 — see that migration's doc comment for the field bug this closes)
     // now capture it as a `<col>`/`<col>__hex` typed pair rather than
     // dropping it, so the origin device's actual credential travels with
@@ -474,7 +474,7 @@ describe('SyncEngine convergence', () => {
     await assertTableConverged(a, b, 'chart');
 
     // The incident: both origins independently imported the same desktop
-    // database (see migration 029/030's doc comments) — every row gets a
+    // database (see migration 034/035's doc comments) — every row gets a
     // FRESH uuid on import, so the "same" business user and the "same"
     // account both exist on A and B with different uuids. Simulated here as
     // two independent, never-synced-yet writes of the same natural keys.
@@ -716,7 +716,7 @@ describe('SyncEngine convergence', () => {
     const accountNames: string[] = [];
     // A's first syncOnce above pushed its own `users` row too — makeDevice
     // seeds that row via a raw INSERT (not through a core service), but
-    // `users` IS one of migration 029's SYNC_TABLES (see that migration's
+    // `users` IS one of migration 034's SYNC_TABLES (see that migration's
     // doc comment: "users DOES replicate"), so its capture trigger still
     // fires and it rides along in the very first push like any other
     // A-authored row.
@@ -846,9 +846,9 @@ describe('SyncEngine convergence', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Declared-blob column replication (migration 029's fixed capture
-  // triggers + SyncEngine.applyRow's hex decode) — see migration 029's
-  // `jsonObjectExpr`/`allColumnInfo` and migration 031's doc comments for
+  // Declared-blob column replication (migration 034's fixed capture
+  // triggers + SyncEngine.applyRow's hex decode) — see migration 034's
+  // `jsonObjectExpr`/`allColumnInfo` and migration 036's doc comments for
   // the field bug this closes: `users.password_hash` (declared BLOB)
   // previously never replicated at all, so a second device could never log
   // in. These two scenarios are the end-to-end proof the fix actually
@@ -882,7 +882,7 @@ describe('SyncEngine convergence', () => {
     expect(rowOnB!.uuid).toBe(uuidOnA!.uuid);
     // better-sqlite3 returns a BLOB-declared column holding a TEXT value as
     // a plain JS string (SQLite's dynamic typing/BLOB-affinity — see
-    // migration 029's jsonObjectExpr doc comment), same as what was
+    // migration 034's jsonObjectExpr doc comment), same as what was
     // inserted — never coerced into a Buffer.
     expect(rowOnB!.password_hash).toBe(hash);
 
@@ -1528,7 +1528,7 @@ describe('SyncEngine convergence', () => {
       `SELECT uuid FROM users WHERE username = 'default'`,
     ))!.uuid;
 
-    // Pre-populate `sync_apply_conflicts` directly against migration 030's
+    // Pre-populate `sync_apply_conflicts` directly against migration 035's
     // columns, simulating rows recorded under OLDER code — before either
     // discard rule (`applyRow`'s users-collision rule, or this task's
     // in-run chart-orphan discard) existed. Nothing about how these rows
@@ -1840,7 +1840,7 @@ describe('SyncEngine convergence', () => {
     // rather than simulating the intended corruption. Unlike scenario (u)'s
     // corruption of B (a device that only ever received this data via sync,
     // which never touches `ledger` — it's excluded from SYNC_TABLES,
-    // deliberately: see migration 029's `SYNC_TABLES` doc comment), A is
+    // deliberately: see migration 034's `SYNC_TABLES` doc comment), A is
     // the device that actually ran `insertJournal` locally, so A's stored
     // `ledger` table genuinely has rows for 'Cash' that also need clearing.
     await a.driver.run(
@@ -1900,7 +1900,7 @@ describe('SyncEngine convergence', () => {
     b.db.close();
   });
 
-  it('(x) real incident: migration 034 — a pulled invoice\'s true createdAt/updatedAt survive apply verbatim, on both a fresh INSERT and a re-delivered UPDATE, so the "Edited" pill never lights up for a row that was only ever created', async () => {
+  it('(x) real incident: migration 039 — a pulled invoice\'s true createdAt/updatedAt survive apply verbatim, on both a fresh INSERT and a re-delivered UPDATE, so the "Edited" pill never lights up for a row that was only ever created', async () => {
     const server = new MockSyncServer();
     const a = await makeDevice('deviceA', server.createDeviceTransport('A'));
     const b = await makeDevice('deviceB', server.createDeviceTransport('B'));
@@ -1955,7 +1955,7 @@ describe('SyncEngine convergence', () => {
       { id: invoiceId },
     ))!.uuid;
 
-    // Migration 029's insert-capture trigger already put A's real
+    // Migration 034's insert-capture trigger already put A's real
     // createdAt/updatedAt into A's outbox (whatever A's own local clock
     // stamped at insert time — real, but not a fixed value a test can
     // assert against, and not the point of this scenario). Overwritten
@@ -2021,7 +2021,7 @@ describe('SyncEngine convergence', () => {
     // and actually incident-accurate, assertion this second half exists
     // for. B already has this uuid locally, so this drives applyRow's
     // `ON CONFLICT("uuid") DO UPDATE` branch, not the INSERT branch —
-    // exactly migration 034's doc comment's point 2.
+    // exactly migration 039's doc comment's point 2.
     await a.driver.run(
       `INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
        VALUES (@key, 'invoices', @uuid, 'put', @rowJson, datetime('now'))`,

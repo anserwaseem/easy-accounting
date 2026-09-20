@@ -4,8 +4,8 @@ import type { DatabaseDriver } from '../driver';
  * `ledger_view` / `inventory_quantity_view`. Additive. SQL locked by
  * derivedStateEquivalence.test.ts.
  */
-export const migration027 = {
-  name: '027_create_ledger_and_inventory_quantity_views',
+export const migration032 = {
+  name: '032_create_ledger_and_inventory_quantity_views',
   async up(driver: DatabaseDriver): Promise<void> {
     await driver.exec(`
       CREATE VIEW IF NOT EXISTS journal_entry_pairs AS

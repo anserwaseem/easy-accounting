@@ -319,7 +319,7 @@ export class SupabaseSyncTransport implements SyncTransport {
       // `jsonb`), but LogRow.rowJson is a *string* — the same JSON-encoded
       // string shape SyncEngine.applyRow's `JSON.parse(row.rowJson)`
       // already expects and the client's own sync_outbox stores it as (see
-      // migration 029) — so re-stringify here rather than changing that
+      // migration 034) — so re-stringify here rather than changing that
       // contract for this one transport.
       rowJson: JSON.stringify(row.row_json),
       deviceId: row.device_id,

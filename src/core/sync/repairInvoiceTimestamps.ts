@@ -5,7 +5,7 @@ import type { DatabaseDriver } from '../db/driver';
  * different calendar days. The invoice list's Edited pill
  * (`src/renderer/lib/invoiceUtils.ts`) lights when the dates differ, so
  * any historical bulk UPDATE that bumped `updatedAt` without the user
- * editing the invoice — migration 024's uuid-backfill on the origin
+ * editing the invoice — migration 029's uuid-backfill on the origin
  * desktop, an apply-time trigger stomp, a join that landed before the
  * calendar-day repair — shows every sale as Edited.
  *

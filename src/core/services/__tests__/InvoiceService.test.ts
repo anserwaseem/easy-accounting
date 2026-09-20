@@ -764,7 +764,7 @@ describe('core InvoiceService sale quotations', () => {
       `SELECT id FROM inventory WHERE TRIM(name) = TRIM(?) LIMIT 1`,
       ['QuoteItem'],
     );
-    // docs/derived-state-design.md §6 migration 028: quotation-conversion's
+    // docs/derived-state-design.md §6 service cutover: quotation-conversion's
     // stock-available check (assertSaleQuotationStockAvailable) now reads
     // inventory_quantity_view (canon), not the raw `inventory.quantity`
     // column seeded above — that raw column stays 10 for the tests that

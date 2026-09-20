@@ -1,6 +1,6 @@
 /**
- * Cross-device convergence tests for the `settings` table (migration 033 —
- * src/core/db/migrations/033_sync_settings.ts) — the per-key
+ * Cross-device convergence tests for the `settings` table (migration 038 —
+ * src/core/db/migrations/038_sync_settings.ts) — the per-key
  * last-writer-wins pre-step `SyncEngine.applyRow` implements for
  * `NATURAL_KEY_TABLES` (see that method's doc comment). Follows the same
  * two-simulated-devices-sharing-one-`MockSyncServer` pattern as
@@ -15,7 +15,7 @@
  * always stamps "now") — this is the row shape `SettingsService.set` itself
  * produces, just with a controlled timestamp so the test proves the
  * resolution is genuinely last-writer-wins rather than merely "the two
- * devices happen to agree by luck". Migration 029's INSERT-capture trigger
+ * devices happen to agree by luck". Migration 034's INSERT-capture trigger
  * fires on any INSERT regardless of caller (application code or a test's
  * raw SQL), so this is a faithful exercise of the real capture path.
  */

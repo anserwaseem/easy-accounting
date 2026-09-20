@@ -76,7 +76,7 @@ create table if not exists sync_log (
 );
 
 comment on table sync_log is
-  'Append-only per-project sync log for Easy Accounting multi-device sync (BYOK: one Supabase project per business, so no business_id here — see this file''s header comment). Server counterpart of client sync_outbox (migration 029); mirrors src/core/sync/__tests__/mockServer.ts''s reference semantics.';
+  'Append-only per-project sync log for Easy Accounting multi-device sync (BYOK: one Supabase project per business, so no business_id here — see this file''s header comment). Server counterpart of client sync_outbox (migration 034); mirrors src/core/sync/__tests__/mockServer.ts''s reference semantics.';
 
 -- Pull reads by `seq > cursor` in ascending order — this index makes that a
 -- straightforward btree range scan instead of a full-table scan/sort as the

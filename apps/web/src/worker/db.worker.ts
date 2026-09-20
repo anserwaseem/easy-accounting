@@ -214,10 +214,10 @@ class WebKv implements KeyValueStore {
 }
 
 /**
- * Suppresses migration 029's capture triggers for the duration of `fn` by
+ * Suppresses migration 034's capture triggers for the duration of `fn` by
  * setting, then clearing, `sync_state.applying` directly via SQL — the same
  * flag {@link import('@core/sync/SyncEngine').SyncEngine}'s own private
- * `setApplying` uses, and the exact flag migration 029's `APPLYING_GUARD`
+ * `setApplying` uses, and the exact flag migration 034's `APPLYING_GUARD`
  * (`(SELECT value FROM sync_state WHERE key = 'applying') IS NULL`) gates
  * every capture trigger on. Set directly with SQL here, rather than by
  * constructing a `SyncEngine`, because this runs from `main()` below before
@@ -234,13 +234,13 @@ class WebKv implements KeyValueStore {
  * Defensive existence check on `sync_state` itself (created by migration
  * 029, which `bootstrapDatabase` — called by `main()` before this ever runs
  * — always runs to completion): this should never actually be missing in
- * practice, but a caller that DID somehow run before migration 029 applied
+ * practice, but a caller that DID somehow run before migration 034 applied
  * falls back to running `fn` unsuppressed rather than crashing worker boot
  * outright over a table that isn't there yet.
  *
  * ## Suppressed INSERTs must assign `uuid` themselves
  *
- * REAL INCIDENT (caught by the import e2e spec): migration 029's
+ * REAL INCIDENT (caught by the import e2e spec): migration 034's
  * insert-capture trigger is ALSO what assigns a brand-new row its `uuid`
  * (`UPDATE ... SET "uuid" = ... WHERE "uuid" IS NULL` — its first
  * statement, before the outbox capture). Suppressing capture suppresses
@@ -296,7 +296,7 @@ async function withCaptureSuppressed(
  * ## Never captured into sync_outbox
  *
  * REAL INCIDENT this guards against: `users` and `chart` are both
- * replicated tables (migration 029), so this INSERT (and INITIAL_CHARTS's)
+ * replicated tables (migration 034), so this INSERT (and INITIAL_CHARTS's)
  * used to be captured into `sync_outbox` like any other local write,
  * unconditionally, on every fresh boot — regardless of whether this device
  * ever connects to sync at all. A device that then "joined" an existing
@@ -344,7 +344,7 @@ async function ensurePlaceholderDefaultUser(
     // One UPDATE per row, each with its own JS-generated uuid — a single
     // bulk `UPDATE ... SET uuid = <sql uuid expr>` would hit the
     // non-correlated-scalar-subquery trap (evaluated once per STATEMENT,
-    // same uuid for every chart row — see migration 031's idempotencyKey
+    // same uuid for every chart row — see migration 036's idempotencyKey
     // comment for the same trap) and violate the uuid unique index.
     await driver.run(
       `UPDATE users SET uuid = @uuid WHERE username = @username AND uuid IS NULL`,
@@ -1105,7 +1105,7 @@ async function main(): Promise<void> {
         filters as Parameters<VendorStockService['getActivity']>[0],
       ),
 
-    // -- Settings (src/core/services/SettingsService.ts, migration 028) ----
+    // -- Settings (src/core/services/SettingsService.ts, migration 033) ----
     getSetting: (key) => settingsService.get(key as string),
     setSetting: (key, value) => settingsService.set(key as string, value),
     deleteSetting: (key) => settingsService.delete(key as string),

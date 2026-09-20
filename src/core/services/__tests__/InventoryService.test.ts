@@ -259,7 +259,7 @@ describe('core InventoryService.getStockAsOf', () => {
     const db = new Database(':memory:');
     await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
-    // docs/derived-state-design.md §6 migration 028: getStockAsOf's
+    // docs/derived-state-design.md §6 service cutover: getStockAsOf's
     // "current quantity" anchor now comes from inventory_quantity_view
     // (canon) rather than the raw `inventory.quantity` column, so the
     // opening-stock fact below must actually reconcile with the movements
@@ -340,7 +340,7 @@ describe('core InventoryService.getStockAsOf', () => {
     await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const invId = seedInventoryRow(db, 'Widget', 10, t1, 5);
-    // docs/derived-state-design.md §6 migration 028: "current" is now
+    // docs/derived-state-design.md §6 service cutover: "current" is now
     // inventory_quantity_view-canon (opening stock + all movements,
     // unconditional), not the raw `inventory.quantity` column seeded above
     // — an opening-stock fact of 8 plus the -3 sale below reconciles to the

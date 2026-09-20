@@ -100,7 +100,7 @@ export class StatementService {
   }
 
   /**
-   * Write-path fix for docs/derived-state-design.md §2/§6 (migration 025):
+   * Write-path fix for docs/derived-state-design.md §2/§6 (migration 030):
    * `setupLedgers` used to be the only place in the app where a `ledger` row
    * was written with no backing `journal`/`journal_entry` facts at all. From
    * here on every opening-balance row it writes is *also* backed by a real
@@ -114,7 +114,7 @@ export class StatementService {
    * not exist in today's stored `ledger` table and would be a new,
    * observable behavior change (an "Opening Balance Equity" account
    * appearing in trial balance / account lists) ahead of the view cutover in
-   * §6 migration 028. Pre-cutover, the app still reads balances from the
+   * §6 service cutover. Pre-cutover, the app still reads balances from the
    * stored `ledger` table, so this method keeps writing exactly the same
    * `ledger` row it always has (via `ledgerService.insertLedger`, unchanged
    * below) — stored state for the account's own side is byte-for-byte what

@@ -2,13 +2,13 @@ import type { DatabaseDriver } from '../driver';
 
 /**
  * Migration 030 — the local audit trail for a row `SyncEngine.applyRow`
- * could not apply. Applied by `bootstrapDatabase` on Electron and web. No JS twin.
+ * could not apply. Applied by `bootstrapDatabase` on Electron and web.
  *
  * ## Why this table exists — the real incident
  *
  * Two browser origins each independently imported the same desktop
  * database (fresh uuids assigned to every row by each import, since
- * `import.ts`'s replace-import never seeds a `uuid` — migration 029's
+ * `import.ts`'s replace-import never seeds a `uuid` — migration 034's
  * capture triggers assign it fresh on first insert), then both connected to
  * the *same* Supabase sync project. The result: two devices whose `users`
  * table both contain a row with `username = 'owner'` but two different
@@ -48,8 +48,8 @@ import type { DatabaseDriver } from '../driver';
  * exactly where in the log it was seen, even though the cursor has since
  * moved past it.
  */
-export const migration030 = {
-  name: '030_create_sync_apply_conflicts',
+export const migration035 = {
+  name: '035_create_sync_apply_conflicts',
   async up(driver: DatabaseDriver): Promise<void> {
     await driver.exec(`
       CREATE TABLE IF NOT EXISTS sync_apply_conflicts (

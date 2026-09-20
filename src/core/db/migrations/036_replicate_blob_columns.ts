@@ -5,26 +5,26 @@ import {
   foreignKeys,
   jsonObjectExpr,
   SYNC_TABLES,
-} from './029_create_sync_tables';
+} from './034_create_sync_tables';
 
 /**
- * Migration 031 — fixes a field bug in migration 029's capture triggers: any
+ * Migration 036 — fixes a field bug in migration 034's capture triggers: any
  * column declared `BLOB` in the schema (today, only `users.password_hash`)
- * was filtered out of every captured row image entirely (see migration 029's
+ * was filtered out of every captured row image entirely (see migration 034's
  * `allColumnInfo` doc comment for the mechanism and why it was wrong). In
  * practice that meant `users` replicated across devices with NO credential
  * material at all — a second device that joined a sync project got the
  * employee record but could never log into it, because nothing it received
- * ever carried a usable `password_hash`. Applied by `bootstrapDatabase` on Electron and web. No JS twin.
+ * ever carried a usable `password_hash`. Applied by `bootstrapDatabase` on Electron and web.
  *
  * The fix itself — capturing a declared-blob column as a `<col>`/`<col>__hex`
  * typed pair, decoded back into a real blob on apply — lives in migration
- * 029's trigger builder (`jsonObjectExpr`/`createCaptureTriggers`,
- * src/core/db/migrations/029_create_sync_tables.ts) and
+ * 034's trigger builder (`jsonObjectExpr`/`createCaptureTriggers`,
+ * src/core/db/migrations/034_create_sync_tables.ts) and
  * `SyncEngine.applyRow`, not here: a *fresh* bootstrap already gets the fixed
- * triggers straight from 029, since `CORE_MIGRATIONS` runs in order and 029
+ * triggers straight from 034, since `CORE_MIGRATIONS` runs in order and 034
  * itself now builds them correctly. This migration exists purely to carry
- * that fix to a database that already ran the OLD (buggy) 029 and therefore
+ * that fix to a database that already ran the OLD (buggy) 034 and therefore
  * has the old, blob-excluding triggers installed. It does two things:
  *
  * 1. **Recreates the capture triggers** for every {@link SYNC_TABLES} table
@@ -32,10 +32,10 @@ import {
  *    table_info` — today that's only `users`; nothing else in this schema
  *    declares a BLOB column). The three `trg_sync_capture_<table>_*`
  *    triggers are dropped and rebuilt via {@link createCaptureTriggers} —
- *    the exact same builder 029 itself uses, not a duplicate of the SQL —
+ *    the exact same builder 034 itself uses, not a duplicate of the SQL —
  *    so any future BLOB column added to any replicated table is covered by
  *    this same loop without further changes here. Every OTHER replicated
- *    table is left completely untouched: its triggers already came from 029
+ *    table is left completely untouched: its triggers already came from 034
  *    (fixed or not, the trigger SQL for a table with no blob column is
  *    unaffected by this migration's own trigger-generation change) and
  *    dropping/recreating them would be pure churn.
@@ -68,8 +68,8 @@ import {
  *    exactly the set of devices whose re-emission can only ever repair the
  *    row, never regress it.
  */
-export const migration031 = {
-  name: '031_replicate_blob_columns',
+export const migration036 = {
+  name: '036_replicate_blob_columns',
   async up(driver: DatabaseDriver): Promise<void> {
     for (const table of SYNC_TABLES) {
       // eslint-disable-next-line no-await-in-loop
@@ -110,7 +110,7 @@ export const migration031 = {
     // row — in a bulk INSERT...SELECT matching more than one user (any
     // business with two or more employee logins) every seeded row would get
     // the SAME key and hit sync_outbox's UNIQUE(idempotencyKey) constraint,
-    // failing the whole migration. (Found while building migration 033's
+    // failing the whole migration. (Found while building migration 038's
     // analogous settings seeding, where the multi-row case is the norm; a
     // deterministic per-row key is also harmlessly idempotent server-side.)
     await driver.exec(`

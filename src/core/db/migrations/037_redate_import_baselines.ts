@@ -5,10 +5,10 @@ import {
 } from '../inventoryBaselineBackfill';
 
 /**
- * Migration 032 — re-dates and renames the import-baseline `stock_adjustments`
+ * Migration 037 — re-dates and renames the import-baseline `stock_adjustments`
  * rows {@link import('../inventoryBaselineBackfill').backfillInventoryBaseline}
  * already wrote to devices that imported a desktop database before this
- * change. Applied by `bootstrapDatabase` on Electron and web. No JS twin.
+ * change. Applied by `bootstrapDatabase` on Electron and web.
  *
  * ## Why this exists — same investigation as `inventoryBaselineBackfill.ts`
  *
@@ -45,9 +45,9 @@ import {
  *
  * ## Sync: rides the existing capture trigger, and converges across devices
  *
- * `stock_adjustments` is one of migration 029's `SYNC_TABLES` (`BUSINESS_TABLES`
+ * `stock_adjustments` is one of migration 034's `SYNC_TABLES` (`BUSINESS_TABLES`
  * minus `ledger`) — this `UPDATE`, run through the normal `driver.run`
- * statement (not a raw/bulk write), fires migration 029's
+ * statement (not a raw/bulk write), fires migration 034's
  * `trg_sync_capture_stock_adjustments_update` trigger exactly like any other
  * application-level update to this table, and the corrected row image is
  * captured into `sync_outbox` and replicates to every other device on the
@@ -58,8 +58,8 @@ import {
  * `put` lands last in the server's log wins, and it is the same content
  * either way.
  */
-export const migration032 = {
-  name: '032_redate_import_baselines',
+export const migration037 = {
+  name: '037_redate_import_baselines',
   async up(driver: DatabaseDriver): Promise<void> {
     // Frozen historical value — see this migration's doc comment for why it
     // is not `INVENTORY_BASELINE_REASON` itself.

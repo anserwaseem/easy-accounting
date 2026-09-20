@@ -32,14 +32,14 @@ function invoiceTimestamps(
     .get(invoiceNumber) as InvoiceTimestamps;
 }
 
-describe('core migration 035 (insert-timestamp triggers fill only, never overwrite)', () => {
+describe('core migration 040 (insert-timestamp triggers fill only, never overwrite)', () => {
   it('is registered exactly once in CORE_MIGRATIONS, immediately after 034', () => {
     const names = CORE_MIGRATIONS.map((m) => m.name);
     expect(
-      names.filter((n) => n === '035_insert_timestamps_fill_only'),
+      names.filter((n) => n === '040_insert_timestamps_fill_only'),
     ).toHaveLength(1);
-    expect(names.indexOf('035_insert_timestamps_fill_only')).toBe(
-      names.indexOf('034_suppress_timestamp_triggers_during_apply') + 1,
+    expect(names.indexOf('040_insert_timestamps_fill_only')).toBe(
+      names.indexOf('039_suppress_timestamp_triggers_during_apply') + 1,
     );
   });
 
@@ -53,7 +53,7 @@ describe('core migration 035 (insert-timestamp triggers fill only, never overwri
 
     const applied = db
       .prepare(
-        `SELECT COUNT(*) AS c FROM migrations WHERE name = '035_insert_timestamps_fill_only'`,
+        `SELECT COUNT(*) AS c FROM migrations WHERE name = '040_insert_timestamps_fill_only'`,
       )
       .get() as { c: number };
     expect(applied.c).toBe(1);
@@ -71,7 +71,7 @@ describe('core migration 035 (insert-timestamp triggers fill only, never overwri
    * uuid-only included — so an INSERT that leaves `uuid` NULL gets its
    * `updatedAt` stomped by THAT cascade regardless of anything this
    * migration's own insert trigger does. Real imports don't hit this: a
-   * source already on migration 024+ (uuid exists) always carries a real,
+   * source already on migration 029+ (uuid exists) always carries a real,
    * non-NULL `uuid` on every row — `copyTable` (src/core/db/import.ts)
    * copies it like any other intersecting column — so this fixture mirrors
    * that, not an artificial one. A source that PREDATES 024 (no `uuid`
@@ -125,7 +125,7 @@ describe('core migration 035 (insert-timestamp triggers fill only, never overwri
       const OLD_TS = '2015-05-30 10:00:00';
 
       // uuid is also supplied explicitly here — see this describe block's
-      // own doc comment just above for why: migration 029's own
+      // own doc comment just above for why: migration 034's own
       // `trg_sync_capture_invoices_insert` backfills a NULL uuid on any
       // INSERT that doesn't supply one, and that backfill UPDATE would
       // itself cascade into `after_update_invoices_add_timestamp` (an

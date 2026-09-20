@@ -4,11 +4,11 @@ import type { DatabaseDriver } from './driver';
  * Synthesize `journal` + `journal_entry` for pre-cutover
  * "Opening Balance from B/S" ledger rows.
  *
- * CORE `025_migrate_opening_balance_ledger_to_journal` calls this.
+ * CORE `030_migrate_opening_balance_ledger_to_journal` calls this.
  * origin/main `025.js` is `025_vendor_stock` — different `name`, unrelated.
  *
  * Import must call this again after copying uploaded rows: destination
- * `migrations` already records the CORE 025 name from bootstrap (ran
+ * `migrations` already records the CORE 030 name from bootstrap (ran
  * against an empty DB), so the runner will not re-apply it to imported
  * data. Unbacked opening-balance ledger rows would otherwise vanish from
  * `ledger_view` (see docs/derived-state-design.md).

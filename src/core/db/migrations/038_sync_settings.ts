@@ -3,30 +3,30 @@ import { SECRET_SETTING_KEYS } from '../../services/settingsSecrets';
 import {
   createCaptureTriggers,
   UUID_V4_SQL_EXPR,
-} from './029_create_sync_tables';
+} from './034_create_sync_tables';
 
 /**
- * Migration 033 — makes the `settings` table (migration 028: company
+ * Migration 038 — makes the `settings` table (migration 033: company
  * profile, invoice print settings, and the publish feature's non-secret
  * business fields — see src/core/services/SettingsService.ts) replicate
  * across devices via the same sync machinery every other business table
- * uses (migration 029 — src/core/db/migrations/029_create_sync_tables.ts).
- * Applied by `bootstrapDatabase` on Electron and web. No JS twin.
+ * uses (migration 034 — src/core/db/migrations/034_create_sync_tables.ts).
+ * Applied by `bootstrapDatabase` on Electron and web.
  *
  * ## Why `settings` needed a schema change first
  *
- * Migration 029's capture-trigger machinery assumes every replicated table
+ * Migration 034's capture-trigger machinery assumes every replicated table
  * has an `INTEGER` `id` primary key plus a `uuid` column — that is what a
  * capture trigger's `WHERE t."id" = NEW."id"` self-select and the
  * `ON CONFLICT("uuid")` upsert in `SyncEngine.applyRow` both key off. The
- * `settings` table migration 028 created has neither: `key TEXT PRIMARY
+ * `settings` table migration 033 created has neither: `key TEXT PRIMARY
  * KEY, value TEXT, updatedAt DATETIME`. This migration rebuilds it to the
  * standard shape — `id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL
  * UNIQUE, value TEXT, updatedAt DATETIME, uuid TEXT` — preserving `key`'s
  * uniqueness (still enforced, just via a `UNIQUE` constraint instead of
  * being the primary key) and every existing row, then installs the same
  * three capture triggers (via {@link createCaptureTriggers}, the exact
- * builder 029/031 already use) any other business table gets.
+ * builder 034/036 already use) any other business table gets.
  *
  * SQLite has no `ALTER TABLE ... DROP CONSTRAINT` / "change the primary
  * key" — the standard rebuild recipe (create the new shape under a
@@ -62,7 +62,7 @@ import {
  * server once it upgrades — the schema rebuild alone only affects what
  * happens on the *next* write. This migration therefore emits one
  * corrective `put` per existing row into `sync_outbox`, exactly the same
- * pattern migration 031 uses for `users`. Two differences from 031's
+ * pattern migration 036 uses for `users`. Two differences from 031's
  * version:
  *
  *  1. **No credential-style gating is needed** — unlike 031's
@@ -83,8 +83,8 @@ import {
  *     build that briefly wrote one), this migration must not be the thing
  *     that pushes it out to every other device.
  */
-export const migration033 = {
-  name: '033_sync_settings',
+export const migration038 = {
+  name: '038_sync_settings',
   async up(driver: DatabaseDriver): Promise<void> {
     const columns = await driver.all<{ name: string }>(
       `PRAGMA table_info("settings")`,
@@ -130,23 +130,23 @@ export const migration033 = {
     );
 
     // Drop before recreating, unconditionally — not just defensive
-    // "belt-and-braces" cleanup. `SYNC_TABLES` (migration 029) is derived
+    // "belt-and-braces" cleanup. `SYNC_TABLES` (migration 034) is derived
     // from `BUSINESS_TABLES` at CALL time, not frozen at migration-029's
     // original authoring time, so on a brand-new install (every
     // CORE_MIGRATIONS entry running back-to-back in one bootstrap sweep —
-    // see src/core/db/bootstrap.ts) migration 029 itself already loops over
+    // see src/core/db/bootstrap.ts) migration 034 itself already loops over
     // `SYNC_TABLES` and, now that `settings` is a member, tries to install
-    // capture triggers for it — while `settings` still has migration 028's
+    // capture triggers for it — while `settings` still has migration 033's
     // OLD shape (no `id`/`uuid` yet, since this migration hasn't run). That
     // succeeds (`CREATE TRIGGER` never validates column references at
-    // creation time) and produces a trigger built from migration 029's
+    // creation time) and produces a trigger built from migration 034's
     // narrower, pre-rebuild column snapshot. Calling `createCaptureTriggers`
     // below with a bare `CREATE TRIGGER IF NOT EXISTS` would then silently
     // keep THAT stale trigger instead of replacing it — on an UPGRADING
-    // device (where migration 029 already ran, historically, before
+    // device (where migration 034 already ran, historically, before
     // `settings` was ever a sync table, and is therefore skipped this run)
     // there is nothing to drop, so this is a harmless no-op there. Same
-    // defensive pattern migration 031 uses for the same class of problem
+    // defensive pattern migration 036 uses for the same class of problem
     // (see that migration's doc comment).
     await driver.exec(
       `DROP TRIGGER IF EXISTS "trg_sync_capture_settings_insert"`,
@@ -163,7 +163,7 @@ export const migration033 = {
     // this migration's doc comment ("Corrective outbox seeding").
     //
     // One `INSERT ... SELECT ${UUID_V4_SQL_EXPR}, ... FROM settings` doing
-    // all rows at once — the pattern migration 031 uses for its own
+    // all rows at once — the pattern migration 036 uses for its own
     // corrective `users` re-emission — looks tempting here but is wrong for
     // more than one matching row: `UUID_V4_SQL_EXPR` is a non-correlated
     // scalar subquery (it references none of the outer query's columns),

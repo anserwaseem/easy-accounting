@@ -676,7 +676,7 @@ export interface AppApi {
   getLastPublishResult: () => Promise<PublishResult | null>;
 
   // ---------------------------------------------------------------------
-  // Settings (src/core/services/SettingsService.ts, migration 028)
+  // Settings (src/core/services/SettingsService.ts, migration 033)
   // ---------------------------------------------------------------------
   //
   // Business settings — data about the business itself (company profile,

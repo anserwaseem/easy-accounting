@@ -90,7 +90,7 @@ test('create an account and it survives a reload (OPFS persistence)', async ({
     page.getByRole('cell', { name: accountName, exact: true }),
   ).toBeVisible();
 
-  // --- Business settings (migration 028): the "Total quantity label"
+  // --- Business settings (migration 033): the "Total quantity label"
   // invoice print setting, saved through the real Settings screen, is
   // stored in the `settings` table (via window.electron.setSetting — see
   // src/renderer/hooks/useInvoicePrintSettings.ts) rather than localStorage,

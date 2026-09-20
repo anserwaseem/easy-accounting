@@ -1,5 +1,5 @@
 /**
- * docs/derived-state-design.md §7 — equivalence harness for migration 027's
+ * docs/derived-state-design.md §7 — equivalence harness for migration 032's
  * `ledger_view` / `inventory_quantity_view`.
  *
  * Gate: every scenario below drives the REAL core services (JournalService,
@@ -282,8 +282,8 @@ function allLedgerAccountIds(db: Database.Database): number[] {
  * `setupLedgers`), a property of the pre-cutover write path, not something
  * this migration touches. `ledger_view` reconstructs the REAL counterparty
  * (the Opening Balance Equity account) from the backfilled journal fact
- * (migration 025), because that is the whole point of making `ledger` a
- * projection of `journal`/`journal_entry` — once migration 028 cuts services
+ * (migration 030), because that is the whole point of making `ledger` a
+ * projection of `journal`/`journal_entry` — once the service cutover cuts services
  * over to the view, users will see the correct linked account for these rows
  * for the first time. This is a deliberate, structural, ALWAYS-true
  * difference (never conditional on scenario data), so it is handled here as
@@ -371,7 +371,7 @@ function assertInventoryQuantityEquivalence(
     });
 }
 
-/** Finds the system "Opening Balance Equity" account(s) created by StatementService/migration 025. */
+/** Finds the system "Opening Balance Equity" account(s) created by StatementService/migration 030. */
 function openingBalanceEquityAccountIds(db: Database.Database): number[] {
   return (
     db
@@ -920,7 +920,7 @@ describe('derived-state equivalence: multiple accounts across all chart types', 
 });
 
 // ---------------------------------------------------------------------------
-// Migration 028 (service cutover) resolves the dispositions the design
+// Service cutover (design doc §6) resolves the dispositions the design
 // doc's §7 "KNOWN GAPS" left open: D1 and D2 are decided in the view's
 // favor (the service READ path now serves the view's path-independent
 // numbers; the STORED `ledger` table keeps its old quirk, demoted to
@@ -935,7 +935,7 @@ describe('derived-state equivalence: multiple accounts across all chart types', 
 // that only the view is read) or has actually closed (D3).
 // ---------------------------------------------------------------------------
 
-describe('derived-state equivalence: migration 028 dispositions (D1-D3)', () => {
+describe('derived-state equivalence: service-cutover dispositions (D1-D3)', () => {
   it('D1: LedgerService.getLedger (view-canon) labels an exact-zero balance path-independently; the stored legacy table keeps its hysteresis', async () => {
     // insertLedgerEntries's incremental state machine (JournalService.ts:
     // 421-516) tracks balanceType by comparing magnitudes, not by

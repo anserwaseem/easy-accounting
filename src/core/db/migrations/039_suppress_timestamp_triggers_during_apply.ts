@@ -1,18 +1,18 @@
 import type { DatabaseDriver } from '../driver';
 
 /**
- * Migration 034 — fixes a field bug real enough that it was caught on a
+ * Migration 039 — fixes a field bug real enough that it was caught on a
  * device that had just joined a sync project: EVERY invoice (and, less
  * visibly, every row of every other replicated table) showed the "Edited"
  * pill (`updatedAt > createdAt` — src/renderer/lib/invoiceUtils.ts's
  * `isInvoiceEditedSnapshot`) immediately after the join finished, and the
  * device had lost every true creation/edit timestamp it pulled down.
- * Applied by `bootstrapDatabase` on Electron and web. No JS twin.
+ * Applied by `bootstrapDatabase` on Electron and web.
  *
  * ## The bug
  *
  * Every business table carries two triggers frozen into the schema itself
- * (`src/sql/schema.sql` / `schemaSnapshot.ts` — predating migration 029 by a
+ * (`src/sql/schema.sql` / `schemaSnapshot.ts` — predating migration 034 by a
  * wide margin): `after_insert_<table>_add_timestamp` (sets BOTH `createdAt`
  * and `updatedAt` to `datetime(CURRENT_TIMESTAMP, 'localtime')`, via a nested
  * `UPDATE ... WHERE id = NEW.id`) and `after_update_<table>_add_timestamp`
@@ -39,13 +39,13 @@ import type { DatabaseDriver } from '../driver';
  *      apply-time regardless of what the incoming row image actually says
  *      updatedAt should be.
  *
- * Migration 029's own capture triggers (`trg_sync_capture_<table>_insert/
+ * Migration 034's own capture triggers (`trg_sync_capture_<table>_insert/
  * update/delete`) already solved exactly this class of problem for
  * themselves — see that migration's "Echo suppression" doc comment — with a
  * `WHEN` guard: `(SELECT value FROM sync_state WHERE key = 'applying') IS
  * NULL`. `SyncEngine` sets `sync_state.applying = '1'` for the duration of
  * every apply transaction (see its "Echo suppression" doc comment) and
- * clears it before committing. Migration 029's own doc comment ("The
+ * clears it before committing. Migration 034's own doc comment ("The
  * `createdAt`/`updatedAt` stomping ... is consciously NOT worked around the
  * same way") explicitly flagged this exact trigger pair as a known gap left
  * for "whoever builds ... a future timestamp-fidelity pass" — this is that
@@ -53,7 +53,7 @@ import type { DatabaseDriver } from '../driver';
  *
  * ## The fix
  *
- * Prepend the exact same `APPLYING_GUARD` migration 029 already uses to a
+ * Prepend the exact same `APPLYING_GUARD` migration 034 already uses to a
  * `WHEN` clause on every `after_insert_<table>_add_timestamp` /
  * `after_update_<table>_add_timestamp` trigger. Once suppressed during
  * apply, `applyRow`'s own INSERT/UPDATE statement is the only thing left
@@ -101,8 +101,8 @@ import type { DatabaseDriver } from '../driver';
  * This migration queries `sqlite_master` for every trigger whose name
  * matches `after_insert_%_add_timestamp` or `after_update_%_add_timestamp`
  * — discovering the table list from the live schema rather than hardcoding
- * one (the same reasoning migration 029's `createCaptureTriggers` loop over
- * {@link import('./029_create_sync_tables').SYNC_TABLES} already follows,
+ * one (the same reasoning migration 034's `createCaptureTriggers` loop over
+ * {@link import('./034_create_sync_tables').SYNC_TABLES} already follows,
  * just driven by `sqlite_master` instead of a fixed array, since this
  * migration also has to reach `ledger` — see below). For each match, the
  * table name is recovered from the TRIGGER'S NAME (stripping the fixed
@@ -134,7 +134,7 @@ import type { DatabaseDriver } from '../driver';
  * even though nothing in this schema today exercises it.
  *
  * `ledger` gets its pair regenerated too, even though `ledger` is
- * deliberately excluded from `SYNC_TABLES` (migration 029's `SYNC_TABLES`
+ * deliberately excluded from `SYNC_TABLES` (migration 034's `SYNC_TABLES`
  * doc comment — it's a derived/legacy table, never written by `applyRow`).
  * This is harmless, not incidental: `sqlite_master` naming alone can't tell
  * "replicated" apart from "not," and `ledger`'s own triggers only ever fire
@@ -145,14 +145,14 @@ import type { DatabaseDriver } from '../driver';
  * migration's logic table-list-free rather than carrying a `!== 'ledger'`
  * special case for no functional gain.
  *
- * `settings` (migration 033) has no `_add_timestamp` trigger at all —
+ * `settings` (migration 038) has no `_add_timestamp` trigger at all —
  * `SettingsService` sets `updatedAt` itself on every write rather than
  * relying on a trigger — so the `sqlite_master` query simply never matches
  * it; nothing to do there.
  *
  * ## Why no runtime guard on `sync_state` existing
  *
- * The regenerated `WHEN` clause references `sync_state`, which migration 029
+ * The regenerated `WHEN` clause references `sync_state`, which migration 034
  * creates. This migration is registered in `CORE_MIGRATIONS`
  * (`src/core/db/migrations/index.ts`) immediately after 033, itself after
  * 029 — `bootstrapDatabase` runs `CORE_MIGRATIONS` in array order (see that
@@ -161,12 +161,12 @@ import type { DatabaseDriver } from '../driver';
  * checking for it at runtime (dead code on every real code path, since the
  * ordering is enforced by this migration's own position in the array, not by
  * anything this file could fail to see), that ordering is asserted directly
- * in this migration's own test (`__tests__/034_suppress_timestamp_triggers_during_apply.test.ts`)
- * — the same choice migration 031 makes for the equivalent "029 already ran"
+ * in this migration's own test (`__tests__/039_suppress_timestamp_triggers_during_apply.test.ts`)
+ * — the same choice migration 036 makes for the equivalent "029 already ran"
  * assumption its own `SYNC_TABLES`/`createCaptureTriggers` reuse rests on.
  */
 
-/** Same guard migration 029's capture triggers use — see that migration's "Echo suppression" doc comment. */
+/** Same guard migration 034's capture triggers use — see that migration's "Echo suppression" doc comment. */
 const APPLYING_GUARD = `(SELECT value FROM sync_state WHERE key = 'applying') IS NULL`;
 
 interface TimestampTrigger {
@@ -231,8 +231,8 @@ async function tableHasIdColumn(
   return rows.some((row) => row.name === 'id');
 }
 
-export const migration034 = {
-  name: '034_suppress_timestamp_triggers_during_apply',
+export const migration039 = {
+  name: '039_suppress_timestamp_triggers_during_apply',
   async up(driver: DatabaseDriver): Promise<void> {
     const triggers = await driver.all<{ name: string }>(
       `SELECT name FROM sqlite_master WHERE type = 'trigger' AND (

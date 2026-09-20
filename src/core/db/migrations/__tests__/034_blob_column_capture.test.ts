@@ -20,14 +20,14 @@ interface OutboxRow {
 }
 
 /**
- * Migration 029's fixed capture triggers, exercised directly at the SQL
+ * Migration 034's fixed capture triggers, exercised directly at the SQL
  * level (no `SyncEngine` involved) — the field bug this closes was in the
  * row image itself, not in how it's later applied. See
- * `031_replicate_blob_columns.test.ts` for the migration-031 upgrade path,
+ * `036_replicate_blob_columns.test.ts` for the migration-031 upgrade path,
  * and `SyncEngine.test.ts`'s convergence scenarios for the end-to-end
  * round-trip through two devices.
  */
-describe('migration 029 capture triggers: declared-blob columns (users.password_hash)', () => {
+describe('migration 034 capture triggers: declared-blob columns (users.password_hash)', () => {
   it('captures a TEXT value stored in a declared-blob column as plain JSON text, with a null __hex sibling', async () => {
     const db = new Database(':memory:');
     const driver = new BetterSqliteDriver(db);
@@ -120,7 +120,7 @@ describe('migration 029 capture triggers: declared-blob columns (users.password_
  * this substitutes for a true worker-level test, plus e2e coverage for the
  * rest of the boot path.
  */
-describe('migration 029 capture triggers: sync_state.applying suppression', () => {
+describe('migration 034 capture triggers: sync_state.applying suppression', () => {
   it('a write made while sync_state.applying is set produces no sync_outbox rows, for INSERT, UPDATE, and DELETE alike', async () => {
     const db = new Database(':memory:');
     const driver = new BetterSqliteDriver(db);

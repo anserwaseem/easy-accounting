@@ -5,7 +5,7 @@ import {
   foreignKeys,
   jsonObjectExpr,
   SYNC_TABLES,
-} from '../db/migrations/029_create_sync_tables';
+} from '../db/migrations/034_create_sync_tables';
 
 /**
  * {@link SYNC_TABLES}, but ordered the same way {@link BUSINESS_TABLES}
@@ -60,7 +60,7 @@ const SEED_TABLE_ORDER: readonly string[] = BUSINESS_TABLES.filter((table) =>
  * ## Row image: identical to what a capture trigger would produce
  *
  * Each table's `INSERT ... SELECT` builds its row image with the exact
- * same {@link jsonObjectExpr} builder migration 029's `createCaptureTriggers`
+ * same {@link jsonObjectExpr} builder migration 034's `createCaptureTriggers`
  * uses for that table's own triggers (fed the same {@link allColumnInfo}/
  * {@link foreignKeys} introspection) — so a reseeded row is byte-for-byte
  * what a normal INSERT would have captured, including the declared-blob
@@ -80,14 +80,14 @@ const SEED_TABLE_ORDER: readonly string[] = BUSINESS_TABLES.filter((table) =>
  *    (never off table-generated `id`, which is device-local), makes a
  *    repeat call a no-op for any row already queued.
  * 2. **The non-correlated-subquery trap this deliberately avoids.**
- *    Migration 029's own `UUID_V4_SQL_EXPR` — `(SELECT lower(hex(...)))`,
+ *    Migration 034's own `UUID_V4_SQL_EXPR` — `(SELECT lower(hex(...)))`,
  *    a scalar subquery that references none of the outer query's columns —
  *    is evaluated ONCE per *statement* by SQLite's query planner, not once
  *    per output row (confirmed empirically against the better-sqlite3 build
  *    this app ships; see migrations 031 and 033's doc comments, where this
  *    was first found and fixed). Using it here in a bulk
  *    `INSERT ... SELECT` matching more than one row per table — the normal
- *    case for this helper, unlike migration 031's narrowly-scoped
+ *    case for this helper, unlike migration 036's narrowly-scoped
  *    `password_hash IS NOT NULL` re-emission — would give every seeded row
  *    of a table the SAME `idempotencyKey`, which `sync_outbox`'s own
  *    `UNIQUE(idempotencyKey)` constraint rejects outright once a table has
@@ -116,7 +116,7 @@ const SEED_TABLE_ORDER: readonly string[] = BUSINESS_TABLES.filter((table) =>
  *
  * This writes directly into `sync_outbox` via a plain `INSERT ... SELECT`
  * against the business tables — it never issues an `INSERT`/`UPDATE`/
- * `DELETE` against a `SYNC_TABLES` table itself, so migration 029's capture
+ * `DELETE` against a `SYNC_TABLES` table itself, so migration 034's capture
  * triggers (`trg_sync_capture_<table>_*`) are never invoked at all; there
  * is nothing to echo-suppress via `sync_state.applying` here, unlike
  * `SyncEngine.pullAndApply`'s own apply loop.

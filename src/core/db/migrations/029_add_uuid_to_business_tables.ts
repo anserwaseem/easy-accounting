@@ -1,13 +1,12 @@
 import type { DatabaseDriver } from '../driver';
-import { UUID_V4_SQL_EXPR } from './029_create_sync_tables';
+import { UUID_V4_SQL_EXPR } from './034_create_sync_tables';
 
 /**
  * Globally unique row ids for every business table that can travel between
  * devices. INTEGER `id` stays (FKs still point at it). `users` gets a uuid
- * later in `029_create_sync_tables` when it becomes a replicated table.
+ * later in `034_create_sync_tables` when it becomes a replicated table.
  *
- * Idempotent: ADD COLUMN / CREATE INDEX IF NOT EXISTS. Safe on a database
- * that already ran the old desktop `029.js` twin under this same `name`.
+ * Idempotent: ADD COLUMN / CREATE INDEX IF NOT EXISTS.
  */
 const ID_TABLES = [
   'chart',
@@ -123,8 +122,8 @@ async function addUuidOnVendorStock(driver: DatabaseDriver): Promise<void> {
   `);
 }
 
-export const migration024 = {
-  name: '024_add_uuid_to_business_tables',
+export const migration029 = {
+  name: '029_add_uuid_to_business_tables',
   async up(driver: DatabaseDriver): Promise<void> {
     await driver.transaction(async () => {
       for (const table of ID_TABLES) {

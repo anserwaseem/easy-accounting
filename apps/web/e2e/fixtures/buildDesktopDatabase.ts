@@ -69,7 +69,7 @@ export interface DesktopFixtureOptions {
    * 023 (last file before vendor-stock / urdu / isActive) and seeds an
    * extra "Opening Balance from B/S" `ledger` row directly — a bare
    * `INSERT INTO ledger`, no backing `journal`/`journal_entry`. CORE
-   * `025_migrate_opening_balance_ledger_to_journal` never runs here
+   * `030_migrate_opening_balance_ledger_to_journal` never runs here
    * (this fixture is JS-only); import must synthesize the journal.
    * Same partial-chain trick as import.test.ts `buildDesktopDatabase(23)`.
    */
@@ -238,7 +238,7 @@ export function buildDesktopDatabaseFixture(
   // -- unbacked "Opening Balance from B/S" ledger row: old
   // StatementService.setupLedgers wrote this straight to `ledger` with no
   // backing journal. importDatabase must synthesize the journal so the
-  // entry shows in ledger_view (CORE 027), which never reads `ledger`.
+  // entry shows in ledger_view (CORE 032), which never reads `ledger`.
   const OPENING_BALANCE_AMOUNT = 1500;
   const OPENING_BALANCE_EQUITY_ACCOUNT_NAME = 'Opening Balance Equity';
   if (preMigration025) {

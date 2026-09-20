@@ -353,9 +353,9 @@ describe('core StatementService', () => {
       // side — StatementService.setupLedgers only ever calls
       // ledgerService.insertLedger for the primary account (unchanged,
       // dual-write rule). But ledger.getLedger now reads ledger_view
-      // (migration 028), which is derived from journal_entry — and this
-      // journal's contra-side journal_entry row (backfilled by migration
-      // 025 / written by StatementService going forward) is a real fact on
+      // (CORE 032), which is derived from journal_entry — and this
+      // journal's contra-side journal_entry row (backfilled by CORE 030 /
+      // written by StatementService going forward) is a real fact on
       // the equity account, so the view correctly reconstructs a row there
       // for the first time (exactly the "users will see the correct linked
       // account for these rows for the first time" case

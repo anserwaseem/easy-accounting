@@ -42,7 +42,7 @@ describe('seedOutboxFromLocalData', () => {
     const chart = await driver.get<{ id: number; uuid: string }>(
       `SELECT id, uuid FROM chart WHERE name = 'Current Asset'`,
     );
-    // migration 029's own insert-capture trigger assigned a uuid and
+    // migration 034's own insert-capture trigger assigned a uuid and
     // already queued its own (unrelated) sync_outbox row for this insert —
     // clear it so the assertions below are only about what THIS helper
     // itself queues, in isolation.
@@ -110,7 +110,7 @@ describe('seedOutboxFromLocalData', () => {
       `SELECT uuid FROM ledger`,
     );
     // ledger keeps its own migration-024 uuid-assignment trigger (untouched
-    // by migration 029 — see that migration's doc comment), so it has a
+    // by migration 034 — see that migration's doc comment), so it has a
     // uuid despite never being replicated.
     expect(ledgerRow!.uuid).toBeTruthy();
 
@@ -139,7 +139,7 @@ describe('seedOutboxFromLocalData', () => {
       `SELECT idempotencyKey FROM sync_outbox WHERE tableName = 'chart'`,
     );
     // A bulk INSERT...SELECT using a non-correlated scalar subquery for the
-    // key (e.g. migration 029's UUID_V4_SQL_EXPR) would give every row of
+    // key (e.g. migration 034's UUID_V4_SQL_EXPR) would give every row of
     // this SELECT the SAME value — this asserts that did NOT happen here,
     // and that sync_outbox's own UNIQUE(idempotencyKey) constraint (which
     // would have rejected the whole INSERT outright) never had a chance to

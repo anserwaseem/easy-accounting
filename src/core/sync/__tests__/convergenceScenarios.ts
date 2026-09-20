@@ -39,7 +39,7 @@
  *     both of which are unaffected by unrelated historical rows because
  *     they're keyed by this run's own randomly-generated uuids;
  *   - relies on every idempotency key being a fresh random uuid, assigned
- *     by migration 029's capture triggers per row per run (see that
+ *     by migration 034's capture triggers per row per run (see that
  *     migration's doc comment) — never reused across runs, so dedup can
  *     never accidentally swallow this run's own rows.
  */
@@ -120,7 +120,7 @@ export type MakeFactory = () =>
 /**
  * Builds one simulated device: a fresh in-memory DB bootstrapped exactly
  * the way production does (schema snapshot + every CORE_MIGRATIONS entry,
- * including migration 029), one seeded local user (`username`, which must
+ * including migration 034), one seeded local user (`username`, which must
  * be distinct per device in these tests), and every core service wired
  * against it plus a `SyncEngine` bound to `transport`.
  *
@@ -271,8 +271,8 @@ export async function factSnapshot(
   const fkFrom = new Set(fks.map((fk) => fk.from));
 
   // Declared-BLOB columns (e.g. users.password_hash) ARE captured and
-  // applied now (migration 029's `<col>`/`<col>__hex` typed pair, fixed by
-  // migration 031 — see those migrations' doc comments), but this generic
+  // applied now (migration 034's `<col>`/`<col>__hex` typed pair, fixed by
+  // migration 036 — see those migrations' doc comments), but this generic
   // snapshot helper still excludes them from the projection it builds: it
   // has no way to know whether a given row's value was hex-decoded on
   // apply, so a raw `t."col"` select here could legitimately differ in

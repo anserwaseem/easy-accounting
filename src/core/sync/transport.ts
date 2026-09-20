@@ -11,13 +11,13 @@
  * `push`/`pull` are this device's only two verbs against that server.
  */
 
-/** One outbox row, ready to send — the shape `SyncEngine` reads out of `sync_outbox` (migration 029). */
+/** One outbox row, ready to send — the shape `SyncEngine` reads out of `sync_outbox` (migration 034). */
 export interface OutboxEntry {
   idempotencyKey: string;
   tableName: string;
   rowUuid: string;
   op: 'put' | 'delete';
-  /** Full row image (see migration 029's capture triggers), JSON-encoded. */
+  /** Full row image (see migration 034's capture triggers), JSON-encoded. */
   rowJson: string;
 }
 

@@ -9,8 +9,8 @@ import { backfillOpeningBalanceJournals } from '../openingBalanceBackfill';
  * claims this name applied against an empty DB, so import must re-run the
  * backfill against uploaded rows.
  */
-export const migration025 = {
-  name: '025_migrate_opening_balance_ledger_to_journal',
+export const migration030 = {
+  name: '030_migrate_opening_balance_ledger_to_journal',
   async up(driver: DatabaseDriver): Promise<void> {
     await backfillOpeningBalanceJournals(driver);
   },

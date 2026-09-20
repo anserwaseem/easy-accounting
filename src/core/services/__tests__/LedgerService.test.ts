@@ -102,7 +102,7 @@ const aLedgerEntry = (
   }) as any;
 
 /**
- * docs/derived-state-design.md §6 migration 028: ledger_view is sourced
+ * docs/derived-state-design.md §6 service cutover: ledger_view is sourced
  * entirely from journal/journal_entry — a row written straight into the
  * `ledger` table via `insertLedger` (as `aLedgerEntry` above does) has no
  * backing journal_entry and so is invisible to every view-backed read
@@ -138,7 +138,7 @@ async function insertJournalPair(
   return journalId;
 }
 
-describe('core LedgerService — write-path primitives (stored `ledger` table, unchanged by migration 028)', () => {
+describe('core LedgerService — write-path primitives (stored `ledger` table, unchanged by the read-side cutover)', () => {
   it('insertLedger writes rows directly readable back from the stored table', async () => {
     const db = new Database(':memory:');
     await seedBasicSchema(db);
@@ -225,7 +225,7 @@ describe('core LedgerService — write-path primitives (stored `ledger` table, u
   });
 });
 
-describe('core LedgerService — canonical reads (ledger_view, migration 028)', () => {
+describe('core LedgerService — canonical reads (ledger_view, CORE 032)', () => {
   it('getLedger reads entries ordered by date, reconstructing the real counterparty', async () => {
     const db = new Database(':memory:');
     await seedBasicSchema(db);

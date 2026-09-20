@@ -33,32 +33,32 @@ const tableColumns = (db: Database.Database, table: string): string[] =>
 
 /**
  * Builds the state a real UPGRADING device is in immediately before
- * `033_sync_settings` ever runs: migration 028's original settings table
+ * `038_sync_settings` ever runs: migration 033's original settings table
  * (`key TEXT PRIMARY KEY`, no `id`/`uuid`, no capture triggers on it) plus
- * the sync scaffolding tables (migrations 029/030).
+ * the sync scaffolding tables (migrations 034/035).
  *
- * Deliberately does NOT run `migration029.up()` (unlike the analogous
- * `031_replicate_blob_columns.test.ts`'s `bootstrapPre031` helper, which
- * safely can): `029_create_sync_tables.ts`'s `SYNC_TABLES` is
+ * Deliberately does NOT run `migration034.up()` (unlike the analogous
+ * `036_replicate_blob_columns.test.ts`'s `bootstrapPre036` helper, which
+ * safely can): `034_create_sync_tables.ts`'s `SYNC_TABLES` is
  * `BUSINESS_TABLES.filter(...)`, computed once at module load from the
  * live `BUSINESS_TABLES` array — which now includes `'settings'` (this
- * migration added it). Calling `migration029.up()` here would therefore
+ * migration added it). Calling `migration034.up()` here would therefore
  * install capture triggers for `settings` while it still has migration
- * 028's OLD shape (no `id`/`uuid`), which is exactly what a genuinely
- * UPGRADING device never experiences: on such a device migration 029 ran
+ * 033's OLD shape (no `id`/`uuid`), which is exactly what a genuinely
+ * UPGRADING device never experiences: on such a device migration 034 ran
  * historically, before `settings` was ever a sync table, and is skipped
  * entirely on this run (`bootstrapDatabase` only runs migrations not
  * already recorded as applied) — so its settings table never got a
  * premature trigger. This helper reproduces THAT state: the sync
- * scaffolding tables exist (as migration 029 would have left them), but
+ * scaffolding tables exist (as migration 034 would have left them), but
  * `settings` carries no capture triggers of its own, exactly like a real
  * upgrading device. (A brand-new install instead runs every migration back
- * to back in one sweep, where migration 029's premature trigger creation
- * for `settings` — and migration 033's own defensive DROP-then-recreate of
+ * to back in one sweep, where migration 034's premature trigger creation
+ * for `settings` — and migration 038's own defensive DROP-then-recreate of
  * it — are both exercised for real by this file's `bootstrapDatabase`-based
  * tests below.)
  */
-async function bootstrapPre033(driver: BetterSqliteDriver): Promise<void> {
+async function bootstrapPre038(driver: BetterSqliteDriver): Promise<void> {
   await driver.exec(SCHEMA_SNAPSHOT_SQL);
   await driver.exec(
     `CREATE TABLE IF NOT EXISTS migrations (
@@ -68,15 +68,15 @@ async function bootstrapPre033(driver: BetterSqliteDriver): Promise<void> {
     )`,
   );
 
-  const migration028 = CORE_MIGRATIONS.find(
-    (m) => m.name === '028_create_settings_table',
+  const migration033 = CORE_MIGRATIONS.find(
+    (m) => m.name === '033_create_settings_table',
   )!;
-  await migration028.up(driver);
+  await migration033.up(driver);
   await driver.run(`INSERT INTO migrations (name) VALUES (@name)`, {
-    name: migration028.name,
+    name: migration033.name,
   });
 
-  // Sync scaffolding (migration 029's non-per-table DDL) — no per-table
+  // Sync scaffolding (migration 034's non-per-table DDL) — no per-table
   // loop, so `settings`'s membership in `SYNC_TABLES` never enters into it.
   await driver.exec(`
     CREATE TABLE IF NOT EXISTS sync_outbox (
@@ -121,10 +121,10 @@ async function bootstrapPre033(driver: BetterSqliteDriver): Promise<void> {
   `);
 
   for (const name of [
-    '029_create_sync_tables',
-    '030_create_sync_apply_conflicts',
-    '031_replicate_blob_columns',
-    '032_redate_import_baselines',
+    '034_create_sync_tables',
+    '035_create_sync_apply_conflicts',
+    '036_replicate_blob_columns',
+    '037_redate_import_baselines',
   ]) {
     // eslint-disable-next-line no-await-in-loop
     await driver.run(`INSERT INTO migrations (name) VALUES (@name)`, {
@@ -133,19 +133,19 @@ async function bootstrapPre033(driver: BetterSqliteDriver): Promise<void> {
   }
 }
 
-describe('core migration 033 (sync settings)', () => {
+describe('core migration 038 (sync settings)', () => {
   it('is registered exactly once in CORE_MIGRATIONS, immediately after 032', () => {
     const names = CORE_MIGRATIONS.map((m) => m.name);
-    expect(names.filter((n) => n === '033_sync_settings')).toHaveLength(1);
-    expect(names.indexOf('033_sync_settings')).toBe(
-      names.indexOf('032_redate_import_baselines') + 1,
+    expect(names.filter((n) => n === '038_sync_settings')).toHaveLength(1);
+    expect(names.indexOf('038_sync_settings')).toBe(
+      names.indexOf('037_redate_import_baselines') + 1,
     );
   });
 
   it('rebuilds the settings table (id + uuid), preserves existing rows/values, backfills uuid, and installs capture triggers', async () => {
     const db = new Database(':memory:');
     const driver = new BetterSqliteDriver(db);
-    await bootstrapPre033(driver);
+    await bootstrapPre038(driver);
 
     // Pre-033 shape: `key TEXT PRIMARY KEY`, no id, no uuid.
     expect(tableColumns(db, 'settings')).toEqual(['key', 'value', 'updatedAt']);
@@ -157,10 +157,10 @@ describe('core migration 033 (sync settings)', () => {
       `INSERT INTO settings (key, value, updatedAt) VALUES ('invoicePrint.paperSize', '"A4"', '2026-01-01T00:00:00.000Z')`,
     ).run();
 
-    const migration033 = CORE_MIGRATIONS.find(
-      (m) => m.name === '033_sync_settings',
+    const migration038 = CORE_MIGRATIONS.find(
+      (m) => m.name === '038_sync_settings',
     )!;
-    await migration033.up(driver);
+    await migration038.up(driver);
 
     const cols = tableColumns(db, 'settings');
     expect(cols).toEqual(
@@ -268,7 +268,7 @@ describe('core migration 033 (sync settings)', () => {
 
     const db = new Database(':memory:');
     const driver = new BetterSqliteDriver(db);
-    await bootstrapPre033(driver);
+    await bootstrapPre038(driver);
 
     db.prepare(
       `INSERT INTO settings (key, value, updatedAt) VALUES ('companyProfile.name', '"ABC Traders"', '2026-01-01T00:00:00.000Z')`,
@@ -283,10 +283,10 @@ describe('core migration 033 (sync settings)', () => {
       `INSERT INTO settings (key, value, updatedAt) VALUES (?, ?, ?)`,
     ).run(SECRET_SETTING_KEYS[0], '"super-secret"', '2026-01-01T00:00:00.000Z');
 
-    const migration033 = CORE_MIGRATIONS.find(
-      (m) => m.name === '033_sync_settings',
+    const migration038 = CORE_MIGRATIONS.find(
+      (m) => m.name === '038_sync_settings',
     )!;
-    await migration033.up(driver);
+    await migration038.up(driver);
 
     const outboxRows = db
       .prepare(
@@ -312,23 +312,23 @@ describe('core migration 033 (sync settings)', () => {
   it('is idempotent: calling up() a second time does not error, duplicate rows, or re-seed the outbox', async () => {
     const db = new Database(':memory:');
     const driver = new BetterSqliteDriver(db);
-    await bootstrapPre033(driver);
+    await bootstrapPre038(driver);
 
     db.prepare(
       `INSERT INTO settings (key, value, updatedAt) VALUES ('companyProfile.name', '"ABC Traders"', '2026-01-01T00:00:00.000Z')`,
     ).run();
 
-    const migration033 = CORE_MIGRATIONS.find(
-      (m) => m.name === '033_sync_settings',
+    const migration038 = CORE_MIGRATIONS.find(
+      (m) => m.name === '038_sync_settings',
     )!;
-    await migration033.up(driver);
+    await migration038.up(driver);
 
     const rowsAfterFirst = db.prepare(`SELECT * FROM settings`).all();
     expect(rowsAfterFirst).toHaveLength(1);
 
     db.exec(`DELETE FROM sync_outbox`);
 
-    await expect(migration033.up(driver)).resolves.toBeUndefined();
+    await expect(migration038.up(driver)).resolves.toBeUndefined();
 
     const rowsAfterSecond = db.prepare(`SELECT * FROM settings`).all();
     expect(rowsAfterSecond).toEqual(rowsAfterFirst);
@@ -355,7 +355,7 @@ describe('core migration 033 (sync settings)', () => {
 
     const applied = db
       .prepare(
-        `SELECT COUNT(*) AS c FROM migrations WHERE name = '033_sync_settings'`,
+        `SELECT COUNT(*) AS c FROM migrations WHERE name = '038_sync_settings'`,
       )
       .get() as { c: number };
     expect(applied.c).toBe(1);

@@ -322,7 +322,7 @@ describe('core JournalService', () => {
     // read the list query, and its ledger_view row is untouched.
     const cashLedger = await ledger.getLedger(cash);
     expect(cashLedger).toHaveLength(2);
-    // ledger_view (migration 027) special-cases this narration's particulars
+    // ledger_view (migration 032) special-cases this narration's particulars
     // to the narration itself rather than 'Journal #<id>' — confirms the
     // OB journal's ledger_view row is present and untouched.
     expect(
@@ -436,7 +436,7 @@ describe('core JournalService', () => {
 
     await journal.removeLedgerEffectOfJournals([firstJournalId]);
     // removeLedgerEffectOfJournals only rewrites the STORED (legacy) ledger
-    // table — it does not touch journal_entry. Since migration 028 moved
+    // table — it does not touch journal_entry. Since the service cutover moved
     // getLedger to ledger_view (sourced live from journal_entry),
     // firstJournalId's effect is still visible there until
     // deleteJournalsByIds also removes the fact rows below — exactly what

@@ -14,7 +14,7 @@ const SQL = {
 
 /**
  * Platform-free reader/writer for the `settings` table
- * (`028_create_settings_table` in CORE_MIGRATIONS — not origin/main
+ * (`033_create_settings_table` in CORE_MIGRATIONS — not origin/main
  * `028_add_isActive_to_inventory`). Business settings live here now
  * instead of device-local storage (electron-store on desktop,
  * localStorage/web_kv on web), so they ride multi-device sync later and
@@ -35,7 +35,7 @@ const SQL = {
  * DB-backed, and is what the renderer's `settings:get/set/delete/getAll`
  * AppApi calls (src/core/api/AppApi.ts) are served by on both platforms.
  *
- * As of migration 033 (src/core/db/migrations/033_sync_settings.ts), the
+ * As of migration 038 (src/core/db/migrations/038_sync_settings.ts), the
  * `settings` table replicates across every device on a sync project — every
  * successful `set()` is captured into `sync_outbox` and pushed to whatever
  * server this device is connected to, exactly like any other business
@@ -87,7 +87,7 @@ export class SettingsService {
       throw new Error(
         `SettingsService.set: "${key}" is a secret setting key and may ` +
           `never be written to the "settings" table — it replicates across ` +
-          `devices (migration 033). Store secrets in platform-local storage ` +
+          `devices (migration 038). Store secrets in platform-local storage ` +
           `instead (desktop: electron-store via safeStorage; web: web_kv).`,
       );
     }

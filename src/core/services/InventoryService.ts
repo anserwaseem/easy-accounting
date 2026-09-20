@@ -35,7 +35,7 @@ const SQL = {
       SELECT COUNT(*) AS 'count' from inventory;
     `,
 
-  // docs/derived-state-design.md §6 migration 028: quantity now comes from
+  // docs/derived-state-design.md §6 service cutover: quantity now comes from
   // inventory_quantity_view (canon), LEFT JOINed with COALESCE(...,0) for
   // items with no movements yet. `i.*` is listed first and the view's
   // quantity alias second so the alias overwrites the stored column of the
@@ -509,10 +509,10 @@ const SQL = {
       GROUP BY inventoryId
     `,
 
-  // docs/derived-state-design.md §6 migration 028, D3 (setOpeningStock
+  // docs/derived-state-design.md §6 service cutover, D3 (setOpeningStock
   // absolute overwrite): unconditional sum of every recorded movement for
   // one item — the SAME CASE logic as inventory_quantity_view's two inner
-  // subqueries (CORE 027 views), minus the opening-stock term. Used by
+  // subqueries (CORE 032 views), minus the opening-stock term. Used by
   // setOpeningStock to size a compensating stock_adjustments row so that
   // inventory_quantity_view keeps agreeing with the absolute value the user
   // just set via setInventoryQuantity, even when movements already exist for
@@ -543,7 +543,7 @@ const SQL = {
     `,
 };
 
-/** docs/derived-state-design.md §6 migration 028, D3. */
+/** docs/derived-state-design.md §6 service cutover, D3. */
 const STOCKTAKE_RESET_REASON = 'Stocktake correction (opening stock reset)';
 
 /**
@@ -1231,7 +1231,7 @@ export class InventoryService {
   }
 
   /**
-   * docs/derived-state-design.md §6 migration 028, D3.
+   * docs/derived-state-design.md §6 service cutover, D3.
    *
    * setOpeningStock's `setInventoryQuantity` write is an ABSOLUTE overwrite
    * of the stored counter — kept exactly as today (dual-write rule: it is

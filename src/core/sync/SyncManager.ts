@@ -69,7 +69,7 @@ export interface SyncStatusPayload {
   /** True while a syncOnce is actually in flight right now. */
   syncing: boolean;
   /**
-   * Live `COUNT(*)` of `sync_apply_conflicts` (migration 030) — rows a pull
+   * Live `COUNT(*)` of `sync_apply_conflicts` (migration 035) — rows a pull
    * fetched but could not apply (almost always a natural-key `UNIQUE`
    * conflict from two independently-seeded devices — see
    * `SyncEngine.pullAndApply`'s doc comment) and recorded for review rather
@@ -520,7 +520,7 @@ export class SyncManager {
    * every fresh worker boot, inserting a `'default'`-username user (NULL
    * password hash) plus `INITIAL_CHARTS` — *before* the renderer even
    * mounts, let alone before the user chooses "Join existing sync". Both
-   * `users` and `chart` are replicated tables (migration 029), so that
+   * `users` and `chart` are replicated tables (migration 034), so that
    * boot insert is captured into this device's `sync_outbox` regardless of
    * whether it ever connects to anything. Left alone, the very next
    * background `syncOnce` after this join (which does drain the outbox —
@@ -558,8 +558,8 @@ export class SyncManager {
    * AND a concurrent `syncOnce`'s apply is applied twice, the second pass
    * going through `SyncEngine.applyRow`'s `ON CONFLICT("uuid") DO UPDATE`
    * branch exactly like any other re-delivery. That is precisely the shape
-   * migration 034
-   * (src/core/db/migrations/034_suppress_timestamp_triggers_during_apply.ts)
+   * migration 039
+   * (src/core/db/migrations/039_suppress_timestamp_triggers_during_apply.ts)
    * exists for — but even with 034 making a *single* re-delivery a safe
    * no-op, two DIFFERENT in-flight transactions concurrently reading,
    * wiping, and rewriting the same tables is a race this method must not
@@ -615,7 +615,7 @@ export class SyncManager {
   /**
    * Mock-mode only: makes sure the in-worker {@link MockSyncServer} holds a
    * minimal but realistic joinable business (one credentialed user + one
-   * chart head, hand-built in the exact rowJson shape migration 029's
+   * chart head, hand-built in the exact rowJson shape migration 034's
    * capture triggers emit, `_uuid` FK sibling and `__hex` blob twin
    * included) before a mock `join` pulls from it. Exists because join now
    * REFUSES an empty server log by design (see `join`'s doc comment) — a
@@ -1022,7 +1022,7 @@ export class SyncManager {
    * user + its `INITIAL_CHARTS`, see db.worker.ts's
    * `ensurePlaceholderDefaultUser`, which runs unconditionally on every
    * fresh worker boot) and drains whatever that boot seeding — and these
-   * very deletes, which are themselves captured by migration 029's DELETE
+   * very deletes, which are themselves captured by migration 034's DELETE
    * triggers the same way any local delete is — put into `sync_outbox`.
    * Called by {@link join} before its initial pull; see that method's doc
    * comment for the full "why" (in short: so this device's own throwaway
@@ -1064,7 +1064,7 @@ export class SyncManager {
     return row?.c ?? 0;
   }
 
-  /** Live `COUNT(*)` of `sync_apply_conflicts` (migration 030) — see `SyncStatusPayload.conflictCount`'s doc comment. */
+  /** Live `COUNT(*)` of `sync_apply_conflicts` (migration 035) — see `SyncStatusPayload.conflictCount`'s doc comment. */
   private async conflictCount(): Promise<number> {
     const row = await this.db.get<{ c: number }>(
       `SELECT COUNT(*) AS c FROM sync_apply_conflicts`,

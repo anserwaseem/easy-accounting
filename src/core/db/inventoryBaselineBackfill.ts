@@ -2,7 +2,7 @@ import type { DatabaseDriver } from './driver';
 
 /**
  * Reconciles a just-imported desktop database's stored `inventory.quantity`
- * counter against `inventory_quantity_view` (migration 027 — see
+ * counter against `inventory_quantity_view` (migration 032 — see
  * `schema.snapshot.sql`'s `CREATE VIEW inventory_quantity_view`), the
  * fact-derived on-hand quantity every screen in this app actually reads:
  * `COALESCE(opening_stock.quantity, 0)` + net invoice movement (Purchase
@@ -47,8 +47,8 @@ import type { DatabaseDriver } from './driver';
  *
  * ## Why a plain `target.run` INSERT, not a bulk/raw write
  *
- * `stock_adjustments` is one of the tables migration 029
- * (`029_create_sync_tables.ts`) attaches an AFTER INSERT capture trigger to
+ * `stock_adjustments` is one of the tables migration 034
+ * (`034_create_sync_tables.ts`) attaches an AFTER INSERT capture trigger to
  * (it is in `BUSINESS_TABLES`, minus only `ledger` — see that migration's
  * doc comment) — every insert through the normal `INSERT INTO
  * stock_adjustments (...)` statement is captured into `sync_outbox` and
@@ -76,8 +76,8 @@ import type { DatabaseDriver } from './driver';
  * 2026-08 claiming to explain stock that was already on hand in 2008.
  * `INVENTORY_BASELINE_REASON`'s value and `INVENTORY_BASELINE_DATE` (below)
  * fix that presentation without changing anything about the mechanism above
- * — same gap, same one-row-per-item shape, same sync path. Migration 032
- * (`./migrations/032_redate_import_baselines.ts`) re-dates/renames the rows
+ * — same gap, same one-row-per-item shape, same sync path. Migration 037
+ * (`./migrations/037_redate_import_baselines.ts`) re-dates/renames the rows
  * this already produced under the old reason/date on the owner's live
  * devices; the export name `INVENTORY_BASELINE_REASON` is kept stable so
  * every importer of it (this file, `import.ts`, tests) picks up the new
