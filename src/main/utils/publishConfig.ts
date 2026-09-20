@@ -2,11 +2,11 @@
  * Publish configuration — supplied by the client (per installation), never
  * baked into the build.
  *
- * Non-secret fields live in electron-store as plain JSON. The single secret
- * (the storage secret access key) is encrypted with Electron's safeStorage,
- * which is backed by the OS keychain (Keychain / DPAPI / libsecret), and is
- * never returned to the renderer — the renderer only learns whether a secret
- * is set.
+ * Non-secret fields live in electron-store as plain JSON *and* are
+ * mirrored into the `settings` table (migration 038) so Join / Add-a-device
+ * can pull them. The secret access key and webhook token stay in
+ * electron-store encrypted with Electron's safeStorage (OS keychain) and
+ * never enter `settings`.
  *
  * Generic by design: any S3-compatible endpoint, any bucket, any webhook.
  */
@@ -162,7 +162,9 @@ export function getPublishSecrets(): {
   };
 }
 
-export function savePublishConfig(input: PublishConfigInput): PublishConfig {
+export async function savePublishConfig(
+  input: PublishConfigInput,
+): Promise<PublishConfig> {
   const setIfDefined = (key: string, value: unknown) => {
     if (value !== undefined) store.set(key, value);
   };
@@ -213,6 +215,37 @@ export function savePublishConfig(input: PublishConfigInput): PublishConfig {
 
   saveSecret(PUBLISH_KEYS.secretAccessKeyEnc, input.secretAccessKey);
   saveSecret(PUBLISH_KEYS.webhookToken, input.webhookToken);
+
+  // non-secrets also go in `settings` so Join / Add-a-device can pull them.
+  // secrets stay in electron-store + safeStorage only.
+  const { getSettingsService } = await import('../coreRuntime');
+  const settings = getSettingsService();
+  const mirror = async (key: string, value: unknown) => {
+    if (value !== undefined) await settings.set(key, value);
+  };
+  await Promise.all([
+    mirror(PUBLISH_KEYS.endpoint, input.endpoint?.trim()),
+    mirror(PUBLISH_KEYS.region, input.region?.trim()),
+    mirror(PUBLISH_KEYS.bucket, input.bucket?.trim()),
+    mirror(PUBLISH_KEYS.privateBucket, input.privateBucket?.trim()),
+    mirror(PUBLISH_KEYS.accessKeyId, input.accessKeyId?.trim()),
+    mirror(
+      PUBLISH_KEYS.publicBaseUrl,
+      input.publicBaseUrl?.trim().replace(/\/+$/, ''),
+    ),
+    mirror(PUBLISH_KEYS.privatePrefix, input.privatePrefix?.trim()),
+    mirror(PUBLISH_KEYS.publicPrefix, input.publicPrefix?.trim()),
+    mirror(PUBLISH_KEYS.imagesManifestUrl, input.imagesManifestUrl?.trim()),
+    mirror(PUBLISH_KEYS.webhookUrl, input.webhookUrl?.trim()),
+    mirror(PUBLISH_KEYS.publicPriceList, input.publicPriceList?.trim()),
+    mirror(PUBLISH_KEYS.reservedNameChars, input.reservedNameChars?.trim()),
+    mirror(
+      PUBLISH_KEYS.requiredAttributeKeys,
+      input.requiredAttributeKeys?.trim(),
+    ),
+    mirror(PUBLISH_KEYS.publishWithoutImages, input.publishWithoutImages),
+    mirror(PUBLISH_KEYS.requireTitle, input.requireTitle),
+  ]);
 
   return getPublishConfig();
 }

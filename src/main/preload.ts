@@ -910,6 +910,15 @@ const electronHandler = {
       filters,
     ) as Promise<VendorStockActivityResponse>,
 
+  getSetting: <T = unknown>(key: string) =>
+    ipcRenderer.invoke('settings:get', key) as Promise<T | undefined>,
+  setSetting: (key: string, value: unknown) =>
+    ipcRenderer.invoke('settings:set', key, value) as Promise<void>,
+  deleteSetting: (key: string) =>
+    ipcRenderer.invoke('settings:delete', key) as Promise<void>,
+  getAllSettings: () =>
+    ipcRenderer.invoke('settings:getAll') as Promise<Record<string, unknown>>,
+
   supportsSync: true as const,
   supportsBackup: true as const,
 

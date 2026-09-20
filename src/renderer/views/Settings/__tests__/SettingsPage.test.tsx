@@ -48,6 +48,8 @@ describe('SettingsPage', () => {
         electron: {
           supportsBackup?: true;
           getAppVersion: () => Promise<string>;
+          getSetting: (key: string) => Promise<unknown>;
+          setSetting: (key: string, val: unknown) => Promise<void>;
           store: {
             get: (key: string, defaultVal?: unknown) => unknown;
             set: (key: string, val: unknown) => void;
@@ -57,6 +59,10 @@ describe('SettingsPage', () => {
     ).electron = {
       supportsBackup: true,
       getAppVersion: jest.fn().mockResolvedValue(APP_VERSION),
+      getSetting: jest.fn(async (key: string) => store[key]),
+      setSetting: jest.fn(async (key: string, val: unknown) => {
+        store[key] = val;
+      }),
       store: {
         get: jest.fn((key: string, defaultVal?: unknown) =>
           store[key] !== undefined ? store[key] : defaultVal,
@@ -91,10 +97,10 @@ describe('SettingsPage', () => {
     );
   });
 
-  it('populates company details from store', async () => {
+  it('populates company details from settings', async () => {
     await renderSettings();
 
-    expect(screen.getByDisplayValue('Test Company')).toBeInTheDocument();
+    expect(await screen.findByDisplayValue('Test Company')).toBeInTheDocument();
     expect(screen.getByDisplayValue('ٹیسٹ کمپنی')).toBeInTheDocument();
     expect(screen.getByDisplayValue('123 Main Street')).toBeInTheDocument();
     expect(screen.getByDisplayValue('+92 300 0000000')).toBeInTheDocument();
@@ -107,7 +113,7 @@ describe('SettingsPage', () => {
       screen.queryByText(/you have unsaved changes/i),
     ).not.toBeInTheDocument();
 
-    const companyNameInput = screen.getByDisplayValue('Test Company');
+    const companyNameInput = await screen.findByDisplayValue('Test Company');
     fireEvent.change(companyNameInput, {
       target: { value: 'New Company Name' },
     });
@@ -123,18 +129,20 @@ describe('SettingsPage', () => {
     expect(screen.getByDisplayValue('Test Company')).toBeInTheDocument();
   });
 
-  it('saves changes and updates electron store', async () => {
+  it('saves changes through settings', async () => {
     await renderSettings();
 
-    const companyNameInput = screen.getByDisplayValue('Test Company');
+    const companyNameInput = await screen.findByDisplayValue('Test Company');
     fireEvent.change(companyNameInput, {
       target: { value: 'Updated Company' },
     });
 
     const saveButton = screen.getByRole('button', { name: /save changes/i });
-    fireEvent.click(saveButton);
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
 
-    expect(window.electron.store.set).toHaveBeenCalledWith(
+    expect(window.electron.setSetting).toHaveBeenCalledWith(
       'companyProfile.name',
       'Updated Company',
     );

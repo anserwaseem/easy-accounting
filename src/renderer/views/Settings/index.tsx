@@ -402,34 +402,43 @@ const SettingsPage: React.FC = () => {
     }
   }, []);
 
-  const handleSaveSettings = useCallback(() => {
+  const handleSaveSettings = useCallback(async () => {
     window.electron.store.set(
       'debitCreditDefaultLabel',
       draftDebitCreditDefaultLabel,
     );
     setSavedDebitCreditDefaultLabel(draftDebitCreditDefaultLabel);
 
-    saveCompanyProfile({
-      name: draftCompanyName.trim(),
-      nameUrdu: draftCompanyNameUrdu.trim(),
-      phone: draftCompanyPhone.trim(),
-      email: draftCompanyEmail.trim(),
-      whatsapp: draftCompanyWhatsapp.trim(),
-      website: draftCompanyWebsite.trim(),
-      address: draftCompanyAddress,
-      addressUrdu: draftCompanyAddressUrdu,
-      printNote: draftCompanyPrintNote,
-      printNoteUrdu: draftCompanyPrintNoteUrdu,
-    });
+    try {
+      await saveCompanyProfile({
+        name: draftCompanyName.trim(),
+        nameUrdu: draftCompanyNameUrdu.trim(),
+        phone: draftCompanyPhone.trim(),
+        email: draftCompanyEmail.trim(),
+        whatsapp: draftCompanyWhatsapp.trim(),
+        website: draftCompanyWebsite.trim(),
+        address: draftCompanyAddress,
+        addressUrdu: draftCompanyAddressUrdu,
+        printNote: draftCompanyPrintNote,
+        printNoteUrdu: draftCompanyPrintNoteUrdu,
+      });
 
-    saveInvoicePrintSettings({
-      locale: draftPrintLocale,
-      englishLabelOverrides: draftEnglishLabelOverrides,
-      urduLabelOverrides: draftUrduLabelOverrides,
-      showPartyBalances: draftShowPartyBalances,
-      showAgent: draftShowAgent,
-      showBillBalance: draftShowBillBalance,
-    });
+      await saveInvoicePrintSettings({
+        locale: draftPrintLocale,
+        englishLabelOverrides: draftEnglishLabelOverrides,
+        urduLabelOverrides: draftUrduLabelOverrides,
+        showPartyBalances: draftShowPartyBalances,
+        showAgent: draftShowAgent,
+        showBillBalance: draftShowBillBalance,
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not save company settings',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+      return;
+    }
 
     window.electron.store.set(
       BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY,

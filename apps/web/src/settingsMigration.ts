@@ -1,4 +1,5 @@
 import { api, ready } from './api/client';
+import { COMPANY_AND_PRINT_SETTING_KEYS } from '@core/services/businessSettingKeys';
 
 /**
  * Web counterpart of src/main/utils/migrateBusinessSettings.ts — same keys,
@@ -9,31 +10,14 @@ import { api, ready } from './api/client';
  * On desktop that old home is electron-store; here it is `localStorage`
  * (see electronShim.ts's `store` — the web build's stand-in for
  * electron-store), NOT `web_kv` (the db worker's own internal
- * `KeyValueStore`, used only for InventoryService's synchronous
- * `reservedNameChars` read — see db.worker.ts's `WebKv` doc comment).
- * `localStorage` lives on the main thread, so — despite this migration's
- * server-side twin running "in the worker boot" — this one has to run here,
- * on the main thread, calling into the worker only through the same
- * `settings:get`/`settings:set` RPC methods the renderer's hooks use
- * (`api.getSetting`/`api.setSetting`), since a dedicated Worker has no
- * `localStorage` to read in the first place.
+ * `KeyValueStore`). `localStorage` lives on the main thread, so this copy
+ * runs here via `api.getSetting`/`api.setSetting`.
  *
- * Called once from main.tsx, awaited before the real renderer mounts, so
- * every business-setting hook's very first read already sees the migrated
- * value rather than racing this copy.
+ * Publish connection fields are copied in the worker
+ * (`migratePublishConnectionToSettings`). This file is company + print.
  */
-const STORAGE_PREFIX = 'easyAccounting.store.';
 
-const BUSINESS_SETTING_KEYS = [
-  'companyProfile.name',
-  'companyProfile.address',
-  'companyProfile.phone',
-  'companyProfile.email',
-  'print.totalQuantityLabel',
-  'publish.publicPriceList',
-  'publish.requiredAttributeKeys',
-  'publish.publishWithoutImages',
-] as const;
+const STORAGE_PREFIX = 'easyAccounting.store.';
 
 function readLegacyValue(key: string): unknown {
   try {
@@ -48,7 +32,7 @@ function readLegacyValue(key: string): unknown {
 export async function migrateBusinessSettingsFromLocalStorage(): Promise<void> {
   await ready;
   await Promise.all(
-    BUSINESS_SETTING_KEYS.map(async (key) => {
+    COMPANY_AND_PRINT_SETTING_KEYS.map(async (key) => {
       try {
         const existing = await api.getSetting(key);
         if (existing !== undefined) return;

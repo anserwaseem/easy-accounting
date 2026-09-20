@@ -65,6 +65,7 @@ import {
   savePublishConfig,
   type PublishConfigInput,
 } from './utils/publishConfig';
+import { migrateBusinessSettingsFromStore } from './utils/migrateBusinessSettings';
 import {
   getBackupConfig,
   saveBackupConfig,
@@ -307,6 +308,7 @@ app
       inventoryService,
       invoiceService,
       vendorStockService,
+      settingsService,
     } = createCoreServices();
     const printService = new PrintService();
     const publishService = new PublishService();
@@ -339,6 +341,12 @@ app
     getCoreDriver().setMutationListener?.(() => {
       syncManager.scheduleDebouncedSync();
     });
+
+    try {
+      await migrateBusinessSettingsFromStore(settingsService);
+    } catch (err) {
+      log.warn('Business settings migration failed:', err);
+    }
 
     try {
       await syncManager.bootIfConfigured();
@@ -383,6 +391,17 @@ app
         errorCorrectionLevel: 'M',
       }),
     );
+
+    ipcMain.handle('settings:get', async (_, key: string) =>
+      settingsService.get(key),
+    );
+    ipcMain.handle('settings:set', async (_, key: string, value: unknown) =>
+      settingsService.set(key, value),
+    );
+    ipcMain.handle('settings:delete', async (_, key: string) =>
+      settingsService.delete(key),
+    );
+    ipcMain.handle('settings:getAll', async () => settingsService.getAll());
 
     ipcMain.handle('publish:getConfig', async () => getPublishConfig());
     ipcMain.handle('publish:saveConfig', async (_, input: PublishConfigInput) =>
