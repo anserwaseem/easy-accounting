@@ -293,6 +293,14 @@ app
     // 001.js–028.js (released main) then CORE_MIGRATIONS. Do not add more
     // src/main/migrations/*.js files — append src/core/db/migrations instead.
     await bootstrapDatabase(getCoreDriver());
+    try {
+      const compacted = await getCoreDriver().compactIfNeeded?.();
+      if (compacted) {
+        log.info('Startup compact reclaimed unused SQLite pages');
+      }
+    } catch (err) {
+      log.warn('Startup compact failed:', err);
+    }
 
     const authService = new AuthService();
     // Business services are the platform-free core (src/core) via

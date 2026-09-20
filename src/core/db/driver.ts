@@ -47,4 +47,23 @@ export interface DatabaseDriver {
    * of guessing from IPC method names. No-op implementations are fine.
    */
   setMutationListener?(listener: (() => void) | undefined): void;
+
+  /**
+   * Optional. If unused SQLite pages exceed a few megabytes (typical after
+   * a first-device seed drains a huge `sync_outbox`), rewrite the file
+   * (`VACUUM`) so the user never has to. Must not run inside a transaction
+   * and must not fire the mutation listener (this is housekeeping, not a
+   * business write). Returns whether a vacuum ran.
+   */
+  compactIfNeeded?(): Promise<boolean>;
+}
+
+/** unused pages below this stay; a shop-book seed can leave tens of MB. */
+export const COMPACT_MIN_WASTED_BYTES = 8 * 1024 * 1024;
+
+export function shouldCompactUnusedPages(
+  pageSize: number,
+  freelistCount: number,
+): boolean {
+  return pageSize > 0 && freelistCount * pageSize >= COMPACT_MIN_WASTED_BYTES;
 }

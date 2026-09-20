@@ -4,6 +4,7 @@ import type {
   RunResult,
   SqlParams,
 } from '../../core/db/driver';
+import { shouldCompactUnusedPages } from '../../core/db/driver';
 
 /**
  * DatabaseDriver over a better-sqlite3 connection (Electron main / Node).
@@ -106,6 +107,25 @@ export class BetterSqliteDriver implements DatabaseDriver {
     }
     const next = this.txQueue.then(runInTx, runInTx);
     // Keep the chain alive regardless of this transaction's outcome.
+    this.txQueue = next.catch(() => undefined);
+    return next;
+  }
+
+  async compactIfNeeded(): Promise<boolean> {
+    if (this.txDepth > 0) return false;
+    const run = async (): Promise<boolean> => {
+      const pageSize = Number(this.db.pragma('page_size', { simple: true }));
+      const freelistCount = Number(
+        this.db.pragma('freelist_count', { simple: true }),
+      );
+      if (!shouldCompactUnusedPages(pageSize, freelistCount)) return false;
+      // drop cached stmts so VACUUM is not racing in-flight SQL. do not
+      // notifyMutation — this is housekeeping, not a business write.
+      this.statements.clear();
+      this.db.exec('VACUUM');
+      return true;
+    };
+    const next = this.txQueue.then(run, run);
     this.txQueue = next.catch(() => undefined);
     return next;
   }

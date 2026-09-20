@@ -5,6 +5,7 @@ import type {
   SqlValue,
 } from '@sqlite.org/sqlite-wasm';
 import type { DatabaseDriver, RunResult, SqlParams } from '@core/db/driver';
+import { shouldCompactUnusedPages } from '@core/db/driver';
 import { cast } from '@core/utils/sqlite';
 
 /**
@@ -247,5 +248,39 @@ export class SqliteWasmDriver implements DatabaseDriver {
     const next = this.txQueue.then(runInTx, runInTx);
     this.txQueue = next.catch(() => undefined);
     return next;
+  }
+
+  private readPragmaNumber(name: string): number {
+    const stmt = this.db.prepare(`PRAGMA ${name}`);
+    try {
+      stmt.step();
+      const row = stmt.get({}) as Record<string, unknown>;
+      return Number(Object.values(row)[0] ?? 0);
+    } finally {
+      stmt.finalize();
+    }
+  }
+
+  private finalizeCachedStatements(): void {
+    for (const stmt of this.statements.values()) {
+      try {
+        stmt.finalize();
+      } catch {
+        // already finalized
+      }
+    }
+    this.statements.clear();
+  }
+
+  async compactIfNeeded(): Promise<boolean> {
+    if (this.txDepth > 0) return false;
+    return this.enqueue(async () => {
+      const pageSize = this.readPragmaNumber('page_size');
+      const freelistCount = this.readPragmaNumber('freelist_count');
+      if (!shouldCompactUnusedPages(pageSize, freelistCount)) return false;
+      this.finalizeCachedStatements();
+      this.db.exec('VACUUM');
+      return true;
+    });
   }
 }

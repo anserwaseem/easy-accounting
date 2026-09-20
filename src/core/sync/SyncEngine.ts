@@ -341,6 +341,8 @@ export class SyncEngine {
       rejected += secondDrain.rejected;
     }
 
+    await this.reclaimWastedPages();
+
     const cursor = await this.getCursor();
     return {
       pushed,
@@ -403,6 +405,7 @@ export class SyncEngine {
       discardedPlaceholderUsers,
       discardedPlaceholderCharts,
     } = await this.pullAndApply();
+    await this.reclaimWastedPages();
     return {
       pulled,
       applied,
@@ -597,6 +600,7 @@ export class SyncEngine {
       discardedPlaceholderUsers,
       discardedPlaceholderCharts,
     } = await this.pullAndApply({ includeSelf: true });
+    await this.reclaimWastedPages();
     return {
       pulled,
       applied,
@@ -633,6 +637,7 @@ export class SyncEngine {
       discardedPlaceholderUsers,
       discardedPlaceholderCharts,
     } = await this.pullAndApply({ includeSelf: true });
+    await this.reclaimWastedPages();
     return {
       pulled,
       applied,
@@ -647,6 +652,29 @@ export class SyncEngine {
   // ---------------------------------------------------------------------
   // Push
   // ---------------------------------------------------------------------
+
+  /**
+   * SQLite does not shrink the file when `sync_outbox` rows are deleted
+   * after a first-device seed. Dead pages stay until VACUUM. The driver
+   * no-ops unless unused pages exceed ~8MB.
+   */
+  private async reclaimWastedPages(): Promise<void> {
+    if (typeof this.db.compactIfNeeded !== 'function') return;
+    try {
+      const compacted = await this.db.compactIfNeeded();
+      if (compacted) {
+        this.logger.info(
+          'SyncEngine: compacted unused SQLite pages after sync (outbox drain leftover).',
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `SyncEngine: compactIfNeeded failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
 
   /**
    * Drains `sync_outbox` in insertion-order batches. A batch that pushes

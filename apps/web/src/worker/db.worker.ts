@@ -400,6 +400,11 @@ async function main(): Promise<void> {
 
   const driver = new SqliteWasmDriver(sqlite3, sqliteDb);
   await bootstrapDatabase(driver);
+  try {
+    await driver.compactIfNeeded();
+  } catch (error) {
+    console.warn('Startup compact failed:', error);
+  }
 
   const webKv = new WebKv(driver);
   await webKv.load();
