@@ -327,6 +327,10 @@ app
       kv: syncKv,
       notify: (msg) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
+          if (msg.type === 'sync-pull-progress') {
+            mainWindow.webContents.send('sync:pull-progress', msg);
+            return;
+          }
           mainWindow.webContents.send('sync:applied', msg);
         }
       },

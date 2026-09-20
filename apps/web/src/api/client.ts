@@ -211,6 +211,18 @@ export function onSyncApplied(listener: () => void): () => void {
   return () => syncAppliedListeners.delete(listener);
 }
 
+const syncPullProgressListeners = new Set<
+  (event: { pulled: number; applied: number; total: number }) => void
+>();
+
+/** live join/rebuild pull counters — see rpc.ts `sync-pull-progress`. */
+export function onSyncPullProgress(
+  listener: (event: { pulled: number; applied: number; total: number }) => void,
+): () => void {
+  syncPullProgressListeners.add(listener);
+  return () => syncPullProgressListeners.delete(listener);
+}
+
 /**
  * Subscribers to the worker's one-way `publish-progress` notification (see
  * rpc.ts). electronShim is the sole subscriber, turning each event into
@@ -245,6 +257,10 @@ worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
   }
   if (msg.type === 'sync-applied') {
     syncAppliedListeners.forEach((listener) => listener());
+    return;
+  }
+  if (msg.type === 'sync-pull-progress') {
+    syncPullProgressListeners.forEach((listener) => listener(msg));
     return;
   }
   if (msg.type === 'publish-progress') {

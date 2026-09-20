@@ -368,13 +368,35 @@ async function ensurePlaceholderDefaultUser(
 
 type Handlers = Record<string, (...args: unknown[]) => Promise<unknown>>;
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function openOpfsDatabase(
+  sqlite3: Awaited<ReturnType<typeof sqlite3InitModule>>,
+) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const poolUtil = await sqlite3.installOpfsSAHPoolVfs({
+        name: 'easy-accounting',
+      });
+      return new poolUtil.OpfsSAHPoolDb('/easy-accounting.sqlite3');
+    } catch (error) {
+      lastError = error;
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(Math.min(2000, 200 * 2 ** attempt));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 async function main(): Promise<void> {
   const sqlite3 = await sqlite3InitModule();
 
-  const poolUtil = await sqlite3.installOpfsSAHPoolVfs({
-    name: 'easy-accounting',
-  });
-  const sqliteDb = new poolUtil.OpfsSAHPoolDb('/easy-accounting.sqlite3');
+  const sqliteDb = await openOpfsDatabase(sqlite3);
 
   const driver = new SqliteWasmDriver(sqlite3, sqliteDb);
   await bootstrapDatabase(driver);

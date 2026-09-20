@@ -26,7 +26,15 @@ import {
 } from './connectGuard';
 import { PLACEHOLDER_USERNAME } from './placeholderUser';
 
-export type SyncNotifyMessage = { type: 'sync-applied' };
+export interface SyncPullProgress {
+  pulled: number;
+  applied: number;
+  total: number;
+}
+
+export type SyncNotifyMessage =
+  | { type: 'sync-applied' }
+  | ({ type: 'sync-pull-progress' } & SyncPullProgress);
 
 /** Narrow slice of db.worker.ts's `WebKv` this module actually needs — get() for the synchronous read every KeyValueStore consumer gets, plus the awaited variants so a connect/disconnect call can be sure the config actually landed in OPFS before resolving (mirrors how the session username is persisted — see db.worker.ts's WebKv doc comment). */
 export interface SyncKv {
@@ -342,6 +350,16 @@ export class SyncManager {
     this.kv = deps.kv;
     this.notify = deps.notify;
     this.fetchImpl = deps.fetchImpl;
+  }
+
+  private makeEngine(transport: SyncTransport): SyncEngine {
+    return new SyncEngine({
+      db: this.db,
+      transport,
+      onPullProgress: (progress) => {
+        this.notify({ type: 'sync-pull-progress', ...progress });
+      },
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -747,7 +765,7 @@ export class SyncManager {
     this.currentConfig = probed.stored;
     await this.kv.setAwaited(CONFIG_KEY, probed.stored);
 
-    const engine = new SyncEngine({ db: this.db, transport: probed.transport });
+    const engine = this.makeEngine(probed.transport);
     let pullResult: { pulled: number; applied: number };
     try {
       pullResult = resume
@@ -829,7 +847,7 @@ export class SyncManager {
       await this.inFlight;
     }
 
-    const engine = new SyncEngine({ db: this.db, transport: this.transport });
+    const engine = this.makeEngine(this.transport);
     const runPromise = engine.rebuildFromServer();
     this.inFlight = runPromise.then(
       () => undefined,
@@ -1121,7 +1139,7 @@ export class SyncManager {
   private async runOnce(): Promise<void> {
     if (!this.transport) return;
     try {
-      const engine = new SyncEngine({ db: this.db, transport: this.transport });
+      const engine = this.makeEngine(this.transport);
       const report = await engine.syncOnce();
       this.lastSyncAt = new Date().toISOString();
       this.lastError = null;

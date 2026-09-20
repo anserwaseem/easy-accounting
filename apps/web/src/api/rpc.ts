@@ -28,6 +28,17 @@ export type WorkerMessage =
    */
   | { type: 'sync-applied' }
   /**
+   * Live join/rebuild pull counters so the UI can show "12,400 of 144,004"
+   * instead of a frozen "Joining…" (phones have no DevTools). Same shape
+   * as `SyncManager`'s `sync-pull-progress` notify payload.
+   */
+  | {
+      type: 'sync-pull-progress';
+      pulled: number;
+      applied: number;
+      total: number;
+    }
+  /**
    * One-way worker->main notification during a publish run (see
    * apps/web/src/worker/publishService.ts). Mirrors Electron's
    * `publish-progress` IPC so Settings can stream status the same way on

@@ -6,6 +6,7 @@ import {
   importDatabase as workerImportDatabase,
   onPublishProgress,
   onSyncApplied,
+  onSyncPullProgress,
   syncConnect as workerSyncConnect,
   syncDisconnect as workerSyncDisconnect,
   syncGetJoinInvite as workerSyncGetJoinInvite,
@@ -311,6 +312,13 @@ const importDatabase = async (
 const SYNC_APPLIED_EVENT = 'easyaccounting:sync-applied';
 onSyncApplied(() => {
   window.dispatchEvent(new CustomEvent(SYNC_APPLIED_EVENT));
+});
+
+const SYNC_PULL_PROGRESS_EVENT = 'easyaccounting:sync-pull-progress';
+onSyncPullProgress((event) => {
+  window.dispatchEvent(
+    new CustomEvent(SYNC_PULL_PROGRESS_EVENT, { detail: event }),
+  );
 });
 
 /**

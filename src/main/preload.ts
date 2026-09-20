@@ -940,6 +940,15 @@ ipcRenderer.on('sync:applied', () => {
   window.dispatchEvent(new CustomEvent('easyaccounting:sync-applied'));
 });
 
+ipcRenderer.on(
+  'sync:pull-progress',
+  (_event, payload: { pulled: number; applied: number; total: number }) => {
+    window.dispatchEvent(
+      new CustomEvent('easyaccounting:sync-pull-progress', { detail: payload }),
+    );
+  },
+);
+
 contextBridge.exposeInMainWorld('electron', electronHandler);
 
 export type ElectronHandler = typeof electronHandler;

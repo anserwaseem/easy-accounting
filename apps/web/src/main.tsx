@@ -1,5 +1,5 @@
 import './bufferPolyfill';
-import { StrictMode } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 // Pure helper — no `window.electron`. Called immediately below, before
 // the async boot() (and before the PWA service worker claims this page
@@ -71,6 +71,89 @@ function AlreadyOpenNotice() {
     </div>
   );
 }
+
+const BootGate: React.FC = () => {
+  const [state, setState] = useState<'opening' | 'ready' | 'error'>('opening');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    window.easyAccounting.ready
+      .then(() => {
+        if (!cancelled) setState('ready');
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setState('error');
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (state === 'ready') return null;
+
+  return (
+    <div
+      role="status"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.75rem',
+        padding: '2rem',
+        textAlign: 'center',
+        fontFamily: 'system-ui, sans-serif',
+        background: 'Canvas',
+        color: 'CanvasText',
+      }}
+    >
+      {state === 'error' ? (
+        <>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+            Could not open books
+          </h1>
+          <p style={{ maxWidth: '28rem', opacity: 0.8 }}>{error}</p>
+          <p style={{ maxWidth: '28rem', opacity: 0.8 }}>
+            Storage on this origin is still there. Close other tabs of this app,
+            then retry. Do not Join again from an empty-looking screen.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: '0.5rem',
+              padding: '0.5rem 1.25rem',
+              borderRadius: '0.375rem',
+              border: '1px solid currentColor',
+              background: 'transparent',
+              color: 'inherit',
+              cursor: 'pointer',
+              font: 'inherit',
+            }}
+          >
+            Retry
+          </button>
+        </>
+      ) : (
+        <>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+            Opening books
+          </h1>
+          <p style={{ maxWidth: '28rem', opacity: 0.8 }}>
+            Keep this tab open. A large copy can take a minute after refresh.
+            Empty lists before this finishes do not mean the data is gone.
+          </p>
+        </>
+      )}
+    </div>
+  );
+};
 
 /**
  * Single-instance guard: OPFS sync access handles (how the SQLite worker
@@ -209,7 +292,10 @@ async function boot(): Promise<void> {
     ]);
     root.render(
       <StrictMode>
-        <App />
+        <>
+          <App />
+          <BootGate />
+        </>
       </StrictMode>,
     );
     return;
@@ -237,7 +323,12 @@ async function boot(): Promise<void> {
       ? printFontOverride.trim()
       : '/fonts/jameel-noori-nastaleeq.woff2',
   );
-  root.render(<AppRoutes />);
+  root.render(
+    <>
+      <AppRoutes />
+      <BootGate />
+    </>,
+  );
 }
 
 declare global {

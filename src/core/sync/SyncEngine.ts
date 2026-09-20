@@ -269,18 +269,30 @@ export class SyncEngine {
 
   private readonly schemaCache = new Map<string, TableSchema>();
 
+  private readonly onPullProgress?: (progress: {
+    pulled: number;
+    applied: number;
+    total: number;
+  }) => void;
+
   constructor(deps: {
     db: DatabaseDriver;
     transport: SyncTransport;
     logger?: CoreLogger;
     pushBatchSize?: number;
     pullPageSize?: number;
+    onPullProgress?: (progress: {
+      pulled: number;
+      applied: number;
+      total: number;
+    }) => void;
   }) {
     this.db = deps.db;
     this.transport = deps.transport;
     this.logger = deps.logger ?? getCoreLogger();
     this.pushBatchSize = deps.pushBatchSize ?? DEFAULT_PUSH_BATCH_SIZE;
     this.pullPageSize = deps.pullPageSize ?? DEFAULT_PULL_PAGE_SIZE;
+    this.onPullProgress = deps.onPullProgress;
   }
 
   /**
@@ -1116,6 +1128,12 @@ export class SyncEngine {
       }
     }
 
+    this.onPullProgress?.({
+      pulled: 0,
+      applied: 0,
+      total: serverMaxSeq,
+    });
+
     for (;;) {
       // eslint-disable-next-line no-await-in-loop
       const page = await this.transport.pull(cursor, this.pullPageSize, opts);
@@ -1260,6 +1278,11 @@ export class SyncEngine {
         discardedPlaceholderCharts += pageResult.discardedCharts;
 
         cursor = page[page.length - 1].seq;
+        this.onPullProgress?.({
+          pulled,
+          applied,
+          total: serverMaxSeq,
+        });
       }
 
       if (page.length < this.pullPageSize) {

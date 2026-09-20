@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from 'renderer/shad/ui/alert';
 import { Button } from 'renderer/shad/ui/button';
 import { Input } from 'renderer/shad/ui/input';
 import { Label } from 'renderer/shad/ui/label';
+import { Progress } from 'renderer/shad/ui/progress';
 import {
   clearStashedJoinInvite,
   readStashedJoinInvite,
@@ -42,6 +43,14 @@ import {
 
 type Step = 'form' | 'joining' | 'done' | 'error';
 
+interface PullProgress {
+  pulled: number;
+  applied: number;
+  total: number;
+}
+
+const PULL_PROGRESS_EVENT = 'easyaccounting:sync-pull-progress';
+
 const JoinSyncPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,10 +62,27 @@ const JoinSyncPage: React.FC = () => {
   const [url, setUrl] = useState(prefill?.url ?? '');
   const [anonKey, setAnonKey] = useState(prefill?.anonKey ?? '');
   const [pulled, setPulled] = useState(0);
+  const [progress, setProgress] = useState<PullProgress | null>(null);
   const [error, setError] = useState<{
     message: string;
     guidance: string;
   } | null>(null);
+
+  useEffect(() => {
+    const onProgress = (event: Event) => {
+      const { detail } = event as CustomEvent<PullProgress>;
+      if (
+        !detail ||
+        typeof detail.pulled !== 'number' ||
+        typeof detail.total !== 'number'
+      ) {
+        return;
+      }
+      setProgress(detail);
+    };
+    window.addEventListener(PULL_PROGRESS_EVENT, onProgress);
+    return () => window.removeEventListener(PULL_PROGRESS_EVENT, onProgress);
+  }, []);
 
   const handleJoin = useCallback(async () => {
     if (!window.electron.syncJoin) {
@@ -70,6 +96,7 @@ const JoinSyncPage: React.FC = () => {
     }
 
     setStep('joining');
+    setProgress(null);
     setError(null);
     try {
       const result = await window.electron.syncJoin({
@@ -164,10 +191,33 @@ const JoinSyncPage: React.FC = () => {
         )}
 
         {step === 'joining' && (
-          <p className="text-sm text-muted-foreground" role="status">
-            Joining&hellip; pulling this project&apos;s data down. This may take
-            a moment for a business with a lot of history.
-          </p>
+          <div className="flex flex-col gap-3" role="status">
+            <p className="text-sm text-muted-foreground">
+              Downloading the business onto this device. Keep this screen on. Do
+              not refresh, switch apps, or lock the phone until it finishes.
+            </p>
+            {progress && progress.total > 0 ? (
+              <>
+                <Progress
+                  value={Math.min(
+                    100,
+                    Math.round((progress.pulled / progress.total) * 100),
+                  )}
+                />
+                <p className="text-sm font-medium">
+                  {progress.pulled.toLocaleString()} of{' '}
+                  {progress.total.toLocaleString()} rows
+                  {progress.applied > 0
+                    ? ` · ${progress.applied.toLocaleString()} applied`
+                    : ''}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Connecting to the project&hellip;
+              </p>
+            )}
+          </div>
         )}
 
         {step === 'done' && (
