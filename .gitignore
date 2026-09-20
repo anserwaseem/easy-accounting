@@ -41,6 +41,9 @@ TODOS.md
 worker-configuration.d.ts
 .wrangler
 
+# operator-private notes (this repo is public)
+.local/
+
 # working databases; only the schema-only release/app/database.db is tracked
 *.db.bak
 release/app/database-*.db

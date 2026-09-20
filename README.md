@@ -47,12 +47,12 @@ Frozen desktop: `src/main/migrations/001.js`–`028.js`. New schema: `src/core/d
 
 ## Docs
 
-| File | Who |
-|------|-----|
-| `README.md` | public |
-| `docs/USER_MANUAL.md` | users |
-| `docs/web-deploy.md` | deploy |
-| `AGENTS.md` | agents + contributors |
+| File                           | Who                      |
+| ------------------------------ | ------------------------ |
+| `README.md`                    | public                   |
+| `docs/USER_MANUAL.md`          | users                    |
+| `docs/web-deploy.md`           | deploy                   |
+| `AGENTS.md`                    | agents + contributors    |
 | `docs/derived-state-design.md` | why ledger/qty are views |
 
 ## Troubleshooting
@@ -122,4 +122,3 @@ For common issues and their solutions, please refer to our Troubleshooting Guide
 
 - **(Mac)** Open `Applications` directory, find the app, right click and select 'Show Package Contents' option, navigate to `Contents/Resources` directory
 - **(Windows)** check directory `C:\Users\<username>\AppData\Local\Programs\easy-accounting`
-

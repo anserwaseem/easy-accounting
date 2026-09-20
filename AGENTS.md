@@ -159,7 +159,8 @@ The invoice line-item table uses `useFieldArray` with `react-virtuoso` (virtual 
 - **Cloud backup bucket** is `easy-accounting-backups`, created by `supabase/setup.sql`. Client never `createBucket`. Electron upgrades still list/restore the old per-machine bucket (`database-backup_{platform}_{host}_{user}`) and fall back to it for new uploads if the shared bucket is missing. Local backup folder is unchanged.
 - **Sync invite = project anon key.** BYOK, one project per business. `sync_push` rejects malformed rows; it does not referee journals.
 - **Never change a recorded `migrations.name`.** The runner keys applied state on the `name` field, so changing a name re-runs the migration and changing the body of an already-recorded name silently skips it.
-- **Do not add "rename item" without a migration path.** `inventory.name` is the SKU (Woo `sku`, R2 prefix, image folder). `InventoryService` UPDATE does not set `name`; `editInventoryItem.tsx` disables it. A coordinated azs-ops rename map is required if it is ever allowed.
+- **Do not add "rename item" without a migration path.** `inventory.name` is the SKU (Woo `sku`, R2 prefix, image folder). `InventoryService` UPDATE does not set `name`; `editInventoryItem.tsx` disables it. A coordinated ops rename map is required if it is ever allowed.
+- Optional operator notes: `.local/operator.md` (gitignored). Read it when the file exists. Never copy its contents into tracked files, commits, or PR text.
 
 # Deferred Tasks
 
