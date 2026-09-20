@@ -122,8 +122,9 @@ const BackupSettings: React.FC = () => {
         <CardTitle>Cloud backup</CardTitle>
         <CardDescription>
           Optional supabase project used to upload this machine&apos;s database
-          backups. Local backups still run without it. The anon key is stored in
-          the system keychain and never synced.
+          backups into the `easy-accounting-backups` bucket (created by
+          `supabase/setup.sql`). Local backups still run without it. The anon
+          key is stored in the system keychain and never synced.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

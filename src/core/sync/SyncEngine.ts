@@ -471,8 +471,7 @@ export class SyncEngine {
    * OWN rows are no longer redundant with anything — they're as much a part
    * of "the server's full log" as any other device's. A device that itself
    * pushed most of a business's log (typically the origin device that first
-   * seeded it — see `docs/web-field-notes.md`'s "First device only" recipe)
-   * would, under the ordinary self-filtering default, wipe its entire local
+   * seeded it) would, under the ordinary self-filtering default, wipe its entire local
    * database and then re-pull almost nothing back: the "repair" button
    * would hollow out the one full local copy of the business instead of
    * healing it.
@@ -1018,8 +1017,7 @@ export class SyncEngine {
    *     recovery.
    *
    * The outbox-empty check is what tells this apart from the ordinary
-   * first-ever connect of a brand-new business (see
-   * `docs/web-field-notes.md`'s "First device only" recipe): that device's
+   * first-ever connect of a brand-new business: that device's
    * own capture triggers already populated its outbox from its own writes
    * (or its desktop-import), so this branch's `outboxIsEmpty` guard is
    * false there and nothing extra happens — nothing here changes the

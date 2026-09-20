@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feat/web-pwa]
+  pull_request:
+
+jobs:
+  electron:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # postinstall skips native rebuild when CI=true; tests need better-sqlite3
+      - run: npx electron-builder install-app-deps
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm run typecheck
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web

@@ -33,23 +33,18 @@
 -- OR REPLACE, or (for policies, which Postgres has no CREATE ... IF NOT
 -- EXISTS form for) drops and recreates by name.
 --
--- ⚠️  NOT ZERO-KNOWLEDGE. NOT REALTIME. EXPERIMENTAL RLS.  ⚠️
+-- Trust model (this IS production BYOK, not a temporary hole)
 -- --------------------------------------------------------------------------
 -- The client stores row images as plaintext JSON in sync_log. Anyone with
--- the project URL + anon key (including a scanned join QR) can read and
--- append the whole log. Sync is a 30s poll plus write-triggered push, not
--- postgres_changes. The policies in section 4 grant `anon` select +
--- sync_push execute for this BYOK "the QR is the password" model. Do not
--- describe this as zero-knowledge or production multi-tenant auth.
+-- the project URL + anon key (including a scanned join QR) can read the log
+-- and call sync_push. Treat the invite like a password: one project per
+-- business, possession of the key = a device on that business. Not
+-- zero-knowledge. Not multi-tenant SaaS. Sync is a 30s poll plus
+-- write-triggered push, not postgres_changes.
 --
--- What's deliberately NOT here yet
--- --------------------------------------------------------------------------
--- No business-rule validation of pushed mutations (balanced journals,
--- schema/shape checks, referential checks, conflict refereeing). Per this
--- file's header, sync_push mirrors MockSyncServer exactly — MockSyncServer
--- accepts anything shaped like a well-formed mutation unconditionally, and
--- so does this function today. Section 3 below has a clearly-marked spot
--- for that Phase-3 "referee" work to slot into once it's designed.
+-- sync_push rejects malformed entries (missing fields, unknown table,
+-- bad op). It does not referee balanced journals or row-level conflicts —
+-- every device's SQLite remains the source of business rules.
 -- ============================================================================
 
 
@@ -143,6 +138,11 @@ as $$
 declare
   mutation jsonb;
   entry_key text;
+  table_name text;
+  row_uuid text;
+  op text;
+  device_id text;
+  row_image jsonb;
   accepted_keys jsonb := '[]'::jsonb;
   rejected_keys jsonb := '[]'::jsonb;
   max_seq bigint;
@@ -153,6 +153,33 @@ begin
   for mutation in select * from jsonb_array_elements(coalesce(mutations, '[]'::jsonb))
   loop
     entry_key := mutation->>'idempotencyKey';
+    table_name := mutation->>'tableName';
+    row_uuid := mutation->>'rowUuid';
+    op := mutation->>'op';
+    device_id := mutation->>'deviceId';
+
+    -- Shape gate. Keep table_name list in lockstep with SYNC_TABLES
+    -- (src/core/db/migrations/034_create_sync_tables.ts): every business
+    -- table except ledger and vendor_stock (derived running counters).
+    if entry_key is null or length(trim(entry_key)) = 0
+       or table_name is null or table_name not in (
+         'users', 'chart', 'discount_profiles', 'item_types', 'price_lists',
+         'attribute_definitions', 'account', 'inventory',
+         'inventory_opening_stock', 'inventory_prices', 'stock_adjustments',
+         'vendor_issues', 'vendor_issue_items', 'vendor_stock_movements',
+         'profile_type_discounts', 'invoices', 'invoice_items', 'journal',
+         'journal_entry', 'settings'
+       )
+       or row_uuid is null or length(trim(row_uuid)) = 0
+       or op is null or op not in ('put', 'delete')
+       or device_id is null or length(trim(device_id)) = 0
+    then
+      rejected_keys := rejected_keys || jsonb_build_object(
+        'idempotencyKey', coalesce(entry_key, ''),
+        'reason', 'malformed outbox entry'
+      );
+      continue;
+    end if;
 
     if exists (select 1 from sync_log sl where sl.idempotency_key = entry_key) then
       -- Already recorded — this device's own retry of a push whose
@@ -165,36 +192,36 @@ begin
       continue;
     end if;
 
-    -- ====================================================================
-    -- PHASE-3 REFEREE VALIDATION SLOTS IN HERE.
-    --
-    -- Not implemented yet — this mirrors MockSyncServer exactly, which
-    -- "accepts anything with a well-formed OutboxEntry shape
-    -- unconditionally" (see its doc comment). When Phase-3 validation
-    -- lands (balanced journals, schema/shape checks, referential/conflict
-    -- refereeing, etc.), it belongs in this loop, before the insert below:
-    -- populate `rejected_keys := rejected_keys || jsonb_build_object(
-    -- 'idempotencyKey', entry_key, 'reason', <why>)` and `continue` instead
-    -- of inserting, for anything that fails validation. Nothing else in
-    -- this function needs to change — sync_push's contract (PushResult)
-    -- already has a `rejected` slot, and SyncEngine's drainOutbox already
-    -- moves rejected entries to the client's `sync_rejected` table.
-    -- ====================================================================
+    begin
+      row_image := case
+        when mutation ? 'rowJson' and jsonb_typeof(mutation->'rowJson') = 'string'
+          then nullif(mutation->>'rowJson', '')::jsonb
+        else mutation->'rowJson'
+      end;
+    exception when others then
+      rejected_keys := rejected_keys || jsonb_build_object(
+        'idempotencyKey', entry_key,
+        'reason', 'rowJson is not valid JSON'
+      );
+      continue;
+    end;
+
+    if op = 'put' and (row_image is null or jsonb_typeof(row_image) <> 'object') then
+      rejected_keys := rejected_keys || jsonb_build_object(
+        'idempotencyKey', entry_key,
+        'reason', 'put requires a JSON object row image'
+      );
+      continue;
+    end if;
 
     insert into sync_log (idempotency_key, table_name, row_uuid, op, row_json, device_id)
     values (
       entry_key,
-      mutation->>'tableName',
-      mutation->>'rowUuid',
-      mutation->>'op',
-      case
-        when mutation ? 'rowJson' and jsonb_typeof(mutation->'rowJson') = 'string'
-          -- rowJson travels as a JSON *string* (double-encoded — see this
-          -- function's header comment), so unwrap it with ->>' then parse.
-          then nullif(mutation->>'rowJson', '')::jsonb
-        else mutation->'rowJson'
-      end,
-      mutation->>'deviceId'
+      table_name,
+      row_uuid,
+      op,
+      row_image,
+      device_id
     );
 
     accepted_keys := accepted_keys || to_jsonb(entry_key);
@@ -211,7 +238,7 @@ end;
 $$;
 
 comment on function sync_push(jsonb) is
-  'Push endpoint for Easy Accounting sync. Mirrors src/core/sync/__tests__/mockServer.ts exactly: strict serialization (advisory lock), seq assignment, idempotency dedup, per-batch atomicity. No business validation yet — see the marked Phase-3 section inside the function body.';
+  'Push endpoint for Easy Accounting sync. Advisory lock, seq assignment, idempotency dedup, per-batch atomicity. Rejects malformed entries (unknown table, missing fields, put without object image). Does not referee business rules.';
 
 
 -- ----------------------------------------------------------------------------
@@ -224,9 +251,10 @@ comment on function sync_push(jsonb) is
 -- deliberately no direct table grant (insert/update/delete on sync_log stay
 -- ungranted to every role — the function is the only write path).
 --
--- See the big warning near the top of this file: `anon` is included here
--- only because this is a pre-auth-wizard test/integration phase. Tighten to
--- `authenticated`-only in production.
+-- `anon` is the BYOK invite role: the join QR carries this project's anon
+-- key. There is no separate authenticated-user wizard — possession of the
+-- key is membership. Direct insert/update/delete on sync_log stay denied;
+-- writes go only through sync_push.
 -- ----------------------------------------------------------------------------
 
 -- Postgres has no `CREATE POLICY IF NOT EXISTS` — drop-then-create by name
@@ -281,8 +309,9 @@ grant select on sync_log to anon, authenticated;
 -- "Cursor advancement past filtered own-device rows" doc comment). BYOK
 -- means these roles serve only this one business's sync traffic, so a
 -- generous cap costs nothing in multi-tenant fairness (there are no other
--- tenants). Run the log compaction from docs/web-field-notes.md after an
--- import to shrink the scan itself.
+-- tenants). After a connected-device re-import, compact dead tombstones:
+--   delete from sync_log where op = 'delete';
+--   vacuum full sync_log;
 --
 -- Role-level settings apply to NEW connections; the NOTIFY prompts
 -- PostgREST to reload so its pooled connections pick the change up
@@ -291,3 +320,45 @@ grant select on sync_log to anon, authenticated;
 alter role anon set statement_timeout = '60s';
 alter role authenticated set statement_timeout = '60s';
 notify pgrst, 'reload config';
+
+
+-- ----------------------------------------------------------------------------
+-- 6. Cloud backup bucket (desktop BackupService).
+--
+-- One private bucket per BYOK project. The Electron client uploads with the
+-- anon key — it cannot create buckets. Re-run this file after changing
+-- policies. Object names stay `database-backup_<ISO>.db`.
+-- Same trust model as sync: anyone with the project anon key can list and
+-- download these files.
+-- ----------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('easy-accounting-backups', 'easy-accounting-backups', false, 104857600)
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit;
+
+drop policy if exists backup_objects_select on storage.objects;
+create policy backup_objects_select
+  on storage.objects for select
+  to anon, authenticated
+  using (bucket_id = 'easy-accounting-backups');
+
+drop policy if exists backup_objects_insert on storage.objects;
+create policy backup_objects_insert
+  on storage.objects for insert
+  to anon, authenticated
+  with check (bucket_id = 'easy-accounting-backups');
+
+drop policy if exists backup_objects_update on storage.objects;
+create policy backup_objects_update
+  on storage.objects for update
+  to anon, authenticated
+  using (bucket_id = 'easy-accounting-backups')
+  with check (bucket_id = 'easy-accounting-backups');
+
+drop policy if exists backup_objects_delete on storage.objects;
+create policy backup_objects_delete
+  on storage.objects for delete
+  to anon, authenticated
+  using (bucket_id = 'easy-accounting-backups');
+

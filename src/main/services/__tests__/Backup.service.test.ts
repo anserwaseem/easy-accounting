@@ -84,7 +84,6 @@ describe('BackupService', () => {
     // mock Supabase client
     (createClient as jest.Mock).mockReturnValue({
       storage: {
-        createBucket: jest.fn().mockResolvedValue({ error: null }),
         from: jest.fn().mockReturnValue({
           upload: jest.fn().mockResolvedValue({ error: null }),
           list: jest.fn().mockResolvedValue({

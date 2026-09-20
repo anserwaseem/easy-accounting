@@ -2,7 +2,7 @@
   "name": "easy-accounting-web",
   "version": "0.2.18",
   "private": true,
-  "description": "Browser build of Easy Accounting — real core services on SQLite-wasm/OPFS in a Web Worker. Mounts src/renderer behind electronShim; Join/Sync UI is a later merge.",
+  "description": "Browser PWA of Easy Accounting — core services on SQLite-wasm/OPFS in a Web Worker.",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -21,6 +21,9 @@ import { raise, getComputerName, isOnline } from '../utils/general';
 import { store } from '../store';
 import { getBackupCredentials } from '../utils/backupConfig';
 
+/** provisioned by supabase/setup.sql — client never creates this bucket */
+export const CLOUD_BACKUP_BUCKET = 'easy-accounting-backups';
+
 /** read-only metadata about the most recent backup, for the sidebar indicator */
 export type BackupLastInfo = {
   /** ISO timestamp of the newest known backup, or null when none exists */
@@ -171,7 +174,7 @@ export class BackupService {
         )} MB to cloud...`,
       );
       const { error: uploadError } = await supabase.storage
-        .from(this.bucketName)
+        .from(CLOUD_BACKUP_BUCKET)
         .upload(fileName, fileBuffer, {
           contentType: 'application/octet-stream',
           duplex: 'half',
@@ -181,7 +184,7 @@ export class BackupService {
         const hint = /bucket|not found|does not exist/i.test(
           uploadError.message,
         )
-          ? ' Create a private Storage bucket named after this app in the Supabase dashboard first — the client cannot create buckets with the anon key.'
+          ? ' Re-run supabase/setup.sql in this project so the easy-accounting-backups bucket exists.'
           : '';
         this.emitProgress('failed', `Upload failed: ${uploadError.message}`);
         log.error(`Supabase file uploading failed: ${uploadError.message}`);
@@ -253,7 +256,7 @@ export class BackupService {
         'download',
       );
       const { data, error: downloadError } = await supabase.storage
-        .from(this.bucketName)
+        .from(CLOUD_BACKUP_BUCKET)
         .download(backup.filename);
 
       if (downloadError) {
@@ -334,7 +337,7 @@ export class BackupService {
     const supabase = this.getSupabase();
     if (supabase && this.bucketName && (await isOnline())) {
       const { data: cloudFiles, error: listError } = await supabase.storage
-        .from(this.bucketName)
+        .from(CLOUD_BACKUP_BUCKET)
         .list();
 
       if (!listError && cloudFiles?.length) {

@@ -5,7 +5,7 @@
  *
  * Matches the Electron client's `forcePathStyle: true` layout:
  * `{endpoint}/{bucket}/{key}`. The bucket CORS policy must allow PUT from
- * this origin (see docs/web-field-notes.md).
+ * this origin.
  */
 
 const encoder = new TextEncoder();
