@@ -7,8 +7,8 @@
  * returned to the renderer — the renderer only learns whether a key is set.
  *
  * These values must not go in the synced `settings` table: the anon key is
- * a credential, and the URL identifies this machine's backup destination
- * (bucket names already embed hostname + username).
+ * a credential, and the URL identifies this machine's backup destination.
+ * Local folders and pre-BYOK cloud buckets still embed hostname + username.
  */
 import { safeStorage } from 'electron';
 import log from 'electron-log';

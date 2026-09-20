@@ -5,9 +5,9 @@ never goes there — each business uses **their** Supabase project (BYOK).
 
 ## Production
 
-Point the existing Worker (`easy-accounting-web`) at **this** repo
-(`anserwaseem/easy-accounting`). Production branch: `main` (use
-`feat/web-pwa` only until that merge). Keep the Worker name, R2 font
+Worker `easy-accounting-web` is already connected to **this** repo
+(`anserwaseem/easy-accounting`). Production branch is `feat/web-pwa`
+until merge, then switch it to `main`. Keep the Worker name, R2 font
 bucket, and origin so installed PWAs stay on the same host.
 
 Do **not** create a second Cloudflare project.
