@@ -512,7 +512,7 @@ const SQL = {
   // docs/derived-state-design.md §6 migration 028, D3 (setOpeningStock
   // absolute overwrite): unconditional sum of every recorded movement for
   // one item — the SAME CASE logic as inventory_quantity_view's two inner
-  // subqueries (migrations/027.js), minus the opening-stock term. Used by
+  // subqueries (CORE 027 views), minus the opening-stock term. Used by
   // setOpeningStock to size a compensating stock_adjustments row so that
   // inventory_quantity_view keeps agreeing with the absolute value the user
   // just set via setInventoryQuantity, even when movements already exist for

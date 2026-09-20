@@ -5,14 +5,11 @@
  *
  * Unified chain (post schema-merge):
  *   - `scripts/frozen-web-schema/schema.sql` (shared 001-era CREATE TABLEs)
- *   - `src/main/migrations/001.js`–`026.js` (shared 001–023 + desktop
- *     invoice-date / vendor-stock / Urdu)
- *   - `src/main/migrations/027.js`–`032.js` (released nameUrdu/isActive,
- *     then uuid, opening-balance→journal, lookup indexes, ledger/inventory
- *     quantity *views* — additive; the `ledger` table remains)
+ *   - `src/main/migrations/001.js`–`028.js` (origin/main, released)
  *
- * Core 028+ (`src/core/db/migrations`, plus JS twins 033.js–040.js) are NOT
- * baked into this snapshot — `bootstrapDatabase` applies those on top.
+ * CORE (`src/core/db/migrations`, names `024_add_uuid`–`035_insert_timestamps`
+ * then `036_…`) is NOT baked into this snapshot — `bootstrapDatabase`
+ * applies those on both web and Electron.
  *
  * Two artifacts are written from a single build:
  *   - src/core/db/schema.snapshot.sql
@@ -36,8 +33,8 @@ const SNAPSHOT_SQL_PATH = path.join(
 );
 const SNAPSHOT_TS_PATH = path.join(ROOT_DIR, 'src/core/db/schemaSnapshot.ts');
 
-/** The migration range this snapshot freezes (filename numbers 001–032). */
-export const FROZEN_MIGRATION_RANGE = '001-032';
+/** The migration range this snapshot freezes (filename numbers 001–028). */
+export const FROZEN_MIGRATION_RANGE = '001-028';
 
 export interface LoadedMigration {
   name: string;
@@ -53,19 +50,19 @@ function loadMigrationFile(dir: string, fileName: string): LoadedMigration {
 }
 
 /**
- * Historical JS migrations baked into the snapshot: 001–032.
- * 033.js–040.js are core 028–035 twins and must NOT run here.
+ * Historical JS migrations baked into the snapshot: 001–028 (origin/main).
+ * CORE uuid/views/sync are applied by bootstrapDatabase, not here.
  */
 export function loadMigrations(): LoadedMigration[] {
   return fs
     .readdirSync(MIGRATIONS_DIR)
-    .filter((f) => /^(00[1-9]|01\d|02\d|03[0-2])\.js$/.test(f))
+    .filter((f) => /^(00[1-9]|01\d|02[0-8])\.js$/.test(f))
     .sort()
     .map((fileName) => loadMigrationFile(MIGRATIONS_DIR, fileName));
 }
 
 /**
- * Applies the frozen base schema.sql + migrations 001–032 onto `db`
+ * Applies the frozen base schema.sql + migrations 001–028 onto `db`
  * and records those names in `migrations`.
  *
  * `upToInclusive` (filename number) stops after that migration — used by
@@ -73,7 +70,7 @@ export function loadMigrations(): LoadedMigration[] {
  */
 export function applyFrozenWebSchema(
   db: Database.Database,
-  upToInclusive = 32,
+  upToInclusive = 28,
 ): void {
   const schemaSql = fs.readFileSync(SCHEMA_SQL_PATH, 'utf-8');
   db.exec(schemaSql);
@@ -157,20 +154,15 @@ export function buildSnapshotSql(db: Database.Database): string {
 -- Regenerate with: npx ts-node scripts/generate-schema-snapshot.ts
 --
 -- Frozen schema snapshot for migrations ${FROZEN_MIGRATION_RANGE}
--- (scripts/frozen-web-schema/schema.sql + src/main/migrations/001.js..032.js).
+-- (scripts/frozen-web-schema/schema.sql + src/main/migrations/001.js..028.js).
 --
--- Bootstraps a fresh database (web, and eventually new desktop installs) to
--- the exact schema state produced by running that schema.sql followed by
--- migrations 001-032 through the historical (better-sqlite3-sync)
--- MigrationRunner. Includes the \`migrations\` bookkeeping table, pre-seeded
--- with those names, so that if the desktop MigrationRunner ever opens a
--- database bootstrapped from this snapshot, it treats them as already
--- applied and does not attempt to re-run them.
+-- Bootstraps a fresh database to the schema produced by that schema.sql
+-- followed by migrations 001-028. Includes the \`migrations\` bookkeeping
+-- table, pre-seeded with those names, so Electron's MigrationRunner treats
+-- 001-028 as already applied.
 --
--- Future schema changes belong in src/core/db/migrations (028+), written
--- platform-free against DatabaseDriver -- NOT in this file. Existing
--- Electron installs still get 028-035 via src/main/migrations/033.js..040.js
--- twins (same recorded names).
+-- Future schema changes belong in src/core/db/migrations only. Electron
+-- calls bootstrapDatabase after 001-028.js — do not add another *.js twin.
 `;
 
   const body = objects.map((o) => `${o.sql.trim()};`).join('\n\n');

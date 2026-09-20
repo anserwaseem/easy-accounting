@@ -3,8 +3,8 @@
  * e2e/import.spec.ts to upload through the actual Import UI.
  *
  * "Desktop-format" means built exactly the way the Electron app builds one:
- * src/sql/schema.sql followed by every historical migration
- * (src/main/migrations/001.js..027.js) via better-sqlite3 — the same
+ * src/sql/schema.sql followed by every frozen JS migration
+ * (src/main/migrations/001.js..028.js) via better-sqlite3 — the same
  * bootstrap sequence src/main/migrations/index.ts's MigrationRunner and
  * scripts/generate-schema-snapshot.ts both use (see the latter's
  * `buildProductionDatabase`, which this mirrors for a Node/Playwright
@@ -66,25 +66,12 @@ export interface DesktopFixtureIds {
 export interface DesktopFixtureOptions {
   /**
    * When true, the fixture stops applying `src/main/migrations/*.js` at
-   * migration 023 — the last one before 025's opening-balance backfill —
-   * instead of the full historical set, and seeds an extra "Opening Balance
-   * from B/S" `ledger` row directly (old-fashioned, pre-025-write-path
-   * style: a bare `INSERT INTO ledger`, no backing `journal`/`journal_entry`
-   * rows at all) on the fixture's own Cash account. This is deliberately
-   * NOT "build all 001-027 migrations, then seed the row" — running
-   * migration 025 itself would immediately backfill the row this option
-   * exists to leave unbacked, defeating the point. Stopping the migration
-   * chain early instead produces a genuinely pre-025-shaped database, the
-   * same technique `src/core/db/__tests__/import.test.ts`'s
-   * `buildDesktopDatabase(23)` and `src/main/migrations/__tests__/
-   * migrations.test.ts`'s 019 upgrade fixture both already rely on — see
-   * the latter's doc comment on why a partial migration run (not a
-   * schema.sql that already contains later columns) is what makes this
-   * faithful: `schema.sql` only ever has the base, pre-migration-001 shape
-   * (later columns/tables are added exclusively by the numbered migration
-   * files themselves, guarded `IF NOT EXISTS`/`hasColumn`), so running only
-   * 001-023 against it reproduces a real pre-024/025 desktop install
-   * byte-for-byte, not an approximation of one.
+   * 023 (last file before vendor-stock / urdu / isActive) and seeds an
+   * extra "Opening Balance from B/S" `ledger` row directly — a bare
+   * `INSERT INTO ledger`, no backing `journal`/`journal_entry`. CORE
+   * `025_migrate_opening_balance_ledger_to_journal` never runs here
+   * (this fixture is JS-only); import must synthesize the journal.
+   * Same partial-chain trick as import.test.ts `buildDesktopDatabase(23)`.
    */
   preMigration025?: boolean;
 }
@@ -248,17 +235,10 @@ export function buildDesktopDatabaseFixture(
     `INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price) VALUES (?, ?, 3, 250)`,
   ).run(invoiceId, inventoryId);
 
-  // -- pre-025 "Opening Balance from B/S" ledger row: old StatementService
-  // .setupLedgers wrote this straight to `ledger` with no backing journal
-  // at all (see src/main/migrations/025.js's doc comment) — this is
-  // deliberately a bare `INSERT INTO ledger`, no journal/journal_entry
-  // rows, and no `linkedAccountId` (StatementService's real write never set
-  // one either — see StatementService.ts's `setupLedgers`). The real
-  // production bug this fixture proves fixed: apps.core.db.import.ts's
-  // importDatabase must synthesize the missing journal itself so this
-  // entry shows up in the Ledger UI at all (ledger_view, not this bare
-  // `ledger` row, is what the app actually reads post migration-028
-  // cutover).
+  // -- unbacked "Opening Balance from B/S" ledger row: old
+  // StatementService.setupLedgers wrote this straight to `ledger` with no
+  // backing journal. importDatabase must synthesize the journal so the
+  // entry shows in ledger_view (CORE 027), which never reads `ledger`.
   const OPENING_BALANCE_AMOUNT = 1500;
   const OPENING_BALANCE_EQUITY_ACCOUNT_NAME = 'Opening Balance Equity';
   if (preMigration025) {

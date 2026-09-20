@@ -7,12 +7,8 @@ import type { DatabaseDriver } from '../driver';
  * `_add_timestamp` triggers while `sync_state.applying` is set) and, before
  * that, `029_create_sync_tables.ts`'s own doc comment ("The `createdAt`/
  * `updatedAt` stomping ... is consciously NOT worked around the same way").
- * This one is a plain desktop-file import, no sync involved at all. Has a
- * desktop-side twin, `src/main/migrations/035.js` — same reason migrations
- * 028-034 do (see `030_create_sync_apply_conflicts.ts`'s doc comment): the
- * existing Electron install path runs schema changes exclusively through the
- * old synchronous `MigrationRunner`, which never calls `bootstrapDatabase`,
- * so a schema change meant to reach it has to be expressed twice.
+ * This one is a plain desktop-file import, no sync involved at all.
+ * Applied by `bootstrapDatabase` on Electron and web. No JS twin.
  *
  * ## The bug
  *

@@ -53,8 +53,7 @@ function migrationsSignature(db: Database.Database): string[] {
 
 describe('bootstrapDatabase', () => {
   it('produces a schema equivalent to the frozen snapshot plus CORE_MIGRATIONS', async () => {
-    // Reference: snapshot (001-030) then the same 028+ core migrations
-    // bootstrapDatabase applies on an already-populated DB.
+    // Reference: snapshot (001-028) then CORE_MIGRATIONS on that DB.
     const referenceDb = buildProductionDatabase();
     await bootstrapDatabase(new BetterSqliteDriver(referenceDb));
 

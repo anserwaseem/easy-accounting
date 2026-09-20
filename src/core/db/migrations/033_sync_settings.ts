@@ -11,11 +11,7 @@ import {
  * business fields — see src/core/services/SettingsService.ts) replicate
  * across devices via the same sync machinery every other business table
  * uses (migration 029 — src/core/db/migrations/029_create_sync_tables.ts).
- * Has a desktop-side twin, `src/main/migrations/033.js` — same reason
- * migrations 028-032 do (see 030's doc comment): the existing Electron
- * install path runs schema changes exclusively through the old synchronous
- * `MigrationRunner`, which never calls `bootstrapDatabase`, so a schema
- * change meant to reach it has to be expressed twice.
+ * Applied by `bootstrapDatabase` on Electron and web. No JS twin.
  *
  * ## Why `settings` needed a schema change first
  *

@@ -2,12 +2,7 @@ import type { DatabaseDriver } from '../driver';
 
 /**
  * Migration 030 — the local audit trail for a row `SyncEngine.applyRow`
- * could not apply. Has a desktop-side twin, `src/main/migrations/030.js` —
- * same reason migration 028/029 do (see `028_create_settings_table`'s doc
- * comment in `./index.ts`): the existing Electron install path runs schema
- * changes exclusively through the old synchronous `MigrationRunner`, which
- * never calls `bootstrapDatabase`, so a schema change meant to reach it has
- * to be expressed twice.
+ * could not apply. Applied by `bootstrapDatabase` on Electron and web. No JS twin.
  *
  * ## Why this table exists — the real incident
  *

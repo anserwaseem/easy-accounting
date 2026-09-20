@@ -4,7 +4,7 @@ import { ChartService } from '../ChartService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
 import { OPENING_BALANCE_EQUITY_ACCOUNT_NAME } from '../../db/openingBalanceBackfill';
-import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
+import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -32,8 +32,8 @@ jest.mock('electron', () => ({ app: { isPackaged: false } }));
 const USERNAME = 'testuser';
 const session: SessionContext = { getUsername: () => USERNAME };
 
-function seedBasicSchema(db: Database.Database) {
-  applyFrozenWebSchema(db);
+async function seedBasicSchema(db: Database.Database) {
+  await bootstrapDatabase(new BetterSqliteDriver(db));
   db.prepare(
     `INSERT INTO users (username, password_hash, status) VALUES (?, ?, 1)`,
   ).run(USERNAME, Buffer.from('x'));
@@ -77,7 +77,7 @@ const anAccount = (overrides: Record<string, unknown> = {}) =>
 describe('core AccountService', () => {
   it('inserts and reads back an account with normalized booleans', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts } = createCore(db);
 
     expect(await accounts.insertAccount(anAccount())).toBe(true);
@@ -92,7 +92,7 @@ describe('core AccountService', () => {
 
   it('insertAccountIfNotExists returns the existing account and re-charts it when headName changes', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts } = createCore(db);
 
     await accounts.insertAccount(anAccount());
@@ -115,7 +115,7 @@ describe('core AccountService', () => {
 
   it('updateAccount and toggleAccountActive persist', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts } = createCore(db);
 
     await accounts.insertAccount(anAccount());
@@ -135,7 +135,7 @@ describe('core AccountService', () => {
 
   it('deleteAccount refuses when journal entries reference the account', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts } = createCore(db);
 
     await accounts.insertAccount(anAccount());
@@ -162,7 +162,7 @@ describe('core AccountService', () => {
 
   it('getAccounts hides the system Opening Balance Equity account, but not a user account of the same name under a non-Equity chart', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, charts } = createCore(db);
 
     const equityChartId = Number(
@@ -204,7 +204,7 @@ describe('core AccountService', () => {
 
   it('getAccountByNameAndChart falls back to any chart', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, charts } = createCore(db);
 
     await accounts.insertAccount(anAccount());
@@ -231,7 +231,7 @@ describe('core AccountService', () => {
 describe('BetterSqliteDriver transactions', () => {
   it('rolls back everything when the transaction body throws', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { driver, accounts } = createCore(db);
 
     await expect(
@@ -247,7 +247,7 @@ describe('BetterSqliteDriver transactions', () => {
 
   it('commits on success and supports nesting via savepoints', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { driver, accounts } = createCore(db);
 
     await driver.transaction(async () => {

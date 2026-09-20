@@ -8,7 +8,7 @@ import { InvoiceService } from '../InvoiceService';
 import { VendorStockService } from '../VendorStockService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
+import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -49,8 +49,8 @@ const defaultAccountFields = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
-function seedBasicSchema(db: Database.Database) {
-  applyFrozenWebSchema(db);
+async function seedBasicSchema(db: Database.Database) {
+  await bootstrapDatabase(new BetterSqliteDriver(db));
   try {
     db.prepare(`ALTER TABLE chart ADD COLUMN nameUrdu TEXT`).run();
   } catch {
@@ -222,9 +222,9 @@ describe('core InvoiceService', () => {
     return { primaryTypeId, otherTypeId, primaryItemId, otherItemId };
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     core = createCore(db);
   });
 
@@ -777,9 +777,9 @@ describe('core InvoiceService sale quotations', () => {
     return { partyId, itemId };
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     core = createCore(db);
   });
 

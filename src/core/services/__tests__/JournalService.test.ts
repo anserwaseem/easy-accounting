@@ -7,7 +7,7 @@ import { JournalService } from '../JournalService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
 import { OPENING_BALANCE_PARTICULARS } from '../../db/openingBalanceBackfill';
-import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
+import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -45,8 +45,8 @@ const defaultAccountFields = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
-function seedBasicSchema(db: Database.Database) {
-  applyFrozenWebSchema(db);
+async function seedBasicSchema(db: Database.Database) {
+  await bootstrapDatabase(new BetterSqliteDriver(db));
   db.prepare(
     `INSERT INTO users (username, password_hash, status) VALUES (?, ?, 1)`,
   ).run(USERNAME, Buffer.from('x'));
@@ -110,7 +110,7 @@ const aJournal = (overrides: Partial<Journal> = {}): Journal =>
 describe('core JournalService', () => {
   it('insertJournal posts a simple debit/credit and updates ledger balances', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
@@ -136,7 +136,7 @@ describe('core JournalService', () => {
 
   it('rejects journals with multiple debits and multiple credits', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const bank = await insertAccount(db, accounts, 'Bank', 'Current Asset');
@@ -160,7 +160,7 @@ describe('core JournalService', () => {
 
   it('splits proportionally across multiple debits against a single credit', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const bank = await insertAccount(db, accounts, 'Bank', 'Current Asset');
@@ -187,7 +187,7 @@ describe('core JournalService', () => {
 
   it('splits proportionally across multiple credits against a single debit', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
@@ -214,7 +214,7 @@ describe('core JournalService', () => {
 
   it('rebuilds ledger balances chronologically when a past-dated journal is posted', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
@@ -249,7 +249,7 @@ describe('core JournalService', () => {
 
   it('getJournal, getJournals and getJournalsByInvoiceId read back what was posted', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
@@ -287,7 +287,7 @@ describe('core JournalService', () => {
 
   it('getJournals excludes opening-balance narration journals but keeps a normal journal, while ledger effects are unaffected', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const equity = await insertAccount(db, accounts, 'Owner Equity', 'Revenue');
@@ -334,7 +334,7 @@ describe('core JournalService', () => {
 
   it('updateJournalNarration and updateJournalInfo persist changes', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
@@ -375,7 +375,7 @@ describe('core JournalService', () => {
 
   it('getJournalNarrationSummariesByIds batches narration headers', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
@@ -406,7 +406,7 @@ describe('core JournalService', () => {
 
   it('removeLedgerEffectOfJournals strips ledger lines and rebuilds balances, deleteJournalsByIds removes rows', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger, journal } = createCore(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');

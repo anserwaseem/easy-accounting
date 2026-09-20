@@ -6,12 +6,8 @@ import type { DatabaseDriver } from '../driver';
  * visibly, every row of every other replicated table) showed the "Edited"
  * pill (`updatedAt > createdAt` — src/renderer/lib/invoiceUtils.ts's
  * `isInvoiceEditedSnapshot`) immediately after the join finished, and the
- * device had lost every true creation/edit timestamp it pulled down. Has a
- * desktop-side twin, `src/main/migrations/034.js` — same reason migrations
- * 028-033 do (see `030_create_sync_apply_conflicts.ts`'s doc comment): the
- * existing Electron install path runs schema changes exclusively through the
- * old synchronous `MigrationRunner`, which never calls `bootstrapDatabase`,
- * so a schema change meant to reach it has to be expressed twice.
+ * device had lost every true creation/edit timestamp it pulled down.
+ * Applied by `bootstrapDatabase` on Electron and web. No JS twin.
  *
  * ## The bug
  *

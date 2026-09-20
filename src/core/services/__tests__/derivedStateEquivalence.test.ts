@@ -60,7 +60,7 @@ import { PricingService } from '../PricingService';
 import { StatementService } from '../StatementService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
+import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -107,8 +107,8 @@ const defaultAccountFields = {
 } as any;
 
 /** Every chart type the schema's CHECK allows post-migration-001: all five. */
-function seedFullSchema(db: Database.Database): number {
-  applyFrozenWebSchema(db);
+async function seedFullSchema(db: Database.Database): Promise<number> {
+  await bootstrapDatabase(new BetterSqliteDriver(db));
   try {
     db.prepare(`ALTER TABLE chart ADD COLUMN nameUrdu TEXT`).run();
   } catch {
@@ -390,7 +390,7 @@ function openingBalanceEquityAccountIds(db: Database.Database): number[] {
 describe('derived-state equivalence: plain journals', () => {
   it('1:1, 1:N and N:1 splits with uneven amounts, across Asset/Liability/Revenue/Expense accounts', async () => {
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, journal } = createServices(db);
 
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
@@ -456,7 +456,7 @@ describe('derived-state equivalence: plain journals', () => {
 describe('derived-state equivalence: back-dated journals', () => {
   it('triggers rebuildLedgerFromEntries and still matches the view (order-independence)', async () => {
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, journal } = createServices(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
@@ -514,7 +514,7 @@ describe('derived-state equivalence: invoices', () => {
 
   it('sale, purchase, returns, quotations, converted quotations, edited invoices', async () => {
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, invoices, inventory } = createServices(db);
     const { party } = await seedInvoiceAccounts(db, accounts);
 
@@ -673,7 +673,7 @@ describe('derived-state equivalence: invoices', () => {
 describe('derived-state equivalence: stock adjustments', () => {
   it('positive and negative adjustments, plus invoice movements on the same item', async () => {
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, invoices, inventory } = createServices(db);
     await insertAccount(db, accounts, 'Sale', 'Revenue');
     await insertAccount(db, accounts, 'Purchase', 'Expense');
@@ -739,7 +739,7 @@ describe('derived-state equivalence: stock adjustments', () => {
 describe('derived-state equivalence: opening stock set before movements exist', () => {
   it('matches when opening stock is the first thing ever recorded for the item', async () => {
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, invoices, inventory } = createServices(db);
     await insertAccount(db, accounts, 'Sale', 'Revenue');
     await insertAccount(db, accounts, 'Purchase', 'Expense');
@@ -802,7 +802,7 @@ describe('derived-state equivalence: opening stock set before movements exist', 
 describe('derived-state equivalence: balance-sheet import (opening balances)', () => {
   it('opening balance is the first activity on the account: matches except the Opening Balance Equity account itself', async () => {
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, statements, journal } = createServices(db);
     await insertAccount(db, accounts, 'Cash', 'Current Asset');
     await insertAccount(db, accounts, 'Accounts Payable', 'Current Liability');
@@ -860,7 +860,7 @@ describe('derived-state equivalence: balance-sheet import (opening balances)', (
 describe('derived-state equivalence: multiple accounts across all chart types', () => {
   it('Asset, Liability, Equity, Revenue and Expense accounts all reconcile together', async () => {
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, journal } = createServices(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const loan = await insertAccount(db, accounts, 'Loan', 'Current Liability');
@@ -969,7 +969,7 @@ describe('derived-state equivalence: migration 028 dispositions (D1-D3)', () => 
     // expected: the two tables are allowed to diverge here now that only
     // the view is read).
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, journal, ledger } = createServices(db);
     const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const loan = await insertAccount(db, accounts, 'Loan', 'Current Liability');
@@ -1048,7 +1048,7 @@ describe('derived-state equivalence: migration 028 dispositions (D1-D3)', () => 
     // 028 makes LedgerService.getLedger return the view's 1400. The STORED
     // row is now write-only legacy and keeps its flat 1000.
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, journal, statements, ledger } = createServices(db);
     const cashId = await insertAccount(db, accounts, 'Cash', 'Current Asset');
     const saleId = await insertAccount(db, accounts, 'Sale', 'Revenue');
@@ -1138,7 +1138,7 @@ describe('derived-state equivalence: migration 028 dispositions (D1-D3)', () => 
     // 55 — the compensating row only cancels history up to the reset, so
     // later movements still layer on top normally.
     const db = new Database(':memory:');
-    seedFullSchema(db);
+    await seedFullSchema(db);
     const { accounts, invoices, inventory } = createServices(db);
     await insertAccount(db, accounts, 'Sale', 'Revenue');
     await insertAccount(db, accounts, 'Purchase', 'Expense');

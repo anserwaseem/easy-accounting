@@ -83,16 +83,9 @@ interface ElectronEventBridge {
   exportDatabase?: () => Promise<ArrayBuffer>;
 
   /**
-   * Capability flag for BYOK multi-device sync (see
-   * apps/web/src/worker/syncManager.ts's `SyncManager` and its four
-   * `sync:*` RPC handlers in db.worker.ts). Same pattern as
-   * `supportsDbImport`/`supportsDbExport` above: `true` here, always, and
-   * ONLY here — desktop's own preload.ts never sets it (sync isn't wired
-   * into the Electron build this increment — see SyncManager's doc
-   * comment), so it reads `undefined` (falsy) there, which is what the
-   * Settings screen's Sync card and the app shell's sync status pill
-   * (src/renderer/components/SyncIndicator.tsx) both gate their visibility
-   * on.
+   * Capability flag for BYOK multi-device sync. Set `true` here (web) and
+   * in desktop `preload.ts` — both hosts wire `SyncManager`. Renderer
+   * gates the Sync card / status pill on this flag.
    */
   supportsSync?: true;
   supportsBackup?: true;

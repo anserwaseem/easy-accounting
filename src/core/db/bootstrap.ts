@@ -5,19 +5,12 @@ import { CORE_MIGRATIONS } from './migrations';
 /**
  * Brings a database up to the current schema, platform-free.
  *
- * - If the database is empty (no `users` table), it is created from the
- *   frozen schema snapshot (src/core/db/schemaSnapshot.ts) — the equivalent
- *   of running the frozen base schema.sql plus migrations 001-032, without
- *   needing better-sqlite3's synchronous API. The snapshot also seeds the
- *   `migrations` bookkeeping table with those names, so the desktop
- *   MigrationRunner (which still runs against every Electron database) sees
- *   them as already applied and does not try to re-run them.
- * - Either way (freshly bootstrapped or a pre-existing database), any
- *   platform-free migrations registered in src/core/db/migrations (028+)
- *   that have not already run are applied in order.
- *
- * Safe to call on every startup: bootstrapping an already-bootstrapped
- * database is a no-op.
+ * - Empty DB (no `users` table): exec the frozen snapshot
+ *   (`001.js`–`028.js` dumped). Snapshot seeds `migrations` with those
+ *   names so Electron's `MigrationRunner` will not re-run them.
+ * - Then apply every `CORE_MIGRATIONS` entry whose `name` is not yet in
+ *   `migrations`. Electron calls this after `001.js`–`028.js`; web calls
+ *   it on every worker boot.
  */
 export async function bootstrapDatabase(driver: DatabaseDriver): Promise<void> {
   const usersTable = await driver.get(
@@ -28,9 +21,6 @@ export async function bootstrapDatabase(driver: DatabaseDriver): Promise<void> {
     await driver.exec(SCHEMA_SNAPSHOT_SQL);
   }
 
-  // Defensive: guarantee the bookkeeping table exists even if this is an
-  // old, pre-migrations-table database that predates both the snapshot and
-  // the desktop MigrationRunner ever running against it.
   await driver.exec(
     `CREATE TABLE IF NOT EXISTS migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,4 +44,9 @@ export async function bootstrapDatabase(driver: DatabaseDriver): Promise<void> {
       });
     }
   }
+
+  // Match origin/main after 008.js: constraints exist, enforcement is off.
+  // Desktop JS 001 turns them on then 008 turns them off; web never runs
+  // those files, so pin the same runtime here.
+  await driver.exec('PRAGMA foreign_keys = OFF');
 }

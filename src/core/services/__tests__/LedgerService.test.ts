@@ -4,7 +4,7 @@ import { AccountService } from '../AccountService';
 import { LedgerService } from '../LedgerService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
+import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -32,8 +32,8 @@ jest.mock('electron', () => ({ app: { isPackaged: false } }));
 const USERNAME = 'testuser';
 const session: SessionContext = { getUsername: () => USERNAME };
 
-function seedBasicSchema(db: Database.Database) {
-  applyFrozenWebSchema(db);
+async function seedBasicSchema(db: Database.Database) {
+  await bootstrapDatabase(new BetterSqliteDriver(db));
   db.prepare(
     `INSERT INTO users (username, password_hash, status) VALUES (?, ?, 1)`,
   ).run(USERNAME, Buffer.from('x'));
@@ -141,7 +141,7 @@ async function insertJournalPair(
 describe('core LedgerService — write-path primitives (stored `ledger` table, unchanged by migration 028)', () => {
   it('insertLedger writes rows directly readable back from the stored table', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountId = await insertAccount(db, accounts, 'Customer A', 101);
 
@@ -163,7 +163,7 @@ describe('core LedgerService — write-path primitives (stored `ledger` table, u
 
   it('deleteLedger removes all stored entries for the account', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountId = await insertAccount(db, accounts, 'Customer A', 101);
 
@@ -189,7 +189,7 @@ describe('core LedgerService — write-path primitives (stored `ledger` table, u
 
   it('hasNewerEntries reports whether stored entries exist after a given date', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountId = await insertAccount(db, accounts, 'Customer A', 101);
 
@@ -202,7 +202,7 @@ describe('core LedgerService — write-path primitives (stored `ledger` table, u
 
   it('getStoredLedger/getStoredBalance read the stored table (write-path internals JournalService relies on)', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountId = await insertAccount(db, accounts, 'Customer A', 101);
 
@@ -228,7 +228,7 @@ describe('core LedgerService — write-path primitives (stored `ledger` table, u
 describe('core LedgerService — canonical reads (ledger_view, migration 028)', () => {
   it('getLedger reads entries ordered by date, reconstructing the real counterparty', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const customerA = await insertAccount(db, accounts, 'Customer A', 101);
     const counterparty = await insertAccount(db, accounts, 'Payable', 201);
@@ -257,7 +257,7 @@ describe('core LedgerService — canonical reads (ledger_view, migration 028)', 
 
   it('getBalance returns the latest running balance from ledger_view', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountId = await insertAccount(db, accounts, 'Customer A', 101);
     const counterparty = await insertAccount(db, accounts, 'Payable', 201);
@@ -286,7 +286,7 @@ describe('core LedgerService — canonical reads (ledger_view, migration 028)', 
 
   it('getBalanceAtDate returns the last entry strictly before the date', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountId = await insertAccount(db, accounts, 'Customer A', 101);
     const counterparty = await insertAccount(db, accounts, 'Payable', 201);
@@ -317,7 +317,7 @@ describe('core LedgerService — canonical reads (ledger_view, migration 028)', 
 
   it('getLedgerRange returns entries within an inclusive date range', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountId = await insertAccount(db, accounts, 'Customer A', 101);
     const counterparty = await insertAccount(db, accounts, 'Payable', 201);
@@ -352,7 +352,7 @@ describe('core LedgerService — canonical reads (ledger_view, migration 028)', 
 
   it('getBalancesForAccountIds returns latest balance per account', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountA = await insertAccount(db, accounts, 'Customer A', 101);
     const accountB = await insertAccount(db, accounts, 'Customer B', 102);
@@ -389,7 +389,7 @@ describe('core LedgerService — canonical reads (ledger_view, migration 028)', 
 
   it('getBalancesForAccountIdsAsOfDate returns balance on or before the date', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountId = await insertAccount(db, accounts, 'Customer A', 101);
     const counterparty = await insertAccount(db, accounts, 'Payable', 201);
@@ -415,7 +415,7 @@ describe('core LedgerService — canonical reads (ledger_view, migration 028)', 
 
   it('getLedgerRangeForAccountIds and getLedgersUpToDateForAccountIds bucket rows per account', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
     const accountA = await insertAccount(db, accounts, 'Customer A', 101);
     const accountB = await insertAccount(db, accounts, 'Customer B', 102);

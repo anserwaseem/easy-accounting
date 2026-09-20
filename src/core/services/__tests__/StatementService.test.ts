@@ -6,7 +6,7 @@ import { LedgerService } from '../LedgerService';
 import { StatementService } from '../StatementService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
+import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -34,8 +34,8 @@ jest.mock('electron', () => ({ app: { isPackaged: false } }));
 const USERNAME = 'testuser';
 const session: SessionContext = { getUsername: () => USERNAME };
 
-function seedBasicSchema(db: Database.Database) {
-  applyFrozenWebSchema(db);
+async function seedBasicSchema(db: Database.Database) {
+  await bootstrapDatabase(new BetterSqliteDriver(db));
   try {
     db.prepare(`ALTER TABLE chart ADD COLUMN nameUrdu TEXT`).run();
   } catch {
@@ -130,7 +130,7 @@ const aBalanceSheet = (overrides: Partial<BalanceSheet> = {}): BalanceSheet =>
 describe('core StatementService', () => {
   it('re-charts an existing account into a custom head and posts a debit opening balance for a positive asset', async () => {
     const db = new Database(':memory:');
-    const userId = seedBasicSchema(db);
+    const userId = await seedBasicSchema(db);
     seedExistingAccount(db, userId, 'Cash', 'Current Asset');
     const { statements, charts, accounts, ledger } = createCore(db);
 
@@ -162,7 +162,7 @@ describe('core StatementService', () => {
 
   it('treats a negative asset amount as a credit (contra) balance', async () => {
     const db = new Database(':memory:');
-    const userId = seedBasicSchema(db);
+    const userId = await seedBasicSchema(db);
     seedExistingAccount(db, userId, 'Overdraft', 'Current Asset');
     const { statements, accounts, ledger } = createCore(db);
 
@@ -191,7 +191,7 @@ describe('core StatementService', () => {
 
   it('uses the default head name and credits a positive liability, into the seeded "Current Liability" chart', async () => {
     const db = new Database(':memory:');
-    const userId = seedBasicSchema(db);
+    const userId = await seedBasicSchema(db);
     seedExistingAccount(db, userId, 'Accounts Payable', 'Current Liability');
     const { statements, charts, accounts, ledger } = createCore(db);
 
@@ -234,7 +234,7 @@ describe('core StatementService', () => {
 
   it('debits a negative liability and credits a positive equity balance, creating the Equity chart on demand', async () => {
     const db = new Database(':memory:');
-    const userId = seedBasicSchema(db);
+    const userId = await seedBasicSchema(db);
     seedExistingAccount(db, userId, 'Loan Prepaid', 'Current Liability');
     seedExistingAccount(db, userId, 'Retained Earnings', 'Current Liability');
     const { statements, charts, accounts, ledger } = createCore(db);
@@ -288,7 +288,7 @@ describe('core StatementService', () => {
 
   it('surfaces the pre-existing insertAccountIfNotExists bug: saving a brand-new account fails and rolls back cleanly', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { statements, charts, accounts } = createCore(db);
 
     // 'Cash' does not pre-exist, so insertAccountIfNotExists must INSERT it —
@@ -307,7 +307,7 @@ describe('core StatementService', () => {
 
   it('rolls back every write and returns false when a later write mid-save fails', async () => {
     const db = new Database(':memory:');
-    const userId = seedBasicSchema(db);
+    const userId = await seedBasicSchema(db);
     seedExistingAccount(db, userId, 'Cash', 'Current Asset');
     const { statements, charts, accounts, ledger } = createCore(db);
 
@@ -327,7 +327,7 @@ describe('core StatementService', () => {
   describe('dual write: journal facts alongside the unchanged ledger row', () => {
     it('writes a balanced journal + two journal_entry rows for a positive asset, with no ledger row on the equity side', async () => {
       const db = new Database(':memory:');
-      const userId = seedBasicSchema(db);
+      const userId = await seedBasicSchema(db);
       seedExistingAccount(db, userId, 'Cash', 'Current Asset');
       const { statements, accounts, ledger } = createCore(db);
 
@@ -411,7 +411,7 @@ describe('core StatementService', () => {
 
     it('reuses the same "Opening Balance Equity" account across every section in one save', async () => {
       const db = new Database(':memory:');
-      const userId = seedBasicSchema(db);
+      const userId = await seedBasicSchema(db);
       seedExistingAccount(db, userId, 'Cash', 'Current Asset');
       seedExistingAccount(db, userId, 'Accounts Payable', 'Current Liability');
       const { statements, charts } = createCore(db);
@@ -464,7 +464,7 @@ describe('core StatementService', () => {
       // same scenario as "rolls back every write and returns false..." above,
       // asserting the journal side rolls back in step with the ledger side.
       const db = new Database(':memory:');
-      const userId = seedBasicSchema(db);
+      const userId = await seedBasicSchema(db);
       seedExistingAccount(db, userId, 'Cash', 'Current Asset');
       const { statements, ledger } = createCore(db);
 

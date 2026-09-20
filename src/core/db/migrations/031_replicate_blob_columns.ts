@@ -15,12 +15,7 @@ import {
  * practice that meant `users` replicated across devices with NO credential
  * material at all — a second device that joined a sync project got the
  * employee record but could never log into it, because nothing it received
- * ever carried a usable `password_hash`. Has a desktop-side twin,
- * `src/main/migrations/031.js` — same reason migrations 028/029/030 do (see
- * `030_create_sync_apply_conflicts.ts`'s doc comment): the existing Electron
- * install path runs schema changes exclusively through the old synchronous
- * `MigrationRunner`, which never calls `bootstrapDatabase`, so a schema
- * change meant to reach it has to be expressed twice.
+ * ever carried a usable `password_hash`. Applied by `bootstrapDatabase` on Electron and web. No JS twin.
  *
  * The fix itself — capturing a declared-blob column as a `<col>`/`<col>__hex`
  * typed pair, decoded back into a real blob on apply — lives in migration

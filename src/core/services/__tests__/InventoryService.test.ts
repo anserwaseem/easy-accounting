@@ -4,7 +4,6 @@ import { VendorStockService } from '../VendorStockService';
 import type { SessionContext, KeyValueStore } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
 import { INVENTORY_BASELINE_REASON } from '../../db/inventoryBaselineBackfill';
-import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
 import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
@@ -36,21 +35,9 @@ jest.mock('electron', () => ({
 const USERNAME = 'testuser';
 const session: SessionContext = { getUsername: () => USERNAME };
 
-/**
- * The real schema, brought forward by the real migrations — see the note in
- * the main-process InventoryService test for why both are needed.
- */
-function seedBasicSchema(db: Database.Database) {
-  applyFrozenWebSchema(db);
-  // frozen snapshot is 001-032 and already carries inventory.isActive.
-  const cols = db.prepare(`PRAGMA table_info("inventory")`).all() as {
-    name: string;
-  }[];
-  if (!cols.some((c) => c.name === 'isActive')) {
-    db.exec(
-      `ALTER TABLE inventory ADD COLUMN isActive BOOLEAN NOT NULL DEFAULT 1`,
-    );
-  }
+/** Current schema via bootstrapDatabase (snapshot 001-028 + CORE). */
+async function seedBasicSchema(db: Database.Database) {
+  await bootstrapDatabase(new BetterSqliteDriver(db));
 }
 
 function createCore(db: Database.Database, store?: KeyValueStore) {
@@ -91,7 +78,7 @@ const seedInventoryRow = (
 describe('core InventoryService.getInventoryHealth', () => {
   it('returns empty report when no items exist', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     const response = await inventory.getInventoryHealth(DATES);
     expect(response.rows).toHaveLength(0);
@@ -100,7 +87,7 @@ describe('core InventoryService.getInventoryHealth', () => {
 
   it('includes itemTypeId in every row', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const t2 = seedItemType(db, 'T2');
     seedInventoryRow(db, 'Item1', 10, t1, 5);
@@ -125,7 +112,7 @@ describe('core InventoryService.getInventoryHealth', () => {
 
   it('filters by itemTypeIds when provided', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     seedItemType(db, 'T2');
     seedInventoryRow(db, 'Item1', 10, t1, 5);
@@ -145,7 +132,7 @@ describe('core InventoryService.getInventoryHealth', () => {
 
   it('emits one anomaly chip per issue flag (not merged stock bucket)', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     seedInventoryRow(db, 'ZeroQty', 0, t1, 0);
 
@@ -163,7 +150,7 @@ describe('core InventoryService.getInventoryHealth', () => {
 
   it('attaches last sale and last purchase invoice numbers in range', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const invId = seedInventoryRow(db, 'Widget', 10, t1, 5);
     const accId = db
@@ -199,7 +186,7 @@ describe('core InventoryService.getInventoryHealth', () => {
 
   it('uses last movement ever for daysSinceMovement when report range has no activity', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const invId = seedInventoryRow(db, 'SlowMover', 10, t1, 50);
     const accId = db
@@ -232,7 +219,7 @@ describe('core InventoryService.getInventoryHealth', () => {
 describe('core InventoryService.getStockAsOf', () => {
   it('returns zero quantity when no invoices apply and inventory is zero', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     seedInventoryRow(db, 'Widget', 10, t1, 0);
 
@@ -245,7 +232,7 @@ describe('core InventoryService.getStockAsOf', () => {
 
   it('rewinds from current quantity when no movement after as-of', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const invId = seedInventoryRow(db, 'Widget', 10, t1, 10);
     const accId = db
@@ -270,7 +257,7 @@ describe('core InventoryService.getStockAsOf', () => {
 
   it('subtracts purchases after as-of from current to get historical qty', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     // docs/derived-state-design.md §6 migration 028: getStockAsOf's
     // "current quantity" anchor now comes from inventory_quantity_view
@@ -316,7 +303,7 @@ describe('core InventoryService.getStockAsOf', () => {
 
   it('matches current when return predates as-of (no delta after as-of end)', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const invId = seedInventoryRow(db, 'Widget', 10, t1, 20);
     const accId = db
@@ -350,7 +337,7 @@ describe('core InventoryService.getStockAsOf', () => {
 
   it('adds back sales that occur strictly after as-of (rewind)', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const invId = seedInventoryRow(db, 'Widget', 10, t1, 5);
     // docs/derived-state-design.md §6 migration 028: "current" is now
@@ -386,7 +373,7 @@ describe('core InventoryService.getStockAsOf', () => {
 describe('core InventoryService.getInventory list order', () => {
   it('orders by listPosition then id, nulls last', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     seedInventoryRow(db, 'B', 1, t1, 0, 20);
     seedInventoryRow(db, 'A', 1, t1, 0, 10);
@@ -402,7 +389,7 @@ describe('core InventoryService.getInventory list order', () => {
 describe('core InventoryService.applyListPositions', () => {
   it('updates by trimmed name and reports not found / ambiguous', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     seedInventoryRow(db, 'Only', 1, t1, 0);
     seedInventoryRow(db, 'Dup', 1, t1, 0);
@@ -428,7 +415,7 @@ describe('core InventoryService.applyListPositions', () => {
 describe('core InventoryService.bulkUpdatePricesAndListPositions', () => {
   it('updates only provided ids in one transaction', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const idA = seedInventoryRow(db, 'A', 10, t1, 0, 1);
     const idB = seedInventoryRow(db, 'B', 20, t1, 0, 2);
@@ -452,7 +439,7 @@ describe('core InventoryService.bulkUpdatePricesAndListPositions', () => {
 
   it('rejects invalid price', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const idA = seedInventoryRow(db, 'A', 10, t1, 0, 1);
 
@@ -467,7 +454,7 @@ describe('core InventoryService.bulkUpdatePricesAndListPositions', () => {
 
   it('rejects negative list #', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const idA = seedInventoryRow(db, 'A', 10, t1, 0, 1);
 
@@ -484,7 +471,7 @@ describe('core InventoryService.bulkUpdatePricesAndListPositions', () => {
 describe('core InventoryService attribute definitions', () => {
   it('appends new attributes after the highest order, even after a delete', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
 
     await inventory.upsertAttributeDefinition({
@@ -527,7 +514,7 @@ describe('core InventoryService attribute definitions', () => {
 
   it('normalises order to 1..N on reorder, healing gaps and duplicates', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     db.prepare(
       'INSERT INTO attribute_definitions (key,label,valueType,sortOrder) VALUES (?,?,?,?)',
     ).run('a', 'A', 'text', 5);
@@ -563,7 +550,7 @@ describe('core InventoryService attribute definitions', () => {
 
   it('ignores unknown ids and an empty reorder', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     await inventory.upsertAttributeDefinition({
       key: 'a',
@@ -581,7 +568,7 @@ describe('core InventoryService attribute definitions', () => {
 
   it('reports how many items use each attribute', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     db.prepare(
       'INSERT INTO attribute_definitions (key, label, valueType, sortOrder) VALUES (?, ?, ?, 0)',
     ).run('size_in', 'Paper size', 'text');
@@ -607,7 +594,7 @@ describe('core InventoryService attribute definitions', () => {
 
   it('force-deletes an in-use attribute and strips it from every item', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const usedId = db
       .prepare(
         'INSERT INTO attribute_definitions (key, label, valueType, sortOrder) VALUES (?, ?, ?, 0)',
@@ -638,7 +625,7 @@ describe('core InventoryService attribute definitions', () => {
 
   it('defers deletion of an in-use attribute to a confirmation, without force', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const usedId = db
       .prepare(
         'INSERT INTO attribute_definitions (key, label, valueType, sortOrder) VALUES (?, ?, ?, 0)',
@@ -662,7 +649,7 @@ describe('core InventoryService attribute definitions', () => {
 
   it('drops blank values so "has attributes" stays meaningful', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const id = db
       .prepare('INSERT INTO inventory (name, price, quantity) VALUES (?, 1, 0)')
       .run('A').lastInsertRowid as number;
@@ -687,9 +674,9 @@ describe('core InventoryService attribute definitions', () => {
 });
 
 describe('core InventoryService display title (migration 023)', () => {
-  const setup = () => {
+  const setup = async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const typeId = seedItemType(db, 'T1');
     return { db, typeId, ...createCore(db) };
   };
@@ -701,7 +688,7 @@ describe('core InventoryService display title (migration 023)', () => {
     ).title;
 
   it('stores a title given on create', async () => {
-    const { db, typeId, inventory } = setup();
+    const { db, typeId, inventory } = await setup();
     await inventory.insertItem({
       name: 'H ABU BAKR',
       price: 40,
@@ -713,7 +700,7 @@ describe('core InventoryService display title (migration 023)', () => {
   });
 
   it('stores NULL rather than an empty string when left blank', async () => {
-    const { db, typeId, inventory } = setup();
+    const { db, typeId, inventory } = await setup();
     await inventory.insertItem({
       name: 'S-23-G',
       price: 1080,
@@ -725,7 +712,7 @@ describe('core InventoryService display title (migration 023)', () => {
   });
 
   it('updates a title, and clearing it restores NULL', async () => {
-    const { db, typeId, inventory } = setup();
+    const { db, typeId, inventory } = await setup();
     await inventory.insertItem({
       name: 'PEGHAM',
       price: 100,
@@ -747,7 +734,7 @@ describe('core InventoryService display title (migration 023)', () => {
 describe('core InventoryService basic reads/writes', () => {
   it('doesInventoryExist reflects row presence', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     expect(await inventory.doesInventoryExist()).toBe(false);
     await inventory.insertItem({ name: 'Item', price: 10 });
@@ -757,7 +744,7 @@ describe('core InventoryService basic reads/writes', () => {
 
   it('applyStockAdjustment updates quantity and records history', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     await inventory.insertItem({ name: 'Item', price: 10 });
     const { id } = (await inventory.getInventory())[0];
@@ -787,7 +774,7 @@ describe('core InventoryService basic reads/writes', () => {
 
   it('setOpeningStock updates quantity for an existing item and records opening stock', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     await inventory.insertItem({ name: 'Widget', price: 10 });
     const { id } = (await inventory.getInventory())[0];
@@ -808,7 +795,7 @@ describe('core InventoryService basic reads/writes', () => {
 
   it('getInventoryIdsWithHistory returns ids touched by opening stock or adjustments', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     await inventory.insertItem({ name: 'A', price: 1 });
     await inventory.insertItem({ name: 'B', price: 1 });
@@ -827,7 +814,7 @@ describe('core InventoryService basic reads/writes', () => {
 
   it('name validation rejects a character the installation has reserved, via the store port', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const store: KeyValueStore = {
       get: jest.fn((key: string) =>
         key === 'publish.reservedNameChars' ? '/' : undefined,
@@ -851,7 +838,7 @@ describe('core InventoryService basic reads/writes', () => {
 describe('core InventoryService excludes import baseline rows from lists/indicators', () => {
   it('getStockAdjustments (all and by-id) return only the real adjustment, not the baseline', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     await inventory.insertItem({ name: 'Widget', price: 10 });
     const { id } = (await inventory.getInventory())[0];
@@ -881,7 +868,7 @@ describe('core InventoryService excludes import baseline rows from lists/indicat
 
   it('getInventoryIdsWithHistory flags only items with real adjustments or opening stock, not baseline-only items', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     await inventory.insertItem({ name: 'BaselineOnly', price: 1 });
     await inventory.insertItem({ name: 'RealAdjustment', price: 1 });
@@ -910,7 +897,7 @@ describe('core InventoryService excludes import baseline rows from lists/indicat
 
   it('quantity from inventory_quantity_view still includes the baseline (math untouched)', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     await inventory.insertItem({ name: 'Widget', price: 10 });
     const { id } = (await inventory.getInventory())[0];
@@ -936,7 +923,7 @@ describe('core InventoryService excludes import baseline rows from lists/indicat
 
   it('getStockAsOf is unaffected by the list exclusions (still sums the baseline delta)', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const t1 = seedItemType(db, 'T1');
     const invId = seedInventoryRow(db, 'Widget', 10, t1, 0);
     const { inventory } = createCore(db);
@@ -958,7 +945,7 @@ describe('core InventoryService excludes import baseline rows from lists/indicat
 describe('BetterSqliteDriver transactions (InventoryService)', () => {
   it('rolls back bulkUpdatePricesAndListPositions entirely when one patch is invalid', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { inventory } = createCore(db);
     const t1 = seedItemType(db, 'T1');
     const idA = seedInventoryRow(db, 'A', 10, t1, 0, 1);

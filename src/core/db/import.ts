@@ -285,9 +285,7 @@ export async function validateUploadedDatabase(
   }
 
   const sourceNameSet = new Set(sourceNames);
-  const onCurrentSchema =
-    sourceNameSet.has('035_insert_timestamps_fill_only') ||
-    sourceNameSet.has('036_desktop_vendor_stock_and_urdu');
+  const onCurrentSchema = sourceNameSet.has('035_insert_timestamps_fill_only');
   if (!onCurrentSchema) {
     warnings.push(
       `Source database is older than this app's schema — columns it doesn't ` +
@@ -422,7 +420,7 @@ async function copyTable(
  * 2. **Opening-balance rows the backfill itself cannot reach.**
  *    {@link backfillOpeningBalanceJournals} joins each `'Opening Balance
  *    from B/S'` ledger row through `account`/`chart` to resolve the
- *    per-user Equity account — same as `025.js` did. A row whose
+ *    per-user Equity account. A row whose
  *    `accountId` is NULL or points at an account that no longer exists
  *    (schema allows `ledger.accountId` to be nullable/dangling) is skipped
  *    by that INNER JOIN and stays unbacked even after the backfill runs —

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import {
+  CORE_MIGRATION_NAMES,
   DESKTOP_MIGRATION_NAMES,
   knownMigrationNames,
 } from '../knownMigrations';
@@ -26,5 +27,11 @@ describe('knownMigrationNames', () => {
       (name) => !known.has(name),
     );
     expect(missing).toEqual([]);
+  });
+
+  it('lists CORE_MIGRATION_NAMES in the same order as CORE_MIGRATIONS', () => {
+    expect([...CORE_MIGRATION_NAMES]).toEqual(
+      CORE_MIGRATIONS.map((m) => m.name),
+    );
   });
 });

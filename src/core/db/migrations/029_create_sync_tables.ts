@@ -2,17 +2,9 @@ import type { DatabaseDriver } from '../driver';
 import { BUSINESS_TABLES } from '../import';
 
 /**
- * Migration 029 — the client half of multi-device sync (see
- * docs, and src/core/sync/*). Has a desktop-side twin,
- * src/main/migrations/029.js — same reason migration 028 has one (see
- * src/core/db/migrations/index.ts's doc comment on that migration): the
- * existing Electron install path runs schema changes exclusively through
- * the old synchronous MigrationRunner, which never calls bootstrapDatabase,
- * so a schema change meant to reach it has to be expressed twice. Creates
- * the local sync bookkeeping tables
- * (`sync_outbox`, `sync_state`, `sync_rejected`) and, for every replicated
- * "fact" table, AFTER INSERT/UPDATE/DELETE triggers that capture a full row
- * image into `sync_outbox` whenever a local write happens.
+ * Migration 029 — client half of multi-device sync (`sync_outbox` /
+ * `sync_state` / `sync_rejected` plus per-table capture triggers).
+ * Electron and web both apply this via `bootstrapDatabase`. No JS twin.
  *
  * ## Which tables replicate
  *

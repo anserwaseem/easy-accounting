@@ -2,22 +2,18 @@
  * Every `migrations.name` this build will ever record.
  *
  * Import rejects a file that contains any name not in this set — that file
- * came from a newer app. Do not use the numeric prefix of `name`: desktop
- * file 040.js is `035_insert_timestamps_fill_only`, and two different
- * migrations share the `027_` / `028_` prefixes (`027_add_chart_nameUrdu`
- * vs `027_create_ledger_and_inventory_quantity_views`).
+ * came from a newer app. Compare the full `name` string, never the numeric
+ * prefix: `027_add_chart_nameUrdu` (desktop 027.js) and
+ * `027_create_ledger_and_inventory_quantity_views` (CORE) both exist.
  *
- * Keep in lockstep with `src/main/migrations/*.js` `name` exports. The
- * unit test in `knownMigrations.test.ts` fails if a new JS file is added
- * without listing it here.
+ * `DESKTOP_MIGRATION_NAMES` = `src/main/migrations/*.js` `name` exports
+ * (released origin/main `001`–`028`). `CORE_MIGRATION_NAMES` = post-main
+ * chain in `src/core/db/migrations`. Keep both lists in lockstep with
+ * those sources — `knownMigrations.test.ts` fails if they drift.
  *
- * Do not import CORE_MIGRATIONS from here — 029_create_sync_tables already
- * imports this module via import.ts, and that cycle left CORE_MIGRATIONS
- * half-initialized (undefined entries) at bootstrap.
- *
- * `LEGACY_CORE_NAMES` are names this branch recorded before 037/038 were
- * aligned onto the desktop 027/028 strings. Still accepted on import so a
- * local OPFS export from that window is not treated as "newer".
+ * Do not import CORE_MIGRATIONS from here — `029_create_sync_tables`
+ * already imports this module via import.ts, and that cycle left
+ * CORE_MIGRATIONS half-initialized at bootstrap.
  */
 export const DESKTOP_MIGRATION_NAMES: readonly string[] = [
   '001_update_chart_type_constraint',
@@ -48,6 +44,10 @@ export const DESKTOP_MIGRATION_NAMES: readonly string[] = [
   '026_add_urdu_print_fields',
   '027_add_chart_nameUrdu',
   '028_add_isActive_to_inventory',
+];
+
+/** Must match CORE_MIGRATIONS[].name in array order. */
+export const CORE_MIGRATION_NAMES: readonly string[] = [
   '024_add_uuid_to_business_tables',
   '025_migrate_opening_balance_ledger_to_journal',
   '026_index_journal_entry_and_ledger_lookup',
@@ -62,21 +62,8 @@ export const DESKTOP_MIGRATION_NAMES: readonly string[] = [
   '035_insert_timestamps_fill_only',
 ];
 
-const CORE_ONLY_NAMES: readonly string[] = [
-  '036_desktop_vendor_stock_and_urdu',
-];
-
-const LEGACY_CORE_NAMES: readonly string[] = [
-  '037_add_chart_nameUrdu',
-  '038_add_isActive_to_inventory',
-];
-
 export function knownMigrationNames(): Set<string> {
-  return new Set([
-    ...DESKTOP_MIGRATION_NAMES,
-    ...CORE_ONLY_NAMES,
-    ...LEGACY_CORE_NAMES,
-  ]);
+  return new Set([...DESKTOP_MIGRATION_NAMES, ...CORE_MIGRATION_NAMES]);
 }
 
 export function unknownMigrationNames(sourceNames: string[]): string[] {

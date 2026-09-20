@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { PricingService } from '../PricingService';
 import type { SessionContext } from '../../ports';
 import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
-import { applyFrozenWebSchema } from '../../../../scripts/generate-schema-snapshot';
+import { bootstrapDatabase } from '../../db/bootstrap';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -30,8 +30,8 @@ jest.mock('electron', () => ({ app: { isPackaged: false } }));
 const USERNAME = 'testuser';
 const session: SessionContext = { getUsername: () => USERNAME };
 
-function seedBasicSchema(db: Database.Database) {
-  applyFrozenWebSchema(db);
+async function seedBasicSchema(db: Database.Database) {
+  await bootstrapDatabase(new BetterSqliteDriver(db));
   db.prepare(
     `INSERT INTO users (username, password_hash, status) VALUES (?, ?, 1)`,
   ).run(USERNAME, Buffer.from('x'));
@@ -89,7 +89,7 @@ describe('core PricingService', () => {
   describe('item types', () => {
     it('inserts and reads back item types with normalized booleans', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
 
       expect(await pricing.insertItemType(' Electronics ')).toBe(true);
@@ -103,7 +103,7 @@ describe('core PricingService', () => {
 
     it('updateItemTypeName trims and persists', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
       await pricing.insertItemType('Books');
       const [{ id }] = await pricing.getItemTypes();
@@ -117,7 +117,7 @@ describe('core PricingService', () => {
 
     it('setPrimaryItemType clears any previous primary and sets the new one', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
       await pricing.insertItemType('A');
       await pricing.insertItemType('B');
@@ -137,7 +137,7 @@ describe('core PricingService', () => {
 
     it('clearPrimaryItemType clears the primary flag', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
       await pricing.insertItemType('A');
       const [a] = await pricing.getItemTypes();
@@ -150,7 +150,7 @@ describe('core PricingService', () => {
 
     it('toggleItemType clears the primary flag when deactivating', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
       await pricing.insertItemType('A');
       const [a] = await pricing.getItemTypes();
@@ -164,7 +164,7 @@ describe('core PricingService', () => {
 
     it('deleteItemType refuses when inventory references it, succeeds otherwise', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
       await pricing.insertItemType('Widgets');
       const [type] = await pricing.getItemTypes();
@@ -183,7 +183,7 @@ describe('core PricingService', () => {
   describe('discount profiles', () => {
     it('inserts and reads back discount profiles with normalized booleans', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
 
       expect(await pricing.insertDiscountProfile(' VIP ')).toBe(true);
@@ -196,7 +196,7 @@ describe('core PricingService', () => {
 
     it('updateDiscountProfileName and toggleDiscountProfile persist', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
       await pricing.insertDiscountProfile('VIP');
       const [{ id }] = await pricing.getDiscountProfiles();
@@ -211,7 +211,7 @@ describe('core PricingService', () => {
 
     it('deleteDiscountProfile refuses while linked to an account, succeeds otherwise', async () => {
       const db = new Database(':memory:');
-      const userId = seedBasicSchema(db);
+      const userId = await seedBasicSchema(db);
       const { pricing } = createCore(db);
       const chart = db
         .prepare(`SELECT id FROM chart WHERE userId = ?`)
@@ -238,7 +238,7 @@ describe('core PricingService', () => {
 
     it('deleteDiscountProfileFromAccount unassigns and deletes only when singly linked', async () => {
       const db = new Database(':memory:');
-      const userId = seedBasicSchema(db);
+      const userId = await seedBasicSchema(db);
       const { pricing } = createCore(db);
       const chart = db
         .prepare(`SELECT id FROM chart WHERE userId = ?`)
@@ -274,7 +274,7 @@ describe('core PricingService', () => {
   describe('profile type discounts and auto discount resolution', () => {
     it('saveProfileTypeDiscounts upserts and getProfileTypeDiscounts reads them back', async () => {
       const db = new Database(':memory:');
-      seedBasicSchema(db);
+      await seedBasicSchema(db);
       const { pricing } = createCore(db);
       await pricing.insertDiscountProfile('VIP');
       const [profile] = await pricing.getDiscountProfiles();
@@ -305,7 +305,7 @@ describe('core PricingService', () => {
 
     it('getAutoDiscount resolves the account discount profile + inventory item type', async () => {
       const db = new Database(':memory:');
-      const userId = seedBasicSchema(db);
+      const userId = await seedBasicSchema(db);
       const { pricing } = createCore(db);
       const chart = db
         .prepare(`SELECT id FROM chart WHERE userId = ?`)
@@ -336,7 +336,7 @@ describe('core PricingService', () => {
 
     it('getPolicyDiscountPercentForInventoryIds returns undefined when discounts diverge', async () => {
       const db = new Database(':memory:');
-      const userId = seedBasicSchema(db);
+      const userId = await seedBasicSchema(db);
       const { pricing } = createCore(db);
       const chart = db
         .prepare(`SELECT id FROM chart WHERE userId = ?`)
@@ -382,7 +382,7 @@ describe('core PricingService', () => {
 describe('PricingService transactions', () => {
   it('setPrimaryItemType rolls back cleanly if interrupted mid-transaction', async () => {
     const db = new Database(':memory:');
-    seedBasicSchema(db);
+    await seedBasicSchema(db);
     const { driver, pricing } = createCore(db);
     await pricing.insertItemType('A');
     const [a] = await pricing.getItemTypes();

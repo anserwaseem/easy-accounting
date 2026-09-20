@@ -25,22 +25,10 @@ export interface Migration {
  * files from migrations directory, checks which migrations have already been applied,
  * and runs any pending migrations without blocking main thread.
  *
- * To add a new migration:
- * 1. Create a new js file in the 'migrations' directory.
- * 2. The file should export an object that implements the {@link Migration} interface.
- * 3. The object should have a unique 'name' property and an 'up' function that performs the migration.
- *
- * Example of a migration file:
- * ```
- * module.exports = {
- *   name: '001_create_users_table',
- *   up: (db: Database) => {
- *     db.exec(`CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)`);
- *   }
- * };
- * ```
- *
- * The MigrationRunner will automatically detect and run new migrations in alphabetical order.
+ * Released origin/main chain only (`001.js`–`028.js`). Do not add files
+ * here. New schema goes in `src/core/db/migrations` (applied by
+ * `bootstrapDatabase` after this runner finishes) and
+ * `CORE_MIGRATION_NAMES` in `knownMigrations.ts`.
  */
 @logErrors
 export class MigrationRunner {

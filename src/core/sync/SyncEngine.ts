@@ -1657,8 +1657,8 @@ export class SyncEngine {
    * `settings.updatedAt` is trustworthy for this precisely BECAUSE
    * `settings` is unlike every other replicated table — migration 028
    * created it with no schema-snapshot `after_insert/update_..._add_timestamp`
-   * trigger (those triggers only exist for tables from migrations 001-027;
-   * `settings` postdates the snapshot), so nothing ever stomps the
+   * trigger (those triggers only exist for tables from the 001-028
+   * snapshot; `settings` is CORE and postdates it), so nothing ever stomps the
    * `updatedAt` `SettingsService.set()` stamps at the moment of a real
    * local write — contrast migration 029's doc comment, which documents
    * exactly that stomping as a KNOWN, un-worked-around gap for every other

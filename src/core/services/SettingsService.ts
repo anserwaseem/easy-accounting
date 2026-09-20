@@ -13,8 +13,9 @@ const SQL = {
 };
 
 /**
- * Platform-free reader/writer for the `settings` table (migration 028 —
- * see src/core/db/migrations/index.ts). Business settings live here now
+ * Platform-free reader/writer for the `settings` table
+ * (`028_create_settings_table` in CORE_MIGRATIONS — not origin/main
+ * `028_add_isActive_to_inventory`). Business settings live here now
  * instead of device-local storage (electron-store on desktop,
  * localStorage/web_kv on web), so they ride multi-device sync later and
  * ship in backups/exports today.

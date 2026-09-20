@@ -52,6 +52,7 @@ import { store } from './store';
 import { AppUpdater } from './appUpdater';
 import { MigrationRunner } from './migrations/index';
 import { SyncManager, type SyncKv } from '../core';
+import { bootstrapDatabase } from '../core/db/bootstrap';
 import { createCoreServices, getCoreDriver } from './coreRuntime';
 import {
   AuthService,
@@ -288,6 +289,9 @@ app
     // reportFatalStartupError below instead of half-starting the app.
     const migrationRunner = new MigrationRunner();
     await migrationRunner.waitForMigrations();
+    // 001.js–028.js (released main) then CORE_MIGRATIONS. Do not add more
+    // src/main/migrations/*.js files — append src/core/db/migrations instead.
+    await bootstrapDatabase(getCoreDriver());
 
     const authService = new AuthService();
     // Business services are the platform-free core (src/core) via

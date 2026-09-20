@@ -8,12 +8,7 @@ import {
  * Migration 032 — re-dates and renames the import-baseline `stock_adjustments`
  * rows {@link import('../inventoryBaselineBackfill').backfillInventoryBaseline}
  * already wrote to devices that imported a desktop database before this
- * change. Has a desktop-side twin, `src/main/migrations/032.js` — same
- * reason migrations 028-031 do (see `030_create_sync_apply_conflicts.ts`'s
- * doc comment): the existing Electron install path runs schema changes
- * exclusively through the old synchronous `MigrationRunner`, which never
- * calls `bootstrapDatabase`, so a schema change meant to reach it has to be
- * expressed twice.
+ * change. Applied by `bootstrapDatabase` on Electron and web. No JS twin.
  *
  * ## Why this exists — same investigation as `inventoryBaselineBackfill.ts`
  *
