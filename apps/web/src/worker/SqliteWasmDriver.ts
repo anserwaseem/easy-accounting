@@ -6,6 +6,7 @@ import type {
 } from '@sqlite.org/sqlite-wasm';
 import type { DatabaseDriver, RunResult, SqlParams } from '@core/db/driver';
 import { shouldCompactUnusedPages } from '@core/db/driver';
+import { inTransaction, isTxOwner, type TxState } from '@core/db/txZone';
 import { cast } from '@core/utils/sqlite';
 
 /**
@@ -49,11 +50,10 @@ export class SqliteWasmDriver implements DatabaseDriver {
 
   private readonly statements = new Map<string, PreparedStatement>();
 
-  /** Serializes transactions so async callers can never interleave them. */
+  /** Serializes every statement so a concurrent RPC/sync cannot join an open transaction. */
   private txQueue: Promise<unknown> = Promise.resolve();
 
-  /** Savepoint depth for transactions opened inside transactions. */
-  private txDepth = 0;
+  private readonly txState: TxState = { depth: 0, owner: undefined };
 
   private mutationListener: (() => void) | undefined;
 
@@ -145,18 +145,24 @@ export class SqliteWasmDriver implements DatabaseDriver {
   }
 
   /**
-   * Run `fn` against the single sqlite-wasm connection with no overlapping
-   * statement from another RPC/sync cycle. Nested calls from inside an
-   * already-open `transaction` run inline (queueing them would deadlock).
-   * REAL INCIDENT: first paint no longer waits for worker `ready`, so Login
-   * can fire a `SELECT` while boot/repair/`syncOnce` holds a transaction —
-   * overlapping statements on this VFS throw or hang, and the Login button
-   * looked dead (the click had no try/catch).
+   * owner of the open transaction runs inline (queueing would deadlock).
+   * every other caller waits until that job finishes. `txDepth > 0` is the
+   * wrong test: a second RPC can arrive while the owner is awaiting and
+   * would otherwise run inside the open BEGIN.
    */
-  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.txDepth > 0) return fn();
+  private enqueue<T>(fn: () => Promise<T> | T): Promise<T> {
+    if (isTxOwner(this.txState)) {
+      try {
+        return Promise.resolve(fn());
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
     const next = this.txQueue.then(fn, fn);
-    this.txQueue = next.catch(() => undefined);
+    this.txQueue = next.then(
+      () => undefined,
+      () => undefined,
+    );
     return next;
   }
 
@@ -222,32 +228,10 @@ export class SqliteWasmDriver implements DatabaseDriver {
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    const runInTx = async (): Promise<T> => {
-      const isNested = this.txDepth > 0;
-      const savepoint = `core_tx_${this.txDepth}`;
-      this.db.exec(isNested ? `SAVEPOINT ${savepoint}` : 'BEGIN');
-      this.txDepth += 1;
-      try {
-        const result = await fn();
-        this.txDepth -= 1;
-        this.db.exec(isNested ? `RELEASE ${savepoint}` : 'COMMIT');
-        return result;
-      } catch (error) {
-        this.txDepth -= 1;
-        this.db.exec(isNested ? `ROLLBACK TO ${savepoint}` : 'ROLLBACK');
-        if (isNested) this.db.exec(`RELEASE ${savepoint}`);
-        throw error;
-      }
-    };
-
-    // Outermost transactions queue behind each other; nested ones (called
-    // from inside fn) must run inline or they would deadlock on the queue.
-    if (this.txDepth > 0) {
-      return runInTx();
-    }
-    const next = this.txQueue.then(runInTx, runInTx);
-    this.txQueue = next.catch(() => undefined);
-    return next;
+    const runInTx = () =>
+      inTransaction(this.txState, (sql) => this.db.exec(sql), fn);
+    if (isTxOwner(this.txState)) return runInTx();
+    return this.enqueue(runInTx);
   }
 
   private readPragmaNumber(name: string): number {
@@ -273,7 +257,7 @@ export class SqliteWasmDriver implements DatabaseDriver {
   }
 
   async compactIfNeeded(): Promise<boolean> {
-    if (this.txDepth > 0) return false;
+    if (isTxOwner(this.txState)) return false;
     return this.enqueue(async () => {
       const pageSize = this.readPragmaNumber('page_size');
       const freelistCount = this.readPragmaNumber('freelist_count');

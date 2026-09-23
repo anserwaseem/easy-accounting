@@ -111,7 +111,6 @@ import {
   coerceStoredPasswordHash,
   hashPassword,
   isDesktopFormatHash,
-  isUsablePasswordHash,
   verifyDesktopPassword,
   verifyPassword,
 } from './webCrypto';
@@ -560,38 +559,15 @@ async function main(): Promise<void> {
         }
       }
 
-      // Re-join can apply a users row whose password_hash was NULL in the
-      // log (origin capture racing the hash insert). Dashboard still worked
-      // via the leftover session; after logout nothing verifies. If this
-      // device already has accounts or journals, the typed password becomes
-      // the local hash and sign-in succeeds.
-      //
-      // Fresh boot `default` (PLACEHOLDER_USERNAME, null hash, INITIAL_CHARTS
-      // only) does NOT take this path: 0 accounts, 0 journals → login
-      // still fails. That is load-bearing — do not drop the count check.
-      if (!isValid && !isUsablePasswordHash(storedHash)) {
-        const accounts = await driver.get<{ c: number }>(
-          `SELECT COUNT(*) AS c FROM account`,
-        );
-        const journals = await driver.get<{ c: number }>(
-          `SELECT COUNT(*) AS c FROM journal`,
-        );
-        if ((accounts?.c ?? 0) > 0 || (journals?.c ?? 0) > 0) {
-          const passwordHash = await hashPassword(trimmed || typedPassword);
-          await driver.run(
-            `UPDATE users SET password_hash = @password_hash WHERE username = @username`,
-            { password_hash: passwordHash, username: dbUser.username },
-          );
-          isValid = true;
-        }
-      }
+      // null password_hash is a failed login. do not store the typed
+      // password — knowing the username would otherwise claim the account.
+      // the device that has the real hash must sync it.
+      if (!isValid) return false;
 
-      if (isValid) {
-        currentUsername = dbUser.username;
-        await webKv.setAwaited('username', dbUser.username);
-        syncManager.resumeBackgroundLoop();
-      }
-      return isValid;
+      currentUsername = dbUser.username;
+      await webKv.setAwaited('username', dbUser.username);
+      syncManager.resumeBackgroundLoop();
+      return true;
     },
     register: async (user) => {
       const credentials = user as UserCredentials;

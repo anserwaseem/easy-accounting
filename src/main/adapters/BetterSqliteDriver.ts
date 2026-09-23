@@ -5,6 +5,7 @@ import type {
   SqlParams,
 } from '../../core/db/driver';
 import { shouldCompactUnusedPages } from '../../core/db/driver';
+import { inTransaction, isTxOwner, type TxState } from '../../core/db/txZone';
 
 /**
  * DatabaseDriver over a better-sqlite3 connection (Electron main / Node).
@@ -19,11 +20,10 @@ export class BetterSqliteDriver implements DatabaseDriver {
 
   private readonly statements = new Map<string, BetterSqlite3.Statement>();
 
-  /** Serializes transactions so async callers can never interleave them. */
+  /** Serializes every statement so a concurrent caller cannot join an open transaction. */
   private txQueue: Promise<unknown> = Promise.resolve();
 
-  /** Savepoint depth for transactions opened inside transactions. */
-  private txDepth = 0;
+  private readonly txState: TxState = { depth: 0, owner: undefined };
 
   private mutationListener: (() => void) | undefined;
 
@@ -53,66 +53,75 @@ export class BetterSqliteDriver implements DatabaseDriver {
     return Array.isArray(params) ? params : [params];
   }
 
+  /**
+   * owner of the open transaction runs inline (queueing would deadlock:
+   * the transaction job is waiting on `fn`, and `fn` is waiting on this
+   * call). every other caller waits until that job finishes, so it cannot
+   * read or write inside the open BEGIN.
+   */
+  private enqueue<T>(fn: () => T | Promise<T>): Promise<T> {
+    if (isTxOwner(this.txState)) {
+      try {
+        return Promise.resolve(fn());
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+    const next = this.txQueue.then(fn, fn);
+    this.txQueue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
+
   async run(sql: string, params?: SqlParams): Promise<RunResult> {
-    const stm = this.prepare(sql);
-    const result = stm.run(...BetterSqliteDriver.bind(stm, params));
-    this.notifyMutation();
-    return {
-      changes: result.changes,
-      lastInsertRowid: result.lastInsertRowid,
-    };
+    return this.enqueue(() => {
+      const stm = this.prepare(sql);
+      const result = stm.run(...BetterSqliteDriver.bind(stm, params));
+      this.notifyMutation();
+      return {
+        changes: result.changes,
+        lastInsertRowid: result.lastInsertRowid,
+      };
+    });
   }
 
   async get<T = unknown>(
     sql: string,
     params?: SqlParams,
   ): Promise<T | undefined> {
-    const stm = this.prepare(sql);
-    return stm.get(...BetterSqliteDriver.bind(stm, params)) as T | undefined;
+    return this.enqueue(() => {
+      const stm = this.prepare(sql);
+      return stm.get(...BetterSqliteDriver.bind(stm, params)) as T | undefined;
+    });
   }
 
   async all<T = unknown>(sql: string, params?: SqlParams): Promise<T[]> {
-    const stm = this.prepare(sql);
-    return stm.all(...BetterSqliteDriver.bind(stm, params)) as T[];
+    return this.enqueue(() => {
+      const stm = this.prepare(sql);
+      return stm.all(...BetterSqliteDriver.bind(stm, params)) as T[];
+    });
   }
 
   async exec(sql: string): Promise<void> {
-    this.db.exec(sql);
-    this.notifyMutation();
+    return this.enqueue(() => {
+      this.db.exec(sql);
+      this.notifyMutation();
+    });
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    const runInTx = async (): Promise<T> => {
-      const isNested = this.txDepth > 0;
-      const savepoint = `core_tx_${this.txDepth}`;
-      this.db.exec(isNested ? `SAVEPOINT ${savepoint}` : 'BEGIN');
-      this.txDepth += 1;
-      try {
-        const result = await fn();
-        this.txDepth -= 1;
-        this.db.exec(isNested ? `RELEASE ${savepoint}` : 'COMMIT');
-        return result;
-      } catch (error) {
-        this.txDepth -= 1;
-        this.db.exec(isNested ? `ROLLBACK TO ${savepoint}` : 'ROLLBACK');
-        if (isNested) this.db.exec(`RELEASE ${savepoint}`);
-        throw error;
-      }
-    };
-
-    // Outermost transactions queue behind each other; nested ones (called
-    // from inside fn) must run inline or they would deadlock on the queue.
-    if (this.txDepth > 0) {
-      return runInTx();
-    }
-    const next = this.txQueue.then(runInTx, runInTx);
-    // Keep the chain alive regardless of this transaction's outcome.
-    this.txQueue = next.catch(() => undefined);
-    return next;
+    const runInTx = () =>
+      inTransaction(this.txState, (sql) => this.db.exec(sql), fn);
+    if (isTxOwner(this.txState)) return runInTx();
+    return this.enqueue(runInTx);
   }
 
   async compactIfNeeded(): Promise<boolean> {
-    if (this.txDepth > 0) return false;
+    // vacuum cannot run inside a transaction. a caller that is not the
+    // owner waits its turn; the owner skips.
+    if (isTxOwner(this.txState)) return false;
     const run = async (): Promise<boolean> => {
       const pageSize = Number(this.db.pragma('page_size', { simple: true }));
       const freelistCount = Number(
