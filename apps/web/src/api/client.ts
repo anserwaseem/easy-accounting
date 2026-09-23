@@ -409,6 +409,14 @@ export function syncGetJoinInvite(): Promise<SyncJoinInvite | null> {
   return call('sync:getJoinInvite', []) as Promise<SyncJoinInvite | null>;
 }
 
+/** localhost worker debug RPCs used by the transaction e2e. not part of AppApi. */
+export function debugCall(
+  method: string,
+  args: unknown[] = [],
+): Promise<unknown> {
+  return call(method, args);
+}
+
 function buildApi(): AppApi {
   const api = {} as Record<string, unknown>;
   METHODS.forEach((method) => {

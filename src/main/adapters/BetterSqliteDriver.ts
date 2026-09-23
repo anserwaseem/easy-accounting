@@ -1,11 +1,19 @@
 import type BetterSqlite3 from 'better-sqlite3';
+import { AsyncLocalStorage } from 'async_hooks';
 import type {
   DatabaseDriver,
   RunResult,
   SqlParams,
 } from '../../core/db/driver';
 import { shouldCompactUnusedPages } from '../../core/db/driver';
-import { inTransaction, isTxOwner, type TxState } from '../../core/db/txZone';
+import { inTransaction, type TxState } from '../../core/db/txZone';
+
+/**
+ * AsyncLocalStorage follows native `await`. A `Promise#then` patch does not
+ * (ES2022 / V8). The store is the transaction token; any other IPC or timer
+ * sees `undefined` and waits on `txQueue` instead of joining the BEGIN.
+ */
+const txAls = new AsyncLocalStorage<symbol>();
 
 /**
  * DatabaseDriver over a better-sqlite3 connection (Electron main / Node).
@@ -23,7 +31,10 @@ export class BetterSqliteDriver implements DatabaseDriver {
   /** Serializes every statement so a concurrent caller cannot join an open transaction. */
   private txQueue: Promise<unknown> = Promise.resolve();
 
-  private readonly txState: TxState = { depth: 0, owner: undefined };
+  private readonly txState: TxState = { depth: 0 };
+
+  /** token of the open transaction; matches `txAls` only on the owning turn */
+  private token: symbol | undefined;
 
   private mutationListener: (() => void) | undefined;
 
@@ -36,7 +47,17 @@ export class BetterSqliteDriver implements DatabaseDriver {
   }
 
   private notifyMutation(): void {
-    this.mutationListener?.();
+    const listener = this.mutationListener;
+    if (!listener) return;
+    // a timer scheduled from the listener must not inherit the transaction
+    // token, or the deferred sync would run inside the open BEGIN.
+    txAls.exit(() => {
+      listener();
+    });
+  }
+
+  private ownsTx(): boolean {
+    return this.txState.depth > 0 && txAls.getStore() === this.token;
   }
 
   private prepare(sql: string): BetterSqlite3.Statement {
@@ -60,7 +81,7 @@ export class BetterSqliteDriver implements DatabaseDriver {
    * read or write inside the open BEGIN.
    */
   private enqueue<T>(fn: () => T | Promise<T>): Promise<T> {
-    if (isTxOwner(this.txState)) {
+    if (this.ownsTx()) {
       try {
         return Promise.resolve(fn());
       } catch (error) {
@@ -112,16 +133,27 @@ export class BetterSqliteDriver implements DatabaseDriver {
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    const runInTx = () =>
-      inTransaction(this.txState, (sql) => this.db.exec(sql), fn);
-    if (isTxOwner(this.txState)) return runInTx();
-    return this.enqueue(runInTx);
+    const exec = (sql: string) => {
+      this.db.exec(sql);
+    };
+    if (this.ownsTx()) return inTransaction(this.txState, exec, fn);
+    const token = Symbol('core-tx');
+    return this.enqueue(() =>
+      txAls.run(token, async () => {
+        this.token = token;
+        try {
+          return await inTransaction(this.txState, exec, fn);
+        } finally {
+          this.token = undefined;
+        }
+      }),
+    );
   }
 
   async compactIfNeeded(): Promise<boolean> {
-    // vacuum cannot run inside a transaction. a caller that is not the
-    // owner waits its turn; the owner skips.
-    if (isTxOwner(this.txState)) return false;
+    // vacuum cannot run inside a transaction. the owner skips; everyone
+    // else waits until the transaction releases the connection.
+    if (this.ownsTx()) return false;
     const run = async (): Promise<boolean> => {
       const pageSize = Number(this.db.pragma('page_size', { simple: true }));
       const freelistCount = Number(

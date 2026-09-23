@@ -319,6 +319,8 @@ export class SyncManager {
 
   private readonly fetchImpl?: typeof fetch;
 
+  private readonly background?: (fn: () => Promise<void>) => void;
+
   private readonly mockServer = new MockSyncServer();
 
   private transport: SyncTransport | null = null;
@@ -345,11 +347,18 @@ export class SyncManager {
     notify: (message: SyncNotifyMessage) => void;
     /** Injectable fetch — mirrors SupabaseSyncTransport's own escape hatch; unused in a real browser worker, present for symmetry/testability. */
     fetchImpl?: typeof fetch;
+    /**
+     * browser worker: run a background cycle on the same turn queue as
+     * RPCs so it cannot enter an open transaction. timers call this.
+     * `syncNow` does not — it is already inside an RPC turn.
+     */
+    background?: (fn: () => Promise<void>) => void;
   }) {
     this.db = deps.db;
     this.kv = deps.kv;
     this.notify = deps.notify;
     this.fetchImpl = deps.fetchImpl;
+    this.background = deps.background;
   }
 
   private makeEngine(transport: SyncTransport): SyncEngine {
@@ -888,7 +897,7 @@ export class SyncManager {
       this.scheduleNext();
       if (this.rerunRequested) {
         this.rerunRequested = false;
-        this.ensureCycle().catch(() => {});
+        this.launchCycle();
       }
     }
   }
@@ -957,7 +966,7 @@ export class SyncManager {
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;
       this.clearTimer();
-      this.ensureCycle().catch(() => {});
+      this.launchCycle();
     }, DEBOUNCE_MS);
   }
 
@@ -1096,7 +1105,7 @@ export class SyncManager {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
-    this.ensureCycle().catch(() => {});
+    this.launchCycle();
   }
 
   private stopLoop(): void {
@@ -1130,7 +1139,7 @@ export class SyncManager {
       this.inFlight = null;
       if (this.rerunRequested) {
         this.rerunRequested = false;
-        this.ensureCycle().catch(() => {});
+        this.launchCycle();
       }
     });
     return this.inFlight;
@@ -1161,7 +1170,20 @@ export class SyncManager {
     if (!this.transport) return;
     const delay = this.lastError ? this.backoffMs : FIXED_INTERVAL_MS;
     this.nextTimer = setTimeout(() => {
-      this.ensureCycle().catch(() => {});
+      this.launchCycle();
     }, delay);
+  }
+
+  /**
+   * timer / post-join follow-up. on the browser this waits behind the
+   * current RPC turn. `syncNow` calls {@link ensureCycle} directly so an
+   * RPC that is already the turn does not deadlock on itself.
+   */
+  private launchCycle(): void {
+    const start = (): Promise<void> => this.ensureCycle();
+    if (this.background) this.background(start);
+    else {
+      start().catch(() => {});
+    }
   }
 }

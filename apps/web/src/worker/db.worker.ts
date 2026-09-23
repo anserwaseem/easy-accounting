@@ -107,6 +107,7 @@ import {
 import { WebPublishService } from './publishService';
 import { SqliteWasmDriver } from './SqliteWasmDriver';
 import { SyncManager } from './syncManager';
+import { createTurnQueue } from './turnQueue';
 import {
   coerceStoredPasswordHash,
   hashPassword,
@@ -127,6 +128,12 @@ interface WorkerScope {
   onmessage: ((event: MessageEvent<RpcCall>) => void) | null;
 }
 declare const self: WorkerScope;
+
+function isLocalDebugHost(): boolean {
+  const host = (globalThis as { location?: { hostname: string } }).location
+    ?.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
 
 /**
  * A key/value store backed by an in-DB table (`web_kv`), for the same role
@@ -414,6 +421,8 @@ async function main(): Promise<void> {
     currentUsername.length > 0 &&
     currentUsername !== PLACEHOLDER_USERNAME;
 
+  const turn = createTurnQueue();
+
   // BYOK sync: device-scoped connect wizard + background sync loop (see
   // syncManager.ts's doc comment). Config lives in web_kv, independent of
   // which business user is signed in. `bootIfConfigured` is local-only
@@ -421,16 +430,20 @@ async function main(): Promise<void> {
   // awaiting it) so awaiting it does not delay `ready` on a network trip.
   // Logged-out boots pass `startLoop: false` so Safari Login is not
   // competing with a 288k-row pull; `resumeBackgroundLoop` after
-  // auth:login starts it.
+  // auth:login starts it. The loop itself is armed only after this
+  // function's own driver work, on the same turn queue as RPCs.
   const syncManager = new SyncManager({
     db: driver,
     kv: webKv,
     notify: (message) => self.postMessage(message),
+    background: (fn) => {
+      void turn(fn);
+    },
   });
   driver.setMutationListener(() => {
     syncManager.scheduleDebouncedSync();
   });
-  await syncManager.bootIfConfigured({ startLoop: hasRealSession });
+  await syncManager.bootIfConfigured({ startLoop: false });
 
   // Session: which user is "logged in" right now. Sourced from web_kv's
   // 'username' key (durable across page reloads, the web counterpart of
@@ -1181,57 +1194,95 @@ async function main(): Promise<void> {
     // currently-connected project (null when disconnected or mock). See
     // SyncManager.getJoinInvite.
     'sync:getJoinInvite': () => Promise.resolve(syncManager.getJoinInvite()),
+
+    // localhost playwright only. holds a transaction across several awaits
+    // so a second RPC can sit pending. rolls the temp table back.
+    'debug:txHold': async () => {
+      if (!isLocalDebugHost()) throw new Error('debug rpc is local only');
+      let innerCount = -1;
+      try {
+        await driver.transaction(async () => {
+          await driver.exec(
+            'CREATE TEMP TABLE IF NOT EXISTS _debug_tx (v TEXT)',
+          );
+          await driver.run('DELETE FROM _debug_tx');
+          await driver.run(`INSERT INTO _debug_tx (v) VALUES ('inside')`);
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 400);
+          });
+          const row = await driver.get<{ c: number }>(
+            'SELECT COUNT(*) AS c FROM _debug_tx',
+          );
+          innerCount = row?.c ?? -1;
+          throw new Error('abort');
+        });
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== 'abort') throw error;
+      }
+      return { innerCount };
+    },
+    'debug:txProbe': async () => {
+      if (!isLocalDebugHost()) throw new Error('debug rpc is local only');
+      await driver.exec('CREATE TEMP TABLE IF NOT EXISTS _debug_tx (v TEXT)');
+      await driver.run(`INSERT INTO _debug_tx (v) VALUES ('outside')`);
+      const row = await driver.get<{ c: number }>(
+        'SELECT COUNT(*) AS c FROM _debug_tx',
+      );
+      return { count: row?.c ?? -1 };
+    },
   };
 
   self.onmessage = (event: MessageEvent<RpcCall>) => {
-    const { id, method, args } = event.data;
-    const handler = handlers[method];
-    if (!handler) {
-      self.postMessage({
-        id,
-        ok: false,
-        type: 'result',
-        error: `Unknown method: ${method}`,
-      });
-      return;
-    }
-    handler(...args).then(
-      (result) => {
-        // `export:database`'s ArrayBuffer result is transferred (zero-copy)
-        // rather than structured-cloned — the only handler that currently
-        // returns one; anything else takes the normal (cloned) path.
+    void turn(async () => {
+      const { id, method, args } = event.data;
+      const handler = handlers[method];
+      if (!handler) {
+        self.postMessage({
+          id,
+          ok: false,
+          type: 'result',
+          error: `Unknown method: ${method}`,
+        });
+        return;
+      }
+      try {
+        const result = await handler(...args);
         self.postMessage(
           { id, ok: true, type: 'result', result },
           result instanceof ArrayBuffer ? [result] : undefined,
         );
-      },
-      (error: unknown) =>
+      } catch (error: unknown) {
         self.postMessage({
           id,
           ok: false,
           type: 'result',
           error: error instanceof Error ? error.message : String(error),
-        }),
-    );
+        });
+      }
+    });
   };
+
+  if (hasRealSession) syncManager.resumeBackgroundLoop();
 
   self.postMessage({ type: 'ready' });
 
-  // After ready: a large invoice UPDATE must never delay first paint.
-  // Notify the renderer if any row changed so the invoice list refreshes.
-  void repairInvoiceEditedTimestamps(driver)
-    .then((changed) => {
-      if (changed > 0) {
-        self.postMessage({ type: 'sync-applied' });
-      }
-    })
-    .catch((error: unknown) => {
-      // eslint-disable-next-line no-console
-      console.warn(
-        'repairInvoiceEditedTimestamps failed',
-        error instanceof Error ? error.message : error,
-      );
-    });
+  // after ready: a large invoice UPDATE must never delay first paint.
+  // same turn queue as RPCs so the repair cannot join an open transaction.
+  void turn(() =>
+    repairInvoiceEditedTimestamps(driver)
+      .then((changed) => {
+        if (changed > 0) {
+          self.postMessage({ type: 'sync-applied' });
+        }
+      })
+      .catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn(
+          'repairInvoiceEditedTimestamps failed',
+          error instanceof Error ? error.message : error,
+        );
+      }),
+  );
 }
 
 main().catch((error: unknown) => {

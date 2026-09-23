@@ -17,9 +17,12 @@ export default defineConfig({
     trace: 'retain-on-failure',
     // Linux CI/dev box has a preinstalled Chromium at this path (see repo
     // task notes — do not `playwright install` there). Everywhere else,
-    // Playwright uses its own browser (npx playwright install chromium).
+    // Playwright uses its own browser. PW_EXECUTABLE overrides that when
+    // the downloaded browser is missing (system Chrome).
     launchOptions: existsSync(CI_CHROMIUM)
       ? { executablePath: CI_CHROMIUM }
+      : process.env.PW_EXECUTABLE
+      ? { executablePath: process.env.PW_EXECUTABLE }
       : {},
   },
   // Two projects, split by test file rather than run every spec twice:

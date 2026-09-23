@@ -6,7 +6,7 @@ import type {
 } from '@sqlite.org/sqlite-wasm';
 import type { DatabaseDriver, RunResult, SqlParams } from '@core/db/driver';
 import { shouldCompactUnusedPages } from '@core/db/driver';
-import { inTransaction, isTxOwner, type TxState } from '@core/db/txZone';
+import { inTransaction, type TxState } from '@core/db/txZone';
 import { cast } from '@core/utils/sqlite';
 
 /**
@@ -53,7 +53,7 @@ export class SqliteWasmDriver implements DatabaseDriver {
   /** Serializes every statement so a concurrent RPC/sync cannot join an open transaction. */
   private txQueue: Promise<unknown> = Promise.resolve();
 
-  private readonly txState: TxState = { depth: 0, owner: undefined };
+  private readonly txState: TxState = { depth: 0 };
 
   private mutationListener: (() => void) | undefined;
 
@@ -145,13 +145,14 @@ export class SqliteWasmDriver implements DatabaseDriver {
   }
 
   /**
-   * owner of the open transaction runs inline (queueing would deadlock).
-   * every other caller waits until that job finishes. `txDepth > 0` is the
-   * wrong test: a second RPC can arrive while the owner is awaiting and
-   * would otherwise run inside the open BEGIN.
+   * while a transaction is open, nested calls from that same turn run
+   * inline. other turns must not reach here: db.worker.ts runs RPCs and
+   * background sync one at a time. `txDepth > 0` alone is not safe if a
+   * second RPC can enter, and a `Promise#then` patch does not track
+   * ES2022 `await`.
    */
   private enqueue<T>(fn: () => Promise<T> | T): Promise<T> {
-    if (isTxOwner(this.txState)) {
+    if (this.txState.depth > 0) {
       try {
         return Promise.resolve(fn());
       } catch (error) {
@@ -228,10 +229,11 @@ export class SqliteWasmDriver implements DatabaseDriver {
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    const runInTx = () =>
-      inTransaction(this.txState, (sql) => this.db.exec(sql), fn);
-    if (isTxOwner(this.txState)) return runInTx();
-    return this.enqueue(runInTx);
+    const exec = (sql: string) => {
+      this.db.exec(sql);
+    };
+    if (this.txState.depth > 0) return inTransaction(this.txState, exec, fn);
+    return this.enqueue(() => inTransaction(this.txState, exec, fn));
   }
 
   private readPragmaNumber(name: string): number {
@@ -257,7 +259,7 @@ export class SqliteWasmDriver implements DatabaseDriver {
   }
 
   async compactIfNeeded(): Promise<boolean> {
-    if (isTxOwner(this.txState)) return false;
+    if (this.txState.depth > 0) return false;
     return this.enqueue(async () => {
       const pageSize = this.readPragmaNumber('page_size');
       const freelistCount = this.readPragmaNumber('freelist_count');

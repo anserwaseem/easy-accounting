@@ -239,6 +239,8 @@ window.easyAccounting = {
         ),
   }),
   ready: clientModuleLoaded.then((m) => m.ready),
+  debug: (method: string, ...args: unknown[]) =>
+    clientModuleLoaded.then((m) => m.debugCall(method, args)),
 };
 
 async function boot(): Promise<void> {
@@ -336,6 +338,7 @@ declare global {
     easyAccounting: {
       api: ClientModule['api'];
       ready: ClientModule['ready'];
+      debug: (method: string, ...args: unknown[]) => Promise<unknown>;
     };
   }
 }
