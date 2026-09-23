@@ -21,5 +21,12 @@
       "@/*": ["./*"]
     }
   },
-  "exclude": ["test", "release/build", "release/app/dist", ".erb/dll"]
+  "exclude": [
+    "test",
+    "release/build",
+    "release/app/dist",
+    ".erb/dll",
+    "apps/web",
+    "workers"
+  ]
 }

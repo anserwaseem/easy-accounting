@@ -19,6 +19,15 @@ import { DatabaseService } from './Database.service';
 import { logErrors } from '../errorLogger';
 import { raise, getComputerName, isOnline } from '../utils/general';
 import { store } from '../store';
+import { getBackupCredentials } from '../utils/backupConfig';
+
+/**
+ * shared BYOK bucket from supabase/setup.sql. new uploads prefer this.
+ * the client never createBucket — older desktops already created a
+ * per-machine bucket (`database-backup_{platform}_{host}_{user}`) and
+ * upgrades still list/restore from that one.
+ */
+export const CLOUD_BACKUP_BUCKET = 'easy-accounting-backups';
 
 /** read-only metadata about the most recent backup, for the sidebar indicator */
 export type BackupLastInfo = {
@@ -38,22 +47,53 @@ export class BackupService {
 
   private backupDir!: string;
 
-  private supabase: SupabaseClient;
+  private supabase: SupabaseClient | null = null;
 
+  private supabaseFingerprint = '';
+
+  /** local folder + legacy per-machine cloud bucket from pre-BYOK desktops */
   private bucketName:
     | `${typeof this.BACKUP_PREFIX}_${typeof process.platform}_${string}_${string}`
     | undefined;
+
+  /** filename → supabase storage bucket last seen during list/upload */
+  private cloudObjectBuckets = new Map<string, string>();
 
   private readonly logPrefix: string = 'BackupService';
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
-
-    this.supabase = createClient(
-      process.env.SUPABASE_URL || '',
-      process.env.SUPABASE_ANON_KEY || '',
-    );
     this.setupBucketName();
+  }
+
+  /**
+   * rebuilds the supabase client when Settings credentials change. local
+   * backups still run when this returns null — only cloud upload/list/restore
+   * are skipped.
+   */
+  private getSupabase(): SupabaseClient | null {
+    const creds = getBackupCredentials();
+    if (!creds) {
+      this.supabase = null;
+      this.supabaseFingerprint = '';
+      return null;
+    }
+
+    const fingerprint = `${creds.url}\0${creds.anonKey}`;
+    if (this.supabase && this.supabaseFingerprint === fingerprint) {
+      return this.supabase;
+    }
+
+    try {
+      this.supabase = createClient(creds.url, creds.anonKey);
+      this.supabaseFingerprint = fingerprint;
+      return this.supabase;
+    } catch (err) {
+      log.error(`${this.logPrefix}: Failed to initialize Supabase client`, err);
+      this.supabase = null;
+      this.supabaseFingerprint = '';
+      return null;
+    }
   }
 
   // emit progress event to all open browser windows
@@ -96,6 +136,23 @@ export class BackupService {
 
       log.info(`Database backup created locally at ${backupPath}`);
 
+      const supabase = this.getSupabase();
+      if (!supabase) {
+        log.warn(
+          `${this.logPrefix}: Skipping cloud backup upload (Supabase credentials not configured).`,
+        );
+        new Notification({
+          title: 'Backup Created',
+          body: `Database backup created locally`,
+          silent: false,
+          icon:
+            process.platform === 'win32'
+              ? path.join(process.resourcesPath, 'assets/icon.png')
+              : undefined,
+        }).show();
+        return { success: true, path: backupPath };
+      }
+
       const isonline = await isOnline();
       log.info(`isOnline: ${isonline}`);
       if (!isonline) {
@@ -114,24 +171,6 @@ export class BackupService {
       // emit progress for upload starting
       this.emitProgress('started', 'Uploading backup to cloud storage...');
 
-      // ensure bucket exists
-      const { error: bucketError } = await this.supabase.storage.createBucket(
-        this.bucketName,
-        { public: false },
-      );
-
-      if (
-        bucketError &&
-        bucketError?.message !== 'The resource already exists'
-      ) {
-        this.emitProgress(
-          'failed',
-          `Failed to create cloud bucket: ${bucketError.message}`,
-        );
-        log.error(`Supabase bucket creation failed: ${bucketError.message}`);
-        return { success: false, error: bucketError.message };
-      }
-
       // upload backup db
       this.emitProgress('processing', 'Reading local backup file...');
       const fileBuffer = fs.readFileSync(backupPath);
@@ -143,17 +182,16 @@ export class BackupService {
           2,
         )} MB to cloud...`,
       );
-      const { error: uploadError } = await this.supabase.storage
-        .from(this.bucketName)
-        .upload(fileName, fileBuffer, {
-          contentType: 'application/octet-stream',
-          duplex: 'half',
-        });
+      const uploadError = await this.uploadCloudBackup(
+        supabase,
+        fileName,
+        fileBuffer,
+      );
 
       if (uploadError) {
-        this.emitProgress('failed', `Upload failed: ${uploadError.message}`);
-        log.error(`Supabase file uploading failed: ${uploadError.message}`);
-        return { success: false, error: uploadError.message };
+        this.emitProgress('failed', `Upload failed: ${uploadError}`);
+        log.error(`Supabase file uploading failed: ${uploadError}`);
+        return { success: false, error: uploadError };
       }
 
       this.emitProgress(
@@ -169,7 +207,11 @@ export class BackupService {
             ? path.join(process.resourcesPath, 'assets/icon.png')
             : undefined,
       }).show();
-      log.info(`Database backup created in cloud at ${this.bucketName}`);
+      log.info(
+        `Database backup created in cloud at ${
+          this.cloudObjectBuckets.get(fileName) ?? CLOUD_BACKUP_BUCKET
+        }`,
+      );
       return { success: true, path: backupPath };
     } catch (error) {
       const errorMessage =
@@ -201,6 +243,14 @@ export class BackupService {
       if (backup.type === 'local')
         return this.restoreFromBackup(backup.filename);
 
+      const supabase = this.getSupabase();
+      if (!supabase) {
+        return {
+          success: false,
+          error: 'Cloud backup storage is not configured.',
+        };
+      }
+
       if (!isOnline())
         return {
           success: false,
@@ -212,17 +262,18 @@ export class BackupService {
         `Downloading backup from cloud...`,
         'download',
       );
-      const { data, error: downloadError } = await this.supabase.storage
-        .from(this.bucketName)
-        .download(backup.filename);
+      const downloaded = await this.downloadCloudBackup(
+        supabase,
+        backup.filename,
+      );
 
-      if (downloadError) {
+      if (!downloaded.ok) {
         this.emitProgress(
           'failed',
-          `Download failed: ${downloadError.message}`,
+          `Download failed: ${downloaded.error}`,
           'download',
         );
-        const error = `Supabase file ${backup.filename} downloading failed: ${downloadError.message}`;
+        const error = `Supabase file ${backup.filename} downloading failed: ${downloaded.error}`;
         log.error(error);
         return { success: false, error };
       }
@@ -233,7 +284,10 @@ export class BackupService {
         'download',
       );
       const localPath = path.join(this.backupDir, backup.filename);
-      fs.writeFileSync(localPath, new Uint8Array(await data.arrayBuffer()));
+      fs.writeFileSync(
+        localPath,
+        new Uint8Array(await downloaded.data.arrayBuffer()),
+      );
 
       this.emitProgress(
         'completed',
@@ -289,30 +343,11 @@ export class BackupService {
         cloud: false,
       }));
 
-    // get cloud backups
-    let cloudBackups: BackupMetadata[] = [];
-    if (this.bucketName && (await isOnline())) {
-      const { data: cloudFiles, error: listError } = await this.supabase.storage
-        .from(this.bucketName)
-        .list();
-
-      if (!listError && cloudFiles?.length) {
-        log.info(
-          `Supabase files fetched: ${cloudFiles.length} from bucket: ${this.bucketName}`,
-        );
-        cloudBackups = cloudFiles
-          .filter((file) => file.name.startsWith(this.BACKUP_PREFIX))
-          .map((file) => ({
-            filename: file.name,
-            timestamp: BackupService.extractTimestamp(file.name),
-            size: get(file.metadata, 'size', 0),
-            local: false,
-            cloud: true,
-          }));
-      } else if (listError) {
-        log.error(`Supabase files listing failed: ${listError.message}`);
-      }
-    }
+    const supabase = this.getSupabase();
+    const cloudBackups =
+      supabase && this.bucketName && (await isOnline())
+        ? await this.listCloudBackups(supabase)
+        : [];
 
     // merge and convert to final format
     return orderBy(
@@ -377,6 +412,127 @@ export class BackupService {
       log.error('Restore failed:', errorMessage);
       return { success: false, error: errorMessage };
     }
+  }
+
+  /** shared BYOK bucket first, then this machine's pre-upgrade cloud bucket */
+  private cloudBuckets(): string[] {
+    const buckets = [CLOUD_BACKUP_BUCKET];
+    if (this.bucketName) {
+      buckets.push(this.bucketName);
+    }
+    return buckets;
+  }
+
+  private static isMissingBucketError(message: string): boolean {
+    return /bucket|not found|does not exist/i.test(message);
+  }
+
+  /** try the shared bucket, then the legacy per-machine bucket. never createBucket. */
+  private async uploadCloudBackup(
+    supabase: SupabaseClient,
+    fileName: string,
+    fileBuffer: Buffer,
+  ): Promise<string | null> {
+    let lastMessage = '';
+    let lastWasMissing = false;
+    // sequential: shared bucket first, then the old per-machine one
+    for (const bucket of this.cloudBuckets()) {
+      // eslint-disable-next-line no-await-in-loop
+      const { error } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, fileBuffer, {
+          contentType: 'application/octet-stream',
+          duplex: 'half',
+        });
+      if (!error) {
+        this.cloudObjectBuckets.set(fileName, bucket);
+        log.info(`${this.logPrefix}: uploaded ${fileName} to ${bucket}`);
+        return null;
+      }
+      lastMessage = error.message;
+      lastWasMissing = BackupService.isMissingBucketError(error.message);
+      log.warn(
+        `${this.logPrefix}: upload to ${bucket} failed: ${error.message}`,
+      );
+    }
+    const hint = lastWasMissing
+      ? ' If this is a new project, re-run supabase/setup.sql so easy-accounting-backups exists. Upgraded desktops keep using the old per-machine bucket when that still exists.'
+      : '';
+    return `${lastMessage}.${hint}`;
+  }
+
+  private async downloadCloudBackup(
+    supabase: SupabaseClient,
+    filename: string,
+  ): Promise<
+    | { ok: true; data: { arrayBuffer: () => Promise<ArrayBuffer> } }
+    | { ok: false; error: string }
+  > {
+    const ordered: string[] = [];
+    const known = this.cloudObjectBuckets.get(filename);
+    if (known) ordered.push(known);
+    this.cloudBuckets().forEach((bucket) => {
+      if (!ordered.includes(bucket)) ordered.push(bucket);
+    });
+
+    let lastMessage = 'not found';
+    for (const bucket of ordered) {
+      // eslint-disable-next-line no-await-in-loop
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .download(filename);
+      if (!error && data) {
+        this.cloudObjectBuckets.set(filename, bucket);
+        return { ok: true, data };
+      }
+      if (error) lastMessage = error.message;
+    }
+    return { ok: false, error: lastMessage };
+  }
+
+  private async listCloudBackups(
+    supabase: SupabaseClient,
+  ): Promise<BackupMetadata[]> {
+    this.cloudObjectBuckets.clear();
+    const byName: Record<string, BackupMetadata> = {};
+    const buckets = this.cloudBuckets();
+    const listings = await Promise.all(
+      buckets.map(async (bucket) => {
+        const { data: cloudFiles, error: listError } = await supabase.storage
+          .from(bucket)
+          .list();
+        return { bucket, cloudFiles, listError };
+      }),
+    );
+
+    // shared bucket is first in `buckets`, so it wins on duplicate filenames
+    listings.forEach(({ bucket, cloudFiles, listError }) => {
+      if (listError) {
+        log.error(
+          `Supabase files listing failed for ${bucket}: ${listError.message}`,
+        );
+        return;
+      }
+      if (!cloudFiles?.length) return;
+      log.info(
+        `Supabase files fetched: ${cloudFiles.length} from bucket: ${bucket}`,
+      );
+      cloudFiles
+        .filter((file) => file.name.startsWith(this.BACKUP_PREFIX))
+        .forEach((file) => {
+          if (byName[file.name]) return;
+          byName[file.name] = {
+            filename: file.name,
+            timestamp: BackupService.extractTimestamp(file.name),
+            size: get(file.metadata, 'size', 0),
+            local: false,
+            cloud: true,
+          };
+          this.cloudObjectBuckets.set(file.name, bucket);
+        });
+    });
+
+    return Object.values(byName);
   }
 
   private static ensureBackupDirectory(dir: string): void {

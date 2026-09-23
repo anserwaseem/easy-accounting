@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import { APP_VERSION } from '@/lib/appVersion';
 import SettingsPage from '../index';
 
 jest.mock('../PublishSettings', () => ({
@@ -10,6 +11,11 @@ jest.mock('../PublishSettings', () => ({
   default: () => (
     <div data-testid="publish-settings">Publish Settings Mock</div>
   ),
+}));
+
+jest.mock('../BackupSettings', () => ({
+  __esModule: true,
+  default: () => <div data-testid="backup-settings">Backup Settings Mock</div>,
 }));
 
 describe('SettingsPage', () => {
@@ -40,6 +46,10 @@ describe('SettingsPage', () => {
     (
       window as unknown as {
         electron: {
+          supportsBackup?: true;
+          getAppVersion: () => Promise<string>;
+          getSetting: (key: string) => Promise<unknown>;
+          setSetting: (key: string, val: unknown) => Promise<void>;
           store: {
             get: (key: string, defaultVal?: unknown) => unknown;
             set: (key: string, val: unknown) => void;
@@ -47,6 +57,12 @@ describe('SettingsPage', () => {
         };
       }
     ).electron = {
+      supportsBackup: true,
+      getAppVersion: jest.fn().mockResolvedValue(APP_VERSION),
+      getSetting: jest.fn(async (key: string) => store[key]),
+      setSetting: jest.fn(async (key: string, val: unknown) => {
+        store[key] = val;
+      }),
       store: {
         get: jest.fn((key: string, defaultVal?: unknown) =>
           store[key] !== undefined ? store[key] : defaultVal,
@@ -58,8 +74,14 @@ describe('SettingsPage', () => {
     };
   });
 
-  it('renders all four settings tabs', () => {
-    render(<SettingsPage />);
+  const renderSettings = async () => {
+    const view = render(<SettingsPage />);
+    await screen.findByTestId('app-version');
+    return view;
+  };
+
+  it('renders all four settings tabs', async () => {
+    await renderSettings();
 
     expect(screen.getByRole('tab', { name: /company/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /invoicing/i })).toBeInTheDocument();
@@ -67,23 +89,31 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('tab', { name: /sync/i })).toBeInTheDocument();
   });
 
-  it('populates company details from store', () => {
-    render(<SettingsPage />);
+  it('shows the running app version in the header', async () => {
+    await renderSettings();
 
-    expect(screen.getByDisplayValue('Test Company')).toBeInTheDocument();
+    expect(screen.getByTestId('app-version')).toHaveTextContent(
+      `Version ${APP_VERSION}`,
+    );
+  });
+
+  it('populates company details from settings', async () => {
+    await renderSettings();
+
+    expect(await screen.findByDisplayValue('Test Company')).toBeInTheDocument();
     expect(screen.getByDisplayValue('ٹیسٹ کمپنی')).toBeInTheDocument();
     expect(screen.getByDisplayValue('123 Main Street')).toBeInTheDocument();
     expect(screen.getByDisplayValue('+92 300 0000000')).toBeInTheDocument();
   });
 
-  it('tracks dirty state and allows reset', () => {
-    render(<SettingsPage />);
+  it('tracks dirty state and allows reset', async () => {
+    await renderSettings();
 
     expect(
       screen.queryByText(/you have unsaved changes/i),
     ).not.toBeInTheDocument();
 
-    const companyNameInput = screen.getByDisplayValue('Test Company');
+    const companyNameInput = await screen.findByDisplayValue('Test Company');
     fireEvent.change(companyNameInput, {
       target: { value: 'New Company Name' },
     });
@@ -99,18 +129,20 @@ describe('SettingsPage', () => {
     expect(screen.getByDisplayValue('Test Company')).toBeInTheDocument();
   });
 
-  it('saves changes and updates electron store', () => {
-    render(<SettingsPage />);
+  it('saves changes through settings', async () => {
+    await renderSettings();
 
-    const companyNameInput = screen.getByDisplayValue('Test Company');
+    const companyNameInput = await screen.findByDisplayValue('Test Company');
     fireEvent.change(companyNameInput, {
       target: { value: 'Updated Company' },
     });
 
     const saveButton = screen.getByRole('button', { name: /save changes/i });
-    fireEvent.click(saveButton);
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
 
-    expect(window.electron.store.set).toHaveBeenCalledWith(
+    expect(window.electron.setSetting).toHaveBeenCalledWith(
       'companyProfile.name',
       'Updated Company',
     );
@@ -119,8 +151,8 @@ describe('SettingsPage', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('switches to Invoicing tab and displays print configuration', () => {
-    render(<SettingsPage />);
+  it('switches to Invoicing tab and displays print configuration', async () => {
+    await renderSettings();
 
     const invoicingTab = screen.getByRole('tab', { name: /invoicing/i });
     act(() => {
@@ -134,8 +166,8 @@ describe('SettingsPage', () => {
     expect(screen.getByText(/print language format/i)).toBeInTheDocument();
   });
 
-  it('switches to Rules tab and displays validation constraint switch', () => {
-    render(<SettingsPage />);
+  it('switches to Rules tab and displays validation constraint switch', async () => {
+    await renderSettings();
 
     const rulesTab = screen.getByRole('tab', { name: /rules/i });
     act(() => {
@@ -151,8 +183,8 @@ describe('SettingsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('switches to Sync tab and renders PublishSettings', () => {
-    render(<SettingsPage />);
+  it('switches to Sync tab and renders PublishSettings and BackupSettings', async () => {
+    await renderSettings();
 
     const syncTab = screen.getByRole('tab', { name: /sync/i });
     act(() => {
@@ -161,5 +193,6 @@ describe('SettingsPage', () => {
     });
 
     expect(screen.getByTestId('publish-settings')).toBeInTheDocument();
+    expect(screen.getByTestId('backup-settings')).toBeInTheDocument();
   });
 });

@@ -1,0 +1,26 @@
+{
+  // Vite PWA from apps/web/dist, plus one Worker-first route that streams
+  // Jameel from R2. sqlite-wasm still runs in the browser, not here.
+  // `_headers` in that dist (copied from apps/web/public) are applied by
+  // Workers static assets the same way Pages would. SPA fallback is
+  // `not_found_handling` below — a Pages-style `/* /index.html 200`
+  // `_redirects` file is an infinite loop on Workers (error 100324).
+  //
+  // Worker name stays `easy-accounting-web` so the existing
+  // `*.workers.dev` origin keeps working when Git is switched to this repo.
+  "name": "easy-accounting-web",
+  "main": "./workers/urduPrintFont.ts",
+  "compatibility_date": "2026-09-03",
+  "preview_urls": true,
+  "assets": {
+    "directory": "./apps/web/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/fonts/jameel-noori-nastaleeq.woff2"]
+  },
+  "r2_buckets": [
+    {
+      "binding": "FONTS",
+      "bucket_name": "easy-accounting-fonts"
+    }
+  ]
+}

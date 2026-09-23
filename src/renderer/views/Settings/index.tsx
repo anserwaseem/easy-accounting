@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import isEqual from 'lodash/isEqual';
 import {
   Building2,
@@ -41,6 +42,7 @@ import {
 } from '@/renderer/shad/ui/tabs';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
+import { downloadDatabaseExport } from '@/renderer/lib/exportDatabase';
 import type {
   InvoicePrintLabelKey,
   InvoicePrintLabels,
@@ -54,8 +56,14 @@ import {
   EXAMPLE_INVOICE_PRINT_NOTE_EN,
   EXAMPLE_INVOICE_PRINT_NOTE_UR,
 } from '@/renderer/lib/invoicePrint/notes';
-import { useCompanyProfile, useInvoicePrintSettings } from '@/renderer/hooks';
+import {
+  useAppVersion,
+  useCompanyProfile,
+  useInvoicePrintSettings,
+} from '@/renderer/hooks';
 import PublishSettings from './PublishSettings';
+import BackupSettings from './BackupSettings';
+import SyncSettings from './SyncSettings';
 
 interface InvoicePrintLabelsAccordionProps {
   title: string;
@@ -138,6 +146,7 @@ const DEFAULT_LABELS = [' ', '0', '-', 'X'];
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [isSavedRecently, setIsSavedRecently] = useState(false);
+  const appVersion = useAppVersion();
 
   // company profile
   const { profile: companyProfile, saveCompanyProfile } = useCompanyProfile();
@@ -225,6 +234,7 @@ const SettingsPage: React.FC = () => {
         BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY,
       ) !== false,
   );
+  const [isExporting, setIsExporting] = useState(false);
 
   // sync draft state when persistent store/hooks update
   useEffect(() => {
@@ -377,34 +387,58 @@ const SettingsPage: React.FC = () => {
     savedStrictSplitRule,
   ]);
 
-  const handleSaveSettings = useCallback(() => {
+  const handleExportDatabase = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      await downloadDatabaseExport();
+    } catch (error) {
+      toast({
+        title: 'Export failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }, []);
+
+  const handleSaveSettings = useCallback(async () => {
     window.electron.store.set(
       'debitCreditDefaultLabel',
       draftDebitCreditDefaultLabel,
     );
     setSavedDebitCreditDefaultLabel(draftDebitCreditDefaultLabel);
 
-    saveCompanyProfile({
-      name: draftCompanyName.trim(),
-      nameUrdu: draftCompanyNameUrdu.trim(),
-      phone: draftCompanyPhone.trim(),
-      email: draftCompanyEmail.trim(),
-      whatsapp: draftCompanyWhatsapp.trim(),
-      website: draftCompanyWebsite.trim(),
-      address: draftCompanyAddress,
-      addressUrdu: draftCompanyAddressUrdu,
-      printNote: draftCompanyPrintNote,
-      printNoteUrdu: draftCompanyPrintNoteUrdu,
-    });
+    try {
+      await saveCompanyProfile({
+        name: draftCompanyName.trim(),
+        nameUrdu: draftCompanyNameUrdu.trim(),
+        phone: draftCompanyPhone.trim(),
+        email: draftCompanyEmail.trim(),
+        whatsapp: draftCompanyWhatsapp.trim(),
+        website: draftCompanyWebsite.trim(),
+        address: draftCompanyAddress,
+        addressUrdu: draftCompanyAddressUrdu,
+        printNote: draftCompanyPrintNote,
+        printNoteUrdu: draftCompanyPrintNoteUrdu,
+      });
 
-    saveInvoicePrintSettings({
-      locale: draftPrintLocale,
-      englishLabelOverrides: draftEnglishLabelOverrides,
-      urduLabelOverrides: draftUrduLabelOverrides,
-      showPartyBalances: draftShowPartyBalances,
-      showAgent: draftShowAgent,
-      showBillBalance: draftShowBillBalance,
-    });
+      await saveInvoicePrintSettings({
+        locale: draftPrintLocale,
+        englishLabelOverrides: draftEnglishLabelOverrides,
+        urduLabelOverrides: draftUrduLabelOverrides,
+        showPartyBalances: draftShowPartyBalances,
+        showAgent: draftShowAgent,
+        showBillBalance: draftShowBillBalance,
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not save company settings',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+      return;
+    }
 
     window.electron.store.set(
       BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY,
@@ -445,11 +479,19 @@ const SettingsPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-full bg-background text-foreground pb-20">
       {/* Header */}
-      <div className="border-b py-5">
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage company metadata, invoice templates, validation rules, and sync
-          options.
+      <div className="border-b py-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage company metadata, invoice templates, validation rules, and
+            sync options.
+          </p>
+        </div>
+        <p
+          className="text-xs text-muted-foreground tabular-nums shrink-0"
+          data-testid="app-version"
+        >
+          Version {appVersion}
         </p>
       </div>
 
@@ -916,6 +958,49 @@ const SettingsPage: React.FC = () => {
           {/* Tab 4: Cloud Sync / Publish */}
           <TabsContent value="sync" className="space-y-6 max-w-4xl">
             <PublishSettings />
+            {window.electron.supportsBackup && <BackupSettings />}
+            {window.electron.supportsSync && <SyncSettings />}
+            {window.electron.supportsDbExport && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Export my data</CardTitle>
+                  <CardDescription>
+                    Download this browser&apos;s entire database as a standard
+                    SQLite file — every account, chart, journal, inventory item
+                    and invoice. The file is openable by the desktop app (via
+                    &quot;Import from desktop app&quot;) or any SQLite tool, and
+                    never leaves this device.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    variant="outline"
+                    disabled={isExporting}
+                    onClick={handleExportDatabase}
+                  >
+                    {isExporting ? 'Exporting…' : 'Export my data'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            {window.electron.supportsDbImport && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Danger Zone</CardTitle>
+                  <CardDescription>
+                    Replace all data in this browser with a database exported
+                    from the desktop app. This signs you out and permanently
+                    replaces every account, journal, inventory item and invoice
+                    currently stored here.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="destructive">
+                    <Link to="/import">Import from desktop app&hellip;</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>

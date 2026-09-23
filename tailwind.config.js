@@ -1,11 +1,28 @@
+const path = require('path');
+
+/**
+ * Content globs are resolved as absolute paths (via `__dirname`) rather than
+ * left relative. Relative globs are resolved against the current working
+ * directory, which is this file's own directory when the root Electron
+ * build (webpack, cwd = repo root) requires it, but apps/web's Vite build
+ * (see apps/web/vite.config.ts) loads this same file from cwd = apps/web —
+ * relative globs would silently stop matching anything there. Absolute
+ * globs work identically from either caller, so this one config keeps
+ * serving both builds' Tailwind output without being forked.
+ */
+const fromRoot = (glob) => path.join(__dirname, glob);
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ['class'],
   content: [
-    './components/**/*.{ts,tsx}',
-    './components/*.{ts,tsx}',
-    './src/renderer/**/*.{ts,tsx}',
-    './src/renderer/**/**/*.{ts,tsx}',
+    fromRoot('components/**/*.{ts,tsx}'),
+    fromRoot('components/*.{ts,tsx}'),
+    fromRoot('src/renderer/**/*.{ts,tsx}'),
+    fromRoot('src/renderer/**/**/*.{ts,tsx}'),
+    // apps/web's own entry/shim files (main.tsx, electronShim.ts, App.tsx)
+    // — the browser mount point for the renderer above.
+    fromRoot('apps/web/src/**/*.{ts,tsx}'),
   ],
   theme: {
     container: {

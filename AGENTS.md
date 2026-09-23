@@ -8,34 +8,23 @@ This file provides guidance to LLM when working with code in this repository.
 
 ```
 src/main/                  ← Main process (Node/Electron)
-├── services/              ← Business logic classes with prepared statements
-│   ├── Database.service    ← SQLite singleton (better-sqlite3)
-│   ├── Auth.service        ← User login/logout
-│   ├── Account.service     ← Chart of accounts CRUD
-│   ├── Invoice.service     ← Full invoice lifecycle (sale/purchase, return, quotation)
-│   ├── Inventory.service   ← Stock management + adjustments
-│   ├── Ledger.service      ← Per-account ledger entries
-│   ├── Journal.service     ← Journal entries
-│   ├── Chart.service       ← Chart/account hierarchy
-│   ├── Print.service       ← HTML-to-PDF via webContents.printToPDF()
-│   ├── Pricing.service     ← Pricing logic
-│   └── Backup.service      ← Database backup
-├── migrations/            ← JS migration files (001 … 023), run in name order at startup
-├── errorLogger.ts
-├── main.ts                ← IPC handler registration (ipcMain.handle('domain:method', …))
-└── preload.ts             ← Exposes window.electron.* to renderer
+├── services/              ← Electron-only: Auth, Database, Print, Backup, Publish
+├── migrations/            ← FROZEN origin/main 001.js–028.js. Do not add files.
+├── coreRuntime.ts         ← Wires src/core services onto better-sqlite3
+├── main.ts                ← IPC + MigrationRunner then bootstrapDatabase
+└── preload.ts             ← window.electron.*
 
-src/renderer/              ← Renderer process (React 18)
-├── views/                 ← Feature pages (Accounts, Invoices, Inventory, Journals, Reports, Settings)
-├── components/            ← Shared UI components
-├── hooks/                 ← Custom React hooks
-├── lib/                   ← Utilities (reportExport.ts, utils.ts)
-├── shad/ui/               ← shadcn-style components (buttons, dialogs, dataTable, datePicker, calendar, etc.)
-├── routes.tsx             ← MemoryRouter-based routing
-└── preload.d.ts           ← Type declarations for window.electron
+src/core/                  ← Platform-free business logic (Electron + PWA)
+├── services/              ← Account, Chart, Invoice, Inventory, Ledger,
+│                            Journal, Pricing, Statement, VendorStock, Settings
+├── db/migrations/         ← All new schema (DatabaseDriver). Next name 041_…
+└── db/bootstrap.ts        ← Snapshot 001-028 + CORE_MIGRATIONS
 
-src/sql/schema.sql         ← Full schema baseline (migrations add ALTER TABLE to it)
-src/types/                  ← Shared TypeScript types
+src/renderer/              ← Shared React UI (views, components, hooks, shad/ui)
+apps/web/                  ← PWA host (sqlite-wasm worker + electronShim)
+
+src/sql/schema.sql         ← Base schema (migrations ALTER on top)
+src/types/                 ← Shared TypeScript types
 ```
 
 ## IPC Pattern
@@ -165,10 +154,13 @@ The invoice line-item table uses `useFieldArray` with `react-virtuoso` (virtual 
 - Some customers have multiple accounts suffixed by item-type/discount tiers (e.g. `-T`, `-TT`); a single invoice can split ledger/journals per suffixed account while still being “one invoice per customer”.
 - Customer item-type tier for sale invoices uses **account code** only (`getHeaderTypedSuffixFromCode`): split-by-type row resolution and split-off mismatch warnings; display names are not authoritative.
 - **Printed/saved invoice filenames go through `getInvoiceDocumentBaseName` (`src/lib/invoiceDocumentName.ts`)**, shared by `InvoiceService.getInvoicePdfOutputBaseName` (batch PDF save) and the print screen's `document.title` (print dialog's suggested name) so the two never diverge. Invoice numbers restart per type, so purchase rows are prefixed (`purchase-12`, `purchase-quotation-5`); sale rows stay bare (`12`, `quotation-5`) because `PrintService` writes every PDF into one flat folder and renaming sale files would orphan previously saved ones.
-- **`src/sql/schema.sql` is the base schema, not the current one.** A fresh install execs it and then runs every migration on top, so it lags: it carries `attribute_definitions` but not `inventory.itemTypeId`. Anything needing the real shape (tests included) must exec the schema _and_ apply the migrations, which is what `seedBasicSchema` in `Inventory.service.test.ts` now does.
-- **Migrations are covered by `src/main/migrations/__tests__/migrations.test.ts`**, which drives the real `MigrationRunner` over both paths a release meets: a fresh install, and a database left on 019. A new migration needs no new test to be covered by the fresh-install and idempotency cases; add a case only when it transforms existing rows, since nothing else checks that data survives.
-- **Never renumber or edit a released migration file.** The runner keys applied state on the `name` field, so changing a name re-runs the migration on every existing install and changing the body silently skips it on installs that already recorded it.
-- **Do not add "rename item" without a migration path.** `inventory.name` is the SKU, and the publishing pipeline uses it as the identity key everywhere downstream — image folder, R2 prefix, images manifest, WooCommerce `sku`, Meta feed `id`. Renaming forks the product: azs-ops' `sync_woo.py` would create a _second_ WooCommerce product at a new URL and `--prune` would draft the original, moving its order history, reviews and SEO onto a hidden product, while the new one loses its photograph (the masters folder still carries the old name). The immutability is currently enforced by omission — `UPDATE inventory` in `Inventory.service.ts` does not set `name`, and `editInventoryItem.tsx` passes `disabledFields={['name', 'quantity']}` — which reads like an oversight rather than a decision. If renaming is ever wanted it needs a coordinated rename map in azs-ops that moves the R2 prefix and updates the existing Woo product in place; see azs-ops `CLAUDE.md`.
+- **`src/sql/schema.sql` is the base schema, not the current one.** A fresh install execs it and then runs migrations. Tests that need the real shape call `bootstrapDatabase` (snapshot `001–028` + `CORE_MIGRATIONS`).
+- **Released JS migrations are `001.js`–`028.js` (origin/main).** Do not add, edit, or renumber them. New schema: append `src/core/db/migrations`, next unused `name` (`041_…`), list it in `CORE_MIGRATION_NAMES`. Electron runs `MigrationRunner` then `bootstrapDatabase`; web runs `bootstrapDatabase` only.
+- **Cloud backup bucket** is `easy-accounting-backups`, created by `supabase/setup.sql`. Client never `createBucket`. Electron upgrades still list/restore the old per-machine bucket (`database-backup_{platform}_{host}_{user}`) and fall back to it for new uploads if the shared bucket is missing. Local backup folder is unchanged.
+- **Sync invite = project anon key.** BYOK, one project per business. `sync_push` rejects malformed rows; it does not referee journals.
+- **Never change a recorded `migrations.name`.** The runner keys applied state on the `name` field, so changing a name re-runs the migration and changing the body of an already-recorded name silently skips it.
+- **Do not add "rename item" without a migration path.** `inventory.name` is the SKU (Woo `sku`, R2 prefix, image folder). `InventoryService` UPDATE does not set `name`; `editInventoryItem.tsx` disables it. A coordinated ops rename map is required if it is ever allowed.
+- Optional operator notes: `.local/operator.md` (gitignored). Read it when the file exists. Never copy its contents into tracked files, commits, or PR text.
 
 # Deferred Tasks
 

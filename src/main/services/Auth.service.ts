@@ -1,9 +1,10 @@
 import type { DbUser, UserCredentials } from 'types';
 import type { Database, Statement } from 'better-sqlite3';
+import { ChartService } from '../../core';
 import { store } from '../store';
 import { hashPassword, verifyPassword } from '../utils/encrypt';
+import { getCoreDriver, session } from '../coreRuntime';
 import { DatabaseService } from './Database.service';
-import { ChartService } from './Chart.service';
 import { INITIAL_CHARTS } from '../utils/constants';
 import { logErrors } from '../errorLogger';
 
@@ -11,15 +12,12 @@ import { logErrors } from '../errorLogger';
 export class AuthService {
   private db: Database;
 
-  private chartService: ChartService;
-
   private stmGetUser!: Statement;
 
   private stmInsertUser!: Statement;
 
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
-    this.chartService = new ChartService();
     this.initPreparedStatements();
   }
 
@@ -38,7 +36,7 @@ export class AuthService {
     return isValid;
   }
 
-  register(user: UserCredentials): boolean {
+  async register(user: UserCredentials): Promise<boolean> {
     try {
       if (user.username.length < 4 || user.password.length < 4) {
         return false;
@@ -59,7 +57,11 @@ export class AuthService {
 
       this.insertUser(registerUser);
 
-      this.chartService.insertCharts(user.username, INITIAL_CHARTS);
+      const chartService = new ChartService({
+        db: getCoreDriver(),
+        session,
+      });
+      await chartService.insertCharts(user.username, INITIAL_CHARTS);
 
       return true;
     } catch (error) {
