@@ -502,6 +502,11 @@ const BillsAgingPage = () => {
   return (
     <ReportLayout
       printStyles={printStyles}
+      bodyClassName={
+        visibleAccounts.length > 10
+          ? 'overflow-hidden h-full flex flex-col p-4'
+          : 'p-4'
+      }
       header={
         <div className="print-header flex flex-col gap-2.5 pb-2">
           {/* Row 1: Title, Summary KPI & Action Buttons */}
@@ -849,12 +854,12 @@ const BillsAgingPage = () => {
           }`}
         >
           {/* Screen Display - Original Complex Layout */}
-          <div className="print:hidden">
+          <div className="print:hidden h-full flex-1">
             <BillsAgingTables {...tableProps} />
           </div>
 
           {/* Print Display - Flat Excel-like Table */}
-          <div className="hidden print:block">
+          <div className="hidden print:block" aria-hidden="true">
             <BillsAgingPrintTable
               {...{
                 ...tableProps,

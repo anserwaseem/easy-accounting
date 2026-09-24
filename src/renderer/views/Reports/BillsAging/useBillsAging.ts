@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { isEmpty, sumBy } from 'lodash';
 import { format, subDays } from 'date-fns';
 import { getFixedNumber, getMonthsAndDaysBetween } from 'renderer/lib/utils';
@@ -48,7 +48,11 @@ export const useBillsAging = () => {
     return d;
   });
   const [charts, setCharts] = useState<Chart[]>([]);
+  const [chartsLoaded, setChartsLoaded] = useState(false);
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+  const allAccountsRef = useRef<Account[]>([]);
+  allAccountsRef.current = allAccounts;
+
   const [billsAging, setBillsAging] = useState<BillsAging>({
     headName: '',
     asOfDate: '',
@@ -68,8 +72,10 @@ export const useBillsAging = () => {
         (chart: Chart) => !!chart.parentId,
       );
       setCharts(filteredCharts);
+      setChartsLoaded(true);
     } catch (error) {
       console.error('Error fetching charts:', error);
+      setChartsLoaded(true);
     }
   }, []);
 
@@ -112,7 +118,10 @@ export const useBillsAging = () => {
         setInfoMessage('');
 
         // fetch all accounts for the active scope
-        const rawAccounts: Account[] = await window.electron.getAccounts();
+        const rawAccounts: Account[] =
+          allAccountsRef.current.length > 0
+            ? allAccountsRef.current
+            : await window.electron.getAccounts();
         const filteredAccounts = isAllPartiesScope
           ? rawAccounts.filter(
               (account: Account) =>
@@ -472,6 +481,9 @@ export const useBillsAging = () => {
   // recompute the report whenever the scope, period, or all-parties selection changes
   const runReport = useCallback(() => {
     if (!selectedHead) return;
+    if (selectedHead === ALL_PARTIES_HEAD && !chartsLoaded) {
+      return;
+    }
     const agentHeadNames = agentHeadNamesKey
       ? agentHeadNamesKey.split(HEAD_NAME_SEPARATOR)
       : [];
@@ -484,6 +496,7 @@ export const useBillsAging = () => {
     });
   }, [
     selectedHead,
+    chartsLoaded,
     startDate,
     selectedDate,
     agentHeadNamesKey,
