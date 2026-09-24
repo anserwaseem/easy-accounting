@@ -35,19 +35,9 @@ export const BillsAgingTables: FC<BillsAgingTablesProps> = ({
     return Math.max(...account.bills.map((bill) => bill.receipts.length), 0);
   };
 
-  // sort accounts by code (handle both number and string codes)
-  const sortedAccounts = [...accounts].sort((a, b) => {
-    const codeA = a.accountCode?.toString()?.trim() || '';
-    const codeB = b.accountCode?.toString()?.trim() || '';
-    return codeA.localeCompare(codeB, undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    });
-  });
-
   return (
     <div className="space-y-8 max-w-full">
-      {sortedAccounts.map((account) => {
+      {accounts.map((account) => {
         const visibleBills = hideZeroRows
           ? account.bills.filter((b) => getFixedNumber(b.finalBalance, 0) !== 0)
           : account.bills;

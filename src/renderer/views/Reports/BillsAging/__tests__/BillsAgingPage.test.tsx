@@ -242,8 +242,8 @@ describe('BillsAgingPage customer-first filters', () => {
       .getAllByTestId('head-option')
       .map((opt) => opt.textContent);
     expect(options).toContain('All Types');
-    expect(options).toContain('Main (No Suffix)');
-    expect(options).toContain('T');
+    expect(options).toContain('Standard (General)');
+    expect(options).toContain('Type T');
   });
 
   it('renders overdue age and discount percent filter options', async () => {
@@ -259,8 +259,25 @@ describe('BillsAgingPage customer-first filters', () => {
     expect(options).toContain('> 60 Days (2M)');
     expect(options).toContain('> 90 Days (3M)');
     expect(options).toContain('All Discounts');
-    expect(options).toContain('With Discount (>0%)');
-    expect(options).toContain('Net Only (0%)');
-    expect(options).toContain('≥ 40%');
+    expect(options).toContain('≥ 15%');
+    expect(options).toContain('≥ 20%');
+    expect(options).toContain('≥ 25%');
+    expect(options).toContain('≥ 30%');
+    expect(options).toContain('Custom %');
+  });
+
+  it('renders sorting options including code, due amount, overdue days, discount, and name', async () => {
+    render(<BillsAgingPage />);
+    await screen.findByText('Bills Aging');
+
+    const options = screen
+      .getAllByTestId('head-option')
+      .map((opt) => opt.textContent);
+    expect(options).toContain('Code (Default)');
+    expect(options).toContain('Due: Highest First');
+    expect(options).toContain('Due: Lowest First');
+    expect(options).toContain('Overdue: Oldest First');
+    expect(options).toContain('Discount: Highest First');
+    expect(options).toContain('Name (A–Z)');
   });
 });

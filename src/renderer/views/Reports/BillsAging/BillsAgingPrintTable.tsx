@@ -30,20 +30,10 @@ export const buildBillsAgingRows = (
 ): BillsAgingRow[] => {
   const { accounts } = billsAging;
 
-  // sort accounts by code (handle both number and string codes)
-  const sortedAccounts = [...accounts].sort((a, b) => {
-    const codeA = a.accountCode?.toString()?.trim() || '';
-    const codeB = b.accountCode?.toString()?.trim() || '';
-    return codeA.localeCompare(codeB, undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    });
-  });
-
   // create flat array of all rows (bills + unallocated receipts) for print
   const allRows: BillsAgingRow[] = [];
 
-  sortedAccounts.forEach((account) => {
+  accounts.forEach((account) => {
     const visibleBills = hideZeroRows
       ? account.bills.filter((b) => getFixedNumber(b.finalBalance, 0) !== 0)
       : account.bills;
@@ -53,8 +43,6 @@ export const buildBillsAgingRows = (
       allRows.push({
         accountCode: account.accountCode,
         accountName: account.accountName,
-        phone1: account.phone1,
-        phone2: account.phone2,
         headName: account.headName,
         billNumber: bill.billNumber,
         billDate: bill.billDate,
@@ -72,8 +60,6 @@ export const buildBillsAgingRows = (
       allRows.push({
         accountCode: account.accountCode,
         accountName: account.accountName,
-        phone1: account.phone1,
-        phone2: account.phone2,
         headName: account.headName,
         billNumber: 'Unallocated Receipt',
         billDate: receipt.receivedDate,
@@ -84,17 +70,6 @@ export const buildBillsAgingRows = (
         }-unallocated-${receipt.receivedDate}`,
       });
     });
-  });
-
-  // sort rows by account code, then by date, then by bill number
-  allRows.sort((a, b) => {
-    if (a.sortKey && b.sortKey) {
-      return a.sortKey.localeCompare(b.sortKey, undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
-    }
-    return 0;
   });
 
   return allRows;
@@ -137,20 +112,8 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
           {allRows.map((row) => (
             <TableRow key={`row-${row.sortKey}`}>
               <TableCell>
-                <div>
-                  <span className="font-semibold">{row.accountCode}</span>
-                  {row.accountName && (
-                    <span className="text-[11px] ml-1 text-gray-700">
-                      ({row.accountName})
-                    </span>
-                  )}
-                  {showHeadNames && row.headName ? ` — ${row.headName}` : ''}
-                </div>
-                {(row.phone1 || row.phone2) && (
-                  <div className="text-[10px] text-gray-600">
-                    📞 {[row.phone1, row.phone2].filter(Boolean).join(' / ')}
-                  </div>
-                )}
+                {row.accountCode}
+                {showHeadNames && row.headName ? ` — ${row.headName}` : ''}
               </TableCell>
               <TableCell>{row.billNumber}</TableCell>
               <TableCell>

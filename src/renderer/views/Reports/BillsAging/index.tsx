@@ -52,8 +52,6 @@ import { BillsAging, BillsAgingRow } from './types';
 
 type BillsAgingExportRow = {
   accountCode?: number | string;
-  accountName?: string;
-  phone?: string;
   headName?: string;
   billNumber: string;
   billDate: string;
@@ -95,13 +93,8 @@ const buildBillsAgingExportPayload = (
         : `Overdue by ${duration}`;
     }
 
-    const phone =
-      [row.phone1, row.phone2].filter(Boolean).join(' / ') || undefined;
-
     return {
       accountCode: row.accountCode,
-      accountName: row.accountName,
-      phone,
       headName: showHeadNames ? row.headName : undefined,
       billNumber: row.billNumber,
       billDate: format(new Date(row.billDate), 'dd/MM/yy'),
@@ -112,9 +105,7 @@ const buildBillsAgingExportPayload = (
   });
 
   const columns: ReportExportPayload<BillsAgingExportRow>['columns'] = [
-    { key: 'accountCode', header: 'Account Code', format: 'string', width: 14 },
-    { key: 'accountName', header: 'Account Name', format: 'string', width: 24 },
-    { key: 'phone', header: 'Phone', format: 'string', width: 20 },
+    { key: 'accountCode', header: 'Account', format: 'string', width: 18 },
     ...(showHeadNames
       ? ([
           { key: 'headName', header: 'Head', format: 'string', width: 20 },
@@ -184,6 +175,7 @@ const BillsAgingPage = () => {
   const [customDays, setCustomDays] = useState<string>('');
   const [discountPreset, setDiscountPreset] = useState<string>('all');
   const [customDiscount, setCustomDiscount] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('code');
 
   // build typing context for account variant filtering
   const typingContext = useMemo(() => {
@@ -227,12 +219,6 @@ const BillsAgingPage = () => {
         if (Number.isFinite(parsed)) numericPct = parsed;
       }
 
-      if (discountPreset === 'with_discount') {
-        return numericPct !== null && numericPct > 0;
-      }
-      if (discountPreset === 'net_only') {
-        return numericPct === null || numericPct === 0;
-      }
       const targetMin =
         discountPreset === 'custom'
           ? Number(customDiscount)
@@ -282,7 +268,8 @@ const BillsAgingPage = () => {
     (selectedCustomerIds.length > 0 ? 1 : 0) +
     (accountTypeFilter !== 'all' ? 1 : 0) +
     (agePreset !== 'all' ? 1 : 0) +
-    (discountPreset !== 'all' ? 1 : 0);
+    (discountPreset !== 'all' ? 1 : 0) +
+    (sortBy !== 'code' ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
 
   const handlePrint = () => {
@@ -350,7 +337,63 @@ const BillsAgingPage = () => {
         .filter((acc) => acc.bills.length > 0);
     }
 
-    return filtered;
+    // sort visible accounts
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'due_desc') {
+        const dueA = a.totalOutstanding - (a.totalUnallocated || 0);
+        const dueB = b.totalOutstanding - (b.totalUnallocated || 0);
+        if (dueB !== dueA) return dueB - dueA;
+      } else if (sortBy === 'due_asc') {
+        const dueA = a.totalOutstanding - (a.totalUnallocated || 0);
+        const dueB = b.totalOutstanding - (b.totalUnallocated || 0);
+        if (dueA !== dueB) return dueA - dueB;
+      } else if (sortBy === 'overdue_desc') {
+        const getMaxDays = (acc: typeof a) => {
+          const unpaid = acc.bills.filter(
+            (bill) => !bill.daysStatus.isFullyPaid,
+          );
+          if (unpaid.length === 0) return 0;
+          return Math.max(...unpaid.map((bill) => bill.daysStatus.days));
+        };
+        const daysDiff = getMaxDays(b) - getMaxDays(a);
+        if (daysDiff !== 0) return daysDiff;
+      } else if (sortBy === 'discount_desc') {
+        const getMaxDiscount = (acc: typeof a) => {
+          if (acc.bills.length === 0) return 0;
+          return Math.max(
+            ...acc.bills.map((bill) => {
+              if (typeof bill.billPercentage === 'number') {
+                return bill.billPercentage;
+              }
+              if (typeof bill.billPercentage === 'string') {
+                const parsed = parseFloat(
+                  bill.billPercentage.replace('%', '').trim(),
+                );
+                return Number.isFinite(parsed) ? parsed : 0;
+              }
+              return 0;
+            }),
+          );
+        };
+        const discDiff = getMaxDiscount(b) - getMaxDiscount(a);
+        if (discDiff !== 0) return discDiff;
+      } else if (sortBy === 'name_asc') {
+        const nameA = a.accountName?.toString()?.trim() || '';
+        const nameB = b.accountName?.toString()?.trim() || '';
+        const nameDiff = nameA.localeCompare(nameB, undefined, {
+          sensitivity: 'base',
+        });
+        if (nameDiff !== 0) return nameDiff;
+      }
+
+      // default or fallback: sort by account code
+      const codeA = a.accountCode?.toString()?.trim() || '';
+      const codeB = b.accountCode?.toString()?.trim() || '';
+      return codeA.localeCompare(codeB, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
   }, [
     billsAging.accounts,
     selectedCustomerIds,
@@ -360,6 +403,7 @@ const BillsAgingPage = () => {
     minDaysThreshold,
     discountPreset,
     discountFilterFn,
+    sortBy,
   ]);
 
   const canExport = !isLoading && visibleAccounts.length > 0;
@@ -459,133 +503,38 @@ const BillsAgingPage = () => {
     <ReportLayout
       printStyles={printStyles}
       header={
-        <div className="print-header flex flex-col gap-2 pb-2">
-          <div className="flex justify-between items-center pb-2">
-            {/* Title */}
-            <h1 className="title-new">Bills Aging</h1>
-            {/* Filters Section */}
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Primary Filters - Compact without labels */}
-              <div className="flex flex-wrap items-center gap-2">
-                <VirtualMultiSelect
-                  options={customerOptions}
-                  value={selectedCustomerIds}
-                  onChange={(ids) =>
-                    handleCustomerFilterChange(ids.map((id) => Number(id)))
-                  }
-                  placeholder="All customers"
-                  searchPlaceholder="Search customers..."
-                  searchFields={
-                    isAllParties ? ['name', 'code', 'headName'] : undefined
-                  }
-                  renderSelectItem={
-                    isAllParties ? renderPartyOption : undefined
-                  }
-                  disabled={!customerOptions.length}
-                />
-                <Select value={selectedHead} onValueChange={handleHeadChange}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select head" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_PARTIES_HEAD}>
-                      {ALL_PARTIES_HEAD}
-                    </SelectItem>
-                    {charts.map((chart) => (
-                      <SelectItem key={chart.id} value={chart.name}>
-                        {chart.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={accountTypeFilter}
-                  onValueChange={setAccountTypeFilter}
-                >
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="All Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="main">Main (No Suffix)</SelectItem>
-                    {itemTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.name}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-1">
-                  <Select value={agePreset} onValueChange={setAgePreset}>
-                    <SelectTrigger className="w-[130px]">
-                      <SelectValue placeholder="Overdue Age" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Overdue</SelectItem>
-                      <SelectItem value="30">&gt; 30 Days</SelectItem>
-                      <SelectItem value="45">&gt; 45 Days</SelectItem>
-                      <SelectItem value="60">&gt; 60 Days (2M)</SelectItem>
-                      <SelectItem value="90">&gt; 90 Days (3M)</SelectItem>
-                      <SelectItem value="180">&gt; 180 Days (6M)</SelectItem>
-                      <SelectItem value="365">&gt; 1 Year</SelectItem>
-                      <SelectItem value="custom">Custom Days</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {agePreset === 'custom' && (
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Days"
-                      value={customDays}
-                      onChange={(e) => setCustomDays(e.target.value)}
-                      className="w-16 h-9 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Select
-                    value={discountPreset}
-                    onValueChange={setDiscountPreset}
+        <div className="print-header flex flex-col gap-2.5 pb-2">
+          {/* Row 1: Title, Summary KPI & Action Buttons */}
+          <div className="flex flex-wrap justify-between items-center gap-3 pb-1 border-b border-border/40">
+            <div className="flex items-center gap-3">
+              <h1 className="title-new text-2xl font-bold tracking-tight">
+                Bills Aging
+              </h1>
+              {!isLoading && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border">
+                  {visibleAccounts.length}{' '}
+                  {visibleAccounts.length === 1 ? 'account' : 'accounts'}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {!isLoading && visibleAccounts.length > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card/80 shadow-xs text-sm">
+                  <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                    Total Outstanding:
+                  </span>
+                  <span
+                    className={`font-bold font-mono text-base ${totalColor}`}
                   >
-                    <SelectTrigger className="w-[135px]">
-                      <SelectValue placeholder="Discount %" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Discounts</SelectItem>
-                      <SelectItem value="with_discount">
-                        With Discount (&gt;0%)
-                      </SelectItem>
-                      <SelectItem value="net_only">Net Only (0%)</SelectItem>
-                      <SelectItem value="20">≥ 20%</SelectItem>
-                      <SelectItem value="30">≥ 30%</SelectItem>
-                      <SelectItem value="40">≥ 40%</SelectItem>
-                      <SelectItem value="45">≥ 45%</SelectItem>
-                      <SelectItem value="50">≥ 50%</SelectItem>
-                      <SelectItem value="custom">Custom %</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {discountPreset === 'custom' && (
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      placeholder="Min %"
-                      value={customDiscount}
-                      onChange={(e) => setCustomDiscount(e.target.value)}
-                      className="w-16 h-9 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  )}
+                    {getFormattedCurrencyInt(totalOutstanding, {
+                      withoutCurrency: true,
+                    })}
+                  </span>
                 </div>
-                <DateRangePickerWithPresets
-                  initialRange={{ from: startDate, to: selectedDate }}
-                  $onSelect={(range?: DateRange) => {
-                    if (range?.from) handleStartDateChange(range.from);
-                    if (range?.to) handleDateChange(range.to);
-                  }}
-                />
-              </div>
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2">
+              )}
+
+              <div className="flex items-center gap-1.5">
                 <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -719,27 +668,156 @@ const BillsAgingPage = () => {
             </div>
           </div>
 
-          {/* Total Outstanding - FIXED in header */}
-          {!isLoading && visibleAccounts.length > 0 && (
-            <div className="print:hidden text-right text-sm text-muted-foreground">
-              {headSubtotals.length > 1 && (
-                <span className="mr-3">
-                  {headSubtotals
-                    .map(
-                      ([head, amount]) =>
-                        `${head}: ${getFormattedCurrencyInt(amount, {
-                          withoutCurrency: true,
-                        })}`,
-                    )
-                    .join(' · ')}
-                </span>
+          {/* Row 2: Filter Controls Toolbar */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+            <VirtualMultiSelect
+              options={customerOptions}
+              value={selectedCustomerIds}
+              onChange={(ids) =>
+                handleCustomerFilterChange(ids.map((id) => Number(id)))
+              }
+              placeholder="All customers"
+              searchPlaceholder="Search customers..."
+              searchFields={
+                isAllParties ? ['name', 'code', 'headName'] : undefined
+              }
+              renderSelectItem={isAllParties ? renderPartyOption : undefined}
+              disabled={!customerOptions.length}
+            />
+            <Select value={selectedHead} onValueChange={handleHeadChange}>
+              <SelectTrigger className="w-[170px]">
+                <SelectValue placeholder="Select head" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_PARTIES_HEAD}>
+                  {ALL_PARTIES_HEAD}
+                </SelectItem>
+                {charts.map((chart) => (
+                  <SelectItem key={chart.id} value={chart.name}>
+                    {chart.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={accountTypeFilter}
+              onValueChange={setAccountTypeFilter}
+            >
+              <SelectTrigger className="w-[155px]">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="main">Standard (General)</SelectItem>
+                {itemTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.name}>
+                    Type {type.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1">
+              <Select value={agePreset} onValueChange={setAgePreset}>
+                <SelectTrigger className="w-[135px]">
+                  <SelectValue placeholder="Overdue Age" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Overdue</SelectItem>
+                  <SelectItem value="30">&gt; 30 Days</SelectItem>
+                  <SelectItem value="45">&gt; 45 Days</SelectItem>
+                  <SelectItem value="60">&gt; 60 Days (2M)</SelectItem>
+                  <SelectItem value="90">&gt; 90 Days (3M)</SelectItem>
+                  <SelectItem value="180">&gt; 180 Days (6M)</SelectItem>
+                  <SelectItem value="365">&gt; 1 Year</SelectItem>
+                  <SelectItem value="custom">Custom Days</SelectItem>
+                </SelectContent>
+              </Select>
+              {agePreset === 'custom' && (
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Days"
+                  value={customDays}
+                  onChange={(e) => setCustomDays(e.target.value)}
+                  className="w-16 h-9 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                />
               )}
-              Total Outstanding (all accounts):{' '}
-              <span className={`font-semibold ${totalColor}`}>
-                {getFormattedCurrencyInt(totalOutstanding, {
-                  withoutCurrency: true,
-                })}
+            </div>
+            <div className="flex items-center gap-1">
+              <Select value={discountPreset} onValueChange={setDiscountPreset}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Discount %" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Discounts</SelectItem>
+                  <SelectItem value="15">≥ 15%</SelectItem>
+                  <SelectItem value="20">≥ 20%</SelectItem>
+                  <SelectItem value="22">≥ 22%</SelectItem>
+                  <SelectItem value="25">≥ 25%</SelectItem>
+                  <SelectItem value="28">≥ 28%</SelectItem>
+                  <SelectItem value="30">≥ 30%</SelectItem>
+                  <SelectItem value="custom">Custom %</SelectItem>
+                </SelectContent>
+              </Select>
+              {discountPreset === 'custom' && (
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="Min %"
+                  value={customDiscount}
+                  onChange={(e) => setCustomDiscount(e.target.value)}
+                  className="w-16 h-9 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              )}
+            </div>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[155px]">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="code">Code (Default)</SelectItem>
+                <SelectItem value="due_desc">Due: Highest First</SelectItem>
+                <SelectItem value="due_asc">Due: Lowest First</SelectItem>
+                <SelectItem value="overdue_desc">
+                  Overdue: Oldest First
+                </SelectItem>
+                <SelectItem value="discount_desc">
+                  Discount: Highest First
+                </SelectItem>
+                <SelectItem value="name_asc">Name (A–Z)</SelectItem>
+              </SelectContent>
+            </Select>
+            <DateRangePickerWithPresets
+              initialRange={{ from: startDate, to: selectedDate }}
+              $onSelect={(range?: DateRange) => {
+                if (range?.from) handleStartDateChange(range.from);
+                if (range?.to) handleDateChange(range.to);
+              }}
+            />
+          </div>
+
+          {/* Row 3: Agent Subtotals Chips (under All Parties) */}
+          {!isLoading && isAllParties && headSubtotals.length > 1 && (
+            <div className="print:hidden flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider mr-1">
+                By Head:
               </span>
+              {headSubtotals.map(([head, amount]) => (
+                <div
+                  key={head}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-muted/60 border border-border/60 text-xs"
+                >
+                  <span className="text-muted-foreground font-medium">
+                    {head}:
+                  </span>
+                  <span className="font-semibold font-mono text-foreground">
+                    {getFormattedCurrencyInt(amount, {
+                      withoutCurrency: true,
+                    })}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
