@@ -52,6 +52,9 @@ export const buildBillsAgingRows = (
     visibleBills.forEach((bill) => {
       allRows.push({
         accountCode: account.accountCode,
+        accountName: account.accountName,
+        phone1: account.phone1,
+        phone2: account.phone2,
         headName: account.headName,
         billNumber: bill.billNumber,
         billDate: bill.billDate,
@@ -68,6 +71,9 @@ export const buildBillsAgingRows = (
     account.unallocatedReceipts.forEach((receipt) => {
       allRows.push({
         accountCode: account.accountCode,
+        accountName: account.accountName,
+        phone1: account.phone1,
+        phone2: account.phone2,
         headName: account.headName,
         billNumber: 'Unallocated Receipt',
         billDate: receipt.receivedDate,
@@ -131,8 +137,20 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = ({
           {allRows.map((row) => (
             <TableRow key={`row-${row.sortKey}`}>
               <TableCell>
-                {row.accountCode}
-                {showHeadNames && row.headName ? ` — ${row.headName}` : ''}
+                <div>
+                  <span className="font-semibold">{row.accountCode}</span>
+                  {row.accountName && (
+                    <span className="text-[11px] ml-1 text-gray-700">
+                      ({row.accountName})
+                    </span>
+                  )}
+                  {showHeadNames && row.headName ? ` — ${row.headName}` : ''}
+                </div>
+                {(row.phone1 || row.phone2) && (
+                  <div className="text-[10px] text-gray-600">
+                    📞 {[row.phone1, row.phone2].filter(Boolean).join(' / ')}
+                  </div>
+                )}
               </TableCell>
               <TableCell>{row.billNumber}</TableCell>
               <TableCell>

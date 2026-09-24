@@ -75,14 +75,26 @@ export const BillsAgingTables: FC<BillsAgingTablesProps> = ({
             className="border rounded-lg p-4 max-w-full overflow-hidden"
           >
             <div className="mb-4">
-              <h3 className="text-lg font-semibold">
-                {account.accountCode} ({account.accountName})
-                {showHeadNames && account.headName && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    — {account.headName}
-                  </span>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="text-lg font-semibold">
+                  {account.accountCode} ({account.accountName})
+                  {showHeadNames && account.headName && (
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      — {account.headName}
+                    </span>
+                  )}
+                </h3>
+                {(account.phone1 || account.phone2) && (
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <span className="text-slate-400">📞</span>
+                    <span>
+                      {[account.phone1, account.phone2]
+                        .filter(Boolean)
+                        .join(' / ')}
+                    </span>
+                  </div>
                 )}
-              </h3>
+              </div>
               <div className="text-sm text-muted-foreground mt-1">
                 Total Bills:{' '}
                 {getFormattedCurrencyInt(account.totalBillAmount, {

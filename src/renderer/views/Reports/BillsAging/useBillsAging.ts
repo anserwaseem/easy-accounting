@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { isEmpty, sumBy } from 'lodash';
 import { format, subDays } from 'date-fns';
 import { getFixedNumber, getMonthsAndDaysBetween } from 'renderer/lib/utils';
-import type { Account, Chart, LedgerView } from '@/types';
+import type { Account, Chart, ItemType, LedgerView } from '@/types';
 import type {
   BillsAging,
   BillsAgingAccount,
@@ -58,6 +58,8 @@ export const useBillsAging = () => {
   const [infoMessage, setInfoMessage] = useState<string>('');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
 
+  const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
+
   // fetch available charts (heads)
   const fetchCharts = useCallback(async () => {
     try {
@@ -68,6 +70,16 @@ export const useBillsAging = () => {
       setCharts(filteredCharts);
     } catch (error) {
       console.error('Error fetching charts:', error);
+    }
+  }, []);
+
+  // fetch item types dynamically from database
+  const fetchItemTypes = useCallback(async () => {
+    try {
+      const types = (await window.electron.getItemTypes?.()) ?? [];
+      setItemTypes(types);
+    } catch (error) {
+      console.error('Error fetching item types:', error);
     }
   }, []);
 
@@ -95,19 +107,6 @@ export const useBillsAging = () => {
 
       const isAllPartiesScope = headName === ALL_PARTIES_HEAD;
 
-      // guard: never compute the full ~all-accounts report; all-parties needs
-      // an explicit customer selection before anything is fetched or rendered
-      if (isAllPartiesScope && scope.selectedIds.length === 0) {
-        setInfoMessage(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
-        setBillsAging({
-          headName,
-          asOfDate: end.toISOString(),
-          accounts: [],
-        });
-        setIsLoading(false);
-        return;
-      }
-
       setIsLoading(true);
       try {
         setInfoMessage('');
@@ -119,7 +118,8 @@ export const useBillsAging = () => {
               (account: Account) =>
                 !!account.headName &&
                 scope.agentHeadNames.includes(account.headName) &&
-                scope.selectedIds.includes(account.id),
+                (scope.selectedIds.length === 0 ||
+                  scope.selectedIds.includes(account.id)),
             )
           : rawAccounts.filter(
               (account: Account) => account.headName === headName,
@@ -424,6 +424,8 @@ export const useBillsAging = () => {
             accountId: account.id,
             accountName: account.name,
             accountCode: account.code,
+            phone1: account.phone1,
+            phone2: account.phone2,
             headName: account.headName,
             bills,
             unallocatedReceipts,
@@ -451,7 +453,8 @@ export const useBillsAging = () => {
   useEffect(() => {
     fetchCharts();
     fetchAllAccounts();
-  }, [fetchCharts, fetchAllAccounts]);
+    fetchItemTypes();
+  }, [fetchCharts, fetchAllAccounts, fetchItemTypes]);
 
   const isAllParties = selectedHead === ALL_PARTIES_HEAD;
 
@@ -531,8 +534,9 @@ export const useBillsAging = () => {
   const refreshData = useCallback(() => {
     fetchCharts();
     fetchAllAccounts();
+    fetchItemTypes();
     runReport();
-  }, [fetchCharts, fetchAllAccounts, runReport]);
+  }, [fetchCharts, fetchAllAccounts, fetchItemTypes, runReport]);
 
   return {
     selectedHead,
@@ -540,6 +544,7 @@ export const useBillsAging = () => {
     startDate,
     selectedDate,
     charts,
+    itemTypes,
     billsAging,
     isLoading,
     handleHeadChange,
