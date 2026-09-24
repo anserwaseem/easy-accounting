@@ -40,3 +40,9 @@ TODOS.md
 # working databases; only the schema-only release/app/database.db is tracked
 *.db.bak
 release/app/database-*.db
+
+# local workspace and app builds
+.local
+apps/web/dist
+apps/web/test-results
+

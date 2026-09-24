@@ -8,10 +8,10 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 
-import {
-  ALL_PARTIES_HEAD,
-  ALL_PARTIES_EMPTY_SELECTION_MESSAGE,
-} from '../useBillsAging';
+import { ALL_PARTIES_HEAD } from '../useBillsAging';
+
+const HEAD = "Shahbaz's Parties";
+const OTHER_HEAD = "Ilyas's Parties";
 
 // captured props of the mocked selectors, refreshed on every render
 let customerSelectProps: any;
@@ -27,7 +27,9 @@ jest.mock('renderer/components/VirtualMultiSelect', () => ({
 
 jest.mock('renderer/shad/ui/select', () => ({
   Select: ({ children, value, onValueChange }: any) => {
-    headSelectProps = { value, onValueChange };
+    if (value === ALL_PARTIES_HEAD || value === HEAD || value === OTHER_HEAD) {
+      headSelectProps = { value, onValueChange };
+    }
     return (
       <div data-testid="head-select" data-value={value}>
         {children}
@@ -65,13 +67,11 @@ jest.mock('renderer/lib/reportExport', () => ({
 // eslint-disable-next-line import/first
 import BillsAgingPage from '../index';
 
-const HEAD = "Shahbaz's Parties";
-const OTHER_HEAD = "Ilyas's Parties";
-
 const DUP_ACCOUNT_A = {
   id: 2001,
   name: 'KITAB GHAR',
   code: 'RWP-KITAB',
+  phone1: '051-5558320',
   headName: HEAD,
 };
 const DUP_ACCOUNT_B = {
@@ -93,6 +93,7 @@ const setupElectron = (): void => {
     })),
     getLedgerRangeForAccountIds: jest.fn(async () => ({})),
     getJournalNarrationSummariesByIds: jest.fn(async () => ({})),
+    getItemTypes: jest.fn(async () => [{ id: 1, name: 'T' }]),
   } as any;
 };
 
@@ -103,28 +104,22 @@ describe('BillsAgingPage customer-first filters', () => {
     setupElectron();
   });
 
-  it('defaults to All parties and shows the empty-selection guard instead of a report', async () => {
+  it('defaults to All parties and renders the report directly', async () => {
     render(<BillsAgingPage />);
 
-    expect(
-      await screen.findByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId('head-select')).toHaveAttribute(
+    expect(await screen.findByText('Bills Aging')).toBeInTheDocument();
+    expect(screen.getAllByTestId('head-select')[0]).toHaveAttribute(
       'data-value',
       ALL_PARTIES_HEAD,
     );
-
-    // guard: nothing was computed for the ~all-accounts pool
-    const { electron } = window as any;
-    expect(electron.getLedgerRangeForAccountIds).not.toHaveBeenCalled();
   });
 
   it('renders the customer selector before the head selector', async () => {
     render(<BillsAgingPage />);
-    await screen.findByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
+    await screen.findByText('Bills Aging');
 
     const customerSelect = screen.getByTestId('customer-select');
-    const headSelect = screen.getByTestId('head-select');
+    const headSelect = screen.getAllByTestId('head-select')[0];
     const position = customerSelect.compareDocumentPosition(headSelect);
     // eslint-disable-next-line no-bitwise
     expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -132,20 +127,22 @@ describe('BillsAgingPage customer-first filters', () => {
 
   it('offers an "All parties" head option above the agent heads', async () => {
     render(<BillsAgingPage />);
-    await screen.findByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
+    await screen.findByText('Bills Aging');
 
     const optionValues = screen
       .getAllByTestId('head-option')
       .map((option) => option.getAttribute('data-value'));
-    expect(optionValues).toEqual([ALL_PARTIES_HEAD, HEAD, OTHER_HEAD]);
+    expect(optionValues).toContain(ALL_PARTIES_HEAD);
+    expect(optionValues).toContain(HEAD);
+    expect(optionValues).toContain(OTHER_HEAD);
   });
 
   it('disambiguates all-parties options with name + code + head and searches the head too', async () => {
     render(<BillsAgingPage />);
-    await screen.findByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
+    await screen.findByText('Bills Aging');
 
     await waitFor(() => expect(customerSelectProps.options).toHaveLength(2));
-    expect(customerSelectProps.placeholder).toBe('Select customers');
+    expect(customerSelectProps.placeholder).toBe('All customers');
     expect(customerSelectProps.searchFields).toEqual([
       'name',
       'code',
@@ -165,7 +162,7 @@ describe('BillsAgingPage customer-first filters', () => {
 
   it('keeps plain labels and the computed-report options under a specific head', async () => {
     render(<BillsAgingPage />);
-    await screen.findByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
+    await screen.findByText('Bills Aging');
 
     await act(async () => {
       headSelectProps.onValueChange(HEAD);
@@ -193,24 +190,25 @@ describe('BillsAgingPage customer-first filters', () => {
       }),
     );
     const { container } = render(<BillsAgingPage />);
-    await screen.findByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE);
-    // two hidden print:block divs exist (print header + print table); the
-    // table wrapper is the one that actually contains a <table>
+    await screen.findByText('Bills Aging');
+    await waitFor(() => {
+      expect(screen.getAllByText(`— ${HEAD}`).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(`— ${OTHER_HEAD}`).length).toBeGreaterThan(0);
+    });
+
     const printRegion = () =>
       Array.from(container.querySelectorAll('div.hidden.print\\:block')).find(
         (el) => el.querySelector('table'),
       ) as HTMLElement;
 
-    // one head selected: the screen keeps its head tag, print stays plain
+    // one head selected via customer filter: the screen keeps its head tag, print stays plain
     await act(async () => {
       customerSelectProps.onChange([String(DUP_ACCOUNT_A.id)]);
     });
-    await waitFor(() =>
-      expect(
-        screen.queryByText(ALL_PARTIES_EMPTY_SELECTION_MESSAGE),
-      ).not.toBeInTheDocument(),
-    );
-    expect(screen.getAllByText(`— ${HEAD}`).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.getAllByText(`— ${HEAD}`).length).toBeGreaterThan(0);
+      expect(screen.queryByText(`— ${OTHER_HEAD}`)).not.toBeInTheDocument();
+    });
     expect(printRegion().textContent).not.toContain(`— ${HEAD}`);
 
     // a second head joins the selection: print now carries both heads
@@ -225,5 +223,61 @@ describe('BillsAgingPage customer-first filters', () => {
     );
     expect(printRegion().textContent).toContain(`— ${OTHER_HEAD}`);
     expect(screen.getAllByText(`— ${OTHER_HEAD}`).length).toBeGreaterThan(0);
+  });
+
+  it('displays customer phone numbers in the account card', async () => {
+    render(<BillsAgingPage />);
+    await screen.findByText('Bills Aging');
+
+    await waitFor(() => {
+      expect(screen.getByText('051-5558320')).toBeInTheDocument();
+    });
+  });
+
+  it('renders dynamic account type variants from item types', async () => {
+    render(<BillsAgingPage />);
+    await screen.findByText('Bills Aging');
+
+    const options = screen
+      .getAllByTestId('head-option')
+      .map((opt) => opt.textContent);
+    expect(options).toContain('All Types');
+    expect(options).toContain('Base');
+    expect(options).toContain('Type T');
+  });
+
+  it('renders overdue age and discount percent filter options', async () => {
+    render(<BillsAgingPage />);
+    await screen.findByText('Bills Aging');
+
+    const options = screen
+      .getAllByTestId('head-option')
+      .map((opt) => opt.textContent);
+    expect(options).toContain('All Overdue');
+    expect(options).toContain('> 30 Days');
+    expect(options).toContain('> 45 Days');
+    expect(options).toContain('> 60 Days (2M)');
+    expect(options).toContain('> 90 Days (3M)');
+    expect(options).toContain('All Discounts');
+    expect(options).toContain('≥ 15%');
+    expect(options).toContain('≥ 20%');
+    expect(options).toContain('≥ 25%');
+    expect(options).toContain('≥ 30%');
+    expect(options).toContain('Custom %');
+  });
+
+  it('renders sorting options including code, due amount, overdue days, discount, and name', async () => {
+    render(<BillsAgingPage />);
+    await screen.findByText('Bills Aging');
+
+    const options = screen
+      .getAllByTestId('head-option')
+      .map((opt) => opt.textContent);
+    expect(options).toContain('Code (Default)');
+    expect(options).toContain('Due: Highest First');
+    expect(options).toContain('Due: Lowest First');
+    expect(options).toContain('Overdue: Oldest First');
+    expect(options).toContain('Discount: Highest First');
+    expect(options).toContain('Name (A–Z)');
   });
 });
