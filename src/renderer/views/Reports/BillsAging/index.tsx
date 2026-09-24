@@ -708,7 +708,7 @@ const BillsAgingPage = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="main">Standard (General)</SelectItem>
+                <SelectItem value="main">Base</SelectItem>
                 {itemTypes.map((type) => (
                   <SelectItem key={type.id} value={type.name}>
                     Type {type.name}

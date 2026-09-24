@@ -242,7 +242,7 @@ describe('BillsAgingPage customer-first filters', () => {
       .getAllByTestId('head-option')
       .map((opt) => opt.textContent);
     expect(options).toContain('All Types');
-    expect(options).toContain('Standard (General)');
+    expect(options).toContain('Base');
     expect(options).toContain('Type T');
   });
 
