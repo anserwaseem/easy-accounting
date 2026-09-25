@@ -266,6 +266,24 @@ const VendorStockActivityPage: React.FC = () => {
     [fetchReport, persistFilters, presetValue, selectedVendorId],
   );
 
+  const handleGridViewModelChange = useCallback(
+    (next: VendorStockActivityItem[]) => {
+      setGridViewRows((prev) => {
+        if (
+          prev &&
+          prev.length === next.length &&
+          next.every(
+            (row, index) => row.inventoryId === prev[index]?.inventoryId,
+          )
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   const openItem = useCallback(
     (item: VendorStockActivityItem, filter: ActivityMovementFilter) => {
       setSelectedFilter(filter);
@@ -581,7 +599,7 @@ const VendorStockActivityPage: React.FC = () => {
           searchPlaceholder="Search items..."
           searchPersistenceKey="vendor-stock-activity-search"
           getRowKey={(row) => row.inventoryId}
-          onViewModelChange={setGridViewRows}
+          onViewModelChange={handleGridViewModelChange}
         />
       )}
     </ReportLayout>

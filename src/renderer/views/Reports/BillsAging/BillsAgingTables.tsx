@@ -79,7 +79,7 @@ const AccountCard: FC<AccountCardProps> = React.memo(
               )}
             </h3>
             {(account.phone1 || account.phone2) && (
-              <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <div className="flex items-center gap-1.5 text-sm font-medium text-slate-400 dark:text-slate-500">
                 <span className="text-slate-400">📞</span>
                 <span>
                   {[account.phone1, account.phone2].filter(Boolean).join(' / ')}

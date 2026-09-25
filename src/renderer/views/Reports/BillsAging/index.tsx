@@ -504,8 +504,8 @@ const BillsAgingPage = () => {
       printStyles={printStyles}
       bodyClassName={
         visibleAccounts.length > 10
-          ? 'overflow-hidden h-full flex flex-col p-4'
-          : 'p-4'
+          ? 'overflow-hidden h-full flex flex-col py-2'
+          : 'py-2'
       }
       header={
         <div className="print-header flex flex-col gap-2.5 pb-2">
