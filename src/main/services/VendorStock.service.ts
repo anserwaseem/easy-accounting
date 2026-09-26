@@ -61,6 +61,8 @@ export class VendorStockService {
 
   private stmDeleteIssueMovements!: Statement;
 
+  private stmDeleteInvoiceMovements!: Statement;
+
   private stmDeleteIssue!: Statement;
 
   private stmGetIssues!: Statement;
@@ -494,6 +496,34 @@ export class VendorStockService {
     }
 
     return messages;
+  }
+
+  /**
+   * called from InvoiceService when editing an existing purchase invoice.
+   * reverts previous stock deductions on vendor_stock and deletes previous
+   * purchase movements for this invoice so history rewrites cleanly without
+   * creating artificial purchase_return rows.
+   * must be called inside an existing db transaction.
+   */
+  revertPurchaseStockForUpdate(
+    invoiceId: number,
+    lines: VendorStockPurchaseLine[],
+  ): void {
+    for (const line of lines) {
+      if (!line.accountId || !line.inventoryId || !line.quantity) continue;
+      if (!this.tracksVendorStock(line.accountId)) continue;
+
+      const headId = this.resolveFamilyHeadId(line.inventoryId);
+      // purchase originally deducted stock (quantityDelta was negative);
+      // to revert, add back line.quantity
+      this.stmUpsertVendorStockDelta.run({
+        vendorAccountId: cast(line.accountId),
+        inventoryId: cast(headId),
+        quantityDelta: line.quantity,
+      });
+    }
+
+    this.stmDeleteInvoiceMovements.run({ invoiceId: cast(invoiceId) });
   }
 
   getActivity(
@@ -953,6 +983,11 @@ export class VendorStockService {
     this.stmDeleteIssueMovements = this.db.prepare(`
       DELETE FROM vendor_stock_movements
       WHERE referenceType = 'vendor_issue' AND referenceId = @issueId
+    `);
+
+    this.stmDeleteInvoiceMovements = this.db.prepare(`
+      DELETE FROM vendor_stock_movements
+      WHERE referenceType = 'invoice' AND referenceId = @invoiceId
     `);
 
     this.stmDeleteIssue = this.db.prepare(`

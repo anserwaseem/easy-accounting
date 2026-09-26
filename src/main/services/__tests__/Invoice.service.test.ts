@@ -854,6 +854,350 @@ describe('InvoiceService.insertInvoice', () => {
     expect(Number(header.totalAmount)).toBe(first.totalAmount);
   });
 
+  it('purchase: updating an invoice on a tracked vendor rewrites movements cleanly without ghost purchase_return entries', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    db.prepare(`UPDATE account SET tracksVendorStock = 1 WHERE id = ?`).run(
+      acc.primaryPartyId,
+    );
+
+    // seed starting vendor stock of 100 on primaryItemId
+    db.prepare(
+      `INSERT INTO vendor_stock (vendorAccountId, inventoryId, quantity) VALUES (?, ?, 100)`,
+    ).run(acc.primaryPartyId, inv.primaryItemId);
+    db.prepare(
+      `INSERT INTO vendor_stock_movements (vendorAccountId, inventoryId, quantityDelta, movementType, date)
+       VALUES (?, ?, 100, 'opening', '2026-01-01')`,
+    ).run(acc.primaryPartyId, inv.primaryItemId);
+
+    const first = makeSimplePurchase(
+      acc,
+      inv,
+      6101,
+      new Date('2026-03-01T12:00:00.000Z').toISOString(),
+      20,
+    );
+    const { invoiceId } = invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      first,
+    );
+
+    // check initial purchase effect
+    const vsQtyAfterInsert = (
+      db
+        .prepare(
+          `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+        )
+        .get(acc.primaryPartyId, inv.primaryItemId) as { quantity: number }
+    ).quantity;
+    expect(vsQtyAfterInsert).toBe(80); // 100 - 20
+
+    const movementsAfterInsert = db
+      .prepare(
+        `SELECT movementType, quantityDelta FROM vendor_stock_movements WHERE referenceId = ?`,
+      )
+      .all(invoiceId) as Array<{ movementType: string; quantityDelta: number }>;
+    expect(movementsAfterInsert).toHaveLength(1);
+    expect(movementsAfterInsert[0].movementType).toBe('purchase');
+    expect(movementsAfterInsert[0].quantityDelta).toBe(-20);
+
+    // now update the invoice: change quantity to 35
+    const updated1: Invoice = {
+      ...first,
+      id: invoiceId,
+      totalAmount: 35 * 10,
+      invoiceItems: [
+        {
+          ...first.invoiceItems[0],
+          quantity: 35,
+          price: 10,
+          discountedPrice: 35 * 10,
+        },
+      ],
+    };
+    invoiceService.updateInvoice(InvoiceType.Purchase, invoiceId, updated1);
+
+    const vsQtyAfterUpdate1 = (
+      db
+        .prepare(
+          `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+        )
+        .get(acc.primaryPartyId, inv.primaryItemId) as { quantity: number }
+    ).quantity;
+    expect(vsQtyAfterUpdate1).toBe(65); // 100 - 35
+
+    const movementsAfterUpdate1 = db
+      .prepare(
+        `SELECT movementType, quantityDelta FROM vendor_stock_movements WHERE referenceId = ?`,
+      )
+      .all(invoiceId) as Array<{ movementType: string; quantityDelta: number }>;
+    // must rewrite movements cleanly: exactly 1 movement, NO purchase_return ghost rows
+    expect(movementsAfterUpdate1).toHaveLength(1);
+    expect(movementsAfterUpdate1[0].movementType).toBe('purchase');
+    expect(movementsAfterUpdate1[0].quantityDelta).toBe(-35);
+
+    const returnMovementsCount1 = (
+      db
+        .prepare(
+          `SELECT COUNT(*) as c FROM vendor_stock_movements WHERE movementType = 'purchase_return'`,
+        )
+        .get() as { c: number }
+    ).c;
+    expect(returnMovementsCount1).toBe(0);
+
+    // update invoice again: change quantity to 10
+    const updated2: Invoice = {
+      ...first,
+      id: invoiceId,
+      totalAmount: 10 * 10,
+      invoiceItems: [
+        {
+          ...first.invoiceItems[0],
+          quantity: 10,
+          price: 10,
+          discountedPrice: 10 * 10,
+        },
+      ],
+    };
+    invoiceService.updateInvoice(InvoiceType.Purchase, invoiceId, updated2);
+
+    const vsQtyAfterUpdate2 = (
+      db
+        .prepare(
+          `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+        )
+        .get(acc.primaryPartyId, inv.primaryItemId) as { quantity: number }
+    ).quantity;
+    expect(vsQtyAfterUpdate2).toBe(90); // 100 - 10
+
+    const movementsAfterUpdate2 = db
+      .prepare(
+        `SELECT movementType, quantityDelta FROM vendor_stock_movements WHERE referenceId = ?`,
+      )
+      .all(invoiceId) as Array<{ movementType: string; quantityDelta: number }>;
+    expect(movementsAfterUpdate2).toHaveLength(1);
+    expect(movementsAfterUpdate2[0].movementType).toBe('purchase');
+    expect(movementsAfterUpdate2[0].quantityDelta).toBe(-10);
+
+    const returnMovementsCount2 = (
+      db
+        .prepare(
+          `SELECT COUNT(*) as c FROM vendor_stock_movements WHERE movementType = 'purchase_return'`,
+        )
+        .get() as { c: number }
+    ).c;
+    expect(returnMovementsCount2).toBe(0);
+  });
+
+  it('purchase: updating an invoice with variants correctly rewrites family head stock without duplicate movements', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    db.prepare(`UPDATE account SET tracksVendorStock = 1 WHERE id = ?`).run(
+      acc.primaryPartyId,
+    );
+
+    // create variant of primaryItemId
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity, parentId) VALUES (2001, 'Variant-Item', 10, 50, ?)`,
+    ).run(inv.primaryItemId);
+
+    db.prepare(
+      `INSERT INTO vendor_stock (vendorAccountId, inventoryId, quantity) VALUES (?, ?, 200)`,
+    ).run(acc.primaryPartyId, inv.primaryItemId);
+    db.prepare(
+      `INSERT INTO vendor_stock_movements (vendorAccountId, inventoryId, quantityDelta, movementType, date)
+       VALUES (?, ?, 200, 'opening', '2026-01-01')`,
+    ).run(acc.primaryPartyId, inv.primaryItemId);
+
+    const purchaseWithVariant: Invoice = {
+      ...makeSimplePurchase(acc, inv, 6201, '2026-03-01T12:00:00.000Z', 30),
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: 2001,
+          quantity: 30,
+          discount: 0,
+          price: 10,
+          discountedPrice: 300,
+        },
+      ],
+      totalAmount: 300,
+    };
+
+    const { invoiceId } = invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      purchaseWithVariant,
+    );
+
+    const stockAfterInsert = (
+      db
+        .prepare(
+          `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+        )
+        .get(acc.primaryPartyId, inv.primaryItemId) as { quantity: number }
+    ).quantity;
+    expect(stockAfterInsert).toBe(170); // 200 - 30 on family head
+
+    // now edit: change variant item to head item directly with qty 50
+    const updatedToHead: Invoice = {
+      ...purchaseWithVariant,
+      id: invoiceId,
+      totalAmount: 500,
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity: 50,
+          discount: 0,
+          price: 10,
+          discountedPrice: 500,
+        },
+      ],
+    };
+    invoiceService.updateInvoice(
+      InvoiceType.Purchase,
+      invoiceId,
+      updatedToHead,
+    );
+
+    const stockAfterUpdate = (
+      db
+        .prepare(
+          `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+        )
+        .get(acc.primaryPartyId, inv.primaryItemId) as { quantity: number }
+    ).quantity;
+    expect(stockAfterUpdate).toBe(150); // 200 - 50 on family head
+
+    const movements = db
+      .prepare(
+        `SELECT inventoryId, movementType, quantityDelta FROM vendor_stock_movements WHERE referenceId = ?`,
+      )
+      .all(invoiceId) as Array<{
+      inventoryId: number;
+      movementType: string;
+      quantityDelta: number;
+    }>;
+    expect(movements).toHaveLength(1);
+    expect(movements[0].inventoryId).toBe(inv.primaryItemId);
+    expect(movements[0].movementType).toBe('purchase');
+    expect(movements[0].quantityDelta).toBe(-50);
+  });
+
+  it('purchase: updating an invoice to a different vendor restores previous vendor stock and applies to new vendor', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    // primaryPartyId and typedPartyId both track vendor stock
+    db.prepare(
+      `UPDATE account SET tracksVendorStock = 1 WHERE id IN (?, ?)`,
+    ).run(acc.primaryPartyId, acc.typedPartyId);
+
+    db.prepare(
+      `INSERT INTO vendor_stock (vendorAccountId, inventoryId, quantity) VALUES (?, ?, 100), (?, ?, 100)`,
+    ).run(
+      acc.primaryPartyId,
+      inv.primaryItemId,
+      acc.typedPartyId,
+      inv.primaryItemId,
+    );
+
+    const first = makeSimplePurchase(
+      acc,
+      inv,
+      6301,
+      new Date('2026-03-01T12:00:00.000Z').toISOString(),
+      25,
+    );
+    const { invoiceId } = invoiceService.insertInvoice(
+      InvoiceType.Purchase,
+      first,
+    );
+
+    expect(
+      (
+        db
+          .prepare(
+            `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+          )
+          .get(acc.primaryPartyId, inv.primaryItemId) as { quantity: number }
+      ).quantity,
+    ).toBe(75);
+    expect(
+      (
+        db
+          .prepare(
+            `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+          )
+          .get(acc.typedPartyId, inv.primaryItemId) as { quantity: number }
+      ).quantity,
+    ).toBe(100);
+
+    // switch vendor on the invoice from primaryPartyId to typedPartyId with qty 40
+    const updatedVendor: Invoice = {
+      ...first,
+      id: invoiceId,
+      totalAmount: 400,
+      accountMapping: {
+        singleAccountId: acc.typedPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          ...first.invoiceItems[0],
+          quantity: 40,
+          price: 10,
+          discountedPrice: 400,
+        },
+      ],
+    };
+    invoiceService.updateInvoice(
+      InvoiceType.Purchase,
+      invoiceId,
+      updatedVendor,
+    );
+
+    // primaryPartyId stock should be completely restored to 100
+    expect(
+      (
+        db
+          .prepare(
+            `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+          )
+          .get(acc.primaryPartyId, inv.primaryItemId) as { quantity: number }
+      ).quantity,
+    ).toBe(100);
+    // typedPartyId stock should be deducted to 60 (100 - 40)
+    expect(
+      (
+        db
+          .prepare(
+            `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+          )
+          .get(acc.typedPartyId, inv.primaryItemId) as { quantity: number }
+      ).quantity,
+    ).toBe(60);
+
+    // movements should belong to typedPartyId, with zero for primaryPartyId
+    const primaryMovements = db
+      .prepare(
+        `SELECT * FROM vendor_stock_movements WHERE referenceId = ? AND vendorAccountId = ?`,
+      )
+      .all(invoiceId, acc.primaryPartyId);
+    expect(primaryMovements).toHaveLength(0);
+
+    const typedMovements = db
+      .prepare(
+        `SELECT movementType, quantityDelta FROM vendor_stock_movements WHERE referenceId = ? AND vendorAccountId = ?`,
+      )
+      .all(invoiceId, acc.typedPartyId) as Array<{
+      movementType: string;
+      quantityDelta: number;
+    }>;
+    expect(typedMovements).toHaveLength(1);
+    expect(typedMovements[0].movementType).toBe('purchase');
+    expect(typedMovements[0].quantityDelta).toBe(-40);
+  });
+
   it('purchase: edit cannot move date after the next invoice for that vendor', () => {
     const acc = seedBaseAccounts();
     const inv = seedInventoryAndTypes();

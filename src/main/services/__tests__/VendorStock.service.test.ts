@@ -453,4 +453,58 @@ describe('VendorStockService', () => {
 
     db.close();
   });
+
+  it('revertPurchaseStockForUpdate restores stock to family head and deletes invoice movements', () => {
+    const db = new Database(':memory:');
+    seedSchema(db);
+    const { vendorId } = seedVendorAndItem(db);
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity) VALUES (300, 'Head', 10, 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO inventory (id, name, price, quantity, parentId) VALUES (301, 'Variant', 10, 0, 300)`,
+    ).run();
+    const service = createService(db);
+
+    // apply purchase effect for invoice 99
+    service.applyPurchaseEffect({
+      invoiceId: 99,
+      date: '2026-01-20',
+      lines: [{ accountId: vendorId, inventoryId: 301, quantity: 30 }],
+      direction: 'purchase',
+    });
+
+    const onHandBefore = service.getOnHand(vendorId);
+    expect(onHandBefore[0].inventoryId).toBe(300);
+    expect(onHandBefore[0].quantity).toBe(-30);
+
+    const movementsBefore = db
+      .prepare(
+        `SELECT COUNT(*) as c FROM vendor_stock_movements WHERE referenceId = 99`,
+      )
+      .get() as { c: number };
+    expect(movementsBefore.c).toBe(1);
+
+    // revert the purchase for update
+    service.revertPurchaseStockForUpdate(99, [
+      { accountId: vendorId, inventoryId: 301, quantity: 30 },
+    ]);
+
+    const stockRow = db
+      .prepare(
+        `SELECT quantity FROM vendor_stock WHERE vendorAccountId = ? AND inventoryId = ?`,
+      )
+      .get(vendorId, 300) as { quantity: number };
+    expect(stockRow.quantity).toBe(0);
+    expect(service.getOnHand(vendorId)).toHaveLength(0);
+
+    const movementsAfter = db
+      .prepare(
+        `SELECT COUNT(*) as c FROM vendor_stock_movements WHERE referenceId = 99`,
+      )
+      .get() as { c: number };
+    expect(movementsAfter.c).toBe(0);
+
+    db.close();
+  });
 });

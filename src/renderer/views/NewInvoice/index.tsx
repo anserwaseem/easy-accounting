@@ -1381,7 +1381,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             variant: hasNegative ? 'destructive' : 'default',
             title: 'At vendor stock',
             description: vendorStockMessages.join(' · '),
-            duration: Number.POSITIVE_INFINITY,
+            duration: 10000,
           });
         }
       };
