@@ -805,31 +805,46 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     };
   }, [duplicateFromId, editInvoiceId, parties, watchedSingleAccountId]);
 
-  const customerVendorSelectOptions = useMemo(() => {
-    const options = buildCustomerVendorSelectOptions({
+  const customerVendorSelectOptions = useMemo(
+    () =>
+      buildCustomerVendorSelectOptions({
+        invoiceType,
+        baseParties: parties ?? [],
+        extendedParties: partiesIncludingTyped ?? [],
+        useSingleAccount,
+        splitByItemType,
+        singleAccountId: toNumber(watchedSingleAccountId),
+        missingExtra: missingPartyForSelect,
+      }),
+    [
       invoiceType,
-      baseParties: parties ?? [],
-      extendedParties: partiesIncludingTyped ?? [],
-      useSingleAccount,
+      missingPartyForSelect,
+      parties,
+      partiesIncludingTyped,
       splitByItemType,
-      singleAccountId: toNumber(watchedSingleAccountId),
-      missingExtra: missingPartyForSelect,
-    });
-    if (invoiceType !== InvoiceType.Purchase) return options;
-    return options.map((party) =>
-      party.tracksVendorStock
-        ? { ...party, name: `${party.name} · stock` }
-        : party,
-    );
-  }, [
-    invoiceType,
-    missingPartyForSelect,
-    parties,
-    partiesIncludingTyped,
-    splitByItemType,
-    useSingleAccount,
-    watchedSingleAccountId,
-  ]);
+      useSingleAccount,
+      watchedSingleAccountId,
+    ],
+  );
+
+  const renderPartySelectItem = useCallback(
+    (account: PartyAccount) => (
+      <div>
+        <div className="flex items-center gap-2">
+          <h2>{account.name}</h2>
+          {account.tracksVendorStock ? (
+            <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
+              Stock
+            </span>
+          ) : null}
+        </div>
+        {account.code != null && account.code !== '' ? (
+          <p className="text-xs text-slate-400">{account.code}</p>
+        ) : null}
+      </div>
+    ),
+    [],
+  );
 
   const selectedVendorTracksStock = useMemo(() => {
     if (invoiceType !== InvoiceType.Purchase) return false;
@@ -2099,6 +2114,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   placeholder="Select a party"
                                   searchPlaceholder="Search parties..."
                                   autoFocusTrigger={editInvoiceId == null}
+                                  renderSelectItem={renderPartySelectItem}
                                 />
                                 <FormMessage />
                               </FormItem>
@@ -2212,6 +2228,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   placeholder="Select a party"
                                   searchPlaceholder="Search parties..."
                                   autoFocusTrigger={editInvoiceId == null}
+                                  renderSelectItem={renderPartySelectItem}
                                 />
                                 <FormMessage />
                               </FormItem>

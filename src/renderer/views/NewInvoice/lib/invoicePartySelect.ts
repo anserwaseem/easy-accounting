@@ -1,5 +1,6 @@
 import { toNumber } from 'lodash';
 import type { PartyAccount } from '@/renderer/views/NewInvoice/hooks/useNewInvoiceParties';
+import { pinStockAccounts } from '@/renderer/lib/pinStockAccounts';
 import { InvoiceType } from 'types';
 
 /**
@@ -44,5 +45,13 @@ export function buildCustomerVendorSelectOptions(
   const useBaseOnlyForSaleSplit =
     invoiceType === InvoiceType.Sale && useSingleAccount && splitByItemType;
   const source = useBaseOnlyForSaleSplit ? baseParties : extendedParties;
-  return mergePartyOptionForSelect(source, singleAccountId, missingExtra);
+  const merged = mergePartyOptionForSelect(
+    source,
+    singleAccountId,
+    missingExtra,
+  );
+  if (invoiceType === InvoiceType.Purchase) {
+    return pinStockAccounts(merged);
+  }
+  return merged;
 }

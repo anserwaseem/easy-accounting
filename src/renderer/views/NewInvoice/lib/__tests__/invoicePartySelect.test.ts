@@ -103,4 +103,78 @@ describe('buildCustomerVendorSelectOptions', () => {
       }).map((p) => p.id),
     ).toEqual([1, 2]);
   });
+
+  it('pins stock-tracking vendor accounts to the top for purchase invoices', () => {
+    const regularVendorA = baseParty({
+      id: 10,
+      name: 'Alpha Vendor',
+      tracksVendorStock: false,
+    });
+    const regularVendorB = baseParty({
+      id: 20,
+      name: 'Beta Vendor',
+      tracksVendorStock: false,
+    });
+    const stockVendorZ = baseParty({
+      id: 30,
+      name: 'Zeta Stock Vendor',
+      tracksVendorStock: true,
+    });
+    const stockVendorM = baseParty({
+      id: 40,
+      name: 'Mu Stock Vendor',
+      tracksVendorStock: true,
+    });
+
+    const result = buildCustomerVendorSelectOptions({
+      invoiceType: InvoiceType.Purchase,
+      baseParties: [regularVendorA, regularVendorB, stockVendorZ, stockVendorM],
+      extendedParties: [
+        regularVendorA,
+        regularVendorB,
+        stockVendorZ,
+        stockVendorM,
+      ],
+      useSingleAccount: true,
+      splitByItemType: false,
+      singleAccountId: undefined,
+      missingExtra: undefined,
+    });
+
+    // stock-tracking accounts should be first (sorted by name: Mu, then Zeta), followed by rest (Alpha, then Beta)
+    expect(result.map((p) => p.id)).toEqual([40, 30, 10, 20]);
+    // names should not have any suffixes appended
+    expect(result.map((p) => p.name)).toEqual([
+      'Mu Stock Vendor',
+      'Zeta Stock Vendor',
+      'Alpha Vendor',
+      'Beta Vendor',
+    ]);
+  });
+
+  it('does not pin stock-tracking accounts for sale invoices', () => {
+    const partyA = baseParty({
+      id: 10,
+      name: 'Alpha Customer',
+      tracksVendorStock: false,
+    });
+    const partyZ = baseParty({
+      id: 30,
+      name: 'Zeta Customer',
+      tracksVendorStock: true,
+    });
+
+    const result = buildCustomerVendorSelectOptions({
+      invoiceType: InvoiceType.Sale,
+      baseParties: [partyZ, partyA],
+      extendedParties: [partyZ, partyA],
+      useSingleAccount: true,
+      splitByItemType: false,
+      singleAccountId: undefined,
+      missingExtra: undefined,
+    });
+
+    // for sale invoices, list remains in original provided order
+    expect(result.map((p) => p.id)).toEqual([30, 10]);
+  });
 });
