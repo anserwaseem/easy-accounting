@@ -1118,11 +1118,14 @@ export class InvoiceService {
     this.updateInventoryForInvoiceLineItems(invoiceType, oldRows, 'reverse');
 
     if (invoiceType === InvoiceType.Purchase) {
-      this.applyVendorStockFromStoredLines(
+      // revert prior vendor stock balance and rewrite movements cleanly without fake returns
+      this.vendorStockService.revertPurchaseStockForUpdate(
         invoiceId,
-        invoice.date,
-        oldRows,
-        'purchase_return',
+        oldRows.map((r) => ({
+          accountId: r.accountId,
+          inventoryId: r.inventoryId,
+          quantity: r.quantity,
+        })),
       );
     }
     const totalAmount = invoice.totalAmount ?? 0;
