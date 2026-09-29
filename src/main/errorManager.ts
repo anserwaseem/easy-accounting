@@ -16,20 +16,65 @@ export class ErrorManager {
     process.on('uncaughtException', this.handleUncaughtException);
   }
 
-  private handleUncaughtException = (err: Error): void => {
-    if (process.env.NODE_ENV === 'test') {
-      return;
+  public static isTransientNetworkError(err: unknown): boolean {
+    if (!err) {
+      return false;
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    const code =
+      typeof err === 'object' && err !== null && 'code' in err
+        ? String((err as { code?: unknown }).code)
+        : '';
+
+    // chromium network error codes (net::ERR_*)
+    if (message.includes('net::ERR_')) {
+      return true;
     }
 
-    log.error('Uncaught exception:', err);
+    // common transient network error codes
+    const networkCodes = [
+      'ECONNRESET',
+      'ETIMEDOUT',
+      'ENOTFOUND',
+      'ECONNREFUSED',
+      'EHOSTUNREACH',
+      'ENETUNREACH',
+      'EAI_AGAIN',
+    ];
+    if (code && networkCodes.includes(code)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  public handleException = (err: unknown): boolean => {
+    const error = err instanceof Error ? err : new Error(String(err));
+
+    // ignore transient network errors so intermittent connectivity does not show crash dialogs
+    if (ErrorManager.isTransientNetworkError(error)) {
+      log.warn('Ignored transient network error:', error);
+      return false;
+    }
+
+    log.error('Uncaught exception:', error);
+
+    if (process.env.NODE_ENV === 'test') {
+      return true;
+    }
 
     if (app.isReady()) {
-      this.showExceptionDialog(err);
+      this.showExceptionDialog(error);
     } else {
       app.on('ready', () => {
-        this.showExceptionDialog(err);
+        this.showExceptionDialog(error);
       });
     }
+    return true;
+  };
+
+  private handleUncaughtException = (err: unknown): void => {
+    this.handleException(err);
   };
 
   private showExceptionDialog = (err: Error): void => {
