@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 
 import {
-  Root as DropdownMenu,
+  Root as DropdownMenuRoot,
   Trigger as DropdownMenuTrigger,
   Group as DropdownMenuGroup,
   Portal as DropdownMenuPortal,
@@ -20,6 +20,15 @@ import {
 import { Check, ChevronRight, Circle } from 'lucide-react';
 
 import { cn } from 'renderer/lib/utils';
+
+const DropdownMenu: React.FC<
+  React.ComponentPropsWithoutRef<typeof DropdownMenuRoot>
+> = ({
+  modal = false,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuRoot>) => (
+  <DropdownMenuRoot modal={modal} {...props} />
+);
 
 const DropdownMenuSubTrigger = forwardRef<
   React.ElementRef<typeof SubTrigger>,

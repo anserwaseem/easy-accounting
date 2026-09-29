@@ -64,7 +64,10 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           nameUrdu: values.nameUrdu,
           addressUrdu: values.addressUrdu,
           goodsNameUrdu: values.goodsNameUrdu,
-          discountProfileId: null,
+          discountProfileId:
+            values.discountProfileId ??
+            initialValues?.discountProfileId ??
+            null,
           isActive: true,
           tracksVendorStock: values.tracksVendorStock,
         }),

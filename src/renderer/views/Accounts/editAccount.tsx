@@ -56,6 +56,8 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     goodsNameUrdu: inputRow.goodsNameUrdu,
     isActive: !!inputRow.isActive, // included for type safety, but not used in the form
     tracksVendorStock: !!inputRow.tracksVendorStock,
+    discountProfileId: inputRow.discountProfileId ?? null,
+    discountProfileName: inputRow.discountProfileName ?? null,
   });
 
   const onSubmit = async (values: AccountFormData) => {
@@ -71,7 +73,8 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       nameUrdu: values.nameUrdu,
       addressUrdu: values.addressUrdu,
       goodsNameUrdu: values.goodsNameUrdu,
-      discountProfileId: row.original.discountProfileId ?? null,
+      discountProfileId:
+        values.discountProfileId ?? row.original.discountProfileId ?? null,
       isActive: row.original.isActive,
       tracksVendorStock: values.tracksVendorStock,
     });
@@ -213,12 +216,12 @@ export const EditAccount: React.FC<EditAccountProps> = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={handleCreateCopy}>
+            <DropdownMenuItem onSelect={handleCreateCopy}>
               <Copy className="mr-2 h-4 w-4" />
               Create a copy
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleToggleActive}>
+            <DropdownMenuItem onSelect={handleToggleActive}>
               {isActive ? (
                 <Ban className="mr-2 h-4 w-4" />
               ) : (
@@ -227,7 +230,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
               {toggleLabel}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => setIsDeleteDialogOpen(true)}
+              onSelect={() => setIsDeleteDialogOpen(true)}
               className="text-destructive focus:bg-destructive/10 focus:text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
