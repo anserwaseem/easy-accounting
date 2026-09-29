@@ -162,4 +162,40 @@ describe('EditAccount - Copy Discount Profile', () => {
       );
     });
   });
+
+  it('clears body pointer-events lock when copy modal is opened from 3-dots menu and closed', async () => {
+    render(
+      <EditAccount
+        row={{ original: mockAccountWithProfile }}
+        refetchAccounts={refetchAccountsMock}
+        charts={charts}
+      />,
+    );
+
+    // Open 3-dots menu
+    const moreBtn = screen.getByRole('button', { name: /more actions/i });
+    fireEvent.keyDown(moreBtn, { key: 'Enter' });
+
+    // Click "Create a copy"
+    const copyMenuItem = await screen.findByRole('menuitem', {
+      name: /create a copy/i,
+    });
+    fireEvent.click(copyMenuItem);
+
+    // Dialog is now open
+    expect(await screen.findByText('Create New Account')).toBeInTheDocument();
+
+    // Close the dialog by clicking the close button
+    const closeBtn = screen.getByRole('button', { name: /close/i });
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Create New Account')).not.toBeInTheDocument();
+    });
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+    expect(document.body.style.pointerEvents).toBe('');
+  });
 });
