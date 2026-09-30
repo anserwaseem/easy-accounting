@@ -1,10 +1,7 @@
 import { toNumber } from 'lodash';
 import { useMemo } from 'react';
 import type { Control, FieldValues, Path } from 'react-hook-form';
-import {
-  currencyFormatOptions,
-  DISCOUNT_ACCOUNT_NAME,
-} from 'renderer/lib/constants';
+import { currencyFormatOptions } from 'renderer/lib/constants';
 import { cn, getFormattedCurrency } from 'renderer/lib/utils';
 import {
   FormControl,
@@ -27,7 +24,6 @@ interface UseNewInvoiceTableInfoParams<T extends FieldValues = FieldValues> {
     name: string;
     code?: string;
   }>;
-  discountAccountExists: boolean | null;
   enableCumulativeDiscount: boolean;
   setEnableCumulativeDiscount: (value: boolean) => void;
   cumulativeDiscount: number | undefined;
@@ -48,7 +44,6 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
     watchedExtraDiscount,
     watchedTotalAmount,
     extraDiscountAccountOptions,
-    discountAccountExists,
     enableCumulativeDiscount,
     setEnableCumulativeDiscount,
     cumulativeDiscount,
@@ -161,24 +156,11 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
                         )}
                       />
                     </FormControl>
-                    {discountAccountExists === false && (
-                      <p className="text-sm text-destructive mt-1">
-                        Create a &quot;{DISCOUNT_ACCOUNT_NAME}&quot; expense
-                        account to use extra discount.
-                      </p>
-                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />,
-              discountAccountExists === false ? (
-                <span
-                  key="extra-discount-warning"
-                  className="text-sm text-destructive"
-                >
-                  Required for posting
-                </span>
-              ) : null,
+              null,
             ],
           ]
         : []),
@@ -257,7 +239,6 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
     watchedExtraDiscount,
     watchedTotalAmount,
     extraDiscountAccountOptions,
-    discountAccountExists,
     enableCumulativeDiscount,
     setEnableCumulativeDiscount,
     cumulativeDiscount,

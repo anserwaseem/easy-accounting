@@ -1,8 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toNumber } from 'lodash';
-import { useMemo, useEffect, useState, useRef } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
-import { DISCOUNT_ACCOUNT_NAME } from 'renderer/lib/constants';
 import type { InventoryItem } from 'types';
 import { InvoiceType } from 'types';
 import { z } from 'zod';
@@ -21,7 +19,7 @@ export interface UseNewInvoiceFormCoreParams {
   isQuotationFlowRef?: React.MutableRefObject<boolean>;
 }
 
-/** owns form instance, schema, default values, field array, watched values, and discount-account-exists check */
+/** owns form instance, schema, default values, field array, and watched values */
 export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
   const {
     invoiceType,
@@ -84,26 +82,10 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     name: 'accountMapping.multipleAccountIds',
   });
 
-  const [discountAccountExists, setDiscountAccountExists] = useState<
-    boolean | null
-  >(null);
-
   // clear form validation errors when invoice type changes
   useEffect(() => {
     form.clearErrors();
   }, [invoiceType, form]);
-
-  // when extra discount > 0, check if the required discount account exists (for posting)
-  useEffect(() => {
-    if (!(toNumber(watchedExtraDiscount) > 0)) {
-      setDiscountAccountExists(null);
-      return;
-    }
-    window.electron
-      .getAccountByName(DISCOUNT_ACCOUNT_NAME)
-      .then((acc) => setDiscountAccountExists(!!acc?.id))
-      .catch(() => setDiscountAccountExists(false));
-  }, [watchedExtraDiscount]);
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
@@ -122,7 +104,5 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     watchedExtraDiscount,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
-    discountAccountExists,
-    setDiscountAccountExists,
   };
 }

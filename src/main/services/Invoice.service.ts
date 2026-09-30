@@ -33,10 +33,7 @@ import {
   normalizeSqliteBooleanRows,
   uncastBoolean,
 } from '../utils/sqlite';
-import {
-  INVOICE_DISCOUNT_PERCENTAGE,
-  DISCOUNT_ACCOUNT_NAME,
-} from '../utils/constants';
+import { INVOICE_DISCOUNT_PERCENTAGE } from '../utils/constants';
 
 /** values read from integer (0/1) or legacy boolean sqlite columns */
 type SqliteBoolColumn = SqliteBoolean | boolean | number | null | undefined;
@@ -436,19 +433,6 @@ export class InvoiceService {
       });
 
       forEach(itemsByAccount, (groupItems, accountId) => {
-        const groupTotalRaw = groupItems.reduce((sum, item) => {
-          return (
-            sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
-          );
-        }, 0);
-        // match UI: per-account group gross is rounded before invoice total / ledger
-        const groupTotalAmount = Math.round(groupTotalRaw);
-        const groupDiscountPercentage =
-          this.pricingService.getPolicyDiscountPercentForInventoryIds(
-            toNumber(accountId),
-            groupItems.map((item) => item.inventoryId),
-          );
-
         for (const item of groupItems) {
           this.stmInsertInvoiceItems.run({
             invoiceId,
@@ -463,57 +447,30 @@ export class InvoiceService {
             item.inventoryId,
           );
         }
-
-        this.createJournalEntry(
-          invoiceType,
-          invoice,
-          toNumber(accountId),
-          groupTotalAmount,
-          invoiceId,
-          groupDiscountPercentage,
-        );
       });
 
-      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
-      if (extraDiscount > 0) {
-        const discountAccount = this.accountService.getAccountByName(
-          DISCOUNT_ACCOUNT_NAME,
-        );
-        if (!discountAccount?.id) {
-          raise(
-            `"${DISCOUNT_ACCOUNT_NAME}" account not found. Create an expense account named "${DISCOUNT_ACCOUNT_NAME}" for extra discount.`,
-          );
-        }
-        const creditAccountId =
-          toNumber(invoice.extraDiscountAccountId) || multipleIds[0];
-        if (!creditAccountId || !multipleIds.includes(creditAccountId)) {
-          raise('Extra discount requires a valid account selection.');
-        }
-        this.createExtraDiscountJournalEntry(
-          invoiceType,
-          invoice,
-          discountAccount!.id,
-          creditAccountId,
-          extraDiscount,
-          invoiceId,
+      if (invoiceType === InvoiceType.Sale) {
+        this.assertInventoryNonNegative(
+          uniq(invoice.invoiceItems.map((i) => i.inventoryId)),
         );
       }
+
+      let splitVendorStockMessages: string[] | undefined;
       if (invoiceType === InvoiceType.Purchase) {
-        const vendorStockMessages = this.applyVendorStockForPostedPurchase(
+        const messages = this.applyVendorStockForPostedPurchase(
           invoiceId,
           invoice,
           'purchase',
         );
-        return {
-          invoiceId,
-          nextInvoiceNumber: invoice.invoiceNumber + 1,
-          vendorStockMessages:
-            vendorStockMessages.length > 0 ? vendorStockMessages : undefined,
-        };
+        if (messages.length > 0) splitVendorStockMessages = messages;
       }
+
+      this.postJournalsForPersistedInvoice(invoiceType, invoiceId, invoice);
+
       return {
         invoiceId,
         nextInvoiceNumber: invoice.invoiceNumber + 1,
+        vendorStockMessages: splitVendorStockMessages,
       };
     }
 
@@ -1533,11 +1490,38 @@ export class InvoiceService {
     });
   }
 
+  /**
+   * one journal per account at the net receivable.
+   * extra discount reduces the chosen account (and Sale/Purchase with it).
+   * it is not a second journal and it does not hit the Discount expense account.
+   */
   private postJournalsForPersistedInvoice(
     invoiceType: InvoiceType,
     invoiceId: number,
     invoice: Invoice,
   ): void {
+    const posted = InvoiceService.postedAccountAmounts(invoiceType, invoice);
+    posted.forEach((group) => {
+      if (group.amount === 0) return;
+      this.createJournalEntry(
+        invoiceType,
+        invoice,
+        group.accountId,
+        group.amount,
+        invoiceId,
+        this.pricingService.getPolicyDiscountPercentForInventoryIds(
+          group.accountId,
+          group.inventoryIds,
+        ),
+      );
+    });
+  }
+
+  /** lines grouped by the account that will be debited (sale) or credited (purchase). */
+  private static lineAccountGroups(invoice: Invoice): Array<{
+    accountId: number;
+    items: Invoice['invoiceItems'];
+  }> {
     const multipleIds = invoice.accountMapping.multipleAccountIds;
     const hasMultiple =
       Array.isArray(multipleIds) &&
@@ -1548,110 +1532,77 @@ export class InvoiceService {
       const itemsByAccount = groupBy(invoice.invoiceItems, (item) => {
         return multipleIds[invoice.invoiceItems.indexOf(item)];
       });
-
-      forEach(itemsByAccount, (groupItems, accountIdStr) => {
-        const accountId = toNumber(accountIdStr);
-        const groupTotalRaw = groupItems.reduce((sum, item) => {
-          return (
-            sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0)
-          );
-        }, 0);
-        const groupTotalAmount = Math.round(groupTotalRaw);
-        const groupDiscountPercentage =
-          this.pricingService.getPolicyDiscountPercentForInventoryIds(
-            accountId,
-            groupItems.map((item) => item.inventoryId),
-          );
-
-        this.createJournalEntry(
-          invoiceType,
-          invoice,
-          accountId,
-          groupTotalAmount,
-          invoiceId,
-          groupDiscountPercentage,
-        );
-      });
-
-      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
-      if (extraDiscount > 0) {
-        const discountAccount = this.accountService.getAccountByName(
-          DISCOUNT_ACCOUNT_NAME,
-        );
-        if (!discountAccount?.id) {
-          raise(
-            `"${DISCOUNT_ACCOUNT_NAME}" account not found. Create an expense account named "${DISCOUNT_ACCOUNT_NAME}" for extra discount.`,
-          );
-        }
-        const creditAccountId =
-          toNumber(invoice.extraDiscountAccountId) || multipleIds[0];
-        if (!creditAccountId || !multipleIds.includes(creditAccountId)) {
-          raise('Extra discount requires a valid account selection.');
-        }
-        this.createExtraDiscountJournalEntry(
-          invoiceType,
-          invoice,
-          discountAccount!.id,
-          creditAccountId,
-          extraDiscount,
-          invoiceId,
-        );
-      }
-      return;
+      return Object.entries(itemsByAccount).map(([accountId, items]) => ({
+        accountId: toNumber(accountId),
+        items,
+      }));
     }
 
-    if (invoice.accountMapping.singleAccountId) {
-      const accountId = invoice.accountMapping.singleAccountId;
-      const totalAmount = invoice.totalAmount ?? 0;
-      const extraDiscount = toNumber(invoice.extraDiscount) || 0;
-      if (extraDiscount > 0) {
-        const discountAccount = this.accountService.getAccountByName(
-          DISCOUNT_ACCOUNT_NAME,
-        );
-        if (!discountAccount?.id) {
-          raise(
-            `"${DISCOUNT_ACCOUNT_NAME}" account not found. Create an expense account named "${DISCOUNT_ACCOUNT_NAME}" for extra discount.`,
-          );
-        }
-        const discountAccountId = discountAccount!.id;
-        const creditAccountId =
-          toNumber(invoice.extraDiscountAccountId) ?? accountId;
-        this.createJournalEntry(
-          invoiceType,
-          invoice,
-          accountId,
-          totalAmount + extraDiscount,
-          invoiceId,
-          this.pricingService.getPolicyDiscountPercentForInventoryIds(
-            accountId,
-            invoice.invoiceItems.map((item) => item.inventoryId),
-          ),
-        );
-        this.createExtraDiscountJournalEntry(
-          invoiceType,
-          invoice,
-          discountAccountId,
-          creditAccountId,
-          extraDiscount,
-          invoiceId,
-        );
-      } else {
-        this.createJournalEntry(
-          invoiceType,
-          invoice,
-          accountId,
-          totalAmount,
-          invoiceId,
-          this.pricingService.getPolicyDiscountPercentForInventoryIds(
-            accountId,
-            invoice.invoiceItems.map((item) => item.inventoryId),
-          ),
-        );
-      }
-      return;
+    const accountId = toNumber(invoice.accountMapping.singleAccountId);
+    if (accountId > 0) {
+      return [{ accountId, items: invoice.invoiceItems }];
     }
 
-    raise('Select a customer or vendor account');
+    return raise('Select a customer or vendor account');
+  }
+
+  /** round each account's lines, then subtract extra discount from the chosen account only. */
+  private static postedAccountAmounts(
+    invoiceType: InvoiceType,
+    invoice: Invoice,
+  ): Array<{ accountId: number; amount: number; inventoryIds: number[] }> {
+    const groups = InvoiceService.lineAccountGroups(invoice);
+    const extra = toNumber(invoice.extraDiscount) || 0;
+    let extraAccountId = 0;
+    if (extra > 0) {
+      const selected = toNumber(invoice.extraDiscountAccountId);
+      if (selected > 0) {
+        extraAccountId = selected;
+      } else if (groups.length === 1) {
+        extraAccountId = groups[0].accountId;
+      }
+      if (
+        !extraAccountId ||
+        !groups.some((group) => group.accountId === extraAccountId)
+      ) {
+        raise('Extra discount requires a valid account selection.');
+      }
+    }
+
+    const posted = groups.map((group) => {
+      const gross = InvoiceService.roundedGroupGross(group.items);
+      const amount =
+        extra > 0 && group.accountId === extraAccountId ? gross - extra : gross;
+      if (amount < 0) {
+        raise('Extra discount cannot exceed the selected account total.');
+      }
+      return {
+        accountId: group.accountId,
+        amount,
+        inventoryIds: group.items.map((item) => item.inventoryId),
+      };
+    });
+
+    if (invoiceType === InvoiceType.Sale) {
+      const net = posted.reduce((sum, group) => sum + group.amount, 0);
+      if (net <= 0) {
+        raise('Invoice total must be greater than 0');
+      }
+    }
+
+    return posted;
+  }
+
+  /** match the invoice screen: round an account's line total to the nearest rupee. */
+  private static roundedGroupGross(
+    items: Array<{ quantity: number; discount: number; price?: number }>,
+  ): number {
+    const raw = items.reduce(
+      (sum, item) =>
+        sum + InvoiceService.getInvoiceItemTotal(item, item.price || 0),
+      0,
+    );
+    return Math.round(raw);
   }
 
   private createJournalEntry(
@@ -1688,45 +1639,6 @@ export class InvoiceService {
           accountId: creditAccountId,
           debitAmount: 0,
           creditAmount: amount,
-          journalId: 0,
-        },
-      ],
-    });
-  }
-
-  /**
-   * Creates a journal entry for extra discount: Debit Discount (expense) account, Credit selected party account.
-   * Requires a "Discount" named account to exist. creditAccountId is the account from which discount is applied (user-selected).
-   */
-  private createExtraDiscountJournalEntry(
-    invoiceType: InvoiceType,
-    invoice: Invoice,
-    discountAccountId: number,
-    creditAccountId: number,
-    extraDiscountAmount: number,
-    invoiceId: number,
-  ): boolean {
-    if (extraDiscountAmount <= 0) return true;
-    return this.journalService.insertJournal({
-      id: -1,
-      date: invoice.date,
-      isPosted: true,
-      narration: `${invoiceType} Invoice #${invoice.invoiceNumber} (extra discount)`,
-      billNumber: invoice.invoiceNumber,
-      invoiceId,
-      journalEntries: [
-        {
-          id: -1,
-          accountId: discountAccountId,
-          creditAmount: 0,
-          debitAmount: extraDiscountAmount,
-          journalId: 0,
-        },
-        {
-          id: -1,
-          accountId: creditAccountId,
-          debitAmount: 0,
-          creditAmount: extraDiscountAmount,
           journalId: 0,
         },
       ],
@@ -1938,28 +1850,54 @@ export class InvoiceService {
       customerCount?: number; // only present when groupByPolicy = true
     }>;
 
+    // per invoice+account rounded line gross, minus extra discount on the chosen account.
+    // same rounding as the sale journal, so these groups match Sale credits.
+    const netByAccountCte = `
+      WITH line_groups AS (
+        SELECT
+          i.id AS invoiceId,
+          ii.accountId AS accountId,
+          ROUND(SUM(ii.quantity * ii.price * (1.0 - ii.discount / 100.0))) AS roundedGross
+        FROM invoices i
+        JOIN invoice_items ii ON ii.invoiceId = i.id
+        WHERE i.invoiceType = 'Sale'
+          AND i.isQuotation = 0
+          AND i.isReturned = 0
+          AND i.date >= ? AND i.date <= ?
+        GROUP BY i.id, ii.accountId
+      ),
+      groups_net AS (
+        SELECT
+          lg.invoiceId AS invoiceId,
+          lg.accountId AS accountId,
+          lg.roundedGross - CASE
+            WHEN COALESCE(i.extraDiscount, 0) > 0
+              AND i.extraDiscountAccountId = lg.accountId
+            THEN i.extraDiscount
+            ELSE 0
+          END AS netAmount
+        FROM line_groups lg
+        JOIN invoices i ON i.id = lg.invoiceId
+      )
+    `;
+
     if (groupByPolicy) {
       // Group by discount profile (policy). Handle NULL profiles as "No Policy"
       const rows = this.db
         .prepare(
           `
+        ${netByAccountCte}
         SELECT
           COALESCE(dp.name, 'No Policy') AS groupName,
           COALESCE(dp.id, -1) AS groupId,
-          COALESCE(SUM(ii.quantity * ii.price * (1 - ii.discount / 100)), 0) AS totalAmount,
-          COUNT(DISTINCT i.id) AS invoiceCount,
-          COUNT(DISTINCT ii.accountId) AS customerCount
-        FROM invoices i
-        JOIN invoice_items ii ON ii.invoiceId = i.id
-        JOIN account a ON a.id = ii.accountId
+          COALESCE(SUM(gn.netAmount), 0) AS totalAmount,
+          COUNT(DISTINCT gn.invoiceId) AS invoiceCount,
+          COUNT(DISTINCT gn.accountId) AS customerCount
+        FROM groups_net gn
+        JOIN account a ON a.id = gn.accountId
         LEFT JOIN discount_profiles dp ON dp.id = a.discountProfileId
-        WHERE i.invoiceType = 'Sale'
-          AND i.isQuotation = 0
-          AND i.isReturned = 0
-          AND i.date >= ? AND i.date <= ?
         GROUP BY a.discountProfileId
         ORDER BY totalAmount DESC
-
       `,
         )
         .all(sqlStartDate, sqlEndDate) as Array<{
@@ -1981,20 +1919,15 @@ export class InvoiceService {
       const rows = this.db
         .prepare(
           `
+        ${netByAccountCte}
         SELECT
           a.name AS groupName, a.id AS groupId, a.code AS groupCode,
-          COALESCE(SUM(ii.quantity * ii.price * (1 - ii.discount / 100)), 0) AS totalAmount,
-          COUNT(DISTINCT i.id) AS invoiceCount
-        FROM invoices i
-        JOIN invoice_items ii ON ii.invoiceId = i.id
-        JOIN account a ON a.id = ii.accountId
-        WHERE i.invoiceType = 'Sale'
-          AND i.isQuotation = 0
-          AND i.isReturned = 0
-          AND i.date >= ? AND i.date <= ?
-        GROUP BY ii.accountId
+          COALESCE(SUM(gn.netAmount), 0) AS totalAmount,
+          COUNT(DISTINCT gn.invoiceId) AS invoiceCount
+        FROM groups_net gn
+        JOIN account a ON a.id = gn.accountId
+        GROUP BY gn.accountId
         ORDER BY totalAmount DESC
-
       `,
         )
         .all(sqlStartDate, sqlEndDate) as Array<{

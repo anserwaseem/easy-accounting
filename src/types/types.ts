@@ -530,7 +530,7 @@ export type Invoice = Prettify<
   BaseEntity & {
     invoiceItems: Prettify<InvoiceItem>[];
     extraDiscount?: number; // will be provided by UI
-    /** when extraDiscount > 0, the account to credit (discount applied from this party account) */
+    /** when extraDiscount > 0, the invoice account whose receivable is reduced by that amount */
     extraDiscountAccountId?: number;
     biltyNumber?: string; // will be provided by UI
     cartons?: number; // will be provided by UI

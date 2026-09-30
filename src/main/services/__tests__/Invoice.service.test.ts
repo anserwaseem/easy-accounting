@@ -84,6 +84,55 @@ const computeUiTotal = (
   return grossRounded - extraDiscount;
 };
 
+type InvoiceJournalLine = {
+  journalId: number;
+  narration: string;
+  accountId: number;
+  debitAmount: number;
+  creditAmount: number;
+};
+
+/** every journal on the invoice is balanced, and none is the old extra-discount entry. */
+const invoiceJournalLines = (
+  database: Database.Database,
+  invoiceId: number,
+): InvoiceJournalLine[] =>
+  database
+    .prepare(
+      `SELECT j.id AS journalId, j.narration, je.accountId,
+              je.debitAmount, je.creditAmount
+       FROM journal j
+       JOIN journal_entry je ON je.journalId = j.id
+       WHERE j.invoiceId = ?
+       ORDER BY j.id, je.id`,
+    )
+    .all(invoiceId) as InvoiceJournalLine[];
+
+const assertInvoiceJournalsBalanced = (
+  database: Database.Database,
+  invoiceId: number,
+): InvoiceJournalLine[] => {
+  const lines = invoiceJournalLines(database, invoiceId);
+  expect(lines.some((line) => line.narration.includes('extra discount'))).toBe(
+    false,
+  );
+  const journalIds = [...new Set(lines.map((line) => line.journalId))];
+  journalIds.forEach((journalId) => {
+    const journalLines = lines.filter((line) => line.journalId === journalId);
+    const debit = journalLines.reduce(
+      (sum, line) => sum + Number(line.debitAmount),
+      0,
+    );
+    const credit = journalLines.reduce(
+      (sum, line) => sum + Number(line.creditAmount),
+      0,
+    );
+    expect(debit).toBe(credit);
+    expect(debit).toBeGreaterThan(0);
+  });
+  return lines;
+};
+
 interface SeededAccounts {
   saleAccountId: number;
   purchaseAccountId: number;
@@ -384,7 +433,7 @@ describe('InvoiceService.insertInvoice', () => {
     expect(saleLedger.at(-1)!.balanceType).toBe(BalanceType.Cr);
   });
 
-  it('sale: single account, extra discount posts extra-discount journal and reconciles to UI total', () => {
+  it('sale: single account extra discount credits Sale the net and leaves Discount untouched', () => {
     const acc = seedBaseAccounts();
     const inv = seedInventoryAndTypes();
 
@@ -430,37 +479,45 @@ describe('InvoiceService.insertInvoice', () => {
       invoiceItems: items,
     };
 
-    invoiceService.insertInvoice('Sale' as InvoiceType, invoice);
-
-    const journalRows = db
-      .prepare(
-        `SELECT id, narration, billNumber, discountPercentage FROM journal ORDER BY id`,
-      )
-      .all() as Array<{
-      id: number;
-      narration: string;
-      billNumber: number;
-      discountPercentage?: number;
-    }>;
-    expect(journalRows).toHaveLength(2);
-    expect(journalRows[0].narration).toBe('Sale Invoice #2001');
-    expect(journalRows[0].billNumber).toBe(2001);
-    expect(journalRows[0].discountPercentage).toBe(10);
-    expect(journalRows[1].narration).toBe(
-      'Sale Invoice #2001 (extra discount)',
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      invoice,
     );
-    expect(journalRows[1].billNumber).toBe(2001);
 
-    // main journal debits party for uiTotal + extraDiscount (see InvoiceService behavior)
+    const lines = assertInvoiceJournalsBalanced(db, invoiceId);
+    const journalIds = [...new Set(lines.map((line) => line.journalId))];
+    expect(journalIds).toHaveLength(1);
+    expect(lines[0].narration).toBe('Sale Invoice #2001');
+
     const partyLedger = ledgerService.getLedger(acc.primaryPartyId);
-    expect(partyLedger.at(-2)!.debit).toBe(uiTotal + extraDiscount);
-    // extra discount journal credits party for extraDiscount
-    expect(partyLedger.at(-1)!.credit).toBe(extraDiscount);
+    const saleLedger = ledgerService.getLedger(acc.saleAccountId);
+    expect(partyLedger).toHaveLength(1);
+    expect(partyLedger[0].debit).toBe(uiTotal);
+    expect(saleLedger).toHaveLength(1);
+    expect(saleLedger[0].credit).toBe(uiTotal);
+    expect(ledgerService.getLedger(acc.discountExpenseAccountId)).toHaveLength(
+      0,
+    );
 
-    // net debit equals uiTotal (UI truth)
-    const net =
-      (partyLedger.at(-2)!.debit ?? 0) - (partyLedger.at(-1)!.credit ?? 0);
-    expect(net).toBe(uiTotal);
+    const header = db
+      .prepare(
+        `SELECT totalAmount, extraDiscount, extraDiscountAccountId FROM invoices WHERE id = ?`,
+      )
+      .get(invoiceId) as {
+      totalAmount: number;
+      extraDiscount: number;
+      extraDiscountAccountId: number;
+    };
+    expect(header.totalAmount).toBe(uiTotal);
+    expect(header.extraDiscount).toBe(extraDiscount);
+    expect(header.extraDiscountAccountId).toBe(acc.primaryPartyId);
+
+    const qty = (
+      db
+        .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+        .get(inv.primaryItemId) as { quantity: number }
+    ).quantity;
+    expect(qty).toBe(49);
   });
 
   it('sale: multi-account (type split style), posts per-account journals with rounded group totals and extra discount journal reconciles', () => {
@@ -531,19 +588,15 @@ describe('InvoiceService.insertInvoice', () => {
       invoiceItems: [...groupAItems, ...groupBItems],
     };
 
-    invoiceService.insertInvoice('Sale' as InvoiceType, invoice);
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      invoice,
+    );
 
-    const journalRows = db
-      .prepare(
-        `SELECT narration, billNumber FROM journal WHERE billNumber = ? ORDER BY id`,
-      )
-      .all([3001]) as Array<{ narration: string; billNumber: number }>;
-    // groupA journal + groupB journal + extra discount journal
-    expect(journalRows).toHaveLength(3);
-    expect(journalRows[0].narration).toBe('Sale Invoice #3001');
-    expect(journalRows[1].narration).toBe('Sale Invoice #3001');
-    expect(journalRows[2].narration).toBe(
-      'Sale Invoice #3001 (extra discount)',
+    const lines = assertInvoiceJournalsBalanced(db, invoiceId);
+    expect(new Set(lines.map((line) => line.journalId)).size).toBe(2);
+    expect(lines.every((line) => line.narration === 'Sale Invoice #3001')).toBe(
+      true,
     );
 
     const groupAAmount = Math.round(
@@ -552,39 +605,269 @@ describe('InvoiceService.insertInvoice', () => {
     const groupBAmount = Math.round(
       groupBItems.reduce((s, i) => s + computeUiRowTotal(i), 0),
     );
+    const groupANet = groupAAmount - extraDiscount;
 
     const typedLedger = ledgerService.getLedger(groupAAccountId);
     const typedSuffixLedger = ledgerService.getLedger(groupBAccountId);
+    const saleLedger = ledgerService.getLedger(acc.saleAccountId);
 
-    // each account is debited for its rounded group amount (linked to Sale account on credit)
-    expect(
-      typedLedger.find(
-        (l) =>
-          l.debit === groupAAmount && l.linkedAccountId === acc.saleAccountId,
-      ),
-    ).toBeTruthy();
-    expect(
-      typedSuffixLedger.find(
-        (l) =>
-          l.debit === groupBAmount && l.linkedAccountId === acc.saleAccountId,
-      ),
-    ).toBeTruthy();
+    expect(typedLedger).toHaveLength(1);
+    expect(typedLedger[0].debit).toBe(groupANet);
+    expect(typedLedger[0].linkedAccountId).toBe(acc.saleAccountId);
+    expect(typedSuffixLedger).toHaveLength(1);
+    expect(typedSuffixLedger[0].debit).toBe(groupBAmount);
+    expect(typedSuffixLedger[0].linkedAccountId).toBe(acc.saleAccountId);
+    expect(saleLedger.reduce((sum, row) => sum + (row.credit ?? 0), 0)).toBe(
+      uiTotal,
+    );
+    expect(ledgerService.getLedger(acc.discountExpenseAccountId)).toHaveLength(
+      0,
+    );
+    expect(groupANet + groupBAmount).toBe(uiTotal);
+  });
 
-    // extra discount journal credits selected account for extra discount and debits Discount expense
+  it('sale: extra discount larger than the chosen account rolls back', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 1,
+        discount: 0,
+        price: 100,
+        discountedPrice: 100,
+      },
+    ];
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-03-04T12:00:00.000Z').toISOString(),
+      invoiceNumber: 3101,
+      extraDiscount: 101,
+      extraDiscountAccountId: acc.primaryPartyId,
+      totalAmount: -1,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+
+    expect(() =>
+      invoiceService.insertInvoice('Sale' as InvoiceType, invoice),
+    ).toThrow(/Extra discount cannot exceed the selected account total/);
+
     expect(
-      typedLedger.find(
-        (l) =>
-          l.credit === extraDiscount &&
-          l.linkedAccountId === acc.discountExpenseAccountId,
-      ),
-    ).toBeTruthy();
-    const discountLedger = ledgerService.getLedger(
+      (db.prepare(`SELECT COUNT(*) AS c FROM invoices`).get() as { c: number })
+        .c,
+    ).toBe(0);
+    expect(
+      (db.prepare(`SELECT COUNT(*) AS c FROM journal`).get() as { c: number })
+        .c,
+    ).toBe(0);
+    expect(
+      (
+        db
+          .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+          .get(inv.primaryItemId) as { quantity: number }
+      ).quantity,
+    ).toBe(50);
+  });
+
+  it('sale: extra discount posts without a Discount expense account', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    db.prepare(`DELETE FROM account WHERE id = ?`).run(
       acc.discountExpenseAccountId,
     );
-    expect(discountLedger.at(-1)!.debit).toBe(extraDiscount);
 
-    // reconcile: sum(group debits) - extraDiscount == uiTotal
-    expect(groupAAmount + groupBAmount - extraDiscount).toBe(uiTotal);
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 1,
+        discount: 0,
+        price: 100,
+        discountedPrice: 100,
+      },
+    ];
+    const extraDiscount = 5;
+    const uiTotal = computeUiTotal([items], extraDiscount);
+    const { invoiceId } = invoiceService.insertInvoice('Sale' as InvoiceType, {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-03-05T12:00:00.000Z').toISOString(),
+      invoiceNumber: 3102,
+      extraDiscount,
+      extraDiscountAccountId: acc.primaryPartyId,
+      totalAmount: uiTotal,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    });
+
+    const lines = assertInvoiceJournalsBalanced(db, invoiceId);
+    expect(new Set(lines.map((line) => line.journalId)).size).toBe(1);
+    expect(ledgerService.getLedger(acc.primaryPartyId)[0].debit).toBe(uiTotal);
+    expect(ledgerService.getLedger(acc.saleAccountId)[0].credit).toBe(uiTotal);
+  });
+
+  it('sale: editing extra discount reposts one journal at the new net', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 1,
+        discount: 10,
+        price: 101,
+        discountedPrice: computeUiRowTotal({
+          quantity: 1,
+          price: 101,
+          discount: 10,
+        }),
+      },
+    ];
+    const firstExtra = 5;
+    const firstTotal = computeUiTotal([items], firstExtra);
+    const invoice: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-03-06T12:00:00.000Z').toISOString(),
+      invoiceNumber: 3103,
+      extraDiscount: firstExtra,
+      extraDiscountAccountId: acc.primaryPartyId,
+      totalAmount: firstTotal,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    };
+    const { invoiceId } = invoiceService.insertInvoice(
+      'Sale' as InvoiceType,
+      invoice,
+    );
+    const firstJournalId = assertInvoiceJournalsBalanced(db, invoiceId)[0]
+      .journalId;
+
+    const nextExtra = 8;
+    const nextTotal = computeUiTotal([items], nextExtra);
+    invoiceService.updateInvoice('Sale' as InvoiceType, invoiceId, {
+      ...invoice,
+      id: invoiceId,
+      extraDiscount: nextExtra,
+      totalAmount: nextTotal,
+    });
+
+    const lines = assertInvoiceJournalsBalanced(db, invoiceId);
+    expect(new Set(lines.map((line) => line.journalId)).size).toBe(1);
+    expect(lines[0].journalId).not.toBe(firstJournalId);
+    expect(ledgerService.getLedger(acc.primaryPartyId)).toHaveLength(1);
+    expect(ledgerService.getLedger(acc.primaryPartyId)[0].debit).toBe(
+      nextTotal,
+    );
+    expect(ledgerService.getLedger(acc.saleAccountId)[0].credit).toBe(
+      nextTotal,
+    );
+    expect(ledgerService.getLedger(acc.discountExpenseAccountId)).toHaveLength(
+      0,
+    );
+    expect(
+      (
+        db
+          .prepare(`SELECT extraDiscount FROM invoices WHERE id = ?`)
+          .get(invoiceId) as { extraDiscount: number }
+      ).extraDiscount,
+    ).toBe(nextExtra);
+    expect(
+      (
+        db
+          .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+          .get(inv.primaryItemId) as { quantity: number }
+      ).quantity,
+    ).toBe(49);
+  });
+
+  it('sale: sales performance customer and policy totals equal the net Sale credit', () => {
+    const acc = seedBaseAccounts();
+    const inv = seedInventoryAndTypes();
+    const profileId = seedDiscountProfileForAccount(
+      acc.primaryPartyId,
+      'DP-Report',
+    );
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: inv.primaryTypeId, discountPercent: 0 },
+    ]);
+    // invoice_items.price is the catalog price at save, which is what the report reads
+    db.prepare(`UPDATE inventory SET price = 100 WHERE id = ?`).run(
+      inv.primaryItemId,
+    );
+
+    const items: InvoiceItem[] = [
+      {
+        id: 1,
+        inventoryId: inv.primaryItemId,
+        quantity: 1,
+        discount: 0,
+        price: 100,
+        discountedPrice: 100,
+      },
+    ];
+    const extraDiscount = 5;
+    const uiTotal = computeUiTotal([items], extraDiscount);
+    invoiceService.insertInvoice('Sale' as InvoiceType, {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-03-07T12:00:00.000Z').toISOString(),
+      invoiceNumber: 3104,
+      extraDiscount,
+      extraDiscountAccountId: acc.primaryPartyId,
+      totalAmount: uiTotal,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: items,
+    });
+
+    const filters = { startDate: '2026-03-07', endDate: '2026-03-07' };
+    const byCustomer = invoiceService.getSalesPerformance(filters) as {
+      kpis: { postedSalesAmount: number };
+      rows: Array<{ groupId: number; totalAmount: number }>;
+      topItems: Array<{ totalAmount: number }>;
+    };
+    const byPolicy = invoiceService.getSalesPerformance({
+      ...filters,
+      groupByPolicy: true,
+    }) as {
+      rows: Array<{ totalAmount: number }>;
+    };
+
+    const saleCredit = ledgerService
+      .getLedger(acc.saleAccountId)
+      .reduce((sum, row) => sum + (row.credit ?? 0), 0);
+    expect(saleCredit).toBe(uiTotal);
+    expect(byCustomer.kpis.postedSalesAmount).toBe(uiTotal);
+    expect(byCustomer.rows).toHaveLength(1);
+    expect(byCustomer.rows[0].groupId).toBe(acc.primaryPartyId);
+    expect(byCustomer.rows[0].totalAmount).toBe(uiTotal);
+    expect(byPolicy.rows).toHaveLength(1);
+    expect(byPolicy.rows[0].totalAmount).toBe(uiTotal);
+    // item rows stay at the line amount; extra discount is not split onto the item
+    expect(byCustomer.topItems[0].totalAmount).toBe(uiTotal + extraDiscount);
   });
 
   it('sale: sections/multi-customer posts per-account journals and decrements inventory per item', () => {
@@ -3371,6 +3654,65 @@ describe('InvoiceService sale quotations', () => {
 
     const qList = invoiceService.getQuotationInvoices('Sale' as InvoiceType);
     expect(qList.some((r) => r.id === invoiceId)).toBe(false);
+  });
+
+  it('quotation with extra discount posts one net journal only when converted', () => {
+    const { partyId, itemId, typeId } = seedMinimalSaleQuotationSetup();
+    const profileId = (() => {
+      pricingService.insertDiscountProfile('QProfExtra');
+      return getDiscountProfileIdByName(db, 'QProfExtra');
+    })();
+    pricingService.saveProfileTypeDiscounts(profileId, [
+      { itemTypeId: typeId, discountPercent: 0 },
+    ]);
+    accountService.updateAccountDiscountProfile(partyId, profileId);
+
+    const extraDiscount = 10;
+    const qInv: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-04-07T12:00:00.000Z').toISOString(),
+      extraDiscount,
+      extraDiscountAccountId: partyId,
+      totalAmount: 90,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: partyId, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: itemId,
+          quantity: 2,
+          discount: 0,
+          price: 50,
+          discountedPrice: 100,
+        },
+      ],
+    };
+    const { invoiceId } = invoiceService.insertQuotationInvoice(
+      'Sale' as InvoiceType,
+      qInv,
+    );
+    expect(
+      (db.prepare(`SELECT COUNT(*) AS c FROM journal`).get() as { c: number })
+        .c,
+    ).toBe(0);
+    expect(
+      (
+        db
+          .prepare(`SELECT extraDiscount FROM invoices WHERE id = ?`)
+          .get(invoiceId) as { extraDiscount: number }
+      ).extraDiscount,
+    ).toBe(extraDiscount);
+
+    invoiceService.convertQuotationInvoice(invoiceId);
+    const lines = assertInvoiceJournalsBalanced(db, invoiceId);
+    expect(new Set(lines.map((line) => line.journalId)).size).toBe(1);
+    const saleId = getAccountIdByName(db, 'Sale');
+    const debited = lines.find((line) => line.accountId === partyId);
+    const credited = lines.find((line) => line.accountId === saleId);
+    expect(Number(debited?.debitAmount)).toBe(90);
+    expect(Number(credited?.creditAmount)).toBe(90);
   });
 
   it('insertQuotationInvoice Purchase leaves inventory unchanged and creates no journals', () => {

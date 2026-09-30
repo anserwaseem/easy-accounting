@@ -5,7 +5,6 @@
  *  - form instantiation with zod resolver for Sale & Purchase
  *  - watched invoice items, extra discount, total, account IDs
  *  - resolutionTrigger moved to index.tsx (computed from itemStructureKey)
- *  - discountAccountExists null / true / false paths
  *  - field array append / removal
  *  - validation errors cleared on invoiceType change
  *  - stock validation bonus injection (sale edit)
@@ -50,12 +49,6 @@ function makeRefs(
     splitByItemTypeRef,
     saleStockValidationBonusRef,
   };
-}
-
-async function flushMicrotasks() {
-  await act(async () => {
-    await Promise.resolve();
-  });
 }
 
 describe('useNewInvoiceFormCore', () => {
@@ -304,155 +297,6 @@ describe('useNewInvoiceFormCore', () => {
 
       // zod default for optional array
       expect(result.current.watchedMultipleAccountIds).toEqual([]);
-    });
-  });
-
-  describe('discountAccountExists', () => {
-    it('is null when extra discount is 0', () => {
-      const refs = makeRefs();
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Sale,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: false,
-        }),
-      );
-
-      expect(result.current.discountAccountExists).toBeNull();
-    });
-
-    it('checks electron.getAccountByName when extra discount > 0', async () => {
-      const getAccountByName = jest.fn(async () => ({ id: 99 }));
-      (window as any).electron.getAccountByName = getAccountByName;
-
-      const refs = makeRefs();
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Sale,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: false,
-        }),
-      );
-
-      // initially null
-      expect(result.current.discountAccountExists).toBeNull();
-
-      // set extra discount > 0
-      act(() => {
-        result.current.form.setValue('extraDiscount', 50, {
-          shouldDirty: true,
-        });
-      });
-
-      await flushMicrotasks();
-
-      expect(getAccountByName).toHaveBeenCalled();
-    });
-
-    it('sets to true when account exists', async () => {
-      (window as any).electron.getAccountByName = jest.fn(async () => ({
-        id: 99,
-      }));
-
-      const refs = makeRefs();
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Sale,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: false,
-        }),
-      );
-
-      act(() => {
-        result.current.form.setValue('extraDiscount', 100, {
-          shouldDirty: true,
-        });
-      });
-
-      await flushMicrotasks();
-      expect(result.current.discountAccountExists).toBe(true);
-    });
-
-    it('sets to false when account does not exist', async () => {
-      (window as any).electron.getAccountByName = jest.fn(async () => null);
-
-      const refs = makeRefs();
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Purchase,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: false,
-        }),
-      );
-
-      act(() => {
-        result.current.form.setValue('extraDiscount', 50, {
-          shouldDirty: true,
-        });
-      });
-
-      await flushMicrotasks();
-      expect(result.current.discountAccountExists).toBe(false);
-    });
-
-    it('resets to null when extra discount is set back to 0', async () => {
-      (window as any).electron.getAccountByName = jest.fn(async () => ({
-        id: 99,
-      }));
-
-      const refs = makeRefs();
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Sale,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: false,
-        }),
-      );
-
-      act(() => {
-        result.current.form.setValue('extraDiscount', 10, {
-          shouldDirty: true,
-        });
-      });
-      await flushMicrotasks();
-      expect(result.current.discountAccountExists).toBe(true);
-
-      act(() => {
-        result.current.form.setValue('extraDiscount', 0, { shouldDirty: true });
-      });
-      await flushMicrotasks();
-      expect(result.current.discountAccountExists).toBeNull();
-    });
-
-    it('handles getAccountByName rejection gracefully', async () => {
-      (window as any).electron.getAccountByName = jest.fn(async () => {
-        throw new Error('Network');
-      });
-
-      const refs = makeRefs();
-      const { result } = renderHook(() =>
-        useNewInvoiceFormCore({
-          invoiceType: InvoiceType.Sale,
-          inventory: sampleInventory,
-          ...refs,
-          splitByItemType: false,
-        }),
-      );
-
-      act(() => {
-        result.current.form.setValue('extraDiscount', 25, {
-          shouldDirty: true,
-        });
-      });
-
-      await flushMicrotasks();
-      // should gracefully be false on error (no crash)
-      expect(result.current.discountAccountExists).toBe(false);
     });
   });
 
