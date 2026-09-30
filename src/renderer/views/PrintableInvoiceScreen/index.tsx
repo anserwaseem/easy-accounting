@@ -1128,68 +1128,40 @@ const PrintableInvoiceScreen = () => {
                 Esc
               </Kbd>
             </Button>
-            <TooltipProvider>
-              <div className="flex items-center gap-1.5">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handlePrint}
-                      variant="default"
-                      className={`min-w-[10.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
-                      disabled={
-                        isBatchPrinting || isOpeningPdf || !isInvoiceSynced
-                      }
-                    >
-                      Print
-                      <KbdGroup className="hidden sm:inline-flex">
-                        <Kbd className={printToolbarKbdOnPrimaryClass}>
-                          {getOsModifierLabel()}
-                        </Kbd>
-                        <Kbd className={printToolbarKbdOnPrimaryClass}>P</Kbd>
-                      </KbdGroup>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[min(18rem,calc(100vw-2rem))] px-3 py-2 text-pretty"
-                  >
-                    <p className="text-sm leading-snug text-popover-foreground">
-                      No page numbers (1/N). Use Open PDF for stamped pages.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-                <ChevronRight
-                  className="h-4 w-4 shrink-0 text-neutral-400"
-                  aria-hidden
-                />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      onClick={handleOpenPdf}
-                      variant="outline"
-                      className={`min-w-[9rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
-                      disabled={
-                        isBatchPrinting || isOpeningPdf || !isInvoiceSynced
-                      }
-                      aria-label="Open page-stamped PDF"
-                    >
-                      <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {isOpeningPdf ? 'Opening…' : 'Open PDF'}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[min(18rem,calc(100vw-2rem))] px-3 py-2 text-pretty"
-                  >
-                    <p className="text-sm leading-snug text-popover-foreground">
-                      Opens a page-stamped PDF (1/N) in Preview. Print from
-                      there.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            </TooltipProvider>
+            <div className="flex items-center gap-1.5">
+              <Button
+                onClick={handlePrint}
+                variant="default"
+                className={`min-w-[10.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
+                disabled={isBatchPrinting || isOpeningPdf || !isInvoiceSynced}
+                title="No page numbers (1/N). Use Open PDF for stamped pages."
+              >
+                Print
+                <KbdGroup className="hidden sm:inline-flex">
+                  <Kbd className={printToolbarKbdOnPrimaryClass}>
+                    {getOsModifierLabel()}
+                  </Kbd>
+                  <Kbd className={printToolbarKbdOnPrimaryClass}>P</Kbd>
+                </KbdGroup>
+              </Button>
+              <ChevronRight
+                className="h-4 w-4 shrink-0 text-neutral-400"
+                aria-hidden
+              />
+              <Button
+                type="button"
+                onClick={handleOpenPdf}
+                variant="outline"
+                className={`min-w-[9rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
+                disabled={isBatchPrinting || isOpeningPdf || !isInvoiceSynced}
+                aria-label="Open page-stamped PDF"
+                title="Opens a page-stamped PDF (1/N) in Preview. Print from
+                      there."
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {isOpeningPdf ? 'Opening…' : 'Open PDF'}
+              </Button>
+            </div>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
