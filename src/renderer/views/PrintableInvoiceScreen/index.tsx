@@ -760,6 +760,8 @@ const PrintableInvoiceScreen = () => {
     (sum, item) => sum + toNumber(item.quantity),
     0,
   );
+  const extraDiscountAmount = toNumber(invoice?.extraDiscount);
+  const hasExtraDiscount = extraDiscountAmount > 0;
 
   // same amount col width as EN so SKU/number columns stay ditto; footer total nowraps
   const amountColClass = 'pe-2 w-[7.25rem] tabular-nums';
@@ -1732,24 +1734,23 @@ const PrintableInvoiceScreen = () => {
               >
                 {totalQuantity}
               </td>
-              <td
-                colSpan={3}
-                className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
-              />
+              {hasExtraDiscount ? (
+                <>
+                  <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
+                  <td className={`${footerBoxLabelClass} text-end !border-e-0`}>
+                    {labels.extraDiscount}
+                  </td>
+                  <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
+                    {renderFooterAmount(extraDiscountAmount)}
+                  </td>
+                </>
+              ) : (
+                <td
+                  colSpan={3}
+                  className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
+                />
+              )}
             </tr>
-            {invoice.extraDiscount ? (
-              <tr>
-                <td className={footerBoxClearClass} />
-                <td className={`${footerBoxClearClass} !border-s-0`} />
-                <td className={footerBoxLabelClass}>{labels.extraDiscount}</td>
-                <td className={footerBoxClass} />
-                <td className={footerBoxClass} />
-                <td className={footerBoxClass} />
-                <td className={footerBoxAmountClass}>
-                  {renderFooterAmount(toNumber(invoice.extraDiscount))}
-                </td>
-              </tr>
-            ) : null}
             <tr>
               <td className={footerBoxClearClass} />
               {showRunningBalances && runningBalances ? (

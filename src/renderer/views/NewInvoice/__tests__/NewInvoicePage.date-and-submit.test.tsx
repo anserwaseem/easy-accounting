@@ -225,7 +225,6 @@ jest.mock('../hooks/useNewInvoiceFormCore', () => ({
       watchedExtraDiscount: 0,
       watchedSingleAccountId: ref.accountMapping?.singleAccountId,
       watchedMultipleAccountIds: [],
-      discountAccountExists: true,
     };
   },
 }));

@@ -18,10 +18,7 @@ import {
   getFormattedCurrency,
   raise,
 } from 'renderer/lib/utils';
-import {
-  currencyFormatOptions,
-  DISCOUNT_ACCOUNT_NAME,
-} from 'renderer/lib/constants';
+import { currencyFormatOptions } from 'renderer/lib/constants';
 import { Button } from 'renderer/shad/ui/button';
 import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
 import {
@@ -221,7 +218,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedExtraDiscount,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
-    discountAccountExists,
   } = formCore;
 
   // ── Derived invoice-item state via form.watch() callback ──
@@ -2615,12 +2611,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                 )}
                               />
                             </FormControl>
-                            {discountAccountExists === false && (
-                              <p className="text-sm text-destructive mt-1">
-                                Create a &quot;{DISCOUNT_ACCOUNT_NAME}&quot;
-                                expense account to use extra discount.
-                              </p>
-                            )}
                             <FormMessage />
                           </FormItem>
                         )}
