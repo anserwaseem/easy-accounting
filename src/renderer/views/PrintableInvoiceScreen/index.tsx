@@ -199,12 +199,17 @@ const PrintableInvoiceScreen = () => {
   const [sessionShowBillBalance, setSessionShowBillBalance] = useState<
     boolean | null
   >(null);
+  const [sessionShowPrintNote, setSessionShowPrintNote] = useState<
+    boolean | null
+  >(null);
   const effectiveLocale = sessionLocale ?? invoicePrintSettings.locale;
   const effectiveShowPartyBalances =
     sessionShowPartyBalances ?? invoicePrintSettings.showPartyBalances;
   const effectiveShowAgent = sessionShowAgent ?? invoicePrintSettings.showAgent;
   const effectiveShowBillBalance =
     sessionShowBillBalance ?? invoicePrintSettings.showBillBalance;
+  const effectiveShowPrintNote =
+    sessionShowPrintNote ?? invoicePrintSettings.showPrintNote;
   const isPrintSessionOverride =
     (sessionLocale != null && sessionLocale !== invoicePrintSettings.locale) ||
     (sessionShowPartyBalances != null &&
@@ -212,7 +217,9 @@ const PrintableInvoiceScreen = () => {
     (sessionShowAgent != null &&
       sessionShowAgent !== invoicePrintSettings.showAgent) ||
     (sessionShowBillBalance != null &&
-      sessionShowBillBalance !== invoicePrintSettings.showBillBalance);
+      sessionShowBillBalance !== invoicePrintSettings.showBillBalance) ||
+    (sessionShowPrintNote != null &&
+      sessionShowPrintNote !== invoicePrintSettings.showPrintNote);
   const isUrdu = effectiveLocale === 'ur';
   const labels = useMemo(
     () =>
@@ -1053,10 +1060,13 @@ const PrintableInvoiceScreen = () => {
     companyProfile.printNoteUrdu,
     effectiveLocale,
   );
+  const showPrintNoteText =
+    effectiveShowPrintNote && !isPurchase && printNoteText.length > 0;
   const showPrintNoteBlock =
-    (!isPurchase && printNoteText.length > 0) ||
-    companyProfile.whatsapp.trim().length > 0 ||
-    companyProfile.website.trim().length > 0;
+    effectiveShowPrintNote &&
+    (showPrintNoteText ||
+      companyProfile.whatsapp.trim().length > 0 ||
+      companyProfile.website.trim().length > 0);
 
   const batchSavePdfAriaLabel = useMemo(() => {
     if (isBatchPrinting) {
@@ -1310,6 +1320,24 @@ const PrintableInvoiceScreen = () => {
                 },
                 {
                   id: 'printSessionBillBalanceOff',
+                  value: 'off',
+                  caption: 'Hide',
+                },
+              ]}
+            />
+            <PrintSessionChoiceRow
+              label="Note"
+              value={effectiveShowPrintNote ? 'on' : 'off'}
+              disabled={isBatchPrinting}
+              onValueChange={(v) => setSessionShowPrintNote(v === 'on')}
+              options={[
+                {
+                  id: 'printSessionNoteOn',
+                  value: 'on',
+                  caption: 'Show',
+                },
+                {
+                  id: 'printSessionNoteOff',
                   value: 'off',
                   caption: 'Hide',
                 },
@@ -1771,7 +1799,7 @@ const PrintableInvoiceScreen = () => {
           <div
             className={`invoice-print-note mt-3 flex justify-between gap-6 text-sm ${urduFieldRowAlignClass}`}
           >
-            {printNoteText && !isPurchase ? (
+            {showPrintNoteText ? (
               <p className={`min-w-0 ${isUrdu ? chromeClass : ''}`}>
                 <span className={chromeClass}>{labels.note}</span>{' '}
                 {printNoteText}
@@ -1779,7 +1807,11 @@ const PrintableInvoiceScreen = () => {
             ) : (
               <div />
             )}
-            <div className="shrink-0 whitespace-nowrap">
+            <div
+              className={`shrink-0 whitespace-nowrap ${
+                isUrdu ? 'flex items-baseline gap-6' : ''
+              }`}
+            >
               {companyProfile.whatsapp.trim() ? (
                 <p>
                   <span className={chromeClass}>{labels.whatsapp}</span>{' '}
