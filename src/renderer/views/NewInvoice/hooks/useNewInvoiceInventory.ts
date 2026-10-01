@@ -18,6 +18,7 @@ const INVENTORY_PICK = [
 function filterInventoryForInvoice(
   items: InventoryItem[],
   invoiceType: InvoiceType,
+  isQuotationFlow = false,
 ): InventoryItem[] {
   // only active items are candidates for new invoice lines
   const activeItems = items.filter(
@@ -27,8 +28,8 @@ function filterInventoryForInvoice(
       item.isActive === 1,
   );
   const picked = activeItems.map((item) => pick(item, [...INVENTORY_PICK]));
-  if (invoiceType === InvoiceType.Purchase) {
-    // purchase: any qty (including 0); still require a positive price for line defaults
+  if (invoiceType === InvoiceType.Purchase || isQuotationFlow) {
+    // purchase or quotation: any qty (including 0); still require a positive price for line defaults
     return picked.filter((item) => item.price > 0);
   }
   // sale: only in-stock, priced items
@@ -43,8 +44,9 @@ export function mergeInventoryForInvoice(
   raw: InventoryItem[],
   invoiceType: InvoiceType,
   lineInventoryIds: readonly number[],
+  isQuotationFlow = false,
 ): InventoryItem[] {
-  const filtered = filterInventoryForInvoice(raw, invoiceType);
+  const filtered = filterInventoryForInvoice(raw, invoiceType, isQuotationFlow);
   const byId = new Map<number, InventoryItem>();
   filtered.forEach((i) => {
     byId.set(i.id, i);
@@ -94,6 +96,7 @@ export function useInvoiceInventoryLoader(
   invoiceType: InvoiceType,
   lineInventoryIdsKey: string,
   setInventory: Dispatch<SetStateAction<InventoryItem[] | undefined>>,
+  isQuotationFlow = false,
 ): {
   refreshInventory: () => Promise<InventoryItem[] | undefined>;
 } {
@@ -102,8 +105,10 @@ export function useInvoiceInventoryLoader(
   const fetchGenerationRef = useRef(0);
   const invoiceTypeRef = useRef(invoiceType);
   const lineInventoryIdsKeyRef = useRef(lineInventoryIdsKey);
+  const isQuotationFlowRef = useRef(isQuotationFlow);
   invoiceTypeRef.current = invoiceType;
   lineInventoryIdsKeyRef.current = lineInventoryIdsKey;
+  isQuotationFlowRef.current = isQuotationFlow;
 
   const refreshInventory = useCallback(async () => {
     const generation = ++fetchGenerationRef.current;
@@ -114,6 +119,7 @@ export function useInvoiceInventoryLoader(
       raw,
       invoiceTypeRef.current,
       parseLineInventoryIdsKey(lineInventoryIdsKeyRef.current),
+      isQuotationFlowRef.current,
     );
     setInventory(merged);
     return merged;
@@ -126,7 +132,12 @@ export function useInvoiceInventoryLoader(
     const applyMergedInventory = (raw: InventoryItem[]) => {
       if (cancelled) return;
       setInventory(
-        mergeInventoryForInvoice(raw, invoiceType, lineInventoryIds),
+        mergeInventoryForInvoice(
+          raw,
+          invoiceType,
+          lineInventoryIds,
+          isQuotationFlow,
+        ),
       );
     };
 
@@ -145,7 +156,7 @@ export function useInvoiceInventoryLoader(
     return () => {
       cancelled = true;
     };
-  }, [invoiceType, lineInventoryIdsKey, setInventory]);
+  }, [invoiceType, lineInventoryIdsKey, setInventory, isQuotationFlow]);
 
   return { refreshInventory };
 }

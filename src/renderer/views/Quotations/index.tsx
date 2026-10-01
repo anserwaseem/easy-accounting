@@ -1,5 +1,5 @@
 import type { Row } from '@tanstack/react-table';
-import { Copy, FileText, Info } from 'lucide-react';
+import { Copy, FileText, Info, Plus } from 'lucide-react';
 import { toNumber } from 'lodash';
 import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
@@ -392,26 +392,40 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
 
   return (
     <div className="flex flex-col px-1">
-      <div className="py-4 flex justify-center items-center gap-2">
-        <h1 className="title">{listTitle}</h1>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 shrink-0 text-muted-foreground"
-                aria-label="About quotations"
-              >
-                <Info className="h-5 w-5" aria-hidden />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs text-left">
-              {QUOTATIONS_INFO_TOOLTIP}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+      <div className="py-4 flex justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h1 className="title">{listTitle}</h1>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 text-muted-foreground"
+                  aria-label="About quotations"
+                >
+                  <Info className="h-5 w-5" aria-hidden />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-left">
+                {QUOTATIONS_INFO_TOOLTIP}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        <Button
+          variant="outline"
+          onClick={() =>
+            navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
+              state: { isQuotation: true },
+            })
+          }
+        >
+          <Plus size={16} className="mr-2" />
+          New Quotation
+        </Button>
       </div>
 
       <div className="py-6 flex flex-col gap-6">{quotationsBody}</div>
