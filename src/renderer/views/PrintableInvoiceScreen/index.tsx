@@ -1807,7 +1807,11 @@ const PrintableInvoiceScreen = () => {
             ) : (
               <div />
             )}
-            <div className="shrink-0 whitespace-nowrap">
+            <div
+              className={`shrink-0 whitespace-nowrap ${
+                isUrdu ? 'flex items-baseline gap-6' : ''
+              }`}
+            >
               {companyProfile.whatsapp.trim() ? (
                 <p>
                   <span className={chromeClass}>{labels.whatsapp}</span>{' '}
