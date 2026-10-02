@@ -17,7 +17,7 @@ interface CollectionSheetTableProps {
 }
 
 interface AmountProps {
-  amount: number;
+  amount: number | null;
 }
 
 const Amount: React.FC<AmountProps> = ({ amount }: AmountProps) => (
@@ -26,6 +26,7 @@ const Amount: React.FC<AmountProps> = ({ amount }: AmountProps) => (
 
 const headCell = 'border border-border px-2 py-2';
 const bodyCell = 'border border-border px-2 py-1.5';
+const writeCell = 'min-w-[4.5rem]';
 
 export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   rows,
@@ -60,12 +61,22 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               {headers.code}
             </th>
             <th dir="ltr" className={cn(headCell, 'text-left')}>
-              {headers.bills}
+              {headers.bill}
+            </th>
+            <th dir="ltr" className={cn(headCell, 'text-left')}>
+              {headers.billDate}
             </th>
             <th className={cn(headCell, 'text-end')}>{headers.balance}</th>
             <th className={cn(headCell, 'text-end')}>{headers.collected}</th>
-            <th className={cn(headCell, 'text-start')}>{headers.collection}</th>
-            <th className={cn(headCell, 'text-start')}>{headers.remaining}</th>
+            <th className={cn(headCell, 'text-start', writeCell)}>
+              {headers.collection}
+            </th>
+            <th className={cn(headCell, 'text-start', writeCell)}>
+              {headers.difference}
+            </th>
+            <th className={cn(headCell, 'text-start', writeCell)}>
+              {headers.remaining}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -93,8 +104,17 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               >
                 {row.code}
               </td>
-              <td dir="ltr" className={cn(bodyCell, 'min-w-[8rem] text-left')}>
-                {row.bills}
+              <td
+                dir="ltr"
+                className={cn(bodyCell, 'whitespace-nowrap text-left')}
+              >
+                {row.billNumber}
+              </td>
+              <td
+                dir="ltr"
+                className={cn(bodyCell, 'whitespace-nowrap text-left')}
+              >
+                {row.billDate}
               </td>
               <td className={cn(bodyCell, 'text-end')}>
                 <Amount amount={row.balance} />
@@ -102,8 +122,9 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               <td className={cn(bodyCell, 'text-end')}>
                 <Amount amount={row.collected} />
               </td>
-              <td className={cn(bodyCell, 'min-w-[4.5rem]')} />
-              <td className={cn(bodyCell, 'min-w-[4.5rem]')} />
+              <td className={cn(bodyCell, writeCell)} />
+              <td className={cn(bodyCell, writeCell)} />
+              <td className={cn(bodyCell, writeCell)} />
             </tr>
           ))}
         </tbody>
@@ -114,12 +135,14 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             <td className={bodyCell} />
             <td className={bodyCell} />
             <td className={bodyCell} />
+            <td className={bodyCell} />
             <td className={cn(bodyCell, 'text-end')}>
               <Amount amount={totals.balance} />
             </td>
             <td className={cn(bodyCell, 'text-end')}>
               <Amount amount={totals.collected} />
             </td>
+            <td className={bodyCell} />
             <td className={bodyCell} />
             <td className={bodyCell} />
           </tr>

@@ -691,7 +691,10 @@ const electronHandler = {
       startDate,
       endDate,
     ) as Promise<
-      Record<number, Array<{ invoiceNumber: number; date: string }>>
+      Record<
+        number,
+        Array<{ invoiceNumber: number; date: string; amount: number }>
+      >
     >,
   /** sum of party-ledger credits in an inclusive local-date range */
   getCreditSumsForAccountIdsInRange: (

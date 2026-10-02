@@ -41,12 +41,14 @@ export const printCollectionSheetIframe = (
         ${cell(String(row.serial), ' class="num"')}
         <td>${escape(row.shop)}</td>
         ${addressCell}
-        ${cell(row.code, ' class="ltr" dir="ltr"')}
-        ${cell(row.bills, ' class="ltr" dir="ltr"')}
-        <td class="num">${escape(formatSheetAmount(row.balance))}</td>
+        ${cell(row.code, ' class="ltr fit" dir="ltr"')}
+        ${cell(row.billNumber, ' class="ltr fit" dir="ltr"')}
+        ${cell(row.billDate, ' class="ltr fit" dir="ltr"')}
+        <td class="num fit">${escape(formatSheetAmount(row.balance))}</td>
         <td class="num">${escape(formatSheetAmount(row.collected))}</td>
-        <td class="blank"></td>
-        <td class="blank"></td>
+        <td class="write"></td>
+        <td class="write"></td>
+        <td class="write"></td>
       </tr>`;
     })
     .join('');
@@ -80,7 +82,10 @@ export const printCollectionSheetIframe = (
   <title>${safeTitle}</title>
   <style>${printStyles}</style>
   <style>
-    @page { margin: 8mm; }
+    @page { size: A4 landscape; margin: 8mm; }
+    @media print {
+      @page { size: A4 landscape; margin: 8mm; }
+    }
     body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; font-size: 11px; color: #000; }
     h1 { text-align: center; font-size: 14px; margin: 0 0 4px; }
     p { text-align: center; margin: 0 0 8px; font-size: 11px; }
@@ -89,9 +94,10 @@ export const printCollectionSheetIframe = (
     th { font-size: 10px; }
     td.num, th.num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
     th.ltr, td.ltr { text-align: left; direction: ltr; }
+    th.fit, td.fit { width: 1%; white-space: nowrap; padding-left: 3px; padding-right: 3px; }
     td.ditto { color: #bdbdbd; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     td.ditto-right { text-align: right; }
-    td.blank { height: 22px; }
+    th.write, td.write { min-width: 16mm; }
     tr { break-inside: avoid; }
   </style>
 </head>
@@ -104,12 +110,14 @@ export const printCollectionSheetIframe = (
         <th class="num">${escape(headers.serial)}</th>
         <th>${escape(headers.shop)}</th>
         <th>${escape(headers.address)}</th>
-        <th class="ltr" dir="ltr">${escape(headers.code)}</th>
-        <th class="ltr" dir="ltr">${escape(headers.bills)}</th>
-        <th class="num">${escape(headers.balance)}</th>
+        <th class="ltr fit" dir="ltr">${escape(headers.code)}</th>
+        <th class="ltr fit" dir="ltr">${escape(headers.bill)}</th>
+        <th class="ltr fit" dir="ltr">${escape(headers.billDate)}</th>
+        <th class="num fit">${escape(headers.balance)}</th>
         <th class="num">${escape(headers.collected)}</th>
-        <th>${escape(headers.collection)}</th>
-        <th>${escape(headers.remaining)}</th>
+        <th class="write">${escape(headers.collection)}</th>
+        <th class="write">${escape(headers.difference)}</th>
+        <th class="write">${escape(headers.remaining)}</th>
       </tr>
     </thead>
     <tbody>
@@ -120,14 +128,16 @@ export const printCollectionSheetIframe = (
         <td></td>
         <td></td>
         <td></td>
+        <td></td>
         <td class="num"><strong>${escape(
           formatSheetAmount(totals.balance),
         )}</strong></td>
         <td class="num"><strong>${escape(
           formatSheetAmount(totals.collected),
         )}</strong></td>
-        <td class="blank"></td>
-        <td class="blank"></td>
+        <td class="write"></td>
+        <td class="write"></td>
+        <td class="write"></td>
       </tr>
     </tbody>
   </table>

@@ -28,6 +28,8 @@ export interface CollectionSheetMoney {
 export interface CollectionSheetBill {
   invoiceNumber: number;
   date: string;
+  /** this account's share of the bill. same invoice number is added across tiers */
+  amount: number;
 }
 
 export interface CollectionSheetHeaders {
@@ -38,26 +40,27 @@ export interface CollectionSheetHeaders {
   balance: string;
   collected: string;
   collection: string;
-  bills: string;
+  bill: string;
+  billDate: string;
+  difference: string;
   remaining: string;
   total: string;
   title: string;
 }
 
 export interface CollectionSheetRow {
-  id: number;
+  id: string;
   serial: number;
   shop: string;
   address: string;
   /** "//" when this row's address matches the previous row */
   addressDisplay: string;
   code: string;
-  /** Dr positive, Cr negative. zero rows are omitted */
-  balance: number;
-  collected: number;
-  bills: string;
-  /** discount-tier ledger sitting under its base account */
-  isTier: boolean;
+  billNumber: string;
+  billDate: string;
+  /** this bill's amount, tier shares added. ledger balance only when the shop has no bill in the range */
+  balance: number | null;
+  collected: number | null;
 }
 
 interface FamilyMember {
@@ -69,7 +72,7 @@ interface FamilyMember {
   address: string;
   balance: number;
   collected: number;
-  bills: string;
+  bills: CollectionSheetBill[];
 }
 
 const pickLabel = (
@@ -109,10 +112,13 @@ export const formatBillDate = (raw: string): string => {
   return format(parsed, 'dd/MM/yy');
 };
 
-export const formatBillList = (bills: CollectionSheetBill[]): string =>
-  bills
-    .map((bill) => `${bill.invoiceNumber} (${formatBillDate(bill.date)})`)
-    .join(', ');
+const billSortKey = (raw: string): string => {
+  const trimmed = trim(raw);
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return trimmed;
+  return format(parsed, 'yyyy-MM-dd');
+};
 
 export const collectionSheetHeaders = (
   language: CollectionSheetLanguage,
@@ -123,10 +129,12 @@ export const collectionSheetHeaders = (
       shop: 'نام دوکان دار',
       address: 'پتہ',
       code: 'کوڈ',
-      balance: 'کھاتہ',
+      balance: 'رقم بل',
       collected: 'سابقہ وصولی',
       collection: 'وصولی',
-      bills: 'بل',
+      bill: 'بل',
+      billDate: 'تاریخ',
+      difference: 'فرق',
       remaining: 'بقایا',
       total: 'کل',
       title: 'وصولی شیٹ',
@@ -137,10 +145,12 @@ export const collectionSheetHeaders = (
     shop: 'Shop',
     address: 'Address',
     code: 'Code',
-    balance: 'Balance',
+    balance: 'Bill amount',
     collected: 'Collected',
     collection: 'Collection',
-    bills: 'Bills',
+    bill: 'Bill',
+    billDate: 'Date',
+    difference: 'Difference',
     remaining: 'Remaining',
     total: 'Total',
     title: 'Collection sheet',
@@ -181,7 +191,7 @@ const familyMember = (
     address,
     balance,
     collected: money?.collected ?? 0,
-    bills: formatBillList(bills),
+    bills,
   };
 
   if (
@@ -220,10 +230,58 @@ const familyMember = (
   };
 };
 
+const compareCode = (a: string, b: string): number =>
+  a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+const baseDisplay = (
+  family: FamilyMember[],
+  language: CollectionSheetLanguage,
+): { shop: string; address: string; code: string; accountId: number } => {
+  const base = family.find((member) => !member.isTier);
+  if (base) {
+    return {
+      shop: base.shop,
+      address: base.address,
+      code: trim(String(base.account.code ?? '')),
+      accountId: base.account.id,
+    };
+  }
+  const tier = family[0];
+  const { baseName } = splitPartyName(tier.account.name ?? '');
+  const { baseCode } = splitPartyCode(trim(String(tier.account.code ?? '')));
+  return {
+    shop: pickLabel(language, baseName, undefined),
+    address: tier.address,
+    code: baseCode || trim(String(tier.account.code ?? '')),
+    accountId: tier.account.id,
+  };
+};
+
+const mergedBills = (family: FamilyMember[]): CollectionSheetBill[] => {
+  const byNumber = new Map<number, CollectionSheetBill>();
+  for (const member of family) {
+    for (const bill of member.bills) {
+      const existing = byNumber.get(bill.invoiceNumber);
+      if (!existing) {
+        byNumber.set(bill.invoiceNumber, { ...bill, amount: bill.amount || 0 });
+        continue;
+      }
+      existing.amount += bill.amount || 0;
+    }
+  }
+  const bills = [...byNumber.values()];
+  return bills.sort((a, b) => {
+    const dateDiff = billSortKey(a.date).localeCompare(billSortKey(b.date));
+    if (dateDiff !== 0) return dateDiff;
+    return a.invoiceNumber - b.invoiceNumber;
+  });
+};
+
 /**
- * zero balances dropped.
- * order matches bills aging's default: account code, case-insensitive, numeric.
- * code does not change with the Eng/Urdu toggle, so the row order stays put.
+ * tier ledgers fold into the base shop. each row's amount is that bill, tier shares added.
+ * one invoice per row. bill amount is rounded to the nearest rupee.
+ * collected is the shop's receipts. a shop with none shows 0. a real collection is written once.
+ * order is the base account code, same in Eng and Urdu.
  */
 export const buildCollectionSheetRows = (
   accounts: CollectionSheetSource[],
@@ -242,37 +300,65 @@ export const buildCollectionSheetRows = (
       billsByAccountId[account.id] ?? [],
     ),
   );
-  const flat = [...members]
-    .filter((member) => !isZeroBalance(member.balance))
+  const groups = new Map<string, FamilyMember[]>();
+  for (const member of members) {
+    const family = groups.get(member.key) ?? [];
+    family.push(member);
+    groups.set(member.key, family);
+  }
+
+  const shops = [...groups.values()]
+    .map((family) => {
+      const display = baseDisplay(family, language);
+      const balance = family.reduce((sum, member) => sum + member.balance, 0);
+      const collected = family.reduce(
+        (sum, member) => sum + member.collected,
+        0,
+      );
+      return { display, balance, collected, bills: mergedBills(family) };
+    })
+    .filter((shop) => !isZeroBalance(shop.balance))
     .sort((a, b) => {
-      const codeA = trim(String(a.account.code ?? ''));
-      const codeB = trim(String(b.account.code ?? ''));
-      const codeDiff = codeA.localeCompare(codeB, undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
+      const codeDiff = compareCode(a.display.code, b.display.code);
       if (codeDiff !== 0) return codeDiff;
-      return a.account.id - b.account.id;
+      return a.display.accountId - b.display.accountId;
     });
 
+  const rows: CollectionSheetRow[] = [];
   let previousAddress = '';
-  return flat.map((member, index) => {
-    const sameAddress =
-      member.address.length > 0 && member.address === previousAddress;
-    previousAddress = member.address;
-    return {
-      id: member.account.id,
-      serial: index + 1,
-      shop: member.shop,
-      address: member.address,
-      addressDisplay: sameAddress ? '//' : member.address,
-      code: trim(String(member.account.code ?? '')),
-      balance: member.balance,
-      collected: member.collected,
-      bills: member.bills,
-      isTier: member.isTier,
-    };
-  });
+  let serial = 0;
+  for (const shop of shops) {
+    // no sale bill in the range: do not invent a row with an empty bill
+    if (shop.bills.length === 0) continue;
+    const noCollection = isZeroBalance(shop.collected);
+    let collectedPlaced = false;
+    for (let index = 0; index < shop.bills.length; index += 1) {
+      const bill = shop.bills[index];
+      let collectedCell: number | null = null;
+      if (noCollection) collectedCell = 0;
+      else if (!collectedPlaced) collectedCell = shop.collected;
+      if (!noCollection && collectedCell != null) collectedPlaced = true;
+      serial += 1;
+      const sameAddress =
+        shop.display.address.length > 0 &&
+        shop.display.address === previousAddress;
+      previousAddress = shop.display.address;
+      rows.push({
+        id: `${shop.display.accountId}:${bill.invoiceNumber}`,
+        serial,
+        shop: shop.display.shop,
+        address: shop.display.address,
+        addressDisplay: sameAddress ? '//' : shop.display.address,
+        code: shop.display.code,
+        billNumber: String(bill.invoiceNumber),
+        billDate: formatBillDate(bill.date),
+        // same rounding as the invoice screen: nearest rupee on the bill total
+        balance: Math.round(bill.amount || 0),
+        collected: collectedCell,
+      });
+    }
+  }
+  return rows;
 };
 
 export const collectionSheetTotals = (
@@ -281,13 +367,13 @@ export const collectionSheetTotals = (
   let balance = 0;
   let collected = 0;
   for (const row of rows) {
-    balance += row.balance || 0;
-    collected += row.collected || 0;
+    if (row.balance != null) balance += row.balance;
+    if (row.collected != null) collected += row.collected;
   }
   return { balance, collected };
 };
 
-export const formatSheetAmount = (value: number): string => {
-  if (!Number.isFinite(value)) return '';
+export const formatSheetAmount = (value: number | null): string => {
+  if (value == null || !Number.isFinite(value)) return '';
   return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
 };

@@ -17,7 +17,7 @@ const owed = (balance: number, collected = 0) => ({
 describe('buildCollectionSheetRows', () => {
   const itemTypes = ['F', 'T', 'TT'];
 
-  it('sorts by account code, so a base stays ahead of its suffixed tiers', () => {
+  it('skips a shop that has a ledger balance but no bill in the range', () => {
     const accounts: CollectionSheetSource[] = [
       row({
         id: 4,
@@ -55,34 +55,19 @@ describe('buildCollectionSheetRows', () => {
       accounts,
       itemTypes,
       {
-        1: owed(1),
-        2: owed(1),
+        1: owed(1, 4),
+        2: owed(10),
         3: owed(1),
-        4: owed(1),
-        5: owed(1),
+        4: owed(20),
+        5: owed(5),
       },
       {},
       'en',
     );
-    expect(rows.map((r) => r.code)).toEqual([
-      'Bon-Usmania',
-      'Bon-Usmania-T',
-      'KAR-USMANIA',
-      'KAR-USMANIA-T',
-      'KAR-USMANIA-TT',
-    ]);
-    expect(rows.map((r) => r.isTier)).toEqual([false, true, false, true, true]);
-    expect(rows.map((r) => r.addressDisplay)).toEqual([
-      'Swari',
-      '//',
-      'Karachi',
-      '//',
-      '//',
-    ]);
-    expect(rows.map((r) => r.serial)).toEqual([1, 2, 3, 4, 5]);
+    expect(rows).toEqual([]);
   });
 
-  it('uses Urdu labels, flips Cr to negative, and drops a zero balance', () => {
+  it('keeps a bill whose amount equals the collection, and rounds the bill total', () => {
     const accounts: CollectionSheetSource[] = [
       row({
         id: 2,
@@ -111,23 +96,27 @@ describe('buildCollectionSheetRows', () => {
       accounts,
       itemTypes,
       {
-        1: owed(10, 3),
-        2: { balance: 4, balanceType: 'Cr', collected: 0 },
+        1: owed(80, 100),
+        2: owed(0, 0),
         3: owed(0, 9),
       },
       {
         1: [
-          { invoiceNumber: 12, date: '2026-09-04' },
-          { invoiceNumber: 15, date: '2026-09-18' },
+          { invoiceNumber: 10268, date: '2026-09-18', amount: 80.5 },
+          { invoiceNumber: 9881, date: '2026-02-03', amount: 60 },
         ],
+        2: [{ invoiceNumber: 9881, date: '2026-02-03', amount: 40.4 }],
       },
       'ur',
     );
-    expect(rows.map((r) => r.shop)).toEqual(['نور بک ڈپو', 'نور بک ڈپو ٹی']);
-    expect(rows.map((r) => r.balance)).toEqual([10, -4]);
-    expect(rows[0].bills).toBe('12 (04/09/26), 15 (18/09/26)');
-    expect(rows[1].addressDisplay).toBe('//');
-    expect(rows.map((r) => r.code)).not.toContain('PAID');
+    expect(rows.map((r) => r.billNumber)).toEqual(['9881', '10268']);
+    expect(rows.map((r) => r.balance)).toEqual([100, 81]);
+    expect(rows.map((r) => r.collected)).toEqual([100, null]);
+    expect(rows.map((r) => r.code)).toEqual(['CHITRAL-NOOR', 'CHITRAL-NOOR']);
+    expect(collectionSheetTotals(rows)).toEqual({
+      balance: 181,
+      collected: 100,
+    });
   });
 
   it('falls back to English when Urdu is empty, and sums signed balances', () => {
@@ -142,13 +131,27 @@ describe('buildCollectionSheetRows', () => {
         1: owed(100, 40),
         2: { balance: 25, balanceType: 'Cr', collected: 0 },
       },
-      {},
+      {
+        1: [{ invoiceNumber: 1, date: '2026-01-02', amount: 10 }],
+        2: [{ invoiceNumber: 2, date: '2026-01-03', amount: 20 }],
+      },
       'ur',
     );
     expect(rows.map((r) => r.shop)).toEqual(['A', 'بی']);
     expect(collectionSheetTotals(rows)).toEqual({
-      balance: 75,
+      balance: 30,
       collected: 40,
     });
+  });
+
+  it('shows 0 when the shop collected nothing', () => {
+    const rows = buildCollectionSheetRows(
+      [{ id: 1, name: 'A', code: 'A', address: 'Z' }],
+      itemTypes,
+      { 1: owed(50, 0) },
+      { 1: [{ invoiceNumber: 7, date: '2026-03-01', amount: 50 }] },
+      'en',
+    );
+    expect(rows.map((r) => r.collected)).toEqual([0]);
   });
 });

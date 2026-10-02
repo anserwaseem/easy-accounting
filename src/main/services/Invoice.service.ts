@@ -221,14 +221,17 @@ export class InvoiceService {
 
   /**
    * sale bills in an inclusive local-date range, keyed by the account that owns the lines.
-   * split invoices use each line's account. header account is used only when no line has an account.
+   * amount is that account's line total on the bill. the sheet adds tier portions of the same bill.
    * quotations and returned invoices are left out.
    */
   getSaleBillsForAccountIdsInRange(
     accountIds: number[],
     startDate: string,
     endDate: string,
-  ): Record<number, Array<{ invoiceNumber: number; date: string }>> {
+  ): Record<
+    number,
+    Array<{ invoiceNumber: number; date: string; amount: number }>
+  > {
     const unique = [
       ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
     ].sort((a, b) => a - b);
@@ -237,16 +240,22 @@ export class InvoiceService {
       accountIdsJson: JSON.stringify(unique),
       startDate,
       endDate,
-    }) as Array<{ accountId: number; invoiceNumber: number; date: string }>;
+    }) as Array<{
+      accountId: number;
+      invoiceNumber: number;
+      date: string;
+      amount: number;
+    }>;
     const out: Record<
       number,
-      Array<{ invoiceNumber: number; date: string }>
+      Array<{ invoiceNumber: number; date: string; amount: number }>
     > = {};
     for (const row of rows) {
       const bucket = out[row.accountId] ?? [];
       bucket.push({
         invoiceNumber: row.invoiceNumber,
         date: row.date,
+        amount: row.amount ?? 0,
       });
       out[row.accountId] = bucket;
     }
@@ -2804,65 +2813,33 @@ export class InvoiceService {
     `);
 
     this.stmGetSaleBillsForAccountIdsInRange = this.db.prepare(`
-      SELECT accountId, invoiceNumber, date
-      FROM (
-        SELECT DISTINCT
-          ii.accountId AS accountId,
-          i.invoiceNumber AS invoiceNumber,
-          i.date AS date
-        FROM invoices i
-        JOIN invoice_items ii ON ii.invoiceId = i.id
-        WHERE ii.accountId IS NOT NULL
-          AND i.invoiceType = 'Sale'
-          AND COALESCE(i.isQuotation, 0) = 0
-          AND COALESCE(i.isReturned, 0) = 0
-          AND ii.accountId IN (
-            SELECT CAST(j.value AS INTEGER)
-            FROM json_each(@accountIdsJson) AS j
-          )
-          AND (
-            CASE
-              WHEN length(i.date) = 10 THEN i.date
-              ELSE date(datetime(i.date, 'localtime'))
-            END
-          ) >= @startDate
-          AND (
-            CASE
-              WHEN length(i.date) = 10 THEN i.date
-              ELSE date(datetime(i.date, 'localtime'))
-            END
-          ) <= @endDate
-        UNION
-        SELECT DISTINCT
-          i.accountId AS accountId,
-          i.invoiceNumber AS invoiceNumber,
-          i.date AS date
-        FROM invoices i
-        WHERE i.invoiceType = 'Sale'
-          AND COALESCE(i.isQuotation, 0) = 0
-          AND COALESCE(i.isReturned, 0) = 0
-          AND i.accountId IN (
-            SELECT CAST(j.value AS INTEGER)
-            FROM json_each(@accountIdsJson) AS j
-          )
-          AND NOT EXISTS (
-            SELECT 1
-            FROM invoice_items ii
-            WHERE ii.invoiceId = i.id AND ii.accountId IS NOT NULL
-          )
-          AND (
-            CASE
-              WHEN length(i.date) = 10 THEN i.date
-              ELSE date(datetime(i.date, 'localtime'))
-            END
-          ) >= @startDate
-          AND (
-            CASE
-              WHEN length(i.date) = 10 THEN i.date
-              ELSE date(datetime(i.date, 'localtime'))
-            END
-          ) <= @endDate
-      )
+      SELECT
+        COALESCE(ii.accountId, i.accountId) AS accountId,
+        i.invoiceNumber AS invoiceNumber,
+        i.date AS date,
+        SUM(ii.quantity * ii.price * (1 - ii.discount / 100.0)) AS amount
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoiceId = i.id
+      WHERE i.invoiceType = 'Sale'
+        AND COALESCE(i.isQuotation, 0) = 0
+        AND COALESCE(i.isReturned, 0) = 0
+        AND COALESCE(ii.accountId, i.accountId) IN (
+          SELECT CAST(j.value AS INTEGER)
+          FROM json_each(@accountIdsJson) AS j
+        )
+        AND (
+          CASE
+            WHEN length(i.date) = 10 THEN i.date
+            ELSE date(datetime(i.date, 'localtime'))
+          END
+        ) >= @startDate
+        AND (
+          CASE
+            WHEN length(i.date) = 10 THEN i.date
+            ELSE date(datetime(i.date, 'localtime'))
+          END
+        ) <= @endDate
+      GROUP BY COALESCE(ii.accountId, i.accountId), i.invoiceNumber, i.date
       ORDER BY accountId ASC, date ASC, invoiceNumber ASC
     `);
   }

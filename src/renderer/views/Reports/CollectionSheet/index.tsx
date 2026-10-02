@@ -34,10 +34,12 @@ type CollectionSheetExportRow = {
   shop: string;
   address: string;
   code: string;
-  balance: number;
-  collected: number;
+  balance: number | null;
+  collected: number | null;
   collection: string;
-  bills: string;
+  billNumber: string;
+  billDate: string;
+  difference: string;
   remaining: string;
 };
 
@@ -134,7 +136,18 @@ const CollectionSheetPage: React.FC = () => {
           width: 28,
         },
         { key: 'code', header: headers.code, format: 'string', width: 18 },
-        { key: 'bills', header: headers.bills, format: 'string', width: 36 },
+        {
+          key: 'billNumber',
+          header: headers.bill,
+          format: 'string',
+          width: 12,
+        },
+        {
+          key: 'billDate',
+          header: headers.billDate,
+          format: 'string',
+          width: 12,
+        },
         {
           key: 'balance',
           header: headers.balance,
@@ -151,13 +164,19 @@ const CollectionSheetPage: React.FC = () => {
           key: 'collection',
           header: headers.collection,
           format: 'string',
-          width: 14,
+          width: 16,
+        },
+        {
+          key: 'difference',
+          header: headers.difference,
+          format: 'string',
+          width: 16,
         },
         {
           key: 'remaining',
           header: headers.remaining,
           format: 'string',
-          width: 14,
+          width: 16,
         },
       ],
       rows: rows.map((row: CollectionSheetRow) => ({
@@ -168,7 +187,9 @@ const CollectionSheetPage: React.FC = () => {
         balance: row.balance,
         collected: row.collected,
         collection: '',
-        bills: row.bills,
+        billNumber: row.billNumber,
+        billDate: row.billDate,
+        difference: '',
         remaining: '',
       })),
       footerRow: {
