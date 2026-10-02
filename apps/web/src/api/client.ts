@@ -6,7 +6,7 @@ import type {
   SyncRebuildResult,
   SyncStatusPayload,
 } from '../worker/syncManager';
-import type { RpcCall, WorkerMessage } from './rpc';
+import type { PublishProgressEvent, RpcCall, WorkerMessage } from './rpc';
 
 export type {
   ImportOutcome,
@@ -17,171 +17,22 @@ export type {
 };
 
 /**
- * Methods backed by a real handler in the db worker (src/worker/db.worker.ts)
- * — every AppApi member except the Electron-only/not-yet-portable group
- * below. Kept as an explicit list (rather than deriving it by exclusion) so
- * adding a new AppApi method is a compile error here until it's either
- * wired into the worker or added to UNSUPPORTED_METHODS — there is no
- * third, silently-broken state.
- */
-const METHODS = [
-  'login',
-  'register',
-  'logout',
-  'getAccounts',
-  'getAccountsByIds',
-  'getAccountByName',
-  'getAccountByNameAndCode',
-  'getAccountByNameAndChart',
-  'insertAccount',
-  'updateAccount',
-  'bulkUpdateAccountUrduFields',
-  'updateAccountDiscountProfile',
-  'hasJournalEntries',
-  'deleteAccount',
-  'toggleAccountActive',
-  'getCharts',
-  'insertCustomHead',
-  'getNextJournalId',
-  'insertJournal',
-  'getJournals',
-  'getJournal',
-  'getJournalNarrationSummariesByIds',
-  'getJournalsByInvoiceId',
-  'updateJournalNarration',
-  'updateJournalInfo',
-  'getLedger',
-  'getLedgerBalance',
-  'getLedgerBalancesForAccountIds',
-  'getLedgerBalancesForAccountIdsAsOfDate',
-  'getLedgerRangeForAccountIds',
-  'getLedgersUpToDateForAccountIds',
-  'getNextInvoiceNumber',
-  'insertInvoice',
-  'insertQuotation',
-  'getQuotations',
-  'updateQuotation',
-  'convertQuotation',
-  'updateInvoice',
-  'getInvoices',
-  'getInvoice',
-  'returnSaleInvoice',
-  'returnPurchaseInvoice',
-  'getInvoiceEditDateBounds',
-  'updateInvoiceBiltyAndCartons',
-  'exportInvoices',
-  'doesInvoiceExists',
-  'getAdjacentInvoiceId',
-  'getLastInvoiceNumber',
-  'getInvoiceIdsFromMinId',
-  'getInvoicePdfOutputBaseName',
-  'getAutoDiscount',
-  'saveInventory',
-  'getInventory',
-  'doesInventoryExist',
-  'insertInventoryItem',
-  'updateInventoryItem',
-  'toggleInventoryActive',
-  'hasInventoryInvoiceItems',
-  'canDeleteInventoryItem',
-  'deleteInventoryItem',
-  'bulkUpdateInventoryUrduFields',
-  'bulkUpdateInventoryAttributeFields',
-  'setInventoryParentId',
-  'bulkUpdateInventoryPricesAndListPositions',
-  'applyInventoryListPositions',
-  'getOpeningStock',
-  'setOpeningStock',
-  'applyStockAdjustment',
-  'getStockAdjustments',
-  'getInventoryIdsWithHistory',
-  'getAttributeDefinitions',
-  'upsertAttributeDefinition',
-  'deleteAttributeDefinition',
-  'reorderAttributeDefinitions',
-  'setItemExcludedFromCatalog',
-  'setAttributeDefinitionPublic',
-  'setAttributeDefinitionActive',
-  'updateInventoryAttributes',
-  'getItemTypes',
-  'insertItemType',
-  'updateItemTypeName',
-  'toggleItemTypeActive',
-  'deleteItemType',
-  'getPrimaryItemType',
-  'setPrimaryItemType',
-  'clearPrimaryItemType',
-  'getDiscountProfiles',
-  'insertDiscountProfile',
-  'updateDiscountProfileName',
-  'toggleDiscountProfileActive',
-  'deleteDiscountProfile',
-  'deleteDiscountProfileFromAccount',
-  'getDiscountProfileTypeDiscounts',
-  'saveDiscountProfileTypeDiscounts',
-  'saveBalanceSheet',
-  'reportGetLedgerRange',
-  'reportGetInventoryHealth',
-  'reportGetStockAsOf',
-  'reportGetSalesPerformance',
-  'reportGetPurchasesByVendor',
-  'reportGetSalesByCustomer',
-  'getVendorStockOnHand',
-  'getTrackedVendorAccounts',
-  'setVendorOpeningStock',
-  'importVendorOpeningStock',
-  'getNextVendorIssueNumber',
-  'createVendorIssue',
-  'updateVendorIssue',
-  'deleteVendorIssue',
-  'getVendorIssues',
-  'getVendorIssue',
-  'getVendorStockActivity',
-  'getSetting',
-  'setSetting',
-  'deleteSetting',
-  'getAllSettings',
-  // Publish config: only the two real secrets stay in web_kv, device-local;
-  // every other field (connection + business) goes through SettingsService
-  // and syncs (see ../worker/publishConfig.ts). Price lists, catalog preview,
-  // and the SigV4 run live in ../worker/publishService.ts.
-  'getPublishConfig',
-  'savePublishConfig',
-  'getPriceListNames',
-  'getItemPublishStatuses',
-  'previewCatalog',
-  'runPublish',
-  'getPriceLists',
-  'createPriceList',
-  'renamePriceList',
-  'setPriceListActive',
-  'previewPriceListSeed',
-  'applyPriceListSeed',
-  'getLastPublishResult',
-] as const satisfies readonly (keyof AppApi)[];
-
-/**
  * AppApi members with no web implementation yet: `print:*` writes a PDF to
- * the local filesystem via Electron's print pipeline (wave B maps this UI
- * action to `window.print()` instead — see printToPdf's doc comment in
- * AppApi.ts); `backup:*` (`getOutputDir`) is folder backups. Catalog publish
- * runs in the worker (SigV4 PUT). These never reach the worker at all —
- * calling one rejects immediately on the main thread, with a message that
- * names the method, so a renderer built against the full AppApi can mount
- * and run today without crashing the moment it touches one of these, and
- * fails loudly (not silently/hangs) if it actually invokes one.
+ * the local filesystem via Electron's print pipeline (maps to window.print()
+ * in the UI instead); `backup:*` (`getOutputDir`) is folder backups. Catalog
+ * publish runs in the worker.
  */
-const UNSUPPORTED_METHODS = [
+export const UNSUPPORTED_METHODS = new Set<string>([
   'printToPdf',
   'getOutputDir',
-] as const satisfies readonly (keyof AppApi)[];
+]);
 
 const worker = new Worker(new URL('../worker/db.worker.ts', import.meta.url), {
   type: 'module',
 });
 
-let nextId = 1;
-const pending = new Map<
+let nextRpcRequestId = 1;
+const inFlightRpcRequests = new Map<
   number,
   { resolve: (v: unknown) => void; reject: (e: unknown) => void }
 >();
@@ -229,17 +80,11 @@ export function onSyncPullProgress(
  * `ipcRenderer.on('publish-progress')` so shared Settings code is unchanged.
  */
 const publishProgressListeners = new Set<
-  (event: {
-    status: 'generating' | 'uploading' | 'notifying' | 'success' | 'error';
-    message: string;
-  }) => void
+  (event: PublishProgressEvent) => void
 >();
 
 export function onPublishProgress(
-  listener: (event: {
-    status: 'generating' | 'uploading' | 'notifying' | 'success' | 'error';
-    message: string;
-  }) => void,
+  listener: (event: PublishProgressEvent) => void,
 ): () => void {
   publishProgressListeners.add(listener);
   return () => publishProgressListeners.delete(listener);
@@ -267,9 +112,9 @@ worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
     publishProgressListeners.forEach((listener) => listener(msg.event));
     return;
   }
-  const entry = pending.get(msg.id);
+  const entry = inFlightRpcRequests.get(msg.id);
   if (!entry) return;
-  pending.delete(msg.id);
+  inFlightRpcRequests.delete(msg.id);
   if (msg.ok) {
     entry.resolve(msg.result);
   } else {
@@ -286,12 +131,12 @@ function call(
   args: unknown[],
   transfer?: Transferable[],
 ): Promise<unknown> {
-  const id = nextId;
-  nextId += 1;
+  const id = nextRpcRequestId;
+  nextRpcRequestId += 1;
   return ready.then(
     () =>
       new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
+        inFlightRpcRequests.set(id, { resolve, reject });
         const message: RpcCall = { type: 'call', id, method, args };
         if (transfer && transfer.length > 0) {
           worker.postMessage(message, transfer);
@@ -418,26 +263,32 @@ export function debugCall(
 }
 
 function buildApi(): AppApi {
-  const api = {} as Record<string, unknown>;
-  METHODS.forEach((method) => {
-    api[method] = (...args: unknown[]) => call(method, args);
+  return new Proxy({} as AppApi, {
+    get(_target, prop: string | symbol) {
+      if (typeof prop !== 'string' || prop === 'then') {
+        return undefined;
+      }
+      if (UNSUPPORTED_METHODS.has(prop)) {
+        return () =>
+          Promise.reject(
+            new Error(
+              `'${prop}' is not available in the web build yet (Electron-only feature).`,
+            ),
+          );
+      }
+      return (...args: unknown[]) => call(prop, args);
+    },
+    has(_target, prop: string | symbol) {
+      if (typeof prop !== 'string' || prop === 'then') {
+        return false;
+      }
+      return true;
+    },
   });
-  UNSUPPORTED_METHODS.forEach((method) => {
-    api[method] = () =>
-      Promise.reject(
-        new Error(
-          `'${method}' is not available in the web build yet (Electron-only feature).`,
-        ),
-      );
-  });
-  return api as unknown as AppApi;
 }
 
 /**
  * RPC-backed implementation of the full AppApi contract (src/core/api/AppApi.ts).
- * Every member backed by a real handler in the db worker (METHODS above)
- * rejects/resolves per that handler's result; the Electron-only remainder
- * (UNSUPPORTED_METHODS) rejects locally with a clear message and never
- * touches the worker.
+ * Dispatches calls dynamically via Proxy across the Web Worker boundary.
  */
 export const api: AppApi = buildApi();

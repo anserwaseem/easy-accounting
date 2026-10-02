@@ -97,7 +97,7 @@ import { INITIAL_CHARTS } from '@core/utils/constants';
 import { enrichLedgerRowsWithJournalSummaries } from '@core/utils/ledgerJournalEnrichment';
 import type { UserCredentials } from 'types';
 import { openDeserializedDatabase } from './deserializeDatabase';
-import { PLACEHOLDER_USERNAME } from './placeholderUser';
+import { PLACEHOLDER_USERNAME } from '@core/sync/placeholderUser';
 import {
   getWebPublishConfig,
   getWebPublishSecrets,

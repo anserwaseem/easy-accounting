@@ -11,6 +11,11 @@ export interface RpcCall {
   args: unknown[];
 }
 
+export interface PublishProgressEvent {
+  status: 'generating' | 'uploading' | 'notifying' | 'success' | 'error';
+  message: string;
+}
+
 export type WorkerMessage =
   | { type: 'ready' }
   | { type: 'init-error'; error: string }
@@ -47,8 +52,5 @@ export type WorkerMessage =
    */
   | {
       type: 'publish-progress';
-      event: {
-        status: 'generating' | 'uploading' | 'notifying' | 'success' | 'error';
-        message: string;
-      };
+      event: PublishProgressEvent;
     };

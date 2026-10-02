@@ -355,8 +355,7 @@ onSyncPullProgress((event) => {
  * would clear the key but leave `authed` stale in memory.
  */
 export const installElectronShim = (): void => {
-  window.electron = {
-    ...api,
+  const overrides: Record<string, unknown> = {
     login,
     logout,
     printToPdf,
@@ -382,4 +381,29 @@ export const installElectronShim = (): void => {
       }),
     getAppVersion: () => Promise.resolve(APP_VERSION),
   };
+
+  window.electron = new Proxy(
+    overrides as unknown as AppApi & ElectronEventBridge,
+    {
+      get(target, prop: string | symbol) {
+        if (typeof prop !== 'string' || prop === 'then') {
+          return undefined;
+        }
+        if (prop in target) {
+          return (target as unknown as Record<string, unknown>)[prop];
+        }
+        return (api as unknown as Record<string, unknown>)[prop];
+      },
+      set(target, prop: string | symbol, value: unknown) {
+        if (typeof prop === 'string') {
+          (target as unknown as Record<string, unknown>)[prop] = value;
+        }
+        return true;
+      },
+      has(target, prop: string | symbol) {
+        if (typeof prop !== 'string') return false;
+        return prop in target || prop in api;
+      },
+    },
+  );
 };

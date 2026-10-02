@@ -1,5 +1,5 @@
 import './bufferPolyfill';
-import { StrictMode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 // Pure helper — no `window.electron`. Called immediately below, before
 // the async boot() (and before the PWA service worker claims this page
@@ -273,35 +273,6 @@ async function boot(): Promise<void> {
   // large OPFS database. Blocking first paint on that looked like a
   // permanent white screen. The settings hooks re-read after migration.
   void migrateBusinessSettingsFromLocalStorage();
-
-  // `?legacy=1` keeps the original minimal Accounts-only screen reachable —
-  // the direct AccountService/ChartService-over-the-worker proof of
-  // architecture this app started from (see git history) — for isolating a
-  // worker/driver problem from a real-renderer one without the full
-  // shadcn/router UI in the way. Not linked from the app anywhere;
-  // dev/debug escape hatch only.
-  const isLegacy =
-    new URLSearchParams(window.location.search).get('legacy') === '1';
-
-  if (isLegacy) {
-    // Dynamic imports: the placeholder screen (and its plain-CSS styling,
-    // ./index.css — unlayered rules that would otherwise fight
-    // App.global.css's `@layer base` body theme above) have no reason to be
-    // in the main bundle for the real app.
-    const [{ App }] = await Promise.all([
-      import('./App'),
-      import('./index.css'),
-    ]);
-    root.render(
-      <StrictMode>
-        <>
-          <App />
-          <BootGate />
-        </>
-      </StrictMode>,
-    );
-    return;
-  }
 
   // This pulls in the entire real renderer (src/renderer — routes, views,
   // shadcn UI) behind the shim-install above, so nothing in that tree can
