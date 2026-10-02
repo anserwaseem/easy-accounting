@@ -64,6 +64,7 @@ export function makeSavedState(
     itemTypeIds?: number[];
     accountIds?: number[];
     inventoryIds?: number[];
+    chartId?: number;
     presetValue?: string;
   },
 ): SavedFilterState {
@@ -97,6 +98,9 @@ export function makeSavedState(
   }
   if (extra?.inventoryIds) {
     state.inventoryIds = extra.inventoryIds;
+  }
+  if (extra?.chartId != null && extra.chartId > 0) {
+    state.chartId = extra.chartId;
   }
   if (extra?.presetValue) {
     state.presetValue = extra.presetValue;
