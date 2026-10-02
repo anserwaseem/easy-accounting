@@ -208,6 +208,8 @@ export class InvoiceService {
 
   private stmGetPurchasesByVendorLines!: Statement;
 
+  private stmGetSaleBillsForAccountIdsInRange!: Statement;
+
   constructor() {
     this.db = DatabaseService.getInstance().getDatabase();
     this.journalService = new JournalService();
@@ -215,6 +217,40 @@ export class InvoiceService {
     this.pricingService = new PricingService();
     this.vendorStockService = new VendorStockService();
     this.initPreparedStatements();
+  }
+
+  /**
+   * sale bills in an inclusive local-date range, keyed by the account that owns the lines.
+   * split invoices use each line's account. header account is used only when no line has an account.
+   * quotations and returned invoices are left out.
+   */
+  getSaleBillsForAccountIdsInRange(
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ): Record<number, Array<{ invoiceNumber: number; date: string }>> {
+    const unique = [
+      ...new Set(accountIds.filter((id) => Number.isInteger(id) && id > 0)),
+    ].sort((a, b) => a - b);
+    if (unique.length === 0) return {};
+    const rows = this.stmGetSaleBillsForAccountIdsInRange.all({
+      accountIdsJson: JSON.stringify(unique),
+      startDate,
+      endDate,
+    }) as Array<{ accountId: number; invoiceNumber: number; date: string }>;
+    const out: Record<
+      number,
+      Array<{ invoiceNumber: number; date: string }>
+    > = {};
+    for (const row of rows) {
+      const bucket = out[row.accountId] ?? [];
+      bucket.push({
+        invoiceNumber: row.invoiceNumber,
+        date: row.date,
+      });
+      out[row.accountId] = bucket;
+    }
+    return out;
   }
 
   getNextInvoiceNumber(invoiceType: InvoiceType): number | undefined {
@@ -2765,6 +2801,69 @@ export class InvoiceService {
         AND i.date >= @startDate
         AND i.date <= @endDate
         AND COALESCE(ii.accountId, i.accountId) = @vendorAccountId
+    `);
+
+    this.stmGetSaleBillsForAccountIdsInRange = this.db.prepare(`
+      SELECT accountId, invoiceNumber, date
+      FROM (
+        SELECT DISTINCT
+          ii.accountId AS accountId,
+          i.invoiceNumber AS invoiceNumber,
+          i.date AS date
+        FROM invoices i
+        JOIN invoice_items ii ON ii.invoiceId = i.id
+        WHERE ii.accountId IS NOT NULL
+          AND i.invoiceType = 'Sale'
+          AND COALESCE(i.isQuotation, 0) = 0
+          AND COALESCE(i.isReturned, 0) = 0
+          AND ii.accountId IN (
+            SELECT CAST(j.value AS INTEGER)
+            FROM json_each(@accountIdsJson) AS j
+          )
+          AND (
+            CASE
+              WHEN length(i.date) = 10 THEN i.date
+              ELSE date(datetime(i.date, 'localtime'))
+            END
+          ) >= @startDate
+          AND (
+            CASE
+              WHEN length(i.date) = 10 THEN i.date
+              ELSE date(datetime(i.date, 'localtime'))
+            END
+          ) <= @endDate
+        UNION
+        SELECT DISTINCT
+          i.accountId AS accountId,
+          i.invoiceNumber AS invoiceNumber,
+          i.date AS date
+        FROM invoices i
+        WHERE i.invoiceType = 'Sale'
+          AND COALESCE(i.isQuotation, 0) = 0
+          AND COALESCE(i.isReturned, 0) = 0
+          AND i.accountId IN (
+            SELECT CAST(j.value AS INTEGER)
+            FROM json_each(@accountIdsJson) AS j
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM invoice_items ii
+            WHERE ii.invoiceId = i.id AND ii.accountId IS NOT NULL
+          )
+          AND (
+            CASE
+              WHEN length(i.date) = 10 THEN i.date
+              ELSE date(datetime(i.date, 'localtime'))
+            END
+          ) >= @startDate
+          AND (
+            CASE
+              WHEN length(i.date) = 10 THEN i.date
+              ELSE date(datetime(i.date, 'localtime'))
+            END
+          ) <= @endDate
+      )
+      ORDER BY accountId ASC, date ASC, invoiceNumber ASC
     `);
   }
 }

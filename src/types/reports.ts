@@ -69,6 +69,8 @@ export interface SavedFilterState {
   itemTypeIds?: number[];
   accountIds?: number[];
   inventoryIds?: number[];
+  /** custom head (agent) chosen on the collection sheet */
+  chartId?: number;
   presetValue?: string;
 }
 
@@ -171,4 +173,5 @@ export const REPORT_FILTER_KEYS = {
   purchasesByVendor: 'reports.purchasesByVendor.filters',
   salesByCustomer: 'reports.salesByCustomer.filters',
   vendorStockActivity: 'reports.vendorStockActivity.filters',
+  collectionSheet: 'reports.collectionSheet.filters',
 } as const;

@@ -27,6 +27,8 @@ export class LedgerService {
 
   private stmGetBalancesForAccountIdsAsOfDate!: Statement;
 
+  private stmGetCreditSumsForAccountIdsInRange!: Statement;
+
   private stmGetLedgerRangeForAccountIds!: Statement;
 
   private stmGetLedgerUpToDateForAccountIds!: Statement;
@@ -94,6 +96,30 @@ export class LedgerService {
       balanceType: BalanceType;
     }>;
     return LedgerService.balanceRowsToMap(rows);
+  }
+
+  /**
+   * sum of credits per account for an inclusive local-date range (yyyy-MM-dd).
+   * credits on a party ledger are collections. debits (sales) are ignored.
+   * accounts with no credits in the window are omitted.
+   */
+  getCreditSumsForAccountIdsInRange(
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ): Record<number, number> {
+    const unique = LedgerService.uniqueSortedAccountIds(accountIds);
+    if (unique.length === 0) return {};
+    const rows = this.stmGetCreditSumsForAccountIdsInRange.all({
+      accountIdsJson: JSON.stringify(unique),
+      startDate,
+      endDate,
+    }) as Array<{ accountId: number; collected: number }>;
+    const out: Record<number, number> = {};
+    for (const row of rows) {
+      out[row.accountId] = row.collected ?? 0;
+    }
+    return out;
   }
 
   /** get the running balance as of a given date (last ledger entry on or before that date). */
@@ -321,6 +347,30 @@ export class LedgerService {
           ) <= @asOfDate
       ) t
       WHERE t.rn = 1
+    `);
+
+    this.stmGetCreditSumsForAccountIdsInRange = this.db.prepare(`
+      SELECT
+        l.accountId AS accountId,
+        COALESCE(SUM(l.credit), 0) AS collected
+      FROM ledger l
+      WHERE l.accountId IN (
+        SELECT CAST(j.value AS INTEGER)
+        FROM json_each(@accountIdsJson) AS j
+      )
+        AND (
+          CASE
+            WHEN length(l.date) = 10 THEN l.date
+            ELSE date(datetime(l.date, 'localtime'))
+          END
+        ) >= @startDate
+        AND (
+          CASE
+            WHEN length(l.date) = 10 THEN l.date
+            ELSE date(datetime(l.date, 'localtime'))
+          END
+        ) <= @endDate
+      GROUP BY l.accountId
     `);
 
     this.stmGetLedgerRangeForAccountIds = this.db.prepare(`

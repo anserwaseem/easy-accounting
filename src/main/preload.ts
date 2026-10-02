@@ -679,6 +679,32 @@ const electronHandler = {
       accountIds,
       asOfDate,
     ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
+  /** sale invoice number + date per account for an inclusive local-date range */
+  getSaleBillsForAccountIdsInRange: (
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'invoice:getSaleBillsForAccountIdsInRange',
+      accountIds,
+      startDate,
+      endDate,
+    ) as Promise<
+      Record<number, Array<{ invoiceNumber: number; date: string }>>
+    >,
+  /** sum of party-ledger credits in an inclusive local-date range */
+  getCreditSumsForAccountIdsInRange: (
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'ledger:getCreditSumsForAccountIdsInRange',
+      accountIds,
+      startDate,
+      endDate,
+    ) as Promise<Record<number, number>>,
   /** inclusive calendar range per account; rows enriched like getLedger */
   getLedgerRangeForAccountIds: (
     accountIds: number[],

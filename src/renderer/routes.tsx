@@ -37,6 +37,7 @@ import SalesByCustomerPage from './views/Reports/SalesByCustomer';
 import VendorStockPage from './views/VendorStock';
 import NewVendorIssuePage from './views/VendorStock/NewVendorIssue';
 import VendorStockActivityPage from './views/Reports/VendorStockActivity';
+import CollectionSheetPage from './views/Reports/CollectionSheet';
 
 const AppRoutes: React.FC = () => (
   <ThemeProvider>
@@ -80,6 +81,10 @@ const AppRoutes: React.FC = () => (
                   element={<AverageEquityBalancesPage />}
                 />
                 <Route path="bills-aging" element={<BillsAgingPage />} />
+                <Route
+                  path="collection-sheet"
+                  element={<CollectionSheetPage />}
+                />
                 <Route
                   path="inventory-health"
                   element={<InventoryHealthReportPage />}
