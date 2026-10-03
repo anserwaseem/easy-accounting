@@ -11,6 +11,7 @@ import { migration037 } from './037_redate_import_baselines';
 import { migration038 } from './038_sync_settings';
 import { migration039 } from './039_suppress_timestamp_triggers_during_apply';
 import { migration040 } from './040_insert_timestamps_fill_only';
+import { migration041 } from './041_seed_existing_business_data_outbox';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -46,4 +47,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration038,
   migration039,
   migration040,
+  migration041,
 ];

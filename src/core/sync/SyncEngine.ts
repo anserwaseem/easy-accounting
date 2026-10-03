@@ -1140,8 +1140,7 @@ export class SyncEngine {
     }
 
     if (serverMaxSeq === 0) {
-      const outboxEmpty = await this.outboxIsEmpty();
-      if (outboxEmpty && (await this.hasLocalBusinessData())) {
+      if (await this.hasLocalBusinessData()) {
         const result = await seedOutboxFromLocalData(this.db);
         seeded = result.seeded;
         if (seeded > 0) {
