@@ -53,3 +53,6 @@ release/app/database-*.db
 apps/web/dist
 apps/web/test-results
 
+# local operator skills
+.agents/skills/patch-and-release/
+
