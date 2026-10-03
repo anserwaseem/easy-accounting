@@ -386,7 +386,17 @@ app
           anonKey: string;
           mock?: boolean;
         },
-      ) => syncManager.join(config),
+      ) => {
+        const result = await syncManager.join(config);
+        if (result.ok) {
+          try {
+            await migrateBusinessSettingsFromStore(settingsService);
+          } catch (err) {
+            log.warn('Post-join settings migration failed:', err);
+          }
+        }
+        return result;
+      },
     );
     ipcMain.handle('sync:rebuild', async () => syncManager.rebuild());
     ipcMain.handle('sync:getJoinInvite', async () =>
@@ -419,7 +429,7 @@ app
       publishService.getPriceListNames(),
     );
     ipcMain.handle('publish:preview', async () => {
-      const config = getPublishConfig();
+      const config = await getPublishConfig();
       return publishService.previewCatalog({
         publicAttributeKeys: publishService.getPublicAttributeKeys(),
         publicPriceList: config.publicPriceList,
@@ -432,7 +442,7 @@ app
       });
     });
     ipcMain.handle('publish:itemStatuses', async () => {
-      const config = getPublishConfig();
+      const config = await getPublishConfig();
       return publishService.getItemPublishStatuses({
         publicPriceList: config.publicPriceList,
         publicAttributeKeys: publishService.getPublicAttributeKeys(),

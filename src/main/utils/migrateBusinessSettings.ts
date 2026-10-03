@@ -50,10 +50,16 @@ async function copyIfMissing(
 ): Promise<void> {
   if (isSecretSettingKey(key)) return;
   const existing = await settings.get(key);
-  if (existing !== undefined) return;
   const legacy = store.get(key);
-  if (legacy === undefined || legacy === null) return;
-  await settings.set(key, coerceLegacy(key, legacy));
+  if (existing === undefined && legacy !== undefined && legacy !== null) {
+    await settings.set(key, coerceLegacy(key, legacy));
+  } else if (
+    existing !== undefined &&
+    existing !== null &&
+    (legacy === undefined || legacy === null)
+  ) {
+    store.set(key, existing);
+  }
 }
 
 export async function migrateBusinessSettingsFromStore(

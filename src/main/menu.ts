@@ -264,7 +264,7 @@ export default class MenuBuilder {
           label: 'Publish Catalog',
           click: async () => {
             const publishService = new PublishService();
-            const config = getPublishConfig();
+            const config = await getPublishConfig();
             const missing = validatePublishConfig(config);
             if (missing.length > 0) {
               await dialog.showMessageBox(this.mainWindow, {

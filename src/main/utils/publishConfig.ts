@@ -118,23 +118,50 @@ function decrypt(b64: string): string {
   return safeStorage.decryptString(Buffer.from(b64, 'base64'));
 }
 
-export function getPublishConfig(): PublishConfig {
+export async function getPublishConfig(): Promise<PublishConfig> {
+  let dbValues: Record<string, unknown> = {};
+  try {
+    const { getSettingsService } = await import('../coreRuntime');
+    const settings = getSettingsService();
+    dbValues = await settings.getAll();
+  } catch {
+    // runtime not initialized or in isolated test; fallback to store
+  }
+
+  const val = (key: string, fallback = ''): string => {
+    const v = dbValues[key];
+    if (typeof v === 'string') return v;
+    return str(key, fallback);
+  };
+
+  const boolVal = (key: string, fallback: boolean): boolean => {
+    const v = dbValues[key];
+    if (typeof v === 'boolean') return v;
+    if (v === 'true' || v === '1') return true;
+    if (v === 'false' || v === '0') return false;
+    const storeVal = store.get(key);
+    if (typeof storeVal === 'boolean') return storeVal;
+    if (storeVal === 'true' || storeVal === '1') return true;
+    if (storeVal === 'false' || storeVal === '0') return false;
+    return fallback;
+  };
+
   return {
-    endpoint: str(PUBLISH_KEYS.endpoint),
-    region: str(PUBLISH_KEYS.region, DEFAULTS.region),
-    bucket: str(PUBLISH_KEYS.bucket),
-    privateBucket: str(PUBLISH_KEYS.privateBucket),
-    accessKeyId: str(PUBLISH_KEYS.accessKeyId),
-    publicBaseUrl: str(PUBLISH_KEYS.publicBaseUrl),
-    privatePrefix: str(PUBLISH_KEYS.privatePrefix, DEFAULTS.privatePrefix),
-    publicPrefix: str(PUBLISH_KEYS.publicPrefix, DEFAULTS.publicPrefix),
-    publicPriceList: str(PUBLISH_KEYS.publicPriceList),
-    publishWithoutImages: str(PUBLISH_KEYS.publishWithoutImages) === 'true',
-    requireTitle: str(PUBLISH_KEYS.requireTitle) !== 'false',
-    reservedNameChars: str(PUBLISH_KEYS.reservedNameChars),
-    requiredAttributeKeys: str(PUBLISH_KEYS.requiredAttributeKeys),
-    imagesManifestUrl: str(PUBLISH_KEYS.imagesManifestUrl),
-    webhookUrl: str(PUBLISH_KEYS.webhookUrl),
+    endpoint: val(PUBLISH_KEYS.endpoint),
+    region: val(PUBLISH_KEYS.region, DEFAULTS.region),
+    bucket: val(PUBLISH_KEYS.bucket),
+    privateBucket: val(PUBLISH_KEYS.privateBucket),
+    accessKeyId: val(PUBLISH_KEYS.accessKeyId),
+    publicBaseUrl: val(PUBLISH_KEYS.publicBaseUrl),
+    privatePrefix: val(PUBLISH_KEYS.privatePrefix, DEFAULTS.privatePrefix),
+    publicPrefix: val(PUBLISH_KEYS.publicPrefix, DEFAULTS.publicPrefix),
+    publicPriceList: val(PUBLISH_KEYS.publicPriceList),
+    publishWithoutImages: boolVal(PUBLISH_KEYS.publishWithoutImages, false),
+    requireTitle: boolVal(PUBLISH_KEYS.requireTitle, true),
+    reservedNameChars: val(PUBLISH_KEYS.reservedNameChars),
+    requiredAttributeKeys: val(PUBLISH_KEYS.requiredAttributeKeys),
+    imagesManifestUrl: val(PUBLISH_KEYS.imagesManifestUrl),
+    webhookUrl: val(PUBLISH_KEYS.webhookUrl),
     hasSecretAccessKey: !!str(PUBLISH_KEYS.secretAccessKeyEnc),
     hasWebhookToken: !!str(PUBLISH_KEYS.webhookToken),
     encryptionAvailable: isEncryptionAvailable(),

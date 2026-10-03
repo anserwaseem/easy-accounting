@@ -468,7 +468,7 @@ export class PublishService {
    */
   public async publish(force = false): Promise<PublishResult> {
     const generatedAt = new Date().toISOString();
-    const config = getPublishConfig();
+    const config = await getPublishConfig();
 
     const missing = validatePublishConfig(config);
     if (missing.length > 0) {
