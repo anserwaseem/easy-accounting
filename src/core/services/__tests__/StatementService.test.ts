@@ -59,13 +59,9 @@ async function seedBasicSchema(db: Database.Database) {
 }
 
 /**
- * StatementService.setupLedgers calls accountService.insertAccountIfNotExists
- * WITHOUT a `discountProfileId` key. insertAccount's SQL binds `@discountProfileId` as a
- * named parameter, and better-sqlite3 throws "Missing named parameter" when a brand new
- * account must be inserted through this path — a pre-existing bug, not introduced by
- * the core port (see the "surfaces the pre-existing insertAccountIfNotExists bug" test
- * below). insertAccountIfNotExists only reaches the INSERT when no matching
- * account already exists, so tests that want a clean end-to-end run pre-seed the account.
+ * StatementService.setupLedgers calls accountService.insertAccountIfNotExists.
+ * Previously this omitted `discountProfileId`, causing better-sqlite3 to throw,
+ * but AccountService now safely defaults optional fields like discountProfileId to null.
  */
 function seedExistingAccount(
   db: Database.Database,
@@ -286,22 +282,28 @@ describe('core StatementService', () => {
     db.close();
   });
 
-  it('surfaces the pre-existing insertAccountIfNotExists bug: saving a brand-new account fails and rolls back cleanly', async () => {
+  it('creates a brand-new account if it does not already exist when saving balance sheet', async () => {
     const db = new Database(':memory:');
     await seedBasicSchema(db);
-    const { statements, charts, accounts } = createCore(db);
+    const { statements, accounts, ledger } = createCore(db);
 
-    // 'Cash' does not pre-exist, so insertAccountIfNotExists must INSERT it —
-    // and the calling code (ported verbatim from main) omits discountProfileId,
-    // which better-sqlite3 rejects. saveBalanceSheet catches the throw and
-    // returns false, exactly like the original main-process service.
+    // 'Cash' does not pre-exist, so insertAccountIfNotExists must INSERT it.
     const result = await statements.saveBalanceSheet(aBalanceSheet());
-    expect(result).toBe(false);
+    expect(result).toBe(true);
 
-    // the whole transaction rolled back — no partial writes survive, even
-    // though earlier chart lookups/creates ran before the failing insert.
-    expect(await charts.getCharts()).toHaveLength(2);
-    expect(await accounts.getAccounts()).toHaveLength(0);
+    const account = await accounts.getAccountByName('Cash');
+    expect(account).toBeDefined();
+    expect(account!.headName).toBe('Cash and Bank');
+
+    const rows = await ledger.getLedger(account!.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      debit: 1000,
+      credit: 0,
+      balance: 1000,
+      balanceType: BalanceType.Dr,
+      particulars: 'Opening Balance from B/S',
+    });
     db.close();
   });
 

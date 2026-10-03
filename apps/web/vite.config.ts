@@ -174,6 +174,8 @@ export default defineConfig({
         // offline e2e test relies on this.
         skipWaiting: true,
         clientsClaim: true,
+        // Allow bundle assets up to 4 MiB to be precached (routes bundle is ~2.1 MB)
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // Default globPatterns omit `.wasm`; the sqlite3 wasm binary (and
         // the db worker + the sqlite3-wasm package's own nested worker
         // scripts, all plain `.js`) must be part of the precache or the app
