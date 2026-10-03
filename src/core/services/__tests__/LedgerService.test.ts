@@ -460,4 +460,47 @@ describe('core LedgerService — canonical reads (ledger_view, CORE 032)', () =>
     ).toEqual({});
     db.close();
   });
+
+  it('getCreditSumsForAccountIdsInRange sums credit rows for accounts in date range', async () => {
+    const db = new Database(':memory:');
+    await seedBasicSchema(db);
+    const { accounts, ledger } = createCore(db);
+    const accountA = await insertAccount(db, accounts, 'Customer A', 101);
+    const accountB = await insertAccount(db, accounts, 'Customer B', 102);
+    const cash = await insertAccount(db, accounts, 'Cash', 201);
+
+    await insertJournalPair(db, {
+      date: '2025-01-05',
+      debitAccountId: cash,
+      creditAccountId: accountA,
+      amount: 150,
+    });
+    await insertJournalPair(db, {
+      date: '2025-01-15',
+      debitAccountId: cash,
+      creditAccountId: accountA,
+      amount: 50,
+    });
+    await insertJournalPair(db, {
+      date: '2025-02-01',
+      debitAccountId: cash,
+      creditAccountId: accountA,
+      amount: 70,
+    });
+    await insertJournalPair(db, {
+      date: '2025-01-10',
+      debitAccountId: cash,
+      creditAccountId: accountB,
+      amount: 80,
+    });
+
+    const sums = await ledger.getCreditSumsForAccountIdsInRange(
+      [accountA, accountB],
+      '2025-01-01',
+      '2025-01-20',
+    );
+    expect(sums[accountA]).toBe(200);
+    expect(sums[accountB]).toBe(80);
+    db.close();
+  });
 });

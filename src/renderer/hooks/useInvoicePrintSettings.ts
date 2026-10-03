@@ -22,12 +22,15 @@ export interface InvoicePrintSettings {
   showAgent: boolean;
   /** CREDIT / ادھار stamp on named-party sale invoices */
   showBillBalance: boolean;
+  /** footer note, whatsapp, and website under the invoice */
+  showPrintNote: boolean;
 }
 
 const DEFAULT_LOCALE: InvoicePrintLocale = 'en';
 const DEFAULT_SHOW_PARTY_BALANCES = true;
 const DEFAULT_SHOW_AGENT = true;
 const DEFAULT_SHOW_BILL_BALANCE = true;
+const DEFAULT_SHOW_PRINT_NOTE = true;
 
 const SYNC_APPLIED_EVENT = 'easyaccounting:sync-applied';
 
@@ -56,6 +59,7 @@ const DEFAULT_PRINT: InvoicePrintSettings = {
   showPartyBalances: DEFAULT_SHOW_PARTY_BALANCES,
   showAgent: DEFAULT_SHOW_AGENT,
   showBillBalance: DEFAULT_SHOW_BILL_BALANCE,
+  showPrintNote: DEFAULT_SHOW_PRINT_NOTE,
 };
 
 const readInvoicePrintSettings = async (): Promise<InvoicePrintSettings> => {
@@ -67,6 +71,7 @@ const readInvoicePrintSettings = async (): Promise<InvoicePrintSettings> => {
     showPartyBalances,
     showAgent,
     showBillBalance,
+    showPrintNote,
   ] = await Promise.all([
     window.electron.getSetting(KEYS.locale),
     window.electron.getSetting(KEYS.englishLabelOverrides),
@@ -74,6 +79,7 @@ const readInvoicePrintSettings = async (): Promise<InvoicePrintSettings> => {
     window.electron.getSetting(KEYS.showPartyBalances),
     window.electron.getSetting(KEYS.showAgent),
     window.electron.getSetting(KEYS.showBillBalance),
+    window.electron.getSetting(KEYS.showPrintNote),
   ]);
   return {
     locale: parseLocale(locale),
@@ -82,6 +88,7 @@ const readInvoicePrintSettings = async (): Promise<InvoicePrintSettings> => {
     showPartyBalances: parseShowPartyBalances(showPartyBalances),
     showAgent: parseShowPartyBalances(showAgent),
     showBillBalance: parseShowPartyBalances(showBillBalance),
+    showPrintNote: parseShowPartyBalances(showPrintNote),
   };
 };
 
@@ -117,6 +124,7 @@ export const useInvoicePrintSettings = () => {
         ),
         window.electron.setSetting(KEYS.showAgent, next.showAgent),
         window.electron.setSetting(KEYS.showBillBalance, next.showBillBalance),
+        window.electron.setSetting(KEYS.showPrintNote, next.showPrintNote),
       ]);
       setSettings(next);
     },
@@ -132,6 +140,7 @@ export const useInvoicePrintSettings = () => {
         showPartyBalances: DEFAULT_SHOW_PARTY_BALANCES,
         showAgent: DEFAULT_SHOW_AGENT,
         showBillBalance: DEFAULT_SHOW_BILL_BALANCE,
+        showPrintNote: DEFAULT_SHOW_PRINT_NOTE,
         englishLabels: getDefaultInvoicePrintLabels('en'),
         urduLabels: getDefaultInvoicePrintLabels('ur'),
       },

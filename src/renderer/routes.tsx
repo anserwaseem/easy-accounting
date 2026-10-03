@@ -41,6 +41,7 @@ import NewVendorIssuePage from './views/VendorStock/NewVendorIssue';
 import VendorStockActivityPage from './views/Reports/VendorStockActivity';
 import ImportPage from './views/Import';
 import JoinSyncPage from './views/JoinSync';
+import CollectionSheetPage from './views/Reports/CollectionSheet';
 
 const AppRoutes: React.FC = () => {
   const [joinInvite] = useState(() => consumeJoinHashFromWindow());
@@ -95,6 +96,10 @@ const AppRoutes: React.FC = () => {
                     element={<AverageEquityBalancesPage />}
                   />
                   <Route path="bills-aging" element={<BillsAgingPage />} />
+                  <Route
+                    path="collection-sheet"
+                    element={<CollectionSheetPage />}
+                  />
                   <Route
                     path="inventory-health"
                     element={<InventoryHealthReportPage />}
@@ -184,7 +189,6 @@ const AppRoutes: React.FC = () => {
                     <QuotationsPage invoiceType={InvoiceType.Purchase} />
                   }
                 />
-                <Route path="reports" element={<ReportsPage />} />
               </Route>
               <Route
                 path="invoices/:id/print"

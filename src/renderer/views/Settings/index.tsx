@@ -198,6 +198,9 @@ const SettingsPage: React.FC = () => {
   const [draftShowBillBalance, setDraftShowBillBalance] = useState(
     invoicePrintSettings.showBillBalance,
   );
+  const [draftShowPrintNote, setDraftShowPrintNote] = useState(
+    invoicePrintSettings.showPrintNote,
+  );
   const [draftEnglishLabelOverrides, setDraftEnglishLabelOverrides] = useState<
     Partial<InvoicePrintLabels>
   >(() => ({ ...invoicePrintSettings.englishLabelOverrides }));
@@ -255,6 +258,7 @@ const SettingsPage: React.FC = () => {
     setDraftShowPartyBalances(invoicePrintSettings.showPartyBalances);
     setDraftShowAgent(invoicePrintSettings.showAgent);
     setDraftShowBillBalance(invoicePrintSettings.showBillBalance);
+    setDraftShowPrintNote(invoicePrintSettings.showPrintNote);
     setDraftEnglishLabelOverrides({
       ...invoicePrintSettings.englishLabelOverrides,
     });
@@ -280,6 +284,7 @@ const SettingsPage: React.FC = () => {
       draftShowPartyBalances !== invoicePrintSettings.showPartyBalances ||
       draftShowAgent !== invoicePrintSettings.showAgent ||
       draftShowBillBalance !== invoicePrintSettings.showBillBalance ||
+      draftShowPrintNote !== invoicePrintSettings.showPrintNote ||
       !isEqual(
         draftEnglishLabelOverrides,
         invoicePrintSettings.englishLabelOverrides,
@@ -310,6 +315,7 @@ const SettingsPage: React.FC = () => {
     draftShowPartyBalances,
     draftShowAgent,
     draftShowBillBalance,
+    draftShowPrintNote,
     draftEnglishLabelOverrides,
     draftUrduLabelOverrides,
     invoicePrintSettings,
@@ -373,6 +379,7 @@ const SettingsPage: React.FC = () => {
     setDraftShowPartyBalances(invoicePrintSettings.showPartyBalances);
     setDraftShowAgent(invoicePrintSettings.showAgent);
     setDraftShowBillBalance(invoicePrintSettings.showBillBalance);
+    setDraftShowPrintNote(invoicePrintSettings.showPrintNote);
     setDraftEnglishLabelOverrides({
       ...invoicePrintSettings.englishLabelOverrides,
     });
@@ -430,6 +437,7 @@ const SettingsPage: React.FC = () => {
         showPartyBalances: draftShowPartyBalances,
         showAgent: draftShowAgent,
         showBillBalance: draftShowBillBalance,
+        showPrintNote: draftShowPrintNote,
       });
     } catch (error) {
       toast({
@@ -471,6 +479,7 @@ const SettingsPage: React.FC = () => {
     draftShowPartyBalances,
     draftShowAgent,
     draftShowBillBalance,
+    draftShowPrintNote,
     draftEnglishLabelOverrides,
     draftUrduLabelOverrides,
     draftStrictSplitRule,
@@ -878,6 +887,22 @@ const SettingsPage: React.FC = () => {
                       <Switch
                         checked={draftShowBillBalance}
                         onCheckedChange={setDraftShowBillBalance}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 border rounded-md">
+                      <div className="space-y-0.5 pr-2">
+                        <Label className="text-sm font-medium">
+                          Show Print Note
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Prints the footer note, WhatsApp, and website under
+                          the invoice.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={draftShowPrintNote}
+                        onCheckedChange={setDraftShowPrintNote}
                       />
                     </div>
                   </div>

@@ -14,6 +14,7 @@ import {
 import type { Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
+import { Badge } from 'renderer/shad/ui/badge';
 
 const optionalText = z
   .string()
@@ -40,6 +41,8 @@ export const accountFormSchema = z.object({
   goodsNameUrdu: optionalText,
   isActive: z.boolean().default(true),
   tracksVendorStock: z.boolean().default(false),
+  discountProfileId: z.number().nullable().optional(),
+  discountProfileName: z.string().nullable().optional(),
 });
 
 export type AccountFormData = z.infer<typeof accountFormSchema>;
@@ -57,6 +60,8 @@ export const defaultValues: AccountFormData = {
   goodsNameUrdu: undefined,
   isActive: true,
   tracksVendorStock: false,
+  discountProfileId: null,
+  discountProfileName: null,
 };
 
 interface AccountFormProps {
@@ -269,6 +274,21 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             </FormItem>
           )}
         />
+
+        {(initialValues?.discountProfileName ||
+          initialValues?.discountProfileId) && (
+          <div className="mb-4 flex items-center justify-between rounded-md border p-3 text-sm bg-muted/40">
+            <div className="space-y-0.5">
+              <p className="font-medium text-foreground">Discount Policy</p>
+              <p className="text-xs text-muted-foreground">
+                Managed from the Policy column in the accounts table
+              </p>
+            </div>
+            <Badge variant="secondary">
+              {initialValues?.discountProfileName || 'Assigned'}
+            </Badge>
+          </div>
+        )}
 
         <Button type="submit" className="w-full">
           Submit

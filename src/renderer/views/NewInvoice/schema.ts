@@ -154,11 +154,11 @@ export const buildNewInvoiceFormSchema = (
               message: `Duplicate items: ${summaries.join('; ')}`,
             });
           })
-          // sale only: cannot invoice more than current stock; purchase has no on-hand cap
+          // sale only: cannot invoice more than current stock; purchase and quotation have no on-hand cap
           .superRefine((items, ctx) => {
             if (invoiceType !== InvoiceType.Sale) return;
+            if (getIsQuotationFlow?.()) return;
             if (!inventory?.length) return;
-            if (invoiceType !== InvoiceType.Sale) return;
             const bonus = getSaleStockValidationBonus?.() ?? {};
             items.forEach((item, idx) => {
               if (item.inventoryId <= 0) return;

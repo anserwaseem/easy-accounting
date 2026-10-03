@@ -18,10 +18,7 @@ import {
   getFormattedCurrency,
   raise,
 } from 'renderer/lib/utils';
-import {
-  currencyFormatOptions,
-  DISCOUNT_ACCOUNT_NAME,
-} from 'renderer/lib/constants';
+import { currencyFormatOptions } from 'renderer/lib/constants';
 import { Button } from 'renderer/shad/ui/button';
 import { getOsModifierLabel } from '@/renderer/shad/ui/kbd';
 import {
@@ -138,9 +135,32 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   // duplicating a quotation keeps it a quotation: primary save inserts a quotation of the same type
   const [duplicateFromQuotation, setDuplicateFromQuotation] = useState(false);
 
+  // router state { isQuotation: true } opens new invoice screen in quotation mode
+  const initialIsQuotation = useMemo(() => {
+    if (isPostedInvoiceEditPath) return false;
+    return Boolean(get(location.state, 'isQuotation'));
+  }, [isPostedInvoiceEditPath, location.state]);
+
+  const [isQuotationMode, setIsQuotationMode] = useState(initialIsQuotation);
+
+  useEffect(() => {
+    if (
+      location.state &&
+      'isQuotation' in (location.state as Record<string, unknown>)
+    ) {
+      setIsQuotationMode(
+        Boolean((location.state as Record<string, unknown>).isQuotation),
+      );
+    }
+  }, [location.state]);
+
   const [isEditingQuotation, setIsEditingQuotation] = useState(false);
-  const isQuotationFlowRef = useRef(false);
-  isQuotationFlowRef.current = isEditingQuotation;
+  const isQuotationFlow =
+    (editInvoiceId != null && isEditingQuotation) ||
+    duplicateFromQuotation ||
+    isQuotationMode;
+  const isQuotationFlowRef = useRef(isQuotationFlow);
+  isQuotationFlowRef.current = isQuotationFlow;
   const submitSaveKindRef = useRef<'invoice' | 'quotation'>('invoice');
 
   const newInvoicePageHeading = useMemo(() => {
@@ -150,13 +170,23 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       } quotation`;
     }
     if (editInvoiceId != null) return `Edit ${invoiceType} Invoice`;
-    if (duplicateFromQuotation) return `New ${invoiceType} Quotation`;
+    if (duplicateFromQuotation || isQuotationMode) {
+      return `New ${invoiceType} Quotation`;
+    }
     return `New ${invoiceType} Invoice`;
-  }, [duplicateFromQuotation, editInvoiceId, invoiceType, isEditingQuotation]);
+  }, [
+    duplicateFromQuotation,
+    editInvoiceId,
+    invoiceType,
+    isEditingQuotation,
+    isQuotationMode,
+  ]);
 
-  // a form duplicated from a quotation saves as a quotation (fresh quotation of the same type)
+  // a form in quotation mode or duplicated from a quotation saves as a quotation
   const primarySaveKind: 'invoice' | 'quotation' =
-    editInvoiceId == null && duplicateFromQuotation ? 'quotation' : 'invoice';
+    editInvoiceId == null && (duplicateFromQuotation || isQuotationMode)
+      ? 'quotation'
+      : 'invoice';
 
   const primarySubmitLabel = useMemo(() => {
     if (editInvoiceId != null && isEditingQuotation) return 'Update quotation';
@@ -221,7 +251,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     watchedExtraDiscount,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
-    discountAccountExists,
   } = formCore;
 
   // ── Derived invoice-item state via form.watch() callback ──
@@ -248,6 +277,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     invoiceType,
     lineInventoryIdsKey,
     setInventory,
+    isQuotationFlow,
   );
 
   const inventoryById = useMemo(() => {
@@ -805,31 +835,46 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     };
   }, [duplicateFromId, editInvoiceId, parties, watchedSingleAccountId]);
 
-  const customerVendorSelectOptions = useMemo(() => {
-    const options = buildCustomerVendorSelectOptions({
+  const customerVendorSelectOptions = useMemo(
+    () =>
+      buildCustomerVendorSelectOptions({
+        invoiceType,
+        baseParties: parties ?? [],
+        extendedParties: partiesIncludingTyped ?? [],
+        useSingleAccount,
+        splitByItemType,
+        singleAccountId: toNumber(watchedSingleAccountId),
+        missingExtra: missingPartyForSelect,
+      }),
+    [
       invoiceType,
-      baseParties: parties ?? [],
-      extendedParties: partiesIncludingTyped ?? [],
-      useSingleAccount,
+      missingPartyForSelect,
+      parties,
+      partiesIncludingTyped,
       splitByItemType,
-      singleAccountId: toNumber(watchedSingleAccountId),
-      missingExtra: missingPartyForSelect,
-    });
-    if (invoiceType !== InvoiceType.Purchase) return options;
-    return options.map((party) =>
-      party.tracksVendorStock
-        ? { ...party, name: `${party.name} · stock` }
-        : party,
-    );
-  }, [
-    invoiceType,
-    missingPartyForSelect,
-    parties,
-    partiesIncludingTyped,
-    splitByItemType,
-    useSingleAccount,
-    watchedSingleAccountId,
-  ]);
+      useSingleAccount,
+      watchedSingleAccountId,
+    ],
+  );
+
+  const renderPartySelectItem = useCallback(
+    (account: PartyAccount) => (
+      <div>
+        <div className="flex items-center gap-2">
+          <h2>{account.name}</h2>
+          {account.tracksVendorStock ? (
+            <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
+              Stock
+            </span>
+          ) : null}
+        </div>
+        {account.code != null && account.code !== '' ? (
+          <p className="text-xs text-slate-400">{account.code}</p>
+        ) : null}
+      </div>
+    ),
+    [],
+  );
 
   const selectedVendorTracksStock = useMemo(() => {
     if (invoiceType !== InvoiceType.Purchase) return false;
@@ -1381,7 +1426,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             variant: hasNegative ? 'destructive' : 'default',
             title: 'At vendor stock',
             description: vendorStockMessages.join(' · '),
-            duration: Number.POSITIVE_INFINITY,
+            duration: 10000,
           });
         }
       };
@@ -1477,14 +1522,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   // shown when form.handleSubmit validation fails — prevents silent "nothing happens" on Save.
   // schema's .superRefine sets per-row errors (highlighted in table) AND a root-level message with item names (shown here as toast).
-  const onValidationError = useCallback((errors: Record<string, unknown>) => {
-    const itemsMsg = get(errors, 'invoiceItems.message');
-    const rootMsg = get(errors, 'invoiceItems.root.message');
-    const msg = itemsMsg ?? rootMsg;
-    if (typeof msg === 'string' && msg.length > 0) {
-      toast({ variant: 'destructive', description: msg, duration: 8000 });
-    }
-  }, []);
+  const onValidationError = useCallback(
+    (errors: Record<string, unknown>) => {
+      isQuotationFlowRef.current = isQuotationFlow;
+      const itemsMsg = get(errors, 'invoiceItems.message');
+      const rootMsg = get(errors, 'invoiceItems.root.message');
+      const msg = itemsMsg ?? rootMsg;
+      if (typeof msg === 'string' && msg.length > 0) {
+        toast({ variant: 'destructive', description: msg, duration: 8000 });
+      }
+    },
+    [isQuotationFlow],
+  );
 
   const hasZeroDiscountItem = (values: z.infer<typeof formSchema>) => {
     const items = Array.isArray(values.invoiceItems) ? values.invoiceItems : [];
@@ -1576,6 +1625,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         postedNextNumberBlocked);
     if (!disabled) {
       submitSaveKindRef.current = primarySaveKind;
+      isQuotationFlowRef.current =
+        isQuotationFlow || primarySaveKind === 'quotation';
       form.handleSubmit(onSubmit, onValidationError)();
     }
   });
@@ -1585,6 +1636,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     () => {
       if (editInvoiceId == null && !isSubmitDisabled) {
         submitSaveKindRef.current = 'quotation';
+        isQuotationFlowRef.current = true;
         form.handleSubmit(onSubmit, onValidationError)();
       }
     },
@@ -1974,6 +2026,34 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 </span>
               ) : null}
             </h1>
+            {editInvoiceId == null && !duplicateFromQuotation ? (
+              <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1">
+                <button
+                  type="button"
+                  onClick={() => setIsQuotationMode(false)}
+                  className={cn(
+                    'px-3 py-1 text-sm font-medium rounded-md transition-colors',
+                    !isQuotationMode
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Invoice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsQuotationMode(true)}
+                  className={cn(
+                    'px-3 py-1 text-sm font-medium rounded-md transition-colors',
+                    isQuotationMode
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Quotation
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {invoiceType === InvoiceType.Sale && showInvoiceForm && (
@@ -2094,6 +2174,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   placeholder="Select a party"
                                   searchPlaceholder="Search parties..."
                                   autoFocusTrigger={editInvoiceId == null}
+                                  renderSelectItem={renderPartySelectItem}
                                 />
                                 <FormMessage />
                               </FormItem>
@@ -2202,6 +2283,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   placeholder="Select a party"
                                   searchPlaceholder="Search parties..."
                                   autoFocusTrigger={editInvoiceId == null}
+                                  renderSelectItem={renderPartySelectItem}
                                 />
                                 <FormMessage />
                               </FormItem>
@@ -2588,12 +2670,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                 )}
                               />
                             </FormControl>
-                            {discountAccountExists === false && (
-                              <p className="text-sm text-destructive mt-1">
-                                Create a &quot;{DISCOUNT_ACCOUNT_NAME}&quot;
-                                expense account to use extra discount.
-                              </p>
-                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -2689,6 +2765,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           className="min-h-[44px]"
                           onClick={() => {
                             submitSaveKindRef.current = primarySaveKind;
+                            isQuotationFlowRef.current =
+                              isQuotationFlow ||
+                              primarySaveKind === 'quotation';
                             form.handleSubmit(onSubmit, onValidationError)();
                           }}
                         >
@@ -2716,7 +2795,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       </p>
                     ) : null}
                   </div>
-                  {editInvoiceId == null && !duplicateFromQuotation ? (
+                  {editInvoiceId == null &&
+                  !duplicateFromQuotation &&
+                  !isQuotationMode ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -2726,6 +2807,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           className="min-h-[44px]"
                           onClick={() => {
                             submitSaveKindRef.current = 'quotation';
+                            isQuotationFlowRef.current = true;
                             form.handleSubmit(onSubmit, onValidationError)();
                           }}
                         >
@@ -2757,6 +2839,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           className="min-h-[44px]"
                           onClick={() => {
                             submitSaveKindRef.current = primarySaveKind;
+                            isQuotationFlowRef.current =
+                              isQuotationFlow ||
+                              primarySaveKind === 'quotation';
                             openPrintAfterSaveRef.current = true;
                             form.handleSubmit(onSubmit, onValidationError)();
                           }}

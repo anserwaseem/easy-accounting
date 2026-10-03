@@ -268,4 +268,54 @@ describe('BetterSqliteDriver transactions', () => {
     expect(rows[0].name).toBe('Customer A');
     db.close();
   });
+
+  it('inserts account with discountProfileId and returns it in getAccounts', async () => {
+    const db = new Database(':memory:');
+    await seedBasicSchema(db);
+    const { accounts } = createCore(db);
+
+    const profileId = db
+      .prepare('INSERT INTO discount_profiles (name, isActive) VALUES (?, 1)')
+      .run('Wholesale 10%').lastInsertRowid as number;
+
+    const inserted = await accounts.insertAccount(
+      anAccount({
+        name: 'Customer With Profile',
+        discountProfileId: profileId,
+      }),
+    );
+    expect(inserted).toBe(true);
+
+    const all = await accounts.getAccounts();
+    const created = all.find((a) => a.name === 'Customer With Profile');
+    expect(created).toBeDefined();
+    expect(created?.discountProfileId).toBe(profileId);
+    expect(created?.discountProfileName).toBe('Wholesale 10%');
+    db.close();
+  });
+
+  it('updateAccount updates discountProfileId and goodsNameUrdu', async () => {
+    const db = new Database(':memory:');
+    await seedBasicSchema(db);
+    const { accounts } = createCore(db);
+
+    const profileId = db
+      .prepare('INSERT INTO discount_profiles (name, isActive) VALUES (?, 1)')
+      .run('Retail 5%').lastInsertRowid as number;
+
+    await accounts.insertAccount(anAccount({ name: 'Customer C' }));
+    const acc = (await accounts.getAccounts())[0];
+
+    const updated = await accounts.updateAccount({
+      ...acc,
+      goodsNameUrdu: 'کتابیں',
+      discountProfileId: profileId,
+    });
+    expect(updated).toBe(true);
+
+    const refreshed = (await accounts.getAccountsByIds([acc.id]))[0];
+    expect(refreshed?.goodsNameUrdu).toBe('کتابیں');
+    expect(refreshed?.discountProfileId).toBe(profileId);
+    db.close();
+  });
 });

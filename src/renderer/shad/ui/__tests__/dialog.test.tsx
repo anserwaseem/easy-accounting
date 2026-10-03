@@ -60,4 +60,25 @@ describe('Dialog body-lock guard', () => {
     });
     expect(document.body.style.pointerEvents).toBe('');
   });
+
+  it('clears a lock left behind when the dialog is unmounted while open', async () => {
+    const { unmount } = render(<Dialog open>{null}</Dialog>);
+    lock();
+    unmount();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(locked()).toBe(false);
+  });
+
+  it('clears a lock left behind when the dialog closes and unmounts immediately', async () => {
+    const { rerender, unmount } = render(<Dialog open>{null}</Dialog>);
+    lock();
+    rerender(<Dialog open={false}>{null}</Dialog>);
+    unmount();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(locked()).toBe(false);
+  });
 });

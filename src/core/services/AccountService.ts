@@ -259,9 +259,15 @@ export class AccountService {
     const username = this.session.getUsername();
     const result = await this.db.run(SQL.insertAccount, {
       ...account,
+      code: account.code ?? null,
+      address: account.address ?? null,
+      phone1: account.phone1 ?? null,
+      phone2: account.phone2 ?? null,
+      goodsName: account.goodsName ?? null,
       nameUrdu: account.nameUrdu ?? null,
       addressUrdu: account.addressUrdu ?? null,
       goodsNameUrdu: account.goodsNameUrdu ?? null,
+      discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
       username,
     });
@@ -298,9 +304,15 @@ export class AccountService {
     const username = this.session.getUsername();
     const result = await this.db.run(SQL.insertAccount, {
       ...account,
+      code: account.code ?? null,
+      address: account.address ?? null,
+      phone1: account.phone1 ?? null,
+      phone2: account.phone2 ?? null,
+      goodsName: account.goodsName ?? null,
       nameUrdu: account.nameUrdu ?? null,
       addressUrdu: account.addressUrdu ?? null,
       goodsNameUrdu: account.goodsNameUrdu ?? null,
+      discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
       username,
     });
@@ -317,6 +329,7 @@ export class AccountService {
       nameUrdu: account.nameUrdu ?? null,
       addressUrdu: account.addressUrdu ?? null,
       goodsNameUrdu: account.goodsNameUrdu ?? null,
+      discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
       id: cast(account.id),
       username,

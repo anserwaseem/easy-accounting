@@ -1,10 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 
-import {
-  useBillsAging,
-  ALL_PARTIES_HEAD,
-  ALL_PARTIES_EMPTY_SELECTION_MESSAGE,
-} from '../useBillsAging';
+import { useBillsAging, ALL_PARTIES_HEAD } from '../useBillsAging';
 
 async function flushMicrotasks() {
   await act(async () => {
@@ -189,23 +185,19 @@ describe('useBillsAging daysStatus', () => {
 describe('useBillsAging all-parties scope', () => {
   beforeEach(() => setupElectron());
 
-  it('defaults to All parties and computes nothing until customers are selected', async () => {
+  it('defaults to All parties and computes all qualifying accounts across heads', async () => {
     const result = await renderAllParties();
 
     expect(result.current.selectedHead).toBe(ALL_PARTIES_HEAD);
     expect(result.current.isAllParties).toBe(true);
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.billsAging.accounts).toHaveLength(0);
-    expect(result.current.infoMessage).toBe(
-      ALL_PARTIES_EMPTY_SELECTION_MESSAGE,
-    );
+    expect(result.current.billsAging.accounts.length).toBeGreaterThan(0);
 
-    // the empty-state guard must not fetch a single ledger
-    const { electron } = window as any;
-    expect(
-      electron.getLedgerBalancesForAccountIdsAsOfDate,
-    ).not.toHaveBeenCalled();
-    expect(electron.getLedgerRangeForAccountIds).not.toHaveBeenCalled();
+    const accountIds = result.current.billsAging.accounts.map(
+      (a) => a.accountId,
+    );
+    expect(accountIds).toContain(SILENT_ACCOUNT.id);
+    expect(accountIds).toContain(ACTIVE_ACCOUNT.id);
   });
 
   it('offers every account under any agent head, tagged with its head name', async () => {

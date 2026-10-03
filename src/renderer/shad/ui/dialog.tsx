@@ -1,4 +1,4 @@
-import { forwardRef, useEffect } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import {
   Close,
   Content,
@@ -27,21 +27,37 @@ import { cn } from 'renderer/lib/utils';
  * open modal keeps its modality. Applied here rather than at a call site because
  * twenty files use this component and the next one should not have to know.
  */
+const cleanBodyPointerEvents = () => {
+  // after Radix's own teardown, not during it — otherwise this runs first and
+  // Radix re-applies the lock on its way out
+  setTimeout(() => {
+    if (typeof document === 'undefined') return;
+    if (document.body.style.pointerEvents !== 'none') return;
+    if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+    document.body.style.pointerEvents = '';
+  }, 0);
+};
+
 const Dialog: React.FC<React.ComponentPropsWithoutRef<typeof Root>> = ({
   open,
   ...props
 }: React.ComponentPropsWithoutRef<typeof Root>) => {
+  const isOpenRef = useRef(open);
+
   useEffect(() => {
-    if (open) return undefined;
-    // after Radix's own teardown, not during it — otherwise this runs first and
-    // Radix re-applies the lock on its way out
-    const timer = setTimeout(() => {
-      if (document.body.style.pointerEvents !== 'none') return;
-      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
-      document.body.style.pointerEvents = '';
-    }, 0);
-    return () => clearTimeout(timer);
+    isOpenRef.current = open;
+    if (!open) {
+      cleanBodyPointerEvents();
+    }
   }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (isOpenRef.current) {
+        cleanBodyPointerEvents();
+      }
+    };
+  }, []);
 
   return <Root open={open} {...props} />;
 };

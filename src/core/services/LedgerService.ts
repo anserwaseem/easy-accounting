@@ -168,6 +168,29 @@ const SQL = {
       ) t
       WHERE t.rn = 1
     `,
+  getCreditSumsForAccountIdsInRange: `
+      SELECT
+        lv.accountId AS accountId,
+        COALESCE(SUM(lv.credit), 0) AS collected
+      FROM ledger_view lv
+      WHERE lv.accountId IN (
+        SELECT CAST(j.value AS INTEGER)
+        FROM json_each(@accountIdsJson) AS j
+      )
+        AND (
+          CASE
+            WHEN length(lv.date) = 10 THEN lv.date
+            ELSE date(datetime(lv.date, 'localtime'))
+          END
+        ) >= @startDate
+        AND (
+          CASE
+            WHEN length(lv.date) = 10 THEN lv.date
+            ELSE date(datetime(lv.date, 'localtime'))
+          END
+        ) <= @endDate
+      GROUP BY lv.accountId
+    `,
   getLedgerRangeForAccountIds: `
       SELECT lv.ownEntryId AS id, lv.date, lv.accountId, lv.particulars, lv.debit, lv.credit, lv.balance, lv.balanceType, lv.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode
       FROM ledger_view lv
@@ -304,6 +327,33 @@ export class LedgerService {
       asOfDate,
     });
     return LedgerService.balanceRowsToMap(rows);
+  }
+
+  /**
+   * sum of credits per account for an inclusive local-date range (yyyy-MM-dd).
+   * credits on a party ledger are collections. debits (sales) are ignored.
+   * accounts with no credits in the window are omitted.
+   */
+  async getCreditSumsForAccountIdsInRange(
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ): Promise<Record<number, number>> {
+    const unique = LedgerService.uniqueSortedAccountIds(accountIds);
+    if (unique.length === 0) return {};
+    const rows = await this.db.all<{ accountId: number; collected: number }>(
+      SQL.getCreditSumsForAccountIdsInRange,
+      {
+        accountIdsJson: JSON.stringify(unique),
+        startDate,
+        endDate,
+      },
+    );
+    const out: Record<number, number> = {};
+    for (const row of rows) {
+      out[row.accountId] = row.collected ?? 0;
+    }
+    return out;
   }
 
   /** get the running balance as of a given date (last ledger entry on or before that date). */

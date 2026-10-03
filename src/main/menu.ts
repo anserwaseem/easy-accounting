@@ -156,7 +156,7 @@ export default class MenuBuilder {
         {
           label: 'Check for Updates',
           click: () => {
-            AppUpdater.checkForUpdates();
+            AppUpdater.checkForUpdates(true);
           },
         },
         {

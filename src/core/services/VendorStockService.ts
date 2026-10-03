@@ -149,6 +149,10 @@ const SQL = {
       DELETE FROM vendor_stock_movements
       WHERE referenceType = 'vendor_issue' AND referenceId = @issueId
     `,
+  deleteInvoiceMovements: `
+      DELETE FROM vendor_stock_movements
+      WHERE referenceType = 'invoice' AND referenceId = @invoiceId
+    `,
   deleteIssue: `
       DELETE FROM vendor_issues WHERE id = @issueId
     `,
@@ -660,6 +664,39 @@ export class VendorStockService {
     }
 
     return messages;
+  }
+
+  /**
+   * called from InvoiceService when editing an existing purchase invoice.
+   * reverts previous stock deductions on vendor_stock and deletes previous
+   * purchase movements for this invoice so history rewrites cleanly without
+   * creating artificial purchase_return rows.
+   * must be called inside an existing db transaction.
+   */
+  async revertPurchaseStockForUpdate(
+    invoiceId: number,
+    lines: VendorStockPurchaseLine[],
+  ): Promise<void> {
+    for (const line of lines) {
+      if (!line.accountId || !line.inventoryId || !line.quantity) continue;
+      // eslint-disable-next-line no-await-in-loop
+      if (!(await this.tracksVendorStock(line.accountId))) continue;
+
+      // eslint-disable-next-line no-await-in-loop
+      const headId = await this.resolveFamilyHeadId(line.inventoryId);
+      // purchase originally deducted stock (quantityDelta was negative);
+      // to revert, add back line.quantity
+      // eslint-disable-next-line no-await-in-loop
+      await this.db.run(SQL.upsertVendorStockDelta, {
+        vendorAccountId: cast(line.accountId),
+        inventoryId: cast(headId),
+        quantityDelta: line.quantity,
+      });
+    }
+
+    await this.db.run(SQL.deleteInvoiceMovements, {
+      invoiceId: cast(invoiceId),
+    });
   }
 
   async getActivity(

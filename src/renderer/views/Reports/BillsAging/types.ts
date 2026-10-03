@@ -31,6 +31,8 @@ export interface BillsAgingAccount {
   accountId: number;
   accountName: string;
   accountCode?: number | string;
+  phone1?: string;
+  phone2?: string;
   /** agent head the account lives under; shown in the all-parties scope */
   headName?: string;
   bills: BillItem[];
@@ -50,6 +52,9 @@ export interface BillsAging {
 /** flat row structure for the Excel-like/print table */
 export interface BillsAgingRow {
   accountCode?: number | string;
+  accountName?: string;
+  phone1?: string;
+  phone2?: string;
   /** agent head the account lives under; shown in the all-parties scope */
   headName?: string;
   billNumber: string;

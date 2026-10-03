@@ -46,5 +46,5 @@ export const DEFAULT_USER = {
 
 export const INVOICE_DISCOUNT_PERCENTAGE = 40;
 
-/** account name expected for extra discount journal (Debit Discount, Credit party) */
+/** historical expense account name. extra discount no longer posts here. */
 export const DISCOUNT_ACCOUNT_NAME = 'Discount';

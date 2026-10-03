@@ -199,12 +199,17 @@ const PrintableInvoiceScreen = () => {
   const [sessionShowBillBalance, setSessionShowBillBalance] = useState<
     boolean | null
   >(null);
+  const [sessionShowPrintNote, setSessionShowPrintNote] = useState<
+    boolean | null
+  >(null);
   const effectiveLocale = sessionLocale ?? invoicePrintSettings.locale;
   const effectiveShowPartyBalances =
     sessionShowPartyBalances ?? invoicePrintSettings.showPartyBalances;
   const effectiveShowAgent = sessionShowAgent ?? invoicePrintSettings.showAgent;
   const effectiveShowBillBalance =
     sessionShowBillBalance ?? invoicePrintSettings.showBillBalance;
+  const effectiveShowPrintNote =
+    sessionShowPrintNote ?? invoicePrintSettings.showPrintNote;
   const isPrintSessionOverride =
     (sessionLocale != null && sessionLocale !== invoicePrintSettings.locale) ||
     (sessionShowPartyBalances != null &&
@@ -212,7 +217,9 @@ const PrintableInvoiceScreen = () => {
     (sessionShowAgent != null &&
       sessionShowAgent !== invoicePrintSettings.showAgent) ||
     (sessionShowBillBalance != null &&
-      sessionShowBillBalance !== invoicePrintSettings.showBillBalance);
+      sessionShowBillBalance !== invoicePrintSettings.showBillBalance) ||
+    (sessionShowPrintNote != null &&
+      sessionShowPrintNote !== invoicePrintSettings.showPrintNote);
   const isUrdu = effectiveLocale === 'ur';
   const labels = useMemo(
     () =>
@@ -760,6 +767,8 @@ const PrintableInvoiceScreen = () => {
     (sum, item) => sum + toNumber(item.quantity),
     0,
   );
+  const extraDiscountAmount = toNumber(invoice?.extraDiscount);
+  const hasExtraDiscount = extraDiscountAmount > 0;
 
   // same amount col width as EN so SKU/number columns stay ditto; footer total nowraps
   const amountColClass = 'pe-2 w-[7.25rem] tabular-nums';
@@ -1051,10 +1060,13 @@ const PrintableInvoiceScreen = () => {
     companyProfile.printNoteUrdu,
     effectiveLocale,
   );
+  const showPrintNoteText =
+    effectiveShowPrintNote && !isPurchase && printNoteText.length > 0;
   const showPrintNoteBlock =
-    (!isPurchase && printNoteText.length > 0) ||
-    companyProfile.whatsapp.trim().length > 0 ||
-    companyProfile.website.trim().length > 0;
+    effectiveShowPrintNote &&
+    (showPrintNoteText ||
+      companyProfile.whatsapp.trim().length > 0 ||
+      companyProfile.website.trim().length > 0);
 
   const batchSavePdfAriaLabel = useMemo(() => {
     if (isBatchPrinting) {
@@ -1126,68 +1138,40 @@ const PrintableInvoiceScreen = () => {
                 Esc
               </Kbd>
             </Button>
-            <TooltipProvider>
-              <div className="flex items-center gap-1.5">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handlePrint}
-                      variant="default"
-                      className={`min-w-[10.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
-                      disabled={
-                        isBatchPrinting || isOpeningPdf || !isInvoiceSynced
-                      }
-                    >
-                      Print
-                      <KbdGroup className="hidden sm:inline-flex">
-                        <Kbd className={printToolbarKbdOnPrimaryClass}>
-                          {getOsModifierLabel()}
-                        </Kbd>
-                        <Kbd className={printToolbarKbdOnPrimaryClass}>P</Kbd>
-                      </KbdGroup>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[min(18rem,calc(100vw-2rem))] px-3 py-2 text-pretty"
-                  >
-                    <p className="text-sm leading-snug text-popover-foreground">
-                      No page numbers (1/N). Use Open PDF for stamped pages.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-                <ChevronRight
-                  className="h-4 w-4 shrink-0 text-neutral-400"
-                  aria-hidden
-                />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      onClick={handleOpenPdf}
-                      variant="outline"
-                      className={`min-w-[9rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
-                      disabled={
-                        isBatchPrinting || isOpeningPdf || !isInvoiceSynced
-                      }
-                      aria-label="Open page-stamped PDF"
-                    >
-                      <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {isOpeningPdf ? 'Opening…' : 'Open PDF'}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[min(18rem,calc(100vw-2rem))] px-3 py-2 text-pretty"
-                  >
-                    <p className="text-sm leading-snug text-popover-foreground">
-                      Opens a page-stamped PDF (1/N) in Preview. Print from
-                      there.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            </TooltipProvider>
+            <div className="flex items-center gap-1.5">
+              <Button
+                onClick={handlePrint}
+                variant="default"
+                className={`min-w-[10.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
+                disabled={isBatchPrinting || isOpeningPdf || !isInvoiceSynced}
+                title="No page numbers (1/N). Use Open PDF for stamped pages."
+              >
+                Print
+                <KbdGroup className="hidden sm:inline-flex">
+                  <Kbd className={printToolbarKbdOnPrimaryClass}>
+                    {getOsModifierLabel()}
+                  </Kbd>
+                  <Kbd className={printToolbarKbdOnPrimaryClass}>P</Kbd>
+                </KbdGroup>
+              </Button>
+              <ChevronRight
+                className="h-4 w-4 shrink-0 text-neutral-400"
+                aria-hidden
+              />
+              <Button
+                type="button"
+                onClick={handleOpenPdf}
+                variant="outline"
+                className={`min-w-[9rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
+                disabled={isBatchPrinting || isOpeningPdf || !isInvoiceSynced}
+                aria-label="Open page-stamped PDF"
+                title="Opens a page-stamped PDF (1/N) in Preview. Print from
+                      there."
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {isOpeningPdf ? 'Opening…' : 'Open PDF'}
+              </Button>
+            </div>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1336,6 +1320,24 @@ const PrintableInvoiceScreen = () => {
                 },
                 {
                   id: 'printSessionBillBalanceOff',
+                  value: 'off',
+                  caption: 'Hide',
+                },
+              ]}
+            />
+            <PrintSessionChoiceRow
+              label="Note"
+              value={effectiveShowPrintNote ? 'on' : 'off'}
+              disabled={isBatchPrinting}
+              onValueChange={(v) => setSessionShowPrintNote(v === 'on')}
+              options={[
+                {
+                  id: 'printSessionNoteOn',
+                  value: 'on',
+                  caption: 'Show',
+                },
+                {
+                  id: 'printSessionNoteOff',
                   value: 'off',
                   caption: 'Hide',
                 },
@@ -1732,24 +1734,23 @@ const PrintableInvoiceScreen = () => {
               >
                 {totalQuantity}
               </td>
-              <td
-                colSpan={3}
-                className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
-              />
+              {hasExtraDiscount ? (
+                <>
+                  <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
+                  <td className={`${footerBoxLabelClass} text-end !border-e-0`}>
+                    {labels.extraDiscount}
+                  </td>
+                  <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
+                    {renderFooterAmount(extraDiscountAmount)}
+                  </td>
+                </>
+              ) : (
+                <td
+                  colSpan={3}
+                  className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
+                />
+              )}
             </tr>
-            {invoice.extraDiscount ? (
-              <tr>
-                <td className={footerBoxClearClass} />
-                <td className={`${footerBoxClearClass} !border-s-0`} />
-                <td className={footerBoxLabelClass}>{labels.extraDiscount}</td>
-                <td className={footerBoxClass} />
-                <td className={footerBoxClass} />
-                <td className={footerBoxClass} />
-                <td className={footerBoxAmountClass}>
-                  {renderFooterAmount(toNumber(invoice.extraDiscount))}
-                </td>
-              </tr>
-            ) : null}
             <tr>
               <td className={footerBoxClearClass} />
               {showRunningBalances && runningBalances ? (
@@ -1798,7 +1799,7 @@ const PrintableInvoiceScreen = () => {
           <div
             className={`invoice-print-note mt-3 flex justify-between gap-6 text-sm ${urduFieldRowAlignClass}`}
           >
-            {printNoteText && !isPurchase ? (
+            {showPrintNoteText ? (
               <p className={`min-w-0 ${isUrdu ? chromeClass : ''}`}>
                 <span className={chromeClass}>{labels.note}</span>{' '}
                 {printNoteText}
@@ -1806,7 +1807,11 @@ const PrintableInvoiceScreen = () => {
             ) : (
               <div />
             )}
-            <div className="shrink-0 whitespace-nowrap">
+            <div
+              className={`shrink-0 whitespace-nowrap ${
+                isUrdu ? 'flex items-baseline gap-6' : ''
+              }`}
+            >
               {companyProfile.whatsapp.trim() ? (
                 <p>
                   <span className={chromeClass}>{labels.whatsapp}</span>{' '}

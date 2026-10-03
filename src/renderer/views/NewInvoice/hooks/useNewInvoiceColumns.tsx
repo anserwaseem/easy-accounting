@@ -166,7 +166,7 @@ const InvoiceLineQuantityCell = <T extends FieldValues>({
               className="flex shrink-0 items-center gap-1 tabular-nums leading-none"
               title={stockTitle}
             >
-              {availableQty && (
+              {availableQty !== undefined && (
                 <>
                   <span className="text-xs font-extralight text-muted-foreground mb-0.5">
                     /

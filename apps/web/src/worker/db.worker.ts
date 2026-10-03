@@ -791,6 +791,12 @@ async function main(): Promise<void> {
         accountIds as number[],
         endDate as string,
       ),
+    getCreditSumsForAccountIdsInRange: (accountIds, startDate, endDate) =>
+      ledgerService.getCreditSumsForAccountIdsInRange(
+        accountIds as number[],
+        startDate as string,
+        endDate as string,
+      ),
 
     // -- Invoice -----------------------------------------------------------
     getNextInvoiceNumber: (invoiceType) =>
@@ -879,6 +885,12 @@ async function main(): Promise<void> {
     getLastInvoiceNumber: (invoiceType) =>
       invoiceService.getLastInvoiceNumber(
         invoiceType as Parameters<InvoiceService['getLastInvoiceNumber']>[0],
+      ),
+    getSaleBillsForAccountIdsInRange: (accountIds, startDate, endDate) =>
+      invoiceService.getSaleBillsForAccountIdsInRange(
+        accountIds as number[],
+        startDate as string,
+        endDate as string,
       ),
     getInvoiceIdsFromMinId: (invoiceType, fromInvoiceId, scope) =>
       invoiceService.getInvoiceIdsFromMinId(

@@ -586,6 +586,15 @@ app
         ledgerService.getBalancesForAccountIdsAsOfDate(accountIds, asOfDate),
     );
     ipcMain.handle(
+      'ledger:getCreditSumsForAccountIdsInRange',
+      async (_, accountIds: number[], startDate: string, endDate: string) =>
+        ledgerService.getCreditSumsForAccountIdsInRange(
+          accountIds,
+          startDate,
+          endDate,
+        ),
+    );
+    ipcMain.handle(
       'ledger:getLedgerRangeForAccountIds',
       async (_, accountIds: number[], startDate: string, endDate: string) => {
         const map = await ledgerService.getLedgerRangeForAccountIds(
@@ -917,6 +926,15 @@ app
     );
     ipcMain.handle('invoice:getLastNumber', (_, invoiceType: InvoiceType) =>
       invoiceService.getLastInvoiceNumber(invoiceType),
+    );
+    ipcMain.handle(
+      'invoice:getSaleBillsForAccountIdsInRange',
+      (_, accountIds: number[], startDate: string, endDate: string) =>
+        invoiceService.getSaleBillsForAccountIdsInRange(
+          accountIds,
+          startDate,
+          endDate,
+        ),
     );
     ipcMain.handle(
       'invoice:getIdsFromMinId',

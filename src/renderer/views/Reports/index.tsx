@@ -12,6 +12,7 @@ import {
   Scale,
   AlertCircle,
   Users,
+  ClipboardList,
 } from 'lucide-react';
 import { Card } from 'renderer/shad/ui/card';
 import { Alert, AlertDescription, AlertTitle } from 'renderer/shad/ui/alert';
@@ -55,6 +56,13 @@ const accountingReports: ReportOption[] = [
     description: 'Track bill payments and outstanding amounts by account.',
     path: '/reports/bills-aging',
     icon: <Clock className="h-6 w-6" />,
+  },
+  {
+    title: 'Collection sheet',
+    description:
+      'Agent route sheet for a date range. Balance, collections, and sale bills. Blank columns for the trip.',
+    path: '/reports/collection-sheet',
+    icon: <ClipboardList className="h-6 w-6" />,
   },
 ];
 

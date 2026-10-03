@@ -28,6 +28,7 @@ export const INVOICE_PRINT_SETTING_KEYS = {
   showPartyBalances: 'print.showPartyBalances',
   showAgent: 'print.showAgent',
   showBillBalance: 'print.showBillBalance',
+  showPrintNote: 'print.showPrintNote',
   /** legacy; still copied if present so a second device does not lose it */
   totalQuantityLabel: 'print.totalQuantityLabel',
 } as const;

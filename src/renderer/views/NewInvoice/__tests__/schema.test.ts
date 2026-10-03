@@ -100,6 +100,49 @@ describe('NewInvoice schema', () => {
     ).toBe(true);
   });
 
+  it('sale quotation: does not enforce stock cap (allows quantity > stock and 0 stock)', () => {
+    const schema = buildNewInvoiceFormSchema({
+      invoiceType: InvoiceType.Sale,
+      inventory: [inv({ id: 10, quantity: 2 }), inv({ id: 11, quantity: 0 })],
+      getUseSingleAccount: () => true,
+      getSplitByItemType: () => false,
+      getIsQuotationFlow: () => true,
+    });
+
+    const result = schema.safeParse({
+      id: -1,
+      date: new Date().toISOString(),
+      invoiceNumber: -1,
+      extraDiscount: 0,
+      extraDiscountAccountId: undefined,
+      totalAmount: 1000,
+      invoiceType: InvoiceType.Sale,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: { singleAccountId: 123, multipleAccountIds: [] },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: 10,
+          quantity: 50, // exceeds available 2
+          discount: 0,
+          price: 10,
+          discountedPrice: 500,
+        },
+        {
+          id: 2,
+          inventoryId: 11,
+          quantity: 5, // 0 on hand
+          discount: 0,
+          price: 100,
+          discountedPrice: 500,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it('purchase: does not enforce stock cap', () => {
     const schema = buildNewInvoiceFormSchema({
       invoiceType: InvoiceType.Purchase,

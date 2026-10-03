@@ -377,6 +377,12 @@ export interface AppApi {
     accountIds: number[],
     endDate: string,
   ) => Promise<Record<number, LedgerView[]>>;
+  /** sum of party-ledger credits in an inclusive local-date range */
+  getCreditSumsForAccountIdsInRange: (
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ) => Promise<Record<number, number>>;
 
   // ---------------------------------------------------------------------
   // Invoice
@@ -429,6 +435,17 @@ export interface AppApi {
     scope?: 'posted' | 'quotation',
   ) => Promise<any>;
   getLastInvoiceNumber: (invoiceType: InvoiceType) => Promise<any>;
+  /** sale invoice number + date per account for an inclusive local-date range */
+  getSaleBillsForAccountIdsInRange: (
+    accountIds: number[],
+    startDate: string,
+    endDate: string,
+  ) => Promise<
+    Record<
+      number,
+      Array<{ invoiceNumber: number; date: string; amount: number }>
+    >
+  >;
   getInvoiceIdsFromMinId: (
     invoiceType: InvoiceType,
     fromInvoiceId: number,

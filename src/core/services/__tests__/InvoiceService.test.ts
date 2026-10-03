@@ -294,7 +294,7 @@ describe('core InvoiceService', () => {
     expect(saleLedger.at(-1)!.credit).toBe(uiTotal);
   });
 
-  it('sale: single account, extra discount posts extra-discount journal and reconciles to UI total', async () => {
+  it('sale: single account extra discount credits Sale the net and leaves Discount untouched', async () => {
     const acc = await seedBaseAccounts();
     const inv = await seedInventoryAndTypes();
 
@@ -337,19 +337,21 @@ describe('core InvoiceService', () => {
     const journalRows = db
       .prepare(`SELECT narration FROM journal ORDER BY id`)
       .all() as Array<{ narration: string }>;
-    expect(journalRows).toHaveLength(2);
+    expect(journalRows).toHaveLength(1);
     expect(journalRows[0].narration).toBe('Sale Invoice #2001');
-    expect(journalRows[1].narration).toBe(
-      'Sale Invoice #2001 (extra discount)',
-    );
 
     const partyLedger = await core.ledger.getLedger(acc.primaryPartyId);
-    expect(partyLedger.at(-2)!.debit).toBe(uiTotal + extraDiscount);
-    expect(partyLedger.at(-1)!.credit).toBe(extraDiscount);
+    expect(partyLedger).toHaveLength(1);
+    expect(partyLedger[0].debit).toBe(uiTotal);
 
-    const net =
-      (partyLedger.at(-2)!.debit ?? 0) - (partyLedger.at(-1)!.credit ?? 0);
-    expect(net).toBe(uiTotal);
+    const saleLedger = await core.ledger.getLedger(acc.saleAccountId);
+    expect(saleLedger).toHaveLength(1);
+    expect(saleLedger[0].credit).toBe(uiTotal);
+
+    const discountLedger = await core.ledger.getLedger(
+      acc.discountExpenseAccountId,
+    );
+    expect(discountLedger).toHaveLength(0);
   });
 
   it('sale: sections/multi-customer posts per-account journals and decrements inventory per item', async () => {
@@ -722,6 +724,46 @@ describe('core InvoiceService', () => {
       .prepare(`SELECT isReturned FROM invoices WHERE id = ?`)
       .get([invoiceId]) as { isReturned: number };
     expect(returnedRow.isReturned).toBe(0);
+  });
+
+  it('getSaleBillsForAccountIdsInRange returns sale bills in date range grouped by account', async () => {
+    const acc = await seedBaseAccounts();
+    const inv = await seedInventoryAndTypes();
+
+    const invoice1: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: '2026-03-05',
+      invoiceNumber: 5001,
+      extraDiscount: 0,
+      totalAmount: 202,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity: 2,
+          discount: 0,
+          price: 101,
+          discountedPrice: 202,
+        },
+      ],
+    };
+    await core.invoices.insertInvoice('Sale' as InvoiceType, invoice1);
+
+    const bills = await core.invoices.getSaleBillsForAccountIdsInRange(
+      [acc.primaryPartyId],
+      '2026-03-01',
+      '2026-03-10',
+    );
+    expect(bills[acc.primaryPartyId]).toHaveLength(1);
+    expect(bills[acc.primaryPartyId][0].invoiceNumber).toBe(5001);
+    expect(bills[acc.primaryPartyId][0].amount).toBe(202);
   });
 });
 

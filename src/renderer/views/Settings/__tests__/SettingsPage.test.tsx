@@ -37,6 +37,7 @@ describe('SettingsPage', () => {
       'print.showPartyBalances': true,
       'print.showAgent': true,
       'print.showBillBalance': true,
+      'print.showPrintNote': true,
       'print.englishLabelOverrides': {},
       'print.urduLabelOverrides': {},
       debitCreditDefaultLabel: '0',
@@ -163,6 +164,7 @@ describe('SettingsPage', () => {
     expect(screen.getByText(/invoice print layout/i)).toBeInTheDocument();
     expect(screen.getByText(/show customer balances/i)).toBeInTheDocument();
     expect(screen.getByText(/show sales agent/i)).toBeInTheDocument();
+    expect(screen.getByText(/show print note/i)).toBeInTheDocument();
     expect(screen.getByText(/print language format/i)).toBeInTheDocument();
   });
 
