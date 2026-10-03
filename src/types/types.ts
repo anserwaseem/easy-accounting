@@ -305,7 +305,7 @@ export interface InventoryItem extends Omit<BaseEntity, 'date'> {
    * to publish; a consumer may then compose a title of its own.
    */
   title?: string | null;
-  /** active flag for inventory lifecycle (migration 028) */
+  /** active flag for inventory lifecycle (desktop 028_add_isActive_to_inventory) */
   isActive?: boolean | 0 | 1;
 }
 export interface UpdateInventoryItem {

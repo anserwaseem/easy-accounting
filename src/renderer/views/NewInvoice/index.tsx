@@ -2142,12 +2142,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   <div className="grid grid-cols-2 gap-x-8 gap-y-6">
                     {isSingleAccountSale && (
                       <>
-                        <div
-                          className="grid gap-3 col-span-2"
-                          style={{
-                            gridTemplateColumns: '2fr 1.2fr 0.6fr 0.4fr',
-                          }}
-                        >
+                        <div className="grid grid-cols-1 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
                           <FormField
                             control={form.control}
                             name="accountMapping.singleAccountId"
@@ -2263,12 +2258,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     )}
                     {isSingleAccountOrPurchase && !isSingleAccountSale && (
                       <>
-                        <div
-                          className="grid gap-3 col-span-2"
-                          style={{
-                            gridTemplateColumns: '2fr 1.2fr 0.6fr 0.4fr',
-                          }}
-                        >
+                        <div className="grid grid-cols-1 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
                           <FormField
                             control={form.control}
                             name="accountMapping.singleAccountId"
@@ -2401,8 +2391,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     {isSectionsView && (
                       <div
                         className={cn(
-                          'grid gap-4 col-span-2',
-                          isSale ? 'grid-cols-3' : 'grid-cols-1',
+                          'grid gap-4 col-span-2 grid-cols-1',
+                          isSale && 'sm:grid-cols-3',
                         )}
                       >
                         <FormField

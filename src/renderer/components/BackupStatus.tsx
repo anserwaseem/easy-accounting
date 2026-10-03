@@ -74,7 +74,7 @@ interface BackupStatusProps {
   collapsed: boolean;
 }
 
-const BackupStatus: FC<BackupStatusProps> = ({
+const BackupStatusInner: FC<BackupStatusProps> = ({
   collapsed,
 }: BackupStatusProps) => {
   const [info, setInfo] = useState<BackupLastInfo | null>(null);
@@ -237,6 +237,14 @@ const BackupStatus: FC<BackupStatusProps> = ({
       </PopoverContent>
     </Popover>
   );
+};
+
+const BackupStatus: FC<BackupStatusProps> = (props: BackupStatusProps) => {
+  // if backup RPCs are not supported on this platform (e.g. web PWA), do not render
+  if (!window.electron?.supportsBackup) {
+    return null;
+  }
+  return <BackupStatusInner {...props} />;
 };
 
 export default BackupStatus;

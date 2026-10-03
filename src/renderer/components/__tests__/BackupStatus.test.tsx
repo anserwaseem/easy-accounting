@@ -113,6 +113,7 @@ describe('BackupStatus', () => {
     getLastBackupInfo.mockResolvedValue(info(isoAgo(2 * HOUR_MS)));
     createBackup.mockResolvedValue({ success: true });
     window.electron = {
+      supportsBackup: true,
       getLastBackupInfo,
       createBackup,
       ipcRenderer: { on: ipcOn },
@@ -127,6 +128,14 @@ describe('BackupStatus', () => {
       'bg-emerald-500',
     );
     expect(createBackup).not.toHaveBeenCalled();
+  });
+
+  it('renders nothing when backup APIs are not supported (e.g. web PWA)', () => {
+    window.electron = {
+      ipcRenderer: { on: ipcOn },
+    } as unknown as Window['electron'];
+    const { container } = render(<BackupStatus collapsed={false} />);
+    expect(container.firstChild).toBeNull();
   });
 
   it('renders amber when older than 24h', async () => {

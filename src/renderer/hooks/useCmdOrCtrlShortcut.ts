@@ -11,6 +11,9 @@ export const useCmdOrCtrlShortcut = (
 ): void => {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!e?.key || !key) {
+        return;
+      }
       // support both lowercase and uppercase (e.g. 'n' or 'N')
       if (e.key.toLowerCase() !== key.toLowerCase()) {
         return;

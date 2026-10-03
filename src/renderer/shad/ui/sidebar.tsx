@@ -12,6 +12,12 @@ interface SidebarProps {
   itemClassName?: string;
   /** when true the sidebar narrows to icon-only width */
   collapsed?: boolean;
+  /**
+   * Bubbles clicks anywhere in the sidebar (nav links included) up to the
+   * caller — used on mobile to close the off-canvas overlay when a nav link
+   * is followed, without threading a close callback through every item.
+   */
+  onClick?: React.MouseEventHandler<HTMLElement>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -24,8 +30,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   itemsClassName,
   itemClassName,
   collapsed = false,
+  onClick,
 }: SidebarProps) => (
+  // Delegated click-bubbling only (used to detect a click landing on one of
+  // the interactive nav links/buttons rendered inside — see `onClick`'s doc
+  // comment above); those children already carry their own keyboard
+  // handling, so this wrapper itself needs none.
+  // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
   <aside
+    onClick={onClick}
     className={cn(
       'flex flex-col bg-gray-200 dark:bg-gray-800 transition-all duration-200',
       position === 'right' ? 'order-1' : '',

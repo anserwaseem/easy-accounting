@@ -8,6 +8,7 @@ import {
   getDefaultInvoicePrintLabels,
   INVOICE_PRINT_LABEL_KEYS,
 } from '@/renderer/lib/invoicePrint/locale';
+import { INVOICE_PRINT_SETTING_KEYS as KEYS } from '@/core/services/businessSettingKeys';
 
 export interface InvoicePrintSettings {
   locale: InvoicePrintLocale;
@@ -25,23 +26,13 @@ export interface InvoicePrintSettings {
   showPrintNote: boolean;
 }
 
-const INVOICE_PRINT_KEYS = {
-  locale: 'print.locale',
-  englishLabelOverrides: 'print.englishLabelOverrides',
-  urduLabelOverrides: 'print.urduLabelOverrides',
-  showPartyBalances: 'print.showPartyBalances',
-  showAgent: 'print.showAgent',
-  showBillBalance: 'print.showBillBalance',
-  showPrintNote: 'print.showPrintNote',
-  /** legacy key removed from Settings UI; ignored when present */
-  totalQuantityLabel: 'print.totalQuantityLabel',
-} as const;
-
 const DEFAULT_LOCALE: InvoicePrintLocale = 'en';
 const DEFAULT_SHOW_PARTY_BALANCES = true;
 const DEFAULT_SHOW_AGENT = true;
 const DEFAULT_SHOW_BILL_BALANCE = true;
 const DEFAULT_SHOW_PRINT_NOTE = true;
+
+const SYNC_APPLIED_EVENT = 'easyaccounting:sync-applied';
 
 const parseLocale = (value: unknown): InvoicePrintLocale =>
   value === 'ur' ? 'ur' : DEFAULT_LOCALE;
@@ -61,62 +52,84 @@ const parseLabelOverrides = (value: unknown): Partial<InvoicePrintLabels> => {
   return next;
 };
 
-const readInvoicePrintSettings = (): InvoicePrintSettings => ({
-  locale: parseLocale(window.electron.store.get(INVOICE_PRINT_KEYS.locale)),
-  englishLabelOverrides: parseLabelOverrides(
-    window.electron.store.get(INVOICE_PRINT_KEYS.englishLabelOverrides),
-  ),
-  urduLabelOverrides: parseLabelOverrides(
-    window.electron.store.get(INVOICE_PRINT_KEYS.urduLabelOverrides),
-  ),
-  showPartyBalances: parseShowPartyBalances(
-    window.electron.store.get(INVOICE_PRINT_KEYS.showPartyBalances),
-  ),
-  showAgent: parseShowPartyBalances(
-    window.electron.store.get(INVOICE_PRINT_KEYS.showAgent),
-  ),
-  showBillBalance: parseShowPartyBalances(
-    window.electron.store.get(INVOICE_PRINT_KEYS.showBillBalance),
-  ),
-  showPrintNote: parseShowPartyBalances(
-    window.electron.store.get(INVOICE_PRINT_KEYS.showPrintNote),
-  ),
-});
+const DEFAULT_PRINT: InvoicePrintSettings = {
+  locale: DEFAULT_LOCALE,
+  englishLabelOverrides: {},
+  urduLabelOverrides: {},
+  showPartyBalances: DEFAULT_SHOW_PARTY_BALANCES,
+  showAgent: DEFAULT_SHOW_AGENT,
+  showBillBalance: DEFAULT_SHOW_BILL_BALANCE,
+  showPrintNote: DEFAULT_SHOW_PRINT_NOTE,
+};
+
+const readInvoicePrintSettings = async (): Promise<InvoicePrintSettings> => {
+  if (!window.electron.getSetting) return DEFAULT_PRINT;
+  const [
+    locale,
+    englishLabelOverrides,
+    urduLabelOverrides,
+    showPartyBalances,
+    showAgent,
+    showBillBalance,
+    showPrintNote,
+  ] = await Promise.all([
+    window.electron.getSetting(KEYS.locale),
+    window.electron.getSetting(KEYS.englishLabelOverrides),
+    window.electron.getSetting(KEYS.urduLabelOverrides),
+    window.electron.getSetting(KEYS.showPartyBalances),
+    window.electron.getSetting(KEYS.showAgent),
+    window.electron.getSetting(KEYS.showBillBalance),
+    window.electron.getSetting(KEYS.showPrintNote),
+  ]);
+  return {
+    locale: parseLocale(locale),
+    englishLabelOverrides: parseLabelOverrides(englishLabelOverrides),
+    urduLabelOverrides: parseLabelOverrides(urduLabelOverrides),
+    showPartyBalances: parseShowPartyBalances(showPartyBalances),
+    showAgent: parseShowPartyBalances(showAgent),
+    showBillBalance: parseShowPartyBalances(showBillBalance),
+    showPrintNote: parseShowPartyBalances(showPrintNote),
+  };
+};
 
 export const useInvoicePrintSettings = () => {
-  const [settings, setSettings] = useState<InvoicePrintSettings>(() =>
-    readInvoicePrintSettings(),
-  );
+  const [settings, setSettings] = useState<InvoicePrintSettings>(DEFAULT_PRINT);
+
+  const refresh = useCallback(async () => {
+    setSettings(await readInvoicePrintSettings());
+  }, []);
 
   useEffect(() => {
-    setSettings(readInvoicePrintSettings());
-  }, []);
+    refresh();
+    window.addEventListener(SYNC_APPLIED_EVENT, refresh);
+    return () => window.removeEventListener(SYNC_APPLIED_EVENT, refresh);
+  }, [refresh]);
 
-  const saveInvoicePrintSettings = useCallback((next: InvoicePrintSettings) => {
-    window.electron.store.set(INVOICE_PRINT_KEYS.locale, next.locale);
-    window.electron.store.set(
-      INVOICE_PRINT_KEYS.englishLabelOverrides,
-      next.englishLabelOverrides,
-    );
-    window.electron.store.set(
-      INVOICE_PRINT_KEYS.urduLabelOverrides,
-      next.urduLabelOverrides,
-    );
-    window.electron.store.set(
-      INVOICE_PRINT_KEYS.showPartyBalances,
-      next.showPartyBalances,
-    );
-    window.electron.store.set(INVOICE_PRINT_KEYS.showAgent, next.showAgent);
-    window.electron.store.set(
-      INVOICE_PRINT_KEYS.showBillBalance,
-      next.showBillBalance,
-    );
-    window.electron.store.set(
-      INVOICE_PRINT_KEYS.showPrintNote,
-      next.showPrintNote,
-    );
-    setSettings(next);
-  }, []);
+  const saveInvoicePrintSettings = useCallback(
+    async (next: InvoicePrintSettings) => {
+      if (!window.electron.setSetting) return;
+      await Promise.all([
+        window.electron.setSetting(KEYS.locale, next.locale),
+        window.electron.setSetting(
+          KEYS.englishLabelOverrides,
+          next.englishLabelOverrides,
+        ),
+        window.electron.setSetting(
+          KEYS.urduLabelOverrides,
+          next.urduLabelOverrides,
+        ),
+        window.electron.setSetting(
+          KEYS.showPartyBalances,
+          next.showPartyBalances,
+        ),
+        window.electron.setSetting(KEYS.showAgent, next.showAgent),
+        window.electron.setSetting(KEYS.showBillBalance, next.showBillBalance),
+        window.electron.setSetting(KEYS.showPrintNote, next.showPrintNote),
+      ]);
+      setSettings(next);
+    },
+    [],
+  );
 
   return useMemo(
     () => ({

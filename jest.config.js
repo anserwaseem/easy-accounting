@@ -16,6 +16,9 @@ module.exports = {
     'release/app/dist',
     '.erb/dll',
     '__mocks__',
+    'src/core/sync/__tests__/mockServer.ts',
+    'src/core/sync/__tests__/convergenceScenarios.ts',
+    '<rootDir>/apps/web/',
     '\\.kilo',
   ],
   transform: {

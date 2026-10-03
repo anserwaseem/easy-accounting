@@ -1,0 +1,68 @@
+/**
+ * Core package: platform-free accounting logic.
+ *
+ * Rules of the room (enforced by ESLint import boundaries):
+ *  - Nothing in src/core may import from electron, electron-*, node builtins,
+ *    src/main, or src/renderer.
+ *  - Platform capabilities come in through the ports (./ports) and the
+ *    DatabaseDriver (./db/driver), injected by whoever hosts the core:
+ *    the Electron main process today, a web worker next.
+ *
+ * Business services live here. Electron main.ts serves them via
+ * src/main/coreRuntime.ts. Auth, Print, Publish, and Backup stay on
+ * src/main/services (OS / filesystem / native menus).
+ */
+
+export * from './ports';
+export * from './errorLogger';
+export * from './db/driver';
+export * from './utils/sqlite';
+export type { AppApi } from './api/AppApi';
+export { AccountService } from './services/AccountService';
+export { ChartService } from './services/ChartService';
+export { LedgerService } from './services/LedgerService';
+export { PricingService } from './services/PricingService';
+export { InventoryService } from './services/InventoryService';
+export { JournalService } from './services/JournalService';
+export { StatementService } from './services/StatementService';
+export { InvoiceService } from './services/InvoiceService';
+export { SettingsService } from './services/SettingsService';
+export {
+  COMPANY_PROFILE_SETTING_KEYS,
+  INVOICE_PRINT_SETTING_KEYS,
+  COMPANY_AND_PRINT_SETTING_KEYS,
+} from './services/businessSettingKeys';
+export { VendorStockService } from './services/VendorStockService';
+export { SyncEngine } from './sync/SyncEngine';
+export type { SyncReport } from './sync/SyncEngine';
+export type {
+  SyncTransport,
+  OutboxEntry,
+  PushResult,
+  PushRejection,
+  LogRow,
+} from './sync/transport';
+export {
+  SupabaseSyncTransport,
+  TransportError,
+} from './sync/SupabaseSyncTransport';
+export {
+  evaluateDuplicateSeedRisk,
+  DUPLICATE_SEED_RISK_MESSAGE,
+  DUPLICATE_SEED_RISK_GUIDANCE,
+} from './sync/connectGuard';
+export type {
+  DuplicateSeedRiskInput,
+  DuplicateSeedRiskWarning,
+} from './sync/connectGuard';
+export { SyncManager } from './sync/SyncManager';
+export type {
+  SyncKv,
+  SyncErrorKind,
+  SyncErrorInfo,
+  SyncStatusPayload,
+  SyncConnectResult,
+  SyncJoinResult,
+  SyncRebuildResult,
+  SyncNotifyMessage,
+} from './sync/SyncManager';

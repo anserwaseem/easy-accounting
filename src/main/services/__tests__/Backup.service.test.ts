@@ -4,10 +4,11 @@ import Database from 'better-sqlite3';
 import { Notification } from 'electron';
 import { createClient } from '@supabase/supabase-js';
 import { hostname } from 'node:os';
-import { BackupService } from '../Backup.service';
+import { BackupService, CLOUD_BACKUP_BUCKET } from '../Backup.service';
 import { DatabaseService } from '../Database.service';
 import { isOnline } from '../../utils/general';
 import { store } from '../../store';
+import { getBackupCredentials } from '../../utils/backupConfig';
 
 jest.mock('fs');
 jest.mock('path', () => jest.requireActual('path'));
@@ -28,6 +29,12 @@ jest.mock('../../store', () => ({
     onDidChange: jest.fn(),
   },
 }));
+jest.mock('../../utils/backupConfig', () => ({
+  getBackupCredentials: jest.fn(() => ({
+    url: 'https://mock.supabase.co',
+    anonKey: 'mock-key',
+  })),
+}));
 jest.mock('../Database.service', () => ({
   DatabaseService: {
     getInstance: jest.fn().mockReturnValue({
@@ -46,6 +53,11 @@ describe('BackupService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.resetModules();
+
+    (getBackupCredentials as jest.Mock).mockReturnValue({
+      url: 'https://mock.supabase.co',
+      anonKey: 'mock-key',
+    });
 
     (store.get as jest.Mock).mockImplementation((key) => {
       if (key === 'username') return 'test-user';
@@ -72,7 +84,6 @@ describe('BackupService', () => {
     // mock Supabase client
     (createClient as jest.Mock).mockReturnValue({
       storage: {
-        createBucket: jest.fn().mockResolvedValue({ error: null }),
         from: jest.fn().mockReturnValue({
           upload: jest.fn().mockResolvedValue({ error: null }),
           list: jest.fn().mockResolvedValue({
@@ -140,6 +151,35 @@ describe('BackupService', () => {
         silent: false,
       });
     });
+
+    it('falls back to the legacy per-machine bucket when the shared bucket is missing', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
+      (fs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('test'));
+      (isOnline as jest.Mock).mockReturnValue(true);
+
+      const sharedUpload = jest
+        .fn()
+        .mockResolvedValue({ error: { message: 'Bucket not found' } });
+      const legacyUpload = jest.fn().mockResolvedValue({ error: null });
+      const from = jest.fn((bucket: string) => ({
+        upload: bucket === CLOUD_BACKUP_BUCKET ? sharedUpload : legacyUpload,
+        list: jest.fn().mockResolvedValue({ data: [], error: null }),
+        download: jest.fn(),
+      }));
+      (createClient as jest.Mock).mockReturnValue({ storage: { from } });
+      const upgradeService = new BackupService();
+
+      const result = await upgradeService.createBackup();
+
+      expect(result.success).toBe(true);
+      expect(sharedUpload).toHaveBeenCalled();
+      expect(legacyUpload).toHaveBeenCalled();
+      expect(from).toHaveBeenCalledWith(CLOUD_BACKUP_BUCKET);
+      expect(from).toHaveBeenCalledWith(
+        `database-backup_${process.platform}_test-computer_test-user`,
+      );
+    });
   });
 
   describe('listBackups', () => {
@@ -170,6 +210,46 @@ describe('BackupService', () => {
         'database-backup_2025-01-25T15-21-43-748Z.db',
       );
       expect(backups[0].type).toBe('cloud');
+    });
+
+    it('merges files from the shared bucket and the legacy per-machine bucket', async () => {
+      (isOnline as jest.Mock).mockReturnValue(true);
+      (fs.readdirSync as jest.Mock).mockReturnValue([]);
+
+      const from = jest.fn((bucket: string) => ({
+        list: jest.fn().mockResolvedValue(
+          bucket === CLOUD_BACKUP_BUCKET
+            ? {
+                data: [
+                  {
+                    name: 'database-backup_2026-01-01T00-00-00-000Z.db',
+                    metadata: { size: 10 },
+                  },
+                ],
+                error: null,
+              }
+            : {
+                data: [
+                  {
+                    name: 'database-backup_2025-01-25T15-21-43-748Z.db',
+                    metadata: { size: 1234 },
+                  },
+                ],
+                error: null,
+              },
+        ),
+        upload: jest.fn(),
+        download: jest.fn(),
+      }));
+      (createClient as jest.Mock).mockReturnValue({ storage: { from } });
+      const upgradeService = new BackupService();
+
+      const backups = await upgradeService.listBackups();
+
+      expect(backups.map((b) => b.filename)).toEqual([
+        'database-backup_2026-01-01T00-00-00-000Z.db',
+        'database-backup_2025-01-25T15-21-43-748Z.db',
+      ]);
     });
   });
 
@@ -202,6 +282,51 @@ describe('BackupService', () => {
       );
 
       expect(result.success).toBe(true);
+    });
+
+    it('restores a cloud backup that only exists in the legacy per-machine bucket', async () => {
+      (isOnline as jest.Mock).mockReturnValue(true);
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readdirSync as jest.Mock).mockReturnValue([]);
+      (fs.copyFileSync as jest.Mock).mockImplementation(() => {});
+      (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
+
+      const legacyName = `database-backup_${process.platform}_test-computer_test-user`;
+      const download = jest.fn().mockResolvedValue({
+        data: {
+          arrayBuffer: async () => Buffer.from('legacy backup data'),
+        },
+        error: null,
+      });
+      const from = jest.fn((bucket: string) => ({
+        list: jest.fn().mockResolvedValue(
+          bucket === CLOUD_BACKUP_BUCKET
+            ? { data: [], error: { message: 'Bucket not found' } }
+            : {
+                data: [
+                  {
+                    name: 'database-backup_2025-01-25T15-21-43-748Z.db',
+                    metadata: { size: 1234 },
+                  },
+                ],
+                error: null,
+              },
+        ),
+        upload: jest.fn(),
+        download,
+      }));
+      (createClient as jest.Mock).mockReturnValue({ storage: { from } });
+      const upgradeService = new BackupService();
+
+      const result = await upgradeService.restoreFromDate(
+        '2025-01-25T15-21-43-748Z',
+      );
+
+      expect(result.success).toBe(true);
+      expect(from).toHaveBeenCalledWith(legacyName);
+      expect(download).toHaveBeenCalledWith(
+        'database-backup_2025-01-25T15-21-43-748Z.db',
+      );
     });
   });
 
@@ -304,6 +429,46 @@ describe('BackupService', () => {
       jest.advanceTimersByTime(60 * 60 * 1000); // Advance time by 1 hour
 
       expect(backupService.createBackup).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('when Supabase credentials are not configured', () => {
+    let unconfiguredService: BackupService;
+
+    beforeEach(() => {
+      (getBackupCredentials as jest.Mock).mockReturnValue(null);
+      unconfiguredService = new BackupService();
+    });
+
+    it('should initialize without throwing', () => {
+      expect(unconfiguredService).toBeDefined();
+    });
+
+    it('should create local backup and skip cloud upload even when online', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
+      (fs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('test'));
+      (isOnline as jest.Mock).mockReturnValue(true);
+
+      const result = await unconfiguredService.createBackup();
+
+      expect(result.success).toBe(true);
+      expect(result.path).toContain('database-backup');
+      expect(Notification).toHaveBeenCalledWith({
+        title: 'Backup Created',
+        body: 'Database backup created locally',
+        silent: false,
+        icon: undefined,
+      });
+    });
+
+    it('should return error when attempting cloud restore', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readdirSync as jest.Mock).mockReturnValue([]);
+
+      const result = await unconfiguredService.restoreFromDate('2025-01-25');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No backup found for date 2025-01-25');
     });
   });
 });

@@ -9,41 +9,58 @@ const localDateExpr = (col: string) => `
   )
 `;
 
+/** sqlite `utc` treats the string as local and emits UTC — works on any runner TZ */
+const utcIsoFromLocal = (
+  db: Database.Database,
+  localDateTime: string,
+): string => {
+  const row = db
+    .prepare(
+      `SELECT strftime('%Y-%m-%dT%H:%M:%fZ', datetime(@local, 'utc')) AS iso`,
+    )
+    .get({ local: localDateTime }) as { iso: string };
+  return row.iso;
+};
+
+const seedLedger = (db: Database.Database): void => {
+  db.exec(`
+    CREATE TABLE ledger (
+      id INTEGER PRIMARY KEY,
+      date TEXT NOT NULL,
+      accountId INTEGER NOT NULL,
+      balance INTEGER NOT NULL,
+      balanceType TEXT NOT NULL
+    );
+  `);
+
+  const insert = db.prepare(
+    `INSERT INTO ledger (id, date, accountId, balance, balanceType)
+     VALUES (@id, @date, @accountId, @balance, @balanceType)`,
+  );
+
+  // feb 20 local date-only row (end-of-day local balance)
+  insert.run({
+    id: 1,
+    date: '2026-02-20',
+    accountId: 926,
+    balance: 19026810,
+    balanceType: 'Cr',
+  });
+
+  // same instant as 2026-02-21 00:30 local, stored as ISO-Z
+  insert.run({
+    id: 2,
+    date: utcIsoFromLocal(db, '2026-02-21 00:30:00'),
+    accountId: 926,
+    balance: 19644310,
+    balanceType: 'Cr',
+  });
+};
+
 describe('ledger report date range (local-date semantics)', () => {
   it('opening balance before startDate excludes ISO-Z rows that are next local day', () => {
     const db = new Database(':memory:');
-    db.exec(`
-      CREATE TABLE ledger (
-        id INTEGER PRIMARY KEY,
-        date TEXT NOT NULL,
-        accountId INTEGER NOT NULL,
-        balance INTEGER NOT NULL,
-        balanceType TEXT NOT NULL
-      );
-    `);
-
-    const insert = db.prepare(
-      `INSERT INTO ledger (id, date, accountId, balance, balanceType)
-       VALUES (@id, @date, @accountId, @balance, @balanceType)`,
-    );
-
-    // feb 20 local date-only row (end-of-day local balance)
-    insert.run({
-      id: 1,
-      date: '2026-02-20',
-      accountId: 926,
-      balance: 19026810,
-      balanceType: 'Cr',
-    });
-
-    // this is feb 21 local (PKT +05), but stored as feb 20T19:00Z
-    insert.run({
-      id: 2,
-      date: '2026-02-20T19:00:00.000Z',
-      accountId: 926,
-      balance: 19644310,
-      balanceType: 'Cr',
-    });
+    seedLedger(db);
 
     const stmt = db.prepare(
       `SELECT balance
@@ -65,35 +82,7 @@ describe('ledger report date range (local-date semantics)', () => {
 
   it('range query includes ISO-Z rows that fall within local date range', () => {
     const db = new Database(':memory:');
-    db.exec(`
-      CREATE TABLE ledger (
-        id INTEGER PRIMARY KEY,
-        date TEXT NOT NULL,
-        accountId INTEGER NOT NULL,
-        balance INTEGER NOT NULL,
-        balanceType TEXT NOT NULL
-      );
-    `);
-
-    const insert = db.prepare(
-      `INSERT INTO ledger (id, date, accountId, balance, balanceType)
-       VALUES (@id, @date, @accountId, @balance, @balanceType)`,
-    );
-
-    insert.run({
-      id: 1,
-      date: '2026-02-20',
-      accountId: 926,
-      balance: 19026810,
-      balanceType: 'Cr',
-    });
-    insert.run({
-      id: 2,
-      date: '2026-02-20T19:00:00.000Z',
-      accountId: 926,
-      balance: 19644310,
-      balanceType: 'Cr',
-    });
+    seedLedger(db);
 
     const stmt = db.prepare(
       `SELECT id

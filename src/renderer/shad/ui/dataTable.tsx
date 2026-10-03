@@ -45,6 +45,12 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   onClick?: (row: Row<TData>) => void;
   /** explanatory text shown as a tooltip on the column header */
   headerTooltip?: string;
+  /**
+   * Responsive visibility/sizing classes applied to this column's header
+   * and body cells (e.g. `hidden sm:table-cell`). Unset on desktop-only
+   * columns so layout remains byte-identical.
+   */
+  responsiveClassName?: string;
 };
 
 // TODO: search by field(s)
@@ -181,6 +187,8 @@ const HeaderRow = ({
               ? 'bg-gray-300 dark:bg-gray-800'
               : 'bg-gray-200 dark:bg-gray-900',
             compact ? 'h-7 px-2 py-1 text-xs' : 'h-8',
+            (header.column.columnDef as ColumnDef<unknown>)
+              ?.responsiveClassName,
           )}
           style={{
             width: header.getSize(),
@@ -580,6 +588,8 @@ const DataTable = <TData, TValue>({
           cellPad,
           (cell.column.columnDef as ColumnDef<TData, TValue>)?.onClick &&
             'cursor-pointer',
+          (cell.column.columnDef as ColumnDef<TData, TValue>)
+            ?.responsiveClassName,
         )}
         style={{
           width: cell.column.getSize(),
@@ -810,118 +820,125 @@ const DataTable = <TData, TValue>({
           </div>
         </div>
       ) : null}
-      <Table className={hasStickyFooter ? 'table-fixed' : undefined}>
-        {hasStickyFooter ? (
-          <colgroup>
-            {leafHeaders.map((header) => (
-              <col key={header.id} style={{ width: header.column.getSize() }} />
+      <div className="overflow-x-auto w-full">
+        <Table className={hasStickyFooter ? 'table-fixed' : undefined}>
+          {hasStickyFooter ? (
+            <colgroup>
+              {leafHeaders.map((header) => (
+                <col
+                  key={header.id}
+                  style={{ width: header.column.getSize() }}
+                />
+              ))}
+            </colgroup>
+          ) : null}
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <HeaderRow
+                key={headerGroup.id}
+                headerGroup={headerGroup}
+                compact={compact}
+              />
             ))}
-          </colgroup>
-        ) : null}
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <HeaderRow
-              key={headerGroup.id}
-              headerGroup={headerGroup}
-              compact={compact}
-            />
-          ))}
-        </TableHeader>
-        <TableBody>
-          {rows?.length ? (
-            <>
-              {rows.map((row) => (
-                <TableRow
-                  key={resolveRowKey(row.original, row.index)}
-                  data-state={row.getIsSelected() && 'selected'}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      onClick={() =>
-                        (
-                          cell.column.columnDef as ColumnDef<TData, TValue>
-                        )?.onClick?.(cell.row)
-                      }
-                      className={cn(
-                        cellPad,
-                        (cell.column.columnDef as ColumnDef<TData, TValue>)
-                          ?.onClick && 'cursor-pointer',
-                      )}
-                      style={
-                        hasStickyFooter
-                          ? {
-                              width: cell.column.getSize(),
-                              minWidth: cell.column.getSize(),
-                              maxWidth: cell.column.getSize(),
-                            }
-                          : undefined
-                      }
-                    >
-                      {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
-                      <div
-                        key={toString(
-                          `${resolveRowKey(
-                            cell.row.original,
-                            cell.row.index,
-                          )}:${cell.row.index}`,
-                        )}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </div>
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-              {/* Info Rows */}
-              {infoData?.map((row, rowIndex) => (
-                <TableRow
-                  // eslint-disable-next-line react/no-array-index-key
-                  key={`info-row-${rowIndex}`}
-                  className="bg-gray-50 dark:bg-gray-800 font-medium"
-                >
-                  {row.map((cell, cellIndex) => (
-                    <TableCell
-                      // eslint-disable-next-line react/no-array-index-key
-                      key={`info-cell-${rowIndex}-${cellIndex}`}
-                      className={cellPad}
-                    >
-                      {cell}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </>
-          ) : (
-            <NoResultsRow columns={columns} />
-          )}
-        </TableBody>
-        {hasStickyFooter ? (
-          <TableFooter className="sticky bottom-0 z-10 border-t bg-background print:hidden [&>tr]:bg-background">
-            <TableRow className="border-t bg-background hover:bg-background font-semibold [&>td]:bg-background">
-              {leafHeaders.map((header, i) => {
-                const w = header.column.getSize();
-                return (
-                  <TableCell
-                    key={header.id}
-                    className={cn(cellPad, 'whitespace-nowrap bg-background')}
-                    style={{
-                      width: w,
-                      minWidth: w,
-                      maxWidth: w,
-                    }}
+          </TableHeader>
+          <TableBody>
+            {rows?.length ? (
+              <>
+                {rows.map((row) => (
+                  <TableRow
+                    key={resolveRowKey(row.original, row.index)}
+                    data-state={row.getIsSelected() && 'selected'}
                   >
-                    {stickyFooterRow![i] ?? null}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          </TableFooter>
-        ) : null}
-      </Table>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        onClick={() =>
+                          (
+                            cell.column.columnDef as ColumnDef<TData, TValue>
+                          )?.onClick?.(cell.row)
+                        }
+                        className={cn(
+                          cellPad,
+                          (cell.column.columnDef as ColumnDef<TData, TValue>)
+                            ?.onClick && 'cursor-pointer',
+                          (cell.column.columnDef as ColumnDef<TData, TValue>)
+                            ?.responsiveClassName,
+                        )}
+                        style={
+                          hasStickyFooter
+                            ? {
+                                width: cell.column.getSize(),
+                                minWidth: cell.column.getSize(),
+                                maxWidth: cell.column.getSize(),
+                              }
+                            : undefined
+                        }
+                      >
+                        {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
+                        <div
+                          key={toString(
+                            `${resolveRowKey(
+                              cell.row.original,
+                              cell.row.index,
+                            )}:${cell.row.index}`,
+                          )}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </div>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+                {/* Info Rows */}
+                {infoData?.map((row, rowIndex) => (
+                  <TableRow
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`info-row-${rowIndex}`}
+                    className="bg-gray-50 dark:bg-gray-800 font-medium"
+                  >
+                    {row.map((cell, cellIndex) => (
+                      <TableCell
+                        // eslint-disable-next-line react/no-array-index-key
+                        key={`info-cell-${rowIndex}-${cellIndex}`}
+                        className={cellPad}
+                      >
+                        {cell}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </>
+            ) : (
+              <NoResultsRow columns={columns} />
+            )}
+          </TableBody>
+          {hasStickyFooter ? (
+            <TableFooter className="sticky bottom-0 z-10 border-t bg-background print:hidden [&>tr]:bg-background">
+              <TableRow className="border-t bg-background hover:bg-background font-semibold [&>td]:bg-background">
+                {leafHeaders.map((header, i) => {
+                  const w = header.column.getSize();
+                  return (
+                    <TableCell
+                      key={header.id}
+                      className={cn(cellPad, 'whitespace-nowrap bg-background')}
+                      style={{
+                        width: w,
+                        minWidth: w,
+                        maxWidth: w,
+                      }}
+                    >
+                      {stickyFooterRow![i] ?? null}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            </TableFooter>
+          ) : null}
+        </Table>
+      </div>
     </div>
   );
 };
