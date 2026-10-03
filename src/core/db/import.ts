@@ -984,13 +984,23 @@ export async function importDatabase(params: {
   };
 
   await target.transaction(async () => {
-    await wipeBusinessData(target);
-    for (const table of BUSINESS_TABLES) {
-      // eslint-disable-next-line no-await-in-loop
-      const present = await tableExists(source, table);
-      // eslint-disable-next-line no-await-in-loop
-      const rows = present ? await copyTable(source, target, table) : 0;
-      tables.push({ name: table, rows });
+    // Suppress timestamp triggers during copy so historical createdAt / updatedAt
+    // are preserved verbatim from the uploaded database.
+    await target.run(
+      `INSERT INTO sync_state (key, value) VALUES ('importing', '1')
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    );
+    try {
+      await wipeBusinessData(target);
+      for (const table of BUSINESS_TABLES) {
+        // eslint-disable-next-line no-await-in-loop
+        const present = await tableExists(source, table);
+        // eslint-disable-next-line no-await-in-loop
+        const rows = present ? await copyTable(source, target, table) : 0;
+        tables.push({ name: table, rows });
+      }
+    } finally {
+      await target.run(`DELETE FROM sync_state WHERE key = 'importing'`);
     }
 
     // Always invoked, regardless of `validation.sourceMigrationVersion` —

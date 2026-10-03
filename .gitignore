@@ -54,5 +54,5 @@ apps/web/dist
 apps/web/test-results
 
 # local operator skills
-.agents/skills/patch-and-release/
+.agents/skills/release/
 

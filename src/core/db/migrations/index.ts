@@ -13,6 +13,7 @@ import { migration039 } from './039_suppress_timestamp_triggers_during_apply';
 import { migration040 } from './040_insert_timestamps_fill_only';
 import { migration041 } from './041_seed_existing_business_data_outbox';
 import { migration042 } from './042_backfill_inventory_baseline';
+import { migration043 } from './043_fix_insert_timestamp_triggers';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -50,4 +51,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration040,
   migration041,
   migration042,
+  migration043,
 ];

@@ -37,7 +37,15 @@ export async function repairInvoiceEditedTimestamps(
            AND substr(replace(replace(cast(createdAt AS TEXT), 'T', ' '), 'Z', ''), 1, 10)
             <> substr(replace(replace(cast(updatedAt AS TEXT), 'T', ' '), 'Z', ''), 1, 10)`,
       );
-      changes = result.changes ?? 0;
+      const resultUtcMismatch = await db.run(
+        `UPDATE invoices
+         SET createdAt = updatedAt
+         WHERE createdAt IS NOT NULL
+           AND updatedAt IS NOT NULL
+           AND createdAt <> updatedAt
+           AND datetime(createdAt, 'localtime') = datetime(updatedAt)`,
+      );
+      changes = (result.changes ?? 0) + (resultUtcMismatch.changes ?? 0);
     } finally {
       await db.run(`DELETE FROM sync_state WHERE key = 'applying'`);
     }
