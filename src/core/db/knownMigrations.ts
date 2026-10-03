@@ -59,6 +59,7 @@ export const CORE_MIGRATION_NAMES: readonly string[] = [
   '039_suppress_timestamp_triggers_during_apply',
   '040_insert_timestamps_fill_only',
   '041_seed_existing_business_data_outbox',
+  '042_backfill_inventory_baseline',
 ];
 
 export function knownMigrationNames(): Set<string> {
