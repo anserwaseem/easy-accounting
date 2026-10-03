@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { BetterSqliteDriver } from '../../../../main/adapters/BetterSqliteDriver';
 import { bootstrapDatabase } from '../../bootstrap';
 import { CORE_MIGRATIONS } from '..';
+import { migration043 } from '../043_fix_insert_timestamp_triggers';
 import { isPersistedRowEdited } from '../../../../renderer/lib/invoiceUtils';
 
 jest.mock('electron-log', () => ({
@@ -131,23 +132,8 @@ describe('core migration 043 (fix insert timestamp triggers and repair UTC creat
         .get() as { createdAt: string; updatedAt: string };
       expect(isPersistedRowEdited(before)).toBe(true);
 
-      // Run repair under applying guard
-      await driver.run(
-        `INSERT INTO sync_state (key, value) VALUES ('applying', '1')
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      );
-      try {
-        await driver.run(
-          `UPDATE invoices
-           SET createdAt = updatedAt
-           WHERE createdAt IS NOT NULL
-             AND updatedAt IS NOT NULL
-             AND createdAt <> updatedAt
-             AND datetime(createdAt, 'localtime') = datetime(updatedAt)`,
-        );
-      } finally {
-        await driver.run(`DELETE FROM sync_state WHERE key = 'applying'`);
-      }
+      // Run migration 043 up (which performs the repair)
+      await migration043.up(driver);
 
       const after = db
         .prepare(

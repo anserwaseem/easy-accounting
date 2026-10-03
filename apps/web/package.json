@@ -1,6 +1,6 @@
 {
   "name": "easy-accounting-web",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "description": "Browser PWA of Easy Accounting — core services on SQLite-wasm/OPFS in a Web Worker.",
   "type": "module",

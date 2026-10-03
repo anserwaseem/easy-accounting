@@ -157,7 +157,10 @@ export const migration043 = {
          WHERE createdAt IS NOT NULL
            AND updatedAt IS NOT NULL
            AND createdAt <> updatedAt
-           AND datetime(createdAt, 'localtime') = datetime(updatedAt)`,
+           AND (
+             datetime(createdAt, 'localtime') = datetime(updatedAt)
+             OR datetime(createdAt, '+5 hours') = datetime(updatedAt)
+           )`,
       );
       await driver.run(
         `UPDATE invoice_items
@@ -165,7 +168,10 @@ export const migration043 = {
          WHERE createdAt IS NOT NULL
            AND updatedAt IS NOT NULL
            AND createdAt <> updatedAt
-           AND datetime(createdAt, 'localtime') = datetime(updatedAt)`,
+           AND (
+             datetime(createdAt, 'localtime') = datetime(updatedAt)
+             OR datetime(createdAt, '+5 hours') = datetime(updatedAt)
+           )`,
       );
       await driver.run(
         `UPDATE inventory
@@ -173,7 +179,10 @@ export const migration043 = {
          WHERE createdAt IS NOT NULL
            AND updatedAt IS NOT NULL
            AND createdAt <> updatedAt
-           AND datetime(createdAt, 'localtime') = datetime(updatedAt)`,
+           AND (
+             datetime(createdAt, 'localtime') = datetime(updatedAt)
+             OR datetime(createdAt, '+5 hours') = datetime(updatedAt)
+           )`,
       );
     } finally {
       await driver.run(`DELETE FROM sync_state WHERE key = 'applying'`);

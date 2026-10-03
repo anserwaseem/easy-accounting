@@ -43,7 +43,10 @@ export async function repairInvoiceEditedTimestamps(
          WHERE createdAt IS NOT NULL
            AND updatedAt IS NOT NULL
            AND createdAt <> updatedAt
-           AND datetime(createdAt, 'localtime') = datetime(updatedAt)`,
+           AND (
+             datetime(createdAt, 'localtime') = datetime(updatedAt)
+             OR datetime(createdAt, '+5 hours') = datetime(updatedAt)
+           )`,
       );
       changes = (result.changes ?? 0) + (resultUtcMismatch.changes ?? 0);
     } finally {
