@@ -21,6 +21,8 @@ import type {
   AgentTour,
   AgentTourInput,
   SuggestedAgentTour,
+  AccountCollectionRole,
+  CollectionSource,
   UpdateJournalFields,
   SetOpeningStockItem,
   StockAdjustment,
@@ -669,6 +671,16 @@ const electronHandler = {
    */
   toggleAccountActive: (accountId: number, isActive: boolean) =>
     ipcRenderer.invoke('account:toggleActive', accountId, isActive),
+  /** null puts the account back on the default receipt rule */
+  setAccountCollectionRole: (
+    accountId: number,
+    role: AccountCollectionRole | null,
+  ) =>
+    ipcRenderer.invoke(
+      'account:setCollectionRole',
+      accountId,
+      role,
+    ) as Promise<boolean>,
   /**
    * Get a ledger
    * @param accountId The account id to get
@@ -717,14 +729,14 @@ const electronHandler = {
         Array<{ invoiceNumber: number; date: string; amount: number }>
       >
     >,
-  /** sum of party-ledger credits in an inclusive local-date range */
-  getCreditSumsForAccountIdsInRange: (
+  /** money received per account (receipt-account credits) in an inclusive local-date range */
+  getReceiptSumsForAccountIdsInRange: (
     accountIds: number[],
     startDate: string,
     endDate: string,
   ) =>
     ipcRenderer.invoke(
-      'ledger:getCreditSumsForAccountIdsInRange',
+      'ledger:getReceiptSumsForAccountIdsInRange',
       accountIds,
       startDate,
       endDate,
@@ -736,6 +748,28 @@ const electronHandler = {
       accountIds,
       tourIds,
     ) as Promise<Record<number, Record<number, number>>>,
+  /** receipts in the range on days no tour of the head covers */
+  getUntouredCollectionsForAccountIds: (
+    accountIds: number[],
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'ledger:getUntouredCollectionsForAccountIds',
+      accountIds,
+      chartId,
+      startDate,
+      endDate,
+    ) as Promise<Record<number, number>>,
+  /** accounts that credited the head's shops in the range, biggest first */
+  getCollectionSources: (chartId: number, startDate: string, endDate: string) =>
+    ipcRenderer.invoke(
+      'ledger:getCollectionSources',
+      chartId,
+      startDate,
+      endDate,
+    ) as Promise<CollectionSource[]>,
   /** inclusive calendar range per account; rows enriched like getLedger */
   getLedgerRangeForAccountIds: (
     accountIds: number[],

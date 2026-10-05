@@ -31,6 +31,7 @@ import type {
   InsertInventoryItem,
   InsertChart,
   AgentTourInput,
+  AccountCollectionRole,
   UpdateJournalFields,
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
@@ -577,6 +578,11 @@ app
       (_, accountId: number, isActive: boolean) =>
         accountService.toggleAccountActive(accountId, isActive),
     );
+    ipcMain.handle(
+      'account:setCollectionRole',
+      (_, accountId: number, role: AccountCollectionRole | null) =>
+        accountService.setCollectionRole(accountId, role),
+    );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) => {
       const rows = await ledgerService.getLedger(accountId);
@@ -598,9 +604,9 @@ app
         ledgerService.getBalancesForAccountIdsAsOfDate(accountIds, asOfDate),
     );
     ipcMain.handle(
-      'ledger:getCreditSumsForAccountIdsInRange',
+      'ledger:getReceiptSumsForAccountIdsInRange',
       async (_, accountIds: number[], startDate: string, endDate: string) =>
-        ledgerService.getCreditSumsForAccountIdsInRange(
+        ledgerService.getReceiptSumsForAccountIdsInRange(
           accountIds,
           startDate,
           endDate,
@@ -610,6 +616,27 @@ app
       'ledger:getTourCollectionsForAccountIds',
       async (_, accountIds: number[], tourIds: number[]) =>
         ledgerService.getTourCollectionsForAccountIds(accountIds, tourIds),
+    );
+    ipcMain.handle(
+      'ledger:getUntouredCollectionsForAccountIds',
+      async (
+        _,
+        accountIds: number[],
+        chartId: number,
+        startDate: string,
+        endDate: string,
+      ) =>
+        ledgerService.getUntouredCollectionsForAccountIds(
+          accountIds,
+          chartId,
+          startDate,
+          endDate,
+        ),
+    );
+    ipcMain.handle(
+      'ledger:getCollectionSources',
+      async (_, chartId: number, startDate: string, endDate: string) =>
+        ledgerService.getCollectionSources(chartId, startDate, endDate),
     );
     ipcMain.handle(
       'ledger:getLedgerRangeForAccountIds',

@@ -213,6 +213,25 @@ export type AgentTourInput = Pick<
   'chartId' | 'name' | 'startDate' | 'endDate' | 'notes'
 >;
 
+/** an account that credited an agent's shops in a period, with the amount it moved */
+export interface CollectionSource {
+  accountId: number;
+  name: string;
+  code?: string | number | null;
+  collectionRole: AccountCollectionRole | null;
+  chartId: number;
+  headName: string;
+  /** chart.type: Asset, Liability, Equity, Revenue or Expense */
+  headType: string;
+  headParentId: number | null;
+  /** prorated share of the shop credits it paired with */
+  amount: number;
+  shops: number;
+  /** journals */
+  entries: number;
+  maxShopsPerEntry: number;
+}
+
 /** a tour proposed from past bulk receipt journals, not saved yet */
 export type SuggestedAgentTour = Omit<AgentTourInput, 'notes'> & {
   /** journal whose date ends this window */

@@ -421,6 +421,88 @@ describe('LedgerService.getTourCollectionsForAccountIds', () => {
   });
 });
 
+describe('LedgerService untoured collections and collection sources', () => {
+  let fx: Fixture;
+
+  beforeEach(async () => {
+    fx = await setup();
+  });
+
+  afterEach(() => fx.db.close());
+
+  it('reports receipts outside every tour within the range only', async () => {
+    const cash = insertAccountRow(fx.db, fx.currentAssetId, 'Cash');
+    const discount = insertAccountRow(fx.db, fx.expenseId, 'Discount');
+    const shop = insertAccountRow(fx.db, fx.agentHeadId, 'Shop');
+    await fx.tours.insertAgentTour({
+      chartId: fx.agentHeadId,
+      name: 'Aug',
+      startDate: '2026-08-01',
+      endDate: '2026-08-30',
+    });
+    // inside the tour: not untoured
+    insertJournal(fx.db, '2026-08-10', [[cash, 100]], [[shop, 100]]);
+    // after the tour, inside the range
+    insertJournal(fx.db, '2026-09-04', [[cash, 21]], [[shop, 21]]);
+    // a discount after the tour is not money
+    insertJournal(fx.db, '2026-09-05', [[discount, 9]], [[shop, 9]]);
+    // outside the range
+    insertJournal(fx.db, '2026-10-02', [[cash, 500]], [[shop, 500]]);
+
+    const untoured = await fx.ledger.getUntouredCollectionsForAccountIds(
+      [shop],
+      fx.agentHeadId,
+      '2026-08-01',
+      '2026-09-30',
+    );
+    expect(untoured).toEqual({ [shop]: 21 });
+  });
+
+  it('lists every account that credited the head shops with its share', async () => {
+    const cash = insertAccountRow(fx.db, fx.currentAssetId, 'Cash');
+    const discount = insertAccountRow(fx.db, fx.expenseId, 'Discount');
+    const viaTariq = insertAccountRow(
+      fx.db,
+      fx.otherHeadId,
+      'Received from Tariq',
+    );
+    const shopA = insertAccountRow(fx.db, fx.agentHeadId, 'Shop A');
+    const shopB = insertAccountRow(fx.db, fx.agentHeadId, 'Shop B');
+    insertJournal(
+      fx.db,
+      '2026-02-01',
+      [
+        [cash, 150],
+        [discount, 50],
+      ],
+      [
+        [shopA, 100],
+        [shopB, 100],
+      ],
+    );
+    insertJournal(fx.db, '2026-02-03', [[viaTariq, 70]], [[shopA, 70]]);
+    // outside the range
+    insertJournal(fx.db, '2025-12-01', [[cash, 999]], [[shopA, 999]]);
+
+    const sources = await fx.ledger.getCollectionSources(
+      fx.agentHeadId,
+      '2026-01-01',
+      '2026-03-31',
+    );
+    expect(sources.map((s) => [s.name, s.amount, s.shops, s.entries])).toEqual([
+      ['Cash', 150, 2, 1],
+      ['Received from Tariq', 70, 1, 1],
+      ['Discount', 50, 2, 1],
+    ]);
+    const tariq = sources.find((s) => s.accountId === viaTariq);
+    expect(tariq).toMatchObject({
+      chartId: fx.otherHeadId,
+      headParentId: fx.currentAssetId,
+      collectionRole: null,
+    });
+  });
+});
+
 describe('AccountService collectionRole', () => {
   let fx: Fixture;
 
@@ -454,5 +536,21 @@ describe('AccountService collectionRole', () => {
 
     await fx.accounts.updateAccount({ ...base, collectionRole: null });
     expect(await read()).toBeNull();
+  });
+
+  it('sets a single role and rejects unknown values', async () => {
+    const id = insertAccountRow(fx.db, fx.otherHeadId, 'Received from Tariq');
+    expect(await fx.accounts.setCollectionRole(id, 'receipt')).toBe(true);
+    const role = (await fx.accounts.getAccounts()).find((a) => a.id === id)
+      ?.collectionRole;
+    expect(role).toBe('receipt');
+    await expect(
+      fx.accounts.setCollectionRole(
+        id,
+        'bogus' as unknown as Parameters<
+          AccountService['setCollectionRole']
+        >[1],
+      ),
+    ).rejects.toThrow('Unknown collection role');
   });
 });

@@ -707,6 +707,11 @@ async function main(): Promise<void> {
       accountService.hasJournalEntries(accountId as number),
     deleteAccount: (accountId) =>
       accountService.deleteAccount(accountId as number),
+    setAccountCollectionRole: (accountId, role) =>
+      accountService.setCollectionRole(
+        accountId as number,
+        role as Parameters<AccountService['setCollectionRole']>[1],
+      ),
     toggleAccountActive: (accountId, isActive) =>
       accountService.toggleAccountActive(
         accountId as number,
@@ -823,6 +828,24 @@ async function main(): Promise<void> {
       ledgerService.getTourCollectionsForAccountIds(
         accountIds as number[],
         tourIds as number[],
+      ),
+    getUntouredCollectionsForAccountIds: (
+      accountIds,
+      chartId,
+      startDate,
+      endDate,
+    ) =>
+      ledgerService.getUntouredCollectionsForAccountIds(
+        accountIds as number[],
+        chartId as number,
+        startDate as string,
+        endDate as string,
+      ),
+    getCollectionSources: (chartId, startDate, endDate) =>
+      ledgerService.getCollectionSources(
+        chartId as number,
+        startDate as string,
+        endDate as string,
       ),
 
     // -- Invoice -----------------------------------------------------------

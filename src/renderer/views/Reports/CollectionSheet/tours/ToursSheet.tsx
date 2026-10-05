@@ -11,13 +11,23 @@ import {
 } from '@/renderer/shad/ui/sheet';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
 import type { AgentTour, Chart } from 'types';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/renderer/shad/ui/tabs';
 import { formatBillDate } from '../buildCollectionSheetRows';
+import { CollectionSourcesReview } from './CollectionSourcesReview';
+import type { SheetRange } from './useCollectionSources';
 import { SuggestedToursReview } from './SuggestedToursReview';
 import { TourForm } from './TourForm';
 import { useAgentTours, type TourDraft } from './useAgentTours';
 
 interface ToursSheetProps {
   head: Chart;
+  /** the sheet's loaded range; null until a sheet has loaded */
+  range: SheetRange | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onToursChanged: () => void;
@@ -183,6 +193,7 @@ const ToursPanel: React.FC<ToursPanelProps> = ({
 /** agent tours manager. keyed by head so switching agent starts clean */
 export const ToursSheet: React.FC<ToursSheetProps> = ({
   head,
+  range,
   open,
   onOpenChange,
   onToursChanged,
@@ -197,7 +208,29 @@ export const ToursSheet: React.FC<ToursSheetProps> = ({
         </SheetDescription>
       </SheetHeader>
       {open ? (
-        <ToursPanel key={head.id} head={head} onToursChanged={onToursChanged} />
+        <Tabs key={head.id} defaultValue="tours" className="mt-4">
+          <TabsList>
+            <TabsTrigger value="tours">Tours</TabsTrigger>
+            <TabsTrigger value="sources">What counts as payment</TabsTrigger>
+          </TabsList>
+          <TabsContent value="tours">
+            <ToursPanel head={head} onToursChanged={onToursChanged} />
+          </TabsContent>
+          <TabsContent value="sources">
+            {range ? (
+              <CollectionSourcesReview
+                key={`${range.from}:${range.to}`}
+                chartId={head.id}
+                range={range}
+                onChanged={onToursChanged}
+              />
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Load the sheet for a date range first.
+              </p>
+            )}
+          </TabsContent>
+        </Tabs>
       ) : null}
     </SheetContent>
   </Sheet>

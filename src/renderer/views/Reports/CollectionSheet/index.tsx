@@ -33,6 +33,8 @@ import {
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
+  collectionSheetUntouredTotal,
+  isUntouredCell,
   tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
@@ -52,6 +54,7 @@ type CollectionSheetExportRow = {
   billDate: string;
   difference: string;
   remaining: string;
+  untoured?: number | null;
 } & {
   // 0 on a shop's first row means it paid nothing that tour
   [key: TourExportKey]: number | null;
@@ -112,6 +115,8 @@ const CollectionSheetPage: React.FC = () => {
     setLanguage,
     rows,
     tours,
+    showUntoured,
+    range,
     isLoading,
     handleHeadChange,
     handleDateChange,
@@ -188,6 +193,16 @@ const CollectionSheetPage: React.FC = () => {
           format: 'currency' as const,
           width: 18,
         })),
+        ...(showUntoured
+          ? [
+              {
+                key: 'untoured' as const,
+                header: headers.untoured,
+                format: 'currency' as const,
+                width: 16,
+              },
+            ]
+          : []),
         {
           key: 'collection',
           header: headers.collection,
@@ -219,6 +234,8 @@ const CollectionSheetPage: React.FC = () => {
         billDate: row.billDate,
         difference: '',
         remaining: '',
+        // unlike a tour column, 0 here carries no meaning: leave it blank
+        untoured: isUntouredCell(row.untoured) ? row.untoured : null,
         ...Object.fromEntries(
           tours.map((tour) => [
             tourExportKey(tour.id),
@@ -230,6 +247,10 @@ const CollectionSheetPage: React.FC = () => {
         shop: headers.total,
         balance: totals.balance,
         collected: totals.collected,
+        untoured:
+          showUntoured && isUntouredCell(collectionSheetUntouredTotal(rows))
+            ? collectionSheetUntouredTotal(rows)
+            : null,
         ...Object.fromEntries(
           tours.map((tour) => [tourExportKey(tour.id), tourTotals[tour.id]]),
         ),
@@ -254,6 +275,7 @@ const CollectionSheetPage: React.FC = () => {
     subtitle,
     title,
     tours,
+    showUntoured,
   ]);
 
   const handlePrint = useCallback(() => {
@@ -261,11 +283,12 @@ const CollectionSheetPage: React.FC = () => {
     printCollectionSheetIframe({
       rows,
       tours,
+      showUntoured,
       title,
       subtitle,
       language,
     });
-  }, [canExport, language, rows, subtitle, title, tours]);
+  }, [canExport, language, rows, showUntoured, subtitle, title, tours]);
 
   return (
     <ReportLayout
@@ -361,6 +384,7 @@ const CollectionSheetPage: React.FC = () => {
       <CollectionSheetTable
         rows={rows}
         tours={tours}
+        showUntoured={showUntoured}
         isLoading={isLoading}
         hasAgent={selectedChartId.length > 0}
         language={language}
@@ -368,6 +392,7 @@ const CollectionSheetPage: React.FC = () => {
       {selectedHead ? (
         <ToursSheet
           head={selectedHead}
+          range={range}
           open={toursOpen}
           onOpenChange={setToursOpen}
           onToursChanged={refreshData}

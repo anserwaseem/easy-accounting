@@ -1,8 +1,12 @@
-import { BalanceType, type Ledger } from '../../types';
+import { BalanceType, type CollectionSource, type Ledger } from '../../types';
 import type { DatabaseDriver, RunResult } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { logErrors } from '../errorLogger';
-import { localDaySql, RECEIPT_ACCOUNTS_CTE } from '../utils/receiptAccounts';
+import {
+  localDaySql,
+  RECEIPT_ACCOUNTS_CTE,
+  RECEIPT_CREDITS_CTE,
+} from '../utils/receiptAccounts';
 
 type GetBalance = { balance: number; balanceType: BalanceType };
 
@@ -192,9 +196,6 @@ const SQL = {
         ) <= @endDate
       GROUP BY lv.accountId
     `,
-  // same proration as ledger_lines (credit * debit / total debits, summed over
-  // the receipt debits), computed straight from journal_entry: the views
-  // re-total every journal per pair and cost seconds across a whole head.
   getTourCollectionsForAccountIds: `
       WITH tours AS (
         SELECT t.id, t.startDate, COALESCE(t.endDate, date('now', 'localtime')) AS endDate
@@ -202,35 +203,79 @@ const SQL = {
         WHERE t.id IN (SELECT CAST(j.value AS INTEGER) FROM json_each(@tourIdsJson) AS j)
       ),
       ${RECEIPT_ACCOUNTS_CTE},
-      credits AS (
-        SELECT c.journalId, c.accountId, c.creditAmount, ${localDaySql(
-          'j.date',
-        )} AS day
+      ${RECEIPT_CREDITS_CTE}
+      SELECT rc.accountId AS accountId, tours.id AS tourId, SUM(rc.amount) AS paid
+      FROM receipt_credits rc
+      JOIN tours ON rc.day BETWEEN tours.startDate AND tours.endDate
+      GROUP BY rc.accountId, tours.id
+    `,
+  // receipts in the range on days none of the head's tours cover
+  getUntouredCollectionsForAccountIds: `
+      WITH ${RECEIPT_ACCOUNTS_CTE},
+      ${RECEIPT_CREDITS_CTE}
+      SELECT rc.accountId AS accountId, SUM(rc.amount) AS amount
+      FROM receipt_credits rc
+      WHERE rc.day BETWEEN @startDate AND @endDate
+        AND NOT EXISTS (
+          SELECT 1 FROM agent_tours t
+          WHERE t.chartId = @chartId
+            AND rc.day BETWEEN t.startDate AND COALESCE(t.endDate, date('now', 'localtime'))
+        )
+      GROUP BY rc.accountId
+    `,
+  // every account on the debit side of credits to the head's active shops in
+  // the range, with its prorated share, so a person can judge what is a payment
+  getCollectionSources: `
+      WITH credits AS MATERIALIZED (
+        SELECT c.journalId, c.accountId AS shopId, c.creditAmount
         FROM journal_entry c
         JOIN journal j ON j.id = c.journalId
+        JOIN account shop ON shop.id = c.accountId AND shop.chartId = @chartId AND shop.isActive = 1
         WHERE c.creditAmount > 0
-          AND c.accountId IN (
-            SELECT CAST(ids.value AS INTEGER) FROM json_each(@accountIdsJson) AS ids
-          )
+          AND ${localDaySql('j.date')} BETWEEN @startDate AND @endDate
       ),
       debits AS (
         SELECT
           d.journalId,
-          SUM(d.debitAmount) AS total,
-          SUM(CASE WHEN d.accountId IN (SELECT id FROM receipt_accounts) THEN d.debitAmount ELSE 0 END) AS receipt
+          d.accountId,
+          d.debitAmount,
+          SUM(d.debitAmount) OVER (PARTITION BY d.journalId) AS total
         FROM journal_entry d
         WHERE d.debitAmount > 0
           AND d.journalId IN (SELECT journalId FROM credits)
-        GROUP BY d.journalId
+      ),
+      pairs AS (
+        SELECT
+          credits.journalId,
+          credits.shopId,
+          debits.accountId AS sourceId,
+          credits.creditAmount * 1.0 * debits.debitAmount / debits.total AS amount
+        FROM credits
+        JOIN debits ON debits.journalId = credits.journalId
+      ),
+      per_entry AS (
+        SELECT sourceId, journalId, COUNT(DISTINCT shopId) AS shops
+        FROM pairs
+        GROUP BY sourceId, journalId
       )
       SELECT
-        credits.accountId AS accountId,
-        tours.id AS tourId,
-        SUM(credits.creditAmount * 1.0 * debits.receipt / debits.total) AS paid
-      FROM credits
-      JOIN debits ON debits.journalId = credits.journalId AND debits.receipt > 0
-      JOIN tours ON credits.day BETWEEN tours.startDate AND tours.endDate
-      GROUP BY credits.accountId, tours.id
+        p.sourceId AS accountId,
+        a.name,
+        a.code,
+        a.collectionRole,
+        a.chartId,
+        c.name AS headName,
+        c.type AS headType,
+        c.parentId AS headParentId,
+        SUM(p.amount) AS amount,
+        COUNT(DISTINCT p.shopId) AS shops,
+        COUNT(DISTINCT p.journalId) AS entries,
+        (SELECT MAX(pe.shops) FROM per_entry pe WHERE pe.sourceId = p.sourceId) AS maxShopsPerEntry
+      FROM pairs p
+      JOIN account a ON a.id = p.sourceId
+      JOIN chart c ON c.id = a.chartId
+      GROUP BY p.sourceId
+      ORDER BY amount DESC
     `,
   getLedgerRangeForAccountIds: `
       SELECT lv.ownEntryId AS id, lv.date, lv.accountId, lv.particulars, lv.debit, lv.credit, lv.balance, lv.balanceType, lv.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode
@@ -371,11 +416,12 @@ export class LedgerService {
   }
 
   /**
-   * sum of credits per account for an inclusive local-date range (yyyy-MM-dd).
-   * credits on a party ledger are collections. debits (sales) are ignored.
-   * accounts with no credits in the window are omitted.
+   * money received per account in an inclusive local-date range (yyyy-MM-dd):
+   * credits paired with receipt accounts, the same rule as the tour columns.
+   * discounts, sale reversals and moves between accounts are not collections.
+   * accounts with nothing received in the window are omitted.
    */
-  async getCreditSumsForAccountIdsInRange(
+  async getReceiptSumsForAccountIdsInRange(
     accountIds: number[],
     startDate: string,
     endDate: string,
@@ -383,7 +429,7 @@ export class LedgerService {
     const unique = LedgerService.uniqueSortedAccountIds(accountIds);
     if (unique.length === 0) return {};
     const rows = await this.db.all<{ accountId: number; collected: number }>(
-      SQL.getCreditSumsForAccountIdsInRange,
+      SQL.getReceiptSumsForAccountIdsInRange,
       {
         accountIdsJson: JSON.stringify(unique),
         startDate,
@@ -426,6 +472,45 @@ export class LedgerService {
       };
     }
     return out;
+  }
+
+  /**
+   * per account: receipts (same rule as the tour columns) in the inclusive
+   * range whose day no tour of `chartId` covers. accounts with none are omitted.
+   */
+  async getUntouredCollectionsForAccountIds(
+    accountIds: number[],
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<Record<number, number>> {
+    const unique = LedgerService.uniqueSortedAccountIds(accountIds);
+    if (unique.length === 0) return {};
+    const rows = await this.db.all<{ accountId: number; amount: number }>(
+      SQL.getUntouredCollectionsForAccountIds,
+      {
+        accountIdsJson: JSON.stringify(unique),
+        chartId,
+        startDate,
+        endDate,
+      },
+    );
+    return Object.fromEntries(
+      rows.map((row) => [row.accountId, row.amount ?? 0]),
+    );
+  }
+
+  /** accounts that credited the head's active shops in the range, biggest first */
+  async getCollectionSources(
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<CollectionSource[]> {
+    return this.db.all<CollectionSource>(SQL.getCollectionSources, {
+      chartId,
+      startDate,
+      endDate,
+    });
   }
 
   /** get the running balance as of a given date (last ledger entry on or before that date). */

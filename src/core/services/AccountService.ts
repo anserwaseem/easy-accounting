@@ -1,5 +1,6 @@
 import type {
   Account,
+  AccountCollectionRole,
   AccountUrduBulkUpdateResult,
   AccountUrduFieldPatch,
   InsertAccount,
@@ -155,6 +156,15 @@ const SQL = {
       UPDATE account
       SET isActive = @isActive
       WHERE id = @accountId
+    `,
+  setCollectionRole: `
+      UPDATE account
+      SET collectionRole = @collectionRole
+      WHERE id = @accountId
+        AND chartId IN (
+          SELECT id FROM chart
+          WHERE userId = (SELECT id FROM users WHERE username = @username)
+        )
     `,
   updateAccountDiscountProfile: `
       UPDATE account
@@ -326,6 +336,26 @@ export class AccountService {
       success: !!result.lastInsertRowid,
       accountId: result.lastInsertRowid as number,
     };
+  }
+
+  /** null puts the account back on the default receipt rule */
+  async setCollectionRole(
+    accountId: number,
+    collectionRole: AccountCollectionRole | null,
+  ): Promise<boolean> {
+    if (
+      collectionRole !== null &&
+      collectionRole !== 'receipt' &&
+      collectionRole !== 'exclude'
+    ) {
+      throw new Error('Unknown collection role');
+    }
+    const result = await this.db.run(SQL.setCollectionRole, {
+      accountId,
+      collectionRole,
+      username: this.session.getUsername(),
+    });
+    return result.changes > 0;
   }
 
   async updateAccount(account: UpdateAccount): Promise<boolean> {

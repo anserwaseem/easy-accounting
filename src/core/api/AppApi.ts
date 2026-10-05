@@ -37,6 +37,8 @@ import type {
   AgentTour,
   AgentTourInput,
   SuggestedAgentTour,
+  AccountCollectionRole,
+  CollectionSource,
   UpdateJournalFields,
   SetOpeningStockItem,
   StockAdjustment,
@@ -265,6 +267,11 @@ export interface AppApi {
    * @example const isUpdated = toggleAccountActive(1, false);
    */
   toggleAccountActive: (accountId: number, isActive: boolean) => Promise<any>;
+  /** null puts the account back on the default receipt rule */
+  setAccountCollectionRole: (
+    accountId: number,
+    role: AccountCollectionRole | null,
+  ) => Promise<boolean>;
 
   // ---------------------------------------------------------------------
   // Chart
@@ -405,6 +412,19 @@ export interface AppApi {
     accountIds: number[],
     tourIds: number[],
   ) => Promise<Record<number, Record<number, number>>>;
+  /** receipts in the range on days no tour of the head covers */
+  getUntouredCollectionsForAccountIds: (
+    accountIds: number[],
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) => Promise<Record<number, number>>;
+  /** accounts that credited the head's shops in the range, biggest first */
+  getCollectionSources: (
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) => Promise<CollectionSource[]>;
 
   // ---------------------------------------------------------------------
   // Invoice

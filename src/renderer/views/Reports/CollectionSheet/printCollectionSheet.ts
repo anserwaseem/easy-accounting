@@ -4,9 +4,11 @@ import {
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
+  collectionSheetUntouredTotal,
   formatSheetAmount,
   formatTourAmount,
   isUnpaidTourCell,
+  isUntouredCell,
   tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
@@ -16,6 +18,7 @@ import {
 interface CollectionSheetPrintOptions {
   rows: CollectionSheetRow[];
   tours: CollectionSheetTourColumn[];
+  showUntoured: boolean;
   title: string;
   subtitle: string;
   language: CollectionSheetLanguage;
@@ -27,7 +30,7 @@ const cell = (value: string, extra = ''): string =>
 export const printCollectionSheetIframe = (
   options: CollectionSheetPrintOptions,
 ) => {
-  const { rows, tours, title, subtitle, language } = options;
+  const { rows, tours, showUntoured, title, subtitle, language } = options;
   if (rows.length === 0) return;
 
   const headers = collectionSheetHeaders(language);
@@ -39,8 +42,8 @@ export const printCollectionSheetIframe = (
   const dir = language === 'ur' ? 'rtl' : 'ltr';
   // fixed columns span both header rows when tour columns add a second one
   const span = tours.length > 0 ? ' rowspan="2"' : '';
-  const tourCells = (row: CollectionSheetRow): string =>
-    tours
+  const tourCells = (row: CollectionSheetRow): string => {
+    const perTour = tours
       .map((tour) => {
         const paid = row.tourPaid[tour.id];
         const unpaid = isUnpaidTourCell(paid) ? ' unpaid' : '';
@@ -49,6 +52,12 @@ export const printCollectionSheetIframe = (
         )}</td>`;
       })
       .join('');
+    if (!showUntoured) return perTour;
+    const outside = isUntouredCell(row.untoured) ? ' untoured' : '';
+    return `${perTour}<td class="num tour${outside}">${escape(
+      formatTourAmount(row.untoured),
+    )}</td>`;
+  };
   const body = rows
     .map((row) => {
       const dittoClass =
@@ -123,6 +132,7 @@ export const printCollectionSheetIframe = (
     th.write, td.write { min-width: 16mm; }
     th.tour, td.tour { white-space: nowrap; }
     td.unpaid { background: #ececec; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    td.untoured { font-weight: 600; text-decoration: underline; }
     tr { break-inside: avoid; }
   </style>
 </head>
@@ -143,6 +153,11 @@ export const printCollectionSheetIframe = (
         ${
           tours.length > 0
             ? `<th colspan="${tours.length}">${escape(headers.tours)}</th>`
+            : ''
+        }
+        ${
+          showUntoured
+            ? `<th class="num tour"${span}>${escape(headers.untoured)}</th>`
             : ''
         }
         <th class="write"${span}>${escape(headers.collection)}</th>
@@ -185,6 +200,13 @@ export const printCollectionSheetIframe = (
               )}</strong></td>`,
           )
           .join('')}
+        ${
+          showUntoured
+            ? `<td class="num tour"><strong>${escape(
+                formatTourAmount(collectionSheetUntouredTotal(rows)),
+              )}</strong></td>`
+            : ''
+        }
         <td class="write"></td>
         <td class="write"></td>
         <td class="write"></td>

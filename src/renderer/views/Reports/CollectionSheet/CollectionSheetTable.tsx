@@ -5,9 +5,11 @@ import {
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
+  collectionSheetUntouredTotal,
   formatSheetAmount,
   formatTourAmount,
   isUnpaidTourCell,
+  isUntouredCell,
   tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
@@ -17,6 +19,7 @@ import {
 interface CollectionSheetTableProps {
   rows: CollectionSheetRow[];
   tours: CollectionSheetTourColumn[];
+  showUntoured: boolean;
   isLoading: boolean;
   hasAgent: boolean;
   language: CollectionSheetLanguage;
@@ -35,10 +38,12 @@ const bodyCell = 'border border-border px-2 py-1.5';
 const writeCell = 'min-w-[4.5rem]';
 const tourCell = 'text-end tabular-nums whitespace-nowrap';
 const unpaidCell = 'bg-destructive/10';
+const untouredCell = 'bg-amber-100 dark:bg-amber-900/40';
 
 export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   rows,
   tours,
+  showUntoured,
   isLoading,
   hasAgent,
   language,
@@ -55,6 +60,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   const totals = collectionSheetTotals(rows);
   const tourIds = tours.map((tour) => tour.id);
   const tourTotals = collectionSheetTourTotals(rows, tourIds);
+  const untouredTotal = collectionSheetUntouredTotal(rows);
   const urdu = language === 'ur';
   const hasTours = tours.length > 0;
   // fixed columns span both header rows when tour columns add a second one
@@ -98,6 +104,15 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                 className={cn(headCell, 'text-center')}
               >
                 {headers.tours}
+              </th>
+            ) : null}
+            {showUntoured ? (
+              <th
+                rowSpan={span}
+                className={cn(headCell, 'text-end whitespace-nowrap')}
+                title="Money received in this range on days no tour covers"
+              >
+                {headers.untoured}
               </th>
             ) : null}
             <th
@@ -192,6 +207,17 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                   </td>
                 );
               })}
+              {showUntoured ? (
+                <td
+                  className={cn(
+                    bodyCell,
+                    tourCell,
+                    isUntouredCell(row.untoured) && untouredCell,
+                  )}
+                >
+                  {formatTourAmount(row.untoured)}
+                </td>
+              ) : null}
               <td className={cn(bodyCell, writeCell)} />
               <td className={cn(bodyCell, writeCell)} />
               <td className={cn(bodyCell, writeCell)} />
@@ -217,6 +243,11 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                 {formatTourAmount(tourTotals[tour.id])}
               </td>
             ))}
+            {showUntoured ? (
+              <td className={cn(bodyCell, tourCell)}>
+                {formatTourAmount(untouredTotal)}
+              </td>
+            ) : null}
             <td className={bodyCell} />
             <td className={bodyCell} />
             <td className={bodyCell} />

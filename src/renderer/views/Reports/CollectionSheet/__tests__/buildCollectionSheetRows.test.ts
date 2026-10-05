@@ -2,8 +2,10 @@ import {
   buildCollectionSheetRows,
   collectionSheetTotals,
   collectionSheetTourTotals,
+  collectionSheetUntouredTotal,
   formatTourAmount,
   isUnpaidTourCell,
+  isUntouredCell,
   tourColumnHeader,
   type CollectionSheetSource,
 } from '../buildCollectionSheetRows';
@@ -197,6 +199,27 @@ describe('buildCollectionSheetRows', () => {
       });
     });
 
+    it('puts the family "not in a tour" sum on the first row only', () => {
+      const rows = buildCollectionSheetRows(
+        accounts,
+        itemTypes,
+        money,
+        bills,
+        'en',
+        tourIds,
+        {},
+        { 1: 7, 2: 3 },
+      );
+      expect(rows.map((r) => [r.code, r.untoured])).toEqual([
+        ['IDLE', 0],
+        ['NOOR', 10],
+        ['NOOR', null],
+      ]);
+      expect(collectionSheetUntouredTotal(rows)).toBe(10);
+      expect(isUntouredCell(10)).toBe(true);
+      expect(isUntouredCell(0)).toBe(false);
+    });
+
     it('leaves rows without tour cells when no tour is in range', () => {
       const rows = buildCollectionSheetRows(
         accounts,
@@ -208,6 +231,7 @@ describe('buildCollectionSheetRows', () => {
       expect(rows.every((r) => Object.keys(r.tourPaid).length === 0)).toBe(
         true,
       );
+      expect(rows.every((r) => r.untoured === null)).toBe(true);
     });
   });
 

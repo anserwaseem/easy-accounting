@@ -24,32 +24,51 @@ interface CollectionSheetSnapshot {
   itemTypeNames: string[];
   money: Record<number, CollectionSheetMoney>;
   bills: Record<number, CollectionSheetBill[]>;
+  /** normalized yyyy-MM-dd range the numbers were loaded for */
+  range: { from: string; to: string };
   /** the head's tours overlapping the sheet range, oldest first */
   tours: AgentTour[];
   tourPaid: CollectionSheetTourPaid;
+  /** null when the agent has no tours at all, which hides the column */
+  untoured: Record<number, number> | null;
 }
 
 const NO_TOURS: AgentTour[] = [];
 
-/** a tour's full window counts, even where it runs past the sheet range */
+/**
+ * a tour's full window counts, even where it runs past the sheet range.
+ * "not in a tour" only means something once the agent has tours.
+ */
 const loadTourColumns = async (
   chartId: number,
   accountIds: number[],
   from: string,
   to: string,
-): Promise<Pick<CollectionSheetSnapshot, 'tours' | 'tourPaid'>> => {
+): Promise<
+  Pick<CollectionSheetSnapshot, 'tours' | 'tourPaid' | 'untoured'>
+> => {
   const all = await window.electron.getAgentTours(chartId);
+  if (all.length === 0) return { tours: [], tourPaid: {}, untoured: null };
   const tours = orderBy(
     all.filter((tour) => toursOverlap(tour, { startDate: from, endDate: to })),
     ['startDate'],
     ['asc'],
   );
-  if (tours.length === 0) return { tours, tourPaid: {} };
-  const tourPaid = await window.electron.getTourCollectionsForAccountIds(
-    accountIds,
-    tours.map((tour) => tour.id),
-  );
-  return { tours, tourPaid };
+  const [tourPaid, untoured] = await Promise.all([
+    tours.length === 0
+      ? Promise.resolve({})
+      : window.electron.getTourCollectionsForAccountIds(
+          accountIds,
+          tours.map((tour) => tour.id),
+        ),
+    window.electron.getUntouredCollectionsForAccountIds(
+      accountIds,
+      chartId,
+      from,
+      to,
+    ),
+  ]);
+  return { tours, tourPaid, untoured };
 };
 
 /** rolling presets are recomputed from today. a saved range that does not match is a custom pick. */
@@ -200,6 +219,7 @@ export const useCollectionSheet = () => {
           itemTypeNames: typeNames,
           money,
           bills,
+          range: { from, to },
           ...tourColumns,
         });
       } catch (error) {
@@ -312,10 +332,14 @@ export const useCollectionSheet = () => {
       language,
       snapshot.tours.map((tour) => tour.id),
       snapshot.tourPaid,
+      snapshot.untoured,
     );
   }, [snapshot, language]);
 
   const tours = snapshot?.tours ?? NO_TOURS;
+  const showUntoured = snapshot?.untoured != null;
+  // the review panel reads the same range the sheet shows
+  const range = snapshot?.range ?? null;
 
   return {
     charts,
@@ -327,6 +351,8 @@ export const useCollectionSheet = () => {
     setLanguage,
     rows,
     tours,
+    showUntoured,
+    range,
     isLoading,
     handleHeadChange,
     handleDateChange,
