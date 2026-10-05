@@ -19,9 +19,29 @@ import type { DatabaseDriver } from '../db/driver';
  * still heals the next time the page loads — Safari iOS can leave a
  * fetch outstanding forever, which used to block this repair forever).
  */
+const DAY_MISMATCH = `createdAt IS NOT NULL
+  AND updatedAt IS NOT NULL
+  AND substr(replace(replace(cast(createdAt AS TEXT), 'T', ' '), 'Z', ''), 1, 10)
+   <> substr(replace(replace(cast(updatedAt AS TEXT), 'T', ' '), 'Z', ''), 1, 10)`;
+
+const UTC_MISMATCH = `createdAt IS NOT NULL
+  AND updatedAt IS NOT NULL
+  AND createdAt <> updatedAt
+  AND (
+    datetime(createdAt, 'localtime') = datetime(updatedAt)
+    OR datetime(createdAt, '+5 hours') = datetime(updatedAt)
+  )`;
+
 export async function repairInvoiceEditedTimestamps(
   db: DatabaseDriver,
 ): Promise<number> {
+  // runs every sync cycle: a healthy device has nothing to repair, and the
+  // writes below would otherwise fire the driver's mutation listener each time
+  const needsRepair = await db.get(
+    `SELECT 1 FROM invoices WHERE (${DAY_MISMATCH}) OR (${UTC_MISMATCH}) LIMIT 1`,
+  );
+  if (needsRepair === undefined) return 0;
+
   let changes = 0;
   await db.transaction(async () => {
     await db.run(
@@ -30,23 +50,10 @@ export async function repairInvoiceEditedTimestamps(
     );
     try {
       const result = await db.run(
-        `UPDATE invoices
-         SET updatedAt = createdAt
-         WHERE createdAt IS NOT NULL
-           AND updatedAt IS NOT NULL
-           AND substr(replace(replace(cast(createdAt AS TEXT), 'T', ' '), 'Z', ''), 1, 10)
-            <> substr(replace(replace(cast(updatedAt AS TEXT), 'T', ' '), 'Z', ''), 1, 10)`,
+        `UPDATE invoices SET updatedAt = createdAt WHERE ${DAY_MISMATCH}`,
       );
       const resultUtcMismatch = await db.run(
-        `UPDATE invoices
-         SET createdAt = updatedAt
-         WHERE createdAt IS NOT NULL
-           AND updatedAt IS NOT NULL
-           AND createdAt <> updatedAt
-           AND (
-             datetime(createdAt, 'localtime') = datetime(updatedAt)
-             OR datetime(createdAt, '+5 hours') = datetime(updatedAt)
-           )`,
+        `UPDATE invoices SET createdAt = updatedAt WHERE ${UTC_MISMATCH}`,
       );
       changes = (result.changes ?? 0) + (resultUtcMismatch.changes ?? 0);
     } finally {

@@ -265,6 +265,9 @@ export class SyncEngine {
 
   private pendingSelfReferentialFks: PendingSelfReferentialFk[] = [];
 
+  /** raw `sync_state.pending_self_fks` value as last loaded/written, so an unchanged list is not rewritten every cycle */
+  private persistedPendingSelfFks: string | null = null;
+
   private readonly duplicateSeedRejectedUuids = new Set<string>();
 
   constructor(deps: {
@@ -570,6 +573,7 @@ export class SyncEngine {
           `DELETE FROM sync_state WHERE key = 'pending_self_fks'`,
         );
         this.pendingSelfReferentialFks = [];
+        this.persistedPendingSelfFks = null;
         this.duplicateSeedRejectedUuids.clear();
         await this.setCursor(0);
       } finally {
@@ -1569,10 +1573,14 @@ export class SyncEngine {
    * project can leave 100k+ of these; they are not human-reviewable.
    */
   private async pruneDuplicateSeedConflicts(): Promise<number> {
+    const where = `error LIKE '%UNIQUE constraint failed%'
+          OR error LIKE '%cannot resolve %_uuid%'`;
+    const match = await this.db.get(
+      `SELECT 1 FROM sync_apply_conflicts WHERE ${where} LIMIT 1`,
+    );
+    if (match === undefined) return 0;
     const result = await this.db.run(
-      `DELETE FROM sync_apply_conflicts
-       WHERE error LIKE '%UNIQUE constraint failed%'
-          OR error LIKE '%cannot resolve %_uuid%'`,
+      `DELETE FROM sync_apply_conflicts WHERE ${where}`,
     );
     return result.changes ?? 0;
   }
@@ -2210,6 +2218,7 @@ export class SyncEngine {
     const row = await this.db.get<{ value: string }>(
       `SELECT value FROM sync_state WHERE key = 'pending_self_fks'`,
     );
+    this.persistedPendingSelfFks = row?.value ?? null;
     if (row?.value) {
       try {
         const parsed = JSON.parse(row.value) as PendingSelfReferentialFk[];
@@ -2223,17 +2232,23 @@ export class SyncEngine {
   }
 
   private async persistPendingSelfReferentialFks(): Promise<void> {
-    if (this.pendingSelfReferentialFks.length > 0) {
+    const value =
+      this.pendingSelfReferentialFks.length > 0
+        ? JSON.stringify(this.pendingSelfReferentialFks)
+        : null;
+    if (value === this.persistedPendingSelfFks) return;
+    if (value !== null) {
       await this.db.run(
         `INSERT INTO sync_state (key, value) VALUES ('pending_self_fks', @value)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-        { value: JSON.stringify(this.pendingSelfReferentialFks) },
+        { value },
       );
     } else {
       await this.db.run(
         `DELETE FROM sync_state WHERE key = 'pending_self_fks'`,
       );
     }
+    this.persistedPendingSelfFks = value;
   }
 
   private async resolvePendingSelfReferentialFks(): Promise<void> {

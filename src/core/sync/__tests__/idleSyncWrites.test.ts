@@ -3,6 +3,7 @@ import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
 import { bootstrapDatabase } from '../../db/bootstrap';
 import { SyncEngine } from '../SyncEngine';
 import { SyncManager, type SyncKv } from '../SyncManager';
+import { MockSyncServer } from './mockServer';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -17,10 +18,45 @@ jest.mock('electron-log', () => ({
   },
 }));
 
+describe('SyncEngine idle cycle', () => {
+  it('makes no writes when there is nothing to push, pull, prune or repair', async () => {
+    const driver = new BetterSqliteDriver(new Database(':memory:'));
+    await bootstrapDatabase(driver);
+    const server = new MockSyncServer();
+    // a non-empty server log keeps the empty-server reseed branch out of play
+    await server.createDeviceTransport('peer').push([
+      {
+        idempotencyKey: 'peer:settings',
+        tableName: 'settings',
+        rowUuid: 'b0000000-0000-4000-8000-000000000001',
+        op: 'put',
+        rowJson: JSON.stringify({
+          key: 'peer',
+          value: '1',
+          uuid: 'b0000000-0000-4000-8000-000000000001',
+        }),
+      },
+    ]);
+    const engine = new SyncEngine({
+      db: driver,
+      transport: server.createDeviceTransport('self'),
+    });
+    await engine.syncOnce();
+
+    let mutations = 0;
+    driver.setMutationListener(() => {
+      mutations += 1;
+    });
+    await engine.syncOnce();
+
+    expect(mutations).toBe(0);
+  });
+});
+
 /**
- * the engine writes bookkeeping rows (sync_state, timestamp repair) on every
- * cycle. those fire the driver's mutation listener exactly like a user write,
- * so a debounce that reacts to every mutation re-triggers sync ~3s after each
+ * any write the engine makes (applying pulled rows, sync_state, repairs)
+ * fires the driver's mutation listener exactly like a user write, so a
+ * debounce that reacts to every mutation re-triggers sync ~3s after each
  * cycle forever — ~10x the steady 30s poll in Supabase requests.
  */
 describe('SyncManager write-triggered sync', () => {
