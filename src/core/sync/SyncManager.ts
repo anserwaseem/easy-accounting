@@ -959,14 +959,22 @@ export class SyncManager {
     return this.getStatus();
   }
 
-  /** Called by db.worker.ts's RPC dispatch after any call it judges to be a local write. No-op while disconnected. */
+  /**
+   * Called from the driver's mutation listener after every `run`/`exec`. No-op while disconnected.
+   *
+   * The listener cannot tell a user write from the engine's own bookkeeping
+   * (`sync_state`, timestamp repair), and every idle `syncOnce` makes some.
+   * Reacting to all of them re-triggered sync 3s after each cycle, forever.
+   * Only a write that queued `sync_outbox` rows has anything to push — the
+   * engine's writes run under `applying`, which suppresses capture — so the
+   * debounced cycle runs only then; everything else waits for the steady tick.
+   */
   scheduleDebouncedSync(): void {
     if (!this.transport) return;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;
-      this.clearTimer();
-      this.launchCycle();
+      this.launchCycle({ onlyIfOutboxPending: true });
     }, DEBOUNCE_MS);
   }
 
@@ -1179,8 +1187,14 @@ export class SyncManager {
    * current RPC turn. `syncNow` calls {@link ensureCycle} directly so an
    * RPC that is already the turn does not deadlock on itself.
    */
-  private launchCycle(): void {
-    const start = (): Promise<void> => this.ensureCycle();
+  private launchCycle(opts?: { onlyIfOutboxPending?: boolean }): void {
+    const start = async (): Promise<void> => {
+      if (opts?.onlyIfOutboxPending) {
+        if ((await this.pendingOutboxCount()) === 0) return;
+        this.clearTimer();
+      }
+      return this.ensureCycle();
+    };
     if (this.background) this.background(start);
     else {
       start().catch(() => {});
