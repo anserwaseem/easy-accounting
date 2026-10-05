@@ -1,6 +1,10 @@
 import {
   buildCollectionSheetRows,
   collectionSheetTotals,
+  collectionSheetTourTotals,
+  formatTourAmount,
+  isUnpaidTourCell,
+  tourColumnHeader,
   type CollectionSheetSource,
 } from '../buildCollectionSheetRows';
 
@@ -153,5 +157,82 @@ describe('buildCollectionSheetRows', () => {
       'en',
     );
     expect(rows.map((r) => r.collected)).toEqual([0]);
+  });
+
+  describe('tour columns', () => {
+    const accounts: CollectionSheetSource[] = [
+      { id: 1, name: 'NOOR', code: 'NOOR', address: 'X' },
+      { id: 2, name: 'NOOR-T', code: 'NOOR-T', address: 'X' },
+      { id: 3, name: 'IDLE', code: 'IDLE', address: 'Y' },
+    ];
+    const money = { 1: owed(100), 2: owed(50), 3: owed(30) };
+    const bills = {
+      1: [
+        { invoiceNumber: 1, date: '2026-01-02', amount: 60 },
+        { invoiceNumber: 2, date: '2026-02-02', amount: 40 },
+      ],
+      2: [{ invoiceNumber: 2, date: '2026-02-02', amount: 50 }],
+      3: [{ invoiceNumber: 3, date: '2026-01-05', amount: 30 }],
+    };
+    const tourIds = [10, 11];
+
+    it('folds tiers per tour on the first row, 0 when unpaid, null after', () => {
+      const rows = buildCollectionSheetRows(
+        accounts,
+        itemTypes,
+        money,
+        bills,
+        'en',
+        tourIds,
+        { 1: { 10: 40 }, 2: { 10: 5, 11: 20 } },
+      );
+      expect(rows.map((r) => [r.code, r.billNumber, r.tourPaid])).toEqual([
+        ['IDLE', '3', { 10: 0, 11: 0 }],
+        ['NOOR', '1', { 10: 45, 11: 20 }],
+        ['NOOR', '2', { 10: null, 11: null }],
+      ]);
+      expect(collectionSheetTourTotals(rows, tourIds)).toEqual({
+        10: 45,
+        11: 20,
+      });
+    });
+
+    it('leaves rows without tour cells when no tour is in range', () => {
+      const rows = buildCollectionSheetRows(
+        accounts,
+        itemTypes,
+        money,
+        bills,
+        'en',
+      );
+      expect(rows.every((r) => Object.keys(r.tourPaid).length === 0)).toBe(
+        true,
+      );
+    });
+  });
+
+  it('formats tour cells and headers', () => {
+    expect(isUnpaidTourCell(0)).toBe(true);
+    expect(isUnpaidTourCell(null)).toBe(false);
+    expect(isUnpaidTourCell(12)).toBe(false);
+    expect(formatTourAmount(0)).toBe('');
+    expect(formatTourAmount(null)).toBe('');
+    expect(formatTourAmount(1500)).toBe('1,500');
+    expect(
+      tourColumnHeader({
+        id: 1,
+        name: 'Aug 2026',
+        startDate: '2026-07-27',
+        endDate: '2026-08-30',
+      }),
+    ).toBe('Aug 2026 · 27/07–30/08');
+    expect(
+      tourColumnHeader({
+        id: 2,
+        name: 'Oct 2026',
+        startDate: '2026-10-01',
+        endDate: null,
+      }),
+    ).toBe('Oct 2026 · 01/10–…');
   });
 });

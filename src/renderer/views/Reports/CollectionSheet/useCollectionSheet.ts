@@ -8,13 +8,15 @@ import {
   makeSavedState,
   saveSavedFilters,
 } from '@/renderer/lib/reportFilters';
-import type { Account, Chart, ItemType } from '@/types';
+import type { Account, AgentTour, Chart, ItemType } from '@/types';
 import { REPORT_FILTER_KEYS } from '@/types';
+import { toursOverlap } from '@/core/utils/suggestAgentTours';
 import {
   buildCollectionSheetRows,
   type CollectionSheetBill,
   type CollectionSheetLanguage,
   type CollectionSheetMoney,
+  type CollectionSheetTourPaid,
 } from './buildCollectionSheetRows';
 
 interface CollectionSheetSnapshot {
@@ -22,7 +24,33 @@ interface CollectionSheetSnapshot {
   itemTypeNames: string[];
   money: Record<number, CollectionSheetMoney>;
   bills: Record<number, CollectionSheetBill[]>;
+  /** the head's tours overlapping the sheet range, oldest first */
+  tours: AgentTour[];
+  tourPaid: CollectionSheetTourPaid;
 }
+
+const NO_TOURS: AgentTour[] = [];
+
+/** a tour's full window counts, even where it runs past the sheet range */
+const loadTourColumns = async (
+  chartId: number,
+  accountIds: number[],
+  from: string,
+  to: string,
+): Promise<Pick<CollectionSheetSnapshot, 'tours' | 'tourPaid'>> => {
+  const all = await window.electron.getAgentTours(chartId);
+  const tours = orderBy(
+    all.filter((tour) => toursOverlap(tour, { startDate: from, endDate: to })),
+    ['startDate'],
+    ['asc'],
+  );
+  if (tours.length === 0) return { tours, tourPaid: {} };
+  const tourPaid = await window.electron.getTourCollectionsForAccountIds(
+    accountIds,
+    tours.map((tour) => tour.id),
+  );
+  return { tours, tourPaid };
+};
 
 /** rolling presets are recomputed from today. a saved range that does not match is a custom pick. */
 const presetAgreesWithRange = (
@@ -148,11 +176,14 @@ export const useCollectionSheet = () => {
           return;
         }
         const ids = partyAccounts.map((account) => account.id);
-        const [balances, collectedById, bills] = await Promise.all([
-          window.electron.getLedgerBalancesForAccountIdsAsOfDate(ids, to),
-          window.electron.getCreditSumsForAccountIdsInRange(ids, from, to),
-          window.electron.getSaleBillsForAccountIdsInRange(ids, from, to),
-        ]);
+        const [balances, collectedById, bills, tourColumns] = await Promise.all(
+          [
+            window.electron.getLedgerBalancesForAccountIdsAsOfDate(ids, to),
+            window.electron.getCreditSumsForAccountIdsInRange(ids, from, to),
+            window.electron.getSaleBillsForAccountIdsInRange(ids, from, to),
+            loadTourColumns(id, ids, from, to),
+          ],
+        );
         if (token !== requestId.current) return;
 
         const money: Record<number, CollectionSheetMoney> = {};
@@ -169,6 +200,7 @@ export const useCollectionSheet = () => {
           itemTypeNames: typeNames,
           money,
           bills,
+          ...tourColumns,
         });
       } catch (error) {
         console.error('Error loading collection sheet:', error);
@@ -278,8 +310,12 @@ export const useCollectionSheet = () => {
       snapshot.money,
       snapshot.bills,
       language,
+      snapshot.tours.map((tour) => tour.id),
+      snapshot.tourPaid,
     );
   }, [snapshot, language]);
+
+  const tours = snapshot?.tours ?? NO_TOURS;
 
   return {
     charts,
@@ -290,6 +326,7 @@ export const useCollectionSheet = () => {
     language,
     setLanguage,
     rows,
+    tours,
     isLoading,
     handleHeadChange,
     handleDateChange,

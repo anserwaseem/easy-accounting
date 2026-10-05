@@ -3,13 +3,19 @@ import { printStyles } from '../components/printStyles';
 import {
   collectionSheetHeaders,
   collectionSheetTotals,
+  collectionSheetTourTotals,
   formatSheetAmount,
+  formatTourAmount,
+  isUnpaidTourCell,
+  tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
+  type CollectionSheetTourColumn,
 } from './buildCollectionSheetRows';
 
 interface CollectionSheetPrintOptions {
   rows: CollectionSheetRow[];
+  tours: CollectionSheetTourColumn[];
   title: string;
   subtitle: string;
   language: CollectionSheetLanguage;
@@ -21,12 +27,28 @@ const cell = (value: string, extra = ''): string =>
 export const printCollectionSheetIframe = (
   options: CollectionSheetPrintOptions,
 ) => {
-  const { rows, title, subtitle, language } = options;
+  const { rows, tours, title, subtitle, language } = options;
   if (rows.length === 0) return;
 
   const headers = collectionSheetHeaders(language);
   const totals = collectionSheetTotals(rows);
+  const tourTotals = collectionSheetTourTotals(
+    rows,
+    tours.map((tour) => tour.id),
+  );
   const dir = language === 'ur' ? 'rtl' : 'ltr';
+  // fixed columns span both header rows when tour columns add a second one
+  const span = tours.length > 0 ? ' rowspan="2"' : '';
+  const tourCells = (row: CollectionSheetRow): string =>
+    tours
+      .map((tour) => {
+        const paid = row.tourPaid[tour.id];
+        const unpaid = isUnpaidTourCell(paid) ? ' unpaid' : '';
+        return `<td class="num tour${unpaid}">${escape(
+          formatTourAmount(paid),
+        )}</td>`;
+      })
+      .join('');
   const body = rows
     .map((row) => {
       const dittoClass =
@@ -46,6 +68,7 @@ export const printCollectionSheetIframe = (
         ${cell(row.billDate, ' class="ltr fit" dir="ltr"')}
         <td class="num fit">${escape(formatSheetAmount(row.balance))}</td>
         <td class="num">${escape(formatSheetAmount(row.collected))}</td>
+        ${tourCells(row)}
         <td class="write"></td>
         <td class="write"></td>
         <td class="write"></td>
@@ -98,6 +121,8 @@ export const printCollectionSheetIframe = (
     td.ditto { color: #bdbdbd; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     td.ditto-right { text-align: right; }
     th.write, td.write { min-width: 16mm; }
+    th.tour, td.tour { white-space: nowrap; }
+    td.unpaid { background: #ececec; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     tr { break-inside: avoid; }
   </style>
 </head>
@@ -107,18 +132,35 @@ export const printCollectionSheetIframe = (
   <table>
     <thead>
       <tr>
-        <th class="num">${escape(headers.serial)}</th>
-        <th>${escape(headers.shop)}</th>
-        <th>${escape(headers.address)}</th>
-        <th class="ltr fit" dir="ltr">${escape(headers.code)}</th>
-        <th class="ltr fit" dir="ltr">${escape(headers.bill)}</th>
-        <th class="ltr fit" dir="ltr">${escape(headers.billDate)}</th>
-        <th class="num fit">${escape(headers.balance)}</th>
-        <th class="num">${escape(headers.collected)}</th>
-        <th class="write">${escape(headers.collection)}</th>
-        <th class="write">${escape(headers.difference)}</th>
-        <th class="write">${escape(headers.remaining)}</th>
+        <th class="num"${span}>${escape(headers.serial)}</th>
+        <th${span}>${escape(headers.shop)}</th>
+        <th${span}>${escape(headers.address)}</th>
+        <th class="ltr fit" dir="ltr"${span}>${escape(headers.code)}</th>
+        <th class="ltr fit" dir="ltr"${span}>${escape(headers.bill)}</th>
+        <th class="ltr fit" dir="ltr"${span}>${escape(headers.billDate)}</th>
+        <th class="num fit"${span}>${escape(headers.balance)}</th>
+        <th class="num"${span}>${escape(headers.collected)}</th>
+        ${
+          tours.length > 0
+            ? `<th colspan="${tours.length}">${escape(headers.tours)}</th>`
+            : ''
+        }
+        <th class="write"${span}>${escape(headers.collection)}</th>
+        <th class="write"${span}>${escape(headers.difference)}</th>
+        <th class="write"${span}>${escape(headers.remaining)}</th>
       </tr>
+      ${
+        tours.length > 0
+          ? `<tr>${tours
+              .map(
+                (tour) =>
+                  `<th class="num tour" dir="ltr">${escape(
+                    tourColumnHeader(tour),
+                  )}</th>`,
+              )
+              .join('')}</tr>`
+          : ''
+      }
     </thead>
     <tbody>
       ${body}
@@ -135,6 +177,14 @@ export const printCollectionSheetIframe = (
         <td class="num"><strong>${escape(
           formatSheetAmount(totals.collected),
         )}</strong></td>
+        ${tours
+          .map(
+            (tour) =>
+              `<td class="num tour"><strong>${escape(
+                formatTourAmount(tourTotals[tour.id]),
+              )}</strong></td>`,
+          )
+          .join('')}
         <td class="write"></td>
         <td class="write"></td>
         <td class="write"></td>

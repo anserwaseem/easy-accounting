@@ -30,6 +30,7 @@ import type {
   UpdateInventoryItem,
   InsertInventoryItem,
   InsertChart,
+  AgentTourInput,
   UpdateJournalFields,
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
@@ -308,6 +309,7 @@ app
     // stack (OS keychain, filesystem, native menus).
     const {
       accountService,
+      agentTourService,
       chartService,
       ledgerService,
       pricingService,
@@ -603,6 +605,11 @@ app
           startDate,
           endDate,
         ),
+    );
+    ipcMain.handle(
+      'ledger:getTourCollectionsForAccountIds',
+      async (_, accountIds: number[], tourIds: number[]) =>
+        ledgerService.getTourCollectionsForAccountIds(accountIds, tourIds),
     );
     ipcMain.handle(
       'ledger:getLedgerRangeForAccountIds',
@@ -987,6 +994,24 @@ app
       'chart:updateCustomHeadUrdu',
       (_, chartId: number, nameUrdu: string | null) =>
         chartService.updateCustomHeadUrdu(chartId, nameUrdu),
+    );
+    ipcMain.handle('agentTour:getAll', (_, chartId: number) =>
+      agentTourService.getAgentTours(chartId),
+    );
+    ipcMain.handle('agentTour:insert', (_, tour: AgentTourInput) =>
+      agentTourService.insertAgentTour(tour),
+    );
+    ipcMain.handle('agentTour:insertMany', (_, tours: AgentTourInput[]) =>
+      agentTourService.insertAgentTours(tours),
+    );
+    ipcMain.handle('agentTour:update', (_, id: number, tour: AgentTourInput) =>
+      agentTourService.updateAgentTour(id, tour),
+    );
+    ipcMain.handle('agentTour:delete', (_, id: number) =>
+      agentTourService.deleteAgentTour(id),
+    );
+    ipcMain.handle('agentTour:suggest', (_, chartId: number) =>
+      agentTourService.suggestAgentTours(chartId),
     );
 
     ipcMain.handle(

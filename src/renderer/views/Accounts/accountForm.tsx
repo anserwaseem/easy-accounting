@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch, type Control } from 'react-hook-form';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import {
@@ -11,10 +11,31 @@ import {
   FormControl,
   FormMessage,
 } from 'renderer/shad/ui/form';
-import type { Chart } from 'types';
+import type { AccountCollectionRole, Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
 import { Badge } from 'renderer/shad/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'renderer/shad/ui/select';
+import { isDefaultReceiptHead } from '@/core/utils/receiptAccounts';
+
+const COLLECTION_ROLE_OPTIONS = ['default', 'receipt', 'exclude'] as const;
+type CollectionRoleOption = (typeof COLLECTION_ROLE_OPTIONS)[number];
+
+/** form option to the stored column: 'default' is NULL */
+export const toCollectionRole = (
+  option: CollectionRoleOption | undefined,
+): AccountCollectionRole | null =>
+  option === 'receipt' || option === 'exclude' ? option : null;
+
+export const toCollectionRoleOption = (
+  role: AccountCollectionRole | null | undefined,
+): CollectionRoleOption => role ?? 'default';
 
 const optionalText = z
   .string()
@@ -41,6 +62,7 @@ export const accountFormSchema = z.object({
   goodsNameUrdu: optionalText,
   isActive: z.boolean().default(true),
   tracksVendorStock: z.boolean().default(false),
+  collectionRole: z.enum(COLLECTION_ROLE_OPTIONS).default('default'),
   discountProfileId: z.number().nullable().optional(),
   discountProfileName: z.string().nullable().optional(),
 });
@@ -60,8 +82,36 @@ export const defaultValues: AccountFormData = {
   goodsNameUrdu: undefined,
   isActive: true,
   tracksVendorStock: false,
+  collectionRole: 'default',
   discountProfileId: null,
   discountProfileName: null,
+};
+
+interface CollectionRoleHintProps {
+  control: Control<AccountFormData>;
+  charts: Chart[];
+}
+
+/** what "Default" resolves to for the chosen head; watches one field only */
+const CollectionRoleHint: React.FC<CollectionRoleHintProps> = ({
+  control,
+  charts,
+}: CollectionRoleHintProps) => {
+  const headName = useWatch({ control, name: 'headName' });
+  const counts = isDefaultReceiptHead(
+    charts.find((chart) => chart.name === headName),
+  );
+  return (
+    <p className="text-xs leading-snug text-muted-foreground">
+      Whether money this account receives from a customer is shown in that
+      agent&apos;s tour columns on the collection sheet. Default here:{' '}
+      <span className="font-medium text-foreground">
+        {counts ? 'counts' : 'does not count'}
+      </span>{' '}
+      (only accounts directly under an Asset head, such as cash and bank, count
+      by default).
+    </p>
+  );
 };
 
 interface AccountFormProps {
@@ -270,6 +320,31 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                   </p>
                 </div>
               </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="collectionRole"
+          render={({ field }) => (
+            <FormItem className="py-1">
+              <div className="flex items-center justify-between gap-3">
+                <FormLabel>Counts as collection</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="receipt">Always</SelectItem>
+                    <SelectItem value="exclude">Never</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <CollectionRoleHint control={form.control} charts={charts} />
               <FormMessage />
             </FormItem>
           )}

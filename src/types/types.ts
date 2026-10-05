@@ -97,6 +97,9 @@ export type SectionType = (typeof SectionTypes)[number] | null;
 export const SingularSections = ['asset', 'liability', 'equity'] as const;
 export type SingularSection = (typeof SingularSections)[number]; // used in chart & statement services
 
+/** whether credits paired with this account count as a collection on agent tours */
+export type AccountCollectionRole = 'receipt' | 'exclude';
+
 /** Account */
 export interface Account extends BaseEntity {
   name: string;
@@ -117,6 +120,8 @@ export interface Account extends BaseEntity {
   isActive: boolean;
   /** when true, purchase invoices reduce this account's vendor stock; issues increase it */
   tracksVendorStock?: boolean;
+  /** null/undefined follows the default receipt rule (top-level Asset head) */
+  collectionRole?: AccountCollectionRole | null;
   discountProfileId?: number | null;
   discountProfileName?: string | null;
   discountProfileIsActive?: boolean | null;
@@ -188,6 +193,32 @@ export interface Chart extends BaseEntity {
 }
 export type InsertChart = Pick<Chart, 'name' | 'type' | 'parentId'> & {
   nameUrdu?: string | null;
+};
+
+/** one trip of an agent (custom head). dates are yyyy-MM-dd, inclusive */
+export interface AgentTour {
+  id: number;
+  chartId: number;
+  name: string;
+  startDate: string;
+  /** null while the tour is still running */
+  endDate: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type AgentTourInput = Pick<
+  AgentTour,
+  'chartId' | 'name' | 'startDate' | 'endDate' | 'notes'
+>;
+
+/** a tour proposed from past bulk receipt journals, not saved yet */
+export type SuggestedAgentTour = Omit<AgentTourInput, 'notes'> & {
+  /** journal whose date ends this window */
+  journalId: number;
+  /** customer lines that journal credits */
+  creditLines: number;
 };
 
 /** Ledger */

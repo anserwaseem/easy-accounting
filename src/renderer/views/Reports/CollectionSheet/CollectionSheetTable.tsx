@@ -4,13 +4,19 @@ import { EmptyState, LoadingState } from '../components';
 import {
   collectionSheetHeaders,
   collectionSheetTotals,
+  collectionSheetTourTotals,
   formatSheetAmount,
+  formatTourAmount,
+  isUnpaidTourCell,
+  tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
+  type CollectionSheetTourColumn,
 } from './buildCollectionSheetRows';
 
 interface CollectionSheetTableProps {
   rows: CollectionSheetRow[];
+  tours: CollectionSheetTourColumn[];
   isLoading: boolean;
   hasAgent: boolean;
   language: CollectionSheetLanguage;
@@ -27,9 +33,12 @@ const Amount: React.FC<AmountProps> = ({ amount }: AmountProps) => (
 const headCell = 'border border-border px-2 py-2';
 const bodyCell = 'border border-border px-2 py-1.5';
 const writeCell = 'min-w-[4.5rem]';
+const tourCell = 'text-end tabular-nums whitespace-nowrap';
+const unpaidCell = 'bg-destructive/10';
 
 export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   rows,
+  tours,
   isLoading,
   hasAgent,
   language,
@@ -44,7 +53,12 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
 
   const headers = collectionSheetHeaders(language);
   const totals = collectionSheetTotals(rows);
+  const tourIds = tours.map((tour) => tour.id);
+  const tourTotals = collectionSheetTourTotals(rows, tourIds);
   const urdu = language === 'ur';
+  const hasTours = tours.length > 0;
+  // fixed columns span both header rows when tour columns add a second one
+  const span = hasTours ? 2 : undefined;
 
   return (
     <Card className="shadow-md print-card overflow-x-auto">
@@ -54,30 +68,70 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
       >
         <thead>
           <tr className="text-start">
-            <th className={cn(headCell, 'text-end w-10')}>{headers.serial}</th>
-            <th className={cn(headCell, 'text-start')}>{headers.shop}</th>
-            <th className={cn(headCell, 'text-start')}>{headers.address}</th>
-            <th dir="ltr" className={cn(headCell, 'text-left')}>
+            <th rowSpan={span} className={cn(headCell, 'text-end w-10')}>
+              {headers.serial}
+            </th>
+            <th rowSpan={span} className={cn(headCell, 'text-start')}>
+              {headers.shop}
+            </th>
+            <th rowSpan={span} className={cn(headCell, 'text-start')}>
+              {headers.address}
+            </th>
+            <th rowSpan={span} dir="ltr" className={cn(headCell, 'text-left')}>
               {headers.code}
             </th>
-            <th dir="ltr" className={cn(headCell, 'text-left')}>
+            <th rowSpan={span} dir="ltr" className={cn(headCell, 'text-left')}>
               {headers.bill}
             </th>
-            <th dir="ltr" className={cn(headCell, 'text-left')}>
+            <th rowSpan={span} dir="ltr" className={cn(headCell, 'text-left')}>
               {headers.billDate}
             </th>
-            <th className={cn(headCell, 'text-end')}>{headers.balance}</th>
-            <th className={cn(headCell, 'text-end')}>{headers.collected}</th>
-            <th className={cn(headCell, 'text-start', writeCell)}>
+            <th rowSpan={span} className={cn(headCell, 'text-end')}>
+              {headers.balance}
+            </th>
+            <th rowSpan={span} className={cn(headCell, 'text-end')}>
+              {headers.collected}
+            </th>
+            {hasTours ? (
+              <th
+                colSpan={tours.length}
+                className={cn(headCell, 'text-center')}
+              >
+                {headers.tours}
+              </th>
+            ) : null}
+            <th
+              rowSpan={span}
+              className={cn(headCell, 'text-start', writeCell)}
+            >
               {headers.collection}
             </th>
-            <th className={cn(headCell, 'text-start', writeCell)}>
+            <th
+              rowSpan={span}
+              className={cn(headCell, 'text-start', writeCell)}
+            >
               {headers.difference}
             </th>
-            <th className={cn(headCell, 'text-start', writeCell)}>
+            <th
+              rowSpan={span}
+              className={cn(headCell, 'text-start', writeCell)}
+            >
               {headers.remaining}
             </th>
           </tr>
+          {hasTours ? (
+            <tr>
+              {tours.map((tour) => (
+                <th
+                  key={tour.id}
+                  dir="ltr"
+                  className={cn(headCell, 'text-end whitespace-nowrap')}
+                >
+                  {tourColumnHeader(tour)}
+                </th>
+              ))}
+            </tr>
+          ) : null}
         </thead>
         <tbody>
           {rows.map((row) => (
@@ -122,6 +176,22 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               <td className={cn(bodyCell, 'text-end')}>
                 <Amount amount={row.collected} />
               </td>
+              {tours.map((tour) => {
+                const paid = row.tourPaid[tour.id];
+                return (
+                  <td
+                    key={tour.id}
+                    className={cn(
+                      bodyCell,
+                      tourCell,
+                      isUnpaidTourCell(paid) && unpaidCell,
+                    )}
+                    title={isUnpaidTourCell(paid) ? 'Not paid' : undefined}
+                  >
+                    {formatTourAmount(paid)}
+                  </td>
+                );
+              })}
               <td className={cn(bodyCell, writeCell)} />
               <td className={cn(bodyCell, writeCell)} />
               <td className={cn(bodyCell, writeCell)} />
@@ -142,6 +212,11 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             <td className={cn(bodyCell, 'text-end')}>
               <Amount amount={totals.collected} />
             </td>
+            {tours.map((tour) => (
+              <td key={tour.id} className={cn(bodyCell, tourCell)}>
+                {formatTourAmount(tourTotals[tour.id])}
+              </td>
+            ))}
             <td className={bodyCell} />
             <td className={bodyCell} />
             <td className={bodyCell} />

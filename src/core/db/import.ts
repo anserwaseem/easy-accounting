@@ -71,6 +71,7 @@ import { rebuildDerivedState } from './rebuildDerivedState';
 export const BUSINESS_TABLES = [
   'users',
   'chart',
+  'agent_tours',
   'discount_profiles',
   'item_types',
   'price_lists',

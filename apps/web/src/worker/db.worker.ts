@@ -84,6 +84,7 @@ import {
 import type { KeyValueStore, SessionContext } from '@core/ports';
 import { AccountService } from '@core/services/AccountService';
 import { ChartService } from '@core/services/ChartService';
+import { AgentTourService } from '@core/services/AgentTourService';
 import { LedgerService } from '@core/services/LedgerService';
 import { PricingService } from '@core/services/PricingService';
 import { InventoryService } from '@core/services/InventoryService';
@@ -459,6 +460,7 @@ async function main(): Promise<void> {
   // src/main/coreRuntime.ts's createCoreServices().
   const accountService = new AccountService({ db: driver, session });
   const chartService = new ChartService({ db: driver, session });
+  const agentTourService = new AgentTourService({ db: driver, session });
   const ledgerService = new LedgerService({ db: driver, session });
   const pricingService = new PricingService({ db: driver, session });
   const vendorStockService = new VendorStockService({ db: driver });
@@ -725,6 +727,26 @@ async function main(): Promise<void> {
         nameUrdu as string | null,
       ),
 
+    // -- Agent tours -------------------------------------------------------
+    getAgentTours: (chartId) =>
+      agentTourService.getAgentTours(chartId as number),
+    insertAgentTour: (tour) =>
+      agentTourService.insertAgentTour(
+        tour as Parameters<AgentTourService['insertAgentTour']>[0],
+      ),
+    insertAgentTours: (tours) =>
+      agentTourService.insertAgentTours(
+        tours as Parameters<AgentTourService['insertAgentTours']>[0],
+      ),
+    updateAgentTour: (id, tour) =>
+      agentTourService.updateAgentTour(
+        id as number,
+        tour as Parameters<AgentTourService['updateAgentTour']>[1],
+      ),
+    deleteAgentTour: (id) => agentTourService.deleteAgentTour(id as number),
+    suggestAgentTours: (chartId) =>
+      agentTourService.suggestAgentTours(chartId as number),
+
     // -- Journal ---------------------------------------------------------
     getNextJournalId: () => journalService.getNextJournalId(),
     insertJournal: (journal) =>
@@ -796,6 +818,11 @@ async function main(): Promise<void> {
         accountIds as number[],
         startDate as string,
         endDate as string,
+      ),
+    getTourCollectionsForAccountIds: (accountIds, tourIds) =>
+      ledgerService.getTourCollectionsForAccountIds(
+        accountIds as number[],
+        tourIds as number[],
       ),
 
     // -- Invoice -----------------------------------------------------------

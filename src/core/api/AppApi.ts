@@ -34,6 +34,9 @@ import type {
   UpdateInventoryItem,
   InsertInventoryItem,
   InsertChart,
+  AgentTour,
+  AgentTourInput,
+  SuggestedAgentTour,
   UpdateJournalFields,
   SetOpeningStockItem,
   StockAdjustment,
@@ -287,6 +290,20 @@ export interface AppApi {
   ) => Promise<any>;
 
   // ---------------------------------------------------------------------
+  // Agent tours
+  // ---------------------------------------------------------------------
+
+  /** tours of one custom head, newest first */
+  getAgentTours: (chartId: number) => Promise<AgentTour[]>;
+  insertAgentTour: (tour: AgentTourInput) => Promise<number>;
+  /** all or nothing; returns how many were saved */
+  insertAgentTours: (tours: AgentTourInput[]) => Promise<number>;
+  updateAgentTour: (id: number, tour: AgentTourInput) => Promise<boolean>;
+  deleteAgentTour: (id: number) => Promise<boolean>;
+  /** proposals from past bulk receipt journals; nothing is saved */
+  suggestAgentTours: (chartId: number) => Promise<SuggestedAgentTour[]>;
+
+  // ---------------------------------------------------------------------
   // Journal
   // ---------------------------------------------------------------------
 
@@ -383,6 +400,11 @@ export interface AppApi {
     startDate: string,
     endDate: string,
   ) => Promise<Record<number, number>>;
+  /** receipts per account per tour (accountId -> tourId -> amount) */
+  getTourCollectionsForAccountIds: (
+    accountIds: number[],
+    tourIds: number[],
+  ) => Promise<Record<number, Record<number, number>>>;
 
   // ---------------------------------------------------------------------
   // Invoice

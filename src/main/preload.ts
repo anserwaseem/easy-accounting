@@ -18,6 +18,9 @@ import type {
   UpdateInventoryItem,
   InsertInventoryItem,
   InsertChart,
+  AgentTour,
+  AgentTourInput,
+  SuggestedAgentTour,
   UpdateJournalFields,
   SetOpeningStockItem,
   StockAdjustment,
@@ -572,6 +575,23 @@ const electronHandler = {
     ipcRenderer.invoke('chart:updateCustomHeadName', chartId, name),
   updateCustomHeadUrdu: (chartId: number, nameUrdu: string | null) =>
     ipcRenderer.invoke('chart:updateCustomHeadUrdu', chartId, nameUrdu),
+  /** tours of one custom head, newest first */
+  getAgentTours: (chartId: number) =>
+    ipcRenderer.invoke('agentTour:getAll', chartId) as Promise<AgentTour[]>,
+  insertAgentTour: (tour: AgentTourInput) =>
+    ipcRenderer.invoke('agentTour:insert', tour) as Promise<number>,
+  /** all or nothing; returns how many were saved */
+  insertAgentTours: (tours: AgentTourInput[]) =>
+    ipcRenderer.invoke('agentTour:insertMany', tours) as Promise<number>,
+  updateAgentTour: (id: number, tour: AgentTourInput) =>
+    ipcRenderer.invoke('agentTour:update', id, tour) as Promise<boolean>,
+  deleteAgentTour: (id: number) =>
+    ipcRenderer.invoke('agentTour:delete', id) as Promise<boolean>,
+  /** proposals from past bulk receipt journals; nothing is saved */
+  suggestAgentTours: (chartId: number) =>
+    ipcRenderer.invoke('agentTour:suggest', chartId) as Promise<
+      SuggestedAgentTour[]
+    >,
   /**
    * Insert an account
    * @param account The account to insert
@@ -709,6 +729,13 @@ const electronHandler = {
       startDate,
       endDate,
     ) as Promise<Record<number, number>>,
+  /** receipts per account per tour (accountId -> tourId -> amount) */
+  getTourCollectionsForAccountIds: (accountIds: number[], tourIds: number[]) =>
+    ipcRenderer.invoke(
+      'ledger:getTourCollectionsForAccountIds',
+      accountIds,
+      tourIds,
+    ) as Promise<Record<number, Record<number, number>>>,
   /** inclusive calendar range per account; rows enriched like getLedger */
   getLedgerRangeForAccountIds: (
     accountIds: number[],

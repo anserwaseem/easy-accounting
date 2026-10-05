@@ -52,6 +52,7 @@ const SQL = {
         a.goodsNameUrdu,
         a.isActive,
         COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
+        a.collectionRole,
         a.discountProfileId,
         dp.name AS discountProfileName,
         dp.isActive AS discountProfileIsActive
@@ -66,7 +67,7 @@ const SQL = {
       AND NOT (a.name = '${OPENING_BALANCE_EQUITY_ACCOUNT_NAME}' AND c.type = '${OPENING_BALANCE_EQUITY_CHART_NAME}')
     `,
   insertAccount: `
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, nameUrdu, addressUrdu, goodsNameUrdu, isActive, discountProfileId, tracksVendorStock)
+      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, nameUrdu, addressUrdu, goodsNameUrdu, isActive, discountProfileId, tracksVendorStock, collectionRole)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -75,11 +76,13 @@ const SQL = {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName, @nameUrdu, @addressUrdu, @goodsNameUrdu, 1, @discountProfileId, COALESCE(@tracksVendorStock, 0))
+      ), @code, @address, @phone1, @phone2, @goodsName, @nameUrdu, @addressUrdu, @goodsNameUrdu, 1, @discountProfileId, COALESCE(@tracksVendorStock, 0), @collectionRole)
     `,
   updateAccount: `
       UPDATE account
-      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, nameUrdu = @nameUrdu, addressUrdu = @addressUrdu, goodsNameUrdu = @goodsNameUrdu, discountProfileId = @discountProfileId, tracksVendorStock = COALESCE(@tracksVendorStock, 0), chartId = (
+      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, nameUrdu = @nameUrdu, addressUrdu = @addressUrdu, goodsNameUrdu = @goodsNameUrdu, discountProfileId = @discountProfileId, tracksVendorStock = COALESCE(@tracksVendorStock, 0),
+        collectionRole = CASE WHEN @keepCollectionRole = 1 THEN collectionRole ELSE @collectionRole END,
+        chartId = (
         SELECT id
         FROM chart
         WHERE name = @headName AND userId = (
@@ -240,6 +243,7 @@ export class AccountService {
         a.goodsNameUrdu,
         a.isActive,
         COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
+        a.collectionRole,
         a.discountProfileId,
         dp.name AS discountProfileName,
         dp.isActive AS discountProfileIsActive
@@ -269,6 +273,7 @@ export class AccountService {
       goodsNameUrdu: account.goodsNameUrdu ?? null,
       discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
+      collectionRole: account.collectionRole ?? null,
       username,
     });
     return Number.isSafeInteger(result.lastInsertRowid);
@@ -314,6 +319,7 @@ export class AccountService {
       goodsNameUrdu: account.goodsNameUrdu ?? null,
       discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
+      collectionRole: account.collectionRole ?? null,
       username,
     });
     return {
@@ -331,6 +337,9 @@ export class AccountService {
       goodsNameUrdu: account.goodsNameUrdu ?? null,
       discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
+      // omitted means "leave as is"; null means "back to the default rule"
+      keepCollectionRole: cast(account.collectionRole === undefined),
+      collectionRole: account.collectionRole ?? null,
       id: cast(account.id),
       username,
     });

@@ -2,6 +2,7 @@ import { BalanceType, type Ledger } from '../../types';
 import type { DatabaseDriver, RunResult } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { logErrors } from '../errorLogger';
+import { localDaySql, RECEIPT_ACCOUNTS_CTE } from '../utils/receiptAccounts';
 
 type GetBalance = { balance: number; balanceType: BalanceType };
 
@@ -191,6 +192,46 @@ const SQL = {
         ) <= @endDate
       GROUP BY lv.accountId
     `,
+  // same proration as ledger_lines (credit * debit / total debits, summed over
+  // the receipt debits), computed straight from journal_entry: the views
+  // re-total every journal per pair and cost seconds across a whole head.
+  getTourCollectionsForAccountIds: `
+      WITH tours AS (
+        SELECT t.id, t.startDate, COALESCE(t.endDate, date('now', 'localtime')) AS endDate
+        FROM agent_tours t
+        WHERE t.id IN (SELECT CAST(j.value AS INTEGER) FROM json_each(@tourIdsJson) AS j)
+      ),
+      ${RECEIPT_ACCOUNTS_CTE},
+      credits AS (
+        SELECT c.journalId, c.accountId, c.creditAmount, ${localDaySql(
+          'j.date',
+        )} AS day
+        FROM journal_entry c
+        JOIN journal j ON j.id = c.journalId
+        WHERE c.creditAmount > 0
+          AND c.accountId IN (
+            SELECT CAST(ids.value AS INTEGER) FROM json_each(@accountIdsJson) AS ids
+          )
+      ),
+      debits AS (
+        SELECT
+          d.journalId,
+          SUM(d.debitAmount) AS total,
+          SUM(CASE WHEN d.accountId IN (SELECT id FROM receipt_accounts) THEN d.debitAmount ELSE 0 END) AS receipt
+        FROM journal_entry d
+        WHERE d.debitAmount > 0
+          AND d.journalId IN (SELECT journalId FROM credits)
+        GROUP BY d.journalId
+      )
+      SELECT
+        credits.accountId AS accountId,
+        tours.id AS tourId,
+        SUM(credits.creditAmount * 1.0 * debits.receipt / debits.total) AS paid
+      FROM credits
+      JOIN debits ON debits.journalId = credits.journalId AND debits.receipt > 0
+      JOIN tours ON credits.day BETWEEN tours.startDate AND tours.endDate
+      GROUP BY credits.accountId, tours.id
+    `,
   getLedgerRangeForAccountIds: `
       SELECT lv.ownEntryId AS id, lv.date, lv.accountId, lv.particulars, lv.debit, lv.credit, lv.balance, lv.balanceType, lv.linkedAccountId, a.name AS linkedAccountName, a.code AS linkedAccountCode
       FROM ledger_view lv
@@ -352,6 +393,37 @@ export class LedgerService {
     const out: Record<number, number> = {};
     for (const row of rows) {
       out[row.accountId] = row.collected ?? 0;
+    }
+    return out;
+  }
+
+  /**
+   * per account, per tour: credits paired with a receipt account whose local
+   * day falls in the tour (a running tour ends today). other credits —
+   * discounts, sale reversals, balance transfers — are not collections.
+   * pairs with nothing collected are omitted.
+   */
+  async getTourCollectionsForAccountIds(
+    accountIds: number[],
+    tourIds: number[],
+  ): Promise<Record<number, Record<number, number>>> {
+    const unique = LedgerService.uniqueSortedAccountIds(accountIds);
+    const tours = LedgerService.uniqueSortedAccountIds(tourIds);
+    if (unique.length === 0 || tours.length === 0) return {};
+    const rows = await this.db.all<{
+      accountId: number;
+      tourId: number;
+      paid: number;
+    }>(SQL.getTourCollectionsForAccountIds, {
+      accountIdsJson: JSON.stringify(unique),
+      tourIdsJson: JSON.stringify(tours),
+    });
+    const out: Record<number, Record<number, number>> = {};
+    for (const row of rows) {
+      out[row.accountId] = {
+        ...out[row.accountId],
+        [row.tourId]: row.paid ?? 0,
+      };
     }
     return out;
   }
