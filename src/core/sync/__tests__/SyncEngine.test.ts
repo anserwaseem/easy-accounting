@@ -2136,4 +2136,114 @@ describe('SyncEngine convergence', () => {
 
     a.db.close();
   });
+
+  it('(z) self-referential causal inversion: a child inventory item arriving BEFORE its parent resolves parentId upon parent arrival and allows child dependents (invoice_items) to apply without conflict', async () => {
+    const server = new MockSyncServer();
+    const b = await makeDevice('deviceB', server.createDeviceTransport('B'));
+
+    const parentUuid = 'parent-item-uuid-1';
+    const childUuid = 'child-item-uuid-1';
+    const invoiceUuid = 'inv-uuid-1';
+    const invoiceItemUuid = 'inv-item-uuid-1';
+
+    const transportA = server.createDeviceTransport('deviceA');
+
+    await seedChart(b);
+    const partyId = await insertAccount(b, 'Customer', 'Current Asset');
+    const party = await b.driver.get<{ uuid: string }>(
+      `SELECT uuid FROM account WHERE id = @id`,
+      { id: partyId },
+    );
+
+    // Seed log directly on mock server in reversed causal order:
+    await transportA.push([
+      // Seq 1: Invoice
+      {
+        idempotencyKey: 'test:inv',
+        tableName: 'invoices',
+        rowUuid: invoiceUuid,
+        op: 'put',
+        rowJson: JSON.stringify({
+          invoiceNumber: 101,
+          accountId_uuid: party!.uuid,
+          invoiceType: 'Sale',
+          date: '2026-10-01 10:00:00',
+          totalAmount: 500,
+          createdAt: '2026-10-01 10:00:00',
+          updatedAt: '2026-10-01 10:00:00',
+          uuid: invoiceUuid,
+        }),
+      },
+      // Seq 2: Child inventory item (pointing to parentUuid that has NOT arrived yet)
+      {
+        idempotencyKey: 'test:child',
+        tableName: 'inventory',
+        rowUuid: childUuid,
+        op: 'put',
+        rowJson: JSON.stringify({
+          name: '41-D',
+          price: 450,
+          parentId_uuid: parentUuid,
+          uuid: childUuid,
+        }),
+      },
+      // Seq 3: Invoice item referencing the child inventory item
+      {
+        idempotencyKey: 'test:item',
+        tableName: 'invoice_items',
+        rowUuid: invoiceItemUuid,
+        op: 'put',
+        rowJson: JSON.stringify({
+          quantity: 1,
+          price: 450,
+          invoiceId_uuid: invoiceUuid,
+          inventoryId_uuid: childUuid,
+          uuid: invoiceItemUuid,
+        }),
+      },
+      // Seq 4: Parent inventory item arriving AFTER child
+      {
+        idempotencyKey: 'test:parent',
+        tableName: 'inventory',
+        rowUuid: parentUuid,
+        op: 'put',
+        rowJson: JSON.stringify({
+          name: '41',
+          price: 0,
+          parentId_uuid: null,
+          uuid: parentUuid,
+        }),
+      },
+    ]);
+
+    // Device B pulls all 4 rows
+    const pullResult = await b.engine.initialPull();
+    expect(pullResult.pulled).toBe(4);
+    expect(pullResult.applied).toBe(4);
+    expect(pullResult.applyConflicts).toBe(0);
+
+    // Verify parent and child rows in inventory
+    const parent = await b.driver.get<{ id: number; uuid: string }>(
+      `SELECT id, uuid FROM inventory WHERE uuid = @uuid`,
+      { uuid: parentUuid },
+    );
+    expect(parent).toBeTruthy();
+
+    const child = await b.driver.get<{ id: number; parentId: number | null }>(
+      `SELECT id, parentId FROM inventory WHERE uuid = @uuid`,
+      { uuid: childUuid },
+    );
+    expect(child).toBeTruthy();
+    expect(child!.parentId).toBe(parent!.id);
+
+    // Verify invoice_items row correctly resolved to child
+    const item = await b.driver.get<{ id: number; inventoryId: number }>(
+      `SELECT id, inventoryId FROM invoice_items WHERE uuid = @uuid`,
+      { uuid: invoiceItemUuid },
+    );
+    expect(item).toBeTruthy();
+    expect(item!.inventoryId).toBe(child!.id);
+
+    b.db.close();
+  });
 });

@@ -61,6 +61,7 @@ export const CORE_MIGRATION_NAMES: readonly string[] = [
   '041_seed_existing_business_data_outbox',
   '042_backfill_inventory_baseline',
   '043_fix_insert_timestamp_triggers',
+  '044_heal_causality_sync_cursor',
 ];
 
 export function knownMigrationNames(): Set<string> {

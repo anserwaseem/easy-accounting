@@ -179,23 +179,11 @@ const NATURAL_KEY_TABLES: ReadonlyMap<string, string> = new Map([
   ['settings', 'key'],
 ]);
 
-/**
- * Apply failures that mean "this log row is a second copy of a business
- * already on this device" — a UNIQUE collision (same invoice number /
- * username / account code, different uuid) or an FK sibling that cannot
- * resolve because its parent was that second copy. Quarantining these
- * into `sync_apply_conflicts` is correct for a 2-row independent-seed
- * incident, but a join against a project whose log contains TWO full
- * imports produces 100k+ "needs review" rows and a Settings banner over
- * data the device already has. First copy wins; the incoming row is
- * dropped. Existing quarantined rows of this shape are pruned on the
- * next pull (see pruneDuplicateSeedConflicts).
- */
-function isDuplicateSeedApplyError(message: string): boolean {
-  return (
-    /UNIQUE constraint failed/i.test(message) ||
-    /cannot resolve \S+\.\S+_uuid/i.test(message)
-  );
+interface PendingSelfReferentialFk {
+  table: string;
+  rowUuid: string;
+  column: string;
+  refUuid: string;
 }
 
 /**
@@ -274,6 +262,10 @@ export class SyncEngine {
     applied: number;
     total: number;
   }) => void;
+
+  private pendingSelfReferentialFks: PendingSelfReferentialFk[] = [];
+
+  private readonly duplicateSeedRejectedUuids = new Set<string>();
 
   constructor(deps: {
     db: DatabaseDriver;
@@ -574,6 +566,11 @@ export class SyncEngine {
         }
         await this.db.run(`DELETE FROM sync_outbox`);
         await this.db.run(`DELETE FROM sync_apply_conflicts`);
+        await this.db.run(
+          `DELETE FROM sync_state WHERE key = 'pending_self_fks'`,
+        );
+        this.pendingSelfReferentialFks = [];
+        this.duplicateSeedRejectedUuids.clear();
         await this.setCursor(0);
       } finally {
         await this.setApplying(false);
@@ -1161,6 +1158,8 @@ export class SyncEngine {
       total: serverMaxSeq,
     });
 
+    await this.loadPendingSelfReferentialFks();
+
     for (;;) {
       // eslint-disable-next-line no-await-in-loop
       const page = await this.transport.pull(cursor, this.pullPageSize, opts);
@@ -1264,7 +1263,7 @@ export class SyncEngine {
                 }
                 const message =
                   error instanceof Error ? error.message : String(error);
-                if (isDuplicateSeedApplyError(message)) {
+                if (this.isDuplicateSeedApplyError(row, message)) {
                   if (!conflictedTables.has(row.tableName)) {
                     conflictedTables.add(row.tableName);
                     this.logger.info(
@@ -1291,6 +1290,7 @@ export class SyncEngine {
                 }
               }
             }
+            await this.resolvePendingSelfReferentialFks();
             const lastSeq = page[page.length - 1].seq;
             await this.setCursor(lastSeq);
           } finally {
@@ -1368,6 +1368,9 @@ export class SyncEngine {
           `failures from a second import in the same project log.`,
       );
     }
+
+    await this.resolvePendingSelfReferentialFks();
+    await this.persistPendingSelfReferentialFks();
 
     await this.repairStompedInvoiceTimestamps();
 
@@ -1910,6 +1913,22 @@ export class SyncEngine {
         { uuid: refUuid },
       );
       if (!resolved) {
+        if (fk.table === row.tableName) {
+          // Self-referential FK: the parent is in the same table and has not
+          // arrived yet (or arrived out of causal order). Insert the row with
+          // NULL for this FK column, and queue a fixup to update it once the
+          // parent row is applied.
+          this.pendingSelfReferentialFks.push({
+            table: row.tableName,
+            rowUuid: row.rowUuid,
+            column,
+            refUuid: String(refUuid),
+          });
+          columns.push(column);
+          params[column] = null;
+          continue;
+        }
+
         throw new Error(
           `SyncEngine.applyRow: cannot resolve ${row.tableName}.${column}_uuid ` +
             `= ${String(refUuid)} against local "${
@@ -2167,5 +2186,76 @@ export class SyncEngine {
     } else {
       await this.db.run(`DELETE FROM sync_state WHERE key = 'applying'`);
     }
+  }
+
+  private isDuplicateSeedApplyError(row: LogRow, message: string): boolean {
+    if (/UNIQUE constraint failed/i.test(message)) {
+      this.duplicateSeedRejectedUuids.add(row.rowUuid);
+      return true;
+    }
+    const match = /cannot resolve \S+\.(\S+)_uuid = (\S+) against local/i.exec(
+      message,
+    );
+    if (match) {
+      const refUuid = match[2];
+      if (this.duplicateSeedRejectedUuids.has(refUuid)) {
+        this.duplicateSeedRejectedUuids.add(row.rowUuid);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async loadPendingSelfReferentialFks(): Promise<void> {
+    const row = await this.db.get<{ value: string }>(
+      `SELECT value FROM sync_state WHERE key = 'pending_self_fks'`,
+    );
+    if (row?.value) {
+      try {
+        const parsed = JSON.parse(row.value) as PendingSelfReferentialFk[];
+        if (Array.isArray(parsed)) {
+          this.pendingSelfReferentialFks = parsed;
+        }
+      } catch {
+        this.pendingSelfReferentialFks = [];
+      }
+    }
+  }
+
+  private async persistPendingSelfReferentialFks(): Promise<void> {
+    if (this.pendingSelfReferentialFks.length > 0) {
+      await this.db.run(
+        `INSERT INTO sync_state (key, value) VALUES ('pending_self_fks', @value)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        { value: JSON.stringify(this.pendingSelfReferentialFks) },
+      );
+    } else {
+      await this.db.run(
+        `DELETE FROM sync_state WHERE key = 'pending_self_fks'`,
+      );
+    }
+  }
+
+  private async resolvePendingSelfReferentialFks(): Promise<void> {
+    if (this.pendingSelfReferentialFks.length === 0) return;
+
+    const remaining: PendingSelfReferentialFk[] = [];
+    for (const pending of this.pendingSelfReferentialFks) {
+      // eslint-disable-next-line no-await-in-loop
+      const parent = await this.db.get<{ id: number }>(
+        `SELECT id FROM "${pending.table}" WHERE uuid = @uuid`,
+        { uuid: pending.refUuid },
+      );
+      if (parent) {
+        // eslint-disable-next-line no-await-in-loop
+        await this.db.run(
+          `UPDATE "${pending.table}" SET "${pending.column}" = @parentId WHERE uuid = @rowUuid`,
+          { parentId: parent.id, rowUuid: pending.rowUuid },
+        );
+      } else {
+        remaining.push(pending);
+      }
+    }
+    this.pendingSelfReferentialFks = remaining;
   }
 }
