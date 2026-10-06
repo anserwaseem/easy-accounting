@@ -1,6 +1,7 @@
 import type {
   LogRow,
   OutboxEntry,
+  PullOptions,
   PushResult,
   SyncTransport,
 } from '../transport';
@@ -192,14 +193,16 @@ export class MockSyncServer {
     deviceId: string,
     afterSeq: number,
     limit: number,
-    opts?: { includeSelf?: boolean },
+    opts?: PullOptions,
   ): Promise<LogRow[]> {
     return this.serialize<LogRow[]>(() => {
+      const tables = opts?.tables?.length ? new Set(opts.tables) : null;
       const page = this.log
         .filter(
           (row) =>
             row.seq > afterSeq &&
-            (opts?.includeSelf || row.deviceId !== deviceId),
+            (opts?.includeSelf || row.deviceId !== deviceId) &&
+            (!tables || tables.has(row.tableName)),
         )
         .slice(0, limit);
       if (page.length > 0) {
