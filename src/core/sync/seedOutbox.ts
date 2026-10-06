@@ -136,6 +136,8 @@ export async function seedOutboxFromLocalData(
     for (const table of SEED_TABLE_ORDER) {
       // eslint-disable-next-line no-await-in-loop
       const columns = await allColumnInfo(driver, table);
+      // migration 041 runs this before later migrations create their tables
+      if (columns.length === 0) continue;
       // eslint-disable-next-line no-await-in-loop
       const fks = await foreignKeys(driver, table);
       const rowImage = jsonObjectExpr(columns, fks, (col) => `t."${col}"`);

@@ -20,7 +20,12 @@ import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateAccount, Chart } from 'types';
 import { useState } from 'react';
-import { AccountForm, AccountFormData } from './accountForm';
+import {
+  AccountForm,
+  type AccountFormData,
+  toCollectionRole,
+  toCollectionRoleOption,
+} from './accountForm';
 import { AddAccount } from './addAccount';
 
 interface EditAccountProps {
@@ -56,6 +61,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     goodsNameUrdu: inputRow.goodsNameUrdu,
     isActive: !!inputRow.isActive, // included for type safety, but not used in the form
     tracksVendorStock: !!inputRow.tracksVendorStock,
+    collectionRole: toCollectionRoleOption(inputRow.collectionRole),
     discountProfileId: inputRow.discountProfileId ?? null,
     discountProfileName: inputRow.discountProfileName ?? null,
   });
@@ -77,6 +83,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
         values.discountProfileId ?? row.original.discountProfileId ?? null,
       isActive: row.original.isActive,
       tracksVendorStock: values.tracksVendorStock,
+      collectionRole: toCollectionRole(values.collectionRole),
     });
 
     toast({

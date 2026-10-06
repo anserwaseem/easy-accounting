@@ -30,6 +30,8 @@ import type {
   UpdateInventoryItem,
   InsertInventoryItem,
   InsertChart,
+  AgentTourInput,
+  AccountCollectionRole,
   UpdateJournalFields,
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
@@ -308,6 +310,7 @@ app
     // stack (OS keychain, filesystem, native menus).
     const {
       accountService,
+      agentTourService,
       chartService,
       ledgerService,
       pricingService,
@@ -575,6 +578,11 @@ app
       (_, accountId: number, isActive: boolean) =>
         accountService.toggleAccountActive(accountId, isActive),
     );
+    ipcMain.handle(
+      'account:setCollectionRole',
+      (_, accountId: number, role: AccountCollectionRole | null) =>
+        accountService.setCollectionRole(accountId, role),
+    );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) => {
       const rows = await ledgerService.getLedger(accountId);
@@ -596,13 +604,50 @@ app
         ledgerService.getBalancesForAccountIdsAsOfDate(accountIds, asOfDate),
     );
     ipcMain.handle(
-      'ledger:getCreditSumsForAccountIdsInRange',
+      'ledger:getReceiptSumsForAccountIdsInRange',
       async (_, accountIds: number[], startDate: string, endDate: string) =>
-        ledgerService.getCreditSumsForAccountIdsInRange(
+        ledgerService.getReceiptSumsForAccountIdsInRange(
           accountIds,
           startDate,
           endDate,
         ),
+    );
+    ipcMain.handle(
+      'ledger:getTourCollectionsForAccountIds',
+      async (
+        _,
+        accountIds: number[],
+        tourIds: number[],
+        startDate?: string | null,
+        endDate?: string | null,
+      ) =>
+        ledgerService.getTourCollectionsForAccountIds(
+          accountIds,
+          tourIds,
+          startDate,
+          endDate,
+        ),
+    );
+    ipcMain.handle(
+      'ledger:getUntouredCollectionsForAccountIds',
+      async (
+        _,
+        accountIds: number[],
+        chartId: number,
+        startDate: string,
+        endDate: string,
+      ) =>
+        ledgerService.getUntouredCollectionsForAccountIds(
+          accountIds,
+          chartId,
+          startDate,
+          endDate,
+        ),
+    );
+    ipcMain.handle(
+      'ledger:getCollectionSources',
+      async (_, chartId: number, startDate: string, endDate: string) =>
+        ledgerService.getCollectionSources(chartId, startDate, endDate),
     );
     ipcMain.handle(
       'ledger:getLedgerRangeForAccountIds',
@@ -987,6 +1032,24 @@ app
       'chart:updateCustomHeadUrdu',
       (_, chartId: number, nameUrdu: string | null) =>
         chartService.updateCustomHeadUrdu(chartId, nameUrdu),
+    );
+    ipcMain.handle('agentTour:getAll', (_, chartId: number) =>
+      agentTourService.getAgentTours(chartId),
+    );
+    ipcMain.handle('agentTour:insert', (_, tour: AgentTourInput) =>
+      agentTourService.insertAgentTour(tour),
+    );
+    ipcMain.handle('agentTour:insertMany', (_, tours: AgentTourInput[]) =>
+      agentTourService.insertAgentTours(tours),
+    );
+    ipcMain.handle('agentTour:update', (_, id: number, tour: AgentTourInput) =>
+      agentTourService.updateAgentTour(id, tour),
+    );
+    ipcMain.handle('agentTour:delete', (_, id: number) =>
+      agentTourService.deleteAgentTour(id),
+    );
+    ipcMain.handle('agentTour:suggest', (_, chartId: number) =>
+      agentTourService.suggestAgentTours(chartId),
     );
 
     ipcMain.handle(

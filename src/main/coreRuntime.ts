@@ -1,6 +1,7 @@
 import log from 'electron-log';
 import {
   AccountService,
+  AgentTourService,
   ChartService,
   InventoryService,
   InvoiceService,
@@ -78,6 +79,7 @@ export function createCoreServices() {
 
   const accountService = new AccountService({ db, session });
   const chartService = new ChartService({ db, session });
+  const agentTourService = new AgentTourService({ db, session });
   const ledgerService = new LedgerService({ db, session });
   const pricingService = new PricingService({ db, session });
   const vendorStockService = new VendorStockService({ db });
@@ -107,6 +109,7 @@ export function createCoreServices() {
 
   return {
     accountService,
+    agentTourService,
     chartService,
     ledgerService,
     pricingService,

@@ -1,7 +1,13 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { trim } from 'lodash';
-import { ClipboardList, Download, Printer, RefreshCw } from 'lucide-react';
+import {
+  CalendarRange,
+  ClipboardList,
+  Download,
+  Printer,
+  RefreshCw,
+} from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   Select,
@@ -22,12 +28,19 @@ import { printStyles } from '../components/printStyles';
 import { CollectionSheetTable } from './CollectionSheetTable';
 import { printCollectionSheetIframe } from './printCollectionSheet';
 import { useCollectionSheet } from './useCollectionSheet';
+import { ToursSheet } from './tours/ToursSheet';
 import {
   collectionSheetHeaders,
   collectionSheetTotals,
+  collectionSheetTourTotals,
+  collectionSheetUntouredTotal,
+  isUntouredCell,
+  tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
 } from './buildCollectionSheetRows';
+
+type TourExportKey = `tour_${number}`;
 
 type CollectionSheetExportRow = {
   serial: number;
@@ -41,7 +54,13 @@ type CollectionSheetExportRow = {
   billDate: string;
   difference: string;
   remaining: string;
+  untoured?: number | null;
+} & {
+  // 0 on a shop's first row means it paid nothing that tour
+  [key: TourExportKey]: number | null;
 };
+
+const tourExportKey = (tourId: number): TourExportKey => `tour_${tourId}`;
 
 interface LanguageToggleProps {
   language: CollectionSheetLanguage;
@@ -95,12 +114,16 @@ const CollectionSheetPage: React.FC = () => {
     language,
     setLanguage,
     rows,
+    tours,
+    showUntoured,
+    range,
     isLoading,
     handleHeadChange,
     handleDateChange,
     refreshData,
     catalogReady,
   } = useCollectionSheet();
+  const [toursOpen, setToursOpen] = useState(false);
 
   const headers = collectionSheetHeaders(language);
   const period = dateLabel(dateRange);
@@ -116,6 +139,10 @@ const CollectionSheetPage: React.FC = () => {
   const handleExport = useCallback(() => {
     if (!canExport || !dateRange?.from || !dateRange?.to) return;
     const totals = collectionSheetTotals(rows);
+    const tourTotals = collectionSheetTourTotals(
+      rows,
+      tours.map((tour) => tour.id),
+    );
     const payload: ReportExportPayload<CollectionSheetExportRow> = {
       title,
       subtitle,
@@ -160,6 +187,22 @@ const CollectionSheetPage: React.FC = () => {
           format: 'currency',
           width: 14,
         },
+        ...tours.map((tour) => ({
+          key: tourExportKey(tour.id),
+          header: `${headers.tours}: ${tourColumnHeader(tour)}`,
+          format: 'currency' as const,
+          width: 18,
+        })),
+        ...(showUntoured
+          ? [
+              {
+                key: 'untoured' as const,
+                header: headers.untoured,
+                format: 'currency' as const,
+                width: 16,
+              },
+            ]
+          : []),
         {
           key: 'collection',
           header: headers.collection,
@@ -191,11 +234,26 @@ const CollectionSheetPage: React.FC = () => {
         billDate: row.billDate,
         difference: '',
         remaining: '',
+        // unlike a tour column, 0 here carries no meaning: leave it blank
+        untoured: isUntouredCell(row.untoured) ? row.untoured : null,
+        ...Object.fromEntries(
+          tours.map((tour) => [
+            tourExportKey(tour.id),
+            row.tourPaid[tour.id] ?? null,
+          ]),
+        ),
       })),
       footerRow: {
         shop: headers.total,
         balance: totals.balance,
         collected: totals.collected,
+        untoured:
+          showUntoured && isUntouredCell(collectionSheetUntouredTotal(rows))
+            ? collectionSheetUntouredTotal(rows)
+            : null,
+        ...Object.fromEntries(
+          tours.map((tour) => [tourExportKey(tour.id), tourTotals[tour.id]]),
+        ),
       },
     };
     try {
@@ -216,17 +274,21 @@ const CollectionSheetPage: React.FC = () => {
     selectedHead?.name,
     subtitle,
     title,
+    tours,
+    showUntoured,
   ]);
 
   const handlePrint = useCallback(() => {
     if (!canExport) return;
     printCollectionSheetIframe({
       rows,
+      tours,
+      showUntoured,
       title,
       subtitle,
       language,
     });
-  }, [canExport, language, rows, subtitle, title]);
+  }, [canExport, language, rows, showUntoured, subtitle, title, tours]);
 
   return (
     <ReportLayout
@@ -258,6 +320,16 @@ const CollectionSheetPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setToursOpen(true)}
+                  disabled={!selectedHead}
+                  title="Agent tours"
+                >
+                  <CalendarRange className="mr-1 h-4 w-4" />
+                  Tours
+                </Button>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Range:</span>
@@ -311,10 +383,21 @@ const CollectionSheetPage: React.FC = () => {
     >
       <CollectionSheetTable
         rows={rows}
+        tours={tours}
+        showUntoured={showUntoured}
         isLoading={isLoading}
         hasAgent={selectedChartId.length > 0}
         language={language}
       />
+      {selectedHead ? (
+        <ToursSheet
+          head={selectedHead}
+          range={range}
+          open={toursOpen}
+          onOpenChange={setToursOpen}
+          onToursChanged={refreshData}
+        />
+      ) : null}
     </ReportLayout>
   );
 };

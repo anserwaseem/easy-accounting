@@ -34,6 +34,11 @@ import type {
   UpdateInventoryItem,
   InsertInventoryItem,
   InsertChart,
+  AgentTour,
+  AgentTourInput,
+  SuggestedAgentTour,
+  AccountCollectionRole,
+  CollectionSource,
   UpdateJournalFields,
   SetOpeningStockItem,
   StockAdjustment,
@@ -262,6 +267,11 @@ export interface AppApi {
    * @example const isUpdated = toggleAccountActive(1, false);
    */
   toggleAccountActive: (accountId: number, isActive: boolean) => Promise<any>;
+  /** null puts the account back on the default receipt rule */
+  setAccountCollectionRole: (
+    accountId: number,
+    role: AccountCollectionRole | null,
+  ) => Promise<boolean>;
 
   // ---------------------------------------------------------------------
   // Chart
@@ -285,6 +295,20 @@ export interface AppApi {
     chartId: number,
     nameUrdu: string | null,
   ) => Promise<any>;
+
+  // ---------------------------------------------------------------------
+  // Agent tours
+  // ---------------------------------------------------------------------
+
+  /** tours of one custom head, newest first */
+  getAgentTours: (chartId: number) => Promise<AgentTour[]>;
+  insertAgentTour: (tour: AgentTourInput) => Promise<number>;
+  /** all or nothing; returns how many were saved */
+  insertAgentTours: (tours: AgentTourInput[]) => Promise<number>;
+  updateAgentTour: (id: number, tour: AgentTourInput) => Promise<boolean>;
+  deleteAgentTour: (id: number) => Promise<boolean>;
+  /** proposals from past bulk receipt journals; nothing is saved */
+  suggestAgentTours: (chartId: number) => Promise<SuggestedAgentTour[]>;
 
   // ---------------------------------------------------------------------
   // Journal
@@ -377,12 +401,32 @@ export interface AppApi {
     accountIds: number[],
     endDate: string,
   ) => Promise<Record<number, LedgerView[]>>;
-  /** sum of party-ledger credits in an inclusive local-date range */
-  getCreditSumsForAccountIdsInRange: (
+  /** money received per account (receipt-account credits) in an inclusive local-date range */
+  getReceiptSumsForAccountIdsInRange: (
     accountIds: number[],
     startDate: string,
     endDate: string,
   ) => Promise<Record<number, number>>;
+  /** receipts per account per tour (accountId -> tourId -> amount); a range clips each tour */
+  getTourCollectionsForAccountIds: (
+    accountIds: number[],
+    tourIds: number[],
+    startDate?: string | null,
+    endDate?: string | null,
+  ) => Promise<Record<number, Record<number, number>>>;
+  /** receipts in the range on days no tour of the head covers */
+  getUntouredCollectionsForAccountIds: (
+    accountIds: number[],
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) => Promise<Record<number, number>>;
+  /** accounts that credited the head's shops in the range, biggest first */
+  getCollectionSources: (
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) => Promise<CollectionSource[]>;
 
   // ---------------------------------------------------------------------
   // Invoice

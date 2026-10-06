@@ -18,6 +18,11 @@ import type {
   UpdateInventoryItem,
   InsertInventoryItem,
   InsertChart,
+  AgentTour,
+  AgentTourInput,
+  SuggestedAgentTour,
+  AccountCollectionRole,
+  CollectionSource,
   UpdateJournalFields,
   SetOpeningStockItem,
   StockAdjustment,
@@ -572,6 +577,23 @@ const electronHandler = {
     ipcRenderer.invoke('chart:updateCustomHeadName', chartId, name),
   updateCustomHeadUrdu: (chartId: number, nameUrdu: string | null) =>
     ipcRenderer.invoke('chart:updateCustomHeadUrdu', chartId, nameUrdu),
+  /** tours of one custom head, newest first */
+  getAgentTours: (chartId: number) =>
+    ipcRenderer.invoke('agentTour:getAll', chartId) as Promise<AgentTour[]>,
+  insertAgentTour: (tour: AgentTourInput) =>
+    ipcRenderer.invoke('agentTour:insert', tour) as Promise<number>,
+  /** all or nothing; returns how many were saved */
+  insertAgentTours: (tours: AgentTourInput[]) =>
+    ipcRenderer.invoke('agentTour:insertMany', tours) as Promise<number>,
+  updateAgentTour: (id: number, tour: AgentTourInput) =>
+    ipcRenderer.invoke('agentTour:update', id, tour) as Promise<boolean>,
+  deleteAgentTour: (id: number) =>
+    ipcRenderer.invoke('agentTour:delete', id) as Promise<boolean>,
+  /** proposals from past bulk receipt journals; nothing is saved */
+  suggestAgentTours: (chartId: number) =>
+    ipcRenderer.invoke('agentTour:suggest', chartId) as Promise<
+      SuggestedAgentTour[]
+    >,
   /**
    * Insert an account
    * @param account The account to insert
@@ -649,6 +671,16 @@ const electronHandler = {
    */
   toggleAccountActive: (accountId: number, isActive: boolean) =>
     ipcRenderer.invoke('account:toggleActive', accountId, isActive),
+  /** null puts the account back on the default receipt rule */
+  setAccountCollectionRole: (
+    accountId: number,
+    role: AccountCollectionRole | null,
+  ) =>
+    ipcRenderer.invoke(
+      'account:setCollectionRole',
+      accountId,
+      role,
+    ) as Promise<boolean>,
   /**
    * Get a ledger
    * @param accountId The account id to get
@@ -697,18 +729,54 @@ const electronHandler = {
         Array<{ invoiceNumber: number; date: string; amount: number }>
       >
     >,
-  /** sum of party-ledger credits in an inclusive local-date range */
-  getCreditSumsForAccountIdsInRange: (
+  /** money received per account (receipt-account credits) in an inclusive local-date range */
+  getReceiptSumsForAccountIdsInRange: (
     accountIds: number[],
     startDate: string,
     endDate: string,
   ) =>
     ipcRenderer.invoke(
-      'ledger:getCreditSumsForAccountIdsInRange',
+      'ledger:getReceiptSumsForAccountIdsInRange',
       accountIds,
       startDate,
       endDate,
     ) as Promise<Record<number, number>>,
+  /** receipts per account per tour (accountId -> tourId -> amount); a range clips each tour */
+  getTourCollectionsForAccountIds: (
+    accountIds: number[],
+    tourIds: number[],
+    startDate?: string | null,
+    endDate?: string | null,
+  ) =>
+    ipcRenderer.invoke(
+      'ledger:getTourCollectionsForAccountIds',
+      accountIds,
+      tourIds,
+      startDate ?? null,
+      endDate ?? null,
+    ) as Promise<Record<number, Record<number, number>>>,
+  /** receipts in the range on days no tour of the head covers */
+  getUntouredCollectionsForAccountIds: (
+    accountIds: number[],
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'ledger:getUntouredCollectionsForAccountIds',
+      accountIds,
+      chartId,
+      startDate,
+      endDate,
+    ) as Promise<Record<number, number>>,
+  /** accounts that credited the head's shops in the range, biggest first */
+  getCollectionSources: (chartId: number, startDate: string, endDate: string) =>
+    ipcRenderer.invoke(
+      'ledger:getCollectionSources',
+      chartId,
+      startDate,
+      endDate,
+    ) as Promise<CollectionSource[]>,
   /** inclusive calendar range per account; rows enriched like getLedger */
   getLedgerRangeForAccountIds: (
     accountIds: number[],

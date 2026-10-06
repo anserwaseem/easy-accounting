@@ -84,6 +84,7 @@ import {
 import type { KeyValueStore, SessionContext } from '@core/ports';
 import { AccountService } from '@core/services/AccountService';
 import { ChartService } from '@core/services/ChartService';
+import { AgentTourService } from '@core/services/AgentTourService';
 import { LedgerService } from '@core/services/LedgerService';
 import { PricingService } from '@core/services/PricingService';
 import { InventoryService } from '@core/services/InventoryService';
@@ -459,6 +460,7 @@ async function main(): Promise<void> {
   // src/main/coreRuntime.ts's createCoreServices().
   const accountService = new AccountService({ db: driver, session });
   const chartService = new ChartService({ db: driver, session });
+  const agentTourService = new AgentTourService({ db: driver, session });
   const ledgerService = new LedgerService({ db: driver, session });
   const pricingService = new PricingService({ db: driver, session });
   const vendorStockService = new VendorStockService({ db: driver });
@@ -705,6 +707,11 @@ async function main(): Promise<void> {
       accountService.hasJournalEntries(accountId as number),
     deleteAccount: (accountId) =>
       accountService.deleteAccount(accountId as number),
+    setAccountCollectionRole: (accountId, role) =>
+      accountService.setCollectionRole(
+        accountId as number,
+        role as Parameters<AccountService['setCollectionRole']>[1],
+      ),
     toggleAccountActive: (accountId, isActive) =>
       accountService.toggleAccountActive(
         accountId as number,
@@ -724,6 +731,26 @@ async function main(): Promise<void> {
         chartId as number,
         nameUrdu as string | null,
       ),
+
+    // -- Agent tours -------------------------------------------------------
+    getAgentTours: (chartId) =>
+      agentTourService.getAgentTours(chartId as number),
+    insertAgentTour: (tour) =>
+      agentTourService.insertAgentTour(
+        tour as Parameters<AgentTourService['insertAgentTour']>[0],
+      ),
+    insertAgentTours: (tours) =>
+      agentTourService.insertAgentTours(
+        tours as Parameters<AgentTourService['insertAgentTours']>[0],
+      ),
+    updateAgentTour: (id, tour) =>
+      agentTourService.updateAgentTour(
+        id as number,
+        tour as Parameters<AgentTourService['updateAgentTour']>[1],
+      ),
+    deleteAgentTour: (id) => agentTourService.deleteAgentTour(id as number),
+    suggestAgentTours: (chartId) =>
+      agentTourService.suggestAgentTours(chartId as number),
 
     // -- Journal ---------------------------------------------------------
     getNextJournalId: () => journalService.getNextJournalId(),
@@ -791,9 +818,39 @@ async function main(): Promise<void> {
         accountIds as number[],
         endDate as string,
       ),
-    getCreditSumsForAccountIdsInRange: (accountIds, startDate, endDate) =>
-      ledgerService.getCreditSumsForAccountIdsInRange(
+    getReceiptSumsForAccountIdsInRange: (accountIds, startDate, endDate) =>
+      ledgerService.getReceiptSumsForAccountIdsInRange(
         accountIds as number[],
+        startDate as string,
+        endDate as string,
+      ),
+    getTourCollectionsForAccountIds: (
+      accountIds,
+      tourIds,
+      startDate,
+      endDate,
+    ) =>
+      ledgerService.getTourCollectionsForAccountIds(
+        accountIds as number[],
+        tourIds as number[],
+        (startDate as string | null | undefined) ?? null,
+        (endDate as string | null | undefined) ?? null,
+      ),
+    getUntouredCollectionsForAccountIds: (
+      accountIds,
+      chartId,
+      startDate,
+      endDate,
+    ) =>
+      ledgerService.getUntouredCollectionsForAccountIds(
+        accountIds as number[],
+        chartId as number,
+        startDate as string,
+        endDate as string,
+      ),
+    getCollectionSources: (chartId, startDate, endDate) =>
+      ledgerService.getCollectionSources(
+        chartId as number,
         startDate as string,
         endDate as string,
       ),

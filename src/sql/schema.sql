@@ -46,12 +46,27 @@ CREATE TABLE IF NOT EXISTS "account" (
   -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "012 migration"
   -- "discountProfileId" INTEGER REFERENCES "discount_profiles"("id"), -- "015 migration"
   -- "tracksVendorStock" BOOLEAN NOT NULL DEFAULT 0, -- "025 migration"
+  -- "collectionRole" TEXT CHECK ("collectionRole" IN ('receipt', 'exclude')), -- NULL = default receipt rule -- "045_agent_tours migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 
   FOREIGN KEY("chartId") REFERENCES "chart"("id"),
   UNIQUE("chartId", "name", "code") -- meaning: same account name and code can't be used in the same chart - "011 migration"
 );
+
+-- agent tours (custom head trips) are created by "045_agent_tours migration" (src/core/db/migrations), not here:
+-- CREATE TABLE IF NOT EXISTS "agent_tours" (
+--   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+--   "chartId" INTEGER NOT NULL REFERENCES "chart"("id"),
+--   "name" TEXT NOT NULL,
+--   "startDate" TEXT NOT NULL, -- yyyy-MM-dd
+--   "endDate" TEXT, -- yyyy-MM-dd, NULL = tour still running
+--   "notes" TEXT,
+--   "createdAt" DATETIME,
+--   "updatedAt" DATETIME,
+--   "uuid" TEXT,
+--   CHECK ("endDate" IS NULL OR "endDate" >= "startDate")
+-- );
 
 DROP TABLE IF EXISTS "journal";
 CREATE TABLE IF NOT EXISTS "journal" (

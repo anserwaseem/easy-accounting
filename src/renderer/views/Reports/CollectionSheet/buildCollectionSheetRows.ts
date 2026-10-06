@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { trim } from 'lodash';
+import { sumBy, trim } from 'lodash';
 import { getFixedNumber } from '@/renderer/lib/utils';
 import {
   buildPartyTypingContext,
@@ -46,6 +46,9 @@ export interface CollectionSheetHeaders {
   remaining: string;
   total: string;
   title: string;
+  /** spans the per-tour columns */
+  tours: string;
+  untoured: string;
 }
 
 export interface CollectionSheetRow {
@@ -61,7 +64,14 @@ export interface CollectionSheetRow {
   /** this bill's amount, tier shares added. ledger balance only when the shop has no bill in the range */
   balance: number | null;
   collected: number | null;
+  /** receipts per tour id, on the shop's first row only (0 = did not pay that tour); null on later rows */
+  tourPaid: Record<number, number | null>;
+  /** receipts in the range that no tour covers, first row only; null on later rows or when the column is off */
+  untoured: number | null;
 }
+
+/** receipts per account per tour id (LedgerService.getTourCollectionsForAccountIds) */
+export type CollectionSheetTourPaid = Record<number, Record<number, number>>;
 
 interface FamilyMember {
   account: CollectionSheetSource;
@@ -72,6 +82,8 @@ interface FamilyMember {
   address: string;
   balance: number;
   collected: number;
+  tourPaid: Record<number, number>;
+  untoured: number;
   bills: CollectionSheetBill[];
 }
 
@@ -138,6 +150,8 @@ export const collectionSheetHeaders = (
       remaining: 'بقایا',
       total: 'کل',
       title: 'وصولی شیٹ',
+      tours: 'دورہ وار وصولی',
+      untoured: 'بغیر دورہ وصولی',
     };
   }
   return {
@@ -154,6 +168,8 @@ export const collectionSheetHeaders = (
     remaining: 'Remaining',
     total: 'Total',
     title: 'Collection sheet',
+    tours: 'Collected per tour',
+    untoured: 'Not in a tour',
   };
 };
 
@@ -169,6 +185,8 @@ const familyMember = (
   language: CollectionSheetLanguage,
   money: CollectionSheetMoney | undefined,
   bills: CollectionSheetBill[],
+  tourPaid: Record<number, number>,
+  untoured: number,
 ): FamilyMember => {
   const code = trim(String(account.code ?? ''));
   const codeLower = code.toLowerCase();
@@ -191,6 +209,8 @@ const familyMember = (
     address,
     balance,
     collected: money?.collected ?? 0,
+    tourPaid,
+    untoured,
     bills,
   };
 
@@ -277,10 +297,23 @@ const mergedBills = (family: FamilyMember[]): CollectionSheetBill[] => {
   });
 };
 
+/** a tour's family total: every tier's receipts for that tour added */
+const familyTourPaid = (
+  family: FamilyMember[],
+  tourIds: number[],
+): Record<number, number> =>
+  Object.fromEntries(
+    tourIds.map((tourId) => [
+      tourId,
+      sumBy(family, (member) => member.tourPaid[tourId] ?? 0),
+    ]),
+  );
+
 /**
  * tier ledgers fold into the base shop. each row's amount is that bill, tier shares added.
  * one invoice per row. bill amount is rounded to the nearest rupee.
- * collected is the shop's receipts. a shop with none shows 0. a real collection is written once.
+ * collected is the money the shop paid (receipt accounts only). a shop with none shows 0. a real collection is written once.
+ * tour columns follow the same rule: the shop's first row holds each tour's receipts (0 when unpaid).
  * order is the base account code, same in Eng and Urdu.
  */
 export const buildCollectionSheetRows = (
@@ -289,6 +322,10 @@ export const buildCollectionSheetRows = (
   moneyByAccountId: Record<number, CollectionSheetMoney>,
   billsByAccountId: Record<number, CollectionSheetBill[]>,
   language: CollectionSheetLanguage,
+  tourIds: number[] = [],
+  tourPaidByAccountId: CollectionSheetTourPaid = {},
+  /** null hides the "not in a tour" column (the agent has no tours) */
+  untouredByAccountId: Record<number, number> | null = null,
 ): CollectionSheetRow[] => {
   const ctx = buildPartyTypingContext(accounts, itemTypeNames);
   const members = accounts.map((account) =>
@@ -298,7 +335,12 @@ export const buildCollectionSheetRows = (
       language,
       moneyByAccountId[account.id],
       billsByAccountId[account.id] ?? [],
+      tourPaidByAccountId[account.id] ?? {},
+      untouredByAccountId?.[account.id] ?? 0,
     ),
+  );
+  const laterRowTourPaid: Record<number, null> = Object.fromEntries(
+    tourIds.map((tourId) => [tourId, null]),
   );
   const groups = new Map<string, FamilyMember[]>();
   for (const member of members) {
@@ -315,7 +357,14 @@ export const buildCollectionSheetRows = (
         (sum, member) => sum + member.collected,
         0,
       );
-      return { display, balance, collected, bills: mergedBills(family) };
+      return {
+        display,
+        balance,
+        collected,
+        tourPaid: familyTourPaid(family, tourIds),
+        untoured: sumBy(family, 'untoured'),
+        bills: mergedBills(family),
+      };
     })
     .filter((shop) => !isZeroBalance(shop.balance))
     .sort((a, b) => {
@@ -355,6 +404,9 @@ export const buildCollectionSheetRows = (
         // same rounding as the invoice screen: nearest rupee on the bill total
         balance: Math.round(bill.amount || 0),
         collected: collectedCell,
+        tourPaid: index === 0 ? shop.tourPaid : laterRowTourPaid,
+        untoured:
+          index === 0 && untouredByAccountId != null ? shop.untoured : null,
       });
     }
   }
@@ -376,4 +428,50 @@ export const collectionSheetTotals = (
 export const formatSheetAmount = (value: number | null): string => {
   if (value == null || !Number.isFinite(value)) return '';
   return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+};
+
+/** per tour id: the sum of every shop's receipts in that tour */
+export const collectionSheetTourTotals = (
+  rows: CollectionSheetRow[],
+  tourIds: number[],
+): Record<number, number> =>
+  Object.fromEntries(
+    tourIds.map((tourId) => [
+      tourId,
+      sumBy(rows, (row) => row.tourPaid[tourId] ?? 0),
+    ]),
+  );
+
+/** sum of every shop's receipts that no tour covers */
+export const collectionSheetUntouredTotal = (
+  rows: CollectionSheetRow[],
+): number => sumBy(rows, (row) => row.untoured ?? 0);
+
+/** money outside every tour: usually a missing or mis-dated tour */
+export const isUntouredCell = (value: number | null | undefined): boolean =>
+  value != null && !isZeroBalance(value);
+
+/** a first-row tour cell of 0: the shop paid nothing on that tour */
+export const isUnpaidTourCell = (value: number | null | undefined): boolean =>
+  value != null && isZeroBalance(value);
+
+/** tour cells leave zero blank; the cell's highlight says "did not pay" */
+export const formatTourAmount = (value: number | null | undefined): string =>
+  value == null || isZeroBalance(value) ? '' : formatSheetAmount(value);
+
+export interface CollectionSheetTourColumn {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string | null;
+  /** cut to the sheet range; the column holds only that part of the tour */
+  clipped?: boolean;
+}
+
+/** "Aug 2026 · 27/07–30/08"; a running tour shows "…" for its end, a clipped one "(part)" */
+export const tourColumnHeader = (tour: CollectionSheetTourColumn): string => {
+  const day = (iso: string) => formatBillDate(iso).slice(0, 5);
+  const end = tour.endDate ? day(tour.endDate) : '…';
+  const part = tour.clipped ? ' (part)' : '';
+  return `${tour.name} · ${day(tour.startDate)}–${end}${part}`;
 };

@@ -11,7 +11,11 @@ import type { Chart } from 'types';
 import { useState, useEffect } from 'react';
 import { toString } from 'lodash';
 import { cn, handleAsync } from '@/renderer/lib/utils';
-import { AccountForm, type AccountFormData } from './accountForm';
+import {
+  AccountForm,
+  type AccountFormData,
+  toCollectionRole,
+} from './accountForm';
 
 interface AddAccountProps {
   refetchAccounts: () => void;
@@ -70,6 +74,7 @@ export const AddAccount: React.FC<AddAccountProps> = ({
             null,
           isActive: true,
           tracksVendorStock: values.tracksVendorStock,
+          collectionRole: toCollectionRole(values.collectionRole),
         }),
       {
         successMessage: `"${values.accountName}" account created successfully`,
