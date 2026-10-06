@@ -146,4 +146,28 @@ describe('seedOutboxFromLocalData', () => {
     // fire.
     expect(new Set(keys.map((k) => k.idempotencyKey)).size).toBe(3);
   });
+
+  it('orders self-referential rows (e.g. inventory with parentId) so parents appear before children in sync_outbox even if child id < parent id', async () => {
+    const driver = await freshDriver();
+    // Simulate reversed IDs: Child has lower id than Parent
+    await driver.run(
+      `INSERT INTO inventory (id, name, price, quantity, parentId) VALUES (10, 'Child Variant', 100, 0, 50)`,
+    );
+    await driver.run(
+      `INSERT INTO inventory (id, name, price, quantity, parentId) VALUES (50, 'Parent Category', 0, 0, NULL)`,
+    );
+    await driver.run(`DELETE FROM sync_outbox`);
+
+    const result = await seedOutboxFromLocalData(driver);
+    expect(result.seeded).toBe(2);
+
+    const rows = await driver.all<{ rowUuid: string; rowJson: string }>(
+      `SELECT rowUuid, rowJson FROM sync_outbox WHERE tableName = 'inventory' ORDER BY id ASC`,
+    );
+    expect(rows).toHaveLength(2);
+    const firstRow = JSON.parse(rows[0].rowJson) as { name: string };
+    const secondRow = JSON.parse(rows[1].rowJson) as { name: string };
+    expect(firstRow.name).toBe('Parent Category');
+    expect(secondRow.name).toBe('Child Variant');
+  });
 });

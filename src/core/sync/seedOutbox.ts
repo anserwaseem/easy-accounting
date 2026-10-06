@@ -141,8 +141,28 @@ export async function seedOutboxFromLocalData(
       const rowImage = jsonObjectExpr(columns, fks, (col) => `t."${col}"`);
       const keyExpr = `'reseed:${table}:' || t."uuid"`;
 
-      // eslint-disable-next-line no-await-in-loop
-      const result = await driver.run(`
+      const selfFk = fks.find((f) => f.table === table);
+      const query = selfFk
+        ? `
+        WITH RECURSIVE depth_calc(id, depth) AS (
+          SELECT id, 0 FROM "${table}" WHERE "${selfFk.from}" IS NULL
+          UNION ALL
+          SELECT t.id, d.depth + 1
+          FROM "${table}" t
+          JOIN depth_calc d ON t."${selfFk.from}" = d.id
+          WHERE d.depth < 50
+        )
+        INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
+        SELECT ${keyExpr}, '${table}', t."uuid", 'put', ${rowImage}, datetime('now')
+        FROM "${table}" t
+        LEFT JOIN depth_calc d ON t.id = d.id
+        WHERE t."uuid" IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM sync_outbox o WHERE o.idempotencyKey = ${keyExpr}
+          )
+        ORDER BY COALESCE(d.depth, 999) ASC, t.id ASC
+        `
+        : `
         INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
         SELECT ${keyExpr}, '${table}', t."uuid", 'put', ${rowImage}, datetime('now')
         FROM "${table}" t
@@ -150,7 +170,11 @@ export async function seedOutboxFromLocalData(
           AND NOT EXISTS (
             SELECT 1 FROM sync_outbox o WHERE o.idempotencyKey = ${keyExpr}
           )
-      `);
+        ORDER BY t.id ASC
+        `;
+
+      // eslint-disable-next-line no-await-in-loop
+      const result = await driver.run(query);
       seeded += result.changes;
     }
     return { seeded };
