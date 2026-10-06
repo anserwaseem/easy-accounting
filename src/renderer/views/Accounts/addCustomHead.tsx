@@ -113,7 +113,7 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
           </Button>
         </DialogTrigger>
       ) : null}
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Head</DialogTitle>
         </DialogHeader>

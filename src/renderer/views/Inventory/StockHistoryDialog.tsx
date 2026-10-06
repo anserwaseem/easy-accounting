@@ -95,7 +95,7 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="flex flex-col sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>Stock history{item ? `: ${item.name}` : ''}</DialogTitle>
         </DialogHeader>
@@ -115,7 +115,7 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
         )}
 
         {!loading && item && !isEmpty(rows) && (
-          <div className="mt-2 max-h-[80vh] space-y-2 overflow-y-auto">
+          <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto">
             {rows.map((r) => {
               if (r.type === 'opening') {
                 return (

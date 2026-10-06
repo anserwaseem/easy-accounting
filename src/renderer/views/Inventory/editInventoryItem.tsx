@@ -332,7 +332,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
             title="Edit inventory item"
           />
         </DialogTrigger>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px]">
           <TooltipProvider delayDuration={150}>
             <DialogHeader>
               <DialogTitle>Edit Inventory Item</DialogTitle>

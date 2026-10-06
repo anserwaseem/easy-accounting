@@ -186,7 +186,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
           <DialogTrigger asChild>
             <EditActionButton aria-label="Edit account" title="Edit account" />
           </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader className="flex flex-row items-center justify-between space-y-0 pr-7">
               <DialogTitle>Edit Account</DialogTitle>
               <Button

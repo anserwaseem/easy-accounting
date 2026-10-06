@@ -578,7 +578,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-60 p-0">
-                  <div className="space-y-3 p-3">
+                  <div className="max-h-[60vh] space-y-3 overflow-y-auto p-3">
                     <div className="space-y-1">
                       <h3 className="text-sm font-semibold">Visible columns</h3>
                       <p className="text-xs text-muted-foreground">
