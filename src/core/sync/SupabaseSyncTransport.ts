@@ -47,6 +47,32 @@ interface SyncLogRestRow {
   device_id: string;
 }
 
+/** The `jsonb` result shape `sync_pull` (supabase/setup.sql §3b) returns. */
+interface SyncPullRpcResult {
+  maxSeq: number;
+  rows: SyncLogRestRow[];
+}
+
+/** how long to skip `sync_pull` after a 404 before probing it again */
+const PULL_RPC_RETRY_MS = 60 * 60 * 1000;
+
+function toLogRow(row: SyncLogRestRow): LogRow {
+  return {
+    seq: row.seq,
+    tableName: row.table_name,
+    rowUuid: row.row_uuid,
+    op: row.op,
+    // `row_json` comes back from PostgREST as parsed JSON (the column is
+    // `jsonb`), but LogRow.rowJson is a *string* — the same JSON-encoded
+    // string shape SyncEngine.applyRow's `JSON.parse(row.rowJson)`
+    // already expects and the client's own sync_outbox stores it as (see
+    // migration 034) — so re-stringify here rather than changing that
+    // contract for this one transport.
+    rowJson: JSON.stringify(row.row_json),
+    deviceId: row.device_id,
+  };
+}
+
 /** The `jsonb` result shape `sync_push` (supabase/setup.sql) returns, before being mapped onto {@link PushResult}. */
 interface SyncPushRpcResult {
   accepted: string[];
@@ -114,6 +140,13 @@ export class SupabaseSyncTransport implements SyncTransport {
   private readonly fetchImpl: typeof fetch;
 
   private readonly deviceId: string;
+
+  /**
+   * epoch ms until which `sync_pull` is assumed missing (the project has
+   * not re-run setup.sql since it was added). Re-probed hourly so a
+   * long-running app picks it up without a restart; the probe is one 404.
+   */
+  private pullRpcMissingUntil = 0;
 
   constructor(config: {
     url: string;
@@ -315,20 +348,84 @@ export class SupabaseSyncTransport implements SyncTransport {
       );
     }
 
-    return rows.map((row) => ({
-      seq: row.seq,
-      tableName: row.table_name,
-      rowUuid: row.row_uuid,
-      op: row.op,
-      // `row_json` comes back from PostgREST as parsed JSON (the column is
-      // `jsonb`), but LogRow.rowJson is a *string* — the same JSON-encoded
-      // string shape SyncEngine.applyRow's `JSON.parse(row.rowJson)`
-      // already expects and the client's own sync_outbox stores it as (see
-      // migration 034) — so re-stringify here rather than changing that
-      // contract for this one transport.
-      rowJson: JSON.stringify(row.row_json),
-      deviceId: row.device_id,
-    }));
+    return rows.map(toLogRow);
+  }
+
+  /**
+   * `POST /rest/v1/rpc/sync_pull` (supabase/setup.sql §3b): the first page
+   * and the watermark in one response, from one snapshot. A 404 means the
+   * function is missing (PostgREST `PGRST202` — the project predates it, or
+   * its signature differs), so this falls back to `currentSeq()` then
+   * `pull()`, the two-request order that gives the same guarantee, and
+   * stops trying the RPC for an hour. Any other failure throws like `pull`.
+   */
+  async pullWithWatermark(
+    afterSeq: number,
+    limit: number,
+    opts?: PullOptions,
+  ): Promise<{ rows: LogRow[]; maxSeq: number }> {
+    if (Date.now() >= this.pullRpcMissingUntil) {
+      const response = await this.fetch(`${this.url}/rest/v1/rpc/sync_pull`, {
+        method: 'POST',
+        headers: {
+          ...this.authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          after_seq: afterSeq,
+          max_rows: limit,
+          exclude_device: opts?.includeSelf ? null : this.deviceId,
+          only_tables: opts?.tables?.length ? opts.tables : null,
+        }),
+      });
+      const text = await response.text();
+      if (response.status === 404) {
+        this.pullRpcMissingUntil = Date.now() + PULL_RPC_RETRY_MS;
+      } else {
+        return SupabaseSyncTransport.parsePullRpc(response.status, text);
+      }
+    }
+
+    const maxSeq = await this.currentSeq();
+    const rows = await this.pull(afterSeq, limit, opts);
+    return { rows, maxSeq };
+  }
+
+  private static parsePullRpc(
+    status: number,
+    text: string,
+  ): { rows: LogRow[]; maxSeq: number } {
+    if (status < 200 || status >= 300) {
+      throw new TransportError(
+        'SupabaseSyncTransport.pullWithWatermark: sync_pull RPC failed',
+        status,
+        text,
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new TransportError(
+        'SupabaseSyncTransport.pullWithWatermark: sync_pull returned non-JSON body',
+        status,
+        text,
+      );
+    }
+    const result = parsed as Partial<SyncPullRpcResult> | null;
+    if (
+      !result ||
+      typeof result !== 'object' ||
+      typeof result.maxSeq !== 'number' ||
+      !Array.isArray(result.rows)
+    ) {
+      throw new TransportError(
+        'SupabaseSyncTransport.pullWithWatermark: sync_pull returned an unexpected shape',
+        status,
+        text,
+      );
+    }
+    return { rows: result.rows.map(toLogRow), maxSeq: result.maxSeq };
   }
 
   /**

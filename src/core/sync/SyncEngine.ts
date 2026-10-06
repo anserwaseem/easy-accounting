@@ -11,7 +11,12 @@ import {
   loadScheduledRepull,
   REPULL_CURSOR_KEY,
 } from './tableRepull';
-import type { LogRow, OutboxEntry, SyncTransport } from './transport';
+import type {
+  LogRow,
+  OutboxEntry,
+  PullOptions,
+  SyncTransport,
+} from './transport';
 
 /**
  * Single source of truth for "which tables does this client's apply path
@@ -1170,9 +1175,16 @@ export class SyncEngine {
     };
     let cursor = await this.readCursor(cursorKey);
 
-    const serverMaxSeq = await this.transport.currentSeq();
+    // the watermark and the first page arrive together (one request on an
+    // idle cycle). the watermark is never newer than that page, which is the
+    // "snapshot before paging" rule the cursor-advancement section relies on
+    const first = await this.firstPullPage(cursor, pullOpts);
+    const serverMaxSeq = first.maxSeq;
+    let prefetched: LogRow[] | null = first.rows;
     const epochReset = cursor > serverMaxSeq;
     if (epochReset) {
+      // fetched from the stale cursor; the loop re-fetches from 0
+      prefetched = null;
       this.logger.warn(
         `SyncEngine: sync epoch reset detected — this device's stored cursor ` +
           `(${cursor}) is ahead of the server's current max seq ` +
@@ -1211,12 +1223,11 @@ export class SyncEngine {
     await this.loadPendingSelfReferentialFks();
 
     for (;;) {
-      // eslint-disable-next-line no-await-in-loop
-      const page = await this.transport.pull(
-        cursor,
-        this.pullPageSize,
-        pullOpts,
-      );
+      const page =
+        prefetched ??
+        // eslint-disable-next-line no-await-in-loop
+        (await this.transport.pull(cursor, this.pullPageSize, pullOpts));
+      prefetched = null;
       pulled += page.length;
 
       if (page.length > 0) {
@@ -2219,6 +2230,19 @@ export class SyncEngine {
   // ---------------------------------------------------------------------
   // sync_state helpers
   // ---------------------------------------------------------------------
+
+  /** see {@link SyncTransport.pullWithWatermark}; the fallback keeps the watermark-first order */
+  private async firstPullPage(
+    cursor: number,
+    opts: PullOptions,
+  ): Promise<{ rows: LogRow[]; maxSeq: number }> {
+    if (this.transport.pullWithWatermark) {
+      return this.transport.pullWithWatermark(cursor, this.pullPageSize, opts);
+    }
+    const maxSeq = await this.transport.currentSeq();
+    const rows = await this.transport.pull(cursor, this.pullPageSize, opts);
+    return { rows, maxSeq };
+  }
 
   private getCursor(): Promise<number> {
     return this.readCursor(MAIN_CURSOR_KEY);

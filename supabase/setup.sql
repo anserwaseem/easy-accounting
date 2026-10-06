@@ -242,6 +242,63 @@ comment on function sync_push(jsonb) is
 
 
 -- ----------------------------------------------------------------------------
+-- 3b. sync_pull(...) — one-request pull page + log watermark.
+--
+-- Every sync cycle used to make two GETs: `currentSeq` (max seq) and the
+-- first `sync_log` page. An idle device is ~all empty pages, so that was
+-- half of all steady-state sync requests (Supabase egress: the free plan
+-- has 5 GB/month). This returns both in one response:
+--   { "maxSeq": <bigint>, "rows": [{ seq, table_name, row_uuid, op,
+--     row_json, device_id }, ...] }
+-- with the same filters SupabaseSyncTransport.pull sends as query params.
+--
+-- Both values come from ONE statement, so one snapshot: maxSeq can never
+-- be newer than the page. SyncEngine.pullAndApply's "Cursor advancement
+-- past filtered own-device rows" doc comment depends on exactly that (the
+-- watermark must be taken no later than the first page's query).
+--
+-- Plain SECURITY INVOKER (the default): it reads through the caller's
+-- sync_log_select policy and grant below, same access as the REST pull.
+-- Clients that predate this function, or a project that has not re-run
+-- this file yet, keep working: the client falls back to the two GETs when
+-- this function is missing.
+-- ----------------------------------------------------------------------------
+create or replace function sync_pull(
+  after_seq bigint,
+  max_rows integer,
+  exclude_device text default null,
+  only_tables text[] default null
+)
+returns jsonb
+language sql
+stable
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'maxSeq', coalesce((select max(sl.seq) from sync_log sl), 0),
+    'rows', coalesce(
+      (
+        select jsonb_agg(page order by page.seq)
+        from (
+          select sl.seq, sl.table_name, sl.row_uuid, sl.op, sl.row_json, sl.device_id
+          from sync_log sl
+          where sl.seq > after_seq
+            and (exclude_device is null or sl.device_id <> exclude_device)
+            and (only_tables is null or sl.table_name = any(only_tables))
+          order by sl.seq
+          limit greatest(max_rows, 0)
+        ) page
+      ),
+      '[]'::jsonb
+    )
+  );
+$$;
+
+comment on function sync_pull(bigint, integer, text, text[]) is
+  'Pull endpoint for Easy Accounting sync: one page of sync_log after after_seq plus the log max seq, from one snapshot. Same filters as the REST pull (own device excluded unless exclude_device is null, optional table list).';
+
+
+-- ----------------------------------------------------------------------------
 -- 4. Grants and RLS policies.
 --
 -- Pull is plain PostgREST (`GET .../sync_log?seq=gt.<cursor>&order=seq.asc
@@ -273,6 +330,9 @@ create policy sync_log_select
 
 revoke all on function sync_push(jsonb) from public;
 grant execute on function sync_push(jsonb) to anon, authenticated;
+
+revoke all on function sync_pull(bigint, integer, text, text[]) from public;
+grant execute on function sync_pull(bigint, integer, text, text[]) to anon, authenticated;
 
 -- sync_log itself: PostgREST also needs the underlying table SELECT grant
 -- (RLS narrows *rows*, but the role still needs the base privilege) —
@@ -320,6 +380,9 @@ grant select on sync_log to anon, authenticated;
 alter role anon set statement_timeout = '60s';
 alter role authenticated set statement_timeout = '60s';
 notify pgrst, 'reload config';
+-- so a newly created function (e.g. sync_pull) is callable without waiting
+-- for PostgREST's own schema-cache refresh
+notify pgrst, 'reload schema';
 
 
 -- ----------------------------------------------------------------------------
