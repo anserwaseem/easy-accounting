@@ -415,6 +415,14 @@ describe('LedgerService.getTourCollectionsForAccountIds', () => {
       [running],
     );
     expect(paid[shop][running]).toBe(40);
+    // a sheet range clips the tour: the 2024 receipt falls outside it
+    const clipped = await fx.ledger.getTourCollectionsForAccountIds(
+      [shop],
+      [running],
+      '2025-01-01',
+      '2025-12-31',
+    );
+    expect(clipped[shop]).toBeUndefined();
     expect(await fx.ledger.getTourCollectionsForAccountIds([shop], [])).toEqual(
       {},
     );
@@ -429,6 +437,40 @@ describe('LedgerService untoured collections and collection sources', () => {
   });
 
   afterEach(() => fx.db.close());
+
+  it('collected counts money only, so it equals tour columns plus not in a tour', async () => {
+    const cash = insertAccountRow(fx.db, fx.currentAssetId, 'Cash');
+    const discount = insertAccountRow(fx.db, fx.expenseId, 'Discount');
+    const shop = insertAccountRow(fx.db, fx.agentHeadId, 'Shop');
+    const otherShop = insertAccountRow(fx.db, fx.agentHeadId, 'Other shop');
+    const aug = await fx.tours.insertAgentTour({
+      chartId: fx.agentHeadId,
+      name: 'Aug',
+      startDate: '2026-08-01',
+      endDate: '2026-08-30',
+    });
+    insertJournal(fx.db, '2026-08-10', [[cash, 100]], [[shop, 100]]);
+    insertJournal(fx.db, '2026-09-04', [[cash, 21]], [[shop, 21]]);
+    insertJournal(fx.db, '2026-08-12', [[discount, 9]], [[shop, 9]]);
+    insertJournal(fx.db, '2026-08-15', [[otherShop, 40]], [[shop, 40]]);
+
+    const range = ['2026-08-01', '2026-09-30'] as const;
+    const collected = await fx.ledger.getReceiptSumsForAccountIdsInRange(
+      [shop],
+      ...range,
+    );
+    const toured = await fx.ledger.getTourCollectionsForAccountIds(
+      [shop],
+      [aug],
+    );
+    const untoured = await fx.ledger.getUntouredCollectionsForAccountIds(
+      [shop],
+      fx.agentHeadId,
+      ...range,
+    );
+    expect(collected[shop]).toBe(121);
+    expect(toured[shop][aug] + untoured[shop]).toBe(collected[shop]);
+  });
 
   it('reports receipts outside every tour within the range only', async () => {
     const cash = insertAccountRow(fx.db, fx.currentAssetId, 'Cash');

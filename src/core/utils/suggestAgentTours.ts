@@ -24,6 +24,30 @@ export const toursOverlap = (
   a.startDate <= (b.endDate ?? OPEN_END) &&
   b.startDate <= (a.endDate ?? OPEN_END);
 
+/**
+ * the part of a tour inside a sheet range, as the columns count it.
+ * a running tour keeps a null end unless the range ends before today.
+ */
+export const clipTourToRange = <
+  T extends Pick<AgentTour, 'startDate' | 'endDate'>,
+>(
+  tour: T,
+  from: string,
+  to: string,
+  today: string,
+): T & { clipped: boolean } => {
+  const startDate = tour.startDate < from ? from : tour.startDate;
+  const effectiveEnd = tour.endDate ?? today;
+  let { endDate } = tour;
+  if (effectiveEnd > to) endDate = to;
+  return {
+    ...tour,
+    startDate,
+    endDate,
+    clipped: startDate !== tour.startDate || endDate !== tour.endDate,
+  };
+};
+
 const shiftDay = (day: string, amount: number): string =>
   format(addDays(parseISO(day), amount), 'yyyy-MM-dd');
 

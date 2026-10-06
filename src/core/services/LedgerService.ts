@@ -173,32 +173,24 @@ const SQL = {
       ) t
       WHERE t.rn = 1
     `,
-  getCreditSumsForAccountIdsInRange: `
-      SELECT
-        lv.accountId AS accountId,
-        COALESCE(SUM(lv.credit), 0) AS collected
-      FROM ledger_view lv
-      WHERE lv.accountId IN (
-        SELECT CAST(j.value AS INTEGER)
-        FROM json_each(@accountIdsJson) AS j
-      )
-        AND (
-          CASE
-            WHEN length(lv.date) = 10 THEN lv.date
-            ELSE date(datetime(lv.date, 'localtime'))
-          END
-        ) >= @startDate
-        AND (
-          CASE
-            WHEN length(lv.date) = 10 THEN lv.date
-            ELSE date(datetime(lv.date, 'localtime'))
-          END
-        ) <= @endDate
-      GROUP BY lv.accountId
+  getReceiptSumsForAccountIdsInRange: `
+      WITH ${RECEIPT_ACCOUNTS_CTE},
+      ${RECEIPT_CREDITS_CTE}
+      SELECT rc.accountId AS accountId, SUM(rc.amount) AS collected
+      FROM receipt_credits rc
+      WHERE rc.day BETWEEN @startDate AND @endDate
+      GROUP BY rc.accountId
     `,
+  // an optional range clips each tour, so a sheet's columns add up to its Collected
   getTourCollectionsForAccountIds: `
       WITH tours AS (
-        SELECT t.id, t.startDate, COALESCE(t.endDate, date('now', 'localtime')) AS endDate
+        SELECT
+          t.id,
+          MAX(t.startDate, COALESCE(@startDate, t.startDate)) AS startDate,
+          MIN(
+            COALESCE(t.endDate, date('now', 'localtime')),
+            COALESCE(@endDate, '9999-12-31')
+          ) AS endDate
         FROM agent_tours t
         WHERE t.id IN (SELECT CAST(j.value AS INTEGER) FROM json_each(@tourIdsJson) AS j)
       ),
@@ -447,11 +439,13 @@ export class LedgerService {
    * per account, per tour: credits paired with a receipt account whose local
    * day falls in the tour (a running tour ends today). other credits —
    * discounts, sale reversals, balance transfers — are not collections.
-   * pairs with nothing collected are omitted.
+   * a given range clips each tour to it. pairs with nothing collected are omitted.
    */
   async getTourCollectionsForAccountIds(
     accountIds: number[],
     tourIds: number[],
+    startDate: string | null = null,
+    endDate: string | null = null,
   ): Promise<Record<number, Record<number, number>>> {
     const unique = LedgerService.uniqueSortedAccountIds(accountIds);
     const tours = LedgerService.uniqueSortedAccountIds(tourIds);
@@ -463,6 +457,8 @@ export class LedgerService {
     }>(SQL.getTourCollectionsForAccountIds, {
       accountIdsJson: JSON.stringify(unique),
       tourIdsJson: JSON.stringify(tours),
+      startDate,
+      endDate,
     });
     const out: Record<number, Record<number, number>> = {};
     for (const row of rows) {

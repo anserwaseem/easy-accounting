@@ -1,4 +1,48 @@
-import { suggestAgentTours, toursOverlap } from '../suggestAgentTours';
+import {
+  clipTourToRange,
+  suggestAgentTours,
+  toursOverlap,
+} from '../suggestAgentTours';
+
+describe('clipTourToRange', () => {
+  const today = '2026-10-05';
+
+  it('cuts a tour that starts before the range', () => {
+    expect(
+      clipTourToRange(
+        { startDate: '2025-12-22', endDate: '2026-01-25' },
+        '2026-01-01',
+        '2026-09-30',
+        today,
+      ),
+    ).toEqual({
+      startDate: '2026-01-01',
+      endDate: '2026-01-25',
+      clipped: true,
+    });
+  });
+
+  it('leaves a tour inside the range alone', () => {
+    expect(
+      clipTourToRange(
+        { startDate: '2026-02-01', endDate: '2026-02-20' },
+        '2026-01-01',
+        '2026-09-30',
+        today,
+      ).clipped,
+    ).toBe(false);
+  });
+
+  it('ends a running tour at the range end only when the range ends before today', () => {
+    const running = { startDate: '2026-08-31', endDate: null };
+    expect(clipTourToRange(running, '2026-01-01', '2026-09-30', today)).toEqual(
+      { startDate: '2026-08-31', endDate: '2026-09-30', clipped: true },
+    );
+    expect(clipTourToRange(running, '2026-01-01', '2026-10-05', today)).toEqual(
+      { startDate: '2026-08-31', endDate: null, clipped: false },
+    );
+  });
+});
 
 describe('toursOverlap', () => {
   it('treats ranges as inclusive and a null end as open', () => {

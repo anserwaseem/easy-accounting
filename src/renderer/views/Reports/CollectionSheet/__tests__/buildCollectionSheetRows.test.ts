@@ -258,5 +258,14 @@ describe('buildCollectionSheetRows', () => {
         endDate: null,
       }),
     ).toBe('Oct 2026 · 01/10–…');
+    expect(
+      tourColumnHeader({
+        id: 3,
+        name: 'Jan 2026',
+        startDate: '2026-01-01',
+        endDate: '2026-01-25',
+        clipped: true,
+      }),
+    ).toBe('Jan 2026 · 01/01–25/01 (part)');
   });
 });

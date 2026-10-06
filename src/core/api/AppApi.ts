@@ -401,16 +401,18 @@ export interface AppApi {
     accountIds: number[],
     endDate: string,
   ) => Promise<Record<number, LedgerView[]>>;
-  /** sum of party-ledger credits in an inclusive local-date range */
-  getCreditSumsForAccountIdsInRange: (
+  /** money received per account (receipt-account credits) in an inclusive local-date range */
+  getReceiptSumsForAccountIdsInRange: (
     accountIds: number[],
     startDate: string,
     endDate: string,
   ) => Promise<Record<number, number>>;
-  /** receipts per account per tour (accountId -> tourId -> amount) */
+  /** receipts per account per tour (accountId -> tourId -> amount); a range clips each tour */
   getTourCollectionsForAccountIds: (
     accountIds: number[],
     tourIds: number[],
+    startDate?: string | null,
+    endDate?: string | null,
   ) => Promise<Record<number, Record<number, number>>>;
   /** receipts in the range on days no tour of the head covers */
   getUntouredCollectionsForAccountIds: (

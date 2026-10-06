@@ -818,16 +818,23 @@ async function main(): Promise<void> {
         accountIds as number[],
         endDate as string,
       ),
-    getCreditSumsForAccountIdsInRange: (accountIds, startDate, endDate) =>
-      ledgerService.getCreditSumsForAccountIdsInRange(
+    getReceiptSumsForAccountIdsInRange: (accountIds, startDate, endDate) =>
+      ledgerService.getReceiptSumsForAccountIdsInRange(
         accountIds as number[],
         startDate as string,
         endDate as string,
       ),
-    getTourCollectionsForAccountIds: (accountIds, tourIds) =>
+    getTourCollectionsForAccountIds: (
+      accountIds,
+      tourIds,
+      startDate,
+      endDate,
+    ) =>
       ledgerService.getTourCollectionsForAccountIds(
         accountIds as number[],
         tourIds as number[],
+        (startDate as string | null | undefined) ?? null,
+        (endDate as string | null | undefined) ?? null,
       ),
     getUntouredCollectionsForAccountIds: (
       accountIds,

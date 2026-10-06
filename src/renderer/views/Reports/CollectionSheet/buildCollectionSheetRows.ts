@@ -312,7 +312,7 @@ const familyTourPaid = (
 /**
  * tier ledgers fold into the base shop. each row's amount is that bill, tier shares added.
  * one invoice per row. bill amount is rounded to the nearest rupee.
- * collected is the shop's receipts. a shop with none shows 0. a real collection is written once.
+ * collected is the money the shop paid (receipt accounts only). a shop with none shows 0. a real collection is written once.
  * tour columns follow the same rule: the shop's first row holds each tour's receipts (0 when unpaid).
  * order is the base account code, same in Eng and Urdu.
  */
@@ -464,11 +464,14 @@ export interface CollectionSheetTourColumn {
   name: string;
   startDate: string;
   endDate: string | null;
+  /** cut to the sheet range; the column holds only that part of the tour */
+  clipped?: boolean;
 }
 
-/** "Aug 2026 · 27/07–30/08"; a running tour shows "…" for its end */
+/** "Aug 2026 · 27/07–30/08"; a running tour shows "…" for its end, a clipped one "(part)" */
 export const tourColumnHeader = (tour: CollectionSheetTourColumn): string => {
   const day = (iso: string) => formatBillDate(iso).slice(0, 5);
   const end = tour.endDate ? day(tour.endDate) : '…';
-  return `${tour.name} · ${day(tour.startDate)}–${end}`;
+  const part = tour.clipped ? ' (part)' : '';
+  return `${tour.name} · ${day(tour.startDate)}–${end}${part}`;
 };

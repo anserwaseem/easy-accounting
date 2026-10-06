@@ -82,8 +82,8 @@ export const CollectionSourcesReview: React.FC<
       <p className="text-sm text-muted-foreground">
         Every account that credited this agent&apos;s shops from{' '}
         {formatBillDate(range.from)} to {formatBillDate(range.to)}. Switched on
-        means it is money received and shows in the tour columns. Usually only
-        the highlighted rows need a decision.
+        means it is money received: it shows in Collected and the tour columns.
+        Usually only the highlighted rows need a decision.
       </p>
       {flagged > 0 ? (
         <p className="text-sm font-medium text-amber-800 dark:text-amber-300">

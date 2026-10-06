@@ -10,7 +10,7 @@ import {
 } from '@/renderer/lib/reportFilters';
 import type { Account, AgentTour, Chart, ItemType } from '@/types';
 import { REPORT_FILTER_KEYS } from '@/types';
-import { toursOverlap } from '@/core/utils/suggestAgentTours';
+import { clipTourToRange, toursOverlap } from '@/core/utils/suggestAgentTours';
 import {
   buildCollectionSheetRows,
   type CollectionSheetBill,
@@ -26,18 +26,19 @@ interface CollectionSheetSnapshot {
   bills: Record<number, CollectionSheetBill[]>;
   /** normalized yyyy-MM-dd range the numbers were loaded for */
   range: { from: string; to: string };
-  /** the head's tours overlapping the sheet range, oldest first */
-  tours: AgentTour[];
+  /** the head's tours overlapping the sheet range, clipped to it, oldest first */
+  tours: (AgentTour & { clipped: boolean })[];
   tourPaid: CollectionSheetTourPaid;
   /** null when the agent has no tours at all, which hides the column */
   untoured: Record<number, number> | null;
 }
 
-const NO_TOURS: AgentTour[] = [];
+const NO_TOURS: CollectionSheetSnapshot['tours'] = [];
 
 /**
- * a tour's full window counts, even where it runs past the sheet range.
- * "not in a tour" only means something once the agent has tours.
+ * tours are clipped to the sheet range so a row's tour columns plus
+ * "not in a tour" always equal Collected. "not in a tour" only means
+ * something once the agent has tours.
  */
 const loadTourColumns = async (
   chartId: number,
@@ -49,8 +50,11 @@ const loadTourColumns = async (
 > => {
   const all = await window.electron.getAgentTours(chartId);
   if (all.length === 0) return { tours: [], tourPaid: {}, untoured: null };
+  const today = format(new Date(), 'yyyy-MM-dd');
   const tours = orderBy(
-    all.filter((tour) => toursOverlap(tour, { startDate: from, endDate: to })),
+    all
+      .filter((tour) => toursOverlap(tour, { startDate: from, endDate: to }))
+      .map((tour) => clipTourToRange(tour, from, to, today)),
     ['startDate'],
     ['asc'],
   );
@@ -60,6 +64,8 @@ const loadTourColumns = async (
       : window.electron.getTourCollectionsForAccountIds(
           accountIds,
           tours.map((tour) => tour.id),
+          from,
+          to,
         ),
     window.electron.getUntouredCollectionsForAccountIds(
       accountIds,
@@ -198,7 +204,7 @@ export const useCollectionSheet = () => {
         const [balances, collectedById, bills, tourColumns] = await Promise.all(
           [
             window.electron.getLedgerBalancesForAccountIdsAsOfDate(ids, to),
-            window.electron.getCreditSumsForAccountIdsInRange(ids, from, to),
+            window.electron.getReceiptSumsForAccountIdsInRange(ids, from, to),
             window.electron.getSaleBillsForAccountIdsInRange(ids, from, to),
             loadTourColumns(id, ids, from, to),
           ],

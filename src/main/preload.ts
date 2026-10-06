@@ -741,12 +741,19 @@ const electronHandler = {
       startDate,
       endDate,
     ) as Promise<Record<number, number>>,
-  /** receipts per account per tour (accountId -> tourId -> amount) */
-  getTourCollectionsForAccountIds: (accountIds: number[], tourIds: number[]) =>
+  /** receipts per account per tour (accountId -> tourId -> amount); a range clips each tour */
+  getTourCollectionsForAccountIds: (
+    accountIds: number[],
+    tourIds: number[],
+    startDate?: string | null,
+    endDate?: string | null,
+  ) =>
     ipcRenderer.invoke(
       'ledger:getTourCollectionsForAccountIds',
       accountIds,
       tourIds,
+      startDate ?? null,
+      endDate ?? null,
     ) as Promise<Record<number, Record<number, number>>>,
   /** receipts in the range on days no tour of the head covers */
   getUntouredCollectionsForAccountIds: (

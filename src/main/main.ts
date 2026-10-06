@@ -614,8 +614,19 @@ app
     );
     ipcMain.handle(
       'ledger:getTourCollectionsForAccountIds',
-      async (_, accountIds: number[], tourIds: number[]) =>
-        ledgerService.getTourCollectionsForAccountIds(accountIds, tourIds),
+      async (
+        _,
+        accountIds: number[],
+        tourIds: number[],
+        startDate?: string | null,
+        endDate?: string | null,
+      ) =>
+        ledgerService.getTourCollectionsForAccountIds(
+          accountIds,
+          tourIds,
+          startDate,
+          endDate,
+        ),
     );
     ipcMain.handle(
       'ledger:getUntouredCollectionsForAccountIds',
