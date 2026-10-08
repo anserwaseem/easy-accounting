@@ -59,33 +59,29 @@ describe('SyncEngine idle cycle', () => {
  * debounce that reacts to every mutation re-triggers sync ~3s after each
  * cycle forever — ~10x the steady 30s poll in Supabase requests.
  */
-describe('SyncManager write-triggered sync', () => {
-  const createKv = (): SyncKv => {
-    const store = new Map<string, unknown>();
-    return {
-      get: (key) => store.get(key),
-      setAwaited: async (key, value) => {
-        store.set(key, value);
-      },
-      deleteAwaited: async (key) => {
-        store.delete(key);
-      },
-    };
+const createKv = (initial?: Record<string, unknown>): SyncKv => {
+  const store = new Map<string, unknown>(Object.entries(initial ?? {}));
+  return {
+    get: (key) => store.get(key),
+    setAwaited: async (key, value) => {
+      store.set(key, value);
+    },
+    deleteAwaited: async (key) => {
+      store.delete(key);
+    },
   };
+};
 
-  const setup = async () => {
-    const driver = new BetterSqliteDriver(new Database(':memory:'));
-    await bootstrapDatabase(driver);
-    const manager = new SyncManager({
-      db: driver,
-      kv: createKv(),
-      notify: () => {},
-    });
-    driver.setMutationListener(() => manager.scheduleDebouncedSync());
-    const syncOnce = jest.spyOn(SyncEngine.prototype, 'syncOnce');
-    return { driver, manager, syncOnce };
-  };
+const setup = async (kv: SyncKv = createKv()) => {
+  const driver = new BetterSqliteDriver(new Database(':memory:'));
+  await bootstrapDatabase(driver);
+  const manager = new SyncManager({ db: driver, kv, notify: () => {} });
+  driver.setMutationListener(() => manager.scheduleDebouncedSync());
+  const syncOnce = jest.spyOn(SyncEngine.prototype, 'syncOnce');
+  return { driver, manager, syncOnce };
+};
 
+const useFakeTimersPerTest = () => {
   beforeEach(() => {
     jest.useFakeTimers();
   });
@@ -94,6 +90,10 @@ describe('SyncManager write-triggered sync', () => {
     jest.restoreAllMocks();
     jest.useRealTimers();
   });
+};
+
+describe('SyncManager write-triggered sync', () => {
+  useFakeTimersPerTest();
 
   it('does not re-trigger itself from its own bookkeeping writes when idle', async () => {
     const { manager, syncOnce } = await setup();
@@ -121,6 +121,64 @@ describe('SyncManager write-triggered sync', () => {
 
     expect(syncOnce).toHaveBeenCalledTimes(1);
     expect((await manager.getStatus()).pendingOutboxCount).toBe(0);
+    await manager.disconnect();
+  });
+});
+
+/**
+ * a device left on the login screen (shop laptop overnight) has nobody to
+ * show pulled rows to, so the steady poll must not run until someone logs in.
+ */
+describe('SyncManager while logged out', () => {
+  useFakeTimersPerTest();
+
+  const connectedKv = () =>
+    createKv({
+      'sync.config': { url: 'mock://local', anonKey: '', mock: true },
+    });
+
+  it('does not poll after a logged-out boot until login resumes it', async () => {
+    const { manager, syncOnce } = await setup(connectedKv());
+    await manager.bootIfConfigured({ startLoop: false });
+
+    await jest.advanceTimersByTimeAsync(65_000);
+    expect(syncOnce).not.toHaveBeenCalled();
+    expect((await manager.getStatus()).connected).toBe(true);
+
+    manager.resumeBackgroundLoop();
+    await jest.advanceTimersByTimeAsync(31_000);
+    // immediate cycle on login + the 30s tick
+    expect(syncOnce).toHaveBeenCalledTimes(2);
+    await manager.disconnect();
+  });
+
+  it('stops polling on logout', async () => {
+    const { manager, syncOnce } = await setup(connectedKv());
+    await manager.bootIfConfigured();
+    await jest.advanceTimersByTimeAsync(1_000);
+    expect(syncOnce).toHaveBeenCalledTimes(1);
+
+    manager.pauseBackgroundLoop();
+    await jest.advanceTimersByTimeAsync(65_000);
+
+    expect(syncOnce).toHaveBeenCalledTimes(1);
+    await manager.disconnect();
+  });
+
+  it('still pushes a write made while logged out, without re-arming the poll', async () => {
+    const { driver, manager, syncOnce } = await setup(connectedKv());
+    await manager.bootIfConfigured({ startLoop: false });
+
+    // e.g. registering a user on the login screen
+    await driver.run(
+      `INSERT INTO settings (key, value) VALUES ('logged-out-write', '1')`,
+    );
+    await jest.advanceTimersByTimeAsync(5_000);
+    expect(syncOnce).toHaveBeenCalledTimes(1);
+    expect((await manager.getStatus()).pendingOutboxCount).toBe(0);
+
+    await jest.advanceTimersByTimeAsync(65_000);
+    expect(syncOnce).toHaveBeenCalledTimes(1);
     await manager.disconnect();
   });
 });

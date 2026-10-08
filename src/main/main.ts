@@ -12,7 +12,7 @@ import nodeCrypto from 'crypto';
 import { app, BrowserWindow, dialog, shell, ipcMain } from 'electron';
 import log from 'electron-log';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
-import { isNil } from 'lodash';
+import { isNil, size } from 'lodash';
 import { addDays, format, parse } from 'date-fns';
 import QRCode from 'qrcode';
 import type {
@@ -357,7 +357,11 @@ app
     }
 
     try {
-      await syncManager.bootIfConfigured();
+      // same session signal the renderer's useAuth reads; logged out means
+      // the login screen, where polling would only burn Supabase egress
+      await syncManager.bootIfConfigured({
+        startLoop: size(store.get('username') as string | undefined) > 0,
+      });
     } catch (err) {
       log.warn('Sync boot failed:', err);
     }
@@ -504,6 +508,7 @@ app
       return authService.register(user);
     });
     ipcMain.handle('auth:logout', async () => {
+      syncManager.pauseBackgroundLoop();
       return AuthService.logout();
     });
     // read-only metadata for the sidebar staleness indicator; takes no
