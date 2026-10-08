@@ -3,6 +3,7 @@ import { BetterSqliteDriver } from '../../../main/adapters/BetterSqliteDriver';
 import { bootstrapDatabase } from '../../db/bootstrap';
 import { SyncEngine } from '../SyncEngine';
 import { SyncManager, type SyncKv } from '../SyncManager';
+import type { SyncTransport } from '../transport';
 import { MockSyncServer } from './mockServer';
 
 jest.mock('electron-log', () => ({
@@ -50,6 +51,52 @@ describe('SyncEngine idle cycle', () => {
     await engine.syncOnce();
 
     expect(mutations).toBe(0);
+  });
+
+  it('makes one server request per idle cycle when the transport offers pullWithWatermark', async () => {
+    const driver = new BetterSqliteDriver(new Database(':memory:'));
+    await bootstrapDatabase(driver);
+    const server = new MockSyncServer();
+    await server.createDeviceTransport('peer').push([
+      {
+        idempotencyKey: 'peer:settings:2',
+        tableName: 'settings',
+        rowUuid: 'b0000000-0000-4000-8000-000000000002',
+        op: 'put',
+        rowJson: JSON.stringify({
+          key: 'peer2',
+          value: '1',
+          uuid: 'b0000000-0000-4000-8000-000000000002',
+        }),
+      },
+    ]);
+    const inner = server.createDeviceTransport('self');
+    const requests: string[] = [];
+    const counted: SyncTransport = {
+      push: (batch) => {
+        requests.push('push');
+        return inner.push(batch);
+      },
+      pull: (afterSeq, limit, opts) => {
+        requests.push('pull');
+        return inner.pull(afterSeq, limit, opts);
+      },
+      currentSeq: () => {
+        requests.push('currentSeq');
+        return inner.currentSeq();
+      },
+      pullWithWatermark: (afterSeq, limit, opts) => {
+        requests.push('pullWithWatermark');
+        return inner.pullWithWatermark!(afterSeq, limit, opts);
+      },
+    };
+    const engine = new SyncEngine({ db: driver, transport: counted });
+    await engine.syncOnce();
+    requests.length = 0;
+
+    await engine.syncOnce();
+
+    expect(requests).toEqual(['pullWithWatermark']);
   });
 });
 

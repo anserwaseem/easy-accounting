@@ -91,6 +91,20 @@ export interface SyncTransport {
   pull(afterSeq: number, limit: number, opts?: PullOptions): Promise<LogRow[]>;
 
   /**
+   * One `pull` page plus the log's {@link currentSeq} watermark, both from
+   * the same server snapshot, so the watermark is never newer than the
+   * page. `SyncEngine` uses it for the first page of every pull, which turns
+   * an idle cycle (empty page) into one request instead of two. Optional: a
+   * transport without it gets `currentSeq()` then `pull()`, in that order,
+   * which gives the same guarantee.
+   */
+  pullWithWatermark?(
+    afterSeq: number,
+    limit: number,
+    opts?: PullOptions,
+  ): Promise<{ rows: LogRow[]; maxSeq: number }>;
+
+  /**
    * The log's current highest `seq` (0 if the log is empty). A cheap,
    * read-only probe — no rows are fetched, just the watermark — that
    * `SyncEngine` uses to detect a "sync epoch reset": this device's stored

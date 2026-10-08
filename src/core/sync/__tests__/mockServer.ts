@@ -106,7 +106,13 @@ export class MockSyncServer {
     return {
       push: (batch) => this.push(deviceId, batch),
       pull: (afterSeq, limit, opts) =>
-        this.pull(deviceId, afterSeq, limit, opts),
+        this.serialize(() => this.page(deviceId, afterSeq, limit, opts)),
+      // one serialized step, like sync_pull's single SQL statement
+      pullWithWatermark: (afterSeq, limit, opts) =>
+        this.serialize(() => ({
+          rows: this.page(deviceId, afterSeq, limit, opts),
+          maxSeq: this.seq,
+        })),
       currentSeq: () => this.serialize<number>(() => this.seq),
     };
   }
@@ -120,7 +126,7 @@ export class MockSyncServer {
    * Test-only: total rows this device's `pull` has ever actually been
    * handed back, across every call — i.e. rows that, against a real server,
    * would have been transferred as egress. Own-device rows are excluded
-   * before this count is incremented (see {@link pull}), so this is exactly
+   * before this count is incremented (see {@link page}), so this is exactly
    * the number to assert stays flat (relative to a would-be-unfiltered
    * baseline) when a device pulls a backlog dominated by its own rows.
    * Returns 0 for a device that never called `pull` (as well as one that
@@ -189,29 +195,27 @@ export class MockSyncServer {
    * too, just a deliberate, one-time exception rather than the steady-state
    * waste the default filtering exists to avoid).
    */
-  private pull(
+  private page(
     deviceId: string,
     afterSeq: number,
     limit: number,
     opts?: PullOptions,
-  ): Promise<LogRow[]> {
-    return this.serialize<LogRow[]>(() => {
-      const tables = opts?.tables?.length ? new Set(opts.tables) : null;
-      const page = this.log
-        .filter(
-          (row) =>
-            row.seq > afterSeq &&
-            (opts?.includeSelf || row.deviceId !== deviceId) &&
-            (!tables || tables.has(row.tableName)),
-        )
-        .slice(0, limit);
-      if (page.length > 0) {
-        this.servedRowCounts.set(
-          deviceId,
-          (this.servedRowCounts.get(deviceId) ?? 0) + page.length,
-        );
-      }
-      return page;
-    });
+  ): LogRow[] {
+    const tables = opts?.tables?.length ? new Set(opts.tables) : null;
+    const page = this.log
+      .filter(
+        (row) =>
+          row.seq > afterSeq &&
+          (opts?.includeSelf || row.deviceId !== deviceId) &&
+          (!tables || tables.has(row.tableName)),
+      )
+      .slice(0, limit);
+    if (page.length > 0) {
+      this.servedRowCounts.set(
+        deviceId,
+        (this.servedRowCounts.get(deviceId) ?? 0) + page.length,
+      );
+    }
+    return page;
   }
 }
