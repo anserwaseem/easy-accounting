@@ -46,6 +46,19 @@ export interface LogRow {
   deviceId: string;
 }
 
+/** Filters for {@link SyncTransport.pull}; both are applied server-side so excluded rows are never transferred. */
+export interface PullOptions {
+  /** see {@link SyncTransport.pull}'s doc comment */
+  includeSelf?: boolean;
+  /**
+   * only rows whose `table_name` is in this list. Used by a scheduled
+   * table re-pull (see ./tableRepull.ts) so a heal re-downloads just the
+   * affected tables instead of the whole log. Omitted or empty means every
+   * table.
+   */
+  tables?: readonly string[];
+}
+
 export interface SyncTransport {
   /** Sends one batch of outbox entries. Safe to retry verbatim on failure — the server dedupes by `idempotencyKey`. */
   push(batch: OutboxEntry[]): Promise<PushResult>;
@@ -75,11 +88,7 @@ export interface SyncTransport {
    * `SyncEngine.rebuildFromServer`'s doc comment for the full incident this
    * option was added for.
    */
-  pull(
-    afterSeq: number,
-    limit: number,
-    opts?: { includeSelf?: boolean },
-  ): Promise<LogRow[]>;
+  pull(afterSeq: number, limit: number, opts?: PullOptions): Promise<LogRow[]>;
 
   /**
    * The log's current highest `seq` (0 if the log is empty). A cheap,

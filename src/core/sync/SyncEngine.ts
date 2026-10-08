@@ -6,6 +6,11 @@ import { getCoreLogger } from '../ports';
 import { INITIAL_CHARTS } from '../utils/constants';
 import { repairInvoiceEditedTimestamps } from './repairInvoiceTimestamps';
 import { seedOutboxFromLocalData } from './seedOutbox';
+import {
+  clearScheduledRepull,
+  loadScheduledRepull,
+  REPULL_CURSOR_KEY,
+} from './tableRepull';
 import type { LogRow, OutboxEntry, SyncTransport } from './transport';
 
 /**
@@ -18,6 +23,21 @@ import type { LogRow, OutboxEntry, SyncTransport } from './transport';
  * comment for why the apply path needs this at all.
  */
 const SYNC_TABLE_SET: ReadonlySet<string> = new Set(SYNC_TABLES);
+
+/** `sync_state` key of the main pull cursor; a scheduled re-pull keeps its own (see ./tableRepull.ts) */
+const MAIN_CURSOR_KEY = 'cursor';
+
+const EMPTY_PULL_RESULT = {
+  pulled: 0,
+  applied: 0,
+  skippedUnknownTable: 0,
+  unknownTables: [] as string[],
+  epochReset: false,
+  applyConflicts: 0,
+  discardedPlaceholderUsers: 0,
+  discardedPlaceholderCharts: 0,
+  seeded: 0,
+};
 
 /** Local mirror of the `sync_outbox` row shape (migration 034). */
 interface OutboxRow {
@@ -314,20 +334,32 @@ export class SyncEngine {
    * drain rounds — a caller only ever needs "how much did this syncOnce
    * push in total," and `seeded` (reported separately) already tells it
    * whether a reseed happened at all.
+   *
+   * ## Scheduled table re-pull
+   *
+   * A re-pull queued by {@link scheduleTableRepull} (./tableRepull.ts) runs
+   * first, through the same {@link pullAndApply} on its own cursor, and its
+   * counts are added into the report. Its rows newer than the main cursor
+   * get applied again by the main pull right after; applies are idempotent
+   * upserts, so that overlap only costs the (small) re-transfer.
    */
   async syncOnce(): Promise<SyncReport> {
     const firstDrain = await this.drainOutbox();
-    const {
-      pulled,
-      applied,
-      skippedUnknownTable,
-      unknownTables,
-      epochReset,
-      applyConflicts,
-      discardedPlaceholderUsers,
-      discardedPlaceholderCharts,
-      seeded,
-    } = await this.pullAndApply();
+    const repull = await this.runScheduledRepull();
+    const main = await this.pullAndApply();
+    const { epochReset, seeded } = main;
+    const pulled = main.pulled + repull.pulled;
+    const applied = main.applied + repull.applied;
+    const skippedUnknownTable =
+      main.skippedUnknownTable + repull.skippedUnknownTable;
+    const unknownTables = [
+      ...new Set([...main.unknownTables, ...repull.unknownTables]),
+    ];
+    const applyConflicts = main.applyConflicts + repull.applyConflicts;
+    const discardedPlaceholderUsers =
+      main.discardedPlaceholderUsers + repull.discardedPlaceholderUsers;
+    const discardedPlaceholderCharts =
+      main.discardedPlaceholderCharts + repull.discardedPlaceholderCharts;
 
     let { pushed, rejected } = firstDrain;
     if (seeded > 0) {
@@ -572,6 +604,8 @@ export class SyncEngine {
         await this.db.run(
           `DELETE FROM sync_state WHERE key = 'pending_self_fks'`,
         );
+        // the from-zero pull below covers any queued table re-pull
+        await clearScheduledRepull(this.db);
         this.pendingSelfReferentialFks = [];
         this.persistedPendingSelfFks = null;
         this.duplicateSeedRejectedUuids.clear();
@@ -1094,6 +1128,13 @@ export class SyncEngine {
      * needs its own previously-pushed rows back.
      */
     includeSelf?: boolean;
+    /**
+     * a scheduled table re-pull (see {@link runScheduledRepull}): only
+     * these tables' rows are fetched (server-side filter), progress is
+     * kept under `cursorKey` instead of the main `cursor`, and the
+     * empty-server reseed branch is skipped (the main pull owns that).
+     */
+    scope?: { tables: readonly string[]; cursorKey: string };
   }): Promise<{
     pulled: number;
     applied: number;
@@ -1122,7 +1163,12 @@ export class SyncEngine {
     // full rule and why a plain per-run Set (never persisted across
     // separate `pullAndApply` calls) is sufficient.
     const discardedPlaceholderUserUuids = new Set<string>();
-    let cursor = await this.getCursor();
+    const cursorKey = opts?.scope?.cursorKey ?? MAIN_CURSOR_KEY;
+    const pullOpts = {
+      includeSelf: opts?.includeSelf,
+      tables: opts?.scope?.tables,
+    };
+    let cursor = await this.readCursor(cursorKey);
 
     const serverMaxSeq = await this.transport.currentSeq();
     const epochReset = cursor > serverMaxSeq;
@@ -1137,10 +1183,10 @@ export class SyncEngine {
           `come back echo-suppressed like any other pull.`,
       );
       cursor = 0;
-      await this.setCursor(0);
+      await this.writeCursor(cursorKey, 0);
     }
 
-    if (serverMaxSeq === 0) {
+    if (serverMaxSeq === 0 && !opts?.scope) {
       if (await this.hasLocalBusinessData()) {
         const result = await seedOutboxFromLocalData(this.db);
         seeded = result.seeded;
@@ -1166,7 +1212,11 @@ export class SyncEngine {
 
     for (;;) {
       // eslint-disable-next-line no-await-in-loop
-      const page = await this.transport.pull(cursor, this.pullPageSize, opts);
+      const page = await this.transport.pull(
+        cursor,
+        this.pullPageSize,
+        pullOpts,
+      );
       pulled += page.length;
 
       if (page.length > 0) {
@@ -1296,7 +1346,7 @@ export class SyncEngine {
             }
             await this.resolvePendingSelfReferentialFks();
             const lastSeq = page[page.length - 1].seq;
-            await this.setCursor(lastSeq);
+            await this.writeCursor(cursorKey, lastSeq);
           } finally {
             await this.setApplying(false);
           }
@@ -1325,7 +1375,7 @@ export class SyncEngine {
         if (serverMaxSeq > cursor) {
           cursor = serverMaxSeq;
           // eslint-disable-next-line no-await-in-loop
-          await this.setCursor(cursor);
+          await this.writeCursor(cursorKey, cursor);
         }
         break;
       }
@@ -2170,19 +2220,53 @@ export class SyncEngine {
   // sync_state helpers
   // ---------------------------------------------------------------------
 
-  private async getCursor(): Promise<number> {
+  private getCursor(): Promise<number> {
+    return this.readCursor(MAIN_CURSOR_KEY);
+  }
+
+  private setCursor(seq: number): Promise<void> {
+    return this.writeCursor(MAIN_CURSOR_KEY, seq);
+  }
+
+  private async readCursor(key: string): Promise<number> {
     const row = await this.db.get<{ value: string }>(
-      `SELECT value FROM sync_state WHERE key = 'cursor'`,
+      `SELECT value FROM sync_state WHERE key = @key`,
+      { key },
     );
     return row ? Number(row.value) : 0;
   }
 
-  private async setCursor(seq: number): Promise<void> {
+  private async writeCursor(key: string, seq: number): Promise<void> {
     await this.db.run(
-      `INSERT INTO sync_state (key, value) VALUES ('cursor', @value)
+      `INSERT INTO sync_state (key, value) VALUES (@key, @value)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      { value: String(seq) },
+      { key, value: String(seq) },
     );
+  }
+
+  /**
+   * runs a re-pull queued by `scheduleTableRepull` (./tableRepull.ts) to
+   * completion, then clears it. A failure part-way (network) throws out of
+   * `syncOnce` like any pull failure; the re-pull cursor was saved per page,
+   * so the next cycle resumes instead of starting over.
+   */
+  private async runScheduledRepull(): Promise<
+    Awaited<ReturnType<SyncEngine['pullAndApply']>>
+  > {
+    const tables = await loadScheduledRepull(this.db);
+    if (tables === null) return EMPTY_PULL_RESULT;
+    if (tables.length === 0) {
+      await clearScheduledRepull(this.db);
+      return EMPTY_PULL_RESULT;
+    }
+    this.logger.info(
+      `SyncEngine: running scheduled re-pull of ${tables.join(', ')}`,
+    );
+    const result = await this.pullAndApply({
+      scope: { tables, cursorKey: REPULL_CURSOR_KEY },
+    });
+    await clearScheduledRepull(this.db);
+    return result;
   }
 
   private async setApplying(applying: boolean): Promise<void> {

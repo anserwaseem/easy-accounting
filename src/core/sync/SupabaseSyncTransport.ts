@@ -6,6 +6,7 @@
 import type {
   LogRow,
   OutboxEntry,
+  PullOptions,
   PushResult,
   SyncTransport,
 } from './transport';
@@ -264,7 +265,7 @@ export class SupabaseSyncTransport implements SyncTransport {
   async pull(
     afterSeq: number,
     limit: number,
-    opts?: { includeSelf?: boolean },
+    opts?: PullOptions,
   ): Promise<LogRow[]> {
     const params = new URLSearchParams({
       select: 'seq,table_name,row_uuid,op,row_json,device_id',
@@ -274,6 +275,10 @@ export class SupabaseSyncTransport implements SyncTransport {
     });
     if (!opts?.includeSelf) {
       params.set('device_id', `neq.${this.deviceId}`);
+    }
+    if (opts?.tables?.length) {
+      // table names come from SYNC_TABLES (plain identifiers), so no quoting is needed inside in.()
+      params.set('table_name', `in.(${opts.tables.join(',')})`);
     }
     const response = await this.fetch(
       `${this.url}/rest/v1/sync_log?${params.toString()}`,
