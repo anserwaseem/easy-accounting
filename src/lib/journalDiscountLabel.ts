@@ -1,6 +1,8 @@
+import { lineHasNetPrice } from './invoiceLineAmount';
+
 export interface JournalDiscountLine {
   discount: number;
-  isNetRate?: boolean;
+  netPrice?: number | null;
 }
 
 /**
@@ -15,11 +17,11 @@ export const journalDiscountLabel = (
 ): number | string | undefined => {
   if (lines.length === 0) return undefined;
 
-  const hasNet = lines.some((line) => line.isNetRate);
+  const hasNet = lines.some((line) => lineHasNetPrice(line.netPrice));
   const profilePercents = [
     ...new Set(
       lines
-        .filter((line) => !line.isNetRate)
+        .filter((line) => !lineHasNetPrice(line.netPrice))
         .map((line) => Number(line.discount) || 0),
     ),
   ];
@@ -42,20 +44,20 @@ export const formatJournalDiscountLabel = (
   }
   const text = value.trim();
   if (text === 'N') return 'N';
-  const marked = /^(?:N\$|N·)(\d+(?:\.\d+)?)$/.exec(text);
+  const marked = /^N·(\d+(?:\.\d+)?)$/.exec(text);
   if (marked) return `N · ${marked[1]}%`;
   const numeric = Number(text.replace(/%$/, ''));
   if (text !== '' && Number.isFinite(numeric)) return `${numeric}%`;
   return text;
 };
 
-/** number, `N`, or `N$20`. a blank or unreadable value is unset. */
+/** number, `N`, or `N·20`. a blank or unreadable value is unset. */
 export const parseJournalDiscountInput = (
   raw: string,
 ): number | string | undefined => {
   const text = raw.trim();
   if (text === '') return undefined;
-  if (text === 'N' || /^(?:N\$|N·)\d+(\.\d+)?$/.test(text)) return text;
+  if (text === 'N' || /^N·\d+(\.\d+)?$/.test(text)) return text;
   const numeric = Number(text);
   if (Number.isFinite(numeric)) return numeric;
   return undefined;
@@ -71,7 +73,7 @@ export const profilePercentFromJournalLabel = (
   if (typeof value !== 'string') return null;
   const text = value.trim();
   if (text === '' || text === '-' || text === 'N') return null;
-  const marked = /^(?:N\$|N·)(.+)$/.exec(text);
+  const marked = /^N·(.+)$/.exec(text);
   const raw = marked ? marked[1] : text.replace(/%$/, '');
   const numeric = Number(raw);
   return Number.isFinite(numeric) ? numeric : null;

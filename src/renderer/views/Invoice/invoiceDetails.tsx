@@ -13,6 +13,11 @@ import {
   stripItemTypeSuffixFromAccountName,
 } from '@/renderer/lib/invoiceUtils';
 import {
+  chargedUnitPrice,
+  lineHasNetPrice,
+  netRateOffer,
+} from '@/lib/invoiceLineAmount';
+import {
   toastContentFromConvertQuotationError,
   toastContentFromInvoiceReturnError,
 } from '@/renderer/lib/ipcUserMessage';
@@ -311,20 +316,15 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => {
                 const item = row.original;
-                const charged =
-                  item.isNetRate && item.netPrice != null
-                    ? item.netPrice
-                    : item.price;
-                const showOffer =
-                  item.isNetRate === true &&
-                  item.netPrice != null &&
-                  item.price !== item.netPrice;
+                const offer = netRateOffer(item);
                 return (
                   <div className="tabular-nums">
-                    <div>{getFormattedCurrencySafe(charged)}</div>
-                    {showOffer ? (
+                    <div>
+                      {getFormattedCurrencySafe(chargedUnitPrice(item))}
+                    </div>
+                    {offer ? (
                       <div className="text-xs text-muted-foreground">
-                        {toNumber(item.price).toFixed(2)} · {item.discount}%
+                        {offer.fullPrice.toFixed(2)} · {offer.discount}%
                       </div>
                     ) : null}
                   </div>
@@ -335,7 +335,9 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               accessorKey: 'discount',
               header: 'Discount',
               cell: ({ row }) =>
-                row.original.isNetRate ? '' : `${row.original.discount}%`,
+                lineHasNetPrice(row.original.netPrice)
+                  ? ''
+                  : `${row.original.discount}%`,
             },
             {
               accessorKey: 'discountedPrice',

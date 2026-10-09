@@ -6,28 +6,20 @@ import {
 
 describe('journalDiscountLabel', () => {
   it('stores the shared profile percent when no line is typed', () => {
-    expect(
-      journalDiscountLabel([
-        { discount: 20, isNetRate: false },
-        { discount: 20, isNetRate: false },
-      ]),
-    ).toBe(20);
+    expect(journalDiscountLabel([{ discount: 20 }, { discount: 20 }])).toBe(20);
   });
 
   it('marks a typed line beside one profile percent', () => {
     expect(
-      journalDiscountLabel([
-        { discount: 20, isNetRate: false },
-        { discount: 0, isNetRate: true },
-      ]),
+      journalDiscountLabel([{ discount: 20 }, { discount: 0, netPrice: 350 }]),
     ).toBe('N·20');
   });
 
   it('marks an all-typed bill as N', () => {
     expect(
       journalDiscountLabel([
-        { discount: 0, isNetRate: true },
-        { discount: 0, isNetRate: true },
+        { discount: 0, netPrice: 350 },
+        { discount: 0, netPrice: 400 },
       ]),
     ).toBe('N');
   });
@@ -35,9 +27,9 @@ describe('journalDiscountLabel', () => {
   it('leaves the box empty when untyped lines do not share a percent', () => {
     expect(
       journalDiscountLabel([
-        { discount: 10, isNetRate: false },
-        { discount: 20, isNetRate: false },
-        { discount: 0, isNetRate: true },
+        { discount: 10 },
+        { discount: 20 },
+        { discount: 0, netPrice: 350 },
       ]),
     ).toBeUndefined();
   });

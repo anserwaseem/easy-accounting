@@ -114,7 +114,6 @@ export const buildNewInvoiceFormSchema = (
               discountedPrice: z
                 .number()
                 .nonnegative('Discounted price must be greater than 0'),
-              isNetRate: z.boolean().optional(),
               netPrice: z.number().optional(),
             }),
           )

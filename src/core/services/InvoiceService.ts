@@ -172,7 +172,7 @@ const SQL = {
       GROUP BY ii.inventoryId
     `,
   insertInvoiceItems: `
-      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId, isNetRate, netPrice)
+      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId, netPrice)
       VALUES (
         @invoiceId,
         @inventoryId,
@@ -180,7 +180,6 @@ const SQL = {
         COALESCE(@price, (SELECT price FROM inventory WHERE id = @inventoryId)),
         @discount,
         @accountId,
-        @isNetRate,
         @netPrice
       )
     `,
@@ -291,7 +290,6 @@ const SQL = {
         ii.quantity,
         ii.price,
         ii.discount,
-        COALESCE(ii.isNetRate, 0) AS isNetRate,
         ii.netPrice,
         ii.accountId AS 'itemRowAccountId',
         iii.name as 'inventoryItemName',
@@ -922,7 +920,6 @@ export class InvoiceService {
         quantity: cur.quantity,
         price: cur.price,
         discount: cur.discount,
-        isNetRate: Number(cur.isNetRate) === 1,
         netPrice: cur.netPrice ?? null,
         itemTypeName: cur.itemTypeName,
         discountedPrice: InvoiceService.getInvoiceItemTotal(cur, cur.price),
@@ -1355,7 +1352,6 @@ export class InvoiceService {
         discount: it.discount,
         price: it.price,
         discountedPrice: it.discountedPrice,
-        isNetRate: it.isNetRate === true,
         netPrice: it.netPrice ?? undefined,
       };
     });
@@ -2130,7 +2126,7 @@ export class InvoiceService {
   ): Array<{
     accountId: number;
     amount: number;
-    lines: Array<{ discount: number; isNetRate?: boolean }>;
+    lines: Array<{ discount: number; netPrice?: number | null }>;
   }> {
     const groups = InvoiceService.lineAccountGroups(invoice);
     const extra = toNumber(invoice.extraDiscount) || 0;
@@ -2182,7 +2178,7 @@ export class InvoiceService {
         amount,
         lines: group.items.map((item) => ({
           discount: item.discount,
-          isNetRate: item.isNetRate,
+          netPrice: item.netPrice,
         })),
       };
     });
@@ -2312,7 +2308,6 @@ export class InvoiceService {
     price: number | null;
     discount: number;
     accountId: number;
-    isNetRate: number;
     netPrice: number | null;
   } {
     return {
@@ -2322,8 +2317,7 @@ export class InvoiceService {
       price: item.price ?? null,
       discount: item.discount,
       accountId,
-      isNetRate: item.isNetRate ? 1 : 0,
-      netPrice: item.isNetRate ? item.netPrice ?? null : null,
+      netPrice: item.netPrice ?? null,
     };
   }
 
@@ -2331,7 +2325,6 @@ export class InvoiceService {
     item: {
       quantity: number;
       discount: number;
-      isNetRate?: boolean | number;
       netPrice?: number | null;
     },
     price: number,
@@ -2340,7 +2333,6 @@ export class InvoiceService {
       quantity: item.quantity,
       discount: item.discount,
       price,
-      isNetRate: item.isNetRate === true || item.isNetRate === 1,
       netPrice: item.netPrice,
     });
 

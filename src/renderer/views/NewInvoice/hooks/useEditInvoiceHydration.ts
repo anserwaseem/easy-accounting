@@ -38,7 +38,6 @@ export const buildPrefillFromInvoiceView = (
     quantity: it.quantity,
     discount: it.discount,
     price: it.price,
-    isNetRate: it.isNetRate === true,
     netPrice: it.netPrice ?? undefined,
     discountedPrice:
       it.discountedPrice ??

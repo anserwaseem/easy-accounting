@@ -1,7 +1,7 @@
 import type { DatabaseDriver } from '../driver';
 
 /**
- * sale lines can store a typed net rate (`isNetRate`).
+ * sale lines store a typed unit in `netPrice`. null means the profile percent applies.
  * a bill can add one flat shipping amount, posted onto one account
  * the same way extra discount is subtracted.
  */
@@ -15,7 +15,7 @@ export const migration045 = {
       `ALTER TABLE invoices ADD COLUMN shippingAccountId INTEGER REFERENCES account(id)`,
     );
     await driver.exec(
-      `ALTER TABLE invoice_items ADD COLUMN isNetRate BOOLEAN NOT NULL DEFAULT 0`,
+      `ALTER TABLE invoice_items ADD COLUMN netPrice DECIMAL(10, 2)`,
     );
   },
 };

@@ -4,6 +4,11 @@ import { format } from 'date-fns';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { InvoiceItemView, InvoiceView } from '@/types';
 import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
+import {
+  chargedUnitPrice,
+  lineHasNetPrice,
+  netRateOffer,
+} from '@/lib/invoiceLineAmount';
 import { Virtuoso } from 'react-virtuoso';
 import {
   Table,
@@ -47,29 +52,21 @@ const toNumberSafe = (value: number | undefined): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0;
 
 const BillLineRow: FC<{ item: InvoiceItemView }> = ({ item }) => {
-  const charged =
-    item.isNetRate && item.netPrice != null
-      ? toNumberSafe(item.netPrice)
-      : toNumberSafe(item.price);
-  const showOffer =
-    item.isNetRate === true &&
-    item.netPrice != null &&
-    toNumberSafe(item.price) !== toNumberSafe(item.netPrice);
+  const offer = netRateOffer(item);
   return (
     <tr>
       <td className="py-1 pr-3">{item.inventoryItemName}</td>
       <td className="py-1 pr-3 text-right tabular-nums">{item.quantity}</td>
       <td className="py-1 pr-3 text-right tabular-nums">
-        <div>{charged.toFixed(2)}</div>
-        {showOffer ? (
+        <div>{chargedUnitPrice(item).toFixed(2)}</div>
+        {offer ? (
           <div className="text-xs text-muted-foreground">
-            {toNumberSafe(item.price).toFixed(2)} ·{' '}
-            {toNumberSafe(item.discount)}%
+            {offer.fullPrice.toFixed(2)} · {offer.discount}%
           </div>
         ) : null}
       </td>
       <td className="py-1 pr-3 text-right tabular-nums">
-        {item.isNetRate ? '' : `${item.discount}%`}
+        {lineHasNetPrice(item.netPrice) ? '' : `${item.discount}%`}
       </td>
       <td className="py-1 text-right tabular-nums">
         {toNumberSafe(item.discountedPrice).toFixed(2)}

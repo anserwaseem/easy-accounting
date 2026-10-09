@@ -15,7 +15,7 @@ export const formSchema = z.object({
         if (value == null || value === '') return true;
         if (typeof value === 'number') return Number.isFinite(value);
         const text = value.trim();
-        if (text === 'N' || /^(?:N\$|N·)\d+(\.\d+)?$/.test(text)) return true;
+        if (text === 'N' || /^N·\d+(\.\d+)?$/.test(text)) return true;
         return Number.isFinite(Number(text));
       },
       { message: 'Use a percent, N, or N·20' },

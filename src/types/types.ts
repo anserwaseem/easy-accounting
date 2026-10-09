@@ -524,9 +524,7 @@ export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
   inventoryId: number;
   quantity: number; // will be provided by UI
   discount: number; // will be provided by UI
-  /** typed unit price on this bill. `price` stays the full price; `netPrice` is what is charged */
-  isNetRate?: boolean;
-  /** unit amount charged when isNetRate. line total is qty × netPrice */
+  /** null unless this line charges a typed unit. `price` stays the catalog price */
   netPrice?: number;
   invoiceId?: number; // will be assigned at service layer
   price?: number; // will be fetched at service layer
@@ -583,8 +581,7 @@ export type InvoiceItemView = {
   price: number;
   quantity: number;
   discount: number;
-  /** typed net. price stays the full price; discount is the percent that reaches netPrice */
-  isNetRate?: boolean;
+  /** null unless this line charges a typed unit. `price` stays the catalog price */
   netPrice?: number | null;
   itemTypeName?: string | null;
   inventoryItemName: string;

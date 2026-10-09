@@ -1,5 +1,10 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { getFormattedCurrency } from 'renderer/lib/utils';
+import {
+  chargedUnitPrice,
+  lineHasNetPrice,
+  netRateOffer,
+} from '@/lib/invoiceLineAmount';
 import { toNumber, toString } from 'lodash';
 import { X, Tags } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -66,17 +71,16 @@ const SalePriceCell = <T extends FieldValues>({
     control: form.control,
     name: `invoiceItems.${rowIndex}.discount` as Path<T>,
   });
-  const netRate = useWatch({
-    control: form.control,
-    name: `invoiceItems.${rowIndex}.isNetRate` as Path<T>,
+  const typedNet = typeof netPrice === 'number' ? netPrice : null;
+  const offer = netRateOffer({
+    price: typeof price === 'number' ? price : null,
+    netPrice: typedNet,
+    discount: typeof discount === 'number' ? discount : null,
   });
-  const charged =
-    netRate === true && typeof netPrice === 'number' ? netPrice : price;
-  const showOffer =
-    netRate === true &&
-    typeof price === 'number' &&
-    typeof netPrice === 'number' &&
-    price !== netPrice;
+  const charged = chargedUnitPrice({
+    price: typeof price === 'number' ? price : null,
+    netPrice: typedNet,
+  });
 
   const listChoices = (lists ?? []).flatMap((list) => {
     if (list.isActive === 0 || list.isActive === false) return [];
@@ -86,16 +90,16 @@ const SalePriceCell = <T extends FieldValues>({
   });
 
   return (
-    <div className={`flex gap-1 ${showOffer ? 'items-start' : 'items-center'}`}>
+    <div className={`flex gap-1 ${offer ? 'items-start' : 'items-center'}`}>
       <div className="flex min-w-0 flex-col leading-tight">
         <span className="text-sm tabular-nums text-muted-foreground">
-          {typeof charged === 'number' && charged >= 0
+          {Number.isFinite(charged)
             ? getFormattedCurrency(toNumber(charged))
             : '—'}
         </span>
-        {showOffer ? (
+        {offer ? (
           <span className="text-xs tabular-nums text-muted-foreground">
-            {toNumber(price).toFixed(2)} · {toNumber(discount)}%
+            {offer.fullPrice.toFixed(2)} · {offer.discount}%
           </span>
         ) : null}
       </div>
@@ -171,7 +175,7 @@ const SalePriceCell = <T extends FieldValues>({
                 ))}
               </div>
             ) : null}
-            {netRate === true ? (
+            {lineHasNetPrice(typeof netPrice === 'number' ? netPrice : null) ? (
               <Button
                 type="button"
                 variant="outline"
@@ -216,11 +220,13 @@ const SaleDiscountCell = <T extends FieldValues>({
   ) => void;
   onResetDiscountToAuto: (rowIndex: number) => void;
 }) => {
-  const netRate = useWatch({
+  const typedNet = useWatch({
     control: form.control,
-    name: `invoiceItems.${rowIndex}.isNetRate` as Path<T>,
+    name: `invoiceItems.${rowIndex}.netPrice` as Path<T>,
   });
-  if (netRate === true) return null;
+  if (lineHasNetPrice(typeof typedNet === 'number' ? typedNet : null)) {
+    return null;
+  }
   return (
     <FormField
       control={form.control}

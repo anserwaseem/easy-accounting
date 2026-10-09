@@ -26,6 +26,7 @@ import {
   groupInvoiceItemsByType,
 } from '@/renderer/lib/invoiceUtils';
 import { getInvoiceDocumentBaseName } from '@/lib/invoiceDocumentName';
+import { chargedUnitPrice, lineHasNetPrice } from '@/lib/invoiceLineAmount';
 import { amountInWordsUrdu } from '@/lib/amountInWordsUrdu';
 import type { InvoicePrintLocale } from '@/renderer/lib/invoicePrint/locale';
 import {
@@ -771,13 +772,15 @@ const PrintableInvoiceScreen = () => {
   const hasExtraDiscount = extraDiscountAmount > 0;
   const shippingAmount = toNumber(invoice?.shippingCharges);
   const hasShipping = shippingAmount > 0;
-  const footerCharge = hasExtraDiscount
-    ? { label: labels.extraDiscount, amount: -extraDiscountAmount }
-    : null;
-  const shippingOnQuantityRow = !hasExtraDiscount && hasShipping;
-  const quantityRowCharge = shippingOnQuantityRow
-    ? { label: labels.shipping, amount: shippingAmount }
-    : footerCharge;
+  let quantityRowCharge: { label: string; amount: number } | null = null;
+  if (hasExtraDiscount) {
+    quantityRowCharge = {
+      label: labels.extraDiscount,
+      amount: -extraDiscountAmount,
+    };
+  } else if (hasShipping) {
+    quantityRowCharge = { label: labels.shipping, amount: shippingAmount };
+  }
 
   // same amount col width as EN so SKU/number columns stay ditto; footer total nowraps
   const amountColClass = 'pe-2 w-[7.25rem] tabular-nums';
@@ -1688,13 +1691,12 @@ const PrintableInvoiceScreen = () => {
                     {row.item.quantity}
                   </td>
                   <td className={`${priceColClass} ${dataClass}`} dir="ltr">
-                    {(row.item.isNetRate && row.item.netPrice != null
-                      ? toNumber(row.item.netPrice)
-                      : toNumber(row.item.price)
-                    ).toFixed(0)}
+                    {chargedUnitPrice(row.item).toFixed(0)}
                   </td>
                   <td className={`${discountColClass} ${dataClass}`} dir="ltr">
-                    {row.item.isNetRate ? '' : row.item.discount.toFixed(2)}
+                    {lineHasNetPrice(row.item.netPrice)
+                      ? ''
+                      : row.item.discount.toFixed(2)}
                   </td>
                   <td
                     className={`text-end ${amountColClass} ${dataClass}`}

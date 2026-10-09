@@ -50,6 +50,7 @@ import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
 import {
   discountPercentForNet,
   invoiceLineAmount,
+  lineHasNetPrice,
 } from '@/lib/invoiceLineAmount';
 import {
   isSplitTypedAccountResolutionSubmitBlocked,
@@ -931,7 +932,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       discount: 0,
       price: 0,
       discountedPrice: 0,
-      isNetRate: false,
     }),
     [],
   );
@@ -1093,7 +1093,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     async (rowIndex: number, val: string, onChange: Function) => {
       onChange(val);
       const item = getSelectedItem(toNumber(val));
-      form.setValue(`invoiceItems.${rowIndex}.isNetRate`, false);
       form.setValue(`invoiceItems.${rowIndex}.netPrice`, undefined);
       form.setValue(`invoiceItems.${rowIndex}.price`, item?.price || 0);
 
@@ -1163,7 +1162,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       const setOpts = { shouldValidate: false, shouldDirty: true };
       form.setValue(`invoiceItems.${rowIndex}.price`, basis, setOpts);
       form.setValue(`invoiceItems.${rowIndex}.netPrice`, netPrice, setOpts);
-      form.setValue(`invoiceItems.${rowIndex}.isNetRate`, true, setOpts);
       form.setValue(`invoiceItems.${rowIndex}.discount`, discount, setOpts);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
@@ -1171,7 +1169,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           quantity,
           discount,
           price: basis,
-          isNetRate: true,
           netPrice,
         }),
         setOpts,
@@ -1186,7 +1183,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       );
       const catalogPrice = inventoryById.get(inventoryId)?.price ?? 0;
       const setOpts = { shouldValidate: false, shouldDirty: true };
-      form.setValue(`invoiceItems.${rowIndex}.isNetRate`, false, setOpts);
       form.setValue(`invoiceItems.${rowIndex}.netPrice`, undefined, setOpts);
       form.setValue(`invoiceItems.${rowIndex}.price`, catalogPrice, setOpts);
       await applyAutoDiscountForRow(rowIndex, inventoryId);
@@ -1205,11 +1201,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     (rowIndex: number, value: string, onChange: Function) => {
       onChange(toNumber(value));
       const quantity = toNumber(value);
-      const isNetRate =
-        form.getValues(`invoiceItems.${rowIndex}.isNetRate`) === true;
       const netPrice = toNumber(
         form.getValues(`invoiceItems.${rowIndex}.netPrice`),
       );
+      const pricedAtNet = lineHasNetPrice(netPrice);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
         invoiceLineAmount({
@@ -1218,8 +1213,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             form.getValues(`invoiceItems.${rowIndex}.discount`),
           ),
           price: toNumber(form.getValues(`invoiceItems.${rowIndex}.price`)),
-          isNetRate,
-          netPrice: isNetRate ? netPrice : null,
+          netPrice: pricedAtNet ? netPrice : null,
         }),
         {
           shouldValidate: false,
