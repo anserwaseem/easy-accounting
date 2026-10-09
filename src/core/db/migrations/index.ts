@@ -15,6 +15,7 @@ import { migration041 } from './041_seed_existing_business_data_outbox';
 import { migration042 } from './042_backfill_inventory_baseline';
 import { migration043 } from './043_fix_insert_timestamp_triggers';
 import { migration044 } from './044_heal_causality_sync_cursor';
+import { migration045 } from './045_invoice_net_rate_and_shipping';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -26,7 +27,7 @@ import { migration044 } from './044_heal_causality_sync_cursor';
  * 2. Web / empty DB: snapshot of `001`–`028`, then this array.
  *
  * Do not add `src/main/migrations/*.js`. Append here, next unused `name`
- * (`041_…`), list it in `CORE_MIGRATION_NAMES`. Both platforms pick it up
+ * (`046_…`), list it in `CORE_MIGRATION_NAMES`. Both platforms pick it up
  * via `bootstrapDatabase`.
  *
  * Desktop `024.js`–`028.js` and CORE `029_…`–`040_…` do not share prefixes.
@@ -54,4 +55,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration042,
   migration043,
   migration044,
+  migration045,
 ];

@@ -12,6 +12,7 @@ import {
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { Button } from '@/renderer/shad/ui/button';
 
 interface JournalTableProps {
@@ -153,10 +154,11 @@ export const JournalTable: React.FC<JournalTableProps> = ({
               </div>
             )}
 
-            {journal?.discountPercentage && (
+            {formatJournalDiscountLabel(journal?.discountPercentage) !==
+              '-' && (
               <div className="flex gap-8">
                 <p className="font-medium text-md w-[160px]">Discount%:</p>
-                <p>{journal.discountPercentage}%</p>
+                <p>{formatJournalDiscountLabel(journal?.discountPercentage)}</p>
               </div>
             )}
           </div>

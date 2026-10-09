@@ -73,6 +73,10 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     control: form.control,
     name: 'extraDiscount',
   });
+  const watchedShippingCharges = useWatch({
+    control: form.control,
+    name: 'shippingCharges',
+  });
   const watchedSingleAccountId = useWatch({
     control: form.control,
     name: 'accountMapping.singleAccountId',
@@ -102,6 +106,7 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     remove,
     replace,
     watchedExtraDiscount,
+    watchedShippingCharges,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
   };

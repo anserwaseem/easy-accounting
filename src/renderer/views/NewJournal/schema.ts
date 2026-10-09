@@ -7,7 +7,19 @@ export const formSchema = z.object({
   narration: z.string().optional(),
   isPosted: z.boolean(),
   billNumber: z.number().optional(),
-  discountPercentage: z.number().optional(),
+  discountPercentage: z
+    .union([z.number(), z.string()])
+    .optional()
+    .refine(
+      (value) => {
+        if (value == null || value === '') return true;
+        if (typeof value === 'number') return Number.isFinite(value);
+        const text = value.trim();
+        if (text === 'N' || /^N·\d+(\.\d+)?$/.test(text)) return true;
+        return Number.isFinite(Number(text));
+      },
+      { message: 'Use a percent, N, or N·20' },
+    ),
   journalEntries: z.array(
     z
       .object({

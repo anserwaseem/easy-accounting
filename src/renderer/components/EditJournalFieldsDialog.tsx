@@ -13,13 +13,14 @@ import {
   DialogTrigger,
 } from 'renderer/shad/ui/dialog';
 import type { UpdateJournalFields } from '@/types';
+import { parseJournalDiscountInput } from '@/lib/journalDiscountLabel';
 import { handleAsync } from '../lib/utils';
 
 interface EditJournalFieldsDialogProps {
   journalId: number;
   narration: string;
   billNumber?: number;
-  discountPercentage?: number;
+  discountPercentage?: number | string;
   onSave: (journalId: number, fields: UpdateJournalFields) => Promise<void>;
 }
 
@@ -76,10 +77,7 @@ export const EditJournalFieldsDialog: React.FC<
             editedBillNumber === ''
               ? undefined
               : Number.parseInt(editedBillNumber, 10),
-          discountPercentage:
-            editedDiscount === ''
-              ? undefined
-              : Number.parseFloat(editedDiscount),
+          discountPercentage: parseJournalDiscountInput(editedDiscount),
         }),
       {
         successMessage: 'Journal updated successfully',
@@ -144,10 +142,6 @@ export const EditJournalFieldsDialog: React.FC<
             </Label>
             <Input
               id="discountPercentage"
-              type="number"
-              step={0.1}
-              min={0}
-              max={100}
               value={editedDiscount}
               onChange={(e) => setEditedDiscount(e.target.value)}
               className="col-span-3"

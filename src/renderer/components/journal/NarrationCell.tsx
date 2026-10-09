@@ -3,6 +3,7 @@ import { memo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { Journal, JournalNarrationSummary, LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 
 interface NarrationCellProps {
   particulars: string;
@@ -42,8 +43,10 @@ const NarrationPrefetchedInner: React.FC<NarrationPrefetchedProps> = (
       {(billNumber || discountPercentage) && (
         <div className="text-xs text-muted-foreground space-y-1">
           {billNumber ? <div>Bill#: {billNumber}</div> : null}
-          {discountPercentage ? (
-            <div>Discount: {discountPercentage}%</div>
+          {formatJournalDiscountLabel(discountPercentage) !== '-' ? (
+            <div>
+              Discount: {formatJournalDiscountLabel(discountPercentage)}
+            </div>
           ) : null}
         </div>
       )}
@@ -104,8 +107,10 @@ const NarrationFetchedInner: React.FC<NarrationFetchedProps> = (props) => {
       {(billNumber || discountPercentage) && (
         <div className="text-xs text-muted-foreground space-y-1">
           {billNumber ? <div>Bill#: {billNumber}</div> : null}
-          {discountPercentage ? (
-            <div>Discount: {discountPercentage}%</div>
+          {formatJournalDiscountLabel(discountPercentage) !== '-' ? (
+            <div>
+              Discount: {formatJournalDiscountLabel(discountPercentage)}
+            </div>
           ) : null}
         </div>
       )}

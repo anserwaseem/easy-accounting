@@ -18,6 +18,7 @@ import {
 } from '@/renderer/shad/ui/datePicker';
 import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { LedgerParticularsExportDialog, printStyles } from '../components';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
@@ -89,8 +90,11 @@ const buildNarrationForExport = (row: LedgerView): string => {
   if (!isSaleInvoice && row.journalSummary.billNumber != null) {
     parts.push(`Bill#: ${row.journalSummary.billNumber}`);
   }
-  if (row.journalSummary.discountPercentage != null) {
-    parts.push(`Discount: ${row.journalSummary.discountPercentage}%`);
+  const discountLabel = formatJournalDiscountLabel(
+    row.journalSummary.discountPercentage,
+  );
+  if (discountLabel !== '-') {
+    parts.push(`Discount: ${discountLabel}`);
   }
   // keep it one-line so it shows well in excel without special cell wrapping
   return parts.filter(Boolean).join(' | ');

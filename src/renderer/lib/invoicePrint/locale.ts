@@ -23,6 +23,7 @@ export interface InvoicePrintLabels {
   amount: string;
   totalQuantity: string;
   extraDiscount: string;
+  shipping: string;
   total: string;
   returnedBanner: string;
   returnedOn: string;
@@ -59,6 +60,7 @@ export const INVOICE_PRINT_LABEL_KEYS: InvoicePrintLabelKey[] = [
   'amount',
   'totalQuantity',
   'extraDiscount',
+  'shipping',
   'total',
   'returnedBanner',
   'returnedOn',
@@ -95,6 +97,7 @@ export const INVOICE_PRINT_LABEL_TITLES: Record<InvoicePrintLabelKey, string> =
     amount: 'Amount column',
     totalQuantity: 'Total quantity row',
     extraDiscount: 'Extra discount row',
+    shipping: 'Shipping row',
     total: 'Total row',
     returnedBanner: 'Returned banner',
     returnedOn: 'Returned on label',
@@ -129,6 +132,7 @@ const ENGLISH_LABELS: InvoicePrintLabels = {
   amount: 'Amount',
   totalQuantity: 'Total quantity:',
   extraDiscount: 'Extra Discount:',
+  shipping: 'Shipping:',
   total: 'Total:',
   returnedBanner: 'RETURNED',
   returnedOn: 'Returned on',
@@ -164,6 +168,7 @@ const URDU_LABELS: InvoicePrintLabels = {
   amount: 'رقم',
   totalQuantity: 'کل مقدار:',
   extraDiscount: 'اضافی رعایت:',
+  shipping: 'کرایہ:',
   total: 'کل رقم:',
   returnedBanner: 'واپس شدہ',
   returnedOn: 'واپسی کی تاریخ:',

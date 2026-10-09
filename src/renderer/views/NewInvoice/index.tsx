@@ -48,6 +48,11 @@ import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
 import {
+  discountPercentForNet,
+  invoiceLineAmount,
+  lineHasNetPrice,
+} from '@/lib/invoiceLineAmount';
+import {
   isSplitTypedAccountResolutionSubmitBlocked,
   readBlockSaveWhenSplitTypedAccountMissing,
   splitTypedAccountMissingSubmitBlockedReason,
@@ -249,6 +254,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     append,
     replace,
     watchedExtraDiscount,
+    watchedShippingCharges,
     watchedSingleAccountId,
     watchedMultipleAccountIds,
   } = formCore;
@@ -427,7 +433,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           (sum, s) => sum + Math.round(toNumber(s)),
           0,
         );
-        newTotal = grossRounded - toNumber(watchedExtraDiscount ?? 0);
+        newTotal =
+          grossRounded -
+          toNumber(watchedExtraDiscount ?? 0) +
+          toNumber(watchedShippingCharges ?? 0);
       }
 
       const syncTotal = () => {
@@ -449,6 +458,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       enableCumulativeDiscount,
       cumulativeDiscount,
       watchedExtraDiscount,
+      watchedShippingCharges,
       rowSectionMap,
     ],
   );
@@ -928,7 +938,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   /** options for "Extra discount from account" when extra discount > 0 */
   const extraDiscountAccountOptions = useMemo(() => {
-    if (!(toNumber(watchedExtraDiscount) > 0)) return [];
+    if (
+      !(toNumber(watchedExtraDiscount) > 0) &&
+      !(toNumber(watchedShippingCharges) > 0)
+    ) {
+      return [];
+    }
     const ids: number[] = [];
     if (useSingleAccount) {
       if (
@@ -985,28 +1000,48 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     splitByItemType,
     useSingleAccount,
     watchedExtraDiscount,
+    watchedShippingCharges,
     watchedMultipleAccountIds,
     watchedSingleAccountId,
   ]);
 
   // extra discount requires a credit account: clear the field when discount is zero; when discount is on and options load, pick the first valid account if none selected
   useEffect(() => {
+    const first = extraDiscountAccountOptions[0];
     if (!(toNumber(watchedExtraDiscount) > 0)) {
       form.setValue('extraDiscountAccountId', undefined, {
         shouldValidate: false,
         shouldDirty: true,
       });
+    } else {
+      const currentId = form.getValues('extraDiscountAccountId');
+      if (first && (!currentId || toNumber(currentId) <= 0)) {
+        form.setValue('extraDiscountAccountId', first.id, {
+          shouldValidate: false,
+          shouldDirty: true,
+        });
+      }
+    }
+    if (!(toNumber(watchedShippingCharges) > 0)) {
+      form.setValue('shippingAccountId', undefined, {
+        shouldValidate: false,
+        shouldDirty: true,
+      });
       return;
     }
-    const first = extraDiscountAccountOptions[0];
-    const currentId = form.getValues('extraDiscountAccountId');
-    if (first && (!currentId || toNumber(currentId) <= 0)) {
-      form.setValue('extraDiscountAccountId', first.id, {
+    const shippingId = form.getValues('shippingAccountId');
+    if (first && (!shippingId || toNumber(shippingId) <= 0)) {
+      form.setValue('shippingAccountId', first.id, {
         shouldValidate: false,
         shouldDirty: true,
       });
     }
-  }, [extraDiscountAccountOptions, form, watchedExtraDiscount]);
+  }, [
+    extraDiscountAccountOptions,
+    form,
+    watchedExtraDiscount,
+    watchedShippingCharges,
+  ]);
 
   const handleRemoveRow = useCallback(
     (rowIndex: number) => {
@@ -1058,6 +1093,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     async (rowIndex: number, val: string, onChange: Function) => {
       onChange(val);
       const item = getSelectedItem(toNumber(val));
+      form.setValue(`invoiceItems.${rowIndex}.netPrice`, undefined);
       form.setValue(`invoiceItems.${rowIndex}.price`, item?.price || 0);
 
       if (invoiceType === InvoiceType.Sale) {
@@ -1110,6 +1146,49 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     },
     [form, isDiscountEditEnabled, setManualDiscountRows],
   );
+  const applyNetRate = useCallback(
+    (rowIndex: number, netPrice: number) => {
+      if (!(netPrice > 0)) return;
+      const inventoryId = toNumber(
+        form.getValues(`invoiceItems.${rowIndex}.inventoryId`),
+      );
+      const fullPrice = inventoryById.get(inventoryId)?.price ?? 0;
+      // keep the catalog price on the line even when the net is higher, so the screen can show what was offered
+      const basis = fullPrice > 0 ? fullPrice : netPrice;
+      const discount = discountPercentForNet(basis, netPrice);
+      const quantity = toNumber(
+        form.getValues(`invoiceItems.${rowIndex}.quantity`),
+      );
+      const setOpts = { shouldValidate: false, shouldDirty: true };
+      form.setValue(`invoiceItems.${rowIndex}.price`, basis, setOpts);
+      form.setValue(`invoiceItems.${rowIndex}.netPrice`, netPrice, setOpts);
+      form.setValue(`invoiceItems.${rowIndex}.discount`, discount, setOpts);
+      form.setValue(
+        `invoiceItems.${rowIndex}.discountedPrice`,
+        invoiceLineAmount({
+          quantity,
+          discount,
+          price: basis,
+          netPrice,
+        }),
+        setOpts,
+      );
+    },
+    [form, inventoryById],
+  );
+  const onClearNetPrice = useCallback(
+    async (rowIndex: number) => {
+      const inventoryId = toNumber(
+        form.getValues(`invoiceItems.${rowIndex}.inventoryId`),
+      );
+      const catalogPrice = inventoryById.get(inventoryId)?.price ?? 0;
+      const setOpts = { shouldValidate: false, shouldDirty: true };
+      form.setValue(`invoiceItems.${rowIndex}.netPrice`, undefined, setOpts);
+      form.setValue(`invoiceItems.${rowIndex}.price`, catalogPrice, setOpts);
+      await applyAutoDiscountForRow(rowIndex, inventoryId);
+    },
+    [applyAutoDiscountForRow, form, inventoryById],
+  );
   const onResetDiscountToAuto = useCallback(
     async (rowIndex: number) => {
       const rowId = form.getValues(`invoiceItems.${rowIndex}.id`);
@@ -1121,13 +1200,21 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const onQuantityChange = useCallback(
     (rowIndex: number, value: string, onChange: Function) => {
       onChange(toNumber(value));
+      const quantity = toNumber(value);
+      const netPrice = toNumber(
+        form.getValues(`invoiceItems.${rowIndex}.netPrice`),
+      );
+      const pricedAtNet = lineHasNetPrice(netPrice);
       form.setValue(
         `invoiceItems.${rowIndex}.discountedPrice`,
-        computeInvoiceItemTotal(
-          toNumber(value),
-          form.getValues(`invoiceItems.${rowIndex}.discount`),
-          form.getValues(`invoiceItems.${rowIndex}.price`),
-        ),
+        invoiceLineAmount({
+          quantity,
+          discount: toNumber(
+            form.getValues(`invoiceItems.${rowIndex}.discount`),
+          ),
+          price: toNumber(form.getValues(`invoiceItems.${rowIndex}.price`)),
+          netPrice: pricedAtNet ? netPrice : null,
+        }),
         {
           shouldValidate: false,
           shouldDirty: true,
@@ -1264,6 +1351,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       handleRemoveRow,
       getDiscountValue,
       onDiscountChange,
+      onApplyNetRate: applyNetRate,
+      onClearNetPrice,
       renderDiscountedPrice,
       onResetDiscountToAuto,
       applyAutoDiscountForRow,
@@ -1292,6 +1381,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       handleRemoveRow,
       getDiscountValue,
       onDiscountChange,
+      applyNetRate,
+      onClearNetPrice,
       renderDiscountedPrice,
       onResetDiscountToAuto,
       applyAutoDiscountForRow,
@@ -2615,6 +2706,105 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       <FormField
                         control={form.control}
                         name="extraDiscountAccountId"
+                        render={({ field }) => (
+                          <FormItem className="min-w-[280px] flex-1 max-w-md space-y-0">
+                            <FormControl>
+                              <VirtualSelect<{
+                                id: number;
+                                name: string;
+                                code?: string;
+                              }>
+                                options={extraDiscountAccountOptions}
+                                value={field.value ?? null}
+                                onChange={(val) =>
+                                  field.onChange(
+                                    val ? toNumber(val) : undefined,
+                                  )
+                                }
+                                placeholder="Select account"
+                                searchPlaceholder="Search accounts..."
+                                disabled={
+                                  extraDiscountAccountOptions.length === 0
+                                }
+                                renderTriggerValue={({
+                                  selected,
+                                  placeholder,
+                                }) =>
+                                  selected ? (
+                                    <span className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-2 text-sm">
+                                      <span className="min-w-0 truncate">
+                                        {selected.name}
+                                      </span>
+                                      {selected.code ? (
+                                        <span className="shrink-0 text-xs font-mono text-muted-foreground">
+                                          {selected.code}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  ) : (
+                                    <span className="px-3 text-muted-foreground">
+                                      {placeholder}
+                                    </span>
+                                  )
+                                }
+                                renderSelectItem={(item) => (
+                                  <div className="flex min-w-[220px] items-center justify-between gap-2">
+                                    <span className="min-w-0 truncate text-sm">
+                                      {item.name}
+                                    </span>
+                                    {item.code ? (
+                                      <span className="shrink-0 text-xs font-mono text-muted-foreground">
+                                        {item.code}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                )}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="w-44 shrink-0 text-xs font-medium text-muted-foreground">
+                      Shipping ({currencyFormatOptions.currency})
+                    </span>
+                    <FormField
+                      control={form.control}
+                      name="shippingCharges"
+                      render={({ field }) => (
+                        <FormItem className="min-w-0 flex-1 max-w-[200px] space-y-0">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              className="h-7 text-sm"
+                              type="number"
+                              step="any"
+                              min={0}
+                              value={field.value ?? 0}
+                              onBlur={(e) =>
+                                field.onChange(toNumber(e.target.value))
+                              }
+                              onChange={(e) =>
+                                field.onChange(toNumber(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  {toNumber(watchedShippingCharges) > 0 && splitByItemType && (
+                    <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+                      <span className="w-44 shrink-0 pt-1.5 text-xs font-medium text-muted-foreground">
+                        Shipping on account
+                      </span>
+                      <FormField
+                        control={form.control}
+                        name="shippingAccountId"
                         render={({ field }) => (
                           <FormItem className="min-w-[280px] flex-1 max-w-md space-y-0">
                             <FormControl>

@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { FF_INVOICE_DISCOUNT_EDIT_ENABLED } from 'renderer/lib/constants';
 import { computeInvoiceItemTotal } from '@/renderer/lib/invoiceUtils';
+import { lineHasNetPrice } from '@/lib/invoiceLineAmount';
 import type { InventoryItem } from 'types';
 import { InvoiceType } from 'types';
 import type { CustomerSection } from '../components/CustomerSectionsBlock';
@@ -164,6 +165,13 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
       forcedAccountId?: number,
     ) => {
       if (invoiceType !== InvoiceType.Sale) return;
+      // a typed net keeps its discount. the profile percent must not replace it.
+      const existingNet = form.getValues(`invoiceItems.${rowIndex}.netPrice`);
+      if (
+        lineHasNetPrice(typeof existingNet === 'number' ? existingNet : null)
+      ) {
+        return;
+      }
 
       const expectedRowId = toNumber(
         form.getValues(`invoiceItems.${rowIndex}.id`),
@@ -252,6 +260,17 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
           form.getValues(`invoiceItems.${rowIndex}.inventoryId`),
         );
         if (!(invId > 0) || !priceById.has(invId)) continue;
+        // leave a typed net rate on the line. refresh only rewrites catalog prices.
+        if (
+          lineHasNetPrice(
+            typeof form.getValues(`invoiceItems.${rowIndex}.netPrice`) ===
+              'number'
+              ? (form.getValues(`invoiceItems.${rowIndex}.netPrice`) as number)
+              : null,
+          )
+        ) {
+          continue;
+        }
         const nextPrice = toNumber(priceById.get(invId));
         (form.setValue as (name: string, value: number, opts?: object) => void)(
           `invoiceItems.${rowIndex}.price`,
