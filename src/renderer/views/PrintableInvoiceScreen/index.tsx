@@ -769,6 +769,15 @@ const PrintableInvoiceScreen = () => {
   );
   const extraDiscountAmount = toNumber(invoice?.extraDiscount);
   const hasExtraDiscount = extraDiscountAmount > 0;
+  const shippingAmount = toNumber(invoice?.shippingCharges);
+  const hasShipping = shippingAmount > 0;
+  const footerCharge = hasExtraDiscount
+    ? { label: labels.extraDiscount, amount: -extraDiscountAmount }
+    : null;
+  const shippingOnQuantityRow = !hasExtraDiscount && hasShipping;
+  const quantityRowCharge = shippingOnQuantityRow
+    ? { label: labels.shipping, amount: shippingAmount }
+    : footerCharge;
 
   // same amount col width as EN so SKU/number columns stay ditto; footer total nowraps
   const amountColClass = 'pe-2 w-[7.25rem] tabular-nums';
@@ -1679,10 +1688,13 @@ const PrintableInvoiceScreen = () => {
                     {row.item.quantity}
                   </td>
                   <td className={`${priceColClass} ${dataClass}`} dir="ltr">
-                    {toNumber(row.item.price).toFixed(0)}
+                    {(row.item.isNetRate && row.item.netPrice != null
+                      ? toNumber(row.item.netPrice)
+                      : toNumber(row.item.price)
+                    ).toFixed(0)}
                   </td>
                   <td className={`${discountColClass} ${dataClass}`} dir="ltr">
-                    {row.item.discount.toFixed(2)}
+                    {row.item.isNetRate ? '' : row.item.discount.toFixed(2)}
                   </td>
                   <td
                     className={`text-end ${amountColClass} ${dataClass}`}
@@ -1734,14 +1746,14 @@ const PrintableInvoiceScreen = () => {
               >
                 {totalQuantity}
               </td>
-              {hasExtraDiscount ? (
+              {quantityRowCharge ? (
                 <>
                   <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
                   <td className={`${footerBoxLabelClass} text-end !border-e-0`}>
-                    {labels.extraDiscount}
+                    {quantityRowCharge.label}
                   </td>
                   <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
-                    {renderFooterAmount(extraDiscountAmount)}
+                    {renderFooterAmount(quantityRowCharge.amount)}
                   </td>
                 </>
               ) : (
@@ -1751,9 +1763,43 @@ const PrintableInvoiceScreen = () => {
                 />
               )}
             </tr>
+            {hasShipping && hasExtraDiscount ? (
+              <tr>
+                <td className={footerBoxClearClass} />
+                {showRunningBalances && runningBalances ? (
+                  <>
+                    <td
+                      className={`${footerBoxLabelClass} text-end !border-s-0`}
+                    >
+                      {labels.newBalance}
+                    </td>
+                    <td
+                      className={`${footerBoxClass}${urduFooterNumericPadClass}`}
+                    >
+                      {renderFooterAmount(Math.abs(runningBalances.newBalance))}
+                    </td>
+                  </>
+                ) : (
+                  <td
+                    colSpan={2}
+                    className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
+                  />
+                )}
+                <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
+                <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
+                <td className={`${footerBoxLabelClass} text-end !border-e-0`}>
+                  {labels.shipping}
+                </td>
+                <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
+                  {renderFooterAmount(shippingAmount)}
+                </td>
+              </tr>
+            ) : null}
             <tr>
               <td className={footerBoxClearClass} />
-              {showRunningBalances && runningBalances ? (
+              {showRunningBalances &&
+              runningBalances &&
+              !(hasShipping && hasExtraDiscount) ? (
                 <>
                   <td className={`${footerBoxLabelClass} text-end !border-s-0`}>
                     {labels.newBalance}

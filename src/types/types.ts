@@ -224,7 +224,8 @@ export interface Journal extends Omit<BaseEntity, 'date'> {
   narration?: string;
   isPosted: boolean;
   billNumber?: number;
-  discountPercentage?: number;
+  /** profile percent, `N` (all typed), or `N·20` (typed lines beside one profile percent) */
+  discountPercentage?: number | string;
   /** set when journal is created from an invoice; null/undefined for manual journals */
   invoiceId?: number | null;
   journalEntries: JournalEntry[];
@@ -239,7 +240,9 @@ export type UpdateJournalFields = Pick<
 export type JournalNarrationSummary = {
   narration: string;
   billNumber?: number;
-  discountPercentage?: number;
+  discountPercentage?: number | string;
+  /** invoice this journal was posted from, when the bill has one */
+  invoiceId?: number | null;
 };
 
 export type HasMiniView = {
@@ -521,6 +524,10 @@ export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
   inventoryId: number;
   quantity: number; // will be provided by UI
   discount: number; // will be provided by UI
+  /** typed unit price on this bill. `price` stays the full price; `netPrice` is what is charged */
+  isNetRate?: boolean;
+  /** unit amount charged when isNetRate. line total is qty × netPrice */
+  netPrice?: number;
   invoiceId?: number; // will be assigned at service layer
   price?: number; // will be fetched at service layer
   discountedPrice?: number; // will be calculated at service layer
@@ -532,6 +539,10 @@ export type Invoice = Prettify<
     extraDiscount?: number; // will be provided by UI
     /** when extraDiscount > 0, the invoice account whose receivable is reduced by that amount */
     extraDiscountAccountId?: number;
+    /** flat shipping added once to the bill */
+    shippingCharges?: number;
+    /** when shippingCharges > 0 and the bill is split, the account that bears it */
+    shippingAccountId?: number;
     biltyNumber?: string; // will be provided by UI
     cartons?: number; // will be provided by UI
     totalAmount?: number; // will be calculated at service layer
@@ -572,6 +583,9 @@ export type InvoiceItemView = {
   price: number;
   quantity: number;
   discount: number;
+  /** typed net. price stays the full price; discount is the percent that reaches netPrice */
+  isNetRate?: boolean;
+  netPrice?: number | null;
   itemTypeName?: string | null;
   inventoryItemName: string;
   inventoryId?: number;
@@ -594,6 +608,8 @@ export type InvoiceView = Prettify<
     invoiceHeaderAccountId?: number;
     /** persisted for edit round-trip when extra discount applies */
     extraDiscountAccountId?: number | null;
+    shippingCharges?: number;
+    shippingAccountId?: number | null;
     accountAddress?: string | null;
     accountAddressUrdu?: string | null;
     accountGoodsName?: string | null;

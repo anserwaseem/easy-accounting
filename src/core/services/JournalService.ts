@@ -77,7 +77,8 @@ const SQL = {
         j.id,
         j.narration,
         j.billNumber,
-        j.discountPercentage
+        j.discountPercentage,
+        j.invoiceId
       FROM journal j
       JOIN journal_entry je ON j.id = je.journalId
       JOIN account a ON a.id = je.accountId
@@ -218,7 +219,8 @@ export class JournalService {
       id: number;
       narration: string | null;
       billNumber: number | null;
-      discountPercentage: number | null;
+      discountPercentage: number | string | null;
+      invoiceId: number | null;
     }>(SQL.getJournalNarrationSummariesByIdsJson, {
       journalIdsJson: JSON.stringify(unique),
       username,
@@ -234,6 +236,9 @@ export class JournalService {
       }
       if (row.discountPercentage != null) {
         summary.discountPercentage = row.discountPercentage;
+      }
+      if (row.invoiceId != null) {
+        summary.invoiceId = row.invoiceId;
       }
       out[row.id] = summary;
     }

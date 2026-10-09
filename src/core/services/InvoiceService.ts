@@ -1,5 +1,7 @@
 import { write, utils } from 'xlsx';
 import { groupBy, orderBy, sumBy, toNumber, toString, uniq } from 'lodash';
+import { journalDiscountLabel } from '../../lib/journalDiscountLabel';
+import { invoiceLineAmount } from '../../lib/invoiceLineAmount';
 import {
   InvoiceType,
   type Invoice,
@@ -106,6 +108,8 @@ type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
   totalAmount?: number;
   extraDiscount?: number;
   extraDiscountAccountId?: number | null;
+  shippingCharges?: number;
+  shippingAccountId?: number | null;
   invoiceHeaderAccountId?: number;
   biltyNumber?: string;
   cartons?: number | null;
@@ -142,8 +146,8 @@ const SQL = {
       WHERE invoiceType = ? AND COALESCE(isQuotation, 0) = 1
     `,
   insertInvoice: `
-      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount, biltyNumber, cartons, extraDiscountAccountId, isQuotation)
-      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount, @biltyNumber, @cartons, @extraDiscountAccountId, @isQuotation)
+      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount, biltyNumber, cartons, extraDiscountAccountId, shippingCharges, shippingAccountId, isQuotation)
+      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount, @biltyNumber, @cartons, @extraDiscountAccountId, @shippingCharges, @shippingAccountId, @isQuotation)
     `,
   finalizeQuotationConversion: `
       UPDATE invoices
@@ -168,8 +172,17 @@ const SQL = {
       GROUP BY ii.inventoryId
     `,
   insertInvoiceItems: `
-      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId)
-      VALUES (@invoiceId, @inventoryId, @quantity, (SELECT price FROM inventory WHERE id = @inventoryId), @discount, @accountId)
+      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId, isNetRate, netPrice)
+      VALUES (
+        @invoiceId,
+        @inventoryId,
+        @quantity,
+        COALESCE(@price, (SELECT price FROM inventory WHERE id = @inventoryId)),
+        @discount,
+        @accountId,
+        @isNetRate,
+        @netPrice
+      )
     `,
   updateInventoryItem: `
       UPDATE inventory
@@ -253,6 +266,8 @@ const SQL = {
         i.totalAmount,
         i.extraDiscount,
         i.extraDiscountAccountId,
+        i.shippingCharges,
+        i.shippingAccountId,
         i.accountId AS invoiceHeaderAccountId,
         i.biltyNumber,
         i.cartons,
@@ -276,6 +291,8 @@ const SQL = {
         ii.quantity,
         ii.price,
         ii.discount,
+        COALESCE(ii.isNetRate, 0) AS isNetRate,
+        ii.netPrice,
         ii.accountId AS 'itemRowAccountId',
         iii.name as 'inventoryItemName',
         iii.description AS 'inventoryItemDescription',
@@ -411,7 +428,9 @@ const SQL = {
         extraDiscount = @extraDiscount,
         biltyNumber = @biltyNumber,
         cartons = @cartons,
-        extraDiscountAccountId = @extraDiscountAccountId
+        extraDiscountAccountId = @extraDiscountAccountId,
+        shippingCharges = @shippingCharges,
+        shippingAccountId = @shippingAccountId
       WHERE id = @invoiceId
     `,
   // Write-path-only, unchanged by the read-side cutover: both queries below feed
@@ -860,6 +879,8 @@ export class InvoiceService {
         prev.invoiceType = cur.invoiceType;
         prev.totalAmount = cur.totalAmount;
         prev.extraDiscount = cur.extraDiscount;
+        prev.shippingCharges = cur.shippingCharges;
+        prev.shippingAccountId = cur.shippingAccountId ?? undefined;
         prev.biltyNumber = cur.biltyNumber;
         prev.cartons = cur.cartons ?? undefined;
         prev.createdAt = cur.createdAt;
@@ -901,6 +922,8 @@ export class InvoiceService {
         quantity: cur.quantity,
         price: cur.price,
         discount: cur.discount,
+        isNetRate: Number(cur.isNetRate) === 1,
+        netPrice: cur.netPrice ?? null,
         itemTypeName: cur.itemTypeName,
         discountedPrice: InvoiceService.getInvoiceItemTotal(cur, cur.price),
         inventoryItemName: cur.inventoryItemName,
@@ -961,10 +984,7 @@ export class InvoiceService {
     }
 
     const totalAmount = invoice.totalAmount ?? 0;
-    const extraDiscAcct =
-      invoice.extraDiscountAccountId != null
-        ? cast(toNumber(invoice.extraDiscountAccountId))
-        : null;
+    const charges = InvoiceService.bindInvoiceCharges(invoice);
 
     const multipleIds = invoice.accountMapping.multipleAccountIds;
     const hasMultiple =
@@ -981,10 +1001,7 @@ export class InvoiceService {
         invoiceType,
         totalAmount,
         invoiceNumber: invoice.invoiceNumber,
-        extraDiscount: invoice.extraDiscount,
-        biltyNumber: invoice.biltyNumber,
-        cartons: invoice.cartons,
-        extraDiscountAccountId: extraDiscAcct,
+        ...charges,
         isQuotation: 0,
       });
       const invoiceId = Number(invoiceResult.lastInsertRowid);
@@ -997,13 +1014,10 @@ export class InvoiceService {
         const accountId = toNumber(accountIdStr);
         for (const item of groupItems) {
           // eslint-disable-next-line no-await-in-loop
-          await this.db.run(SQL.insertInvoiceItems, {
-            invoiceId,
-            inventoryId: item.inventoryId,
-            quantity: item.quantity,
-            discount: item.discount,
-            accountId,
-          });
+          await this.db.run(
+            SQL.insertInvoiceItems,
+            InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
+          );
 
           // eslint-disable-next-line no-await-in-loop
           await this.db.run(
@@ -1053,10 +1067,7 @@ export class InvoiceService {
         invoiceType,
         totalAmount,
         invoiceNumber: invoice.invoiceNumber,
-        extraDiscount: invoice.extraDiscount,
-        biltyNumber: invoice.biltyNumber,
-        cartons: invoice.cartons,
-        extraDiscountAccountId: extraDiscAcct,
+        ...charges,
         isQuotation: 0,
       });
       const invoiceId = Number(invoiceResult.lastInsertRowid);
@@ -1127,13 +1138,10 @@ export class InvoiceService {
         const accountId = toNumber(accountIdStr);
         for (const item of groupItems) {
           // eslint-disable-next-line no-await-in-loop
-          await this.db.run(SQL.insertInvoiceItems, {
-            invoiceId,
-            inventoryId: item.inventoryId,
-            quantity: item.quantity,
-            discount: item.discount,
-            accountId,
-          });
+          await this.db.run(
+            SQL.insertInvoiceItems,
+            InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
+          );
         }
       }
       return;
@@ -1143,13 +1151,10 @@ export class InvoiceService {
       const accountId = invoice.accountMapping.singleAccountId;
       for (const item of invoice.invoiceItems) {
         // eslint-disable-next-line no-await-in-loop
-        await this.db.run(SQL.insertInvoiceItems, {
-          invoiceId,
-          inventoryId: item.inventoryId,
-          quantity: item.quantity,
-          discount: item.discount,
-          accountId,
-        });
+        await this.db.run(
+          SQL.insertInvoiceItems,
+          InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
+        );
       }
       return;
     }
@@ -1165,10 +1170,7 @@ export class InvoiceService {
       invoiceType,
     );
     const totalAmount = invoice.totalAmount ?? 0;
-    const extraDiscAcct =
-      invoice.extraDiscountAccountId != null
-        ? cast(toNumber(invoice.extraDiscountAccountId))
-        : null;
+    const charges = InvoiceService.bindInvoiceCharges(invoice);
 
     const multipleIds = invoice.accountMapping.multipleAccountIds;
     const hasMultiple =
@@ -1185,10 +1187,7 @@ export class InvoiceService {
         invoiceType,
         totalAmount,
         invoiceNumber: placeholder,
-        extraDiscount: invoice.extraDiscount,
-        biltyNumber: invoice.biltyNumber,
-        cartons: invoice.cartons,
-        extraDiscountAccountId: extraDiscAcct,
+        ...charges,
         isQuotation: 1,
       });
       const invoiceId = Number(invoiceResult.lastInsertRowid);
@@ -1204,10 +1203,7 @@ export class InvoiceService {
         invoiceType,
         totalAmount,
         invoiceNumber: placeholder,
-        extraDiscount: invoice.extraDiscount,
-        biltyNumber: invoice.biltyNumber,
-        cartons: invoice.cartons,
-        extraDiscountAccountId: extraDiscAcct,
+        ...charges,
         isQuotation: 1,
       });
       const invoiceId = Number(invoiceResult.lastInsertRowid);
@@ -1249,10 +1245,7 @@ export class InvoiceService {
       : invoice.accountMapping.singleAccountId ??
         raise('Select a customer or vendor account');
 
-    const extraDiscAcct =
-      invoice.extraDiscountAccountId != null
-        ? cast(toNumber(invoice.extraDiscountAccountId))
-        : null;
+    const charges = InvoiceService.bindInvoiceCharges(invoice);
 
     await this.db.run(SQL.deleteInvoiceItems, { invoiceId: cast(invoiceId) });
 
@@ -1261,10 +1254,7 @@ export class InvoiceService {
       date: invoice.date,
       accountId: primaryAccountId,
       totalAmount,
-      extraDiscount: invoice.extraDiscount,
-      biltyNumber: invoice.biltyNumber,
-      cartons: invoice.cartons,
-      extraDiscountAccountId: extraDiscAcct,
+      ...charges,
     });
 
     await this.persistInvoiceLineItemsWithoutInventory(invoiceId, invoice);
@@ -1365,6 +1355,8 @@ export class InvoiceService {
         discount: it.discount,
         price: it.price,
         discountedPrice: it.discountedPrice,
+        isNetRate: it.isNetRate === true,
+        netPrice: it.netPrice ?? undefined,
       };
     });
 
@@ -1376,6 +1368,8 @@ export class InvoiceService {
       totalAmount: view.totalAmount,
       extraDiscount: view.extraDiscount,
       extraDiscountAccountId: view.extraDiscountAccountId ?? undefined,
+      shippingCharges: view.shippingCharges,
+      shippingAccountId: view.shippingAccountId ?? undefined,
       biltyNumber: view.biltyNumber,
       cartons: view.cartons,
       accountMapping,
@@ -1734,20 +1728,14 @@ export class InvoiceService {
       invoiceType,
     );
 
-    const extraDiscAcct =
-      invoice.extraDiscountAccountId != null
-        ? cast(toNumber(invoice.extraDiscountAccountId))
-        : null;
+    const charges = InvoiceService.bindInvoiceCharges(invoice);
 
     await this.db.run(SQL.updateInvoiceHeader, {
       invoiceId: cast(invoiceId),
       date: invoice.date,
       accountId: primaryAccountId,
       totalAmount,
-      extraDiscount: invoice.extraDiscount,
-      biltyNumber: invoice.biltyNumber,
-      cartons: invoice.cartons,
-      extraDiscountAccountId: extraDiscAcct,
+      ...charges,
     });
 
     await this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
@@ -2039,13 +2027,10 @@ export class InvoiceService {
         const accountId = toNumber(accountIdStr);
         for (const item of groupItems) {
           // eslint-disable-next-line no-await-in-loop
-          await this.db.run(SQL.insertInvoiceItems, {
-            invoiceId,
-            inventoryId: item.inventoryId,
-            quantity: item.quantity,
-            discount: item.discount,
-            accountId,
-          });
+          await this.db.run(
+            SQL.insertInvoiceItems,
+            InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
+          );
 
           // eslint-disable-next-line no-await-in-loop
           await this.db.run(
@@ -2063,13 +2048,10 @@ export class InvoiceService {
       const accountId = invoice.accountMapping.singleAccountId;
       for (const item of invoice.invoiceItems) {
         // eslint-disable-next-line no-await-in-loop
-        await this.db.run(SQL.insertInvoiceItems, {
-          invoiceId,
-          inventoryId: item.inventoryId,
-          quantity: item.quantity,
-          discount: item.discount,
-          accountId,
-        });
+        await this.db.run(
+          SQL.insertInvoiceItems,
+          InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
+        );
 
         // eslint-disable-next-line no-await-in-loop
         await this.db.run(
@@ -2099,11 +2081,7 @@ export class InvoiceService {
     /* eslint-disable no-await-in-loop */
     for (const group of posted) {
       if (group.amount === 0) continue;
-      const discountPercentage =
-        await this.pricingService.getPolicyDiscountPercentForInventoryIds(
-          group.accountId,
-          group.inventoryIds,
-        );
+      const discountPercentage = journalDiscountLabel(group.lines);
       await this.createJournalEntry(
         invoiceType,
         invoice,
@@ -2145,11 +2123,15 @@ export class InvoiceService {
     return raise('Select a customer or vendor account');
   }
 
-  /** round each account's lines, then subtract extra discount from the chosen account only. */
+  /** round each account's lines, subtract extra discount, add shipping, each on its chosen account. */
   private static postedAccountAmounts(
     invoiceType: InvoiceType,
     invoice: Invoice,
-  ): Array<{ accountId: number; amount: number; inventoryIds: number[] }> {
+  ): Array<{
+    accountId: number;
+    amount: number;
+    lines: Array<{ discount: number; isNetRate?: boolean }>;
+  }> {
     const groups = InvoiceService.lineAccountGroups(invoice);
     const extra = toNumber(invoice.extraDiscount) || 0;
     let extraAccountId = 0;
@@ -2168,17 +2150,40 @@ export class InvoiceService {
       }
     }
 
+    const shipping = toNumber(invoice.shippingCharges) || 0;
+    let shippingAccountId = 0;
+    if (shipping > 0) {
+      const selected = toNumber(invoice.shippingAccountId);
+      if (selected > 0) {
+        shippingAccountId = selected;
+      } else if (groups.length === 1) {
+        shippingAccountId = groups[0].accountId;
+      }
+      if (
+        !shippingAccountId ||
+        !groups.some((group) => group.accountId === shippingAccountId)
+      ) {
+        raise('Shipping requires a valid account selection.');
+      }
+    }
+
     const posted = groups.map((group) => {
       const gross = InvoiceService.roundedGroupGross(group.items);
-      const amount =
-        extra > 0 && group.accountId === extraAccountId ? gross - extra : gross;
+      let amount = gross;
+      if (extra > 0 && group.accountId === extraAccountId) amount -= extra;
+      if (shipping > 0 && group.accountId === shippingAccountId) {
+        amount += shipping;
+      }
       if (amount < 0) {
         raise('Extra discount cannot exceed the selected account total.');
       }
       return {
         accountId: group.accountId,
         amount,
-        inventoryIds: group.items.map((item) => item.inventoryId),
+        lines: group.items.map((item) => ({
+          discount: item.discount,
+          isNetRate: item.isNetRate,
+        })),
       };
     });
 
@@ -2210,7 +2215,7 @@ export class InvoiceService {
     accountId: number,
     amount: number,
     invoiceId: number,
-    discountPercentage?: number,
+    discountPercentage?: number | string,
   ): Promise<boolean> {
     const { debitAccountId, creditAccountId } =
       await this.getTransactionAccounts(invoiceType, accountId);
@@ -2278,13 +2283,66 @@ export class InvoiceService {
     };
   }
 
+  private static bindInvoiceCharges(invoice: Invoice) {
+    return {
+      extraDiscount: invoice.extraDiscount ?? 0,
+      biltyNumber: invoice.biltyNumber,
+      cartons: invoice.cartons,
+      extraDiscountAccountId:
+        invoice.extraDiscountAccountId != null
+          ? cast(toNumber(invoice.extraDiscountAccountId))
+          : null,
+      shippingCharges: toNumber(invoice.shippingCharges) || 0,
+      shippingAccountId:
+        invoice.shippingAccountId != null &&
+        toNumber(invoice.shippingAccountId) > 0
+          ? cast(toNumber(invoice.shippingAccountId))
+          : null,
+    };
+  }
+
+  private static bindInvoiceItem(
+    invoiceId: number,
+    item: InvoiceItem,
+    accountId: number,
+  ): {
+    invoiceId: number;
+    inventoryId: number;
+    quantity: number;
+    price: number | null;
+    discount: number;
+    accountId: number;
+    isNetRate: number;
+    netPrice: number | null;
+  } {
+    return {
+      invoiceId,
+      inventoryId: item.inventoryId,
+      quantity: item.quantity,
+      price: item.price ?? null,
+      discount: item.discount,
+      accountId,
+      isNetRate: item.isNetRate ? 1 : 0,
+      netPrice: item.isNetRate ? item.netPrice ?? null : null,
+    };
+  }
+
   private static getInvoiceItemTotal = (
-    item: { quantity: number; discount: number },
+    item: {
+      quantity: number;
+      discount: number;
+      isNetRate?: boolean | number;
+      netPrice?: number | null;
+    },
     price: number,
-  ): number => {
-    const { quantity, discount } = item;
-    return quantity * price * (1 - discount / 100);
-  };
+  ): number =>
+    invoiceLineAmount({
+      quantity: item.quantity,
+      discount: item.discount,
+      price,
+      isNetRate: item.isNetRate === true || item.isNetRate === 1,
+      netPrice: item.netPrice,
+    });
 
   /** Sales Performance report: posted sales behavior, trends, returns, and quotation backlog. */
   async getSalesPerformance(filters: {

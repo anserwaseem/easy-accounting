@@ -22,6 +22,8 @@ export const getDefaultFormValues = (invoiceType: InvoiceType): Invoice => ({
   invoiceNumber: -1,
   extraDiscount: 0,
   extraDiscountAccountId: undefined,
+  shippingCharges: 0,
+  shippingAccountId: undefined,
   totalAmount: 0,
   invoiceItems: [],
   invoiceType,
@@ -81,6 +83,11 @@ export const buildNewInvoiceFormSchema = (
           .number()
           .nonnegative('Extra Discount must be greater than 0'),
         extraDiscountAccountId: z.coerce.number().optional(),
+        shippingCharges: z.coerce
+          .number()
+          .nonnegative('Shipping must be greater than 0')
+          .optional(),
+        shippingAccountId: z.coerce.number().optional(),
         totalAmount:
           invoiceType === InvoiceType.Sale
             ? z.coerce.number().positive('Total Amount must be greater than 0')
@@ -107,6 +114,8 @@ export const buildNewInvoiceFormSchema = (
               discountedPrice: z
                 .number()
                 .nonnegative('Discounted price must be greater than 0'),
+              isNetRate: z.boolean().optional(),
+              netPrice: z.number().optional(),
             }),
           )
           .min(1, 'Add at-least one invoice item')
@@ -311,6 +320,36 @@ export const buildNewInvoiceFormSchema = (
             message:
               'Extra discount account must be one of the invoice accounts',
             path: ['extraDiscountAccountId'],
+          });
+        }
+      })
+      // shipping is one amount on the bill. a single account bears it implicitly.
+      // a split bill must name which account the freight is added to.
+      .superRefine((data, ctx) => {
+        if (!(toNumber(data.shippingCharges) > 0)) return;
+        if (!(invoiceType === InvoiceType.Sale && getSplitByItemType())) return;
+        const accountIds = [
+          ...new Set(
+            (data.accountMapping.multipleAccountIds ?? []).filter(
+              (id): id is number => typeof id === 'number' && id > 0,
+            ),
+          ),
+        ];
+        if (accountIds.length === 0) return;
+        const selected = toNumber(data.shippingAccountId);
+        if (!Number.isFinite(selected) || selected <= 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Select an account for shipping',
+            path: ['shippingAccountId'],
+          });
+          return;
+        }
+        if (!accountIds.includes(selected)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Shipping account must be one of the invoice accounts',
+            path: ['shippingAccountId'],
           });
         }
       }) as z.ZodType<Invoice>

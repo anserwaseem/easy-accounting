@@ -164,6 +164,10 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
       forcedAccountId?: number,
     ) => {
       if (invoiceType !== InvoiceType.Sale) return;
+      // a typed net rate keeps discount at 0. the profile percent must not replace it.
+      if (form.getValues(`invoiceItems.${rowIndex}.isNetRate`) === true) {
+        return;
+      }
 
       const expectedRowId = toNumber(
         form.getValues(`invoiceItems.${rowIndex}.id`),
@@ -252,6 +256,10 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
           form.getValues(`invoiceItems.${rowIndex}.inventoryId`),
         );
         if (!(invId > 0) || !priceById.has(invId)) continue;
+        // leave a typed net rate on the line. refresh only rewrites catalog prices.
+        if (form.getValues(`invoiceItems.${rowIndex}.isNetRate`) === true) {
+          continue;
+        }
         const nextPrice = toNumber(priceById.get(invId));
         (form.setValue as (name: string, value: number, opts?: object) => void)(
           `invoiceItems.${rowIndex}.price`,

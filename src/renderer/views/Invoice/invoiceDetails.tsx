@@ -308,12 +308,34 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             {
               accessorKey: 'price',
               header: 'Price',
-              cell: ({ getValue }) => getFormattedCurrencySafe(getValue()),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => {
+                const item = row.original;
+                const charged =
+                  item.isNetRate && item.netPrice != null
+                    ? item.netPrice
+                    : item.price;
+                const showOffer =
+                  item.isNetRate === true &&
+                  item.netPrice != null &&
+                  item.price !== item.netPrice;
+                return (
+                  <div className="tabular-nums">
+                    <div>{getFormattedCurrencySafe(charged)}</div>
+                    {showOffer ? (
+                      <div className="text-xs text-muted-foreground">
+                        {toNumber(item.price).toFixed(2)} · {item.discount}%
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              },
             },
             {
               accessorKey: 'discount',
               header: 'Discount',
-              cell: ({ getValue }) => `${getValue()}%`,
+              cell: ({ row }) =>
+                row.original.isNetRate ? '' : `${row.original.discount}%`,
             },
             {
               accessorKey: 'discountedPrice',
@@ -573,6 +595,14 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                       Extra Discount:
                     </p>
                     <p>{getFormattedCurrencySafe(invoice.extraDiscount)}</p>
+                  </div>
+                ) : null}
+                {invoice != null && toNumber(invoice.shippingCharges) > 0 ? (
+                  <div className="flex gap-4 sm:gap-8">
+                    <p className="font-medium text-md w-[110px] sm:w-[160px]">
+                      Shipping:
+                    </p>
+                    <p>{getFormattedCurrencySafe(invoice.shippingCharges)}</p>
                   </div>
                 ) : null}
                 <div className="flex gap-4 sm:gap-8">

@@ -6,6 +6,7 @@ import {
 } from 'renderer/lib/utils';
 import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { printStyles } from '../components/printStyles';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
@@ -42,8 +43,11 @@ const narrationLinesForRow = (row: LedgerView): string[] => {
   if (!isSaleInvoice && row.journalSummary.billNumber != null) {
     lines.push(`Bill#: ${row.journalSummary.billNumber}`);
   }
-  if (row.journalSummary.discountPercentage != null) {
-    lines.push(`Discount: ${row.journalSummary.discountPercentage}%`);
+  const discountLabel = formatJournalDiscountLabel(
+    row.journalSummary.discountPercentage,
+  );
+  if (discountLabel !== '-') {
+    lines.push(`Discount: ${discountLabel}`);
   }
   return lines;
 };
