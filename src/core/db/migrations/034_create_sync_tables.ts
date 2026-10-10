@@ -333,6 +333,13 @@ function realChangeGuardExpr(columns: string[]): string {
  * Exported so migration 036 (src/core/db/migrations/036_replicate_blob_columns.ts)
  * can reuse this exact builder against an already-bootstrapped database
  * rather than duplicating the trigger SQL.
+ *
+ * `CREATE TRIGGER IF NOT EXISTS` does not refresh a trigger that already
+ * exists. A later migration that adds or drops a column on this table must
+ * DROP `trg_sync_capture_<table>_{insert,update,delete}` and call this
+ * again, then re-emit rows that hold the new value. Leaving the old
+ * triggers in place stores the column locally and never syncs it
+ * (migration 045 / 046).
  */
 export async function createCaptureTriggers(
   driver: DatabaseDriver,

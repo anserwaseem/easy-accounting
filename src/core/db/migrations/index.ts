@@ -31,6 +31,11 @@ import { migration046 } from './046_recapture_invoice_net_and_shipping';
  * (`047_…`), list it in `CORE_MIGRATION_NAMES`. Both platforms pick it up
  * via `bootstrapDatabase`.
  *
+ * A new column on a replicated table is not synced until that same
+ * migration drops and rebuilds `trg_sync_capture_<table>_*` via
+ * `createCaptureTriggers`, then re-emits the rows that hold the value.
+ * See `046_recapture_invoice_net_and_shipping.ts`.
+ *
  * Desktop `024.js`–`028.js` and CORE `029_…`–`040_…` do not share prefixes.
  * Compare the full `name` string anyway — that is the identity.
  */
