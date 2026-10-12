@@ -3,16 +3,16 @@ name: Agent item commissions
 overview: Store each agent head’s commission as two percents per item type, plus optional rupees-per-unit overrides for specific net-rate SKUs. A date-range report applies the current rates to sale lines. Nothing is posted to the ledger.
 todos:
   - id: migration
-    content: Add 046 tables, schema.sql comments, sync registration (BUSINESS_TABLES, capture triggers, supabase allowlist)
-    status: pending
+    content: Add 047 tables (agent_type_commissions, agent_net_item_commissions, agent_commission_profiles, agent_commission_settlements), schema.sql comments, sync registration
+    status: completed
   - id: service
-    content: CommissionService save + date-range report, IPC through preload
+    content: CommissionService save rates/profiles, calculate date-range report, post settlement to journal, IPC through preload/AppApi
     status: pending
   - id: ui
-    content: Agent commission editor on Accounts and Agent commission report
+    content: AgentCommissionSheet on Accounts (rates + ledger accounts) and Agent Commission Report (summary, detail lines, adjustments, post to ledger)
     status: pending
   - id: tests
-    content: Cover normal %, net-rate %, SKU rupee override, exclusions, and agent scope
+    content: Cover normal %, net-rate %, SKU rupee override, exclusions, settlement journal posting, and agent scope
     status: pending
 isProject: false
 ---
@@ -57,12 +57,14 @@ Rupee overrides are per agent, and only when `netPrice` is set. The same SKU sol
 
 ## Storage
 
-Migration `046_agent_commissions` in `[src/core/db/migrations](src/core/db/migrations)`. Register it in `[src/core/db/migrations/index.ts](src/core/db/migrations/index.ts)` and `[src/core/db/knownMigrations.ts](src/core/db/knownMigrations.ts)`. Mirror the columns in `[src/sql/schema.sql](src/sql/schema.sql)` with a `046 migration` comment. Do not touch any `*.db` file.
+Migration `047_agent_commissions` in `[src/core/db/migrations](src/core/db/migrations)`. Registered in `[src/core/db/migrations/index.ts](src/core/db/migrations/index.ts)` and `[src/core/db/knownMigrations.ts](src/core/db/knownMigrations.ts)`. Mirrored in `[src/sql/schema.sql](src/sql/schema.sql)` with a `047 migration` comment.
 
-- `agent_type_commissions`: `chartId` + `itemTypeId` unique. `percent` and `netRatePercent`, each 0–100. Only charts with `parentId` not null.
-- `agent_net_item_commissions`: `chartId` + `inventoryId` unique. `rupeesPerUnit` ≥ 0. Delete the row to fall back to the type’s net-rate percent.
+- `agent_type_commissions`: `chartId` + `itemTypeId` unique. `percent` and `netRatePercent`, each 0–100.
+- `agent_net_item_commissions`: `chartId` + `inventoryId` unique. `rupeesPerUnit` ≥ 0. Delete row to fall back to type’s net-rate percent.
+- `agent_commission_profiles`: `chartId` unique. `payableAccountId` and `expenseAccountId` linking the agent head to their ledger accounts.
+- `agent_commission_settlements`: `chartId`, `startDate`, `endDate`, `journalId`, `grossCommission`, `adjustmentsJson`, `netCommission`, `snapshotJson`.
 
-Both tables sync. Append them to `BUSINESS_TABLES` in `[src/core/db/import.ts](src/core/db/import.ts)` after `inventory` (parents already precede them). `SYNC_TABLES` is that list minus `ledger`, so they replicate once the migration installs uuid, timestamp triggers (with the applying guard from `[039_suppress_timestamp_triggers_during_apply.ts](src/core/db/migrations/039_suppress_timestamp_triggers_during_apply.ts)`), and capture triggers via `createCaptureTriggers` from `[034_create_sync_tables.ts](src/core/db/migrations/034_create_sync_tables.ts)`. Add both names to the `sync_push` allowlist in `[supabase/setup.sql](supabase/setup.sql)`. The live Supabase function rejects those rows until that SQL is applied on the project. Do not reset `sync_state.cursor`.
+All four tables sync. Appended to `BUSINESS_TABLES` in `[src/core/db/import.ts](src/core/db/import.ts)`. Capture triggers installed via `createCaptureTriggers` from `[034_create_sync_tables.ts](src/core/db/migrations/034_create_sync_tables.ts)`. Added to the `sync_push` allowlist in `[supabase/setup.sql](supabase/setup.sql)`.
 
 ## Read and write
 
