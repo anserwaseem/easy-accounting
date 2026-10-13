@@ -2246,4 +2246,168 @@ describe('SyncEngine convergence', () => {
 
     b.db.close();
   });
+
+  it('(aa) duplicate ghost line items and duplicate journals arriving via sync are cleanly discarded without duplicating stock or ledger', async () => {
+    const server = new MockSyncServer();
+    const a = await makeDevice('aa-origin', server.createDeviceTransport('A'));
+    const b = await makeDevice(
+      'aa-receiver',
+      server.createDeviceTransport('B'),
+    );
+
+    // Seed account, inventory, invoice and items on A
+    const chartUuid = 'aa-chart-uuid';
+    const accountUuid = 'aa-account-uuid';
+    const itemUuid = 'aa-item-uuid';
+    const invoiceUuid = 'aa-invoice-uuid';
+    const lineItemUuid1 = 'aa-line-1';
+    const lineItemUuid2 = 'aa-line-2'; // ghost duplicate with same values
+    const journalUuid1 = 'aa-journal-1';
+    const journalUuid2 = 'aa-journal-2'; // ghost duplicate journal
+
+    await a.driver.run(
+      `INSERT INTO chart (date, name, type, uuid) VALUES ('2020-01-01', 'Receivables', 'Asset', ?)`,
+      [chartUuid],
+    );
+    const chartId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM chart WHERE uuid = ?`,
+      [chartUuid],
+    ))!.id;
+    await a.driver.run(
+      `INSERT INTO account (chartId, name, uuid) VALUES (?, 'Customer AA', ?)`,
+      [chartId, accountUuid],
+    );
+    const accountId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM account WHERE uuid = ?`,
+      [accountUuid],
+    ))!.id;
+
+    await a.driver.run(
+      `INSERT INTO inventory (name, description, price, quantity, uuid) VALUES ('AA-ITEM', 'Desc', 100, 100, ?)`,
+      [itemUuid],
+    );
+    const itemId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM inventory WHERE uuid = ?`,
+      [itemUuid],
+    ))!.id;
+
+    await a.driver.run(
+      `INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, uuid)
+       VALUES (7777, ?, 'Sale', '2026-10-03', 1000, ?)`,
+      [accountId, invoiceUuid],
+    );
+    const invoiceId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM invoices WHERE uuid = ?`,
+      [invoiceUuid],
+    ))!.id;
+
+    // Line 1
+    await a.driver.run(
+      `INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, uuid)
+       VALUES (?, ?, 10, 100, 0, ?)`,
+      [invoiceId, itemId, lineItemUuid1],
+    );
+
+    // Journal 1
+    await a.driver.run(
+      `INSERT INTO journal (date, narration, billNumber, discountPercentage, invoiceId, uuid)
+       VALUES ('2026-10-03', 'Sale Invoice #7777', 7777, 0, ?, ?)`,
+      [invoiceId, journalUuid1],
+    );
+    const j1Id = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM journal WHERE uuid = ?`,
+      [journalUuid1],
+    ))!.id;
+    await a.driver.run(
+      `INSERT INTO journal_entry (journalId, debitAmount, creditAmount, accountId, uuid)
+       VALUES (?, 1000, 0, ?, 'aa-je-1')`,
+      [j1Id, accountId],
+    );
+
+    // Sync A to B
+    await a.engine.syncOnce();
+    await b.engine.syncOnce();
+
+    // Verify B received the single line item and journal
+    const bLines1 = await b.driver.all(
+      `SELECT id FROM invoice_items WHERE invoiceId = (SELECT id FROM invoices WHERE uuid = ?)`,
+      [invoiceUuid],
+    );
+    expect(bLines1).toHaveLength(1);
+
+    // Push duplicate line and journal to server log
+    const transportC = server.createDeviceTransport('C');
+    await transportC.push([
+      {
+        idempotencyKey: 'dup:line',
+        tableName: 'invoice_items',
+        rowUuid: lineItemUuid2,
+        op: 'put',
+        rowJson: JSON.stringify({
+          invoiceId,
+          invoiceId_uuid: invoiceUuid,
+          inventoryId: itemId,
+          inventoryId_uuid: itemUuid,
+          quantity: 10,
+          price: 100,
+          discount: 0,
+          uuid: lineItemUuid2,
+          createdAt: '2026-10-03 19:17:46',
+          updatedAt: '2026-10-03 19:17:46',
+        }),
+      },
+      {
+        idempotencyKey: 'dup:journal',
+        tableName: 'journal',
+        rowUuid: journalUuid2,
+        op: 'put',
+        rowJson: JSON.stringify({
+          invoiceId,
+          invoiceId_uuid: invoiceUuid,
+          date: '2026-10-03',
+          narration: 'Sale Invoice #7777',
+          billNumber: 7777,
+          discountPercentage: 0,
+          uuid: journalUuid2,
+          createdAt: '2026-10-03 19:17:46',
+          updatedAt: '2026-10-03 19:17:46',
+        }),
+      },
+      {
+        idempotencyKey: 'dup:je',
+        tableName: 'journal_entry',
+        rowUuid: 'aa-je-dup',
+        op: 'put',
+        rowJson: JSON.stringify({
+          journalId_uuid: journalUuid2,
+          debitAmount: 1000,
+          creditAmount: 0,
+          accountId_uuid: accountUuid,
+          uuid: 'aa-je-dup',
+          createdAt: '2026-10-03 19:17:46',
+          updatedAt: '2026-10-03 19:17:46',
+        }),
+      },
+    ]);
+
+    // B pulls the duplicate lines
+    const pullResult = await b.engine.syncOnce();
+    expect(pullResult.applyConflicts).toBe(0);
+
+    // B still has exactly 1 line item and 1 journal (duplicates were cleanly discarded!)
+    const bLines2 = await b.driver.all(
+      `SELECT id FROM invoice_items WHERE invoiceId = (SELECT id FROM invoices WHERE uuid = ?)`,
+      [invoiceUuid],
+    );
+    expect(bLines2).toHaveLength(1);
+
+    const bJournals2 = await b.driver.all(
+      `SELECT id FROM journal WHERE invoiceId = (SELECT id FROM invoices WHERE uuid = ?)`,
+      [invoiceUuid],
+    );
+    expect(bJournals2).toHaveLength(1);
+
+    a.db.close();
+    b.db.close();
+  });
 });

@@ -167,6 +167,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const isQuotationFlowRef = useRef(isQuotationFlow);
   isQuotationFlowRef.current = isQuotationFlow;
   const submitSaveKindRef = useRef<'invoice' | 'quotation'>('invoice');
+  const isSubmittingRef = useRef(false);
 
   const newInvoicePageHeading = useMemo(() => {
     if (editInvoiceId != null && isEditingQuotation) {
@@ -1415,7 +1416,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   );
 
   const submitDisabledReason = useMemo((): string | undefined => {
-    if (form.formState.isSubmitting) {
+    if (form.formState.isSubmitting || isSubmittingRef.current) {
       return 'Saving invoice...';
     }
     if (
@@ -1501,6 +1502,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const submitInvoice = async (
     values: z.infer<typeof formSchema>,
   ): Promise<number | undefined> => {
+    if (isSubmittingRef.current) {
+      return undefined;
+    }
+    isSubmittingRef.current = true;
     try {
       const showPostSaveToast = (vendorStockMessages?: string[]) => {
         toast({
@@ -1599,6 +1604,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         description,
         variant: 'destructive',
       });
+    } finally {
+      isSubmittingRef.current = false;
     }
     return undefined;
   };
@@ -1632,6 +1639,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (isSubmittingRef.current) return;
     if (
       isSplitTypedAccountResolutionSubmitBlocked({
         invoiceType,
@@ -2954,6 +2962,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           }
                           className="min-h-[44px]"
                           onClick={() => {
+                            if (isSubmittingRef.current) return;
                             submitSaveKindRef.current = primarySaveKind;
                             isQuotationFlowRef.current =
                               isQuotationFlow ||
@@ -2996,6 +3005,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           disabled={isSubmitDisabled}
                           className="min-h-[44px]"
                           onClick={() => {
+                            if (isSubmittingRef.current) return;
                             submitSaveKindRef.current = 'quotation';
                             isQuotationFlowRef.current = true;
                             form.handleSubmit(onSubmit, onValidationError)();
@@ -3028,6 +3038,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           }
                           className="min-h-[44px]"
                           onClick={() => {
+                            if (isSubmittingRef.current) return;
                             submitSaveKindRef.current = primarySaveKind;
                             isQuotationFlowRef.current =
                               isQuotationFlow ||
