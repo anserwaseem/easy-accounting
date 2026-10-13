@@ -15,7 +15,7 @@ import { migration041 } from './041_seed_existing_business_data_outbox';
 import { migration042 } from './042_backfill_inventory_baseline';
 import { migration043 } from './043_fix_insert_timestamp_triggers';
 import { migration044 } from './044_heal_causality_sync_cursor';
-import { migration045 } from './045_agent_tours';
+import { migration049 } from './049_agent_tours';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -55,5 +55,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration042,
   migration043,
   migration044,
-  migration045,
+  migration049,
 ];

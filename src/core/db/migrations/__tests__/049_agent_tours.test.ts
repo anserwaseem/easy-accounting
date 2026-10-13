@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { BetterSqliteDriver } from '../../../../main/adapters/BetterSqliteDriver';
 import { bootstrapDatabase } from '../../bootstrap';
 import { CORE_MIGRATIONS } from '..';
-import { migration045 } from '../045_agent_tours';
+import { migration049 } from '../049_agent_tours';
 
 jest.mock('electron-log', () => ({
   error: jest.fn(),
@@ -23,7 +23,7 @@ interface OutboxRow {
   rowJson: string;
 }
 
-describe('core migration 045 (agent tours + account.collectionRole)', () => {
+describe('core migration 049 (agent tours + account.collectionRole)', () => {
   let db: InstanceType<typeof Database>;
   let driver: BetterSqliteDriver;
 
@@ -37,7 +37,7 @@ describe('core migration 045 (agent tours + account.collectionRole)', () => {
 
   it('is the last CORE migration', () => {
     expect(CORE_MIGRATIONS[CORE_MIGRATIONS.length - 1].name).toBe(
-      '045_agent_tours',
+      '049_agent_tours',
     );
   });
 
@@ -63,8 +63,8 @@ describe('core migration 045 (agent tours + account.collectionRole)', () => {
   });
 
   it('is idempotent', async () => {
-    await expect(migration045.up(driver)).resolves.toBeUndefined();
-    await expect(migration045.up(driver)).resolves.toBeUndefined();
+    await expect(migration049.up(driver)).resolves.toBeUndefined();
+    await expect(migration049.up(driver)).resolves.toBeUndefined();
   });
 
   it('rejects an unknown collectionRole and an end before start', () => {

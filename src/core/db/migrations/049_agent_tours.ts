@@ -6,7 +6,7 @@ import {
 } from './043_fix_insert_timestamp_triggers';
 
 /**
- * Migration 045 — agent tours and the per-account collection role.
+ * Migration 049 — agent tours and the per-account collection role.
  *
  * - `agent_tours`: dated trips of an agent (a custom head, `chart.parentId`
  *   set). One row per tour, kept as history. `endDate` NULL means the tour
@@ -21,8 +21,8 @@ import {
  * `BUSINESS_TABLES`). Older devices drop the unknown column on apply
  * (`SyncEngine.applyRow` uses the column intersection).
  */
-export const migration045 = {
-  name: '045_agent_tours',
+export const migration049 = {
+  name: '049_agent_tours',
   async up(driver: DatabaseDriver): Promise<void> {
     const accountColumns = await driver.all<{ name: string }>(
       `PRAGMA table_info("account")`,
