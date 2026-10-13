@@ -16,6 +16,7 @@ import {
   type CollectionSheetBill,
   type CollectionSheetLanguage,
   type CollectionSheetMoney,
+  type CollectionSheetSortBy,
   type CollectionSheetTourPaid,
 } from './buildCollectionSheetRows';
 
@@ -163,6 +164,7 @@ export const useCollectionSheet = () => {
     return savedPreset || 'current-month';
   });
   const [language, setLanguage] = useState<CollectionSheetLanguage>('en');
+  const [sortBy, setSortBy] = useState<CollectionSheetSortBy>('code');
   const [snapshot, setSnapshot] = useState<CollectionSheetSnapshot | null>(
     null,
   );
@@ -339,8 +341,9 @@ export const useCollectionSheet = () => {
       snapshot.tours.map((tour) => tour.id),
       snapshot.tourPaid,
       snapshot.untoured,
+      sortBy,
     );
-  }, [snapshot, language]);
+  }, [snapshot, language, sortBy]);
 
   const tours = snapshot?.tours ?? NO_TOURS;
   const showUntoured = snapshot?.untoured != null;
@@ -355,6 +358,8 @@ export const useCollectionSheet = () => {
     presetValue,
     language,
     setLanguage,
+    sortBy,
+    setSortBy,
     rows,
     tours,
     showUntoured,

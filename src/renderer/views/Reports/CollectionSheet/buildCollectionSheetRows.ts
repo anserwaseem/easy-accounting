@@ -316,6 +316,12 @@ const familyTourPaid = (
  * tour columns follow the same rule: the shop's first row holds each tour's receipts (0 when unpaid).
  * order is the base account code, same in Eng and Urdu.
  */
+export type CollectionSheetSortBy =
+  | 'code'
+  | 'outstanding-desc'
+  | 'unpaid-tours-desc'
+  | 'bills-desc';
+
 export const buildCollectionSheetRows = (
   accounts: CollectionSheetSource[],
   itemTypeNames: string[],
@@ -326,6 +332,7 @@ export const buildCollectionSheetRows = (
   tourPaidByAccountId: CollectionSheetTourPaid = {},
   /** null hides the "not in a tour" column (the agent has no tours) */
   untouredByAccountId: Record<number, number> | null = null,
+  sortBy: CollectionSheetSortBy = 'code',
 ): CollectionSheetRow[] => {
   const ctx = buildPartyTypingContext(accounts, itemTypeNames);
   const members = accounts.map((account) =>
@@ -357,17 +364,40 @@ export const buildCollectionSheetRows = (
         (sum, member) => sum + member.collected,
         0,
       );
+      const tourPaid = familyTourPaid(family, tourIds);
+      const bills = mergedBills(family);
+      const totalBilled = bills.reduce((sum, b) => sum + (b.amount || 0), 0);
+      const outstanding = Math.max(0, totalBilled - (collected || 0));
+      const unpaidToursCount = tourIds.filter((tId) =>
+        isZeroBalance(tourPaid[tId] ?? 0),
+      ).length;
+
       return {
         display,
         balance,
         collected,
-        tourPaid: familyTourPaid(family, tourIds),
+        tourPaid,
         untoured: sumBy(family, 'untoured'),
-        bills: mergedBills(family),
+        bills,
+        totalBilled,
+        outstanding,
+        unpaidToursCount,
       };
     })
     .filter((shop) => !isZeroBalance(shop.balance))
     .sort((a, b) => {
+      if (sortBy === 'outstanding-desc') {
+        const diff = b.outstanding - a.outstanding;
+        if (Math.abs(diff) >= 0.01) return diff;
+      } else if (sortBy === 'unpaid-tours-desc') {
+        const diff = b.unpaidToursCount - a.unpaidToursCount;
+        if (diff !== 0) return diff;
+        const outDiff = b.outstanding - a.outstanding;
+        if (Math.abs(outDiff) >= 0.01) return outDiff;
+      } else if (sortBy === 'bills-desc') {
+        const diff = b.totalBilled - a.totalBilled;
+        if (Math.abs(diff) >= 0.01) return diff;
+      }
       const codeDiff = compareCode(a.display.code, b.display.code);
       if (codeDiff !== 0) return codeDiff;
       return a.display.accountId - b.display.accountId;

@@ -2,9 +2,11 @@ import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { trim } from 'lodash';
 import {
+  ArrowUpDown,
   CalendarRange,
   ClipboardList,
   Download,
+  HelpCircle,
   Printer,
   RefreshCw,
 } from 'lucide-react';
@@ -16,6 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/renderer/shad/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/renderer/shad/ui/popover';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import {
@@ -36,6 +43,7 @@ import {
   tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
+  type CollectionSheetSortBy,
 } from './buildCollectionSheetRows';
 
 type TourExportKey = `tour_${number}`;
@@ -110,6 +118,8 @@ const CollectionSheetPage: React.FC = () => {
     presetValue,
     language,
     setLanguage,
+    sortBy,
+    setSortBy,
     rows,
     tours,
     showUntoured,
@@ -279,10 +289,62 @@ const CollectionSheetPage: React.FC = () => {
       header={
         <div className="print-header flex flex-col gap-2 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="title-new flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              {headers.title}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="title-new flex items-center gap-2">
+                <ClipboardList className="h-5 w-5" />
+                {headers.title}
+              </h1>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    title="How to read this report"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-96 text-xs space-y-2.5 p-3.5">
+                  <h4 className="font-semibold text-sm">
+                    About Collection Sheet
+                  </h4>
+                  <p className="text-muted-foreground">
+                    This report pairs <strong>physical sale bills</strong>{' '}
+                    delivered to each shop with{' '}
+                    <strong>serial tour collections</strong> collected by the
+                    agent over dated trips.
+                  </p>
+                  <div className="space-y-1.5 border-t pt-2">
+                    <p>
+                      <strong>Bill rows</strong>: Each sale bill delivered
+                      within the date range is listed with its date and amount.
+                    </p>
+                    <p>
+                      <strong>Multi-bill shops</strong>: The customer’s total
+                      collection and tour payments are consolidated on the first
+                      bill row. Subsequent rows show{' '}
+                      <span className="font-mono">—</span> so tour totals are
+                      not duplicated.
+                    </p>
+                    <p>
+                      <strong>Tour columns</strong>: Shows receipts collected
+                      during each tour window. A red cell (
+                      <span className="bg-destructive/15 text-destructive px-1 rounded">
+                        0
+                      </span>
+                      ) indicates the customer paid nothing on that tour.
+                    </p>
+                    <p>
+                      <strong>Blank columns</strong>: <em>Collection</em>,{' '}
+                      <em>Difference</em>, and <em>Remaining</em> are left blank
+                      on printouts for the agent to log receipts during their
+                      next trip.
+                    </p>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
             <div className="flex flex-wrap items-center gap-3">
               <LanguageToggle language={language} onChange={setLanguage} />
               <div className="flex items-center gap-2">
@@ -326,6 +388,30 @@ const CollectionSheetPage: React.FC = () => {
                   initialRange={dateRange}
                   initialSelectValue={presetValue}
                 />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Sort:</span>
+                <Select
+                  value={sortBy}
+                  onValueChange={(val) =>
+                    setSortBy(val as CollectionSheetSortBy)
+                  }
+                >
+                  <SelectTrigger className="w-[170px]">
+                    <ArrowUpDown className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="code">Code</SelectItem>
+                    <SelectItem value="outstanding-desc">
+                      Highest Outstanding
+                    </SelectItem>
+                    <SelectItem value="unpaid-tours-desc">
+                      Most Unpaid Tours
+                    </SelectItem>
+                    <SelectItem value="bills-desc">Highest Billed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <Button
                 variant="outline"

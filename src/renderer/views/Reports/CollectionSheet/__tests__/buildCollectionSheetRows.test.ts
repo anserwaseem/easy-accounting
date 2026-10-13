@@ -268,4 +268,92 @@ describe('buildCollectionSheetRows', () => {
       }),
     ).toBe('Jan 2026 · 01/01–25/01 (part)');
   });
+
+  describe('sorting options', () => {
+    const accounts: CollectionSheetSource[] = [
+      { id: 1, name: 'Shop Alpha', code: 'A-ALPHA', address: 'X' },
+      { id: 2, name: 'Shop Beta', code: 'B-BETA', address: 'Y' },
+      { id: 3, name: 'Shop Gamma', code: 'C-GAMMA', address: 'Z' },
+    ];
+    // Alpha: billed 100, collected 20 -> outstanding 80. Tour 10: paid 20, Tour 11: 0 (1 unpaid tour)
+    // Beta: billed 510, collected 500 -> outstanding 10. Tour 10: 250, Tour 11: 250 (0 unpaid tours)
+    // Gamma: billed 200, collected 0 -> outstanding 200. Tour 10: 0, Tour 11: 0 (2 unpaid tours)
+    const money = {
+      1: owed(80, 20),
+      2: owed(10, 500),
+      3: owed(200, 0),
+    };
+    const bills = {
+      1: [{ invoiceNumber: 101, date: '2026-01-01', amount: 100 }],
+      2: [{ invoiceNumber: 102, date: '2026-01-02', amount: 510 }],
+      3: [{ invoiceNumber: 103, date: '2026-01-03', amount: 200 }],
+    };
+    const tourIds = [10, 11];
+    const tourCollections = {
+      1: { 10: 20, 11: 0 },
+      2: { 10: 250, 11: 250 },
+      3: { 10: 0, 11: 0 },
+    };
+
+    it('sorts by route/code by default', () => {
+      const rows = buildCollectionSheetRows(
+        accounts,
+        itemTypes,
+        money,
+        bills,
+        'en',
+        tourIds,
+        tourCollections,
+      );
+      expect(rows.map((r) => r.code)).toEqual(['A-ALPHA', 'B-BETA', 'C-GAMMA']);
+    });
+
+    it('sorts by highest outstanding descending', () => {
+      const rows = buildCollectionSheetRows(
+        accounts,
+        itemTypes,
+        money,
+        bills,
+        'en',
+        tourIds,
+        tourCollections,
+        {},
+        'outstanding-desc',
+      );
+      // Gamma (200), Alpha (80), Beta (10)
+      expect(rows.map((r) => r.code)).toEqual(['C-GAMMA', 'A-ALPHA', 'B-BETA']);
+    });
+
+    it('sorts by most unpaid tours descending', () => {
+      const rows = buildCollectionSheetRows(
+        accounts,
+        itemTypes,
+        money,
+        bills,
+        'en',
+        tourIds,
+        tourCollections,
+        {},
+        'unpaid-tours-desc',
+      );
+      // Gamma (2 unpaid), Alpha (1 unpaid), Beta (0 unpaid)
+      expect(rows.map((r) => r.code)).toEqual(['C-GAMMA', 'A-ALPHA', 'B-BETA']);
+    });
+
+    it('sorts by highest billed descending', () => {
+      const rows = buildCollectionSheetRows(
+        accounts,
+        itemTypes,
+        money,
+        bills,
+        'en',
+        tourIds,
+        tourCollections,
+        {},
+        'bills-desc',
+      );
+      // Beta (510), Gamma (200), Alpha (100)
+      expect(rows.map((r) => r.code)).toEqual(['B-BETA', 'C-GAMMA', 'A-ALPHA']);
+    });
+  });
 });
