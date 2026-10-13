@@ -39,8 +39,6 @@ flowchart TD
   sku -->|no| netPct["agent net-rate percent for that item type times charged"]
 ```
 
-
-
 Invoice 10348 is the only net-rate sale in the shop DB: Ijaz, GABA, S-23-Z, type T, qty 138, catalog 690, charged 475 (31.16% off). GABA’s profile for T is 28%. That profile is the customer’s discount. It is not the agent’s commission.
 
 If Ijaz’s normal T rate is 5%, his net-rate T rate is 2.5%, and S-23-Z has an override of Rs.5:

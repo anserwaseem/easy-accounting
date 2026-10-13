@@ -53,6 +53,8 @@ type VirtualSelectProps<T extends BaseOption> = {
   autoFocusTrigger?: boolean;
   /** forwarded to empty-state input or selected-state button (react-hook-form setFocus) */
   triggerRef?: Ref<HTMLInputElement | HTMLButtonElement | null>;
+  /** container element to portal into (defaults to closest dialog/sheet if inside one) */
+  container?: HTMLElement | null;
 };
 
 /** next/prev keyboard row; skips section headers so arrows move item-to-item */
@@ -113,6 +115,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   renderTriggerValue,
   autoFocusTrigger = false,
   triggerRef,
+  container,
 }: VirtualSelectProps<T>) => {
   const [searchInputValue, setSearchInputValue] = useState('');
   const [filteredSearchValue, setFilteredSearchValue] = useState('');
@@ -124,6 +127,20 @@ const VirtualSelect = <T extends BaseOption = Account>({
     null,
   );
   const [keyboardSelectedIndex, setKeyboardSelectedIndex] = useState(0);
+
+  const rootTriggerRef = useRef<HTMLDivElement>(null);
+  const [autoContainer, setAutoContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (rootTriggerRef.current) {
+      const dialog = rootTriggerRef.current.closest<HTMLElement>(
+        '[role="dialog"], [role="alertdialog"], [data-radix-dialog-content]',
+      );
+      if (dialog) {
+        setAutoContainer(dialog);
+      }
+    }
+  }, []);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
@@ -241,17 +258,26 @@ const VirtualSelect = <T extends BaseOption = Account>({
     [],
   );
 
-  const handleOpenChange = useCallback((open: boolean) => {
-    setIsOpen(open);
-    if (!open) {
-      setSearchInputValue('');
-      setFilteredSearchValue('');
-      setCollapsedSections({});
-      setStickySectionLabel(null);
-      isTypingRef.current = false;
-      setKeyboardSelectedIndex(0);
-    }
-  }, []);
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open && !autoContainer && rootTriggerRef.current) {
+        const dialog = rootTriggerRef.current.closest<HTMLElement>(
+          '[role="dialog"], [role="alertdialog"], [data-radix-dialog-content]',
+        );
+        if (dialog) setAutoContainer(dialog);
+      }
+      setIsOpen(open);
+      if (!open) {
+        setSearchInputValue('');
+        setFilteredSearchValue('');
+        setCollapsedSections({});
+        setStickySectionLabel(null);
+        isTypingRef.current = false;
+        setKeyboardSelectedIndex(0);
+      }
+    },
+    [autoContainer],
+  );
 
   const groupCountsByLabel = useMemo(() => {
     if (!groupBy) return null;
@@ -639,6 +665,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
     <Popover modal={false} open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <div
+          ref={rootTriggerRef}
           className={cn(
             'relative flex w-full min-h-10 items-stretch rounded-md border border-input bg-background text-sm shadow-sm focus-within:ring-1 focus-within:ring-ring',
             triggerClassName,
@@ -678,6 +705,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
         </div>
       </PopoverTrigger>
       <PopoverContent
+        container={container ?? autoContainer}
         className="flex max-h-[min(520px,var(--radix-popper-available-height,100dvh))] w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden p-0"
         align="start"
         onOpenAutoFocus={(e) => {

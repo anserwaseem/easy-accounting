@@ -346,6 +346,7 @@ export async function createCaptureTriggers(
   table: string,
 ): Promise<void> {
   const columns = await allColumnInfo(driver, table);
+  if (columns.length === 0) return;
   const fks = await foreignKeys(driver, table);
 
   const selfRef = (col: string) => `t."${col}"`;

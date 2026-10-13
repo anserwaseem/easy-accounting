@@ -174,4 +174,5 @@ export const REPORT_FILTER_KEYS = {
   salesByCustomer: 'reports.salesByCustomer.filters',
   vendorStockActivity: 'reports.vendorStockActivity.filters',
   collectionSheet: 'reports.collectionSheet.filters',
+  agentCommission: 'reports.agentCommission.filters',
 } as const;

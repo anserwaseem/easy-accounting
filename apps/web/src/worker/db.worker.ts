@@ -92,6 +92,7 @@ import { StatementService } from '@core/services/StatementService';
 import { InvoiceService } from '@core/services/InvoiceService';
 import { SettingsService } from '@core/services/SettingsService';
 import { VendorStockService } from '@core/services/VendorStockService';
+import { CommissionService } from '@core/services/CommissionService';
 import { repairInvoiceEditedTimestamps } from '@core/sync/repairInvoiceTimestamps';
 import { INITIAL_CHARTS } from '@core/utils/constants';
 import { enrichLedgerRowsWithJournalSummaries } from '@core/utils/ledgerJournalEnrichment';
@@ -497,6 +498,10 @@ async function main(): Promise<void> {
     vendorStockService,
   });
   const settingsService = new SettingsService({ db: driver });
+  const commissionService = new CommissionService({
+    db: driver,
+    journalService,
+  });
 
   // One-time, per-device migration of the publish feature's eleven
   // non-secret connection fields out of web_kv into the settings table
@@ -1142,6 +1147,26 @@ async function main(): Promise<void> {
     setSetting: (key, value) => settingsService.set(key as string, value),
     deleteSetting: (key) => settingsService.delete(key as string),
     getAllSettings: () => settingsService.getAll(),
+
+    // -- Commission (src/core/services/CommissionService.ts, migration 047) -
+    commissionGetConfig: (chartId) =>
+      commissionService.getCommissionConfig(chartId as number),
+    commissionSaveConfig: (config) =>
+      commissionService.saveCommissionConfig(
+        config as Parameters<CommissionService['saveCommissionConfig']>[0],
+      ),
+    commissionGetReport: (chartId, startDate, endDate) =>
+      commissionService.getCommissionReport(
+        chartId as number,
+        startDate as string,
+        endDate as string,
+      ),
+    commissionPostSettlement: (payload) =>
+      commissionService.postCommissionSettlement(
+        payload as Parameters<CommissionService['postCommissionSettlement']>[0],
+      ),
+    commissionUnpostSettlement: (settlementId) =>
+      commissionService.unpostCommissionSettlement(settlementId as number),
 
     // -- Publish (./publishConfig.ts + ./publishService.ts) ----------------
     getPublishConfig: () => getWebPublishConfig(webKv, settingsService),

@@ -17,6 +17,7 @@ import { migration043 } from './043_fix_insert_timestamp_triggers';
 import { migration044 } from './044_heal_causality_sync_cursor';
 import { migration045 } from './045_invoice_net_rate_and_shipping';
 import { migration046 } from './046_recapture_invoice_net_and_shipping';
+import { migration047 } from './047_agent_commissions';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -63,4 +64,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration044,
   migration045,
   migration046,
+  migration047,
 ];

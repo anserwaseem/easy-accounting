@@ -10,6 +10,7 @@ import {
   SettingsService,
   StatementService,
   VendorStockService,
+  CommissionService,
   setCoreLogger,
 } from '../core';
 import type { DatabaseDriver, KeyValueStore, SessionContext } from '../core';
@@ -103,6 +104,7 @@ export function createCoreServices() {
     pricingService,
     vendorStockService,
   });
+  const commissionService = new CommissionService({ db, journalService });
   const settingsService = getSettingsService();
 
   return {
@@ -115,6 +117,7 @@ export function createCoreServices() {
     journalService,
     statementService,
     invoiceService,
+    commissionService,
     settingsService,
   };
 }
