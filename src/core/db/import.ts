@@ -91,6 +91,8 @@ export const BUSINESS_TABLES = [
   'journal_entry',
   'ledger',
   'settings',
+  'agent_commissions',
+  'agent_commission_settlements',
 ] as const;
 
 /**

@@ -298,6 +298,38 @@ CREATE TABLE IF NOT EXISTS "vendor_stock_movements" ( -- "025 migration"
     FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
 );
 
+CREATE TABLE IF NOT EXISTS "agent_commissions" ( -- "047 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "chartId" INTEGER NOT NULL UNIQUE,
+    "payableAccountId" INTEGER,
+    "expenseAccountId" INTEGER,
+    "ratesJson" TEXT NOT NULL DEFAULT '[]',
+    "overridesJson" TEXT NOT NULL DEFAULT '[]',
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    "uuid" TEXT,
+    FOREIGN KEY ("chartId") REFERENCES "chart"("id") ON DELETE CASCADE,
+    FOREIGN KEY ("payableAccountId") REFERENCES "account"("id") ON DELETE SET NULL,
+    FOREIGN KEY ("expenseAccountId") REFERENCES "account"("id") ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS "agent_commission_settlements" ( -- "047 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "chartId" INTEGER NOT NULL,
+    "startDate" TEXT NOT NULL,
+    "endDate" TEXT NOT NULL,
+    "journalId" INTEGER,
+    "grossCommission" DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    "adjustmentsJson" TEXT NOT NULL DEFAULT '[]',
+    "netCommission" DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    "snapshotJson" TEXT NOT NULL DEFAULT '[]',
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    "uuid" TEXT,
+    FOREIGN KEY ("chartId") REFERENCES "chart"("id") ON DELETE CASCADE,
+    FOREIGN KEY ("journalId") REFERENCES "journal"("id") ON DELETE SET NULL
+);
+
 
 -- TRIGGERS --
 -- ledger

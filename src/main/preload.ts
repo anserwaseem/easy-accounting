@@ -52,6 +52,9 @@ import type {
   VendorStockActivityFilters,
   VendorStockActivityResponse,
   InvoiceType,
+  AgentCommissionConfig,
+  AgentCommissionReport,
+  PostCommissionSettlementPayload,
 } from '../types';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
 import type { BackupConfig, BackupConfigInput } from './utils/backupConfig';
@@ -947,6 +950,31 @@ const electronHandler = {
     ipcRenderer.invoke('settings:delete', key) as Promise<void>,
   getAllSettings: () =>
     ipcRenderer.invoke('settings:getAll') as Promise<Record<string, unknown>>,
+
+  commissionGetConfig: (chartId: number) =>
+    ipcRenderer.invoke(
+      'commission:getConfig',
+      chartId,
+    ) as Promise<AgentCommissionConfig | null>,
+  commissionSaveConfig: (config: AgentCommissionConfig) =>
+    ipcRenderer.invoke('commission:saveConfig', config) as Promise<boolean>,
+  commissionGetReport: (chartId: number, startDate: string, endDate: string) =>
+    ipcRenderer.invoke(
+      'commission:getReport',
+      chartId,
+      startDate,
+      endDate,
+    ) as Promise<AgentCommissionReport>,
+  commissionPostSettlement: (payload: PostCommissionSettlementPayload) =>
+    ipcRenderer.invoke('commission:postSettlement', payload) as Promise<{
+      settlementId: number;
+      journalId: number;
+    }>,
+  commissionUnpostSettlement: (settlementId: number) =>
+    ipcRenderer.invoke(
+      'commission:unpostSettlement',
+      settlementId,
+    ) as Promise<boolean>,
 
   supportsSync: true as const,
   supportsBackup: true as const,

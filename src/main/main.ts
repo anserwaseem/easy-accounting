@@ -43,6 +43,8 @@ import type {
   VendorStockOpeningRow,
   VendorStockActivityFilters,
   InvoiceType,
+  AgentCommissionConfig,
+  PostCommissionSettlementPayload,
 } from '../types';
 import { parseAttributeKeyList } from './utils/catalog';
 import MenuBuilder from './menu';
@@ -316,6 +318,7 @@ app
       inventoryService,
       invoiceService,
       vendorStockService,
+      commissionService,
       settingsService,
     } = createCoreServices();
     const printService = new PrintService();
@@ -1136,6 +1139,34 @@ app
       'vendorStock:getActivity',
       async (_, filters: VendorStockActivityFilters) =>
         vendorStockService.getActivity(filters),
+    );
+
+    ipcMain.handle('commission:getConfig', async (_, chartId: number) =>
+      commissionService.getCommissionConfig(chartId),
+    );
+
+    ipcMain.handle(
+      'commission:saveConfig',
+      async (_, config: AgentCommissionConfig) =>
+        commissionService.saveCommissionConfig(config),
+    );
+
+    ipcMain.handle(
+      'commission:getReport',
+      async (_, chartId: number, startDate: string, endDate: string) =>
+        commissionService.getCommissionReport(chartId, startDate, endDate),
+    );
+
+    ipcMain.handle(
+      'commission:postSettlement',
+      async (_, payload: PostCommissionSettlementPayload) =>
+        commissionService.postCommissionSettlement(payload),
+    );
+
+    ipcMain.handle(
+      'commission:unpostSettlement',
+      async (_, settlementId: number) =>
+        commissionService.unpostCommissionSettlement(settlementId),
     );
 
     createWindow();

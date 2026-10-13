@@ -685,3 +685,111 @@ export type BackupOperationProgressEvent = {
   type: BackupOperationTransferType;
   message: string;
 };
+
+// ==========================================
+// Agent Commission Types
+// ==========================================
+
+export interface AgentCommissionTypeRate {
+  itemTypeId: number;
+  percent: number;
+  netRatePercent: number;
+  normalCommissionPct?: number;
+  netRateCommissionPct?: number;
+}
+
+export interface AgentCommissionSkuOverride {
+  inventoryId: number;
+  rupeesPerUnit: number;
+}
+
+export interface AgentCommissionConfig {
+  id?: number;
+  chartId: number;
+  payableAccountId?: number | null;
+  expenseAccountId?: number | null;
+  rates: AgentCommissionTypeRate[];
+  overrides: AgentCommissionSkuOverride[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CommissionAdjustment {
+  id: string;
+  description: string;
+  amount: number;
+}
+
+export interface CommissionReportItemLine {
+  invoiceId: number;
+  invoiceNumber: number;
+  invoiceDate: string;
+  accountId: number;
+  accountName: string;
+  accountCode?: string | null;
+  inventoryId: number;
+  itemName: string;
+  itemDescription?: string | null;
+  itemTypeId: number | null;
+  itemTypeName: string;
+  quantity: number;
+  price: number;
+  discount: number;
+  netPrice: number | null;
+  chargedAmount: number;
+  rateType: 'normal_pct' | 'net_pct' | 'sku_override' | 'missing';
+  rateValue: number;
+  commissionAmount: number;
+}
+
+export interface CommissionReportBucket {
+  key: string;
+  title: string;
+  ruleType: 'normal_pct' | 'net_pct' | 'sku_override' | 'missing';
+  rateValue: number;
+  totalQty: number;
+  totalCharged: number;
+  totalCommission: number;
+  lines: CommissionReportItemLine[];
+}
+
+export interface AgentCommissionSettlement {
+  id: number;
+  chartId: number;
+  startDate: string;
+  endDate: string;
+  journalId?: number | null;
+  grossCommission: number;
+  adjustmentsJson: string;
+  adjustments?: CommissionAdjustment[];
+  netCommission: number;
+  snapshotJson: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AgentCommissionReport {
+  agentId: number;
+  agentName: string;
+  agentNameUrdu?: string | null;
+  payableAccountId?: number | null;
+  expenseAccountId?: number | null;
+  startDate: string;
+  endDate: string;
+  totalQty: number;
+  totalCharged: number;
+  grossCommission: number;
+  missingRateItemTypes: string[];
+  buckets: CommissionReportBucket[];
+  settlement?: AgentCommissionSettlement | null;
+}
+
+export interface PostCommissionSettlementPayload {
+  chartId: number;
+  startDate: string;
+  endDate: string;
+  postingDate: string;
+  payableAccountId: number;
+  expenseAccountId: number;
+  adjustments: CommissionAdjustment[];
+}

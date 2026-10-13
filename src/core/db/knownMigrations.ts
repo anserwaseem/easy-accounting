@@ -64,6 +64,7 @@ export const CORE_MIGRATION_NAMES: readonly string[] = [
   '044_heal_causality_sync_cursor',
   '045_invoice_net_rate_and_shipping',
   '046_recapture_invoice_net_and_shipping',
+  '047_agent_commissions',
 ];
 
 export function knownMigrationNames(): Set<string> {
