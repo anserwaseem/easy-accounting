@@ -38,7 +38,6 @@ const bodyCell = 'border border-border px-2 py-1.5';
 const writeCell = 'min-w-[4.5rem]';
 const tourCell = 'text-end tabular-nums whitespace-nowrap';
 const unpaidCell = 'bg-destructive/10';
-const untouredCell = 'bg-amber-100 dark:bg-amber-900/40';
 
 export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   rows,
@@ -109,8 +108,11 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             {showUntoured ? (
               <th
                 rowSpan={span}
-                className={cn(headCell, 'text-end whitespace-nowrap')}
-                title="Money received in this range on days no tour covers"
+                className={cn(
+                  headCell,
+                  'text-end whitespace-nowrap text-muted-foreground/80 bg-muted/30 font-normal',
+                )}
+                title="Money received in this range on days no tour covers (operator check)"
               >
                 {headers.untoured}
               </th>
@@ -188,11 +190,33 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               <td className={cn(bodyCell, 'text-end')}>
                 <Amount amount={row.balance} />
               </td>
-              <td className={cn(bodyCell, 'text-end')}>
-                <Amount amount={row.collected} />
+              <td
+                className={cn(
+                  bodyCell,
+                  'text-end',
+                  row.collected == null && 'text-muted-foreground/35',
+                )}
+                title={
+                  row.collected == null
+                    ? 'Collected amount credited on first bill row'
+                    : undefined
+                }
+              >
+                {row.collected == null ? (
+                  <span className="select-none">—</span>
+                ) : (
+                  <Amount amount={row.collected} />
+                )}
               </td>
               {tours.map((tour) => {
                 const paid = row.tourPaid[tour.id];
+                const isContinuation = paid === null;
+                let tourCellTitle: string | undefined;
+                if (isUnpaidTourCell(paid)) {
+                  tourCellTitle = 'Not paid';
+                } else if (isContinuation) {
+                  tourCellTitle = 'Tour receipt credited on first bill row';
+                }
                 return (
                   <td
                     key={tour.id}
@@ -200,10 +224,15 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       bodyCell,
                       tourCell,
                       isUnpaidTourCell(paid) && unpaidCell,
+                      isContinuation && 'text-muted-foreground/35',
                     )}
-                    title={isUnpaidTourCell(paid) ? 'Not paid' : undefined}
+                    title={tourCellTitle}
                   >
-                    {formatTourAmount(paid)}
+                    {isContinuation ? (
+                      <span className="select-none">—</span>
+                    ) : (
+                      formatTourAmount(paid)
+                    )}
                   </td>
                 );
               })}
@@ -212,8 +241,15 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                   className={cn(
                     bodyCell,
                     tourCell,
-                    isUntouredCell(row.untoured) && untouredCell,
+                    'text-muted-foreground',
+                    isUntouredCell(row.untoured) &&
+                      'bg-muted/40 text-foreground font-medium',
                   )}
+                  title={
+                    isUntouredCell(row.untoured)
+                      ? 'Receipt outside recorded tours'
+                      : undefined
+                  }
                 >
                   {formatTourAmount(row.untoured)}
                 </td>
@@ -244,7 +280,13 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               </td>
             ))}
             {showUntoured ? (
-              <td className={cn(bodyCell, tourCell)}>
+              <td
+                className={cn(
+                  bodyCell,
+                  tourCell,
+                  'text-muted-foreground/80 bg-muted/20 font-normal',
+                )}
+              >
                 {formatTourAmount(untouredTotal)}
               </td>
             ) : null}

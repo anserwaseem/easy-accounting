@@ -33,8 +33,6 @@ import {
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
-  collectionSheetUntouredTotal,
-  isUntouredCell,
   tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
@@ -54,7 +52,6 @@ type CollectionSheetExportRow = {
   billDate: string;
   difference: string;
   remaining: string;
-  untoured?: number | null;
 } & {
   // 0 on a shop's first row means it paid nothing that tour
   [key: TourExportKey]: number | null;
@@ -131,7 +128,10 @@ const CollectionSheetPage: React.FC = () => {
     language === 'ur'
       ? trim(selectedHead?.nameUrdu ?? '') || selectedHead?.name || ''
       : selectedHead?.name ?? '';
-  const subtitle = period;
+  const hasClippedTour = tours.some((t) => t.clipped);
+  const subtitle = hasClippedTour
+    ? `${period} (Tours marked '(part)' reflect receipts within this date range only)`
+    : period;
   const title = headName ? `${headers.title} - ${headName}` : headers.title;
 
   const canExport = !isLoading && rows.length > 0;
@@ -193,16 +193,6 @@ const CollectionSheetPage: React.FC = () => {
           format: 'currency' as const,
           width: 18,
         })),
-        ...(showUntoured
-          ? [
-              {
-                key: 'untoured' as const,
-                header: headers.untoured,
-                format: 'currency' as const,
-                width: 16,
-              },
-            ]
-          : []),
         {
           key: 'collection',
           header: headers.collection,
@@ -234,8 +224,6 @@ const CollectionSheetPage: React.FC = () => {
         billDate: row.billDate,
         difference: '',
         remaining: '',
-        // unlike a tour column, 0 here carries no meaning: leave it blank
-        untoured: isUntouredCell(row.untoured) ? row.untoured : null,
         ...Object.fromEntries(
           tours.map((tour) => [
             tourExportKey(tour.id),
@@ -247,10 +235,6 @@ const CollectionSheetPage: React.FC = () => {
         shop: headers.total,
         balance: totals.balance,
         collected: totals.collected,
-        untoured:
-          showUntoured && isUntouredCell(collectionSheetUntouredTotal(rows))
-            ? collectionSheetUntouredTotal(rows)
-            : null,
         ...Object.fromEntries(
           tours.map((tour) => [tourExportKey(tour.id), tourTotals[tour.id]]),
         ),
@@ -275,7 +259,6 @@ const CollectionSheetPage: React.FC = () => {
     subtitle,
     title,
     tours,
-    showUntoured,
   ]);
 
   const handlePrint = useCallback(() => {

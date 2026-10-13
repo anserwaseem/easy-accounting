@@ -4,11 +4,9 @@ import {
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
-  collectionSheetUntouredTotal,
   formatSheetAmount,
   formatTourAmount,
   isUnpaidTourCell,
-  isUntouredCell,
   tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
@@ -18,7 +16,7 @@ import {
 interface CollectionSheetPrintOptions {
   rows: CollectionSheetRow[];
   tours: CollectionSheetTourColumn[];
-  showUntoured: boolean;
+  showUntoured?: boolean;
   title: string;
   subtitle: string;
   language: CollectionSheetLanguage;
@@ -30,7 +28,7 @@ const cell = (value: string, extra = ''): string =>
 export const printCollectionSheetIframe = (
   options: CollectionSheetPrintOptions,
 ) => {
-  const { rows, tours, showUntoured, title, subtitle, language } = options;
+  const { rows, tours, title, subtitle, language } = options;
   if (rows.length === 0) return;
 
   const headers = collectionSheetHeaders(language);
@@ -43,20 +41,18 @@ export const printCollectionSheetIframe = (
   // fixed columns span both header rows when tour columns add a second one
   const span = tours.length > 0 ? ' rowspan="2"' : '';
   const tourCells = (row: CollectionSheetRow): string => {
-    const perTour = tours
+    return tours
       .map((tour) => {
         const paid = row.tourPaid[tour.id];
+        if (paid === null) {
+          return `<td class="num tour continuation">—</td>`;
+        }
         const unpaid = isUnpaidTourCell(paid) ? ' unpaid' : '';
         return `<td class="num tour${unpaid}">${escape(
           formatTourAmount(paid),
         )}</td>`;
       })
       .join('');
-    if (!showUntoured) return perTour;
-    const outside = isUntouredCell(row.untoured) ? ' untoured' : '';
-    return `${perTour}<td class="num tour${outside}">${escape(
-      formatTourAmount(row.untoured),
-    )}</td>`;
   };
   const body = rows
     .map((row) => {
@@ -68,6 +64,10 @@ export const printCollectionSheetIframe = (
         row.addressDisplay === '//'
           ? `<td${dittoClass}>//</td>`
           : cell(row.addressDisplay);
+      const collectedContent =
+        row.collected === null
+          ? `<span class="continuation">—</span>`
+          : escape(formatSheetAmount(row.collected));
       return `<tr>
         ${cell(String(row.serial), ' class="num"')}
         <td>${escape(row.shop)}</td>
@@ -76,7 +76,7 @@ export const printCollectionSheetIframe = (
         ${cell(row.billNumber, ' class="ltr fit" dir="ltr"')}
         ${cell(row.billDate, ' class="ltr fit" dir="ltr"')}
         <td class="num fit">${escape(formatSheetAmount(row.balance))}</td>
-        <td class="num">${escape(formatSheetAmount(row.collected))}</td>
+        <td class="num">${collectedContent}</td>
         ${tourCells(row)}
         <td class="write"></td>
         <td class="write"></td>
@@ -132,7 +132,7 @@ export const printCollectionSheetIframe = (
     th.write, td.write { min-width: 16mm; }
     th.tour, td.tour { white-space: nowrap; }
     td.unpaid { background: #ececec; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    td.untoured { font-weight: 600; text-decoration: underline; }
+    .continuation { color: #9e9e9e; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     tr { break-inside: avoid; }
   </style>
 </head>
@@ -153,11 +153,6 @@ export const printCollectionSheetIframe = (
         ${
           tours.length > 0
             ? `<th colspan="${tours.length}">${escape(headers.tours)}</th>`
-            : ''
-        }
-        ${
-          showUntoured
-            ? `<th class="num tour"${span}>${escape(headers.untoured)}</th>`
             : ''
         }
         <th class="write"${span}>${escape(headers.collection)}</th>
@@ -200,13 +195,6 @@ export const printCollectionSheetIframe = (
               )}</strong></td>`,
           )
           .join('')}
-        ${
-          showUntoured
-            ? `<td class="num tour"><strong>${escape(
-                formatTourAmount(collectionSheetUntouredTotal(rows)),
-              )}</strong></td>`
-            : ''
-        }
         <td class="write"></td>
         <td class="write"></td>
         <td class="write"></td>
