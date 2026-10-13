@@ -295,6 +295,8 @@ export class SyncEngine {
 
   private readonly duplicateSeedRejectedUuids = new Set<string>();
 
+  private readonly discardedDuplicateJournalUuids = new Set<string>();
+
   constructor(deps: {
     db: DatabaseDriver;
     transport: SyncTransport;
@@ -1982,6 +1984,15 @@ export class SyncEngine {
         { uuid: refUuid },
       );
       if (!resolved) {
+        if (
+          row.tableName === 'journal_entry' &&
+          column === 'journalId' &&
+          this.discardedDuplicateJournalUuids.has(String(refUuid))
+        ) {
+          // This journal_entry belongs to a journal discarded as a duplicate
+          return { discardedPlaceholder: false };
+        }
+
         if (fk.table === row.tableName) {
           // Self-referential FK: the parent is in the same table and has not
           // arrived yet (or arrived out of causal order). Insert the row with
@@ -2014,6 +2025,93 @@ export class SyncEngine {
 
     if (!columns.includes('uuid')) columns.push('uuid');
     params.uuid = row.rowUuid;
+
+    // Invariant guard: discard duplicate journal on the same invoice
+    if (
+      row.tableName === 'journal' &&
+      params.invoiceId != null &&
+      params.billNumber != null
+    ) {
+      const existingJournal = await this.db.get<{ uuid: string }>(
+        `SELECT j.uuid
+         FROM journal j
+         WHERE j.invoiceId = @invoiceId
+           AND j.billNumber = @billNumber
+           AND COALESCE(j.discountPercentage, -1) = COALESCE(@discountPercentage, -1)
+           AND j.uuid != @uuid
+         LIMIT 1`,
+        {
+          invoiceId: params.invoiceId,
+          billNumber: params.billNumber,
+          discountPercentage: params.discountPercentage ?? -1,
+          uuid: row.rowUuid,
+        },
+      );
+      if (existingJournal) {
+        this.logger.info(
+          `SyncEngine.applyRow: discarding duplicate journal row ${row.rowUuid} for invoice ${params.invoiceId} (billNumber ${params.billNumber})`,
+        );
+        this.discardedDuplicateJournalUuids.add(row.rowUuid);
+        return { discardedPlaceholder: false };
+      }
+    }
+
+    // Invariant guard: discard duplicate line item on the same invoice if already matching and exceeds total
+    if (
+      row.tableName === 'invoice_items' &&
+      params.invoiceId != null &&
+      params.inventoryId != null
+    ) {
+      const existingLine = await this.db.get<{
+        uuid: string;
+        invoiceTotal: number;
+        existingSum: number;
+      }>(
+        `SELECT a.uuid,
+                inv.totalAmount AS invoiceTotal,
+                COALESCE((
+                  SELECT SUM(ROUND(ii.quantity * ii.price * (1.0 - ii.discount / 100.0), 2))
+                  FROM invoice_items ii
+                  WHERE ii.invoiceId = a.invoiceId
+                ), 0) AS existingSum
+         FROM invoice_items a
+         JOIN invoices inv ON inv.id = a.invoiceId
+         WHERE a.invoiceId = @invoiceId
+           AND a.inventoryId = @inventoryId
+           AND a.quantity = @quantity
+           AND a.price = @price
+           AND a.discount = @discount
+           AND a.uuid != @uuid
+         LIMIT 1`,
+        {
+          invoiceId: params.invoiceId,
+          inventoryId: params.inventoryId,
+          quantity: params.quantity,
+          price: params.price,
+          discount: params.discount,
+          uuid: row.rowUuid,
+        },
+      );
+      if (existingLine) {
+        const incomingLineAmount =
+          Math.round(
+            Number(params.quantity) *
+              Number(params.price) *
+              (1.0 - Number(params.discount) / 100.0) *
+              100,
+          ) / 100;
+        if (
+          existingLine.existingSum >= existingLine.invoiceTotal ||
+          existingLine.existingSum + incomingLineAmount >
+            existingLine.invoiceTotal + 1.0
+        ) {
+          this.logger.info(
+            `SyncEngine.applyRow: discarding duplicate invoice_items row ${row.rowUuid} for invoice ${params.invoiceId} (item matches existing line and exceeds invoice totalAmount)`,
+          );
+          return { discardedPlaceholder: false };
+        }
+      }
+    }
 
     const quoted = columns.map((c) => `"${c}"`).join(', ');
     const placeholders = columns.map((c) => `@${c}`).join(', ');
