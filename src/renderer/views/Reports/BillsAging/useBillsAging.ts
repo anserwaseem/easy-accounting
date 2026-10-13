@@ -291,12 +291,17 @@ export const useBillsAging = () => {
             const billNumber =
               summary?.billNumber != null ? String(summary.billNumber) : '-';
             const billPercentage = summary?.discountPercentage ?? '-';
+            const invoiceId =
+              summary?.invoiceId != null && summary.invoiceId > 0
+                ? summary.invoiceId
+                : undefined;
             const billDate = (entries as LedgerView[])[0].date; // use first entry date
             const billAmount = sumBy(entries as LedgerView[], 'debit');
 
             bills.push({
               billNumber,
               billPercentage,
+              invoiceId,
               billDate,
               billAmount,
               receipts: [],

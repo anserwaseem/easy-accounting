@@ -42,6 +42,7 @@ import VendorStockActivityPage from './views/Reports/VendorStockActivity';
 import ImportPage from './views/Import';
 import JoinSyncPage from './views/JoinSync';
 import CollectionSheetPage from './views/Reports/CollectionSheet';
+import AgentCommissionReportPage from './views/Reports/AgentCommission';
 
 const AppRoutes: React.FC = () => {
   const [joinInvite] = useState(() => consumeJoinHashFromWindow());
@@ -120,6 +121,10 @@ const AppRoutes: React.FC = () => {
                   <Route
                     path="vendor-stock-activity"
                     element={<VendorStockActivityPage />}
+                  />
+                  <Route
+                    path="agent-commission"
+                    element={<AgentCommissionReportPage />}
                   />
                 </Route>
                 <Route path="purchase/invoices">

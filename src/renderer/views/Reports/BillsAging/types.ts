@@ -7,6 +7,8 @@ export interface BillReceipt {
 export interface BillItem {
   billNumber: string;
   billPercentage: number | string;
+  /** posted invoice, when this bill came from one */
+  invoiceId?: number;
   billDate: string;
   billAmount: number;
   receipts: BillReceipt[];

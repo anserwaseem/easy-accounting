@@ -274,7 +274,8 @@ export interface Journal extends Omit<BaseEntity, 'date'> {
   narration?: string;
   isPosted: boolean;
   billNumber?: number;
-  discountPercentage?: number;
+  /** profile percent, `N` (all typed), or `N·20` (typed lines beside one profile percent) */
+  discountPercentage?: number | string;
   /** set when journal is created from an invoice; null/undefined for manual journals */
   invoiceId?: number | null;
   journalEntries: JournalEntry[];
@@ -289,7 +290,9 @@ export type UpdateJournalFields = Pick<
 export type JournalNarrationSummary = {
   narration: string;
   billNumber?: number;
-  discountPercentage?: number;
+  discountPercentage?: number | string;
+  /** invoice this journal was posted from, when the bill has one */
+  invoiceId?: number | null;
 };
 
 export type HasMiniView = {
@@ -571,6 +574,8 @@ export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
   inventoryId: number;
   quantity: number; // will be provided by UI
   discount: number; // will be provided by UI
+  /** null unless this line charges a typed unit. `price` stays the catalog price */
+  netPrice?: number;
   invoiceId?: number; // will be assigned at service layer
   price?: number; // will be fetched at service layer
   discountedPrice?: number; // will be calculated at service layer
@@ -582,6 +587,10 @@ export type Invoice = Prettify<
     extraDiscount?: number; // will be provided by UI
     /** when extraDiscount > 0, the invoice account whose receivable is reduced by that amount */
     extraDiscountAccountId?: number;
+    /** flat shipping added once to the bill */
+    shippingCharges?: number;
+    /** when shippingCharges > 0 and the bill is split, the account that bears it */
+    shippingAccountId?: number;
     biltyNumber?: string; // will be provided by UI
     cartons?: number; // will be provided by UI
     totalAmount?: number; // will be calculated at service layer
@@ -622,6 +631,8 @@ export type InvoiceItemView = {
   price: number;
   quantity: number;
   discount: number;
+  /** null unless this line charges a typed unit. `price` stays the catalog price */
+  netPrice?: number | null;
   itemTypeName?: string | null;
   inventoryItemName: string;
   inventoryId?: number;
@@ -644,6 +655,8 @@ export type InvoiceView = Prettify<
     invoiceHeaderAccountId?: number;
     /** persisted for edit round-trip when extra discount applies */
     extraDiscountAccountId?: number | null;
+    shippingCharges?: number;
+    shippingAccountId?: number | null;
     accountAddress?: string | null;
     accountAddressUrdu?: string | null;
     accountGoodsName?: string | null;
@@ -722,3 +735,111 @@ export type BackupOperationProgressEvent = {
   type: BackupOperationTransferType;
   message: string;
 };
+
+// ==========================================
+// Agent Commission Types
+// ==========================================
+
+export interface AgentCommissionTypeRate {
+  itemTypeId: number;
+  percent: number;
+  netRatePercent: number;
+  normalCommissionPct?: number;
+  netRateCommissionPct?: number;
+}
+
+export interface AgentCommissionSkuOverride {
+  inventoryId: number;
+  rupeesPerUnit: number;
+}
+
+export interface AgentCommissionConfig {
+  id?: number;
+  chartId: number;
+  payableAccountId?: number | null;
+  expenseAccountId?: number | null;
+  rates: AgentCommissionTypeRate[];
+  overrides: AgentCommissionSkuOverride[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CommissionAdjustment {
+  id: string;
+  description: string;
+  amount: number;
+}
+
+export interface CommissionReportItemLine {
+  invoiceId: number;
+  invoiceNumber: number;
+  invoiceDate: string;
+  accountId: number;
+  accountName: string;
+  accountCode?: string | null;
+  inventoryId: number;
+  itemName: string;
+  itemDescription?: string | null;
+  itemTypeId: number | null;
+  itemTypeName: string;
+  quantity: number;
+  price: number;
+  discount: number;
+  netPrice: number | null;
+  chargedAmount: number;
+  rateType: 'normal_pct' | 'net_pct' | 'sku_override' | 'missing';
+  rateValue: number;
+  commissionAmount: number;
+}
+
+export interface CommissionReportBucket {
+  key: string;
+  title: string;
+  ruleType: 'normal_pct' | 'net_pct' | 'sku_override' | 'missing';
+  rateValue: number;
+  totalQty: number;
+  totalCharged: number;
+  totalCommission: number;
+  lines: CommissionReportItemLine[];
+}
+
+export interface AgentCommissionSettlement {
+  id: number;
+  chartId: number;
+  startDate: string;
+  endDate: string;
+  journalId?: number | null;
+  grossCommission: number;
+  adjustmentsJson: string;
+  adjustments?: CommissionAdjustment[];
+  netCommission: number;
+  snapshotJson: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AgentCommissionReport {
+  agentId: number;
+  agentName: string;
+  agentNameUrdu?: string | null;
+  payableAccountId?: number | null;
+  expenseAccountId?: number | null;
+  startDate: string;
+  endDate: string;
+  totalQty: number;
+  totalCharged: number;
+  grossCommission: number;
+  missingRateItemTypes: string[];
+  buckets: CommissionReportBucket[];
+  settlement?: AgentCommissionSettlement | null;
+}
+
+export interface PostCommissionSettlementPayload {
+  chartId: number;
+  startDate: string;
+  endDate: string;
+  postingDate: string;
+  payableAccountId: number;
+  expenseAccountId: number;
+  adjustments: CommissionAdjustment[];
+}

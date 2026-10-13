@@ -18,6 +18,10 @@ import { Checkbox } from 'renderer/shad/ui/checkbox';
 import { Label } from 'renderer/shad/ui/label';
 import { Separator } from '@/renderer/shad/ui/separator';
 import {
+  formatJournalDiscountLabel,
+  profilePercentFromJournalLabel,
+} from '@/lib/journalDiscountLabel';
+import {
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -98,7 +102,7 @@ const buildBillsAgingExportPayload = (
       headName: showHeadNames ? row.headName : undefined,
       billNumber: row.billNumber,
       billDate: format(new Date(row.billDate), 'dd/MM/yy'),
-      billPercentage: row.billPercentage,
+      billPercentage: formatJournalDiscountLabel(row.billPercentage),
       balance: row.balance,
       daysStatus: daysStatusText,
     };
@@ -211,13 +215,7 @@ const BillsAgingPage = () => {
     (billPercentage: number | string) => {
       if (discountPreset === 'all') return true;
 
-      let numericPct: number | null = null;
-      if (typeof billPercentage === 'number') {
-        numericPct = billPercentage;
-      } else if (typeof billPercentage === 'string') {
-        const parsed = parseFloat(billPercentage.replace('%', '').trim());
-        if (Number.isFinite(parsed)) numericPct = parsed;
-      }
+      const numericPct = profilePercentFromJournalLabel(billPercentage);
 
       const targetMin =
         discountPreset === 'custom'
@@ -361,18 +359,10 @@ const BillsAgingPage = () => {
         const getMaxDiscount = (acc: typeof a) => {
           if (acc.bills.length === 0) return 0;
           return Math.max(
-            ...acc.bills.map((bill) => {
-              if (typeof bill.billPercentage === 'number') {
-                return bill.billPercentage;
-              }
-              if (typeof bill.billPercentage === 'string') {
-                const parsed = parseFloat(
-                  bill.billPercentage.replace('%', '').trim(),
-                );
-                return Number.isFinite(parsed) ? parsed : 0;
-              }
-              return 0;
-            }),
+            ...acc.bills.map(
+              (bill) =>
+                profilePercentFromJournalLabel(bill.billPercentage) ?? 0,
+            ),
           );
         };
         const discDiff = getMaxDiscount(b) - getMaxDiscount(a);

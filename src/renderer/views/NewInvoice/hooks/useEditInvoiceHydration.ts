@@ -38,6 +38,7 @@ export const buildPrefillFromInvoiceView = (
     quantity: it.quantity,
     discount: it.discount,
     price: it.price,
+    netPrice: it.netPrice ?? undefined,
     discountedPrice:
       it.discountedPrice ??
       computeInvoiceItemTotal(it.quantity, it.discount, it.price),
@@ -201,6 +202,8 @@ export const useEditInvoiceHydration = ({
         invoiceNumber: inv.invoiceNumber,
         extraDiscount: toNumber(inv.extraDiscount) || 0,
         extraDiscountAccountId: inv.extraDiscountAccountId ?? undefined,
+        shippingCharges: toNumber(inv.shippingCharges) || 0,
+        shippingAccountId: inv.shippingAccountId ?? undefined,
         totalAmount: toNumber(inv.totalAmount),
         invoiceItems: lineItems,
         invoiceType,

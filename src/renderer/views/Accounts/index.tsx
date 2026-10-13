@@ -29,6 +29,7 @@ import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
 import { AccountPricingSheet } from './AccountPricing';
+import { AgentCommissionSheet } from './AgentCommissionSheet';
 import { ImportExportAccountUrdu } from './ImportExportAccountUrdu';
 import {
   AccountFilterMenu,
@@ -235,6 +236,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     [],
   );
   const [pricingAccountId, setPricingAccountId] = useState<number | null>(null);
+  const [showCommissionSheet, setShowCommissionSheet] = useState(false);
   const [newDialog, setNewDialog] = useState<'account' | 'head' | null>(null);
   const navigate = useNavigate();
 
@@ -639,6 +641,11 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => setShowCommissionSheet(true)}
+                    >
+                      Agent Commissions
+                    </DropdownMenuItem>
                     <ImportExportAccountUrdu
                       accounts={accounts}
                       refetchAccounts={refetchAccounts}
@@ -716,6 +723,12 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           if (!nextOpen) setPricingAccountId(null);
         }}
         onUpdated={refetchAccounts}
+      />
+      <AgentCommissionSheet
+        open={showCommissionSheet}
+        onOpenChange={setShowCommissionSheet}
+        charts={charts}
+        accounts={accounts}
       />
     </div>
   );

@@ -79,6 +79,9 @@ import type {
   VendorIssueView,
   VendorStockActivityFilters,
   VendorStockActivityResponse,
+  AgentCommissionConfig,
+  AgentCommissionReport,
+  PostCommissionSettlementPayload,
 } from '../../types';
 
 /*
@@ -756,4 +759,21 @@ export interface AppApi {
   deleteSetting: (key: string) => Promise<void>;
   /** Every stored business setting, parsed, keyed by name. */
   getAllSettings: () => Promise<Record<string, unknown>>;
+
+  // ---------------------------------------------------------------------
+  // Agent Commissions (src/core/services/CommissionService.ts, migration 047)
+  // ---------------------------------------------------------------------
+  commissionGetConfig: (
+    chartId: number,
+  ) => Promise<AgentCommissionConfig | null>;
+  commissionSaveConfig: (config: AgentCommissionConfig) => Promise<boolean>;
+  commissionGetReport: (
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) => Promise<AgentCommissionReport>;
+  commissionPostSettlement: (
+    payload: PostCommissionSettlementPayload,
+  ) => Promise<{ settlementId: number; journalId: number }>;
+  commissionUnpostSettlement: (settlementId: number) => Promise<boolean>;
 }

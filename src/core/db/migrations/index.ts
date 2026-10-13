@@ -15,6 +15,10 @@ import { migration041 } from './041_seed_existing_business_data_outbox';
 import { migration042 } from './042_backfill_inventory_baseline';
 import { migration043 } from './043_fix_insert_timestamp_triggers';
 import { migration044 } from './044_heal_causality_sync_cursor';
+import { migration045 } from './045_invoice_net_rate_and_shipping';
+import { migration046 } from './046_recapture_invoice_net_and_shipping';
+import { migration047 } from './047_agent_commissions';
+import { migration048 } from './048_heal_duplicate_invoice_lines';
 import { migration049 } from './049_agent_tours';
 
 /**
@@ -27,8 +31,13 @@ import { migration049 } from './049_agent_tours';
  * 2. Web / empty DB: snapshot of `001`–`028`, then this array.
  *
  * Do not add `src/main/migrations/*.js`. Append here, next unused `name`
- * (`046_…`), list it in `CORE_MIGRATION_NAMES`. Both platforms pick it up
+ * (`050_…`), list it in `CORE_MIGRATION_NAMES`. Both platforms pick it up
  * via `bootstrapDatabase`.
+ *
+ * A new column on a replicated table is not synced until that same
+ * migration drops and rebuilds `trg_sync_capture_<table>_*` via
+ * `createCaptureTriggers`, then re-emits the rows that hold the value.
+ * See `046_recapture_invoice_net_and_shipping.ts`.
  *
  * Desktop `024.js`–`028.js` and CORE `029_…`–`040_…` do not share prefixes.
  * Compare the full `name` string anyway — that is the identity.
@@ -55,5 +64,9 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration042,
   migration043,
   migration044,
+  migration045,
+  migration046,
+  migration047,
+  migration048,
   migration049,
 ];

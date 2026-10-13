@@ -1,8 +1,13 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { getFormattedCurrency } from 'renderer/lib/utils';
+import {
+  chargedUnitPrice,
+  lineHasNetPrice,
+  netRateOffer,
+} from '@/lib/invoiceLineAmount';
 import { toNumber, toString } from 'lodash';
-import { X } from 'lucide-react';
-import { useMemo } from 'react';
+import { X, Tags } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import {
   useWatch,
   type Control,
@@ -18,11 +23,264 @@ import {
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import { Badge } from 'renderer/shad/ui/badge';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from 'renderer/shad/ui/popover';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { InvoiceType } from 'types';
 import type { ColumnDef } from 'renderer/shad/ui/dataTable';
 import type { InvoiceItem, InventoryItem } from 'types';
 import type { CustomerSection } from '../components/CustomerSectionsBlock';
+
+interface PriceListOption {
+  id: number;
+  name: string;
+  isActive?: number | boolean;
+}
+
+interface SalePriceCellProps<T extends FieldValues> {
+  form: { control: Control<T>; getValues: (name?: string) => unknown };
+  rowIndex: number;
+  item: InventoryItem | undefined;
+  onApplyNetRate: (rowIndex: number, netPrice: number) => void;
+  onClearNetPrice: (rowIndex: number) => void;
+}
+
+/** charged unit in the price column. a net rate also shows the catalog price and the percent off it, on screen only. */
+const SalePriceCell = <T extends FieldValues>({
+  form,
+  rowIndex,
+  item,
+  onApplyNetRate,
+  onClearNetPrice,
+}: SalePriceCellProps<T>) => {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [lists, setLists] = useState<PriceListOption[] | null>(null);
+  const price = useWatch({
+    control: form.control,
+    name: `invoiceItems.${rowIndex}.price` as Path<T>,
+  });
+  const netPrice = useWatch({
+    control: form.control,
+    name: `invoiceItems.${rowIndex}.netPrice` as Path<T>,
+  });
+  const discount = useWatch({
+    control: form.control,
+    name: `invoiceItems.${rowIndex}.discount` as Path<T>,
+  });
+  const typedNet = typeof netPrice === 'number' ? netPrice : null;
+  const offer = netRateOffer({
+    price: typeof price === 'number' ? price : null,
+    netPrice: typedNet,
+    discount: typeof discount === 'number' ? discount : null,
+  });
+  const charged = chargedUnitPrice({
+    price: typeof price === 'number' ? price : null,
+    netPrice: typedNet,
+  });
+
+  const listChoices = (lists ?? []).flatMap((list) => {
+    if (list.isActive === 0 || list.isActive === false) return [];
+    const listPrice = item?.listPrices?.[list.id];
+    if (listPrice == null || !(listPrice > 0)) return [];
+    return [{ id: list.id, name: list.name, price: listPrice }];
+  });
+
+  return (
+    <div className={`flex gap-1 ${offer ? 'items-start' : 'items-center'}`}>
+      <div className="flex min-w-0 flex-col leading-tight">
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {Number.isFinite(charged)
+            ? getFormattedCurrency(toNumber(charged))
+            : '—'}
+        </span>
+        {offer ? (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {offer.fullPrice.toFixed(2)} · {offer.discount}%
+          </span>
+        ) : null}
+      </div>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next || lists) return;
+          window.electron
+            .getPriceLists()
+            .then((rows) => setLists(rows))
+            .catch((error: unknown) => {
+              console.error('Error loading price lists', error);
+              setLists([]);
+            });
+        }}
+      >
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 shrink-0 px-0"
+            aria-label="Set a net rate"
+            title="Set a net rate, or pick from a price list"
+          >
+            <Tags size={14} />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-56 p-3">
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium">Net rate</span>
+            <Input
+              aria-label="Net rate"
+              className="h-8"
+              type="number"
+              min={0}
+              step="any"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <Button
+              type="button"
+              size="sm"
+              className="h-8"
+              onClick={() => {
+                const net = toNumber(draft);
+                if (!(net > 0)) return;
+                onApplyNetRate(rowIndex, net);
+                setOpen(false);
+              }}
+            >
+              Apply net rate
+            </Button>
+            {listChoices.length > 0 ? (
+              <div className="flex flex-col gap-1 border-t pt-2">
+                {listChoices.map((choice) => (
+                  <Button
+                    key={choice.id}
+                    type="button"
+                    variant="ghost"
+                    className="h-8 justify-between px-2 text-sm"
+                    onClick={() => {
+                      onApplyNetRate(rowIndex, choice.price);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="truncate">{choice.name}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {choice.price}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {lineHasNetPrice(typeof netPrice === 'number' ? netPrice : null) ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => {
+                  onClearNetPrice(rowIndex);
+                  setOpen(false);
+                }}
+              >
+                Use profile discount
+              </Button>
+            ) : null}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+};
+
+/** a net rate leaves the discount cell blank. the percent stays on the price cell, not here and not on the print. */
+const SaleDiscountCell = <T extends FieldValues>({
+  form,
+  rowIndex,
+  isDiscountEditEnabled,
+  enableCumulativeDiscount,
+  manualDiscountRows,
+  getDiscountValue,
+  onDiscountChange,
+  onResetDiscountToAuto,
+}: {
+  form: { control: Control<T>; getValues: (name?: string) => unknown };
+  rowIndex: number;
+  isDiscountEditEnabled: boolean;
+  enableCumulativeDiscount: boolean;
+  manualDiscountRows: Record<number, boolean>;
+  getDiscountValue: (fieldValue: number) => number;
+  onDiscountChange: (
+    rowIndex: number,
+    value: string,
+    onChange: (value: unknown) => void,
+  ) => void;
+  onResetDiscountToAuto: (rowIndex: number) => void;
+}) => {
+  const typedNet = useWatch({
+    control: form.control,
+    name: `invoiceItems.${rowIndex}.netPrice` as Path<T>,
+  });
+  if (lineHasNetPrice(typeof typedNet === 'number' ? typedNet : null)) {
+    return null;
+  }
+  return (
+    <FormField
+      control={form.control}
+      name={`invoiceItems.${rowIndex}.discount` as Path<T>}
+      render={({ field }) => (
+        <FormItem className="space-y-0">
+          <FormControl>
+            <div className="flex items-center gap-1.5">
+              {!isDiscountEditEnabled || enableCumulativeDiscount ? (
+                <p className="text-sm leading-tight text-muted-foreground tabular-nums">
+                  {getDiscountValue(field.value as number)}%
+                </p>
+              ) : (
+                <Input
+                  className="my-0 h-8"
+                  value={getDiscountValue(field.value as number)}
+                  type="number"
+                  step="any"
+                  min={0}
+                  max={100}
+                  onBlur={(event) =>
+                    field.onChange(toNumber(event.target.value))
+                  }
+                  onChange={(event) =>
+                    onDiscountChange(
+                      rowIndex,
+                      event.target.value,
+                      field.onChange,
+                    )
+                  }
+                />
+              )}
+              {isDiscountEditEnabled &&
+              manualDiscountRows[
+                form.getValues(`invoiceItems.${rowIndex}.id`) as number
+              ] ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 px-2 text-xs"
+                  onClick={() => onResetDiscountToAuto(rowIndex)}
+                >
+                  Auto
+                </Button>
+              ) : null}
+            </div>
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+};
 
 /** line-item row height; child input/button fill shell so empty + selected states match customer control proportions */
 const compactLineSelectTrigger =
@@ -67,6 +325,8 @@ interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
     value: string,
     onChange: (value: unknown) => void,
   ) => void;
+  onApplyNetRate: (rowIndex: number, netPrice: number) => void;
+  onClearNetPrice: (rowIndex: number) => void;
   renderDiscountedPrice: (
     rowIndex: number,
     fieldValue?: number,
@@ -209,6 +469,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     handleRemoveRow,
     getDiscountValue,
     onDiscountChange,
+    onApplyNetRate,
+    onClearNetPrice,
     renderDiscountedPrice,
     onResetDiscountToAuto,
     applyAutoDiscountForRow,
@@ -345,85 +607,36 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       const priceColumns: ColumnDef<InvoiceItem>[] = [
         {
           header: 'Price',
-          size: 100,
-          minSize: 80,
+          size: 120,
+          minSize: 108,
           cell: ({ row }) => (
-            <FormField
-              control={form.control}
-              name={`invoiceItems.${row.index}.price` as Path<T>}
-              render={({ field }) => (
-                <FormItem className="space-y-0">
-                  <FormControl>
-                    <p className="text-sm leading-tight text-muted-foreground tabular-nums">
-                      {typeof field.value === 'number' && field.value >= 0
-                        ? getFormattedCurrency(toNumber(field.value))
-                        : '—'}
-                    </p>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+            <SalePriceCell<T>
+              form={form}
+              rowIndex={row.index}
+              item={inventoryById.get(
+                toNumber(
+                  form.getValues(`invoiceItems.${row.index}.inventoryId`),
+                ),
               )}
+              onApplyNetRate={onApplyNetRate}
+              onClearNetPrice={onClearNetPrice}
             />
           ),
         },
         {
           header: 'Disc',
-          size: isDiscountEditEnabled ? 120 : 40,
-          minSize: isDiscountEditEnabled ? 102 : 36,
+          size: isDiscountEditEnabled ? 120 : 72,
+          minSize: isDiscountEditEnabled ? 102 : 64,
           cell: ({ row }) => (
-            <FormField
-              control={form.control}
-              name={`invoiceItems.${row.index}.discount` as Path<T>}
-              render={({ field }) => (
-                <FormItem className="space-y-0">
-                  <FormControl>
-                    <div className="flex items-center gap-1.5">
-                      {!isDiscountEditEnabled || enableCumulativeDiscount ? (
-                        <p className="text-sm leading-tight text-muted-foreground tabular-nums">
-                          {getDiscountValue(field.value)}%
-                        </p>
-                      ) : (
-                        <Input
-                          {...field}
-                          className="my-0 h-8"
-                          value={getDiscountValue(field.value)}
-                          type="number"
-                          step="any"
-                          min={0}
-                          max={100}
-                          onBlur={(e) =>
-                            field.onChange(toNumber(e.target.value))
-                          }
-                          onChange={(e) =>
-                            onDiscountChange(
-                              row.index,
-                              e.target.value,
-                              field.onChange,
-                            )
-                          }
-                        />
-                      )}
-                      {isDiscountEditEnabled &&
-                        manualDiscountRows[
-                          form.getValues(
-                            `invoiceItems.${row.index}.id`,
-                          ) as number
-                        ] && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 shrink-0 px-2 text-xs"
-                            onClick={() => onResetDiscountToAuto(row.index)}
-                          >
-                            Auto
-                          </Button>
-                        )}
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+            <SaleDiscountCell<T>
+              form={form}
+              rowIndex={row.index}
+              isDiscountEditEnabled={isDiscountEditEnabled}
+              enableCumulativeDiscount={enableCumulativeDiscount}
+              manualDiscountRows={manualDiscountRows}
+              getDiscountValue={getDiscountValue}
+              onDiscountChange={onDiscountChange}
+              onResetDiscountToAuto={onResetDiscountToAuto}
             />
           ),
         },
@@ -552,6 +765,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     handleRemoveRow,
     getDiscountValue,
     onDiscountChange,
+    onApplyNetRate,
+    onClearNetPrice,
     renderDiscountedPrice,
     onResetDiscountToAuto,
     applyAutoDiscountForRow,

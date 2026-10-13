@@ -13,6 +13,7 @@ import {
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import type {
   HasMiniView,
   Journal,
@@ -141,9 +142,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
               accessorKey: 'discountPercentage',
               header: 'Dis',
               cell: ({ row }) =>
-                row.original.discountPercentage
-                  ? `${row.original.discountPercentage}%`
-                  : '-',
+                formatJournalDiscountLabel(row.original.discountPercentage),
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               size: 70,
             },

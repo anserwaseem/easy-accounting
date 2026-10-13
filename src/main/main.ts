@@ -12,7 +12,7 @@ import nodeCrypto from 'crypto';
 import { app, BrowserWindow, dialog, shell, ipcMain } from 'electron';
 import log from 'electron-log';
 import installer, { REACT_DEVELOPER_TOOLS } from 'electron-extension-installer';
-import { isNil } from 'lodash';
+import { isNil, size } from 'lodash';
 import { addDays, format, parse } from 'date-fns';
 import QRCode from 'qrcode';
 import type {
@@ -45,6 +45,8 @@ import type {
   VendorStockOpeningRow,
   VendorStockActivityFilters,
   InvoiceType,
+  AgentCommissionConfig,
+  PostCommissionSettlementPayload,
 } from '../types';
 import { parseAttributeKeyList } from './utils/catalog';
 import MenuBuilder from './menu';
@@ -319,6 +321,7 @@ app
       inventoryService,
       invoiceService,
       vendorStockService,
+      commissionService,
       settingsService,
     } = createCoreServices();
     const printService = new PrintService();
@@ -360,7 +363,11 @@ app
     }
 
     try {
-      await syncManager.bootIfConfigured();
+      // same session signal the renderer's useAuth reads; logged out means
+      // the login screen, where polling would only burn Supabase egress
+      await syncManager.bootIfConfigured({
+        startLoop: size(store.get('username') as string | undefined) > 0,
+      });
     } catch (err) {
       log.warn('Sync boot failed:', err);
     }
@@ -507,6 +514,7 @@ app
       return authService.register(user);
     });
     ipcMain.handle('auth:logout', async () => {
+      syncManager.pauseBackgroundLoop();
       return AuthService.logout();
     });
     // read-only metadata for the sidebar staleness indicator; takes no
@@ -1194,6 +1202,34 @@ app
       'vendorStock:getActivity',
       async (_, filters: VendorStockActivityFilters) =>
         vendorStockService.getActivity(filters),
+    );
+
+    ipcMain.handle('commission:getConfig', async (_, chartId: number) =>
+      commissionService.getCommissionConfig(chartId),
+    );
+
+    ipcMain.handle(
+      'commission:saveConfig',
+      async (_, config: AgentCommissionConfig) =>
+        commissionService.saveCommissionConfig(config),
+    );
+
+    ipcMain.handle(
+      'commission:getReport',
+      async (_, chartId: number, startDate: string, endDate: string) =>
+        commissionService.getCommissionReport(chartId, startDate, endDate),
+    );
+
+    ipcMain.handle(
+      'commission:postSettlement',
+      async (_, payload: PostCommissionSettlementPayload) =>
+        commissionService.postCommissionSettlement(payload),
+    );
+
+    ipcMain.handle(
+      'commission:unpostSettlement',
+      async (_, settlementId: number) =>
+        commissionService.unpostCommissionSettlement(settlementId),
     );
 
     createWindow();

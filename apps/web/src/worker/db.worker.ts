@@ -93,6 +93,7 @@ import { StatementService } from '@core/services/StatementService';
 import { InvoiceService } from '@core/services/InvoiceService';
 import { SettingsService } from '@core/services/SettingsService';
 import { VendorStockService } from '@core/services/VendorStockService';
+import { CommissionService } from '@core/services/CommissionService';
 import { repairInvoiceEditedTimestamps } from '@core/sync/repairInvoiceTimestamps';
 import { INITIAL_CHARTS } from '@core/utils/constants';
 import { enrichLedgerRowsWithJournalSummaries } from '@core/utils/ledgerJournalEnrichment';
@@ -446,6 +447,14 @@ async function main(): Promise<void> {
   });
   await syncManager.bootIfConfigured({ startLoop: false });
 
+  // every path that ends the session (logout, import, rebuild) goes through
+  // here so none of them leaves the background poll running on Login
+  const clearSession = async (): Promise<void> => {
+    currentUsername = undefined;
+    await webKv.deleteAwaited('username');
+    syncManager.pauseBackgroundLoop();
+  };
+
   // Session: which user is "logged in" right now. Sourced from web_kv's
   // 'username' key (durable across page reloads, the web counterpart of
   // desktop's electron-store-backed `store.get('username')` — see
@@ -491,6 +500,10 @@ async function main(): Promise<void> {
     vendorStockService,
   });
   const settingsService = new SettingsService({ db: driver });
+  const commissionService = new CommissionService({
+    db: driver,
+    journalService,
+  });
 
   // One-time, per-device migration of the publish feature's eleven
   // non-secret connection fields out of web_kv into the settings table
@@ -607,10 +620,7 @@ async function main(): Promise<void> {
       await chartService.insertCharts(credentials.username, INITIAL_CHARTS);
       return true;
     },
-    logout: async () => {
-      currentUsername = undefined;
-      await webKv.deleteAwaited('username');
-    },
+    logout: clearSession,
 
     // -- "Bring your database" import (see src/core/db/import.ts) ----------
     //
@@ -647,8 +657,7 @@ async function main(): Promise<void> {
         if (!validation.ok) return validation;
 
         const summary = await runImportDatabase({ source, target: driver });
-        currentUsername = undefined;
-        await webKv.deleteAwaited('username');
+        await clearSession();
         return { ok: true, ...summary };
       } finally {
         sourceDb.close();
@@ -1196,6 +1205,26 @@ async function main(): Promise<void> {
     deleteSetting: (key) => settingsService.delete(key as string),
     getAllSettings: () => settingsService.getAll(),
 
+    // -- Commission (src/core/services/CommissionService.ts, migration 047) -
+    commissionGetConfig: (chartId) =>
+      commissionService.getCommissionConfig(chartId as number),
+    commissionSaveConfig: (config) =>
+      commissionService.saveCommissionConfig(
+        config as Parameters<CommissionService['saveCommissionConfig']>[0],
+      ),
+    commissionGetReport: (chartId, startDate, endDate) =>
+      commissionService.getCommissionReport(
+        chartId as number,
+        startDate as string,
+        endDate as string,
+      ),
+    commissionPostSettlement: (payload) =>
+      commissionService.postCommissionSettlement(
+        payload as Parameters<CommissionService['postCommissionSettlement']>[0],
+      ),
+    commissionUnpostSettlement: (settlementId) =>
+      commissionService.unpostCommissionSettlement(settlementId as number),
+
     // -- Publish (./publishConfig.ts + ./publishService.ts) ----------------
     getPublishConfig: () => getWebPublishConfig(webKv, settingsService),
     savePublishConfig: (input) =>
@@ -1254,8 +1283,7 @@ async function main(): Promise<void> {
     'sync:rebuild': async () => {
       const result = await syncManager.rebuild();
       if (result.ok) {
-        currentUsername = undefined;
-        await webKv.deleteAwaited('username');
+        await clearSession();
       }
       return result;
     },

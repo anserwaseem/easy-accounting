@@ -13,6 +13,7 @@ const INVENTORY_PICK = [
   'itemTypeId',
   'itemTypeName',
   'listPosition',
+  'listPrices',
 ] as const;
 
 function filterInventoryForInvoice(

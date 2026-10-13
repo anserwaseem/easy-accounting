@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Users,
   ClipboardList,
+  Percent,
 } from 'lucide-react';
 import { Card } from 'renderer/shad/ui/card';
 import { Alert, AlertDescription, AlertTitle } from 'renderer/shad/ui/alert';
@@ -63,6 +64,13 @@ const accountingReports: ReportOption[] = [
       'Agent route sheet for a date range. Balance, collections, and sale bills. Blank columns for the trip.',
     path: '/reports/collection-sheet',
     icon: <ClipboardList className="h-6 w-6" />,
+  },
+  {
+    title: 'Agent Commissions',
+    description:
+      'Commission statement and settlement posting by agent head and date range.',
+    path: '/reports/agent-commission',
+    icon: <Percent className="h-6 w-6" />,
   },
 ];
 

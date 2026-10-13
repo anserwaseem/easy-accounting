@@ -341,6 +341,15 @@ export class SyncManager {
 
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /**
+   * true while nobody is signed in on this device. The steady 30s poll is
+   * not re-armed (see {@link scheduleNext}) — a logged-out device left open
+   * on the login screen would otherwise poll Supabase all day for nothing.
+   * Explicit actions (join, a write that queued outbox rows) still run a
+   * cycle; they just do not leave a timer behind.
+   */
+  private paused = false;
+
   constructor(deps: {
     db: DatabaseDriver;
     kv: SyncKv;
@@ -377,10 +386,14 @@ export class SyncManager {
 
   /** Starts the background loop on worker boot if a config was already persisted from a prior session — the "reload -> still connected" story. No-op if nothing was ever connected.
    *  `startLoop: false` still restores the transport (Settings can show
-   *  Connected) but does not kick a syncOnce. Used on a logged-out boot so
-   *  Safari Login is not competing with a 288k-row pull; {@link startLoop}
-   *  runs after a successful `auth:login`. */
+   *  Connected) but does not kick a syncOnce, and leaves the loop paused
+   *  (see {@link paused}) even when no config exists yet, so a later join
+   *  on this logged-out device does not start polling either. Used on a
+   *  logged-out boot so Login is not competing with a 288k-row pull and an
+   *  idle login screen costs no egress; {@link resumeBackgroundLoop} runs
+   *  after a successful `auth:login`. */
   async bootIfConfigured(opts?: { startLoop?: boolean }): Promise<void> {
+    if (opts?.startLoop === false) this.paused = true;
     const stored = this.kv.get(CONFIG_KEY) as StoredSyncConfig | undefined;
     if (!stored) return;
     if (!stored.mock && (!stored.url || !stored.anonKey)) return;
@@ -404,8 +417,21 @@ export class SyncManager {
    * No-op when disconnected. Safe to call when the loop is already running.
    */
   resumeBackgroundLoop(): void {
+    this.paused = false;
     if (!this.transport) return;
     this.startLoop();
+  }
+
+  /**
+   * stops the steady poll on logout (or anything else that ends the session).
+   * A cycle already in flight finishes; a pending debounced push still runs
+   * because it only fires when the outbox has rows. {@link resumeBackgroundLoop}
+   * undoes this.
+   */
+  pauseBackgroundLoop(): void {
+    this.paused = true;
+    this.clearTimer();
+    this.rerunRequested = false;
   }
 
   /**
@@ -1108,6 +1134,7 @@ export class SyncManager {
   }
 
   private startLoop(): void {
+    this.paused = false;
     this.clearTimer();
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
@@ -1172,10 +1199,10 @@ export class SyncManager {
     }
   }
 
-  /** Reschedules the steady-state timer: the fixed interval after a clean run, the current (already-doubled) backoff after a failed one. A disconnect that happened mid-cycle (transport now null) schedules nothing. */
+  /** Reschedules the steady-state timer: the fixed interval after a clean run, the current (already-doubled) backoff after a failed one. A disconnect that happened mid-cycle (transport now null), or a paused (logged-out) loop, schedules nothing. */
   private scheduleNext(): void {
     this.clearTimer();
-    if (!this.transport) return;
+    if (!this.transport || this.paused) return;
     const delay = this.lastError ? this.backoffMs : FIXED_INTERVAL_MS;
     this.nextTimer = setTimeout(() => {
       this.launchCycle();

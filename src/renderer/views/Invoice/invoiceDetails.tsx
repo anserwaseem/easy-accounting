@@ -13,6 +13,11 @@ import {
   stripItemTypeSuffixFromAccountName,
 } from '@/renderer/lib/invoiceUtils';
 import {
+  chargedUnitPrice,
+  lineHasNetPrice,
+  netRateOffer,
+} from '@/lib/invoiceLineAmount';
+import {
   toastContentFromConvertQuotationError,
   toastContentFromInvoiceReturnError,
 } from '@/renderer/lib/ipcUserMessage';
@@ -308,12 +313,31 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             {
               accessorKey: 'price',
               header: 'Price',
-              cell: ({ getValue }) => getFormattedCurrencySafe(getValue()),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => {
+                const item = row.original;
+                const offer = netRateOffer(item);
+                return (
+                  <div className="tabular-nums">
+                    <div>
+                      {getFormattedCurrencySafe(chargedUnitPrice(item))}
+                    </div>
+                    {offer ? (
+                      <div className="text-xs text-muted-foreground">
+                        {offer.fullPrice.toFixed(2)} · {offer.discount}%
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              },
             },
             {
               accessorKey: 'discount',
               header: 'Discount',
-              cell: ({ getValue }) => `${getValue()}%`,
+              cell: ({ row }) =>
+                lineHasNetPrice(row.original.netPrice)
+                  ? ''
+                  : `${row.original.discount}%`,
             },
             {
               accessorKey: 'discountedPrice',
@@ -573,6 +597,14 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                       Extra Discount:
                     </p>
                     <p>{getFormattedCurrencySafe(invoice.extraDiscount)}</p>
+                  </div>
+                ) : null}
+                {invoice != null && toNumber(invoice.shippingCharges) > 0 ? (
+                  <div className="flex gap-4 sm:gap-8">
+                    <p className="font-medium text-md w-[110px] sm:w-[160px]">
+                      Shipping:
+                    </p>
+                    <p>{getFormattedCurrencySafe(invoice.shippingCharges)}</p>
                   </div>
                 ) : null}
                 <div className="flex gap-4 sm:gap-8">

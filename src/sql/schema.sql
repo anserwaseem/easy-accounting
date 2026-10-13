@@ -210,6 +210,8 @@ CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
     -- "returnedAt" DATETIME, -- "017 migration"
     -- "returnReason" TEXT, -- "017 migration"
     -- "isQuotation" BOOLEAN NOT NULL DEFAULT 0, -- "018 migration"
+    -- "shippingCharges" DECIMAL(10, 2) NOT NULL DEFAULT 0, -- "045 migration"
+    -- "shippingAccountId" INTEGER REFERENCES "account"("id"), -- "045 migration"
 
     UNIQUE("invoiceNumber", "invoiceType"),
     FOREIGN KEY ("accountId") REFERENCES "account"("id")
@@ -222,6 +224,7 @@ CREATE TABLE IF NOT EXISTS "invoice_items" ( -- "002 migration"
     "quantity" INTEGER NOT NULL,
     -- "discount" DECIMAL(10, 2) NOT NULL DEFAULT 0, -- "004 migration"
     -- "accountId" INTEGER DEFAULT NULL, -- "010 migration"
+    -- "netPrice" DECIMAL(10, 2), -- "045 migration"
     "price" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -308,6 +311,38 @@ CREATE TABLE IF NOT EXISTS "vendor_stock_movements" ( -- "025 migration"
     "updatedAt" DATETIME,
     FOREIGN KEY ("vendorAccountId") REFERENCES "account"("id"),
     FOREIGN KEY ("inventoryId") REFERENCES "inventory"("id")
+);
+
+CREATE TABLE IF NOT EXISTS "agent_commissions" ( -- "047 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "chartId" INTEGER NOT NULL UNIQUE,
+    "payableAccountId" INTEGER,
+    "expenseAccountId" INTEGER,
+    "ratesJson" TEXT NOT NULL DEFAULT '[]',
+    "overridesJson" TEXT NOT NULL DEFAULT '[]',
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    "uuid" TEXT,
+    FOREIGN KEY ("chartId") REFERENCES "chart"("id") ON DELETE CASCADE,
+    FOREIGN KEY ("payableAccountId") REFERENCES "account"("id") ON DELETE SET NULL,
+    FOREIGN KEY ("expenseAccountId") REFERENCES "account"("id") ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS "agent_commission_settlements" ( -- "047 migration"
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "chartId" INTEGER NOT NULL,
+    "startDate" TEXT NOT NULL,
+    "endDate" TEXT NOT NULL,
+    "journalId" INTEGER,
+    "grossCommission" DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    "adjustmentsJson" TEXT NOT NULL DEFAULT '[]',
+    "netCommission" DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    "snapshotJson" TEXT NOT NULL DEFAULT '[]',
+    "createdAt" DATETIME,
+    "updatedAt" DATETIME,
+    "uuid" TEXT,
+    FOREIGN KEY ("chartId") REFERENCES "chart"("id") ON DELETE CASCADE,
+    FOREIGN KEY ("journalId") REFERENCES "journal"("id") ON DELETE SET NULL
 );
 
 

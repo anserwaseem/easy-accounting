@@ -780,15 +780,8 @@ const NewJournalPage: React.FC = () => {
                     <FormControl>
                       <Input
                         {...field}
-                        type="number"
-                        step={0.1}
-                        min={0}
-                        max={100}
-                        value={field.value || ''}
-                        onChange={(e) => {
-                          const { value } = e.target;
-                          field.onChange(value ? parseFloat(value) : undefined);
-                        }}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value)}
                       />
                     </FormControl>
                     <FormMessage />

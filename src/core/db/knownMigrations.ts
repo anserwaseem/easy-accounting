@@ -5,7 +5,7 @@
  * came from a newer app. Identity is the full `name` string.
  *
  * `DESKTOP_MIGRATION_NAMES` = frozen `001.js`–`028.js`.
- * `CORE_MIGRATION_NAMES` = `029_…`–`045_…` (next unused `046_…`).
+ * `CORE_MIGRATION_NAMES` = `029_…`–`049_…` (next unused `050_…`).
  * Keep both lists in lockstep with those sources —
  * `knownMigrations.test.ts` fails if they drift.
  *
@@ -62,6 +62,10 @@ export const CORE_MIGRATION_NAMES: readonly string[] = [
   '042_backfill_inventory_baseline',
   '043_fix_insert_timestamp_triggers',
   '044_heal_causality_sync_cursor',
+  '045_invoice_net_rate_and_shipping',
+  '046_recapture_invoice_net_and_shipping',
+  '047_agent_commissions',
+  '048_heal_duplicate_invoice_lines',
   '049_agent_tours',
 ];
 

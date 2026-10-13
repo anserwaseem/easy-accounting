@@ -6,7 +6,17 @@ import { getCoreLogger } from '../ports';
 import { INITIAL_CHARTS } from '../utils/constants';
 import { repairInvoiceEditedTimestamps } from './repairInvoiceTimestamps';
 import { seedOutboxFromLocalData } from './seedOutbox';
-import type { LogRow, OutboxEntry, SyncTransport } from './transport';
+import {
+  clearScheduledRepull,
+  loadScheduledRepull,
+  REPULL_CURSOR_KEY,
+} from './tableRepull';
+import type {
+  LogRow,
+  OutboxEntry,
+  PullOptions,
+  SyncTransport,
+} from './transport';
 
 /**
  * Single source of truth for "which tables does this client's apply path
@@ -18,6 +28,21 @@ import type { LogRow, OutboxEntry, SyncTransport } from './transport';
  * comment for why the apply path needs this at all.
  */
 const SYNC_TABLE_SET: ReadonlySet<string> = new Set(SYNC_TABLES);
+
+/** `sync_state` key of the main pull cursor; a scheduled re-pull keeps its own (see ./tableRepull.ts) */
+const MAIN_CURSOR_KEY = 'cursor';
+
+const EMPTY_PULL_RESULT = {
+  pulled: 0,
+  applied: 0,
+  skippedUnknownTable: 0,
+  unknownTables: [] as string[],
+  epochReset: false,
+  applyConflicts: 0,
+  discardedPlaceholderUsers: 0,
+  discardedPlaceholderCharts: 0,
+  seeded: 0,
+};
 
 /** Local mirror of the `sync_outbox` row shape (migration 034). */
 interface OutboxRow {
@@ -270,6 +295,8 @@ export class SyncEngine {
 
   private readonly duplicateSeedRejectedUuids = new Set<string>();
 
+  private readonly discardedDuplicateJournalUuids = new Set<string>();
+
   constructor(deps: {
     db: DatabaseDriver;
     transport: SyncTransport;
@@ -314,20 +341,32 @@ export class SyncEngine {
    * drain rounds — a caller only ever needs "how much did this syncOnce
    * push in total," and `seeded` (reported separately) already tells it
    * whether a reseed happened at all.
+   *
+   * ## Scheduled table re-pull
+   *
+   * A re-pull queued by {@link scheduleTableRepull} (./tableRepull.ts) runs
+   * first, through the same {@link pullAndApply} on its own cursor, and its
+   * counts are added into the report. Its rows newer than the main cursor
+   * get applied again by the main pull right after; applies are idempotent
+   * upserts, so that overlap only costs the (small) re-transfer.
    */
   async syncOnce(): Promise<SyncReport> {
     const firstDrain = await this.drainOutbox();
-    const {
-      pulled,
-      applied,
-      skippedUnknownTable,
-      unknownTables,
-      epochReset,
-      applyConflicts,
-      discardedPlaceholderUsers,
-      discardedPlaceholderCharts,
-      seeded,
-    } = await this.pullAndApply();
+    const repull = await this.runScheduledRepull();
+    const main = await this.pullAndApply();
+    const { epochReset, seeded } = main;
+    const pulled = main.pulled + repull.pulled;
+    const applied = main.applied + repull.applied;
+    const skippedUnknownTable =
+      main.skippedUnknownTable + repull.skippedUnknownTable;
+    const unknownTables = [
+      ...new Set([...main.unknownTables, ...repull.unknownTables]),
+    ];
+    const applyConflicts = main.applyConflicts + repull.applyConflicts;
+    const discardedPlaceholderUsers =
+      main.discardedPlaceholderUsers + repull.discardedPlaceholderUsers;
+    const discardedPlaceholderCharts =
+      main.discardedPlaceholderCharts + repull.discardedPlaceholderCharts;
 
     let { pushed, rejected } = firstDrain;
     if (seeded > 0) {
@@ -572,6 +611,8 @@ export class SyncEngine {
         await this.db.run(
           `DELETE FROM sync_state WHERE key = 'pending_self_fks'`,
         );
+        // the from-zero pull below covers any queued table re-pull
+        await clearScheduledRepull(this.db);
         this.pendingSelfReferentialFks = [];
         this.persistedPendingSelfFks = null;
         this.duplicateSeedRejectedUuids.clear();
@@ -1094,6 +1135,13 @@ export class SyncEngine {
      * needs its own previously-pushed rows back.
      */
     includeSelf?: boolean;
+    /**
+     * a scheduled table re-pull (see {@link runScheduledRepull}): only
+     * these tables' rows are fetched (server-side filter), progress is
+     * kept under `cursorKey` instead of the main `cursor`, and the
+     * empty-server reseed branch is skipped (the main pull owns that).
+     */
+    scope?: { tables: readonly string[]; cursorKey: string };
   }): Promise<{
     pulled: number;
     applied: number;
@@ -1122,11 +1170,23 @@ export class SyncEngine {
     // full rule and why a plain per-run Set (never persisted across
     // separate `pullAndApply` calls) is sufficient.
     const discardedPlaceholderUserUuids = new Set<string>();
-    let cursor = await this.getCursor();
+    const cursorKey = opts?.scope?.cursorKey ?? MAIN_CURSOR_KEY;
+    const pullOpts = {
+      includeSelf: opts?.includeSelf,
+      tables: opts?.scope?.tables,
+    };
+    let cursor = await this.readCursor(cursorKey);
 
-    const serverMaxSeq = await this.transport.currentSeq();
+    // the watermark and the first page arrive together (one request on an
+    // idle cycle). the watermark is never newer than that page, which is the
+    // "snapshot before paging" rule the cursor-advancement section relies on
+    const first = await this.firstPullPage(cursor, pullOpts);
+    const serverMaxSeq = first.maxSeq;
+    let prefetched: LogRow[] | null = first.rows;
     const epochReset = cursor > serverMaxSeq;
     if (epochReset) {
+      // fetched from the stale cursor; the loop re-fetches from 0
+      prefetched = null;
       this.logger.warn(
         `SyncEngine: sync epoch reset detected — this device's stored cursor ` +
           `(${cursor}) is ahead of the server's current max seq ` +
@@ -1137,10 +1197,10 @@ export class SyncEngine {
           `come back echo-suppressed like any other pull.`,
       );
       cursor = 0;
-      await this.setCursor(0);
+      await this.writeCursor(cursorKey, 0);
     }
 
-    if (serverMaxSeq === 0) {
+    if (serverMaxSeq === 0 && !opts?.scope) {
       if (await this.hasLocalBusinessData()) {
         const result = await seedOutboxFromLocalData(this.db);
         seeded = result.seeded;
@@ -1165,8 +1225,11 @@ export class SyncEngine {
     await this.loadPendingSelfReferentialFks();
 
     for (;;) {
-      // eslint-disable-next-line no-await-in-loop
-      const page = await this.transport.pull(cursor, this.pullPageSize, opts);
+      const page =
+        prefetched ??
+        // eslint-disable-next-line no-await-in-loop
+        (await this.transport.pull(cursor, this.pullPageSize, pullOpts));
+      prefetched = null;
       pulled += page.length;
 
       if (page.length > 0) {
@@ -1296,7 +1359,7 @@ export class SyncEngine {
             }
             await this.resolvePendingSelfReferentialFks();
             const lastSeq = page[page.length - 1].seq;
-            await this.setCursor(lastSeq);
+            await this.writeCursor(cursorKey, lastSeq);
           } finally {
             await this.setApplying(false);
           }
@@ -1325,7 +1388,7 @@ export class SyncEngine {
         if (serverMaxSeq > cursor) {
           cursor = serverMaxSeq;
           // eslint-disable-next-line no-await-in-loop
-          await this.setCursor(cursor);
+          await this.writeCursor(cursorKey, cursor);
         }
         break;
       }
@@ -1921,6 +1984,15 @@ export class SyncEngine {
         { uuid: refUuid },
       );
       if (!resolved) {
+        if (
+          row.tableName === 'journal_entry' &&
+          column === 'journalId' &&
+          this.discardedDuplicateJournalUuids.has(String(refUuid))
+        ) {
+          // This journal_entry belongs to a journal discarded as a duplicate
+          return { discardedPlaceholder: false };
+        }
+
         if (fk.table === row.tableName) {
           // Self-referential FK: the parent is in the same table and has not
           // arrived yet (or arrived out of causal order). Insert the row with
@@ -1953,6 +2025,93 @@ export class SyncEngine {
 
     if (!columns.includes('uuid')) columns.push('uuid');
     params.uuid = row.rowUuid;
+
+    // Invariant guard: discard duplicate journal on the same invoice
+    if (
+      row.tableName === 'journal' &&
+      params.invoiceId != null &&
+      params.billNumber != null
+    ) {
+      const existingJournal = await this.db.get<{ uuid: string }>(
+        `SELECT j.uuid
+         FROM journal j
+         WHERE j.invoiceId = @invoiceId
+           AND j.billNumber = @billNumber
+           AND COALESCE(j.discountPercentage, -1) = COALESCE(@discountPercentage, -1)
+           AND j.uuid != @uuid
+         LIMIT 1`,
+        {
+          invoiceId: params.invoiceId,
+          billNumber: params.billNumber,
+          discountPercentage: params.discountPercentage ?? -1,
+          uuid: row.rowUuid,
+        },
+      );
+      if (existingJournal) {
+        this.logger.info(
+          `SyncEngine.applyRow: discarding duplicate journal row ${row.rowUuid} for invoice ${params.invoiceId} (billNumber ${params.billNumber})`,
+        );
+        this.discardedDuplicateJournalUuids.add(row.rowUuid);
+        return { discardedPlaceholder: false };
+      }
+    }
+
+    // Invariant guard: discard duplicate line item on the same invoice if already matching and exceeds total
+    if (
+      row.tableName === 'invoice_items' &&
+      params.invoiceId != null &&
+      params.inventoryId != null
+    ) {
+      const existingLine = await this.db.get<{
+        uuid: string;
+        invoiceTotal: number;
+        existingSum: number;
+      }>(
+        `SELECT a.uuid,
+                inv.totalAmount AS invoiceTotal,
+                COALESCE((
+                  SELECT SUM(ROUND(ii.quantity * ii.price * (1.0 - ii.discount / 100.0), 2))
+                  FROM invoice_items ii
+                  WHERE ii.invoiceId = a.invoiceId
+                ), 0) AS existingSum
+         FROM invoice_items a
+         JOIN invoices inv ON inv.id = a.invoiceId
+         WHERE a.invoiceId = @invoiceId
+           AND a.inventoryId = @inventoryId
+           AND a.quantity = @quantity
+           AND a.price = @price
+           AND a.discount = @discount
+           AND a.uuid != @uuid
+         LIMIT 1`,
+        {
+          invoiceId: params.invoiceId,
+          inventoryId: params.inventoryId,
+          quantity: params.quantity,
+          price: params.price,
+          discount: params.discount,
+          uuid: row.rowUuid,
+        },
+      );
+      if (existingLine) {
+        const incomingLineAmount =
+          Math.round(
+            Number(params.quantity) *
+              Number(params.price) *
+              (1.0 - Number(params.discount) / 100.0) *
+              100,
+          ) / 100;
+        if (
+          existingLine.existingSum >= existingLine.invoiceTotal ||
+          existingLine.existingSum + incomingLineAmount >
+            existingLine.invoiceTotal + 1.0
+        ) {
+          this.logger.info(
+            `SyncEngine.applyRow: discarding duplicate invoice_items row ${row.rowUuid} for invoice ${params.invoiceId} (item matches existing line and exceeds invoice totalAmount)`,
+          );
+          return { discardedPlaceholder: false };
+        }
+      }
+    }
 
     const quoted = columns.map((c) => `"${c}"`).join(', ');
     const placeholders = columns.map((c) => `@${c}`).join(', ');
@@ -2170,19 +2329,66 @@ export class SyncEngine {
   // sync_state helpers
   // ---------------------------------------------------------------------
 
-  private async getCursor(): Promise<number> {
+  /** see {@link SyncTransport.pullWithWatermark}; the fallback keeps the watermark-first order */
+  private async firstPullPage(
+    cursor: number,
+    opts: PullOptions,
+  ): Promise<{ rows: LogRow[]; maxSeq: number }> {
+    if (this.transport.pullWithWatermark) {
+      return this.transport.pullWithWatermark(cursor, this.pullPageSize, opts);
+    }
+    const maxSeq = await this.transport.currentSeq();
+    const rows = await this.transport.pull(cursor, this.pullPageSize, opts);
+    return { rows, maxSeq };
+  }
+
+  private getCursor(): Promise<number> {
+    return this.readCursor(MAIN_CURSOR_KEY);
+  }
+
+  private setCursor(seq: number): Promise<void> {
+    return this.writeCursor(MAIN_CURSOR_KEY, seq);
+  }
+
+  private async readCursor(key: string): Promise<number> {
     const row = await this.db.get<{ value: string }>(
-      `SELECT value FROM sync_state WHERE key = 'cursor'`,
+      `SELECT value FROM sync_state WHERE key = @key`,
+      { key },
     );
     return row ? Number(row.value) : 0;
   }
 
-  private async setCursor(seq: number): Promise<void> {
+  private async writeCursor(key: string, seq: number): Promise<void> {
     await this.db.run(
-      `INSERT INTO sync_state (key, value) VALUES ('cursor', @value)
+      `INSERT INTO sync_state (key, value) VALUES (@key, @value)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      { value: String(seq) },
+      { key, value: String(seq) },
     );
+  }
+
+  /**
+   * runs a re-pull queued by `scheduleTableRepull` (./tableRepull.ts) to
+   * completion, then clears it. A failure part-way (network) throws out of
+   * `syncOnce` like any pull failure; the re-pull cursor was saved per page,
+   * so the next cycle resumes instead of starting over.
+   */
+  private async runScheduledRepull(): Promise<
+    Awaited<ReturnType<SyncEngine['pullAndApply']>>
+  > {
+    const tables = await loadScheduledRepull(this.db);
+    if (tables === null) return EMPTY_PULL_RESULT;
+    if (tables.length === 0) {
+      await clearScheduledRepull(this.db);
+      return EMPTY_PULL_RESULT;
+    }
+    this.logger.info(
+      `SyncEngine: running scheduled re-pull of ${tables.join(', ')}`,
+    );
+    const result = await this.pullAndApply({
+      scope: { tables, cursorKey: REPULL_CURSOR_KEY },
+    });
+    await clearScheduledRepull(this.db);
+    return result;
   }
 
   private async setApplying(applying: boolean): Promise<void> {

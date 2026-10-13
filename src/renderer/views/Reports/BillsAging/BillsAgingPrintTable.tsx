@@ -13,6 +13,7 @@ import {
   getFixedNumber,
   formatDaysDuration,
 } from 'renderer/lib/utils';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import type { BillsAging, BillsAgingRow } from './types';
 import './PrintStyles.css';
 
@@ -130,7 +131,9 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = React.memo(
                 <TableCell>
                   {format(new Date(row.billDate), 'dd/MM/yy')}
                 </TableCell>
-                <TableCell>{row.billPercentage}</TableCell>
+                <TableCell>
+                  {formatJournalDiscountLabel(row.billPercentage)}
+                </TableCell>
                 <TableCell
                   className="text-right"
                   style={{ padding: '0.5px 4px' }}
