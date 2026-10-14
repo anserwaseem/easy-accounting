@@ -164,7 +164,26 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                   row.shopDisplay === '//' && urdu && 'text-right',
                 )}
               >
-                {row.shopDisplay}
+                {row.shopDisplay === '//' ? (
+                  '//'
+                ) : (
+                  <span>
+                    <span className="font-medium">{row.shop}</span>
+                    {row.billCount > 1 && row.totalBilled != null ? (
+                      <span className="text-muted-foreground/75 text-xs ml-1.5 font-normal whitespace-nowrap">
+                        {urdu
+                          ? `(${row.billCount} بل · کل: ${formatSheetAmount(
+                              row.totalBilled,
+                            )})`
+                          : `(${
+                              row.billCount
+                            } bills · Total: ${formatSheetAmount(
+                              row.totalBilled,
+                            )})`}
+                      </span>
+                    ) : null}
+                  </span>
+                )}
               </td>
               <td
                 dir={row.addressDisplay === '//' ? 'ltr' : 'auto'}
@@ -190,7 +209,12 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                 dir="ltr"
                 className={cn(bodyCell, 'whitespace-nowrap text-left')}
               >
-                {row.billNumber}
+                <span>{row.billNumber}</span>
+                {row.billCount > 1 ? (
+                  <span className="text-muted-foreground/60 text-[11px] ml-1 font-mono">
+                    ({row.billIndex}/{row.billCount})
+                  </span>
+                ) : null}
               </td>
               <td
                 dir="ltr"

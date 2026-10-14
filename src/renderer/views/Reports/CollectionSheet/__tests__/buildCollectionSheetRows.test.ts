@@ -122,6 +122,9 @@ describe('buildCollectionSheetRows', () => {
     expect(rows.map((r) => r.shopDisplay)).toEqual(['نور بک ڈپو', '//']);
     expect(rows.map((r) => r.addressDisplay)).toEqual(['چترال', '//']);
     expect(rows.map((r) => r.codeDisplay)).toEqual(['CHITRAL-NOOR', '//']);
+    expect(rows.map((r) => r.billIndex)).toEqual([1, 2]);
+    expect(rows.map((r) => r.billCount)).toEqual([2, 2]);
+    expect(rows.map((r) => r.totalBilled)).toEqual([180.9, null]);
     expect(collectionSheetTotals(rows)).toEqual({
       balance: 181,
       collected: 100,

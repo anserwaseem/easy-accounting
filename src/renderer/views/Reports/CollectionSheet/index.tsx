@@ -40,6 +40,7 @@ import {
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
+  formatSheetAmount,
   tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
@@ -230,25 +231,47 @@ const CollectionSheetPage: React.FC = () => {
           width: 16,
         },
       ],
-      rows: rows.map((row: CollectionSheetRow) => ({
-        serial: row.serial,
-        shop: row.shopDisplay,
-        address: row.addressDisplay,
-        code: row.codeDisplay,
-        balance: row.balance,
-        collected: row.collected,
-        collection: '',
-        billNumber: row.billNumber,
-        billDate: row.billDate,
-        difference: '',
-        remaining: '',
-        ...Object.fromEntries(
-          tours.map((tour) => [
-            tourExportKey(tour.id),
-            row.tourPaid[tour.id] ?? null,
-          ]),
-        ),
-      })),
+      rows: rows.map((row: CollectionSheetRow) => {
+        let shopExport = row.shopDisplay;
+        if (
+          row.shopDisplay !== '//' &&
+          row.billCount > 1 &&
+          row.totalBilled != null
+        ) {
+          const summary =
+            language === 'ur'
+              ? ` (${row.billCount} بل · کل: ${formatSheetAmount(
+                  row.totalBilled,
+                )})`
+              : ` (${row.billCount} bills · Total: ${formatSheetAmount(
+                  row.totalBilled,
+                )})`;
+          shopExport = `${row.shop}${summary}`;
+        }
+        let billExport = row.billNumber;
+        if (row.billCount > 1) {
+          billExport = `${row.billNumber} (${row.billIndex}/${row.billCount})`;
+        }
+        return {
+          serial: row.serial,
+          shop: shopExport,
+          address: row.addressDisplay,
+          code: row.codeDisplay,
+          balance: row.balance,
+          collected: row.collected,
+          collection: '',
+          billNumber: billExport,
+          billDate: row.billDate,
+          difference: '',
+          remaining: '',
+          ...Object.fromEntries(
+            tours.map((tour) => [
+              tourExportKey(tour.id),
+              row.tourPaid[tour.id] ?? null,
+            ]),
+          ),
+        };
+      }),
       footerRow: {
         shop: headers.total,
         balance: totals.balance,
@@ -272,6 +295,7 @@ const CollectionSheetPage: React.FC = () => {
     canExport,
     dateRange,
     headers,
+    language,
     rows,
     selectedHead?.name,
     sortBy,

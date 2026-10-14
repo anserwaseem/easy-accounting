@@ -72,6 +72,12 @@ export interface CollectionSheetRow {
   tourPaid: Record<number, number | null>;
   /** receipts in the range that no tour covers, first row only; null on later rows or when the column is off */
   untoured: number | null;
+  /** 1-based index of this bill for the shop */
+  billIndex: number;
+  /** Total count of bills for this shop in this date range */
+  billCount: number;
+  /** Sum of all bill amounts for this shop in this date range (first row only) */
+  totalBilled: number | null;
 }
 
 /** receipts per account per tour id (LedgerService.getTourCollectionsForAccountIds) */
@@ -454,6 +460,9 @@ export const buildCollectionSheetRows = (
         tourPaid: index === 0 ? shop.tourPaid : laterRowTourPaid,
         untoured:
           index === 0 && untouredByAccountId != null ? shop.untoured : null,
+        billIndex: index + 1,
+        billCount: shop.bills.length,
+        totalBilled: index === 0 ? shop.totalBilled : null,
       });
     }
   }

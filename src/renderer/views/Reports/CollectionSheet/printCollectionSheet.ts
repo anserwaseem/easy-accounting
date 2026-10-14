@@ -60,10 +60,18 @@ export const printCollectionSheetIframe = (
         row.shopDisplay === '//'
           ? ` class="ditto${language === 'ur' ? ' ditto-right' : ''}" dir="ltr"`
           : '';
+      const shopSummary =
+        row.billCount > 1 && row.totalBilled != null && row.shopDisplay !== '//'
+          ? ` <span class="continuation">(${row.billCount} ${
+              language === 'ur' ? 'بل' : 'bills'
+            } · ${language === 'ur' ? 'کل' : 'Total'}: ${escape(
+              formatSheetAmount(row.totalBilled),
+            )})</span>`
+          : '';
       const shopCell =
         row.shopDisplay === '//'
           ? `<td${shopDittoClass}>//</td>`
-          : `<td>${escape(row.shopDisplay)}</td>`;
+          : `<td>${escape(row.shop)}${shopSummary}</td>`;
       const dittoClass =
         row.addressDisplay === '//'
           ? ` class="ditto${language === 'ur' ? ' ditto-right' : ''}" dir="ltr"`
@@ -77,6 +85,10 @@ export const printCollectionSheetIframe = (
           ? ' class="ditto ltr fit" dir="ltr"'
           : ' class="ltr fit" dir="ltr"';
       const codeCell = `<td${codeDittoClass}>${escape(row.codeDisplay)}</td>`;
+      const billIndexText =
+        row.billCount > 1
+          ? ` <span class="continuation">(${row.billIndex}/${row.billCount})</span>`
+          : '';
       const collectedContent =
         row.collected === null
           ? `<span class="continuation">—</span>`
@@ -86,7 +98,9 @@ export const printCollectionSheetIframe = (
         ${shopCell}
         ${addressCell}
         ${codeCell}
-        ${cell(row.billNumber, ' class="ltr fit" dir="ltr"')}
+        <td class="ltr fit" dir="ltr">${escape(
+          row.billNumber,
+        )}${billIndexText}</td>
         ${cell(row.billDate, ' class="ltr fit" dir="ltr"')}
         <td class="num fit">${escape(formatSheetAmount(row.balance))}</td>
         <td class="num">${collectedContent}</td>
