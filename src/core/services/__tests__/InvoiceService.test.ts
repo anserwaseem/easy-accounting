@@ -764,6 +764,15 @@ describe('core InvoiceService', () => {
     expect(bills[acc.primaryPartyId]).toHaveLength(1);
     expect(bills[acc.primaryPartyId][0].invoiceNumber).toBe(5001);
     expect(bills[acc.primaryPartyId][0].amount).toBe(202);
+
+    const allBillsUpToDate =
+      await core.invoices.getSaleBillsForAccountIdsInRange(
+        [acc.primaryPartyId],
+        null,
+        '2026-03-10',
+      );
+    expect(allBillsUpToDate[acc.primaryPartyId]).toHaveLength(1);
+    expect(allBillsUpToDate[acc.primaryPartyId][0].invoiceNumber).toBe(5001);
   });
 });
 

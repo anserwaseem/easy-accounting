@@ -63,8 +63,8 @@ export const printCollectionSheetIframe = (
       const shopSummary =
         row.billCount > 1 && row.totalBilled != null && row.shopDisplay !== '//'
           ? ` <span class="continuation">(${row.billCount} ${
-              language === 'ur' ? 'بل' : 'bills'
-            } · ${language === 'ur' ? 'کل' : 'Total'}: ${escape(
+              language === 'ur' ? 'واجب الادا بل' : 'due bills'
+            } · ${language === 'ur' ? 'کل' : 'Total Due'}: ${escape(
               formatSheetAmount(row.totalBilled),
             )})</span>`
           : '';

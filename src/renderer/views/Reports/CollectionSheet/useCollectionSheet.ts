@@ -207,7 +207,7 @@ export const useCollectionSheet = () => {
           [
             window.electron.getLedgerBalancesForAccountIdsAsOfDate(ids, to),
             window.electron.getReceiptSumsForAccountIdsInRange(ids, from, to),
-            window.electron.getSaleBillsForAccountIdsInRange(ids, from, to),
+            window.electron.getSaleBillsForAccountIdsInRange(ids, null, to),
             loadTourColumns(id, ids, from, to),
           ],
         );

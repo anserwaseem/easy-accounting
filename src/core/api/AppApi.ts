@@ -485,7 +485,7 @@ export interface AppApi {
   /** sale invoice number + date per account for an inclusive local-date range */
   getSaleBillsForAccountIdsInRange: (
     accountIds: number[],
-    startDate: string,
+    startDate: string | null,
     endDate: string,
   ) => Promise<
     Record<

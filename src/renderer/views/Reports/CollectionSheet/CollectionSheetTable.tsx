@@ -172,12 +172,14 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     {row.billCount > 1 && row.totalBilled != null ? (
                       <span className="text-muted-foreground/75 text-xs ml-1.5 font-normal whitespace-nowrap">
                         {urdu
-                          ? `(${row.billCount} بل · کل: ${formatSheetAmount(
+                          ? `(${
+                              row.billCount
+                            } واجب الادا بل · کل: ${formatSheetAmount(
                               row.totalBilled,
                             )})`
                           : `(${
                               row.billCount
-                            } bills · Total: ${formatSheetAmount(
+                            } due bills · Total Due: ${formatSheetAmount(
                               row.totalBilled,
                             )})`}
                       </span>

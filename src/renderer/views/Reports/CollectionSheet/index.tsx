@@ -240,10 +240,10 @@ const CollectionSheetPage: React.FC = () => {
         ) {
           const summary =
             language === 'ur'
-              ? ` (${row.billCount} بل · کل: ${formatSheetAmount(
+              ? ` (${row.billCount} واجب الادا بل · کل: ${formatSheetAmount(
                   row.totalBilled,
                 )})`
-              : ` (${row.billCount} bills · Total: ${formatSheetAmount(
+              : ` (${row.billCount} due bills · Total Due: ${formatSheetAmount(
                   row.totalBilled,
                 )})`;
           shopExport = `${row.shop}${summary}`;
@@ -343,15 +343,17 @@ const CollectionSheetPage: React.FC = () => {
                     About Collection Sheet
                   </h4>
                   <p className="text-muted-foreground">
-                    This report pairs <strong>physical sale bills</strong>{' '}
-                    delivered to each shop with{' '}
-                    <strong>serial tour collections</strong> collected by the
-                    agent over dated trips.
+                    This report pairs <strong>active due bills</strong> for each
+                    shop with <strong>serial tour collections</strong> collected
+                    by the agent over dated trips.
                   </p>
                   <div className="space-y-1.5 border-t pt-2">
                     <p>
-                      <strong>Bill rows</strong>: Each sale bill delivered
-                      within the date range is listed with its date and amount.
+                      <strong>Bill rows</strong>: Only active due bills (unpaid
+                      or partially unpaid) are listed, settled FIFO against the
+                      customer&apos;s ledger balance. Fully paid bills are
+                      omitted so the agent focuses on collecting outstanding
+                      debt.
                     </p>
                     <p>
                       <strong>Multi-bill shops</strong>: The customer’s total

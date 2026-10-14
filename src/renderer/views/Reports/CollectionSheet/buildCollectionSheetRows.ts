@@ -26,7 +26,7 @@ export interface CollectionSheetMoney {
 }
 
 export interface CollectionSheetBill {
-  invoiceNumber: number;
+  invoiceNumber: number | string;
   date: string;
   /** this account's share of the bill. same invoice number is added across tiers */
   amount: number;
@@ -125,6 +125,7 @@ const isZeroBalance = (balance: number): boolean =>
 /** date-only strings stay as written. timestamps use the local calendar day. */
 export const formatBillDate = (raw: string): string => {
   const trimmed = trim(raw);
+  if (!trimmed) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     const [year, month, day] = trimmed.split('-');
     return `${day}/${month}/${year.slice(2)}`;
@@ -151,7 +152,7 @@ export const collectionSheetHeaders = (
       shop: 'نام دوکان دار',
       address: 'پتہ',
       code: 'کوڈ',
-      balance: 'رقم بل',
+      balance: 'واجب الادا',
       collected: 'سابقہ وصولی',
       collection: 'وصولی',
       bill: 'بل',
@@ -169,7 +170,7 @@ export const collectionSheetHeaders = (
     shop: 'Shop',
     address: 'Address',
     code: 'Code',
-    balance: 'Bill amount',
+    balance: 'Due amount',
     collected: 'Collected',
     collection: 'Collection',
     bill: 'Bill',
@@ -288,7 +289,7 @@ const baseDisplay = (
 };
 
 const mergedBills = (family: FamilyMember[]): CollectionSheetBill[] => {
-  const byNumber = new Map<number, CollectionSheetBill>();
+  const byNumber = new Map<number | string, CollectionSheetBill>();
   for (const member of family) {
     for (const bill of member.bills) {
       const existing = byNumber.get(bill.invoiceNumber);
@@ -301,10 +302,72 @@ const mergedBills = (family: FamilyMember[]): CollectionSheetBill[] => {
   }
   const bills = [...byNumber.values()];
   return bills.sort((a, b) => {
-    const dateDiff = billSortKey(a.date).localeCompare(billSortKey(b.date));
+    const dateDiff = billSortKey(b.date).localeCompare(billSortKey(a.date));
     if (dateDiff !== 0) return dateDiff;
-    return a.invoiceNumber - b.invoiceNumber;
+    const aNum = Number(a.invoiceNumber) || 0;
+    const bNum = Number(b.invoiceNumber) || 0;
+    return bNum - aNum;
   });
+};
+
+/**
+ * Resolves candidate bills against current outstanding balance under FIFO.
+ * Payments extinguish older debt first, so active unpaid debt rests on the newest bills.
+ * If debt exceeds candidate bills, an opening balance row is created for the remainder.
+ * If balance <= 0 or candidateBills is empty, returns [].
+ */
+export const computeDueBills = (
+  candidateBills: CollectionSheetBill[],
+  balance: number,
+  language: CollectionSheetLanguage,
+): CollectionSheetBill[] => {
+  if (balance <= 0.005 || candidateBills.length === 0) {
+    return [];
+  }
+
+  // Sort candidate bills descending (newest first)
+  const sorted = [...candidateBills].sort((a, b) => {
+    const dateDiff = billSortKey(b.date).localeCompare(billSortKey(a.date));
+    if (dateDiff !== 0) return dateDiff;
+    const aNum = Number(a.invoiceNumber) || 0;
+    const bNum = Number(b.invoiceNumber) || 0;
+    return bNum - aNum;
+  });
+
+  let remainingDue = balance;
+  const dueBills: CollectionSheetBill[] = [];
+
+  for (const bill of sorted) {
+    if (remainingDue <= 0.005) break;
+    const billAmt = bill.amount || 0;
+    if (billAmt <= 0.005) continue;
+
+    if (remainingDue >= billAmt - 0.005) {
+      dueBills.push({
+        ...bill,
+        amount: billAmt,
+      });
+      remainingDue -= billAmt;
+    } else {
+      dueBills.push({
+        ...bill,
+        amount: remainingDue,
+      });
+      remainingDue = 0;
+      break;
+    }
+  }
+
+  if (remainingDue > 0.5) {
+    dueBills.push({
+      invoiceNumber: language === 'ur' ? 'سابقہ بقایا' : 'Opening Bal',
+      date: '',
+      amount: remainingDue,
+    });
+  }
+
+  // Present chronologically: oldest due bill first, newest due bill last
+  return dueBills.reverse();
 };
 
 /** a tour's family total: every tier's receipts for that tour added */
@@ -375,9 +438,13 @@ export const buildCollectionSheetRows = (
         0,
       );
       const tourPaid = familyTourPaid(family, tourIds);
-      const bills = mergedBills(family);
-      const totalBilled = bills.reduce((sum, b) => sum + (b.amount || 0), 0);
-      const outstanding = Math.max(0, totalBilled - (collected || 0));
+      const candidateBills = mergedBills(family);
+      const bills = computeDueBills(candidateBills, balance, language);
+      const totalBilled = bills.reduce(
+        (sum, b) => sum + Math.round(b.amount || 0),
+        0,
+      );
+      const outstanding = balance;
       const unpaidToursCount = tourIds.filter((tId) =>
         isZeroBalance(tourPaid[tId] ?? 0),
       ).length;
@@ -394,7 +461,7 @@ export const buildCollectionSheetRows = (
         unpaidToursCount,
       };
     })
-    .filter((shop) => !isZeroBalance(shop.balance))
+    .filter((shop) => !isZeroBalance(shop.balance) && shop.balance > 0)
     .sort((a, b) => {
       if (sortBy === 'outstanding-desc') {
         const diff = b.outstanding - a.outstanding;
@@ -407,6 +474,8 @@ export const buildCollectionSheetRows = (
       } else if (sortBy === 'bills-desc') {
         const diff = b.totalBilled - a.totalBilled;
         if (Math.abs(diff) >= 0.01) return diff;
+        const countDiff = b.bills.length - a.bills.length;
+        if (countDiff !== 0) return countDiff;
       }
       const codeDiff = compareCode(a.display.code, b.display.code);
       if (codeDiff !== 0) return codeDiff;

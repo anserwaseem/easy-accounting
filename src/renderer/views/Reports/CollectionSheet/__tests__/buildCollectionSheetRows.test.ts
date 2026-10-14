@@ -3,6 +3,7 @@ import {
   collectionSheetTotals,
   collectionSheetTourTotals,
   collectionSheetUntouredTotal,
+  computeDueBills,
   formatTourAmount,
   isUnpaidTourCell,
   isUntouredCell,
@@ -73,7 +74,7 @@ describe('buildCollectionSheetRows', () => {
     expect(rows).toEqual([]);
   });
 
-  it('keeps a bill whose amount equals the collection, and rounds the bill total', () => {
+  it('omits paid bills and keeps only active due bills settled FIFO', () => {
     const accounts: CollectionSheetSource[] = [
       row({
         id: 2,
@@ -115,37 +116,80 @@ describe('buildCollectionSheetRows', () => {
       },
       'ur',
     );
-    expect(rows.map((r) => r.billNumber)).toEqual(['9881', '10268']);
-    expect(rows.map((r) => r.balance)).toEqual([100, 81]);
-    expect(rows.map((r) => r.collected)).toEqual([100, null]);
-    expect(rows.map((r) => r.code)).toEqual(['CHITRAL-NOOR', 'CHITRAL-NOOR']);
-    expect(rows.map((r) => r.shopDisplay)).toEqual(['نور بک ڈپو', '//']);
-    expect(rows.map((r) => r.addressDisplay)).toEqual(['چترال', '//']);
-    expect(rows.map((r) => r.codeDisplay)).toEqual(['CHITRAL-NOOR', '//']);
-    expect(rows.map((r) => r.billIndex)).toEqual([1, 2]);
-    expect(rows.map((r) => r.billCount)).toEqual([2, 2]);
-    expect(rows.map((r) => r.totalBilled)).toEqual([180.9, null]);
+    // Bill 9881 was fully paid by the 100 collection; only active bill 10268 is due for 80
+    expect(rows.map((r) => r.billNumber)).toEqual(['10268']);
+    expect(rows.map((r) => r.balance)).toEqual([80]);
+    expect(rows.map((r) => r.collected)).toEqual([100]);
+    expect(rows.map((r) => r.code)).toEqual(['CHITRAL-NOOR']);
+    expect(rows.map((r) => r.shopDisplay)).toEqual(['نور بک ڈپو']);
+    expect(rows.map((r) => r.addressDisplay)).toEqual(['چترال']);
+    expect(rows.map((r) => r.codeDisplay)).toEqual(['CHITRAL-NOOR']);
+    expect(rows.map((r) => r.billIndex)).toEqual([1]);
+    expect(rows.map((r) => r.billCount)).toEqual([1]);
+    expect(rows.map((r) => r.totalBilled)).toEqual([80]);
     expect(collectionSheetTotals(rows)).toEqual({
-      balance: 181,
+      balance: 80,
       collected: 100,
     });
   });
 
-  it('falls back to English when Urdu is empty, and sums signed balances', () => {
+  it('splits debt across multiple bills and formats indexes and totals', () => {
+    const accounts: CollectionSheetSource[] = [
+      row({
+        id: 1,
+        name: 'MULTI SHOP',
+        code: 'MULTI',
+        address: 'City',
+      }),
+    ];
+
+    const rows = buildCollectionSheetRows(
+      accounts,
+      itemTypes,
+      {
+        1: owed(150, 50),
+      },
+      {
+        1: [
+          { invoiceNumber: 101, date: '2026-01-01', amount: 100 },
+          { invoiceNumber: 102, date: '2026-02-01', amount: 100 },
+        ],
+      },
+      'en',
+    );
+    // Bill 102 is fully due (100), Bill 101 is partially due (50)
+    expect(rows.map((r) => r.billNumber)).toEqual(['101', '102']);
+    expect(rows.map((r) => r.balance)).toEqual([50, 100]);
+    expect(rows.map((r) => r.collected)).toEqual([50, null]);
+    expect(rows.map((r) => r.billIndex)).toEqual([1, 2]);
+    expect(rows.map((r) => r.billCount)).toEqual([2, 2]);
+    expect(rows.map((r) => r.totalBilled)).toEqual([150, null]);
+    expect(rows.map((r) => r.shopDisplay)).toEqual(['MULTI SHOP', '//']);
+    expect(rows.map((r) => r.codeDisplay)).toEqual(['MULTI', '//']);
+    expect(collectionSheetTotals(rows)).toEqual({
+      balance: 150,
+      collected: 50,
+    });
+  });
+
+  it('falls back to English when Urdu is empty, and excludes credit balance shops', () => {
     const accounts: CollectionSheetSource[] = [
       { id: 1, name: 'A', code: 'A', address: 'Z' },
       { id: 2, name: 'B', code: 'B', address: 'Y', nameUrdu: 'بی' },
+      { id: 3, name: 'C', code: 'C', address: 'W' },
     ];
     const rows = buildCollectionSheetRows(
       accounts,
       itemTypes,
       {
-        1: owed(100, 40),
-        2: { balance: 25, balanceType: 'Cr', collected: 0 },
+        1: owed(10, 40),
+        2: owed(20, 0),
+        3: { balance: 25, balanceType: 'Cr', collected: 0 },
       },
       {
         1: [{ invoiceNumber: 1, date: '2026-01-02', amount: 10 }],
         2: [{ invoiceNumber: 2, date: '2026-01-03', amount: 20 }],
+        3: [{ invoiceNumber: 3, date: '2026-01-04', amount: 30 }],
       },
       'ur',
     );
@@ -358,8 +402,61 @@ describe('buildCollectionSheetRows', () => {
         {},
         'bills-desc',
       );
-      // Beta (510), Gamma (200), Alpha (100)
-      expect(rows.map((r) => r.code)).toEqual(['B-BETA', 'C-GAMMA', 'A-ALPHA']);
+      // Gamma (200 due), Alpha (80 due), Beta (10 due)
+      expect(rows.map((r) => r.code)).toEqual(['C-GAMMA', 'A-ALPHA', 'B-BETA']);
+    });
+  });
+
+  describe('computeDueBills', () => {
+    const candidateBills = [
+      { invoiceNumber: 10180, date: '2026-07-04', amount: 326646 },
+      { invoiceNumber: 10200, date: '2026-07-23', amount: 326646 },
+      { invoiceNumber: 10240, date: '2026-08-27', amount: 219078 },
+      { invoiceNumber: 10045, date: '2026-05-15', amount: 200000 },
+      { invoiceNumber: 10014, date: '2026-04-10', amount: 300000 },
+    ];
+
+    it('settles FIFO backward from latest bills and omits fully paid older bills', () => {
+      const due = computeDueBills(candidateBills, 862724, 'en');
+      expect(due).toEqual([
+        { invoiceNumber: 10180, date: '2026-07-04', amount: 317000 },
+        { invoiceNumber: 10200, date: '2026-07-23', amount: 326646 },
+        { invoiceNumber: 10240, date: '2026-08-27', amount: 219078 },
+      ]);
+      expect(due.reduce((sum, b) => sum + b.amount, 0)).toBe(862724);
+    });
+
+    it('appends Opening Bal when debt exceeds all candidate bills', () => {
+      const due = computeDueBills(
+        [{ invoiceNumber: 100, date: '2026-01-01', amount: 30000 }],
+        50000,
+        'en',
+      );
+      expect(due).toEqual([
+        { invoiceNumber: 'Opening Bal', date: '', amount: 20000 },
+        { invoiceNumber: 100, date: '2026-01-01', amount: 30000 },
+      ]);
+    });
+
+    it('uses Urdu label for opening balance when language is ur', () => {
+      const due = computeDueBills(
+        [{ invoiceNumber: 100, date: '2026-01-01', amount: 30000 }],
+        50000,
+        'ur',
+      );
+      expect(due).toEqual([
+        { invoiceNumber: 'سابقہ بقایا', date: '', amount: 20000 },
+        { invoiceNumber: 100, date: '2026-01-01', amount: 30000 },
+      ]);
+    });
+
+    it('returns empty array when balance is zero or negative', () => {
+      expect(computeDueBills(candidateBills, 0, 'en')).toEqual([]);
+      expect(computeDueBills(candidateBills, -500, 'en')).toEqual([]);
+    });
+
+    it('returns empty array when candidateBills is empty', () => {
+      expect(computeDueBills([], 50000, 'en')).toEqual([]);
     });
   });
 });
