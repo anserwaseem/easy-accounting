@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS "account" (
   -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "012 migration"
   -- "discountProfileId" INTEGER REFERENCES "discount_profiles"("id"), -- "015 migration"
   -- "tracksVendorStock" BOOLEAN NOT NULL DEFAULT 0, -- "025 migration"
+  -- "city" TEXT, -- "049 migration"
+  -- "cityUrdu" TEXT, -- "049 migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 

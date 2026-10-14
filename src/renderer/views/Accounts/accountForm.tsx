@@ -32,12 +32,14 @@ export const accountFormSchema = z.object({
     .nullable()
     .transform((val) => val ?? undefined),
   address: optionalText,
+  addressUrdu: optionalText,
+  city: optionalText,
+  cityUrdu: optionalText,
   phone1: optionalText,
   phone2: optionalText,
   goodsName: optionalText,
   // urdu print fields — optional; empty means fall back to English on print
   nameUrdu: optionalText,
-  addressUrdu: optionalText,
   goodsNameUrdu: optionalText,
   isActive: z.boolean().default(true),
   tracksVendorStock: z.boolean().default(false),
@@ -52,11 +54,13 @@ export const defaultValues: AccountFormData = {
   accountName: '',
   accountCode: undefined,
   address: undefined,
+  addressUrdu: undefined,
+  city: undefined,
+  cityUrdu: undefined,
   phone1: undefined,
   phone2: undefined,
   goodsName: undefined,
   nameUrdu: undefined,
-  addressUrdu: undefined,
   goodsNameUrdu: undefined,
   isActive: true,
   tracksVendorStock: false,
@@ -182,6 +186,37 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                   dir="rtl"
                   lang="ur"
                   placeholder="اردو پتہ برائے پرنٹ"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="city"
+          render={({ field }) => (
+            <FormItem labelPosition="start">
+              <FormLabel>City</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="e.g. Lahore, Rawalpindi" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="cityUrdu"
+          render={({ field }) => (
+            <FormItem labelPosition="start">
+              <FormLabel>City (Urdu)</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  dir="rtl"
+                  lang="ur"
+                  placeholder="اردو شہر برائے پرنٹ"
                 />
               </FormControl>
               <FormMessage />

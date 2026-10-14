@@ -333,6 +333,24 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               ),
             },
             {
+              id: 'city',
+              accessorKey: 'city',
+              header: 'City',
+              onClick: openAccount,
+            },
+            {
+              id: 'cityUrdu',
+              accessorKey: 'cityUrdu',
+              header: 'City (Urdu)',
+              onClick: openAccount,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: CellContext<Account, unknown>) => (
+                <span dir="rtl" lang="ur">
+                  {row.original.cityUrdu ?? ''}
+                </span>
+              ),
+            },
+            {
               id: 'phone1',
               accessorKey: 'phone1',
               header: 'Phone 1',
@@ -680,6 +698,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             'headName',
             'address',
             'addressUrdu',
+            'city',
+            'cityUrdu',
             'phone1',
             'phone2',
             'goodsName',

@@ -710,12 +710,27 @@ const PrintableInvoiceScreen = () => {
       : 'flex justify-start gap-10';
 
   const billToAddress = useMemo(() => {
-    return pickPrintLocalizedText(
+    const addr = pickPrintLocalizedText(
       invoice?.accountAddress,
       invoice?.accountAddressUrdu,
       effectiveLocale,
     );
-  }, [invoice?.accountAddress, invoice?.accountAddressUrdu, effectiveLocale]);
+    const city = pickPrintLocalizedText(
+      invoice?.accountCity,
+      invoice?.accountCityUrdu,
+      effectiveLocale,
+    );
+    if (addr && city) {
+      return effectiveLocale === 'ur' ? `${addr}، ${city}` : `${addr}, ${city}`;
+    }
+    return addr || city || '';
+  }, [
+    invoice?.accountAddress,
+    invoice?.accountAddressUrdu,
+    invoice?.accountCity,
+    invoice?.accountCityUrdu,
+    effectiveLocale,
+  ]);
 
   const printCompanyHeading = useMemo(() => {
     const name = pickPrintLocalizedText(
