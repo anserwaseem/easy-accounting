@@ -183,7 +183,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
           <DialogTrigger asChild>
             <EditActionButton aria-label="Edit account" title="Edit account" />
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader className="flex flex-row items-center justify-between space-y-0 pr-7">
               <DialogTitle>Edit Account</DialogTitle>
               <Button
@@ -200,6 +200,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
             </DialogHeader>
             <AccountForm
               onSubmit={onSubmit}
+              onCancel={() => setIsOpen(false)}
               charts={charts}
               initialValues={mapRowToFormData(row.original)}
             />

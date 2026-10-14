@@ -103,12 +103,13 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create New Account</DialogTitle>
         </DialogHeader>
         <AccountForm
           onSubmit={onSubmit}
+          onCancel={() => handleOpenChange(false)}
           charts={charts}
           initialValues={{ headName: accountHead, ...initialValues }}
           onHeadNameChange={(value) => {

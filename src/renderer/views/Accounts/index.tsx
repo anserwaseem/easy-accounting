@@ -178,18 +178,35 @@ const AccountCell: React.FC<CellContext<Account, unknown>> = ({
 const AccountNameCell: React.FC<CellContext<Account, unknown>> = ({
   row,
 }: CellContext<Account, unknown>) => (
-  <div className={cn(!row.original.isActive && 'opacity-60')}>
-    {row.original.name}
-    {row.original.tracksVendorStock && (
-      <span className="ml-2 text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
-        Stock
-      </span>
-    )}
-    {!row.original.isActive && (
-      <span className="ml-2 text-xs px-2 py-0.5 bg-red-100 text-red-800 rounded">
-        Inactive
-      </span>
-    )}
+  <div className={cn('space-y-0.5', !row.original.isActive && 'opacity-60')}>
+    <div className="flex items-center gap-2">
+      <span className="font-medium text-foreground">{row.original.name}</span>
+      {row.original.tracksVendorStock && (
+        <span
+          className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
+          title="Stock at this vendor is tracked in inventory"
+        >
+          Vendor stock
+        </span>
+      )}
+      {!row.original.isActive && (
+        <span
+          className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+          title="Inactive account"
+        >
+          Inactive
+        </span>
+      )}
+    </div>
+    {row.original.nameUrdu ? (
+      <div
+        dir="rtl"
+        lang="ur"
+        className="text-xs font-normal leading-tight text-muted-foreground"
+      >
+        {row.original.nameUrdu}
+      </div>
+    ) : null}
   </div>
 );
 
@@ -651,18 +668,18 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 </DropdownMenu>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button size="sm" className="gap-1.5">
                       <Plus size={16} />
                       New
-                      <ChevronDown size={14} />
+                      <ChevronDown size={14} className="opacity-70" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={() => setNewDialog('account')}>
-                      Account
+                      New Account
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setNewDialog('head')}>
-                      Head
+                      New Head
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
