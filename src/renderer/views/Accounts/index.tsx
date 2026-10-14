@@ -40,11 +40,13 @@ import {
 type OptionalAccountColumnId =
   | 'code'
   | 'address'
+  | 'addressUrdu'
+  | 'city'
+  | 'cityUrdu'
   | 'phone1'
   | 'phone2'
   | 'goodsName'
   | 'nameUrdu'
-  | 'addressUrdu'
   | 'goodsNameUrdu'
   | 'policy'
   | 'headName'
@@ -83,6 +85,8 @@ const getAvailableColumnOptions = (
     { id: 'createdAt', label: 'Created at' },
     { id: 'address', label: 'Address' },
     { id: 'addressUrdu', label: 'Address (Urdu)' },
+    { id: 'city', label: 'City' },
+    { id: 'cityUrdu', label: 'City (Urdu)' },
     { id: 'goodsName', label: 'Goods name' },
     { id: 'goodsNameUrdu', label: 'Goods name (Urdu)' },
     { id: 'nameUrdu', label: 'Name (Urdu)' },
