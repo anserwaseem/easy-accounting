@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Columns3, Plus, Settings2 } from 'lucide-react';
+import {
+  ChevronDown,
+  Columns3,
+  Languages,
+  Plus,
+  Settings2,
+} from 'lucide-react';
 import { Button } from 'renderer/shad/ui/button';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -39,15 +45,11 @@ import {
 
 type OptionalAccountColumnId =
   | 'code'
-  | 'address'
-  | 'addressUrdu'
   | 'city'
-  | 'cityUrdu'
+  | 'address'
   | 'phone1'
   | 'phone2'
   | 'goodsName'
-  | 'nameUrdu'
-  | 'goodsNameUrdu'
   | 'policy'
   | 'headName'
   | 'type'
@@ -81,17 +83,13 @@ const getAvailableColumnOptions = (
   const options: AccountColumnOption[] = [
     { id: 'code', label: 'Code' },
     { id: 'headName', label: 'Head' },
-    { id: 'updatedAt', label: 'Updated at' },
-    { id: 'createdAt', label: 'Created at' },
-    { id: 'address', label: 'Address' },
-    { id: 'addressUrdu', label: 'Address (Urdu)' },
     { id: 'city', label: 'City' },
-    { id: 'cityUrdu', label: 'City (Urdu)' },
-    { id: 'goodsName', label: 'Goods name' },
-    { id: 'goodsNameUrdu', label: 'Goods name (Urdu)' },
-    { id: 'nameUrdu', label: 'Name (Urdu)' },
+    { id: 'address', label: 'Address' },
     { id: 'phone1', label: 'Phone 1' },
     { id: 'phone2', label: 'Phone 2' },
+    { id: 'goodsName', label: 'Goods Name' },
+    { id: 'updatedAt', label: 'Updated at' },
+    { id: 'createdAt', label: 'Created at' },
   ];
 
   if (typeSelected === AccountType.Asset) {
@@ -111,11 +109,11 @@ const getDefaultVisibleColumns = (
 ): OptionalAccountColumnId[] => {
   switch (typeSelected) {
     case AccountType.Asset:
-      return ['code', 'policy', 'headName', 'updatedAt'];
+      return ['code', 'city', 'policy', 'headName', 'updatedAt'];
     case 'All':
-      return ['code', 'type', 'headName', 'updatedAt'];
+      return ['code', 'city', 'type', 'headName', 'updatedAt'];
     default:
-      return ['code', 'headName', 'updatedAt'];
+      return ['code', 'city', 'headName', 'updatedAt'];
   }
 };
 
@@ -175,40 +173,35 @@ const AccountCell: React.FC<CellContext<Account, unknown>> = ({
   </div>
 );
 
-const AccountNameCell: React.FC<CellContext<Account, unknown>> = ({
-  row,
-}: CellContext<Account, unknown>) => (
-  <div className={cn('space-y-0.5', !row.original.isActive && 'opacity-60')}>
-    <div className="flex items-center gap-2">
-      <span className="font-medium text-foreground">{row.original.name}</span>
-      {row.original.tracksVendorStock && (
-        <span
-          className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
-          title="Stock at this vendor is tracked in inventory"
+interface BilingualCellProps {
+  primary?: string | null;
+  secondary?: string | null;
+  showSecondary: boolean;
+  className?: string;
+}
+
+const BilingualCell: React.FC<BilingualCellProps> = ({
+  primary,
+  secondary,
+  showSecondary,
+  className,
+}: BilingualCellProps) => {
+  if (!primary && (!showSecondary || !secondary)) return null;
+  return (
+    <div className={cn('space-y-0.5', className)}>
+      {primary && <div>{primary}</div>}
+      {showSecondary && secondary ? (
+        <div
+          dir="rtl"
+          lang="ur"
+          className="text-xs font-normal leading-tight text-muted-foreground"
         >
-          Vendor stock
-        </span>
-      )}
-      {!row.original.isActive && (
-        <span
-          className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
-          title="Inactive account"
-        >
-          Inactive
-        </span>
-      )}
+          {secondary}
+        </div>
+      ) : null}
     </div>
-    {row.original.nameUrdu ? (
-      <div
-        dir="rtl"
-        lang="ur"
-        className="text-xs font-normal leading-tight text-muted-foreground"
-      >
-        {row.original.nameUrdu}
-      </div>
-    ) : null}
-  </div>
-);
+  );
+};
 
 const AccountsPage: React.FC<AccountPageProps> = ({
   isMini = false,
@@ -221,6 +214,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     useState<AccountTypeFilter>(getStoredAccountType);
   const [headSelected, setHeadSelected] =
     useState<AccountHeadFilter>(getStoredAccountHead);
+  const [showUrdu, setShowUrdu] = useState<boolean>(() => {
+    const stored = window.electron.store.get('accountsShowUrdu');
+    return typeof stored === 'boolean' ? stored : true;
+  });
   const [visibleColumnIds, setVisibleColumnIds] = useState<
     OptionalAccountColumnId[]
   >(() => getStoredVisibleColumns(getStoredAccountType()));
@@ -292,6 +289,14 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     [],
   );
 
+  const handleToggleUrdu = useCallback(() => {
+    setShowUrdu((prev) => {
+      const next = !prev;
+      window.electron.store.set('accountsShowUrdu', next);
+      return next;
+    });
+  }, []);
+
   const shouldShowPolicyColumn =
     typeSelected === AccountType.Asset || typeSelected === 'All';
 
@@ -315,7 +320,46 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'name',
               header: 'Account',
               onClick: openAccount,
-              cell: AccountNameCell,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: CellContext<Account, unknown>) => (
+                <div
+                  className={cn(
+                    'space-y-0.5',
+                    !row.original.isActive && 'opacity-60',
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">
+                      {row.original.name}
+                    </span>
+                    {row.original.tracksVendorStock && (
+                      <span
+                        className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
+                        title="Stock at this vendor is tracked in inventory"
+                      >
+                        Vendor stock
+                      </span>
+                    )}
+                    {!row.original.isActive && (
+                      <span
+                        className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+                        title="Inactive account"
+                      >
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+                  {showUrdu && row.original.nameUrdu ? (
+                    <div
+                      dir="rtl"
+                      lang="ur"
+                      className="text-xs font-normal leading-tight text-muted-foreground"
+                    >
+                      {row.original.nameUrdu}
+                    </div>
+                  ) : null}
+                </div>
+              ),
             },
             {
               id: 'code',
@@ -324,51 +368,32 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               onClick: openAccount,
             },
             {
-              id: 'address',
-              accessorKey: 'address',
-              header: 'Address',
-              onClick: openAccount,
-            },
-            {
-              id: 'nameUrdu',
-              accessorKey: 'nameUrdu',
-              header: 'Name (Urdu)',
-              onClick: openAccount,
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <span dir="rtl" lang="ur">
-                  {row.original.nameUrdu ?? ''}
-                </span>
-              ),
-            },
-            {
-              id: 'addressUrdu',
-              accessorKey: 'addressUrdu',
-              header: 'Address (Urdu)',
-              onClick: openAccount,
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <span dir="rtl" lang="ur">
-                  {row.original.addressUrdu ?? ''}
-                </span>
-              ),
-            },
-            {
               id: 'city',
               accessorKey: 'city',
               header: 'City',
               onClick: openAccount,
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: CellContext<Account, unknown>) => (
+                <BilingualCell
+                  primary={row.original.city}
+                  secondary={row.original.cityUrdu}
+                  showSecondary={showUrdu}
+                />
+              ),
             },
             {
-              id: 'cityUrdu',
-              accessorKey: 'cityUrdu',
-              header: 'City (Urdu)',
+              id: 'address',
+              accessorKey: 'address',
+              header: 'Address',
               onClick: openAccount,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (
-                <span dir="rtl" lang="ur">
-                  {row.original.cityUrdu ?? ''}
-                </span>
+                <BilingualCell
+                  primary={row.original.address}
+                  secondary={row.original.addressUrdu}
+                  showSecondary={showUrdu}
+                  className="max-w-[280px] truncate"
+                />
               ),
             },
             {
@@ -388,17 +413,13 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'goodsName',
               header: 'Goods Name',
               onClick: openAccount,
-            },
-            {
-              id: 'goodsNameUrdu',
-              accessorKey: 'goodsNameUrdu',
-              header: 'Goods Name (Urdu)',
-              onClick: openAccount,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (
-                <span dir="rtl" lang="ur">
-                  {row.original.goodsNameUrdu ?? ''}
-                </span>
+                <BilingualCell
+                  primary={row.original.goodsName}
+                  secondary={row.original.goodsNameUrdu}
+                  showSecondary={showUrdu}
+                />
               ),
             },
             ...(shouldShowPolicyColumn
@@ -503,6 +524,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   row={row}
                   refetchAccounts={refetchAccounts}
                   charts={charts}
+                  onEditPolicy={() => setPricingAccountId(row.original.id)}
                 />
               ),
               // two 32px icon buttons + gaps — match inventory Actions width
@@ -520,7 +542,9 @@ const AccountsPage: React.FC<AccountPageProps> = ({
       openAccount,
       onRowClick,
       refetchAccounts,
+      setPricingAccountId,
       shouldShowPolicyColumn,
+      showUrdu,
       visibleColumnSet,
     ],
   );
@@ -646,6 +670,28 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             />
             {isMini ? null : (
               <>
+                <Button
+                  type="button"
+                  variant={showUrdu ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={handleToggleUrdu}
+                  className={cn(
+                    'gap-1.5 px-3 text-xs font-medium',
+                    showUrdu &&
+                      'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15',
+                  )}
+                  title={
+                    showUrdu
+                      ? 'Hide Urdu script in table'
+                      : 'Show Urdu script in table'
+                  }
+                >
+                  <Languages size={15} />
+                  <span>Urdu</span>
+                  <span className="text-[11px] font-normal opacity-75">
+                    {showUrdu ? 'On' : 'Off'}
+                  </span>
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="gap-2">

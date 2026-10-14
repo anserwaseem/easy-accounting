@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -16,8 +15,6 @@ import {
 import type { Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
-import { Badge } from 'renderer/shad/ui/badge';
-import { cn } from 'renderer/lib/utils';
 
 const optionalText = z
   .string()
@@ -75,16 +72,20 @@ interface AccountFormProps {
   onSubmit: (values: AccountFormData) => Promise<void>;
   onReset?: () => void;
   onCancel?: () => void;
+  onEditPolicy?: () => void;
   initialValues?: Partial<AccountFormData>;
   charts: Chart[];
   onHeadNameChange?: (value: string) => void;
   submitLabel?: string;
 }
 
+const inputClass = 'my-0 placeholder:text-muted-foreground/30';
+
 export const AccountForm: React.FC<AccountFormProps> = ({
   onSubmit,
   onReset,
   onCancel,
+  onEditPolicy,
   initialValues,
   charts,
   onHeadNameChange,
@@ -94,13 +95,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     resolver: zodResolver(accountFormSchema),
     defaultValues: { ...defaultValues, ...initialValues },
   });
-
-  const hasLogisticsData = Boolean(
-    initialValues?.goodsName ||
-      initialValues?.goodsNameUrdu ||
-      initialValues?.tracksVendorStock,
-  );
-  const [showLogistics, setShowLogistics] = useState(hasLogisticsData);
 
   return (
     <Form {...form}>
@@ -146,7 +140,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                   <FormControl>
                     <Input
                       {...field}
-                      className="my-0"
+                      className={inputClass}
                       placeholder="e.g. 1001"
                     />
                   </FormControl>
@@ -168,7 +162,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    className="my-0"
+                    className={inputClass}
                     placeholder="Official account title"
                   />
                 </FormControl>
@@ -185,7 +179,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    className="my-0"
+                    className={inputClass}
                     dir="rtl"
                     lang="ur"
                     placeholder="اردو نام برائے پرنٹ"
@@ -208,7 +202,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    className="my-0"
+                    className={inputClass}
                     placeholder="e.g. Lahore, Karachi"
                   />
                 </FormControl>
@@ -225,7 +219,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    className="my-0"
+                    className={inputClass}
                     dir="rtl"
                     lang="ur"
                     placeholder="اردو شہر برائے پرنٹ"
@@ -248,7 +242,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    className="my-0"
+                    className={inputClass}
                     placeholder="Street or market address"
                   />
                 </FormControl>
@@ -265,7 +259,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    className="my-0"
+                    className={inputClass}
                     dir="rtl"
                     lang="ur"
                     placeholder="اردو پتہ برائے پرنٹ"
@@ -288,7 +282,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    className="my-0"
+                    className={inputClass}
                     placeholder="Primary contact"
                   />
                 </FormControl>
@@ -305,7 +299,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
                 <FormControl>
                   <Input
                     {...field}
-                    className="my-0"
+                    className={inputClass}
                     placeholder="Secondary contact"
                   />
                 </FormControl>
@@ -315,113 +309,101 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           />
         </div>
 
-        {/* Progressive Disclosure for Bilty & Vendor Stock */}
-        <div className="pt-0.5">
-          <button
-            type="button"
-            onClick={() => setShowLogistics((prev) => !prev)}
-            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                'h-3.5 w-3.5 transition-transform duration-200',
-                !showLogistics && '-rotate-90',
-              )}
-            />
-            <span>Bilty Transport & Consignment Stock (Optional)</span>
-            {hasLogisticsData && !showLogistics && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-foreground">
-                Configured
-              </span>
+        {/* Bilty Goods Receiver (English & Urdu) */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="goodsName"
+            render={({ field }) => (
+              <FormItem className="space-y-1">
+                <FormLabel>Goods Receiver Name</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    className={inputClass}
+                    placeholder="Transport bilty consignee"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
-          </button>
+          />
+          <FormField
+            control={form.control}
+            name="goodsNameUrdu"
+            render={({ field }) => (
+              <FormItem className="space-y-1">
+                <FormLabel>Goods Receiver (Urdu)</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    className={inputClass}
+                    dir="rtl"
+                    lang="ur"
+                    placeholder="اردو مال برداری نام"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
-        {showLogistics && (
-          <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="goodsName"
-                render={({ field }) => (
-                  <FormItem className="space-y-1">
-                    <FormLabel>Goods Receiver Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        className="my-0"
-                        placeholder="Transport bilty consignee"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="goodsNameUrdu"
-                render={({ field }) => (
-                  <FormItem className="space-y-1">
-                    <FormLabel>Goods Receiver (Urdu)</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        className="my-0"
-                        dir="rtl"
-                        lang="ur"
-                        placeholder="اردو مال برداری نام"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+        {/* Vendor Stock Tracking Checkbox */}
+        <FormField
+          control={form.control}
+          name="tracksVendorStock"
+          render={({ field }) => (
+            <FormItem className="pt-0.5">
+              <div className="flex items-start gap-2.5">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    className="mt-0.5"
+                  />
+                </FormControl>
+                <div className="space-y-0.5">
+                  <FormLabel className="cursor-pointer text-xs font-normal text-foreground">
+                    Track stock at this vendor
+                  </FormLabel>
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    Count goods held here until repurchased. Leave off for
+                    agents booking consignment returns.
+                  </p>
+                </div>
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-            <FormField
-              control={form.control}
-              name="tracksVendorStock"
-              render={({ field }) => (
-                <FormItem className="pt-1">
-                  <div className="flex items-start gap-2.5">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={(checked) =>
-                          field.onChange(checked === true)
-                        }
-                        className="mt-0.5"
-                      />
-                    </FormControl>
-                    <div className="space-y-0.5">
-                      <FormLabel className="cursor-pointer text-xs font-normal text-foreground">
-                        Track stock at this vendor
-                      </FormLabel>
-                      <p className="text-[11px] leading-snug text-muted-foreground">
-                        Count goods held here until repurchased. Leave off for
-                        agents booking consignment returns.
-                      </p>
-                    </div>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        )}
-
+        {/* Discount Policy with Non-Overpowering Edit Button */}
         {(initialValues?.discountProfileName ||
           initialValues?.discountProfileId) && (
-          <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/20 p-3 text-xs">
-            <div className="space-y-0.5">
-              <p className="font-medium text-foreground">Discount Policy</p>
-              <p className="text-[11px] text-muted-foreground">
-                Managed from the Policy column in the accounts table
-              </p>
+          <div className="flex items-center justify-between rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground">
+                Discount Policy
+              </span>
+              <span className="text-muted-foreground">
+                {initialValues?.discountProfileName || 'None'}
+              </span>
             </div>
-            <Badge variant="secondary">
-              {initialValues?.discountProfileName || 'Assigned'}
-            </Badge>
+            {onEditPolicy && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onEditPolicy}
+                className="h-6 px-2 text-xs text-muted-foreground hover:bg-background hover:text-foreground"
+              >
+                <Pencil className="mr-1 h-3 w-3" />
+                Edit policy
+              </Button>
+            )}
           </div>
         )}
 

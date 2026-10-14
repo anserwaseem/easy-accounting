@@ -29,12 +29,14 @@ interface EditAccountProps {
   };
   refetchAccounts: () => void;
   charts: Chart[];
+  onEditPolicy?: () => void;
 }
 
 export const EditAccount: React.FC<EditAccountProps> = ({
   row,
   refetchAccounts,
   charts,
+  onEditPolicy,
 }: EditAccountProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -201,6 +203,14 @@ export const EditAccount: React.FC<EditAccountProps> = ({
             <AccountForm
               onSubmit={onSubmit}
               onCancel={() => setIsOpen(false)}
+              onEditPolicy={
+                onEditPolicy
+                  ? () => {
+                      setIsOpen(false);
+                      onEditPolicy();
+                    }
+                  : undefined
+              }
               charts={charts}
               initialValues={mapRowToFormData(row.original)}
             />
