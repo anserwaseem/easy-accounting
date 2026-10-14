@@ -18,11 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/renderer/shad/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/renderer/shad/ui/popover';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import {
@@ -33,6 +28,7 @@ import { cn } from '@/renderer/lib/utils';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { printStyles } from '../components/printStyles';
 import { CollectionSheetTable } from './CollectionSheetTable';
+import { CollectionSheetGuideDialog } from './CollectionSheetGuideDialog';
 import { printCollectionSheetIframe } from './printCollectionSheet';
 import { useCollectionSheet } from './useCollectionSheet';
 import { ToursSheet } from './tours/ToursSheet';
@@ -139,6 +135,7 @@ const CollectionSheetPage: React.FC = () => {
     catalogReady,
   } = useCollectionSheet();
   const [toursOpen, setToursOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const headers = collectionSheetHeaders(language);
   const period = dateLabel(dateRange);
@@ -328,58 +325,15 @@ const CollectionSheetPage: React.FC = () => {
                 <ClipboardList className="h-5 w-5" />
                 {headers.title}
               </h1>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                    title="How to read this report"
-                  >
-                    <HelpCircle className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-96 text-xs space-y-2.5 p-3.5">
-                  <h4 className="font-semibold text-sm">
-                    About Collection Sheet
-                  </h4>
-                  <p className="text-muted-foreground">
-                    This report pairs <strong>active due bills</strong> for each
-                    shop with <strong>serial tour collections</strong> collected
-                    by the agent over dated trips.
-                  </p>
-                  <div className="space-y-1.5 border-t pt-2">
-                    <p>
-                      <strong>Bill rows</strong>: Only active due bills (unpaid
-                      or partially unpaid) are listed, settled FIFO against the
-                      customer&apos;s ledger balance. Fully paid bills are
-                      omitted so the agent focuses on collecting outstanding
-                      debt.
-                    </p>
-                    <p>
-                      <strong>Multi-bill shops</strong>: The customer’s total
-                      collection and tour payments are consolidated on the first
-                      bill row. Subsequent rows show{' '}
-                      <span className="font-mono">—</span> so tour totals are
-                      not duplicated.
-                    </p>
-                    <p>
-                      <strong>Tour columns</strong>: Shows receipts collected
-                      during each tour window. A red cell (
-                      <span className="bg-destructive/15 text-destructive px-1 rounded">
-                        0
-                      </span>
-                      ) indicates the customer paid nothing on that tour.
-                    </p>
-                    <p>
-                      <strong>Blank columns</strong>: <em>Collection</em>,{' '}
-                      <em>Difference</em>, and <em>Remaining</em> are left blank
-                      on printouts for the agent to log receipts during their
-                      next trip.
-                    </p>
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                title="How to read this report"
+                onClick={() => setGuideOpen(true)}
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Button>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <LanguageToggle language={language} onChange={setLanguage} />
@@ -503,6 +457,11 @@ const CollectionSheetPage: React.FC = () => {
           onToursChanged={refreshData}
         />
       ) : null}
+      <CollectionSheetGuideDialog
+        open={guideOpen}
+        onOpenChange={setGuideOpen}
+        language={language}
+      />
     </ReportLayout>
   );
 };
