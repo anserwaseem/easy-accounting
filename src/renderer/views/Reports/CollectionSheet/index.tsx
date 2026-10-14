@@ -319,6 +319,7 @@ const CollectionSheetPage: React.FC = () => {
   return (
     <ReportLayout
       printStyles={printStyles}
+      bodyClassName="overflow-hidden h-full flex flex-col print:p-0 print:overflow-visible"
       header={
         <div className="print-header flex flex-col gap-2 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
