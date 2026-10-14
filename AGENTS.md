@@ -128,6 +128,7 @@ npm run rebuild
 
 ## Learned User Preferences
 
+- CRITICAL DATABASE SAFETY: NEVER write, overwrite, stage, commit, or delete any .db file (including release/app/database.db, .local/*.db, or any SQLite file) under ANY circumstance unless the user explicitly and directly instructs so in that specific turn.
 - Prefer small, domain-focused hooks over one large hook so no single hook becomes a behemoth.
 - Stabilize callbacks passed to hooks (e.g. useCallback) when they appear in effect dependency arrays to avoid infinite re-render loops.
 - Add comments to zod schema refinements and to each useEffect for clarity and future maintenance.
