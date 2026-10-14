@@ -55,10 +55,14 @@ export interface CollectionSheetRow {
   id: string;
   serial: number;
   shop: string;
+  /** "//" when this row's shop matches the previous row */
+  shopDisplay: string;
   address: string;
   /** "//" when this row's address matches the previous row */
   addressDisplay: string;
   code: string;
+  /** "//" when this row's code matches the previous row */
+  codeDisplay: string;
   billNumber: string;
   billDate: string;
   /** this bill's amount, tier shares added. ledger balance only when the shop has no bill in the range */
@@ -404,7 +408,9 @@ export const buildCollectionSheetRows = (
     });
 
   const rows: CollectionSheetRow[] = [];
+  let previousShop = '';
   let previousAddress = '';
+  let previousCode = '';
   let serial = 0;
   for (const shop of shops) {
     // no sale bill in the range: do not invent a row with an empty bill
@@ -418,17 +424,28 @@ export const buildCollectionSheetRows = (
       else if (!collectedPlaced) collectedCell = shop.collected;
       if (!noCollection && collectedCell != null) collectedPlaced = true;
       serial += 1;
+      const sameShop =
+        shop.display.shop.length > 0 && shop.display.shop === previousShop;
+      previousShop = shop.display.shop;
+
       const sameAddress =
         shop.display.address.length > 0 &&
         shop.display.address === previousAddress;
       previousAddress = shop.display.address;
+
+      const sameCode =
+        shop.display.code.length > 0 && shop.display.code === previousCode;
+      previousCode = shop.display.code;
+
       rows.push({
         id: `${shop.display.accountId}:${bill.invoiceNumber}`,
         serial,
         shop: shop.display.shop,
+        shopDisplay: sameShop ? '//' : shop.display.shop,
         address: shop.display.address,
         addressDisplay: sameAddress ? '//' : shop.display.address,
         code: shop.display.code,
+        codeDisplay: sameCode ? '//' : shop.display.code,
         billNumber: String(bill.invoiceNumber),
         billDate: formatBillDate(bill.date),
         // same rounding as the invoice screen: nearest rupee on the bill total

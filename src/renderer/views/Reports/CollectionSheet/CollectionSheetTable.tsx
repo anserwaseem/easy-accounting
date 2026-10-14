@@ -156,8 +156,15 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               <td className={cn(bodyCell, 'text-end tabular-nums')}>
                 {row.serial}
               </td>
-              <td dir="auto" className={bodyCell}>
-                {row.shop}
+              <td
+                dir={row.shopDisplay === '//' ? 'ltr' : 'auto'}
+                className={cn(
+                  bodyCell,
+                  row.shopDisplay === '//' && 'text-muted-foreground/45',
+                  row.shopDisplay === '//' && urdu && 'text-right',
+                )}
+              >
+                {row.shopDisplay}
               </td>
               <td
                 dir={row.addressDisplay === '//' ? 'ltr' : 'auto'}
@@ -171,9 +178,13 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               </td>
               <td
                 dir="ltr"
-                className={cn(bodyCell, 'whitespace-nowrap text-left')}
+                className={cn(
+                  bodyCell,
+                  'whitespace-nowrap text-left',
+                  row.codeDisplay === '//' && 'text-muted-foreground/45',
+                )}
               >
-                {row.code}
+                {row.codeDisplay}
               </td>
               <td
                 dir="ltr"

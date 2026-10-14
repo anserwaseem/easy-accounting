@@ -56,6 +56,14 @@ export const printCollectionSheetIframe = (
   };
   const body = rows
     .map((row) => {
+      const shopDittoClass =
+        row.shopDisplay === '//'
+          ? ` class="ditto${language === 'ur' ? ' ditto-right' : ''}" dir="ltr"`
+          : '';
+      const shopCell =
+        row.shopDisplay === '//'
+          ? `<td${shopDittoClass}>//</td>`
+          : `<td>${escape(row.shopDisplay)}</td>`;
       const dittoClass =
         row.addressDisplay === '//'
           ? ` class="ditto${language === 'ur' ? ' ditto-right' : ''}" dir="ltr"`
@@ -64,15 +72,20 @@ export const printCollectionSheetIframe = (
         row.addressDisplay === '//'
           ? `<td${dittoClass}>//</td>`
           : cell(row.addressDisplay);
+      const codeDittoClass =
+        row.codeDisplay === '//'
+          ? ' class="ditto ltr fit" dir="ltr"'
+          : ' class="ltr fit" dir="ltr"';
+      const codeCell = `<td${codeDittoClass}>${escape(row.codeDisplay)}</td>`;
       const collectedContent =
         row.collected === null
           ? `<span class="continuation">—</span>`
           : escape(formatSheetAmount(row.collected));
       return `<tr>
         ${cell(String(row.serial), ' class="num"')}
-        <td>${escape(row.shop)}</td>
+        ${shopCell}
         ${addressCell}
-        ${cell(row.code, ' class="ltr fit" dir="ltr"')}
+        ${codeCell}
         ${cell(row.billNumber, ' class="ltr fit" dir="ltr"')}
         ${cell(row.billDate, ' class="ltr fit" dir="ltr"')}
         <td class="num fit">${escape(formatSheetAmount(row.balance))}</td>

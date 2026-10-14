@@ -48,6 +48,13 @@ import {
 
 type TourExportKey = `tour_${number}`;
 
+const SORT_FILENAME_SUFFIX: Record<CollectionSheetSortBy, string> = {
+  code: '',
+  'outstanding-desc': '_highest_outstanding',
+  'unpaid-tours-desc': '_most_unpaid_tours',
+  'bills-desc': '_highest_billed',
+};
+
 type CollectionSheetExportRow = {
   serial: number;
   shop: string;
@@ -153,6 +160,7 @@ const CollectionSheetPage: React.FC = () => {
       rows,
       tours.map((tour) => tour.id),
     );
+    const sortSuffix = SORT_FILENAME_SUFFIX[sortBy] ?? '';
     const payload: ReportExportPayload<CollectionSheetExportRow> = {
       title,
       subtitle,
@@ -162,7 +170,7 @@ const CollectionSheetPage: React.FC = () => {
       ).replace(/\s+/g, '_')}_${format(dateRange.from, 'yyyy-MM-dd')}_${format(
         dateRange.to,
         'yyyy-MM-dd',
-      )}.xlsx`,
+      )}${sortSuffix}.xlsx`,
       columns: [
         { key: 'serial', header: headers.serial, format: 'number', width: 6 },
         { key: 'shop', header: headers.shop, format: 'string', width: 28 },
@@ -224,9 +232,9 @@ const CollectionSheetPage: React.FC = () => {
       ],
       rows: rows.map((row: CollectionSheetRow) => ({
         serial: row.serial,
-        shop: row.shop,
+        shop: row.shopDisplay,
         address: row.addressDisplay,
-        code: row.code,
+        code: row.codeDisplay,
         balance: row.balance,
         collected: row.collected,
         collection: '',
@@ -266,6 +274,7 @@ const CollectionSheetPage: React.FC = () => {
     headers,
     rows,
     selectedHead?.name,
+    sortBy,
     subtitle,
     title,
     tours,

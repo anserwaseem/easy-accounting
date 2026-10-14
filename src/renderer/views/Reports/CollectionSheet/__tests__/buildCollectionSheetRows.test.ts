@@ -119,6 +119,9 @@ describe('buildCollectionSheetRows', () => {
     expect(rows.map((r) => r.balance)).toEqual([100, 81]);
     expect(rows.map((r) => r.collected)).toEqual([100, null]);
     expect(rows.map((r) => r.code)).toEqual(['CHITRAL-NOOR', 'CHITRAL-NOOR']);
+    expect(rows.map((r) => r.shopDisplay)).toEqual(['نور بک ڈپو', '//']);
+    expect(rows.map((r) => r.addressDisplay)).toEqual(['چترال', '//']);
+    expect(rows.map((r) => r.codeDisplay)).toEqual(['CHITRAL-NOOR', '//']);
     expect(collectionSheetTotals(rows)).toEqual({
       balance: 181,
       collected: 100,
