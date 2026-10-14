@@ -58,11 +58,13 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           headName: values.headName,
           code: values.accountCode,
           address: values.address,
+          addressUrdu: values.addressUrdu,
+          city: values.city,
+          cityUrdu: values.cityUrdu,
           phone1: values.phone1,
           phone2: values.phone2,
           goodsName: values.goodsName,
           nameUrdu: values.nameUrdu,
-          addressUrdu: values.addressUrdu,
           goodsNameUrdu: values.goodsNameUrdu,
           discountProfileId:
             values.discountProfileId ??
@@ -101,12 +103,13 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create New Account</DialogTitle>
         </DialogHeader>
         <AccountForm
           onSubmit={onSubmit}
+          onCancel={() => handleOpenChange(false)}
           charts={charts}
           initialValues={{ headName: accountHead, ...initialValues }}
           onHeadNameChange={(value) => {

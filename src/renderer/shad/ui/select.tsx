@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import {
   Content,
   Group,
@@ -91,35 +91,89 @@ const forcedPointerEvents: React.CSSProperties = { pointerEvents: 'auto' };
 const SelectContent = forwardRef<
   React.ElementRef<typeof Content>,
   React.ComponentPropsWithoutRef<typeof Content>
->(({ className, children, position = 'popper', style, ...props }, ref) => (
-  <Portal>
-    <Content
-      ref={ref}
-      style={{ ...forcedPointerEvents, ...style }}
-      className={cn(
-        // select is often nested inside popovers/dialogs; it must sit above them
-        'relative z-[70] max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
-        position === 'popper' &&
-          'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
-        className,
-      )}
-      position={position}
-      {...props}
-    >
-      <SelectScrollUpButton />
-      <Viewport
-        className={cn(
-          'p-1',
-          position === 'popper' &&
-            'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]',
-        )}
-      >
-        {children}
-      </Viewport>
-      <SelectScrollDownButton />
-    </Content>
-  </Portal>
-));
+>(
+  (
+    {
+      className,
+      children,
+      position = 'popper',
+      style,
+      onWheel,
+      onTouchMove,
+      ...props
+    },
+    forwardedRef,
+  ) => {
+    const contentRef = useRef<HTMLDivElement | null>(null);
+
+    // radix dialog's react-remove-scroll intercepts document wheel/touchmove events
+    // outside the dialog overlay and calls preventDefault(), which freezes select dropdown scrolling.
+    // stopping native event propagation at the content element allows the browser to perform
+    // normal scrolling without the dialog's document listener cancelling it.
+    useEffect(() => {
+      const el = contentRef.current;
+      if (!el) return;
+      const stopProp = (e: Event) => {
+        e.stopPropagation();
+      };
+      el.addEventListener('wheel', stopProp, { passive: true });
+      el.addEventListener('touchmove', stopProp, { passive: true });
+      return () => {
+        el.removeEventListener('wheel', stopProp);
+        el.removeEventListener('touchmove', stopProp);
+      };
+    }, []);
+
+    const handleRef = (node: HTMLDivElement | null) => {
+      contentRef.current = node;
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(node);
+      } else if (forwardedRef) {
+        (
+          forwardedRef as React.MutableRefObject<HTMLDivElement | null>
+        ).current = node;
+      }
+    };
+
+    return (
+      <Portal>
+        <Content
+          ref={handleRef}
+          style={{ ...forcedPointerEvents, ...style }}
+          onWheel={(e) => {
+            e.stopPropagation();
+            onWheel?.(e);
+          }}
+          onTouchMove={(e) => {
+            e.stopPropagation();
+            onTouchMove?.(e);
+          }}
+          className={cn(
+            // select is often nested inside popovers/dialogs; it must sit above them
+            'relative z-[70] max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] min-w-[8rem] overflow-y-auto scrollbar rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+            position === 'popper' &&
+              'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
+            className,
+          )}
+          position={position}
+          {...props}
+        >
+          <SelectScrollUpButton />
+          <Viewport
+            className={cn(
+              'p-1',
+              position === 'popper' &&
+                'w-full min-w-[var(--radix-select-trigger-width)]',
+            )}
+          >
+            {children}
+          </Viewport>
+          <SelectScrollDownButton />
+        </Content>
+      </Portal>
+    );
+  },
+);
 SelectContent.displayName = Content.displayName;
 
 const SelectLabel = forwardRef<

@@ -19,6 +19,7 @@ import { migration045 } from './045_invoice_net_rate_and_shipping';
 import { migration046 } from './046_recapture_invoice_net_and_shipping';
 import { migration047 } from './047_agent_commissions';
 import { migration048 } from './048_heal_duplicate_invoice_lines';
+import { migration049 } from './049_account_city';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -67,4 +68,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration046,
   migration047,
   migration048,
+  migration049,
 ];

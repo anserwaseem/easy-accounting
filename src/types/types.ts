@@ -112,6 +112,9 @@ export interface Account extends BaseEntity {
   nameUrdu?: string;
   /** optional Urdu print address; empty falls back to address */
   addressUrdu?: string;
+  city?: string | null;
+  /** optional Urdu print city; empty falls back to city */
+  cityUrdu?: string | null;
   /** optional Urdu print goods / bilty carrier name; empty falls back to goodsName */
   goodsNameUrdu?: string;
   isActive: boolean;
@@ -136,7 +139,10 @@ export type AccountUrduFieldPatch = {
   code?: string | number | null;
   name?: string;
   nameUrdu?: string | null;
+  address?: string | null;
   addressUrdu?: string | null;
+  city?: string | null;
+  cityUrdu?: string | null;
   goodsNameUrdu?: string | null;
 };
 
@@ -609,6 +615,8 @@ export type InvoiceView = Prettify<
     shippingAccountId?: number | null;
     accountAddress?: string | null;
     accountAddressUrdu?: string | null;
+    accountCity?: string | null;
+    accountCityUrdu?: string | null;
     accountGoodsName?: string | null;
     accountGoodsNameUrdu?: string | null;
     /** custom chart head of header party (agent); null for built-in heads */

@@ -66,6 +66,8 @@ const anAccount = (overrides: Record<string, unknown> = {}) =>
     headName: 'Current Asset',
     code: 101,
     address: null,
+    city: null,
+    cityUrdu: null,
     phone1: null,
     phone2: null,
     goodsName: null,
@@ -87,6 +89,36 @@ describe('core AccountService', () => {
     expect(all[0].name).toBe('Customer A');
     expect(all[0].headName).toBe('Current Asset');
     expect(all[0].isActive).toBe(true); // 1 → true normalization
+    db.close();
+  });
+
+  it('inserts, updates and reads back city and cityUrdu', async () => {
+    const db = new Database(':memory:');
+    await seedBasicSchema(db);
+    const { accounts } = createCore(db);
+
+    await accounts.insertAccount(
+      anAccount({
+        address: 'Urdu Bazar',
+        city: 'Lahore',
+        addressUrdu: 'اردو بازار',
+        cityUrdu: 'لاہور',
+      }),
+    );
+
+    const acc = (await accounts.getAccounts())[0];
+    expect(acc.city).toBe('Lahore');
+    expect(acc.cityUrdu).toBe('لاہور');
+
+    await accounts.updateAccount({
+      ...acc,
+      city: 'Rawalpindi',
+      cityUrdu: 'راولپنڈی',
+    });
+
+    const updated = (await accounts.getAccountsByIds([acc.id]))[0];
+    expect(updated.city).toBe('Rawalpindi');
+    expect(updated.cityUrdu).toBe('راولپنڈی');
     db.close();
   });
 
