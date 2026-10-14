@@ -1,5 +1,6 @@
 import type { DatabaseDriver } from '../driver';
 import { createCaptureTriggers } from './034_create_sync_tables';
+import { scheduleTableRepull } from '../../sync/tableRepull';
 
 export const migration049 = {
   name: '049_account_city',
@@ -16,5 +17,9 @@ export const migration049 = {
       DROP TRIGGER IF EXISTS "trg_sync_capture_account_delete";
     `);
     await createCaptureTriggers(driver, 'account');
+
+    // Queue a repull of account rows so upgrading peers receive city fields
+    // without resetting the main sync cursor
+    await scheduleTableRepull(driver, ['account']);
   },
 };

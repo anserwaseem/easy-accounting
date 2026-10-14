@@ -199,7 +199,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             <FormItem labelPosition="start">
               <FormLabel>City</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="e.g. Lahore, Rawalpindi" />
+                <Input {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
