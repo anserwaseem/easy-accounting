@@ -79,7 +79,7 @@ interface AccountFormProps {
   submitLabel?: string;
 }
 
-const inputClass = 'my-0 placeholder:text-muted-foreground/30';
+const inputClass = 'my-0 placeholder:text-muted-foreground/50';
 
 export const AccountForm: React.FC<AccountFormProps> = ({
   onSubmit,
