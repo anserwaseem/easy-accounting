@@ -624,4 +624,43 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
       },
     );
   });
+
+  test('navigating between Vendor Stock and Send to vendor does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-user-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const vendorStockLink = page.getByRole('link', {
+      name: 'Vendor Stock',
+      exact: true,
+    });
+    await vendorStockLink.click();
+    await expect(
+      page.getByRole('heading', { name: 'Vendor Stock' }),
+    ).toBeVisible();
+
+    await soak.run(
+      async () => {
+        await page
+          .getByRole('link', { name: 'Send to vendor', exact: true })
+          .click();
+        await expect(
+          page.getByRole('heading', { name: 'Send to vendor' }),
+        ).toBeVisible();
+
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await expect(
+          page.getByRole('heading', { name: 'Vendor Stock' }),
+        ).toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
 });

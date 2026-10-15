@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { sumBy } from 'lodash';
@@ -60,6 +60,16 @@ const VendorStockPage: React.FC = () => {
   const [gridViewRows, setGridViewRows] = useState<VendorStockRow[] | null>(
     null,
   );
+  const isMountedRef = useRef(true);
+  const fetchGenerationRef = useRef(0);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      fetchGenerationRef.current += 1;
+    };
+  }, []);
 
   const applyVendorId = useCallback((vendorId: number | undefined) => {
     setSelectedVendorId(vendorId);
@@ -67,9 +77,12 @@ const VendorStockPage: React.FC = () => {
   }, []);
 
   const load = useCallback(async () => {
+    const generation = ++fetchGenerationRef.current;
     setIsLoading(true);
     try {
       const tracked = await window.electron.getTrackedVendorAccounts();
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
       setVendors(tracked);
       const vendorStillTracked =
         selectedVendorId != null &&
@@ -82,6 +95,8 @@ const VendorStockPage: React.FC = () => {
         window.electron.getVendorStockOnHand(vendorId),
         window.electron.getVendorIssues(),
       ]);
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
       setOnHand(stock);
       setIssues(
         vendorId
@@ -89,12 +104,16 @@ const VendorStockPage: React.FC = () => {
           : issueRows,
       );
     } catch (error) {
-      toast({
-        description: String(error),
-        variant: 'destructive',
-      });
+      if (isMountedRef.current && generation === fetchGenerationRef.current) {
+        toast({
+          description: String(error),
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current && generation === fetchGenerationRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [applyVendorId, selectedVendorId]);
 

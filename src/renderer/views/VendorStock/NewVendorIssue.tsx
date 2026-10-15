@@ -62,6 +62,7 @@ const NewVendorIssuePage: React.FC = () => {
   const quantityInputRefs = useRef(new Map<string, HTMLInputElement>());
 
   useMountEffect(() => {
+    let cancelled = false;
     const load = async () => {
       setLoading(true);
       try {
@@ -69,11 +70,13 @@ const NewVendorIssuePage: React.FC = () => {
           window.electron.getTrackedVendorAccounts(),
           window.electron.getInventory(),
         ]);
+        if (cancelled) return;
         setVendors(tracked);
         setInventory(items ?? []);
 
         if (isEdit && editIssueId != null) {
           const issue = await window.electron.getVendorIssue(editIssueId);
+          if (cancelled) return;
           if (!issue) {
             toast({
               description: 'Send not found',
@@ -104,18 +107,26 @@ const NewVendorIssuePage: React.FC = () => {
           );
         } else {
           const nextNumber = await window.electron.getNextVendorIssueNumber();
+          if (cancelled) return;
           setIssueNumber(nextNumber);
         }
       } catch (error) {
-        toast({
-          description: String(error),
-          variant: 'destructive',
-        });
+        if (!cancelled) {
+          toast({
+            description: String(error),
+            variant: 'destructive',
+          });
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
     load();
+    return () => {
+      cancelled = true;
+    };
   });
 
   const vendorOptions = useMemo(
