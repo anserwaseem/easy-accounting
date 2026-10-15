@@ -553,4 +553,40 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
       },
     );
   });
+
+  test('switching between Getting Started and Dashboard tabs on Home does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-user-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const gettingStartedTab = page.getByRole('tab', {
+      name: 'Getting Started',
+    });
+    const dashboardTab = page.getByRole('tab', { name: 'Dashboard' });
+
+    await expect(gettingStartedTab).toBeVisible();
+    await expect(dashboardTab).toBeVisible();
+
+    await soak.run(
+      async () => {
+        await dashboardTab.click();
+        await expect(
+          page.getByRole('heading', { name: 'Dashboard' }),
+        ).toBeVisible();
+
+        await gettingStartedTab.click();
+        await expect(
+          page.getByRole('heading', { name: 'Dashboard' }),
+        ).not.toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
 });
