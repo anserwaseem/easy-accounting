@@ -290,4 +290,157 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
       },
     );
   });
+
+  test('navigating between Inventory and Accounts views does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-inv-nav-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const inventoryLink = page.getByRole('link', {
+      name: 'Inventory',
+      exact: true,
+    });
+    const accountsLink = page.getByRole('link', {
+      name: 'Accounts',
+      exact: true,
+    });
+
+    await soak.run(
+      async () => {
+        await inventoryLink.click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Inventory' }),
+        ).toBeVisible();
+
+        await accountsLink.click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Accounts' }),
+        ).toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
+
+  test('opening, editing and closing New Inventory Item dialog does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-inv-item-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    await page.getByRole('link', { name: 'Inventory', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Inventory' }),
+    ).toBeVisible();
+
+    const newItemButton = page.getByRole('button', { name: 'New item' });
+    const dialogTitle = page.getByRole('heading', {
+      name: 'Create Inventory Item',
+    });
+
+    await soak.run(
+      async () => {
+        await newItemButton.click();
+        await expect(dialogTitle).toBeVisible();
+
+        const nameInput = page.getByLabel('Name', { exact: true });
+        await nameInput.fill('Test SKU 123');
+
+        await page.keyboard.press('Escape');
+        await expect(dialogTitle).not.toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
+
+  test('navigating between Sale Invoices and Accounts views does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-inv-sale-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const saleInvoicesLink = page.getByRole('link', {
+      name: 'Sale Invoices',
+      exact: true,
+    });
+    const accountsLink = page.getByRole('link', {
+      name: 'Accounts',
+      exact: true,
+    });
+
+    await soak.run(
+      async () => {
+        await saleInvoicesLink.click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Sale Invoices' }),
+        ).toBeVisible();
+
+        await accountsLink.click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Accounts' }),
+        ).toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
+
+  test('navigating between Reports hub and Ledger Report does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-reports-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const reportsLink = page.getByRole('link', {
+      name: 'Reports',
+      exact: true,
+    });
+
+    await reportsLink.click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Reports' }),
+    ).toBeVisible();
+
+    const ledgerReportCard = page.getByRole('link', {
+      name: /Ledger Report/i,
+    });
+
+    await soak.run(
+      async () => {
+        await ledgerReportCard.click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Ledger Report' }),
+        ).toBeVisible();
+
+        await reportsLink.click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Reports' }),
+        ).toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
 });
