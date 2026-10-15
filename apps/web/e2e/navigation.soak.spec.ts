@@ -189,11 +189,46 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
 
         await clearButton.click();
         await expect(page.getByPlaceholder('Select item')).not.toBeVisible();
+        await page.waitForTimeout(50);
       },
       {
         passes: 20,
         warmup: 3,
         nodeThreshold: 60,
+        listenerThreshold: 0,
+      },
+    );
+  });
+
+  test('opening, querying and closing Global Search palette does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-cmdk-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const isMac = process.platform === 'darwin';
+    const shortcut = isMac ? 'Meta+k' : 'Control+k';
+    const searchInput = page.getByPlaceholder(
+      'Search accounts, inventory, invoices...',
+    );
+
+    // Round-trip: Cmd+K -> type query -> Escape -> closed
+    await soak.run(
+      async () => {
+        await page.keyboard.press(shortcut);
+        await expect(searchInput).toBeVisible();
+
+        await searchInput.fill('account');
+        await page.waitForTimeout(50);
+
+        await page.keyboard.press('Escape');
+        await expect(searchInput).not.toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
         listenerThreshold: 0,
       },
     );

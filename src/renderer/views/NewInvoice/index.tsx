@@ -1086,6 +1086,30 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     ],
   );
 
+  const resetInvoiceForm = useCallback(() => {
+    suppressWatchRef.current = true;
+    replace([]);
+    liveItemsRef.current = [];
+    suppressWatchRef.current = false;
+    form.reset(defaultFormValues);
+    setIsDateExplicitlySet(false);
+    setIsDiscountConfirmed(false);
+    setSections([]);
+    setActiveSectionId(null);
+    setRowSectionMap({});
+    setManualDiscountRows({});
+    recomputeDerivedState(true);
+  }, [
+    defaultFormValues,
+    form,
+    recomputeDerivedState,
+    replace,
+    setActiveSectionId,
+    setManualDiscountRows,
+    setRowSectionMap,
+    setSections,
+  ]);
+
   const getSelectedItem = useCallback(
     (fieldValue: number) => inventoryById.get(toNumber(fieldValue)),
     [inventoryById],
@@ -1582,13 +1606,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
       if (result.nextInvoiceNumber > 0) {
         setNextInvoiceNumber(result.nextInvoiceNumber);
-        form.reset(defaultFormValues);
-        setIsDateExplicitlySet(false);
-        setIsDiscountConfirmed(false);
-        setSections([]);
-        setActiveSectionId(null);
-        setRowSectionMap({});
-        setManualDiscountRows({});
+        resetInvoiceForm();
         if (result.invoiceId > 0) {
           showPostSaveToast(result.vendorStockMessages);
         }
@@ -2224,15 +2242,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit, onValidationError)}
-              onReset={() => {
-                form.reset(defaultFormValues);
-                setIsDateExplicitlySet(false);
-                setIsDiscountConfirmed(false);
-                setSections([]);
-                setActiveSectionId(null);
-                setRowSectionMap({});
-                setManualDiscountRows({});
-              }}
+              onReset={resetInvoiceForm}
               onKeyDown={handleFormEnterKeyDown}
               role="presentation"
             >
@@ -3070,12 +3080,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   className="min-h-[44px]"
                   onClick={() => {
                     const leave = () => {
-                      form.reset(defaultFormValues);
-                      setIsDateExplicitlySet(false);
-                      setIsDiscountConfirmed(false);
-                      setSections([]);
-                      setActiveSectionId(null);
-                      setRowSectionMap({});
+                      resetInvoiceForm();
                       if (editInvoiceId != null) {
                         navigate(
                           `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
