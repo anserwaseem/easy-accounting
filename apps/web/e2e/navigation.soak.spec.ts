@@ -485,4 +485,72 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
       },
     );
   });
+
+  test('repeated hidden iframe report print lifecycle does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-print-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    await soak.run(
+      async () => {
+        await page.evaluate(() => {
+          const rows = Array.from(
+            { length: 50 },
+            (_, i) => `<tr><td>Row ${i}</td><td>Value ${i}</td></tr>`,
+          ).join('');
+          const html = `<!DOCTYPE html><html><head><title>Test</title></head><body><table>${rows}</table></body></html>`;
+
+          const iframe = document.createElement('iframe');
+          iframe.setAttribute('aria-hidden', 'true');
+          Object.assign(iframe.style, {
+            position: 'fixed',
+            right: '0',
+            bottom: '0',
+            width: '0',
+            height: '0',
+            visibility: 'hidden',
+          });
+          document.body.appendChild(iframe);
+
+          const doc = iframe.contentDocument;
+          const win = iframe.contentWindow;
+          if (!doc || !win) {
+            iframe.remove();
+            return;
+          }
+
+          doc.open();
+          doc.write(html);
+          doc.close();
+
+          const cleanup = () => {
+            win.removeEventListener('afterprint', cleanup);
+            try {
+              if (doc.body) doc.body.innerHTML = '';
+            } catch {
+              // ignore
+            }
+            try {
+              iframe.src = 'about:blank';
+            } catch {
+              // ignore
+            }
+            iframe.remove();
+          };
+
+          win.addEventListener('afterprint', cleanup);
+          win.dispatchEvent(new Event('afterprint'));
+        });
+        await page.waitForTimeout(50);
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
 });
