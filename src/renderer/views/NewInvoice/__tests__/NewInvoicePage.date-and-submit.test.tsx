@@ -222,6 +222,8 @@ jest.mock('../hooks/useNewInvoiceFormCore', () => ({
       formSchema: {} as any,
       fields: ref.invoiceItems,
       append: jest.fn(),
+      remove: jest.fn(),
+      replace: jest.fn(),
       watchedExtraDiscount: 0,
       watchedSingleAccountId: ref.accountMapping?.singleAccountId,
       watchedMultipleAccountIds: [],

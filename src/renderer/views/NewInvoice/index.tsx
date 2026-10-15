@@ -1058,7 +1058,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       // clear entire invoiceItems error tree — array-level .refine() errors
       // (e.g. "Each item can only be added once") live on 'invoiceItems', not indices
       form.clearErrors('invoiceItems');
-      replace(kept as typeof fields);
+      if (typeof replace === 'function') {
+        replace(kept as typeof fields);
+      }
       suppressWatchRef.current = false;
 
       requestAnimationFrame(() => recomputeDerivedState(true));
@@ -1088,7 +1090,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const resetInvoiceForm = useCallback(() => {
     suppressWatchRef.current = true;
-    replace([]);
+    if (typeof replace === 'function') {
+      replace([]);
+    }
     liveItemsRef.current = [];
     suppressWatchRef.current = false;
     form.reset(defaultFormValues);
