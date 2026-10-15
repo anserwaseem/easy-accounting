@@ -663,4 +663,57 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
       },
     );
   });
+
+  test('switching between Settings tabs does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-user-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const settingsLink = page.getByRole('link', {
+      name: 'Settings',
+      exact: true,
+    });
+    await settingsLink.click();
+    await expect(
+      page.getByRole('heading', { name: 'Settings', exact: true }),
+    ).toBeVisible();
+
+    const companyTab = page.getByRole('tab', { name: 'Company' });
+    const invoicingTab = page.getByRole('tab', { name: 'Invoicing' });
+    const rulesTab = page.getByRole('tab', { name: 'Rules' });
+    const syncTab = page.getByRole('tab', { name: 'Sync' });
+
+    await expect(companyTab).toBeVisible();
+    await expect(invoicingTab).toBeVisible();
+    await expect(rulesTab).toBeVisible();
+    await expect(syncTab).toBeVisible();
+
+    await soak.run(
+      async () => {
+        await invoicingTab.click();
+        await expect(page.getByText('Invoice Print Layout')).toBeVisible();
+
+        await rulesTab.click();
+        await expect(
+          page.getByText('Accounting Validation Rules'),
+        ).toBeVisible();
+
+        await syncTab.click();
+        await expect(
+          page.getByRole('heading', { name: 'Export my data' }),
+        ).toBeVisible();
+
+        await companyTab.click();
+        await expect(page.getByText('Company Details')).toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
 });
