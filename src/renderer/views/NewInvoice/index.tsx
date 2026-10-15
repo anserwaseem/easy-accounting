@@ -36,7 +36,7 @@ import {
   FormMessage,
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
-import { toast } from 'renderer/shad/ui/use-toast';
+import { dismissAllToasts, toast } from 'renderer/shad/ui/use-toast';
 import {
   type Account,
   type InventoryItem,
@@ -1089,6 +1089,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   );
 
   const resetInvoiceForm = useCallback(() => {
+    dismissAllToasts();
     suppressWatchRef.current = true;
     if (typeof replace === 'function') {
       replace([]);
