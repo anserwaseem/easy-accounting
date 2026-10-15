@@ -1,5 +1,6 @@
 import { escape } from 'lodash';
 import type { VendorStockActivityItem } from 'types';
+import { printHtmlInHiddenIframe } from '@/renderer/lib/printIframe';
 import {
   ACTIVITY_COLUMN_HEADERS,
   ACTIVITY_EQUATION,
@@ -18,26 +19,6 @@ export const printVendorStockActivityIframe = (
   const { rows, vendorName, dateSubtitle } = options;
   if (rows.length === 0) return;
 
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  Object.assign(iframe.style, {
-    position: 'fixed',
-    right: '0',
-    bottom: '0',
-    width: '0',
-    height: '0',
-    border: 'none',
-    visibility: 'hidden',
-  });
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    return;
-  }
-
   const rowsHtml = rows
     .map(
       (row) => `<tr>
@@ -52,8 +33,7 @@ export const printVendorStockActivityIframe = (
     )
     .join('');
 
-  doc.open();
-  doc.write(`<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -90,25 +70,7 @@ export const printVendorStockActivityIframe = (
     <tbody>${rowsHtml}</tbody>
   </table>
 </body>
-</html>`);
-  doc.close();
+</html>`;
 
-  let cleaned = false;
-  const timers: { fallback?: number } = {};
-  const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    if (timers.fallback !== undefined) {
-      window.clearTimeout(timers.fallback);
-    }
-    win.removeEventListener('afterprint', cleanup);
-    iframe.remove();
-  };
-  timers.fallback = window.setTimeout(cleanup, 120_000);
-  win.addEventListener('afterprint', cleanup);
-
-  window.setTimeout(() => {
-    win.focus();
-    win.print();
-  }, 0);
+  printHtmlInHiddenIframe(html);
 };

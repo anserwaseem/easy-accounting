@@ -1,4 +1,5 @@
 import { escape } from 'lodash';
+import { printHtmlInHiddenIframe } from '@/renderer/lib/printIframe';
 import { printStyles } from '../components/printStyles';
 import { stockAsOfPrintStyles } from './stockAsOfPrintStyles';
 
@@ -45,28 +46,7 @@ export const printStockAsOfReportIframe = (options: PrintStockAsOfOptions) => {
   const title = escape(`Stock as of date: ${subtitle}`);
   const bodyHtml = buildBodyHtml(rows);
 
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  Object.assign(iframe.style, {
-    position: 'fixed',
-    right: '0',
-    bottom: '0',
-    width: '0',
-    height: '0',
-    border: 'none',
-    visibility: 'hidden',
-  });
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    return;
-  }
-
-  doc.open();
-  doc.write(`<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -95,26 +75,7 @@ export const printStockAsOfReportIframe = (options: PrintStockAsOfOptions) => {
     <tbody>${bodyHtml}</tbody>
   </table>
 </body>
-</html>`);
-  doc.close();
+</html>`;
 
-  let cleaned = false;
-  const timers: { fallback?: number } = {};
-  const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    if (timers.fallback !== undefined) {
-      window.clearTimeout(timers.fallback);
-    }
-    win.removeEventListener('afterprint', cleanup);
-    iframe.remove();
-  };
-
-  timers.fallback = window.setTimeout(cleanup, 120_000);
-  win.addEventListener('afterprint', cleanup);
-
-  window.setTimeout(() => {
-    win.focus();
-    win.print();
-  }, 0);
+  printHtmlInHiddenIframe(html);
 };

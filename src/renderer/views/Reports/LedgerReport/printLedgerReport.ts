@@ -7,6 +7,7 @@ import {
 import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
 import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
+import { printHtmlInHiddenIframe } from '@/renderer/lib/printIframe';
 import { printStyles } from '../components/printStyles';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
@@ -107,28 +108,7 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   );
   const footerType = escape(toString(totals.totalType));
 
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  Object.assign(iframe.style, {
-    position: 'fixed',
-    right: '0',
-    bottom: '0',
-    width: '0',
-    height: '0',
-    border: 'none',
-    visibility: 'hidden',
-  });
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    return;
-  }
-
-  doc.open();
-  doc.write(`<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -171,28 +151,7 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
     </tbody>
   </table>
 </body>
-</html>`);
-  doc.close();
+</html>`;
 
-  let cleaned = false;
-  const timers: { fallback?: number } = {};
-  const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    if (timers.fallback !== undefined) {
-      window.clearTimeout(timers.fallback);
-    }
-    win.removeEventListener('afterprint', cleanup);
-    iframe.remove();
-  };
-
-  // fallback cleanup after 2 minutes
-  timers.fallback = window.setTimeout(cleanup, 120_000);
-  win.addEventListener('afterprint', cleanup);
-
-  // yield so the print button can repaint before we open the dialog
-  window.setTimeout(() => {
-    win.focus();
-    win.print();
-  }, 0);
+  printHtmlInHiddenIframe(html);
 };
