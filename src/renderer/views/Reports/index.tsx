@@ -14,13 +14,20 @@ import {
   Users,
   ClipboardList,
   Percent,
+  HelpCircle,
 } from 'lucide-react';
 import { Card } from 'renderer/shad/ui/card';
 import { Alert, AlertDescription, AlertTitle } from 'renderer/shad/ui/alert';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from 'renderer/shad/ui/popover';
 
 interface ReportOption {
   title: string;
   description: string;
+  help?: string;
   path: string;
   icon: React.ReactNode;
   status?: 'coming-soon' | 'available';
@@ -30,12 +37,14 @@ const accountingReports: ReportOption[] = [
   {
     title: 'Trial Balance',
     description: 'View the trial balance to ensure your accounts are balanced.',
+    help: 'Auditing tool comparing all debit and credit balances across charts to ensure fundamental accounting equilibrium.',
     path: '/reports/trial-balance',
     icon: <BarChart3 className="h-6 w-6" />,
   },
   {
     title: 'Account Balances',
     description: 'View latest balances of accounts grouped by head name.',
+    help: 'Snapshot of current balances across customer, supplier, cash, and bank accounts grouped by their chart head.',
     path: '/reports/account-balances',
     icon: <DollarSign className="h-6 w-6" />,
   },
@@ -43,18 +52,21 @@ const accountingReports: ReportOption[] = [
     title: 'Ledger Report',
     description:
       'View and print ledger entries for specific accounts by date range.',
+    help: 'Chronological double-entry transactions (debit, credit, running balance) for selected accounts within a custom date range.',
     path: '/reports/ledger-report',
     icon: <Book className="h-6 w-6" />,
   },
   {
     title: 'Average Equity Balances',
     description: 'View average balances of equity accounts by date range.',
+    help: 'Tracks partner or shareholder capital movement and weighted average balances over time for profit distribution.',
     path: '/reports/average-equity-balances',
     icon: <Scale className="h-6 w-6" />,
   },
   {
     title: 'Bills Aging',
     description: 'Track bill payments and outstanding amounts by account.',
+    help: 'Ledger-based bill tracking using FIFO payment allocation. Answers which bills are unpaid and how many days overdue they are.',
     path: '/reports/bills-aging',
     icon: <Clock className="h-6 w-6" />,
   },
@@ -62,6 +74,7 @@ const accountingReports: ReportOption[] = [
     title: 'Collection sheet',
     description:
       'Agent route sheet for a date range. Balance, collections, and sale bills. Blank columns for the trip.',
+    help: 'Agent route preparation and scrutiny. Pairs physical sales bills delivered to shops with serial tour collections and blank columns for field visits.',
     path: '/reports/collection-sheet',
     icon: <ClipboardList className="h-6 w-6" />,
   },
@@ -69,6 +82,7 @@ const accountingReports: ReportOption[] = [
     title: 'Agent Commissions',
     description:
       'Commission statement and settlement posting by agent head and date range.',
+    help: 'Calculates commission earnings on sales and collections per tier rate, with one-click posting to ledger settlement accounts.',
     path: '/reports/agent-commission',
     icon: <Percent className="h-6 w-6" />,
   },
@@ -78,6 +92,7 @@ const operationsReports: ReportOption[] = [
   {
     title: 'Inventory Health',
     description: 'See which inventory items need attention right now.',
+    help: 'Monitors catalog attributes, pricing readiness, missing dimensions, and publishing status across inventory items.',
     path: '/reports/inventory-health',
     icon: <Package className="h-6 w-6" />,
   },
@@ -85,24 +100,28 @@ const operationsReports: ReportOption[] = [
     title: 'Stock as of date',
     description:
       'Rewind current stock using posted movements after a past date.',
+    help: 'Reconstructs historical stock quantity at any past date by calculating movements backward from current inventory.',
     path: '/reports/stock-as-of',
     icon: <CalendarDays className="h-6 w-6" />,
   },
   {
     title: 'Sales Performance',
     description: 'Track posted sales behavior, trends, and returns.',
+    help: 'Sales volume analytics, top customers, bestselling items, return rates, and period-over-period comparisons.',
     path: '/reports/sales-performance',
     icon: <TrendingUp className="h-6 w-6" />,
   },
   {
     title: 'Sales by Customer',
     description: 'Items sold to a customer between two dates.',
+    help: 'Item-level breakdown of all products dispatched to a specific customer within a custom date range.',
     path: '/reports/sales-by-customer',
     icon: <Users className="h-6 w-6" />,
   },
   {
     title: 'Purchases by Vendor',
     description: 'Items bought from a vendor between two dates.',
+    help: 'Item-level breakdown of all stock received from a vendor within a custom date range.',
     path: '/reports/purchases-by-vendor',
     icon: <Truck className="h-6 w-6" />,
   },
@@ -110,6 +129,7 @@ const operationsReports: ReportOption[] = [
     title: 'At-vendor activity',
     description:
       'Opening + sent − bought back at a vendor. Click numbers for the documents.',
+    help: 'Tracks consignment stock sitting at external vendors (raw material sent vs finished goods bought back).',
     path: '/reports/vendor-stock-activity',
     icon: <Package className="h-6 w-6" />,
   },
@@ -143,15 +163,49 @@ const ReportCard: React.FC<ReportCardProps> = ({ option }: ReportCardProps) => {
   }
 
   return (
-    <Link to={option.path}>
-      <Card className="p-4 hover:bg-muted transition-colors cursor-pointer h-full">
-        <div className="flex items-center gap-2 mb-2">
-          {option.icon}
-          <h2 className="text-lg font-medium">{option.title}</h2>
+    <div className="relative group h-full">
+      <Link to={option.path} className="block h-full">
+        <Card className="p-4 hover:bg-muted/60 transition-colors cursor-pointer h-full flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                {option.icon}
+                <h2 className="text-lg font-medium">{option.title}</h2>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground pr-6">
+              {option.description}
+            </p>
+          </div>
+        </Card>
+      </Link>
+      {option.help ? (
+        <div className="absolute top-3 right-3 z-10">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="p-1 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors focus:outline-none"
+                onClick={(e) => e.stopPropagation()}
+                title="About this report"
+                aria-label="About this report"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-80 text-xs p-3 space-y-1.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4 className="font-semibold text-sm">{option.title}</h4>
+              <p className="text-muted-foreground leading-relaxed">
+                {option.help}
+              </p>
+            </PopoverContent>
+          </Popover>
         </div>
-        <p className="text-sm text-muted-foreground">{option.description}</p>
-      </Card>
-    </Link>
+      ) : null}
+    </div>
   );
 };
 

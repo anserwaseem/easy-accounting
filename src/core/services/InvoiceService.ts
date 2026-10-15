@@ -692,11 +692,14 @@ const SQL = {
           FROM json_each(@accountIdsJson) AS j
         )
         AND (
-          CASE
-            WHEN length(i.date) = 10 THEN i.date
-            ELSE date(datetime(i.date, 'localtime'))
-          END
-        ) >= @startDate
+          @startDate IS NULL
+          OR (
+            CASE
+              WHEN length(i.date) = 10 THEN i.date
+              ELSE date(datetime(i.date, 'localtime'))
+            END
+          ) >= @startDate
+        )
         AND (
           CASE
             WHEN length(i.date) = 10 THEN i.date
@@ -704,7 +707,7 @@ const SQL = {
           END
         ) <= @endDate
       GROUP BY COALESCE(ii.accountId, i.accountId), i.invoiceNumber, i.date
-      ORDER BY accountId ASC, date ASC, invoiceNumber ASC
+      ORDER BY (CASE WHEN length(i.date) = 10 THEN i.date ELSE date(datetime(i.date, 'localtime')) END) DESC, i.invoiceNumber DESC
     `,
 };
 
@@ -749,7 +752,7 @@ export class InvoiceService {
    */
   async getSaleBillsForAccountIdsInRange(
     accountIds: number[],
-    startDate: string,
+    startDate: string | null,
     endDate: string,
   ): Promise<
     Record<
@@ -768,7 +771,7 @@ export class InvoiceService {
       amount: number;
     }>(SQL.getSaleBillsForAccountIdsInRange, {
       accountIdsJson: JSON.stringify(unique),
-      startDate,
+      startDate: startDate ?? null,
       endDate,
     });
     const out: Record<

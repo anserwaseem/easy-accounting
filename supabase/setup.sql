@@ -163,7 +163,7 @@ begin
     -- table except ledger and vendor_stock (derived running counters).
     if entry_key is null or length(trim(entry_key)) = 0
        or table_name is null or table_name not in (
-         'users', 'chart', 'discount_profiles', 'item_types', 'price_lists',
+         'users', 'chart', 'agent_tours', 'discount_profiles', 'item_types', 'price_lists',
          'attribute_definitions', 'account', 'inventory',
          'inventory_opening_stock', 'inventory_prices', 'stock_adjustments',
          'vendor_issues', 'vendor_issue_items', 'vendor_stock_movements',

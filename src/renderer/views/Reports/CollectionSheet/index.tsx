@@ -1,7 +1,15 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { trim } from 'lodash';
-import { ClipboardList, Download, Printer, RefreshCw } from 'lucide-react';
+import {
+  ArrowUpDown,
+  CalendarRange,
+  ClipboardList,
+  Download,
+  HelpCircle,
+  Printer,
+  RefreshCw,
+} from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   Select,
@@ -20,14 +28,29 @@ import { cn } from '@/renderer/lib/utils';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { printStyles } from '../components/printStyles';
 import { CollectionSheetTable } from './CollectionSheetTable';
+import { CollectionSheetGuideDialog } from './CollectionSheetGuideDialog';
 import { printCollectionSheetIframe } from './printCollectionSheet';
 import { useCollectionSheet } from './useCollectionSheet';
+import { ToursSheet } from './tours/ToursSheet';
 import {
   collectionSheetHeaders,
   collectionSheetTotals,
+  collectionSheetTourTotals,
+  formatSheetAmount,
+  tourColumnHeader,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
+  type CollectionSheetSortBy,
 } from './buildCollectionSheetRows';
+
+type TourExportKey = `tour_${number}`;
+
+const SORT_FILENAME_SUFFIX: Record<CollectionSheetSortBy, string> = {
+  code: '',
+  'outstanding-desc': '_highest_outstanding',
+  'unpaid-tours-desc': '_most_unpaid_tours',
+  'bills-desc': '_highest_billed',
+};
 
 type CollectionSheetExportRow = {
   serial: number;
@@ -41,7 +64,12 @@ type CollectionSheetExportRow = {
   billDate: string;
   difference: string;
   remaining: string;
+} & {
+  // 0 on a shop's first row means it paid nothing that tour
+  [key: TourExportKey]: number | null;
 };
+
+const tourExportKey = (tourId: number): TourExportKey => `tour_${tourId}`;
 
 interface LanguageToggleProps {
   language: CollectionSheetLanguage;
@@ -94,13 +122,20 @@ const CollectionSheetPage: React.FC = () => {
     presetValue,
     language,
     setLanguage,
+    sortBy,
+    setSortBy,
     rows,
+    tours,
+    showUntoured,
+    range,
     isLoading,
     handleHeadChange,
     handleDateChange,
     refreshData,
     catalogReady,
   } = useCollectionSheet();
+  const [toursOpen, setToursOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const headers = collectionSheetHeaders(language);
   const period = dateLabel(dateRange);
@@ -108,7 +143,10 @@ const CollectionSheetPage: React.FC = () => {
     language === 'ur'
       ? trim(selectedHead?.nameUrdu ?? '') || selectedHead?.name || ''
       : selectedHead?.name ?? '';
-  const subtitle = period;
+  const hasClippedTour = tours.some((t) => t.clipped);
+  const subtitle = hasClippedTour
+    ? `${period} (Tours marked '(part)' reflect receipts within this date range only)`
+    : period;
   const title = headName ? `${headers.title} - ${headName}` : headers.title;
 
   const canExport = !isLoading && rows.length > 0;
@@ -116,6 +154,11 @@ const CollectionSheetPage: React.FC = () => {
   const handleExport = useCallback(() => {
     if (!canExport || !dateRange?.from || !dateRange?.to) return;
     const totals = collectionSheetTotals(rows);
+    const tourTotals = collectionSheetTourTotals(
+      rows,
+      tours.map((tour) => tour.id),
+    );
+    const sortSuffix = SORT_FILENAME_SUFFIX[sortBy] ?? '';
     const payload: ReportExportPayload<CollectionSheetExportRow> = {
       title,
       subtitle,
@@ -125,7 +168,7 @@ const CollectionSheetPage: React.FC = () => {
       ).replace(/\s+/g, '_')}_${format(dateRange.from, 'yyyy-MM-dd')}_${format(
         dateRange.to,
         'yyyy-MM-dd',
-      )}.xlsx`,
+      )}${sortSuffix}.xlsx`,
       columns: [
         { key: 'serial', header: headers.serial, format: 'number', width: 6 },
         { key: 'shop', header: headers.shop, format: 'string', width: 28 },
@@ -160,6 +203,12 @@ const CollectionSheetPage: React.FC = () => {
           format: 'currency',
           width: 14,
         },
+        ...tours.map((tour) => ({
+          key: tourExportKey(tour.id),
+          header: `${headers.tours}: ${tourColumnHeader(tour)}`,
+          format: 'currency' as const,
+          width: 18,
+        })),
         {
           key: 'collection',
           header: headers.collection,
@@ -179,23 +228,54 @@ const CollectionSheetPage: React.FC = () => {
           width: 16,
         },
       ],
-      rows: rows.map((row: CollectionSheetRow) => ({
-        serial: row.serial,
-        shop: row.shop,
-        address: row.addressDisplay,
-        code: row.code,
-        balance: row.balance,
-        collected: row.collected,
-        collection: '',
-        billNumber: row.billNumber,
-        billDate: row.billDate,
-        difference: '',
-        remaining: '',
-      })),
+      rows: rows.map((row: CollectionSheetRow) => {
+        let shopExport = row.shopDisplay;
+        if (
+          row.shopDisplay !== '//' &&
+          row.billCount > 1 &&
+          row.totalBilled != null
+        ) {
+          const summary =
+            language === 'ur'
+              ? ` (${row.billCount} واجب الادا بل · کل: ${formatSheetAmount(
+                  row.totalBilled,
+                )})`
+              : ` (${row.billCount} due bills · Total Due: ${formatSheetAmount(
+                  row.totalBilled,
+                )})`;
+          shopExport = `${row.shop}${summary}`;
+        }
+        let billExport = row.billNumber;
+        if (row.billCount > 1) {
+          billExport = `${row.billNumber} (${row.billIndex}/${row.billCount})`;
+        }
+        return {
+          serial: row.serial,
+          shop: shopExport,
+          address: row.addressDisplay,
+          code: row.codeDisplay,
+          balance: row.balance,
+          collected: row.collected,
+          collection: '',
+          billNumber: billExport,
+          billDate: row.billDate,
+          difference: '',
+          remaining: '',
+          ...Object.fromEntries(
+            tours.map((tour) => [
+              tourExportKey(tour.id),
+              row.tourPaid[tour.id] ?? null,
+            ]),
+          ),
+        };
+      }),
       footerRow: {
         shop: headers.total,
         balance: totals.balance,
         collected: totals.collected,
+        ...Object.fromEntries(
+          tours.map((tour) => [tourExportKey(tour.id), tourTotals[tour.id]]),
+        ),
       },
     };
     try {
@@ -212,32 +292,49 @@ const CollectionSheetPage: React.FC = () => {
     canExport,
     dateRange,
     headers,
+    language,
     rows,
     selectedHead?.name,
+    sortBy,
     subtitle,
     title,
+    tours,
   ]);
 
   const handlePrint = useCallback(() => {
     if (!canExport) return;
     printCollectionSheetIframe({
       rows,
+      tours,
+      showUntoured,
       title,
       subtitle,
       language,
     });
-  }, [canExport, language, rows, subtitle, title]);
+  }, [canExport, language, rows, showUntoured, subtitle, title, tours]);
 
   return (
     <ReportLayout
       printStyles={printStyles}
+      bodyClassName="overflow-hidden h-full flex flex-col print:p-0 print:overflow-visible"
       header={
         <div className="print-header flex flex-col gap-2 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="title-new flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              {headers.title}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="title-new flex items-center gap-2">
+                <ClipboardList className="h-5 w-5" />
+                {headers.title}
+              </h1>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                title="How to read this report"
+                onClick={() => setGuideOpen(true)}
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Button>
+            </div>
             <div className="flex flex-wrap items-center gap-3">
               <LanguageToggle language={language} onChange={setLanguage} />
               <div className="flex items-center gap-2">
@@ -258,6 +355,16 @@ const CollectionSheetPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setToursOpen(true)}
+                  disabled={!selectedHead}
+                  title="Agent tours"
+                >
+                  <CalendarRange className="mr-1 h-4 w-4" />
+                  Tours
+                </Button>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Range:</span>
@@ -271,6 +378,30 @@ const CollectionSheetPage: React.FC = () => {
                   initialRange={dateRange}
                   initialSelectValue={presetValue}
                 />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Sort:</span>
+                <Select
+                  value={sortBy}
+                  onValueChange={(val) =>
+                    setSortBy(val as CollectionSheetSortBy)
+                  }
+                >
+                  <SelectTrigger className="w-[170px]">
+                    <ArrowUpDown className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="code">Code</SelectItem>
+                    <SelectItem value="outstanding-desc">
+                      Highest Outstanding
+                    </SelectItem>
+                    <SelectItem value="unpaid-tours-desc">
+                      Most Unpaid Tours
+                    </SelectItem>
+                    <SelectItem value="bills-desc">Highest Billed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <Button
                 variant="outline"
@@ -311,8 +442,24 @@ const CollectionSheetPage: React.FC = () => {
     >
       <CollectionSheetTable
         rows={rows}
+        tours={tours}
+        showUntoured={showUntoured}
         isLoading={isLoading}
         hasAgent={selectedChartId.length > 0}
+        language={language}
+      />
+      {selectedHead ? (
+        <ToursSheet
+          head={selectedHead}
+          range={range}
+          open={toursOpen}
+          onOpenChange={setToursOpen}
+          onToursChanged={refreshData}
+        />
+      ) : null}
+      <CollectionSheetGuideDialog
+        open={guideOpen}
+        onOpenChange={setGuideOpen}
         language={language}
       />
     </ReportLayout>

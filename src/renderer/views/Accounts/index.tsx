@@ -144,6 +144,29 @@ const getStoredVisibleColumns = (
       | undefined,
   );
 
+interface CollectionRoleBadgeProps {
+  role: Account['collectionRole'];
+}
+
+/** only overrides show; default accounts stay unbadged */
+const CollectionRoleBadge: React.FC<CollectionRoleBadgeProps> = ({
+  role,
+}: CollectionRoleBadgeProps) => {
+  if (!role) return null;
+  return (
+    <span
+      className={cn(
+        'ml-2 text-xs px-2 py-0.5 rounded',
+        role === 'receipt'
+          ? 'bg-emerald-100 text-emerald-900'
+          : 'bg-amber-100 text-amber-900',
+      )}
+    >
+      {role === 'receipt' ? 'Collection' : 'Not collection'}
+    </span>
+  );
+};
+
 const AccountCell: React.FC<CellContext<Account, unknown>> = ({
   row,
 }: CellContext<Account, unknown>) => (
@@ -164,6 +187,7 @@ const AccountCell: React.FC<CellContext<Account, unknown>> = ({
           Stock
         </span>
       )}
+      <CollectionRoleBadge role={row.original.collectionRole} />
       {!row.original.isActive && (
         <span className="ml-2 text-xs px-2 py-0.5 bg-red-100 text-red-800 rounded">
           Inactive
@@ -340,6 +364,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                         Vendor stock
                       </span>
                     )}
+                    <CollectionRoleBadge role={row.original.collectionRole} />
                     {!row.original.isActive && (
                       <span
                         className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"

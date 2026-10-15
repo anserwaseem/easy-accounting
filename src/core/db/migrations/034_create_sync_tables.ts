@@ -346,6 +346,9 @@ export async function createCaptureTriggers(
   table: string,
 ): Promise<void> {
   const columns = await allColumnInfo(driver, table);
+  // SYNC_TABLES is read at call time, so a fresh install reaches tables a
+  // later migration creates (e.g. agent_tours, 049). That migration installs
+  // their triggers once the table exists.
   if (columns.length === 0) return;
   const fks = await foreignKeys(driver, table);
 

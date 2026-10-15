@@ -20,6 +20,7 @@ export * from './utils/sqlite';
 export type { AppApi } from './api/AppApi';
 export { AccountService } from './services/AccountService';
 export { ChartService } from './services/ChartService';
+export { AgentTourService } from './services/AgentTourService';
 export { LedgerService } from './services/LedgerService';
 export { PricingService } from './services/PricingService';
 export { InventoryService } from './services/InventoryService';

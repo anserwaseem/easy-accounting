@@ -66,7 +66,7 @@ export function parseUpdateTimestampTriggerName(name: string): string | null {
   return match ? match[1] : null;
 }
 
-function insertTriggerSql(name: string, table: string): string {
+export function insertTriggerSql(name: string, table: string): string {
   return `
     CREATE TRIGGER "${name}"
     AFTER INSERT ON "${table}"
@@ -82,7 +82,7 @@ function insertTriggerSql(name: string, table: string): string {
   `;
 }
 
-function updateTriggerSql(name: string, table: string): string {
+export function updateTriggerSql(name: string, table: string): string {
   return `
     CREATE TRIGGER "${name}"
     AFTER UPDATE ON "${table}"

@@ -461,7 +461,7 @@ describe('core LedgerService — canonical reads (ledger_view, CORE 032)', () =>
     db.close();
   });
 
-  it('getCreditSumsForAccountIdsInRange sums credit rows for accounts in date range', async () => {
+  it('getReceiptSumsForAccountIdsInRange sums cash receipts for accounts in date range', async () => {
     const db = new Database(':memory:');
     await seedBasicSchema(db);
     const { accounts, ledger } = createCore(db);
@@ -494,7 +494,7 @@ describe('core LedgerService — canonical reads (ledger_view, CORE 032)', () =>
       amount: 80,
     });
 
-    const sums = await ledger.getCreditSumsForAccountIdsInRange(
+    const sums = await ledger.getReceiptSumsForAccountIdsInRange(
       [accountA, accountB],
       '2025-01-01',
       '2025-01-20',

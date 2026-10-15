@@ -13,6 +13,12 @@ const stripElectronIpcWrappers = (raw: string): string => {
   return s;
 };
 
+/** the service's own message from a rejected IPC call */
+export const ipcErrorMessage = (error: unknown): string =>
+  stripElectronIpcWrappers(
+    error instanceof Error ? error.message : String(error),
+  );
+
 const parseStockShortageLines = (afterPrefix: string): string[] => {
   const body = afterPrefix.trim();
   if (!body) return [];
