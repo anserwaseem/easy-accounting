@@ -1,15 +1,26 @@
 import { existsSync } from 'node:fs';
 import { defineConfig } from '@playwright/test';
+import { soakLaunchOptions } from 'playwright-soak-test';
 
 const PORT = Number(process.env.E2E_PORT) || 4173;
 const CI_CHROMIUM = '/opt/pw-browsers/chromium';
+const SYSTEM_CHROME_MAC =
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+
+const baseLaunchOptions = existsSync(CI_CHROMIUM)
+  ? { executablePath: CI_CHROMIUM }
+  : process.env.PW_EXECUTABLE
+  ? { executablePath: process.env.PW_EXECUTABLE }
+  : existsSync(SYSTEM_CHROME_MAC)
+  ? { executablePath: SYSTEM_CHROME_MAC }
+  : {};
 
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: [['list']],
+  reporter: [['list'], ['playwright-soak-test/reporter']],
   timeout: 60_000,
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
@@ -19,26 +30,38 @@ export default defineConfig({
     // task notes — do not `playwright install` there). Everywhere else,
     // Playwright uses its own browser. PW_EXECUTABLE overrides that when
     // the downloaded browser is missing (system Chrome).
-    launchOptions: existsSync(CI_CHROMIUM)
-      ? { executablePath: CI_CHROMIUM }
-      : process.env.PW_EXECUTABLE
-      ? { executablePath: process.env.PW_EXECUTABLE }
-      : {},
+    launchOptions: baseLaunchOptions,
   },
-  // Two projects, split by test file rather than run every spec twice:
-  // every existing spec keeps running at Playwright's default desktop
-  // viewport (unchanged — those specs' selectors were written against that
-  // layout), while mobile.spec.ts is the one place that actually needs the
-  // 390x844 phone viewport the mobile shell/layout work targets.
+  // Projects:
+  // - desktop: runs standard desktop e2e tests (ignores mobile and soak)
+  // - mobile-390x844: phone viewport layout
+  // - soak: memory leak soak tests (*.soak.spec.ts) with GC exposed
   projects: [
     {
       name: 'desktop',
-      testIgnore: ['mobile.spec.ts'],
+      testIgnore: ['mobile.spec.ts', /.*\.soak\.spec\.ts/],
     },
     {
       name: 'mobile-390x844',
       testMatch: ['mobile.spec.ts'],
       use: { viewport: { width: 390, height: 844 } },
+    },
+    {
+      name: 'soak',
+      testMatch: /.*\.soak\.spec\.ts/,
+      timeout: 180_000,
+      use: {
+        launchOptions: {
+          ...baseLaunchOptions,
+          ...soakLaunchOptions,
+          args: [
+            ...((baseLaunchOptions as { args?: string[] }).args || []),
+            ...(soakLaunchOptions.args || []),
+          ],
+        },
+        trace: 'off',
+        video: 'off',
+      },
     },
   ],
   webServer: {

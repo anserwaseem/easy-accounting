@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "e2e": "playwright test",
+    "test:soak": "playwright test --project=soak",
     "patch": "npm version patch --no-git-tag-version"
   },
   "dependencies": {
@@ -60,6 +61,7 @@
     "@types/react-dom": "^18.2.4",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.16",
+    "playwright-soak-test": "^0.2.0",
     "tailwindcss": "^3.3.3",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.4.5",
