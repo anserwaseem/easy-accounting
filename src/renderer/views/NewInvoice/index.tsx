@@ -1298,8 +1298,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     const rowIndex = pendingItemFocusRef.current;
     if (rowIndex == null) return;
     pendingItemFocusRef.current = null;
-    scheduleItemFieldFocusAfterNewRow(form, rowIndex);
+    const cancelFocus = scheduleItemFieldFocusAfterNewRow(form, rowIndex);
     setVirtualScrollToIndex(null);
+    return () => {
+      cancelFocus?.();
+    };
   }, [fields.length, form]);
 
   // `enter` in quantity: commit the current value, recalculate discountedPrice, then append a new row

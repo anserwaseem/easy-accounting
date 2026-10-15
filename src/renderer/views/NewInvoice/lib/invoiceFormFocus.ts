@@ -77,10 +77,18 @@ export function scheduleQuantityFocusAfterItemSelect<T extends FieldValues>(
 export function scheduleItemFieldFocusAfterNewRow<T extends FieldValues>(
   form: UseFormReturn<T>,
   rowIndex: number,
-): void {
+): () => void {
   const path = `invoiceItems.${rowIndex}.inventoryId` as SetFocusPath<T>;
   let done = false;
   let target: HTMLElement | null = null;
+  const timerIds: number[] = [];
+
+  const cancel = () => {
+    done = true;
+    target = null;
+    timerIds.forEach((id) => window.clearTimeout(id));
+    timerIds.length = 0;
+  };
 
   /** find the item-selector input for this row — works in both virtual and non-virtual tables */
   const findItemInput = (): HTMLInputElement | null => {
@@ -124,13 +132,20 @@ export function scheduleItemFieldFocusAfterNewRow<T extends FieldValues>(
   // Guard re-acquires the replacement element and re-applies focus.
   const guardUntil = Date.now() + 1500;
   const guard = () => {
-    if (Date.now() > guardUntil) return;
+    if (done) return;
+    if (Date.now() > guardUntil) {
+      target = null;
+      return;
+    }
     if (target && !target.isConnected) {
       // element was replaced by re-render — find new one
       const fresh = findItemInput();
       if (fresh) {
         fresh.focus();
         target = fresh;
+      } else {
+        // row removed or disconnected
+        target = null;
       }
       return;
     }
@@ -154,12 +169,14 @@ export function scheduleItemFieldFocusAfterNewRow<T extends FieldValues>(
       });
       return;
     }
-    window.setTimeout(run, delay);
+    timerIds.push(window.setTimeout(run, delay));
   });
 
   // Extended guard: re-renders can disconnect element well after initial focus
-  window.setTimeout(guard, 800);
-  window.setTimeout(guard, 1200);
+  timerIds.push(window.setTimeout(guard, 800));
+  timerIds.push(window.setTimeout(guard, 1200));
+
+  return cancel;
 }
 
 /** focus date after party/section customer pick; no shouldSelect — trigger is a button */
