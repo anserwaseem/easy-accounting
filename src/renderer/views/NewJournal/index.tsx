@@ -75,6 +75,18 @@ const NewJournalPage: React.FC = () => {
     useState<boolean>(false);
   const navigate = useNavigate();
   const importInputRef = useRef<HTMLInputElement>(null);
+  const pendingFocusTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(
+    new Set(),
+  );
+
+  // clean up any pending focus timers when unmounting
+  useEffect(() => {
+    const timers = pendingFocusTimersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
 
   const getInitialEntry = useCallback(
     () => ({
@@ -146,11 +158,18 @@ const NewJournalPage: React.FC = () => {
 
   // fetch data for this page
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      setNextId(await window.electron.getNextJournalId());
+      const nId = await window.electron.getNextJournalId();
+      if (cancelled) return;
+      setNextId(nId);
       const allAccounts = await window.electron.getAccounts();
+      if (cancelled) return;
       setAccounts(allAccounts.filter((account: Account) => account.isActive));
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // focus the first account selector once account list has loaded so the user can start entry immediately
@@ -420,16 +439,20 @@ const NewJournalPage: React.FC = () => {
   const handleAddNewRow = useCallback(() => {
     const newIndex = form.getValues('journalEntries').length;
     append({ ...getInitialEntry() });
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      pendingFocusTimersRef.current.delete(timer);
       const cell = document.getElementById(`account-cell-${newIndex}`);
       const input = cell?.querySelector('input');
-      if (input) {
+      if (input && input.isConnected) {
         input.focus();
       } else {
         const button = cell?.querySelector('button');
-        button?.focus();
+        if (button && button.isConnected) {
+          button.focus();
+        }
       }
     }, 50);
+    pendingFocusTimersRef.current.add(timer);
   }, [append, getInitialEntry, form]);
 
   useCmdOrCtrlShortcut('n', handleAddNewRow);

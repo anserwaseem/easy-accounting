@@ -589,4 +589,39 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
       },
     );
   });
+
+  test('navigating between Journals and New Journal does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-user-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const journalsLink = page.getByRole('link', {
+      name: 'Journals',
+      exact: true,
+    });
+    await journalsLink.click();
+    await expect(page.getByRole('heading', { name: 'Journals' })).toBeVisible();
+
+    await soak.run(
+      async () => {
+        await page.getByRole('button', { name: 'New Journal' }).click();
+        await expect(
+          page.getByRole('heading', { name: 'New Journal' }),
+        ).toBeVisible();
+
+        await journalsLink.click();
+        await expect(
+          page.getByRole('heading', { name: 'Journals' }),
+        ).toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
 });

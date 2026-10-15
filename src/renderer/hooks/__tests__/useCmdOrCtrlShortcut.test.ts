@@ -90,4 +90,36 @@ describe('useCmdOrCtrlShortcut', () => {
     window.dispatchEvent(withShift);
     expect(onAction).toHaveBeenCalledTimes(1);
   });
+
+  it('invokes updated onAction after rerender without re-adding window listener', () => {
+    const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
+    const action1 = jest.fn();
+    const action2 = jest.fn();
+
+    const { rerender } = renderHook(
+      ({ action }) => useCmdOrCtrlShortcut('s', action),
+      { initialProps: { action: action1 } },
+    );
+
+    const initialAddCount = addEventListenerSpy.mock.calls.length;
+
+    // Rerender with a new callback function
+    rerender({ action: action2 });
+
+    // Listener count should remain unchanged (no re-binding on callback change)
+    expect(addEventListenerSpy.mock.calls.length).toBe(initialAddCount);
+
+    const event = new KeyboardEvent('keydown', {
+      key: 's',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(event);
+
+    expect(action1).not.toHaveBeenCalled();
+    expect(action2).toHaveBeenCalledTimes(1);
+
+    addEventListenerSpy.mockRestore();
+  });
 });

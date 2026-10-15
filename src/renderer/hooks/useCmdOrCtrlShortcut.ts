@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * registers ⌘/Ctrl + <key> on window (fires even when an input is focused).
@@ -9,6 +9,9 @@ export const useCmdOrCtrlShortcut = (
   onAction: () => void,
   shiftKey = false,
 ): void => {
+  const onActionRef = useRef(onAction);
+  onActionRef.current = onAction;
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e?.key || !key) {
@@ -25,9 +28,9 @@ export const useCmdOrCtrlShortcut = (
         return;
       }
       e.preventDefault();
-      onAction();
+      onActionRef.current();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [key, onAction, shiftKey]);
+  }, [key, shiftKey]);
 };

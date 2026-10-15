@@ -207,13 +207,19 @@ const JournalsPage: React.FC<HasMiniView> = ({
   );
 
   useEffect(() => {
+    let cancelled = false;
     const fetchJournals = async () => {
       const rawJournals = (await window.electron.getJournals()) as Journal[];
-      const updatedJournals = mapToJournalView(rawJournals);
-      setJounrals(updatedJournals);
+      if (!cancelled) {
+        const updatedJournals = mapToJournalView(rawJournals);
+        setJounrals(updatedJournals);
+      }
     };
 
     fetchJournals();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(
