@@ -9,9 +9,11 @@ const sampleAccount = {
   id: 7,
   name: 'ALBALAGH',
   code: 'A-1',
-  address: 'Lahore',
+  address: 'Urdu Bazar',
+  city: 'Lahore',
   nameUrdu: 'البلاغ',
-  addressUrdu: 'لاہور',
+  addressUrdu: 'اردو بازار',
+  cityUrdu: 'لاہور',
   goodsName: 'Books',
   goodsNameUrdu: 'کتب',
 } as Account;
@@ -24,8 +26,10 @@ describe('accountUrduImport', () => {
         code: 'A-1',
         name: 'ALBALAGH',
         nameUrdu: 'البلاغ',
-        address: 'Lahore',
-        addressUrdu: 'لاہور',
+        address: 'Urdu Bazar',
+        addressUrdu: 'اردو بازار',
+        city: 'Lahore',
+        cityUrdu: 'لاہور',
         goodsName: 'Books',
         goodsNameUrdu: 'کتب',
       },
@@ -35,7 +39,18 @@ describe('accountUrduImport', () => {
   it('parses canonical export headers', () => {
     const result = parseAccountUrduImportRows([
       [...ACCOUNT_URDU_EXPORT_HEADERS],
-      [7, 'A-1', 'ALBALAGH', 'نام', 'Lahore', 'پتہ', 'Books', 'سامان'],
+      [
+        7,
+        'A-1',
+        'ALBALAGH',
+        'نام',
+        'Urdu Bazar',
+        'پتہ',
+        'Lahore',
+        'شہر',
+        'Books',
+        'سامان',
+      ],
     ]);
     expect(result.skippedRows).toBe(0);
     expect(result.patches).toEqual([
@@ -45,6 +60,7 @@ describe('accountUrduImport', () => {
         name: 'ALBALAGH',
         nameUrdu: 'نام',
         addressUrdu: 'پتہ',
+        cityUrdu: 'شہر',
         goodsNameUrdu: 'سامان',
       },
     ]);

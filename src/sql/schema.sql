@@ -46,7 +46,9 @@ CREATE TABLE IF NOT EXISTS "account" (
   -- "isActive" BOOLEAN NOT NULL DEFAULT 1, -- "012 migration"
   -- "discountProfileId" INTEGER REFERENCES "discount_profiles"("id"), -- "015 migration"
   -- "tracksVendorStock" BOOLEAN NOT NULL DEFAULT 0, -- "025 migration"
-  -- "collectionRole" TEXT CHECK ("collectionRole" IN ('receipt', 'exclude')), -- NULL = default receipt rule -- "049_agent_tours migration"
+  -- "city" TEXT, -- "049 migration"
+  -- "cityUrdu" TEXT, -- "049 migration"
+  -- "collectionRole" TEXT CHECK ("collectionRole" IN ('receipt', 'exclude')), -- NULL = default receipt rule -- "050_agent_tours migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME,
 
@@ -54,7 +56,7 @@ CREATE TABLE IF NOT EXISTS "account" (
   UNIQUE("chartId", "name", "code") -- meaning: same account name and code can't be used in the same chart - "011 migration"
 );
 
--- agent tours (custom head trips) are created by "049_agent_tours migration" (src/core/db/migrations), not here:
+-- agent tours (custom head trips) are created by "050_agent_tours migration" (src/core/db/migrations), not here:
 -- CREATE TABLE IF NOT EXISTS "agent_tours" (
 --   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
 --   "chartId" INTEGER NOT NULL REFERENCES "chart"("id"),

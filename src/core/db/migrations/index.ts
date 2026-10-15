@@ -19,7 +19,8 @@ import { migration045 } from './045_invoice_net_rate_and_shipping';
 import { migration046 } from './046_recapture_invoice_net_and_shipping';
 import { migration047 } from './047_agent_commissions';
 import { migration048 } from './048_heal_duplicate_invoice_lines';
-import { migration049 } from './049_agent_tours';
+import { migration049 } from './049_account_city';
+import { migration050 } from './050_agent_tours';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -31,7 +32,7 @@ import { migration049 } from './049_agent_tours';
  * 2. Web / empty DB: snapshot of `001`–`028`, then this array.
  *
  * Do not add `src/main/migrations/*.js`. Append here, next unused `name`
- * (`050_…`), list it in `CORE_MIGRATION_NAMES`. Both platforms pick it up
+ * (`051_…`), list it in `CORE_MIGRATION_NAMES`. Both platforms pick it up
  * via `bootstrapDatabase`.
  *
  * A new column on a replicated table is not synced until that same
@@ -69,4 +70,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration047,
   migration048,
   migration049,
+  migration050,
 ];

@@ -17,6 +17,8 @@ export interface CollectionSheetSource {
   nameUrdu?: string | null;
   address?: string | null;
   addressUrdu?: string | null;
+  city?: string | null;
+  cityUrdu?: string | null;
 }
 
 export interface CollectionSheetMoney {
@@ -204,11 +206,12 @@ const familyMember = (
   const { baseCode, suffix } = splitPartyCode(code);
   const suffixLower = suffix.toLowerCase();
   const shop = pickLabel(language, account.name, account.nameUrdu);
-  const address = pickLabel(
-    language,
-    account.address ?? '',
-    account.addressUrdu,
-  );
+  const addr = pickLabel(language, account.address ?? '', account.addressUrdu);
+  const city = pickLabel(language, account.city ?? '', account.cityUrdu);
+  let address = addr || city || '';
+  if (addr && city) {
+    address = language === 'ur' ? `${addr}، ${city}` : `${addr}, ${city}`;
+  }
   const balance = signedSheetBalance(
     money?.balance ?? 0,
     money?.balanceType ?? '',

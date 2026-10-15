@@ -45,11 +45,13 @@ const SQL = {
         a.createdAt,
         a.updatedAt,
         a.address,
+        a.city,
         a.phone1,
         a.phone2,
         a.goodsName,
         a.nameUrdu,
         a.addressUrdu,
+        a.cityUrdu,
         a.goodsNameUrdu,
         a.isActive,
         COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
@@ -68,7 +70,7 @@ const SQL = {
       AND NOT (a.name = '${OPENING_BALANCE_EQUITY_ACCOUNT_NAME}' AND c.type = '${OPENING_BALANCE_EQUITY_CHART_NAME}')
     `,
   insertAccount: `
-      INSERT INTO account (name, chartId, code, address, phone1, phone2, goodsName, nameUrdu, addressUrdu, goodsNameUrdu, isActive, discountProfileId, tracksVendorStock, collectionRole)
+      INSERT INTO account (name, chartId, code, address, city, phone1, phone2, goodsName, nameUrdu, addressUrdu, cityUrdu, goodsNameUrdu, isActive, discountProfileId, tracksVendorStock, collectionRole)
       VALUES (@name, (
         SELECT id
         FROM chart
@@ -77,11 +79,11 @@ const SQL = {
           FROM users
           WHERE username = @username
         )
-      ), @code, @address, @phone1, @phone2, @goodsName, @nameUrdu, @addressUrdu, @goodsNameUrdu, 1, @discountProfileId, COALESCE(@tracksVendorStock, 0), @collectionRole)
+      ), @code, @address, @city, @phone1, @phone2, @goodsName, @nameUrdu, @addressUrdu, @cityUrdu, @goodsNameUrdu, 1, @discountProfileId, COALESCE(@tracksVendorStock, 0), @collectionRole)
     `,
   updateAccount: `
       UPDATE account
-      SET name = @name, code = @code, address = @address, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, nameUrdu = @nameUrdu, addressUrdu = @addressUrdu, goodsNameUrdu = @goodsNameUrdu, discountProfileId = @discountProfileId, tracksVendorStock = COALESCE(@tracksVendorStock, 0),
+      SET name = @name, code = @code, address = @address, city = @city, phone1 = @phone1, phone2 = @phone2, goodsName = @goodsName, nameUrdu = @nameUrdu, addressUrdu = @addressUrdu, cityUrdu = @cityUrdu, goodsNameUrdu = @goodsNameUrdu, discountProfileId = @discountProfileId, tracksVendorStock = COALESCE(@tracksVendorStock, 0),
         collectionRole = CASE WHEN @keepCollectionRole = 1 THEN collectionRole ELSE @collectionRole END,
         chartId = (
         SELECT id
@@ -182,11 +184,13 @@ const SQL = {
         a.createdAt,
         a.updatedAt,
         a.address,
+        a.city,
         a.phone1,
         a.phone2,
         a.goodsName,
         a.nameUrdu,
         a.addressUrdu,
+        a.cityUrdu,
         a.goodsNameUrdu,
         a.isActive,
         a.discountProfileId
@@ -203,6 +207,7 @@ const SQL = {
       UPDATE account
       SET nameUrdu = @nameUrdu,
           addressUrdu = @addressUrdu,
+          cityUrdu = @cityUrdu,
           goodsNameUrdu = @goodsNameUrdu
       WHERE id = @id
     `,
@@ -245,11 +250,13 @@ export class AccountService {
         a.createdAt,
         a.updatedAt,
         a.address,
+        a.city,
         a.phone1,
         a.phone2,
         a.goodsName,
         a.nameUrdu,
         a.addressUrdu,
+        a.cityUrdu,
         a.goodsNameUrdu,
         a.isActive,
         COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock,
@@ -275,11 +282,13 @@ export class AccountService {
       ...account,
       code: account.code ?? null,
       address: account.address ?? null,
+      city: account.city ?? null,
       phone1: account.phone1 ?? null,
       phone2: account.phone2 ?? null,
       goodsName: account.goodsName ?? null,
       nameUrdu: account.nameUrdu ?? null,
       addressUrdu: account.addressUrdu ?? null,
+      cityUrdu: account.cityUrdu ?? null,
       goodsNameUrdu: account.goodsNameUrdu ?? null,
       discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
@@ -321,11 +330,13 @@ export class AccountService {
       ...account,
       code: account.code ?? null,
       address: account.address ?? null,
+      city: account.city ?? null,
       phone1: account.phone1 ?? null,
       phone2: account.phone2 ?? null,
       goodsName: account.goodsName ?? null,
       nameUrdu: account.nameUrdu ?? null,
       addressUrdu: account.addressUrdu ?? null,
+      cityUrdu: account.cityUrdu ?? null,
       goodsNameUrdu: account.goodsNameUrdu ?? null,
       discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
@@ -362,8 +373,10 @@ export class AccountService {
     const username = this.session.getUsername();
     const result = await this.db.run(SQL.updateAccount, {
       ...account,
+      city: account.city ?? null,
       nameUrdu: account.nameUrdu ?? null,
       addressUrdu: account.addressUrdu ?? null,
+      cityUrdu: account.cityUrdu ?? null,
       goodsNameUrdu: account.goodsNameUrdu ?? null,
       discountProfileId: account.discountProfileId ?? null,
       tracksVendorStock: cast(!!account.tracksVendorStock),
@@ -411,6 +424,10 @@ export class AccountService {
           patch.addressUrdu !== undefined
             ? patch.addressUrdu
             : resolved.addressUrdu ?? null;
+        const nextCityUrdu =
+          patch.cityUrdu !== undefined
+            ? patch.cityUrdu
+            : resolved.cityUrdu ?? null;
         const nextGoodsNameUrdu =
           patch.goodsNameUrdu !== undefined
             ? patch.goodsNameUrdu
@@ -421,6 +438,7 @@ export class AccountService {
           id: cast(resolved.id),
           nameUrdu: nextNameUrdu,
           addressUrdu: nextAddressUrdu,
+          cityUrdu: nextCityUrdu,
           goodsNameUrdu: nextGoodsNameUrdu,
         });
         if (result.changes > 0) updated += 1;

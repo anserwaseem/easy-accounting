@@ -8,6 +8,8 @@ export interface AccountUrduExportRow {
   nameUrdu: string;
   address: string;
   addressUrdu: string;
+  city: string;
+  cityUrdu: string;
   goodsName: string;
   goodsNameUrdu: string;
 }
@@ -19,6 +21,7 @@ export interface AccountUrduPatch {
   name?: string;
   nameUrdu?: string | null;
   addressUrdu?: string | null;
+  cityUrdu?: string | null;
   goodsNameUrdu?: string | null;
 }
 
@@ -37,6 +40,8 @@ const HEADER_ALIASES: Record<
   nameUrdu: ['nameurdu', 'name (urdu)', 'account name (urdu)', 'urdu name'],
   address: ['address'],
   addressUrdu: ['addressurdu', 'address (urdu)', 'urdu address'],
+  city: ['city'],
+  cityUrdu: ['cityurdu', 'city (urdu)', 'urdu city'],
   goodsName: ['goodsname', 'goods name', 'goods'],
   goodsNameUrdu: [
     'goodsnameurdu',
@@ -61,6 +66,8 @@ export const buildAccountUrduExportRows = (
     nameUrdu: account.nameUrdu ?? '',
     address: account.address ?? '',
     addressUrdu: account.addressUrdu ?? '',
+    city: account.city ?? '',
+    cityUrdu: account.cityUrdu ?? '',
     goodsName: account.goodsName ?? '',
     goodsNameUrdu: account.goodsNameUrdu ?? '',
   }));
@@ -102,10 +109,11 @@ export const parseAccountUrduImportRows = (
   if (
     headerMap.nameUrdu == null &&
     headerMap.addressUrdu == null &&
+    headerMap.cityUrdu == null &&
     headerMap.goodsNameUrdu == null
   ) {
     throw new Error(
-      'Urdu import needs at least one of: Name (Urdu), Address (Urdu), Goods Name (Urdu).',
+      'Urdu import needs at least one of: Name (Urdu), Address (Urdu), City (Urdu), Goods Name (Urdu).',
     );
   }
   if (
@@ -154,6 +162,9 @@ export const parseAccountUrduImportRows = (
     if (headerMap.addressUrdu != null) {
       patch.addressUrdu = cellText(row[headerMap.addressUrdu]) || null;
     }
+    if (headerMap.cityUrdu != null) {
+      patch.cityUrdu = cellText(row[headerMap.cityUrdu]) || null;
+    }
     if (headerMap.goodsNameUrdu != null) {
       patch.goodsNameUrdu = cellText(row[headerMap.goodsNameUrdu]) || null;
     }
@@ -161,6 +172,7 @@ export const parseAccountUrduImportRows = (
     if (
       patch.nameUrdu === undefined &&
       patch.addressUrdu === undefined &&
+      patch.cityUrdu === undefined &&
       patch.goodsNameUrdu === undefined
     ) {
       skippedRows += 1;
@@ -180,6 +192,8 @@ export const ACCOUNT_URDU_EXPORT_HEADERS = [
   'Name (Urdu)',
   'Address',
   'Address (Urdu)',
+  'City',
+  'City (Urdu)',
   'Goods Name',
   'Goods Name (Urdu)',
 ] as const;

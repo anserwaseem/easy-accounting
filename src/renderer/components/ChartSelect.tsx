@@ -30,7 +30,7 @@ export const ChartSelect: React.FC<ChartSelectProps> = ({
     <SelectTrigger className={className}>
       <SelectValue placeholder={placeholder} />
     </SelectTrigger>
-    <SelectContent>
+    <SelectContent className="max-h-60 overflow-y-auto">
       {charts
         .filter((chart) => !chart.parentId)
         .map((mainChart) => (

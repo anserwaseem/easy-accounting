@@ -40,6 +40,8 @@ export const ImportExportAccountUrdu: React.FC<
           row.nameUrdu,
           row.address,
           row.addressUrdu,
+          row.city,
+          row.cityUrdu,
           row.goodsName,
           row.goodsNameUrdu,
         ]),

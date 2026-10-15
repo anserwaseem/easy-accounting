@@ -120,6 +120,8 @@ type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
   invoiceAccountCode?: number | string | null;
   invoiceAccountAddress?: string | null;
   invoiceAccountAddressUrdu?: string | null;
+  invoiceAccountCity?: string | null;
+  invoiceAccountCityUrdu?: string | null;
   invoiceAccountGoodsName?: string | null;
   invoiceAccountGoodsNameUrdu?: string | null;
   invoiceAccountHeadName?: string | null;
@@ -281,6 +283,8 @@ const SQL = {
         a.code AS 'invoiceAccountCode',
         a.address AS 'invoiceAccountAddress',
         a.addressUrdu AS 'invoiceAccountAddressUrdu',
+        a.city AS 'invoiceAccountCity',
+        a.cityUrdu AS 'invoiceAccountCityUrdu',
         a.goodsName AS 'invoiceAccountGoodsName',
         a.goodsNameUrdu AS 'invoiceAccountGoodsNameUrdu',
         headerChart.name AS 'invoiceAccountHeadName',
@@ -904,6 +908,8 @@ export class InvoiceService {
         }
         prev.accountAddress = cur.invoiceAccountAddress ?? null;
         prev.accountAddressUrdu = cur.invoiceAccountAddressUrdu ?? null;
+        prev.accountCity = cur.invoiceAccountCity ?? null;
+        prev.accountCityUrdu = cur.invoiceAccountCityUrdu ?? null;
         prev.accountGoodsName = cur.invoiceAccountGoodsName ?? null;
         prev.accountGoodsNameUrdu = cur.invoiceAccountGoodsNameUrdu ?? null;
         prev.accountHeadName =

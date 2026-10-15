@@ -34,12 +34,14 @@ interface EditAccountProps {
   };
   refetchAccounts: () => void;
   charts: Chart[];
+  onEditPolicy?: () => void;
 }
 
 export const EditAccount: React.FC<EditAccountProps> = ({
   row,
   refetchAccounts,
   charts,
+  onEditPolicy,
 }: EditAccountProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -53,11 +55,13 @@ export const EditAccount: React.FC<EditAccountProps> = ({
     accountName: inputRow.name || '',
     accountCode: inputRow.code === null ? undefined : inputRow.code,
     address: inputRow.address,
+    addressUrdu: inputRow.addressUrdu,
+    city: inputRow.city ?? undefined,
+    cityUrdu: inputRow.cityUrdu ?? undefined,
     phone1: inputRow.phone1,
     phone2: inputRow.phone2,
     goodsName: inputRow.goodsName,
     nameUrdu: inputRow.nameUrdu,
-    addressUrdu: inputRow.addressUrdu,
     goodsNameUrdu: inputRow.goodsNameUrdu,
     isActive: !!inputRow.isActive, // included for type safety, but not used in the form
     tracksVendorStock: !!inputRow.tracksVendorStock,
@@ -73,11 +77,13 @@ export const EditAccount: React.FC<EditAccountProps> = ({
       headName: values.headName,
       code: values.accountCode,
       address: values.address,
+      addressUrdu: values.addressUrdu,
+      city: values.city,
+      cityUrdu: values.cityUrdu,
       phone1: values.phone1,
       phone2: values.phone2,
       goodsName: values.goodsName,
       nameUrdu: values.nameUrdu,
-      addressUrdu: values.addressUrdu,
       goodsNameUrdu: values.goodsNameUrdu,
       discountProfileId:
         values.discountProfileId ?? row.original.discountProfileId ?? null,
@@ -186,7 +192,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
           <DialogTrigger asChild>
             <EditActionButton aria-label="Edit account" title="Edit account" />
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader className="flex flex-row items-center justify-between space-y-0 pr-7">
               <DialogTitle>Edit Account</DialogTitle>
               <Button
@@ -203,6 +209,15 @@ export const EditAccount: React.FC<EditAccountProps> = ({
             </DialogHeader>
             <AccountForm
               onSubmit={onSubmit}
+              onCancel={() => setIsOpen(false)}
+              onEditPolicy={
+                onEditPolicy
+                  ? () => {
+                      setIsOpen(false);
+                      onEditPolicy();
+                    }
+                  : undefined
+              }
               charts={charts}
               initialValues={mapRowToFormData(row.original)}
             />
