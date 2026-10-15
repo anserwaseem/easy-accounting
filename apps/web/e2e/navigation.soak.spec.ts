@@ -443,4 +443,46 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
       },
     );
   });
+
+  test('navigating between Reports hub and Sales Performance chart does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-sales-perf-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const reportsLink = page.getByRole('link', {
+      name: 'Reports',
+      exact: true,
+    });
+
+    await reportsLink.click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Reports' }),
+    ).toBeVisible();
+
+    const salesPerfCard = page.getByRole('link', {
+      name: /Sales Performance/i,
+    });
+
+    await soak.run(
+      async () => {
+        await salesPerfCard.click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Sales Performance' }),
+        ).toBeVisible();
+
+        await reportsLink.click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Reports' }),
+        ).toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
 });
