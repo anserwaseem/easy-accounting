@@ -233,4 +233,61 @@ test.describe('Soak Tests - Memory Leak Detection', () => {
       },
     );
   });
+
+  test('switching between accounts in Ledger does not leak nodes or listeners', async ({
+    page,
+    soak,
+  }) => {
+    const username = `soak-ledger-${Date.now()}`;
+    await registerAndLogin(page, username);
+
+    const account1 = `Ledger Alpha ${Date.now()}`;
+    const account2 = `Ledger Beta ${Date.now()}`;
+
+    // Seed two asset accounts
+    await page.evaluate(
+      async ({ a1, a2 }) => {
+        await window.easyAccounting.api.insertAccount({
+          name: a1,
+          headName: 'Current Asset',
+        });
+        await window.easyAccounting.api.insertAccount({
+          name: a2,
+          headName: 'Current Asset',
+        });
+      },
+      { a1: account1, a2: account2 },
+    );
+
+    await page.getByRole('link', { name: 'Accounts', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Accounts', exact: true }),
+    ).toBeVisible();
+
+    // Round-trip: Open Account 1 Ledger -> switch to Account 2 -> return to Accounts list
+    await soak.run(
+      async () => {
+        await page.getByText(account1, { exact: true }).click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: account1 }),
+        ).toBeVisible();
+
+        await page.getByRole('heading', { level: 2, name: account2 }).click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: account2 }),
+        ).toBeVisible();
+
+        await page.getByRole('link', { name: 'Accounts', exact: true }).click();
+        await expect(
+          page.getByRole('heading', { name: 'Accounts', exact: true }),
+        ).toBeVisible();
+      },
+      {
+        passes: 20,
+        warmup: 3,
+        nodeThreshold: 50,
+        listenerThreshold: 0,
+      },
+    );
+  });
 });
