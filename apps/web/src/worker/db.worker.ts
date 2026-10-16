@@ -1973,6 +1973,125 @@ async function main(): Promise<void> {
         };
       });
     },
+    'debug:seedCatalogFixtures': async (rawArgs: unknown) => {
+      if (!isLocalDebugHost()) throw new Error('debug rpc is local only');
+      const params = (rawArgs ?? {}) as { count?: number };
+      const totalCount = params.count ?? 1050;
+
+      return driver.transaction(async () => {
+        // 1. Ensure attribute definitions
+        const defs = [
+          {
+            key: 'binding',
+            label: 'Binding',
+            unit: null,
+            valueType: 'text',
+            sortOrder: 1,
+          },
+          {
+            key: 'pages',
+            label: 'Pages',
+            unit: 'pp',
+            valueType: 'number',
+            sortOrder: 2,
+          },
+          {
+            key: 'language',
+            label: 'Language',
+            unit: null,
+            valueType: 'text',
+            sortOrder: 3,
+          },
+        ];
+        for (const def of defs) {
+          // eslint-disable-next-line no-await-in-loop
+          const existing = await driver.get<{ id: number }>(
+            'SELECT id FROM attribute_definitions WHERE key = ?',
+            [def.key],
+          );
+          if (!existing) {
+            // eslint-disable-next-line no-await-in-loop
+            await driver.run(
+              'INSERT INTO attribute_definitions (key, label, unit, valueType, sortOrder, isActive, isPublic) VALUES (?, ?, ?, ?, ?, 1, 1)',
+              [def.key, def.label, def.unit, def.valueType, def.sortOrder],
+            );
+          }
+        }
+
+        // 2. Ensure item types
+        const typeNames = ['Fiction', 'Non-Fiction', 'Reference', 'Poetry'];
+        const typeIds: number[] = [];
+        for (const name of typeNames) {
+          // eslint-disable-next-line no-await-in-loop
+          let row = await driver.get<{ id: number }>(
+            'SELECT id FROM item_types WHERE name = ?',
+            [name],
+          );
+          if (!row) {
+            // eslint-disable-next-line no-await-in-loop
+            const r = await driver.run(
+              'INSERT INTO item_types (name, isActive) VALUES (?, 1)',
+              [name],
+            );
+            row = { id: Number(r.lastInsertRowid) };
+          }
+          typeIds.push(row.id);
+        }
+
+        // 3. Clear existing catalog items starting with CAT-
+        await driver.run("DELETE FROM inventory WHERE name LIKE 'CAT-%'");
+
+        // 4. Batch insert totalCount items in chunks
+        // Family logic: every 5 items form a family.
+        // Item (i % 5 === 0) is head (parentId = NULL).
+        // Items 1..4 have parentId set to the head item's ID.
+        let currentHeadId: number | null = null;
+        for (let i = 0; i < totalCount; i++) {
+          const numStr = String(i + 1).padStart(4, '0');
+          const name = `CAT-${numStr}`;
+          const isHead = i % 5 === 0;
+          const parentId = isHead ? null : currentHeadId;
+          const itemTypeId = typeIds[i % typeIds.length];
+          const price = 100 + (i % 25) * 50;
+          const quantity = 50 + (i % 30) * 10;
+          const binding = i % 2 === 0 ? 'Hardcover' : 'Paperback';
+          const pages = 100 + (i % 20) * 50;
+          const language =
+            i % 3 === 0 ? 'Urdu' : i % 3 === 1 ? 'English' : 'Arabic';
+          const attributes = JSON.stringify({ binding, pages, language });
+
+          // eslint-disable-next-line no-await-in-loop
+          const res = await driver.run(
+            'INSERT INTO inventory (name, description, price, quantity, itemTypeId, listPosition, parentId, attributes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+              name,
+              `Catalog Book ${name}`,
+              price,
+              quantity,
+              itemTypeId,
+              i + 1,
+              parentId,
+              attributes,
+            ],
+          );
+          const itemId = Number(res.lastInsertRowid);
+          if (isHead) currentHeadId = itemId;
+
+          // Add opening stock so inventory_quantity_view matches
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate) VALUES (?, ?, ?)',
+            [itemId, quantity, '2025-01-01T00:00:00.000Z'],
+          );
+        }
+
+        return {
+          totalCount,
+          headCount: Math.ceil(totalCount / 5),
+          attributeKeys: ['binding', 'pages', 'language'],
+        };
+      });
+    },
   };
 
   self.onmessage = (event: MessageEvent<RpcCall>) => {
