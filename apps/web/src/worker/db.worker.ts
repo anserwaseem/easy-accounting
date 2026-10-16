@@ -1823,6 +1823,156 @@ async function main(): Promise<void> {
         };
       });
     },
+    'debug:seedStockAsOfFixtures': async (rawArgs: unknown) => {
+      if (!isLocalDebugHost()) throw new Error('debug rpc is local only');
+      return driver.transaction(async () => {
+        let itemType = await driver.get<{ id: number; name: string }>(
+          "SELECT id, name FROM item_types WHERE name = 'Urdu' LIMIT 1",
+        );
+        if (!itemType) {
+          const res = await driver.run(
+            "INSERT INTO item_types (name, isActive) VALUES ('Urdu', 1)",
+          );
+          itemType = { id: Number(res.lastInsertRowid), name: 'Urdu' };
+        }
+
+        let account = await driver.get<{ id: number }>(
+          'SELECT id FROM account LIMIT 1',
+        );
+        if (!account) {
+          const chart = await driver.get<{ id: number }>(
+            'SELECT id FROM chart LIMIT 1',
+          );
+          const res = await driver.run(
+            "INSERT INTO account (chartId, name, code, isActive) VALUES (?, 'Replay Customer', 'REP-01', 1)",
+            [chart?.id ?? 1],
+          );
+          account = { id: Number(res.lastInsertRowid) };
+        }
+
+        // Clean up any existing sample replay items
+        await driver.run(
+          "DELETE FROM inventory WHERE name IN ('Chronology Novel Vol 1', 'Chronology Novel Vol 2')",
+        );
+
+        // Item 1: Chronology Novel Vol 1 (Current live on-hand: 70)
+        const item1Res = await driver.run(
+          'INSERT INTO inventory (name, description, price, quantity, itemTypeId, listPosition) VALUES (?, ?, ?, ?, ?, ?)',
+          [
+            'Chronology Novel Vol 1',
+            'Urdu Chronology Series Vol 1',
+            500,
+            70,
+            itemType.id,
+            1,
+          ],
+        );
+        const item1Id = Number(item1Res.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate) VALUES (?, 100, ?)',
+          [item1Id, '2025-01-01T00:00:00.000Z'],
+        );
+
+        // Item 2: Chronology Novel Vol 2 (Current live on-hand: 220)
+        const item2Res = await driver.run(
+          'INSERT INTO inventory (name, description, price, quantity, itemTypeId, listPosition) VALUES (?, ?, ?, ?, ?, ?)',
+          [
+            'Chronology Novel Vol 2',
+            'Urdu Chronology Series Vol 2',
+            750,
+            220,
+            itemType.id,
+            2,
+          ],
+        );
+        const item2Id = Number(item2Res.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate) VALUES (?, 200, ?)',
+          [item2Id, '2025-01-01T00:00:00.000Z'],
+        );
+
+        const nextInvNumRow = await driver.get<{ maxNum: number }>(
+          'SELECT COALESCE(MAX(invoiceNumber), 0) AS maxNum FROM invoices',
+        );
+        let nextInv = (nextInvNumRow?.maxNum ?? 0) + 1;
+
+        // --- Item 1 Chronology Movements ---
+        // Mov 1: Jan 15, 2025 Purchase (+50)
+        const p1 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, isReturned) VALUES (?, ?, 'Purchase', '2025-01-15T10:00:00.000Z', 25000, 0)",
+          [nextInv++, account.id],
+        );
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 50, 500, 0, ?)',
+          [Number(p1.lastInsertRowid), item1Id, account.id],
+        );
+
+        // Mov 2: Feb 01, 2025 Sale (-30)
+        const s1 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, isReturned) VALUES (?, ?, 'Sale', '2025-02-01T10:00:00.000Z', 15000, 0)",
+          [nextInv++, account.id],
+        );
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 30, 500, 0, ?)',
+          [Number(s1.lastInsertRowid), item1Id, account.id],
+        );
+
+        // Mov 3: Feb 15, 2025 Stock Adjustment (-10)
+        await driver.run(
+          "INSERT INTO stock_adjustments (inventoryId, quantityDelta, reason, date) VALUES (?, -10, 'Damaged in transit', '2025-02-15T12:00:00.000Z')",
+          [item1Id],
+        );
+
+        // Mov 4: Mar 01, 2025 Sale (-20), returned on Mar 10, 2025 (+20)
+        const s2 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, returnedAt, totalAmount, isReturned) VALUES (?, ?, 'Sale', '2025-03-01T10:00:00.000Z', '2025-03-10T10:00:00.000Z', 10000, 1)",
+          [nextInv++, account.id],
+        );
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 20, 500, 0, ?)',
+          [Number(s2.lastInsertRowid), item1Id, account.id],
+        );
+
+        // Mov 5: Apr 01, 2025 Sale (-40)
+        const s3 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, isReturned) VALUES (?, ?, 'Sale', '2025-04-01T10:00:00.000Z', 20000, 0)",
+          [nextInv++, account.id],
+        );
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 40, 500, 0, ?)',
+          [Number(s3.lastInsertRowid), item1Id, account.id],
+        );
+
+        // --- Item 2 Chronology Movements ---
+        // Mov 1: Jan 20, 2025 Purchase (+100)
+        const p2 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, isReturned) VALUES (?, ?, 'Purchase', '2025-01-20T10:00:00.000Z', 75000, 0)",
+          [nextInv++, account.id],
+        );
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 100, 750, 0, ?)',
+          [Number(p2.lastInsertRowid), item2Id, account.id],
+        );
+
+        // Mov 2: Mar 20, 2025 Sale (-80)
+        const s4 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, isReturned) VALUES (?, ?, 'Sale', '2025-03-20T10:00:00.000Z', 60000, 0)",
+          [nextInv++, account.id],
+        );
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 80, 750, 0, ?)',
+          [Number(s4.lastInsertRowid), item2Id, account.id],
+        );
+
+        return {
+          item1Id,
+          item1Name: 'Chronology Novel Vol 1',
+          item2Id,
+          item2Name: 'Chronology Novel Vol 2',
+          itemTypeName: 'Urdu',
+        };
+      });
+    },
   };
 
   self.onmessage = (event: MessageEvent<RpcCall>) => {
