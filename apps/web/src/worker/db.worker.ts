@@ -1369,6 +1369,460 @@ async function main(): Promise<void> {
         return { count };
       });
     },
+    'debug:seedReportsFixtures': async (rawArgs: unknown) => {
+      if (!isLocalDebugHost()) throw new Error('debug rpc is local only');
+      const params = (rawArgs ?? {}) as {
+        agentHeadName?: string;
+        billCount?: number;
+        username?: string;
+      };
+      const agentHeadName = params.agentHeadName ?? 'Soak Agent Head';
+      const billCount = params.billCount ?? 120;
+      const targetUsername =
+        params.username ?? session.getUsername() ?? 'default';
+
+      return driver.transaction(async () => {
+        let user = await driver.get<{ id: number }>(
+          'SELECT id FROM users WHERE username = ? LIMIT 1',
+          [targetUsername],
+        );
+        if (!user) {
+          user = await driver.get<{ id: number }>(
+            'SELECT id FROM users ORDER BY id DESC LIMIT 1',
+          );
+        }
+        if (!user) {
+          const r = await driver.run(
+            "INSERT INTO users (username, password_hash, status) VALUES (?, X'00', 1)",
+            [targetUsername],
+          );
+          user = { id: Number(r.lastInsertRowid) };
+        }
+
+        let assetChart = await driver.get<{ id: number }>(
+          "SELECT id FROM chart WHERE type = 'Asset' AND parentId IS NULL AND userId = ? LIMIT 1",
+          [user.id],
+        );
+        if (!assetChart) {
+          const r = await driver.run(
+            "INSERT INTO chart (date, name, type, userId, parentId) VALUES ('2025-01-01', 'Current Assets', 'Asset', ?, NULL)",
+            [user.id],
+          );
+          assetChart = { id: Number(r.lastInsertRowid) };
+        }
+
+        let agentHead = await driver.get<{ id: number }>(
+          'SELECT id FROM chart WHERE name = ? AND parentId IS NOT NULL AND userId = ? LIMIT 1',
+          [agentHeadName, user.id],
+        );
+        if (!agentHead) {
+          const r = await driver.run(
+            "INSERT INTO chart (date, name, type, userId, parentId) VALUES ('2025-01-01', ?, 'Asset', ?, ?)",
+            [agentHeadName, user.id, assetChart.id],
+          );
+          agentHead = { id: Number(r.lastInsertRowid) };
+        }
+
+        let revChart = await driver.get<{ id: number }>(
+          "SELECT id FROM chart WHERE type = 'Revenue' AND userId = ? LIMIT 1",
+          [user.id],
+        );
+        if (!revChart) {
+          const r = await driver.run(
+            "INSERT INTO chart (date, name, type, userId, parentId) VALUES ('2025-01-01', 'Sales Revenue', 'Revenue', ?, NULL)",
+            [user.id],
+          );
+          revChart = { id: Number(r.lastInsertRowid) };
+        }
+        let revAccount = await driver.get<{ id: number }>(
+          'SELECT id FROM account WHERE chartId = ? LIMIT 1',
+          [revChart.id],
+        );
+        if (!revAccount) {
+          const r = await driver.run(
+            "INSERT INTO account (chartId, name, code, isActive) VALUES (?, 'General Sales', 'GEN-SALE', 1)",
+            [revChart.id],
+          );
+          revAccount = { id: Number(r.lastInsertRowid) };
+        }
+
+        let receiptAccount = await driver.get<{ id: number }>(
+          "SELECT id FROM account WHERE collectionRole = 'receipt' AND chartId = ? LIMIT 1",
+          [assetChart.id],
+        );
+        if (!receiptAccount) {
+          const r = await driver.run(
+            "INSERT INTO account (chartId, name, code, collectionRole, isActive) VALUES (?, 'Soak Cash Counter', 'SOAK-CASH', 'receipt', 1)",
+            [assetChart.id],
+          );
+          receiptAccount = { id: Number(r.lastInsertRowid) };
+        }
+
+        const accountNames = [
+          { name: 'Alpha Book Shop', code: 'SOAK-001', address: 'Main Bazar' },
+          {
+            name: 'Beta Stationery',
+            code: 'SOAK-002',
+            address: 'Commercial Market',
+          },
+          { name: 'Gamma Traders', code: 'SOAK-003', address: 'College Road' },
+          {
+            name: 'Delta Book Store',
+            code: 'SOAK-004',
+            address: 'Circular Road',
+          },
+          { name: 'Echo Library', code: 'SOAK-005', address: 'Urdu Bazar' },
+          {
+            name: 'Foxtrot Publications',
+            code: 'SOAK-006',
+            address: 'Anarkali',
+          },
+          { name: 'Golf Stationers', code: 'SOAK-007', address: 'Gulberg' },
+          { name: 'Hotel Paper House', code: 'SOAK-008', address: 'Mall Road' },
+          {
+            name: 'India Book Depot',
+            code: 'SOAK-009',
+            address: 'Sadar Bazar',
+          },
+          {
+            name: 'Juliet Academy Shop',
+            code: 'SOAK-010',
+            address: 'Ferozepur Road',
+          },
+          {
+            name: 'Kilo Uniform & Books',
+            code: 'SOAK-011',
+            address: 'Johar Town',
+          },
+        ];
+        const accounts: { id: number; name: string; code: string }[] = [];
+        for (const info of accountNames) {
+          // eslint-disable-next-line no-await-in-loop
+          let acc = await driver.get<{
+            id: number;
+            name: string;
+            code: string;
+          }>(
+            'SELECT id, name, code FROM account WHERE chartId = ? AND name = ? LIMIT 1',
+            [agentHead.id, info.name],
+          );
+          if (!acc) {
+            // eslint-disable-next-line no-await-in-loop
+            const r = await driver.run(
+              'INSERT INTO account (chartId, name, code, address, isActive) VALUES (?, ?, ?, ?, 1)',
+              [agentHead.id, info.name, info.code, info.address],
+            );
+            acc = {
+              id: Number(r.lastInsertRowid),
+              name: info.name,
+              code: info.code,
+            };
+          }
+          accounts.push(acc);
+        }
+
+        let tour1 = await driver.get<{ id: number }>(
+          "SELECT id FROM agent_tours WHERE chartId = ? AND name = 'Feb Tour 1' LIMIT 1",
+          [agentHead.id],
+        );
+        if (!tour1) {
+          const r = await driver.run(
+            "INSERT INTO agent_tours (chartId, name, startDate, endDate, notes) VALUES (?, 'Feb Tour 1', '2025-02-01', '2025-02-15', 'First Feb trip')",
+            [agentHead.id],
+          );
+          tour1 = { id: Number(r.lastInsertRowid) };
+        }
+        let tour2 = await driver.get<{ id: number }>(
+          "SELECT id FROM agent_tours WHERE chartId = ? AND name = 'Mar Tour 2' LIMIT 1",
+          [agentHead.id],
+        );
+        if (!tour2) {
+          const r = await driver.run(
+            "INSERT INTO agent_tours (chartId, name, startDate, endDate, notes) VALUES (?, 'Mar Tour 2', '2025-03-10', '2025-03-25', 'Second Mar trip')",
+            [agentHead.id],
+          );
+          tour2 = { id: Number(r.lastInsertRowid) };
+        }
+
+        let item = await driver.get<{ id: number }>(
+          'SELECT id FROM inventory LIMIT 1',
+        );
+        if (!item) {
+          const r = await driver.run(
+            "INSERT INTO inventory (name, description, price, quantity) VALUES ('Soak Sample Item', 'Sample item', 100, 100)",
+          );
+          item = { id: Number(r.lastInsertRowid) };
+        }
+
+        const alpha = accounts[0];
+        const beta = accounts[1];
+        const gamma = accounts[2];
+
+        const nextInvNumRow = await driver.get<{ maxNum: number }>(
+          "SELECT COALESCE(MAX(invoiceNumber), 0) AS maxNum FROM invoices WHERE invoiceType = 'Sale'",
+        );
+        const invNum1 = (nextInvNumRow?.maxNum ?? 0) + 1;
+        const invNum2 = invNum1 + 1;
+        const invNum3 = invNum1 + 2;
+        const invNum4 = invNum1 + 3;
+
+        const invRes1 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount) VALUES (?, ?, 'Sale', '2025-02-05', 5000)",
+          [invNum1, alpha.id],
+        );
+        const inv1Id = Number(invRes1.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 5, 1000, 0, ?)',
+          [inv1Id, item.id, alpha.id],
+        );
+
+        const invRes2 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount) VALUES (?, ?, 'Sale', '2025-03-12', 3500)",
+          [invNum2, alpha.id],
+        );
+        const inv2Id = Number(invRes2.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 7, 500, 0, ?)',
+          [inv2Id, item.id, alpha.id],
+        );
+
+        const invRes3 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount) VALUES (?, ?, 'Sale', '2025-02-08', 5000)",
+          [invNum3, beta.id],
+        );
+        const inv3Id = Number(invRes3.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 5, 1000, 0, ?)',
+          [inv3Id, item.id, beta.id],
+        );
+
+        const invRes4 = await driver.run(
+          "INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount) VALUES (?, ?, 'Sale', '2025-03-14', 8000)",
+          [invNum4, gamma.id],
+        );
+        const inv4Id = Number(invRes4.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId) VALUES (?, ?, 8, 1000, 0, ?)',
+          [inv4Id, item.id, gamma.id],
+        );
+
+        const startMs = new Date('2025-01-05T09:00:00.000Z').getTime();
+        for (let i = 0; i < billCount; i++) {
+          const billDate = new Date(startMs + i * 12 * 3600_000).toISOString();
+          const billNumber = `BILL-${1001 + i}`;
+          const amount = 1000;
+          // eslint-disable-next-line no-await-in-loop
+          const res = await driver.run(
+            'INSERT INTO journal (date, narration, isPosted, billNumber, discountPercentage) VALUES (?, ?, 1, ?, 10)',
+            [billDate, `Sales Bill #${billNumber}`, billNumber],
+          );
+          const jId = Number(res.lastInsertRowid);
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, ?, 0)',
+            [jId, alpha.id, amount],
+          );
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, ?)',
+            [jId, revAccount.id, amount],
+          );
+        }
+
+        const rec1 = await driver.run(
+          "INSERT INTO journal (date, narration, isPosted) VALUES ('2025-02-10T11:00:00.000Z', 'Feb Tour 1 Collection', 1)",
+        );
+        const rec1Id = Number(rec1.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 40000, 0)',
+          [rec1Id, receiptAccount.id],
+        );
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 40000)',
+          [rec1Id, alpha.id],
+        );
+
+        const rec2 = await driver.run(
+          "INSERT INTO journal (date, narration, isPosted) VALUES ('2025-03-15T14:00:00.000Z', 'Mar Tour 2 Collection', 1)",
+        );
+        const rec2Id = Number(rec2.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 20500, 0)',
+          [rec2Id, receiptAccount.id],
+        );
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 20500)',
+          [rec2Id, alpha.id],
+        );
+
+        const rec3 = await driver.run(
+          "INSERT INTO journal (date, narration, isPosted) VALUES ('2025-04-10T10:00:00.000Z', 'Direct Bank Receipt', 1)",
+        );
+        const rec3Id = Number(rec3.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 10000, 0)',
+          [rec3Id, receiptAccount.id],
+        );
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 10000)',
+          [rec3Id, alpha.id],
+        );
+
+        for (let i = 0; i < 20; i++) {
+          const bDate = new Date(
+            new Date('2025-01-10T10:00:00.000Z').getTime() + i * 24 * 3600_000,
+          ).toISOString();
+          const bNum = `BETA-${101 + i}`;
+          // eslint-disable-next-line no-await-in-loop
+          const res = await driver.run(
+            'INSERT INTO journal (date, narration, isPosted, billNumber) VALUES (?, ?, 1, ?)',
+            [bDate, `Beta Bill #${bNum}`, bNum],
+          );
+          const jId = Number(res.lastInsertRowid);
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 1000, 0)',
+            [jId, beta.id],
+          );
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 1000)',
+            [jId, revAccount.id],
+          );
+        }
+        const betaRec = await driver.run(
+          "INSERT INTO journal (date, narration, isPosted) VALUES ('2025-02-12T12:00:00.000Z', 'Beta Payment', 1)",
+        );
+        const betaRecId = Number(betaRec.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 15000, 0)',
+          [betaRecId, receiptAccount.id],
+        );
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 15000)',
+          [betaRecId, beta.id],
+        );
+
+        // Echo Library (accounts[4]): 5 bills @ 1000 = 5000, receipt = 8000 (3000 unallocated receipt for Bills Aging)
+        const echo = accounts[4];
+        for (let i = 0; i < 5; i++) {
+          const eDate = new Date(
+            new Date('2025-01-15T10:00:00.000Z').getTime() + i * 24 * 3600_000,
+          ).toISOString();
+          const eNum = `ECHO-${201 + i}`;
+          // eslint-disable-next-line no-await-in-loop
+          const res = await driver.run(
+            'INSERT INTO journal (date, narration, isPosted, billNumber) VALUES (?, ?, 1, ?)',
+            [eDate, `Echo Bill #${eNum}`, eNum],
+          );
+          const jId = Number(res.lastInsertRowid);
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 1000, 0)',
+            [jId, echo.id],
+          );
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 1000)',
+            [jId, revAccount.id],
+          );
+        }
+        const echoRec = await driver.run(
+          "INSERT INTO journal (date, narration, isPosted) VALUES ('2025-02-14T10:00:00.000Z', 'Echo Excess Payment', 1)",
+        );
+        const echoRecId = Number(echoRec.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 8000, 0)',
+          [echoRecId, receiptAccount.id],
+        );
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 8000)',
+          [echoRecId, echo.id],
+        );
+
+        const gammaOpen = await driver.run(
+          "INSERT INTO journal (date, narration, isPosted) VALUES ('2024-12-15T09:00:00.000Z', 'Opening Debit Balance', 1)",
+        );
+        const gammaOpenId = Number(gammaOpen.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 6000, 0)',
+          [gammaOpenId, gamma.id],
+        );
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 6000)',
+          [gammaOpenId, revAccount.id],
+        );
+
+        for (let i = 0; i < 5; i++) {
+          const gDate = new Date(
+            new Date('2025-01-20T10:00:00.000Z').getTime() + i * 48 * 3600_000,
+          ).toISOString();
+          const gNum = `GAMMA-${501 + i}`;
+          // eslint-disable-next-line no-await-in-loop
+          const res = await driver.run(
+            'INSERT INTO journal (date, narration, isPosted, billNumber) VALUES (?, ?, 1, ?)',
+            [gDate, `Gamma Bill #${gNum}`, gNum],
+          );
+          const jId = Number(res.lastInsertRowid);
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 2000, 0)',
+            [jId, gamma.id],
+          );
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 2000)',
+            [jId, revAccount.id],
+          );
+        }
+        const gammaRec = await driver.run(
+          "INSERT INTO journal (date, narration, isPosted) VALUES ('2025-03-18T15:00:00.000Z', 'Gamma Tour 2 Payment', 1)",
+        );
+        const gammaRecId = Number(gammaRec.lastInsertRowid);
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 8000, 0)',
+          [gammaRecId, receiptAccount.id],
+        );
+        await driver.run(
+          'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 8000)',
+          [gammaRecId, gamma.id],
+        );
+
+        for (let i = 0; i < accounts.length; i++) {
+          if (i === 0 || i === 1 || i === 2 || i === 4) continue;
+          const acc = accounts[i];
+          const bNum = `OTHER-${300 + i}`;
+          // eslint-disable-next-line no-await-in-loop
+          const res = await driver.run(
+            'INSERT INTO journal (date, narration, isPosted, billNumber) VALUES (?, ?, 1, ?)',
+            ['2025-01-25T10:00:00.000Z', `Bill #${bNum}`, bNum],
+          );
+          const jId = Number(res.lastInsertRowid);
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 1000, 0)',
+            [jId, acc.id],
+          );
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, 1000)',
+            [jId, revAccount.id],
+          );
+        }
+
+        return {
+          agentHeadId: agentHead.id,
+          agentHeadName,
+          account1Id: alpha.id,
+          account2Id: beta.id,
+          account3Id: gamma.id,
+          receiptAccountId: receiptAccount.id,
+          tour1Id: tour1.id,
+          tour2Id: tour2.id,
+          billCount,
+        };
+      });
+    },
   };
 
   self.onmessage = (event: MessageEvent<RpcCall>) => {
