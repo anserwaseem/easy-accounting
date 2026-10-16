@@ -33,7 +33,10 @@ export const AccountCell = ({
             onChange={(val) => {
               field.onChange(toString(val));
               setTimeout(() => {
-                document.getElementById(`debit-input-${rowIndex}`)?.focus();
+                const el = document.getElementById(`debit-input-${rowIndex}`);
+                if (el && el.isConnected) {
+                  el.focus();
+                }
               }, 50);
             }}
             placeholder="Select account"

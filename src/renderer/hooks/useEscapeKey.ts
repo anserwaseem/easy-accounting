@@ -1,9 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * registers Escape on window. skips when a modal/dialog is open (role=dialog).
  */
 export const useEscapeKey = (onEscape: () => void, enabled = true): void => {
+  const onEscapeRef = useRef(onEscape);
+  onEscapeRef.current = onEscape;
+
   useEffect(() => {
     if (!enabled) return undefined;
 
@@ -13,10 +16,10 @@ export const useEscapeKey = (onEscape: () => void, enabled = true): void => {
       // radix confirm/dialog already owns Escape while open
       if (document.querySelector('[role="dialog"]')) return;
       e.preventDefault();
-      onEscape();
+      onEscapeRef.current();
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [enabled, onEscape]);
+  }, [enabled]);
 };

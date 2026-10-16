@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { COMPANY_PROFILE_SETTING_KEYS as KEYS } from '@/core/services/businessSettingKeys';
 
 export interface CompanyProfile {
@@ -80,15 +80,23 @@ const readCompanyProfile = async (): Promise<CompanyProfile> => {
 
 export const useCompanyProfile = () => {
   const [profile, setProfile] = useState<CompanyProfile>(EMPTY_PROFILE);
+  const isMountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
-    setProfile(await readCompanyProfile());
+    const next = await readCompanyProfile();
+    if (isMountedRef.current) {
+      setProfile(next);
+    }
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
     refresh();
     window.addEventListener(SYNC_APPLIED_EVENT, refresh);
-    return () => window.removeEventListener(SYNC_APPLIED_EVENT, refresh);
+    return () => {
+      isMountedRef.current = false;
+      window.removeEventListener(SYNC_APPLIED_EVENT, refresh);
+    };
   }, [refresh]);
 
   const saveCompanyProfile = useCallback(async (next: CompanyProfile) => {

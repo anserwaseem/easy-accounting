@@ -48,6 +48,7 @@
     "verify": "npm run lint && npm run typecheck && npm test",
     "web": "npm --prefix apps/web run dev",
     "web:build": "npm --prefix apps/web run build",
+    "test:soak": "npm --prefix apps/web run test:soak",
     "lint": "eslint \"**/*.{js,jsx,ts,tsx}\"",
     "lint:fix": "eslint \"**/*.{js,jsx,ts,tsx}\" --fix",
     "prepare": "husky",

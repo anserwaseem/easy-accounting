@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ToastActionElement, ToastProps } from './toast';
 
 const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_REMOVE_DELAY = 1000;
 const DEFAULT_DURATION = 3000; // ms
 
 type ToasterToast = ToastProps & {
@@ -111,10 +111,19 @@ export const reducer = (state: State, action: Action): State => {
     }
     case 'REMOVE_TOAST':
       if (action.toastId === undefined) {
+        toastTimeouts.forEach((timeout) => clearTimeout(timeout));
+        toastTimeouts.clear();
         return {
           ...state,
           toasts: [],
         };
+      }
+      {
+        const existing = toastTimeouts.get(action.toastId);
+        if (existing) {
+          clearTimeout(existing);
+          toastTimeouts.delete(action.toastId);
+        }
       }
       return {
         ...state,
@@ -138,7 +147,9 @@ function dispatch(action: Action) {
 
 /** closes every toast (e.g. before printToPDF so fixed toasts are not captured) */
 export function dismissAllToasts(): void {
-  dispatch({ type: 'DISMISS_TOAST' });
+  toastTimeouts.forEach((timeout) => clearTimeout(timeout));
+  toastTimeouts.clear();
+  dispatch({ type: 'REMOVE_TOAST' });
 }
 
 type Toast = Omit<ToasterToast, 'id'>;

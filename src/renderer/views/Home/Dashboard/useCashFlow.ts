@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { get } from 'lodash';
 import { AccountType, type Account } from '@/types';
 import { toLowerString } from '@/renderer/lib/utils';
@@ -16,15 +16,31 @@ export const useCashFlow = () => {
     lastUpdated: new Date(),
   });
   const [isLoading, setIsLoading] = useState(true);
+  const isMountedRef = useRef(true);
+  const fetchGenerationRef = useRef(0);
+
+  // track component mount status to avoid updates after unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      fetchGenerationRef.current += 1;
+    };
+  }, []);
 
   const fetchCashFlow = useCallback(async () => {
+    const generation = ++fetchGenerationRef.current;
     setIsLoading(true);
     try {
       const accounts: Account[] = await window.electron.getAccounts();
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
       const accountIds = accounts.map((account: Account) => account.id);
 
       const balanceByAccountId =
         await window.electron.getLedgerBalancesForAccountIds(accountIds);
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
 
       let operatingCashFlow = 0;
       let investingCashFlow = 0;
@@ -88,6 +104,9 @@ export const useCashFlow = () => {
       const netCashFlow =
         operatingCashFlow + investingCashFlow + financingCashFlow;
 
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
+
       setCashFlow({
         operatingCashFlow,
         investingCashFlow,
@@ -99,9 +118,13 @@ export const useCashFlow = () => {
         lastUpdated: new Date(),
       });
     } catch (error) {
-      console.error('Error fetching cash flow:', error);
+      if (isMountedRef.current && generation === fetchGenerationRef.current) {
+        console.error('Error fetching cash flow:', error);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current && generation === fetchGenerationRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 

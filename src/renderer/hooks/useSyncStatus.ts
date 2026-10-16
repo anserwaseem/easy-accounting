@@ -43,6 +43,8 @@ export function useSyncStatus(): SyncStatus | null {
   // Guards against overlapping `syncGetStatus` calls if a refresh is still
   // in flight when the next poll tick (or the sync-applied event) fires.
   const inFlight = useRef(false);
+  const isMountedRef = useRef(true);
+  const timerRef = useRef<number | null>(null);
 
   const refresh = useCallback(() => {
     const getStatus = window.electron.syncGetStatus;
@@ -50,30 +52,48 @@ export function useSyncStatus(): SyncStatus | null {
       return;
     }
     inFlight.current = true;
-    const timer = window.setTimeout(() => {
+    if (timerRef.current != null) {
+      window.clearTimeout(timerRef.current);
+    }
+    timerRef.current = window.setTimeout(() => {
       inFlight.current = false;
+      timerRef.current = null;
     }, STATUS_RPC_TIMEOUT_MS);
     getStatus()
       .then((next) => {
-        window.clearTimeout(timer);
+        if (timerRef.current != null) {
+          window.clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
         inFlight.current = false;
-        setStatus(next as SyncStatus);
+        if (isMountedRef.current) {
+          setStatus(next as SyncStatus);
+        }
         return next;
       })
       .catch(() => {
         // Transient worker hiccup — leave the last known status displayed
         // rather than flashing to null; the next poll tick tries again.
-        window.clearTimeout(timer);
+        if (timerRef.current != null) {
+          window.clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
         inFlight.current = false;
       });
   }, [supported]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     if (!supported) return undefined;
     refresh();
     const interval = setInterval(refresh, POLL_INTERVAL_MS);
     window.addEventListener('easyaccounting:sync-applied', refresh);
     return () => {
+      isMountedRef.current = false;
+      if (timerRef.current != null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
       clearInterval(interval);
       window.removeEventListener('easyaccounting:sync-applied', refresh);
     };

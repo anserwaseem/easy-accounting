@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { get, includes, some, toLower } from 'lodash';
 import { type Account, type InventoryItem, AccountType } from '@/types';
 import type { FinancialOverview } from './types';
@@ -19,15 +19,31 @@ export const useFinancialOverview = () => {
     lastUpdated: new Date(),
   });
   const [isLoading, setIsLoading] = useState(true);
+  const isMountedRef = useRef(true);
+  const fetchGenerationRef = useRef(0);
+
+  // track component mount status to avoid updates after unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      fetchGenerationRef.current += 1;
+    };
+  }, []);
 
   const fetchFinancialOverview = useCallback(async () => {
+    const generation = ++fetchGenerationRef.current;
     setIsLoading(true);
     try {
       const accounts: Account[] = await window.electron.getAccounts();
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
       const accountIds = accounts.map((account: Account) => account.id);
 
       const balanceByAccountId =
         await window.electron.getLedgerBalancesForAccountIds(accountIds);
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
 
       // calculate totals by account type
       let totalAssets = 0;
@@ -92,6 +108,9 @@ export const useFinancialOverview = () => {
 
       // fetch actual inventory data
       const inventoryItems = await window.electron.getInventory();
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
+
       const inventory = inventoryItems.reduce(
         (total: number, item: InventoryItem) => {
           return total + item.quantity * item.price;
@@ -110,6 +129,9 @@ export const useFinancialOverview = () => {
           ? (currentAssets - inventory) / currentLiabilities
           : 0;
 
+      if (!isMountedRef.current || generation !== fetchGenerationRef.current)
+        return;
+
       setOverview({
         totalAssets,
         totalLiabilities: Math.abs(totalLiabilities),
@@ -125,9 +147,13 @@ export const useFinancialOverview = () => {
         lastUpdated: new Date(),
       });
     } catch (error) {
-      console.error('Error fetching financial overview:', error);
+      if (isMountedRef.current && generation === fetchGenerationRef.current) {
+        console.error('Error fetching financial overview:', error);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current && generation === fetchGenerationRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 

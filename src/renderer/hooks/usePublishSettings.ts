@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AttributeDefinition } from 'types';
 
 /** Mirrors main/utils/publishConfig — secrets are never included. */
@@ -140,6 +140,14 @@ export const usePublishSettings = () => {
   >([]);
   const [lastResult, setLastResult] = useState<PublishResult | null>(null);
   const [progress, setProgress] = useState<PublishProgressEvent | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     // Settings always mounts <PublishSettings />. allSettled keeps
@@ -152,6 +160,7 @@ export const usePublishSettings = () => {
         window.electron.getLastPublishResult(),
         window.electron.getAttributeDefinitions(),
       ]);
+    if (!isMountedRef.current) return;
     if (nextConfig.status === 'fulfilled') setConfig(nextConfig.value);
     if (names.status === 'fulfilled') setPriceListNames(names.value);
     if (lists.status === 'fulfilled') setPriceLists(lists.value);

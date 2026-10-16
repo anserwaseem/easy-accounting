@@ -36,7 +36,7 @@ import {
   FormMessage,
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
-import { toast } from 'renderer/shad/ui/use-toast';
+import { dismissAllToasts, toast } from 'renderer/shad/ui/use-toast';
 import {
   type Account,
   type InventoryItem,
@@ -1058,7 +1058,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       // clear entire invoiceItems error tree — array-level .refine() errors
       // (e.g. "Each item can only be added once") live on 'invoiceItems', not indices
       form.clearErrors('invoiceItems');
-      replace(kept as typeof fields);
+      if (typeof replace === 'function') {
+        replace(kept as typeof fields);
+      }
       suppressWatchRef.current = false;
 
       requestAnimationFrame(() => recomputeDerivedState(true));
@@ -1085,6 +1087,33 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       setRowSectionMap,
     ],
   );
+
+  const resetInvoiceForm = useCallback(() => {
+    dismissAllToasts();
+    suppressWatchRef.current = true;
+    if (typeof replace === 'function') {
+      replace([]);
+    }
+    liveItemsRef.current = [];
+    suppressWatchRef.current = false;
+    form.reset(defaultFormValues);
+    setIsDateExplicitlySet(false);
+    setIsDiscountConfirmed(false);
+    setSections([]);
+    setActiveSectionId(null);
+    setRowSectionMap({});
+    setManualDiscountRows({});
+    recomputeDerivedState(true);
+  }, [
+    defaultFormValues,
+    form,
+    recomputeDerivedState,
+    replace,
+    setActiveSectionId,
+    setManualDiscountRows,
+    setRowSectionMap,
+    setSections,
+  ]);
 
   const getSelectedItem = useCallback(
     (fieldValue: number) => inventoryById.get(toNumber(fieldValue)),
@@ -1298,8 +1327,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     const rowIndex = pendingItemFocusRef.current;
     if (rowIndex == null) return;
     pendingItemFocusRef.current = null;
-    scheduleItemFieldFocusAfterNewRow(form, rowIndex);
+    const cancelFocus = scheduleItemFieldFocusAfterNewRow(form, rowIndex);
     setVirtualScrollToIndex(null);
+    return () => {
+      cancelFocus?.();
+    };
   }, [fields.length, form]);
 
   // `enter` in quantity: commit the current value, recalculate discountedPrice, then append a new row
@@ -1579,13 +1611,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
       if (result.nextInvoiceNumber > 0) {
         setNextInvoiceNumber(result.nextInvoiceNumber);
-        form.reset(defaultFormValues);
-        setIsDateExplicitlySet(false);
-        setIsDiscountConfirmed(false);
-        setSections([]);
-        setActiveSectionId(null);
-        setRowSectionMap({});
-        setManualDiscountRows({});
+        resetInvoiceForm();
         if (result.invoiceId > 0) {
           showPostSaveToast(result.vendorStockMessages);
         }
@@ -2221,15 +2247,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit, onValidationError)}
-              onReset={() => {
-                form.reset(defaultFormValues);
-                setIsDateExplicitlySet(false);
-                setIsDiscountConfirmed(false);
-                setSections([]);
-                setActiveSectionId(null);
-                setRowSectionMap({});
-                setManualDiscountRows({});
-              }}
+              onReset={resetInvoiceForm}
               onKeyDown={handleFormEnterKeyDown}
               role="presentation"
             >
@@ -3056,7 +3074,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       </TooltipContent>
                     </Tooltip>
                   ) : null}
-                  <Button type="reset" variant="ghost" className="min-h-[44px]">
+                  <Button
+                    type="reset"
+                    variant="ghost"
+                    className="min-h-[44px]"
+                    onClick={() => resetInvoiceForm()}
+                  >
                     Clear
                   </Button>
                 </div>
@@ -3067,12 +3090,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   className="min-h-[44px]"
                   onClick={() => {
                     const leave = () => {
-                      form.reset(defaultFormValues);
-                      setIsDateExplicitlySet(false);
-                      setIsDiscountConfirmed(false);
-                      setSections([]);
-                      setActiveSectionId(null);
-                      setRowSectionMap({});
+                      resetInvoiceForm();
                       if (editInvoiceId != null) {
                         navigate(
                           `/${invoiceType.toLowerCase()}/invoices/${editInvoiceId}`,
