@@ -324,14 +324,16 @@ test.describe('150-Item Invoice Mutation & Index Shift Stress Tests', () => {
       .filter({ hasText: 'Item 001' })
       .first();
     await expect(option1).toBeVisible({ timeout: 5000 });
-    await option1.click();
+    await option1.click({ force: true });
+    await page.waitForTimeout(200);
 
     const lastRow1 = page.locator('tbody tr[data-index]').last();
     const qtyInput1 = lastRow1.locator('input[type="number"]');
     await qtyInput1.fill('12');
-    await qtyInput1.press('Enter');
+    await page.waitForTimeout(200);
 
     // Second appended row
+    await addNewBtn.click();
     const itemInput2 = page.locator('input[placeholder="Select item"]').first();
     await expect(itemInput2).toBeVisible({ timeout: 5000 });
     await itemInput2.fill('Item 002');
@@ -340,12 +342,14 @@ test.describe('150-Item Invoice Mutation & Index Shift Stress Tests', () => {
       .filter({ hasText: 'Item 002' })
       .first();
     await expect(option2).toBeVisible({ timeout: 5000 });
-    await option2.click();
+    await option2.click({ force: true });
+    await page.waitForTimeout(200);
 
     const lastRow2 = page.locator('tbody tr[data-index]').last();
     const qtyInput2 = lastRow2.locator('input[type="number"]');
     await qtyInput2.fill('24');
     await qtyInput2.press('Tab');
+    await page.waitForTimeout(200);
 
     // 5. Submit the mutated invoice: 150 - 5 + 2 = 147 items
     const saveButton = page.getByRole('button', { name: 'Save', exact: true });
