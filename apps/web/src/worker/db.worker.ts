@@ -1327,6 +1327,48 @@ async function main(): Promise<void> {
       );
       return { count: row?.c ?? -1 };
     },
+    'debug:seedBulkJournals': async (rawArgs: unknown) => {
+      if (!isLocalDebugHost()) throw new Error('debug rpc is local only');
+      const params = rawArgs as {
+        debitAccountId: number;
+        creditAccountId: number;
+        count: number;
+        startDateIso: string;
+        baseAmount: number;
+      };
+      const {
+        debitAccountId,
+        creditAccountId,
+        count,
+        startDateIso,
+        baseAmount,
+      } = params;
+      const startMs = new Date(startDateIso).getTime();
+      return driver.transaction(async () => {
+        for (let i = 0; i < count; i++) {
+          const date = new Date(startMs + i * 60_000).toISOString();
+          const amount = baseAmount + (i % 25) * 10;
+          const narration = `Bulk Transaction #${i + 1}`;
+          // eslint-disable-next-line no-await-in-loop
+          const res = await driver.run(
+            'INSERT INTO journal (date, narration, isPosted) VALUES (?, ?, 1)',
+            [date, narration],
+          );
+          const journalId = Number(res.lastInsertRowid);
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, ?, 0)',
+            [journalId, debitAccountId, amount],
+          );
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO journal_entry (journalId, accountId, debitAmount, creditAmount) VALUES (?, ?, 0, ?)',
+            [journalId, creditAccountId, amount],
+          );
+        }
+        return { count };
+      });
+    },
   };
 
   self.onmessage = (event: MessageEvent<RpcCall>) => {
