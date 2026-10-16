@@ -2092,6 +2092,95 @@ async function main(): Promise<void> {
         };
       });
     },
+    'debug:seed150InvoiceFixtures': async () => {
+      return driver.transaction(async () => {
+        const getOrInsertAccount = async (name: string, headName: string) => {
+          let row = (await driver.get<{ id: number }>(
+            'SELECT id FROM account WHERE name = ?',
+            [name],
+          )) as { id: number } | undefined;
+          if (!row) {
+            await accountService.insertAccount({
+              name,
+              headName,
+            } as Parameters<AccountService['insertAccount']>[0]);
+            row = (await driver.get<{ id: number }>(
+              'SELECT id FROM account WHERE name = ?',
+              [name],
+            )) as { id: number };
+          }
+          return row.id;
+        };
+
+        await getOrInsertAccount('Sale', 'Revenue');
+        await getOrInsertAccount('Purchase', 'Expense');
+        await getOrInsertAccount('Cash', 'Current Asset');
+        const customerId = await getOrInsertAccount(
+          'Soak Customer 150',
+          'Current Asset',
+        );
+
+        await driver.run("DELETE FROM inventory WHERE name LIKE 'Item %'");
+
+        const invoiceItems: Array<{
+          id: number;
+          inventoryId: number;
+          quantity: number;
+          price: number;
+          discount: number;
+          discountedPrice: number;
+        }> = [];
+        let totalAmount = 0;
+
+        for (let i = 1; i <= 150; i++) {
+          const name = `Item ${String(i).padStart(3, '0')}`;
+          const price = 50 + (i % 20) * 10;
+          const qty = ((i * 7 + 13) % 20) + 1;
+          // eslint-disable-next-line no-await-in-loop
+          const res = await driver.run(
+            'INSERT INTO inventory (name, description, price, quantity) VALUES (?, ?, ?, 1000)',
+            [name, `Description for ${name}`, price],
+          );
+          const itemId = Number(res.lastInsertRowid);
+          // eslint-disable-next-line no-await-in-loop
+          await driver.run(
+            'INSERT INTO inventory_opening_stock (inventoryId, quantity, asOfDate) VALUES (?, 1000, ?)',
+            [itemId, '2025-01-01T00:00:00.000Z'],
+          );
+          const lineTotal = qty * price;
+          totalAmount += lineTotal;
+          invoiceItems.push({
+            id: i,
+            inventoryId: itemId,
+            quantity: qty,
+            price,
+            discount: 0,
+            discountedPrice: lineTotal,
+          });
+        }
+
+        const invoiceRes = await invoiceService.insertInvoice(
+          'Sale' as Parameters<InvoiceService['insertInvoice']>[0],
+          {
+            invoiceNumber: 9001,
+            date: '2026-10-16T12:00:00.000Z',
+            totalAmount,
+            useSingleAccount: true,
+            accountMapping: {
+              singleAccountId: customerId,
+            },
+            invoiceItems,
+          } as unknown as Parameters<InvoiceService['insertInvoice']>[1],
+        );
+
+        return {
+          invoiceId: (invoiceRes as { invoiceId: number }).invoiceId,
+          totalAmount,
+          itemCount: 150,
+          customerId,
+        };
+      });
+    },
   };
 
   self.onmessage = (event: MessageEvent<RpcCall>) => {
