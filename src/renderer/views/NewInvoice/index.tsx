@@ -3074,7 +3074,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       </TooltipContent>
                     </Tooltip>
                   ) : null}
-                  <Button type="reset" variant="ghost" className="min-h-[44px]">
+                  <Button
+                    type="reset"
+                    variant="ghost"
+                    className="min-h-[44px]"
+                    onClick={() => resetInvoiceForm()}
+                  >
                     Clear
                   </Button>
                 </div>

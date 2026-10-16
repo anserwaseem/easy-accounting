@@ -596,6 +596,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
             color="red"
             size={14}
             className="shrink-0"
+            role="button"
+            aria-label="Remove item"
             onClick={() => handleRemoveRow(row.index)}
             cursor="pointer"
           />
