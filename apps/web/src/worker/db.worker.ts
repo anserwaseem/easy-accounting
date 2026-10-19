@@ -695,6 +695,11 @@ async function main(): Promise<void> {
         chartId as number,
         name as string,
       ),
+    checkAccountCode: (code, excludeAccountId) =>
+      accountService.findAccountCodeConflicts(
+        code as string | number,
+        excludeAccountId as number | undefined,
+      ),
     insertAccount: (account) =>
       accountService.insertAccount(
         account as Parameters<AccountService['insertAccount']>[0],

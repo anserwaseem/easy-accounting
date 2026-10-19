@@ -3,6 +3,7 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import type {
   Account,
+  AccountCodeConflict,
   UserCredentials,
   BalanceSheet,
   InsertAccount,
@@ -562,6 +563,10 @@ const electronHandler = {
     ipcRenderer.invoke('account:getByNameAndCode', name, code),
   getAccountByNameAndChart: (chartId: number, name: string) =>
     ipcRenderer.invoke('account:getByNameAndChart', chartId, name),
+  checkAccountCode: (code: string | number, excludeAccountId?: number) =>
+    ipcRenderer.invoke('account:checkCode', code, excludeAccountId) as Promise<
+      AccountCodeConflict[]
+    >,
   /**
    * Get all charts
    * @returns All charts

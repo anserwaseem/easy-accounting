@@ -1,5 +1,6 @@
 import type {
   Account,
+  AccountCodeConflict,
   AccountCollectionRole,
   AccountUrduBulkUpdateResult,
   AccountUrduFieldPatch,
@@ -210,6 +211,33 @@ const SQL = {
           cityUrdu = @cityUrdu,
           goodsNameUrdu = @goodsNameUrdu
       WHERE id = @id
+    `,
+  getAccountCodeConflicts: `
+      SELECT
+        a.id,
+        a.name,
+        a.code,
+        c.name as headName,
+        a.isActive
+      FROM account a
+      JOIN chart c ON c.id = a.chartId
+      WHERE c.userId = (
+        SELECT id
+        FROM users
+        WHERE username = @username
+      )
+        AND a.isActive = 1
+        AND a.code IS NOT NULL
+        AND (
+          TRIM(LOWER(CAST(a.code AS TEXT))) = TRIM(LOWER(CAST(@code AS TEXT)))
+          OR (
+            a.code NOT GLOB '*[^0-9.]*'
+            AND CAST(@code AS TEXT) NOT GLOB '*[^0-9.]*'
+            AND CAST(a.code AS REAL) = CAST(@code AS REAL)
+          )
+        )
+        AND (@excludeId IS NULL OR a.id != @excludeId)
+      ORDER BY a.id ASC
     `,
 };
 
@@ -599,5 +627,33 @@ export class AccountService {
     return first
       ? (normalizeSqliteBooleanFields(first, ACCOUNT_BOOLEAN_FIELDS) as Account)
       : undefined;
+  }
+
+  /**
+   * finds active accounts using the given code (case-insensitive, trimmed).
+   * optional excludeAccountId excludes an existing account during update.
+   */
+  async findAccountCodeConflicts(
+    code?: string | number | null,
+    excludeAccountId?: number,
+  ): Promise<AccountCodeConflict[]> {
+    if (code === undefined || code === null) return [];
+    const normalizedCode = String(code).trim();
+    if (normalizedCode === '') return [];
+
+    const username = this.session.getUsername();
+    const rows = await this.db.all<AccountCodeConflict>(
+      SQL.getAccountCodeConflicts,
+      {
+        code: normalizedCode,
+        excludeId:
+          excludeAccountId != null && Number.isFinite(excludeAccountId)
+            ? cast(excludeAccountId)
+            : null,
+        username,
+      },
+    );
+
+    return normalizeSqliteBooleanRows(rows, ['isActive']);
   }
 }
