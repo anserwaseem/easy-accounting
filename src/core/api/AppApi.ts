@@ -374,6 +374,10 @@ export interface AppApi {
     journalId: number,
     options?: { date?: string; narration?: string },
   ) => Promise<Journal>;
+  /**
+   * Delete an unlinked manual journal and remove its ledger effects
+   */
+  deleteManualJournal: (journalId: number) => Promise<void>;
 
   // ---------------------------------------------------------------------
   // Ledger

@@ -724,6 +724,9 @@ app
         options?: { date?: string; narration?: string },
       ) => journalService.reverseJournal(journalId, options),
     );
+    ipcMain.handle('journal:deleteManual', async (_, journalId: number) =>
+      journalService.deleteManualJournal(journalId),
+    );
     ipcMain.handle('inventory:save', (_, inventory: InventoryItem[]) =>
       inventoryService.saveInventory(inventory),
     );

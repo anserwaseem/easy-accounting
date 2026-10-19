@@ -743,4 +743,191 @@ describe('core JournalService', () => {
       db.close();
     });
   });
+
+  describe('deleteManualJournal', () => {
+    it('deletes a simple manual journal and resets ledger balances', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, ledger, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Mistaken Cash Sale',
+          journalEntries: [
+            { accountId: cash, debitAmount: 800, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 800 },
+          ] as JournalEntry[],
+        }),
+      );
+      const journalId = (await journal.getNextJournalId()) - 1;
+
+      expect((await ledger.getLedger(cash)).at(-1)!.balance).toBe(800);
+      expect((await ledger.getLedger(sale)).at(-1)!.balance).toBe(800);
+
+      await journal.deleteManualJournal(journalId);
+
+      // Journal and entries should be completely deleted
+      expect(await journal.getJournal(journalId)).toEqual({});
+      const journalCount = db
+        .prepare('SELECT count(*) as count FROM journal WHERE id = ?')
+        .get(journalId) as { count: number };
+      expect(journalCount.count).toBe(0);
+
+      const entryCount = db
+        .prepare(
+          'SELECT count(*) as count FROM journal_entry WHERE journalId = ?',
+        )
+        .get(journalId) as { count: number };
+      expect(entryCount.count).toBe(0);
+
+      // Ledger balances should be zero
+      expect(await ledger.getLedger(cash)).toHaveLength(0);
+      expect(await ledger.getLedger(sale)).toHaveLength(0);
+      db.close();
+    });
+
+    it('deletes a collection journal and restores customer account balances', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, ledger, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const shop1 = await insertAccount(
+        db,
+        accounts,
+        'Shop 1',
+        'Current Asset',
+      );
+      const shop2 = await insertAccount(
+        db,
+        accounts,
+        'Shop 2',
+        'Current Asset',
+      );
+
+      // Seed opening balances
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-01-10',
+          narration: 'Opening 1',
+          journalEntries: [
+            { accountId: shop1, debitAmount: 500, creditAmount: 0 },
+            { accountId: cash, debitAmount: 0, creditAmount: 500 },
+          ] as JournalEntry[],
+        }),
+      );
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-01-10',
+          narration: 'Opening 2',
+          journalEntries: [
+            { accountId: shop2, debitAmount: 700, creditAmount: 0 },
+            { accountId: cash, debitAmount: 0, creditAmount: 700 },
+          ] as JournalEntry[],
+        }),
+      );
+
+      expect((await ledger.getLedger(shop1)).at(-1)!.balance).toBe(500);
+      expect((await ledger.getLedger(shop2)).at(-1)!.balance).toBe(700);
+
+      // Erroneous collection journal crediting both shops
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Erroneous Collection',
+          journalEntries: [
+            { accountId: cash, debitAmount: 1200, creditAmount: 0 },
+            { accountId: shop1, debitAmount: 0, creditAmount: 500 },
+            { accountId: shop2, debitAmount: 0, creditAmount: 700 },
+          ] as JournalEntry[],
+        }),
+      );
+      const errorJournalId = (await journal.getNextJournalId()) - 1;
+
+      expect((await ledger.getLedger(shop1)).at(-1)!.balance).toBe(0);
+      expect((await ledger.getLedger(shop2)).at(-1)!.balance).toBe(0);
+
+      // Delete the erroneous manual collection journal
+      await journal.deleteManualJournal(errorJournalId);
+
+      // Balances should be restored to their prior state
+      expect((await ledger.getLedger(shop1)).at(-1)!.balance).toBe(500);
+      expect((await ledger.getLedger(shop2)).at(-1)!.balance).toBe(700);
+      db.close();
+    });
+
+    it('throws when journal does not exist', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { journal } = createCore(db);
+
+      await expect(journal.deleteManualJournal(88888)).rejects.toThrow(
+        'Journal with Id 88888 not found',
+      );
+      db.close();
+    });
+
+    it('throws when attempting to delete an invoice-linked journal', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Sale invoice #202',
+          invoiceId: 99,
+          journalEntries: [
+            { accountId: cash, debitAmount: 200, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 200 },
+          ] as JournalEntry[],
+        }),
+      );
+      const invoiceJournalId = (await journal.getNextJournalId()) - 1;
+
+      await expect(
+        journal.deleteManualJournal(invoiceJournalId),
+      ).rejects.toThrow('Cannot delete an invoice-linked journal');
+      db.close();
+    });
+
+    it('throws when attempting to delete a commission-settlement-linked journal', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Settlement journal',
+          journalEntries: [
+            { accountId: cash, debitAmount: 150, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 150 },
+          ] as JournalEntry[],
+        }),
+      );
+      const settlementJournalId = (await journal.getNextJournalId()) - 1;
+
+      const chartRow = db.prepare('SELECT id FROM chart LIMIT 1').get() as {
+        id: number;
+      };
+      db.prepare(
+        `
+        INSERT INTO agent_commission_settlements (chartId, startDate, endDate, journalId, grossCommission, netCommission)
+        VALUES (?, '2025-01-01', '2025-01-31', ?, 150, 150)
+      `,
+      ).run(chartRow.id, settlementJournalId);
+
+      await expect(
+        journal.deleteManualJournal(settlementJournalId),
+      ).rejects.toThrow('Cannot delete a settlement-linked journal');
+      db.close();
+    });
+  });
 });
