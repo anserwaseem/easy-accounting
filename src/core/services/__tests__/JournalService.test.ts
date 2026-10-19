@@ -672,6 +672,11 @@ describe('core JournalService', () => {
       );
       const invoiceJournalId = (await journal.getNextJournalId()) - 1;
 
+      // getJournals must return invoiceId so UI can distinguish invoice journals
+      const allJournals = await journal.getJournals();
+      const invoiceJournal = allJournals.find((j) => j.id === invoiceJournalId);
+      expect(invoiceJournal?.invoiceId).toBe(42);
+
       await expect(journal.reverseJournal(invoiceJournalId)).rejects.toThrow(
         'Cannot reverse an invoice-linked journal directly',
       );
@@ -783,9 +788,27 @@ describe('core JournalService', () => {
         .get(journalId) as { count: number };
       expect(entryCount.count).toBe(0);
 
-      // Ledger balances should be zero
-      expect(await ledger.getLedger(cash)).toHaveLength(0);
-      expect(await ledger.getLedger(sale)).toHaveLength(0);
+      // Next journal ID should be reclaimed to the deleted journal's ID
+      expect(await journal.getNextJournalId()).toBe(journalId);
+
+      // Re-inserting a new journal should take the reclaimed ID without skipping numbers
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-01-16',
+          narration: 'Re-created after mistake',
+          journalEntries: [
+            { accountId: cash, debitAmount: 200, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 200 },
+          ] as JournalEntry[],
+        }),
+      );
+      const reCreatedJournal = await journal.getJournal(journalId);
+      expect(reCreatedJournal.id).toBe(journalId);
+      expect(reCreatedJournal.narration).toBe('Re-created after mistake');
+
+      // Ledger balances should reflect the newly inserted journal
+      expect((await ledger.getLedger(cash)).at(-1)!.balance).toBe(200);
+      expect((await ledger.getLedger(sale)).at(-1)!.balance).toBe(200);
       db.close();
     });
 

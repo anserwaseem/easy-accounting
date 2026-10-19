@@ -13,6 +13,7 @@ import {
 } from 'renderer/shad/ui/dialog';
 import { RotateCcw } from 'lucide-react';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import type { Journal } from '@/types';
 import { getFormattedCurrency } from 'renderer/lib/utils';
 
@@ -68,8 +69,7 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
       setOpen(false);
       onSuccess?.(result);
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to reverse journal';
+      const message = ipcErrorMessage(error) || 'Failed to reverse journal';
       toast({
         title: 'Reversal Failed',
         description: message,

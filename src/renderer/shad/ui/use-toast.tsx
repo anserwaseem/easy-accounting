@@ -2,10 +2,27 @@ import { useEffect, useState } from 'react';
 import type { ToastActionElement, ToastProps } from './toast';
 
 const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
-const DEFAULT_DURATION = 3000; // ms
+const TOAST_REMOVE_DELAY = 1000;
+const DEFAULT_DURATION = 3500; // ms
+const ERROR_DURATION = 6000; // ms for error/warning so users have time to read
 
-type ToasterToast = ToastProps & {
+const cleanToastMessage = (message: unknown): string => {
+  if (message instanceof Error) {
+    return cleanToastMessage(message.message);
+  }
+  if (typeof message !== 'string') return '';
+  let s = message.trim();
+  const ipc = s.match(/^Error invoking remote method '[^']+':\s*([\s\S]+)$/i);
+  if (ipc) {
+    s = ipc[1].trim();
+  }
+  while (s.startsWith('Error: ')) {
+    s = s.slice(7).trim();
+  }
+  return s;
+};
+
+type ToasterToast = Omit<ToastProps, 'title'> & {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
@@ -141,10 +158,28 @@ export function dismissAllToasts(): void {
   dispatch({ type: 'DISMISS_TOAST' });
 }
 
-type Toast = Omit<ToasterToast, 'id'>;
+type Toast = Omit<ToasterToast, 'id' | 'title' | 'description'> & {
+  title?: React.ReactNode | Error;
+  description?: React.ReactNode | Error;
+};
 
 function toast({ ...props }: Toast) {
   const id = genId();
+
+  let { title, description, duration } = props;
+  if (typeof description === 'string' || description instanceof Error) {
+    description = cleanToastMessage(description);
+  }
+  if (typeof title === 'string' || title instanceof Error) {
+    title = cleanToastMessage(title);
+  }
+
+  if (duration === undefined) {
+    duration =
+      props.variant === 'destructive' || props.variant === 'warning'
+        ? ERROR_DURATION
+        : DEFAULT_DURATION;
+  }
 
   const update = (toastToUpdate: ToasterToast) =>
     dispatch({
@@ -156,8 +191,10 @@ function toast({ ...props }: Toast) {
   dispatch({
     type: 'ADD_TOAST',
     toast: {
-      duration: DEFAULT_DURATION,
       ...props,
+      duration,
+      title,
+      description,
       id,
       open: true,
       onOpenChange: (open) => {

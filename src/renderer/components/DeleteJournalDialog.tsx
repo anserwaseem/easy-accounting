@@ -11,6 +11,7 @@ import {
 } from 'renderer/shad/ui/dialog';
 import { Trash2 } from 'lucide-react';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { getFormattedCurrency } from 'renderer/lib/utils';
 
 export interface DeleteJournalDialogProps {
@@ -42,8 +43,7 @@ export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
       setOpen(false);
       onSuccess?.();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to delete journal';
+      const message = ipcErrorMessage(error) || 'Failed to delete journal';
       toast({
         title: 'Delete Failed',
         description: message,
