@@ -695,6 +695,11 @@ async function main(): Promise<void> {
         chartId as number,
         name as string,
       ),
+    checkAccountCode: (code, excludeAccountId) =>
+      accountService.findAccountCodeConflicts(
+        code as string | number,
+        excludeAccountId as number | undefined,
+      ),
     insertAccount: (account) =>
       accountService.insertAccount(
         account as Parameters<AccountService['insertAccount']>[0],
@@ -783,6 +788,13 @@ async function main(): Promise<void> {
         journalId as number,
         fields as Parameters<JournalService['updateJournalInfo']>[1],
       ),
+    reverseJournal: (journalId, options) =>
+      journalService.reverseJournal(
+        journalId as number,
+        options as Parameters<JournalService['reverseJournal']>[1],
+      ),
+    deleteManualJournal: (journalId) =>
+      journalService.deleteManualJournal(journalId as number),
 
     // -- Ledger ------------------------------------------------------------
     getLedger: async (accountId) => {

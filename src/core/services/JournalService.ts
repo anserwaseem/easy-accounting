@@ -1,5 +1,5 @@
 /* eslint-disable no-lonely-if */
-import { compact, get, has, omit } from 'lodash';
+import { compact, has, omit } from 'lodash';
 import {
   AccountType,
   BalanceType,
@@ -23,7 +23,7 @@ const SQL = {
        VALUES (@journalId, @debitAmount, @accountId, @creditAmount)`,
   accountType:
     'SELECT c.type FROM account a JOIN chart c ON a.chartId = c.id WHERE a.id = ?',
-  nextJournalId: "SELECT seq as id FROM sqlite_sequence WHERE name='journal'",
+  nextJournalId: 'SELECT COALESCE(MAX(id), 0) as maxId FROM journal',
   // List query only. Opening-balance journals (OPENING_BALANCE_PARTICULARS)
   // are structural — backfilled from pre-025 desktop imports, or written by
   // the balance-sheet-upload flow — and were never shown in the desktop
@@ -31,7 +31,7 @@ const SQL = {
   // ledger effects still show on account ledgers, and math/statements never
   // read this query. The literal is quote-free (see its own doc comment) so
   // interpolating it directly into the SQL string is safe.
-  getJournals: `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.createdAt, j.updatedAt, je.debitAmount
+  getJournals: `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.invoiceId, j.createdAt, j.updatedAt, je.debitAmount
        FROM journal j
        JOIN journal_entry je ON j.id = je.journalId
        JOIN account a ON a.id = je.accountId
@@ -86,6 +86,15 @@ const SQL = {
       WHERE j.id IN (SELECT value FROM json_each(@journalIdsJson))
         AND c.userId = (SELECT id FROM users WHERE username = @username)
     `,
+  getSettlementByJournalId: `
+      SELECT id FROM agent_commission_settlements WHERE journalId = @journalId LIMIT 1
+    `,
+  getReversalByOriginalJournalId: `
+      SELECT id FROM journal
+      WHERE narration = @reversalExact
+         OR narration LIKE @reversalPrefix
+      LIMIT 1
+    `,
 };
 
 /** Journal CRUD. Async against DatabaseDriver, session injected. */
@@ -107,9 +116,24 @@ export class JournalService {
     this.ledgerService = deps.ledgerService;
   }
 
+  /**
+   * Resets sqlite_sequence for 'journal' back to MAX(id) if sequence drifted ahead
+   * (e.g. after deleting mistaken tail journals). This guarantees that new journals
+   * and getNextJournalId start strictly from MAX(id) + 1 without leaving artificial gaps.
+   */
+  private async syncJournalSequence(): Promise<void> {
+    await this.db.run(
+      `UPDATE sqlite_sequence
+       SET seq = (SELECT COALESCE(MAX(id), 0) FROM journal)
+       WHERE name = 'journal'
+         AND seq > (SELECT COALESCE(MAX(id), 0) FROM journal)`,
+    );
+  }
+
   async getNextJournalId(): Promise<number> {
-    const res = await this.db.get<{ id: number }>(SQL.nextJournalId);
-    return get(res, 'id', 0) + 1;
+    await this.syncJournalSequence();
+    const res = await this.db.get<{ maxId: number | null }>(SQL.nextJournalId);
+    return (res?.maxId ?? 0) + 1;
   }
 
   async getJournals(): Promise<Journal[]> {
@@ -278,6 +302,9 @@ export class JournalService {
           }
         }
 
+        // reclaim any sequence drift from deleted tail journals
+        await this.syncJournalSequence();
+
         // insert the journal
         const result = await this.db.run(SQL.insertJournal, {
           date,
@@ -418,6 +445,7 @@ export class JournalService {
       journalIdsJson,
     });
     await this.db.run(SQL.deleteJournalsByIdsJson, { journalIdsJson });
+    await this.syncJournalSequence();
   }
 
   private static getDefaultBalanceType(accountType: string): BalanceType {
@@ -589,6 +617,123 @@ export class JournalService {
       await this.db.run(sql, params);
     } catch (error) {
       console.error(`Error in updateJournalInfo ${journalId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reverses an existing manual journal by flipping debits and credits.
+   * Preserves audit trail and posts a counter-balancing journal.
+   */
+  async reverseJournal(
+    journalId: number,
+    options?: { date?: string; narration?: string },
+  ): Promise<Journal> {
+    try {
+      const original = await this.getJournal(journalId);
+      if (!original || !original.id) {
+        raise(`Journal with Id ${journalId} not found`);
+      }
+
+      if (original.invoiceId != null && original.invoiceId > 0) {
+        raise(
+          'Cannot reverse an invoice-linked journal directly. Please return the invoice instead.',
+        );
+      }
+
+      const settlement = await this.db
+        .get<{ id: number }>(SQL.getSettlementByJournalId, { journalId })
+        .catch(() => undefined);
+      if (settlement && settlement.id) {
+        raise(
+          'Cannot reverse a settlement-linked journal directly. Please delete the settlement instead.',
+        );
+      }
+
+      const existingReversal = await this.db.get<{ id: number }>(
+        SQL.getReversalByOriginalJournalId,
+        {
+          reversalExact: `Reversal of Journal #${journalId}`,
+          reversalPrefix: `Reversal of Journal #${journalId}:%`,
+        },
+      );
+      if (existingReversal && existingReversal.id) {
+        raise(
+          `Journal with Id ${journalId} has already been reversed by Journal #${existingReversal.id}`,
+        );
+      }
+
+      const reversedEntries: JournalEntry[] = (
+        original.journalEntries || []
+      ).map(
+        (entry) =>
+          ({
+            accountId: entry.accountId,
+            debitAmount: entry.creditAmount,
+            creditAmount: entry.debitAmount,
+          }) as JournalEntry,
+      );
+
+      const defaultNarration = original.narration
+        ? `Reversal of Journal #${journalId}: ${original.narration}`
+        : `Reversal of Journal #${journalId}`;
+
+      const narration = options?.narration?.trim() || defaultNarration;
+      const date = options?.date || new Date().toISOString();
+
+      const reversalJournal: Journal = {
+        id: 0,
+        date,
+        narration,
+        isPosted: true,
+        billNumber: original.billNumber,
+        discountPercentage: original.discountPercentage,
+        invoiceId: undefined,
+        journalEntries: reversedEntries,
+      };
+
+      const newJournalId = await this.getNextJournalId();
+      await this.insertJournal(reversalJournal);
+      const inserted = await this.getJournal(newJournalId);
+      return inserted && inserted.id ? inserted : reversalJournal;
+    } catch (error) {
+      console.error(`Error in reverseJournal ${journalId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes an unlinked manual journal and removes its ledger effects.
+   * Throws if the journal is linked to an invoice or a commission settlement.
+   */
+  async deleteManualJournal(journalId: number): Promise<void> {
+    try {
+      const journal = await this.getJournal(journalId);
+      if (!journal || !journal.id) {
+        raise(`Journal with Id ${journalId} not found`);
+      }
+
+      if (journal.invoiceId != null && journal.invoiceId > 0) {
+        raise(
+          'Cannot delete an invoice-linked journal. Please delete or return the invoice instead.',
+        );
+      }
+
+      const settlement = await this.db
+        .get<{ id: number }>(SQL.getSettlementByJournalId, { journalId })
+        .catch(() => undefined);
+      if (settlement && settlement.id) {
+        raise(
+          'Cannot delete a settlement-linked journal. Please delete the settlement instead.',
+        );
+      }
+
+      await this.db.transaction(async () => {
+        await this.removeLedgerEffectOfJournals([journalId]);
+        await this.deleteJournalsByIds([journalId]);
+      });
+    } catch (error) {
+      console.error(`Error in deleteManualJournal ${journalId}:`, error);
       throw error;
     }
   }

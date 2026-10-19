@@ -29,17 +29,17 @@ const ToastViewport = forwardRef<
 ToastViewport.displayName = Viewport.displayName;
 
 const toastVariants = cva(
-  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full',
+  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-4 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full',
   {
     variants: {
       variant: {
-        default: 'border bg-background text-foreground',
-        // light: soft panel + dark type (same idea as `warning`); dark: solid destructive chip
+        default: 'border bg-background text-foreground shadow-md',
         destructive:
-          'destructive group border-red-200 bg-red-50 text-red-950 shadow-lg dark:border-destructive dark:bg-destructive dark:text-destructive-foreground dark:shadow-lg',
-        success: 'success group border-green-500 bg-green-500 text-neutral-50',
+          'destructive group border-red-300 bg-red-50 text-red-950 shadow-md dark:border-red-900/60 dark:bg-red-950 dark:text-red-100',
+        success:
+          'success group border-emerald-300 bg-emerald-50 text-emerald-950 shadow-md dark:border-emerald-900/60 dark:bg-emerald-950 dark:text-emerald-100',
         warning:
-          'warning group border-amber-500 bg-amber-500 text-neutral-950 dark:text-neutral-50',
+          'warning group border-amber-300 bg-amber-50 text-amber-950 shadow-md dark:border-amber-900/60 dark:bg-amber-950 dark:text-amber-100',
       },
     },
     defaultVariants: {
@@ -70,7 +70,7 @@ const ToastAction = forwardRef<
   <Action
     ref={ref}
     className={cn(
-      'inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-red-300/60 group-[.destructive]:hover:border-red-400 group-[.destructive]:hover:bg-red-100 group-[.destructive]:hover:text-red-950 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-50 dark:group-[.destructive]:border-muted/40 dark:group-[.destructive]:hover:border-destructive/30 dark:group-[.destructive]:hover:bg-destructive dark:group-[.destructive]:hover:text-destructive-foreground dark:group-[.destructive]:focus:ring-destructive dark:group-[.destructive]:focus:ring-offset-red-950 group-[.success]:border-neutral-100/40 group-[.success]:hover:border-green-500/30 group-[.success]:hover:bg-white group-[.success]:hover:text-green-500 group-[.success]:focus:ring-green-500 group-[.warning]:border-neutral-100/40 group-[.warning]:hover:border-amber-500/30 group-[.warning]:hover:bg-white group-[.warning]:hover:text-amber-700 group-[.warning]:focus:ring-amber-500 dark:group-[.warning]:hover:text-amber-900',
+      'inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-red-300/60 group-[.destructive]:hover:border-red-400 group-[.destructive]:hover:bg-red-100 group-[.destructive]:hover:text-red-950 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-50 dark:group-[.destructive]:border-muted/40 dark:group-[.destructive]:hover:border-destructive/30 dark:group-[.destructive]:hover:bg-destructive dark:group-[.destructive]:hover:text-destructive-foreground dark:group-[.destructive]:focus:ring-destructive dark:group-[.destructive]:focus:ring-offset-red-950 group-[.success]:border-emerald-300/60 group-[.success]:hover:border-emerald-400 group-[.success]:hover:bg-emerald-100 group-[.success]:hover:text-emerald-950 group-[.warning]:border-amber-300/60 group-[.warning]:hover:border-amber-400 group-[.warning]:hover:bg-amber-100 group-[.warning]:hover:text-amber-950',
       className,
     )}
     {...props}
@@ -85,7 +85,7 @@ const ToastClose = forwardRef<
   <Close
     ref={ref}
     className={cn(
-      'absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-red-800/70 group-[.destructive]:hover:text-red-950 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-100 dark:group-[.destructive]:text-red-300 dark:group-[.destructive]:hover:text-red-50 dark:group-[.destructive]:focus:ring-offset-red-900 dark:text-neutral-50/50 dark:hover:text-neutral-50 group-[.success]:text-white group-[.success]:hover:text-white group-[.success]:focus:ring-white group-[.success]:focus:ring-offset-white group-[.warning]:text-neutral-950/80 group-[.warning]:hover:text-neutral-950 dark:group-[.warning]:text-neutral-50/80 dark:group-[.warning]:hover:text-neutral-50',
+      'absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-red-700/70 group-[.destructive]:hover:text-red-950 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-100 dark:group-[.destructive]:text-red-300 dark:group-[.destructive]:hover:text-red-50 dark:group-[.destructive]:focus:ring-offset-red-900 dark:text-neutral-50/50 dark:hover:text-neutral-50 group-[.success]:text-emerald-700/70 group-[.success]:hover:text-emerald-950 group-[.success]:focus:ring-emerald-400 group-[.warning]:text-amber-800/70 group-[.warning]:hover:text-amber-950 group-[.warning]:focus:ring-amber-400 dark:group-[.warning]:text-amber-300 dark:group-[.warning]:hover:text-amber-50',
       className,
     )}
     toast-close=""

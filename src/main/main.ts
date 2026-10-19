@@ -20,6 +20,7 @@ import type {
   BalanceSheet,
   InsertAccount,
   UpdateAccount,
+  AccountCodeConflict,
   AccountUrduFieldPatch,
   InventoryUrduFieldPatch,
   InventoryAttributeFieldPatch,
@@ -556,6 +557,15 @@ app
       (_, chartId: number, name: string) =>
         accountService.getAccountByNameAndChart(chartId, name),
     );
+    ipcMain.handle(
+      'account:checkCode',
+      (
+        _,
+        code: string | number,
+        excludeAccountId?: number,
+      ): Promise<AccountCodeConflict[]> =>
+        accountService.findAccountCodeConflicts(code, excludeAccountId),
+    );
     ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
       accountService.insertAccount(account),
     );
@@ -715,6 +725,17 @@ app
       'journal:updateInfo',
       async (_, journalId: number, fields: UpdateJournalFields) =>
         journalService.updateJournalInfo(journalId, fields),
+    );
+    ipcMain.handle(
+      'journal:reverse',
+      async (
+        _,
+        journalId: number,
+        options?: { date?: string; narration?: string },
+      ) => journalService.reverseJournal(journalId, options),
+    );
+    ipcMain.handle('journal:deleteManual', async (_, journalId: number) =>
+      journalService.deleteManualJournal(journalId),
     );
     ipcMain.handle('inventory:save', (_, inventory: InventoryItem[]) =>
       inventoryService.saveInventory(inventory),

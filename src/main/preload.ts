@@ -3,6 +3,7 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import type {
   Account,
+  AccountCodeConflict,
   UserCredentials,
   BalanceSheet,
   InsertAccount,
@@ -562,6 +563,10 @@ const electronHandler = {
     ipcRenderer.invoke('account:getByNameAndCode', name, code),
   getAccountByNameAndChart: (chartId: number, name: string) =>
     ipcRenderer.invoke('account:getByNameAndChart', chartId, name),
+  checkAccountCode: (code: string | number, excludeAccountId?: number) =>
+    ipcRenderer.invoke('account:checkCode', code, excludeAccountId) as Promise<
+      AccountCodeConflict[]
+    >,
   /**
    * Get all charts
    * @returns All charts
@@ -850,6 +855,23 @@ const electronHandler = {
    */
   updateJournalInfo: (journalId: number, fields: UpdateJournalFields) =>
     ipcRenderer.invoke('journal:updateInfo', journalId, fields),
+  /**
+   * Reverse an existing manual journal
+   */
+  reverseJournal: (
+    journalId: number,
+    options?: { date?: string; narration?: string },
+  ) =>
+    ipcRenderer.invoke(
+      'journal:reverse',
+      journalId,
+      options,
+    ) as Promise<Journal>,
+  /**
+   * Delete an unlinked manual journal
+   */
+  deleteManualJournal: (journalId: number) =>
+    ipcRenderer.invoke('journal:deleteManual', journalId) as Promise<void>,
 
   /** Publish configuration (secrets are write-only; never returned here). */
   getPublishConfig: () =>

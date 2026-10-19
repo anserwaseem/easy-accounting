@@ -138,6 +138,14 @@ export type UpdateAccount = Prettify<
   Omit<Account, keyof BaseEntity | 'chartId' | 'type'> & Pick<BaseEntity, 'id'>
 >;
 
+export interface AccountCodeConflict {
+  id: number;
+  name: string;
+  code: string | number;
+  headName: string;
+  isActive: boolean;
+}
+
 /** one row from Urdu fields spreadsheet import */
 export type AccountUrduFieldPatch = {
   id?: number;
