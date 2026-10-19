@@ -170,10 +170,12 @@ const JournalsPage: React.FC<HasMiniView> = ({
               size: 100,
             },
             {
+              id: 'actions',
               header: 'Actions',
+              enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
-                <div className="flex items-center gap-1">
+                <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
                   <EditJournalFieldsDialog
                     journalId={row.original.id}
                     narration={row.original.narration || ''}
@@ -194,7 +196,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
                             title="Reverse Journal"
                           >
                             <RotateCcw className="h-4 w-4" />
@@ -211,7 +213,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                             title="Delete Journal"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -222,7 +224,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                   )}
                 </div>
               ),
-              size: 60,
+              size: 120,
             },
           ]) as ColumnDef<JournalView>[],
     [isMini, navigate, handleUpdateJournal, handleReloadJournals],
