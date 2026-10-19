@@ -783,6 +783,11 @@ async function main(): Promise<void> {
         journalId as number,
         fields as Parameters<JournalService['updateJournalInfo']>[1],
       ),
+    reverseJournal: (journalId, options) =>
+      journalService.reverseJournal(
+        journalId as number,
+        options as Parameters<JournalService['reverseJournal']>[1],
+      ),
 
     // -- Ledger ------------------------------------------------------------
     getLedger: async (accountId) => {
