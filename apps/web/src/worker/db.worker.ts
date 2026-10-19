@@ -788,6 +788,8 @@ async function main(): Promise<void> {
         journalId as number,
         options as Parameters<JournalService['reverseJournal']>[1],
       ),
+    deleteManualJournal: (journalId) =>
+      journalService.deleteManualJournal(journalId as number),
 
     // -- Ledger ------------------------------------------------------------
     getLedger: async (accountId) => {

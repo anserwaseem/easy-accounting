@@ -15,6 +15,7 @@ import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDi
 import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { Button } from '@/renderer/shad/ui/button';
 import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
+import { DeleteJournalDialog } from '@/renderer/components/DeleteJournalDialog';
 
 interface JournalTableProps {
   journalId: number;
@@ -76,15 +77,26 @@ export const JournalTable: React.FC<JournalTableProps> = ({
             <h1 className="min-w-0 shrink text-4xl font-light">JOURNAL</h1>
             {journal &&
               (journal.invoiceId == null || journal.invoiceId <= 0) && (
-                <ReverseJournalDialog
-                  journalId={journal.id}
-                  originalNarration={journal.narration}
-                  totalAmount={journal.journalEntries.reduce(
-                    (acc, entry) => acc + entry.debitAmount,
-                    0,
-                  )}
-                  onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
-                />
+                <div className="flex items-center gap-2">
+                  <ReverseJournalDialog
+                    journalId={journal.id}
+                    originalNarration={journal.narration}
+                    totalAmount={journal.journalEntries.reduce(
+                      (acc, entry) => acc + entry.debitAmount,
+                      0,
+                    )}
+                    onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
+                  />
+                  <DeleteJournalDialog
+                    journalId={journal.id}
+                    narration={journal.narration}
+                    totalAmount={journal.journalEntries.reduce(
+                      (acc, entry) => acc + entry.debitAmount,
+                      0,
+                    )}
+                    onSuccess={() => navigate('/journals')}
+                  />
+                </div>
               )}
           </div>
 

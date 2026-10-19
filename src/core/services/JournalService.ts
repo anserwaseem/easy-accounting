@@ -682,4 +682,40 @@ export class JournalService {
       throw error;
     }
   }
+
+  /**
+   * Deletes an unlinked manual journal and removes its ledger effects.
+   * Throws if the journal is linked to an invoice or a commission settlement.
+   */
+  async deleteManualJournal(journalId: number): Promise<void> {
+    try {
+      const journal = await this.getJournal(journalId);
+      if (!journal || !journal.id) {
+        raise(`Journal with Id ${journalId} not found`);
+      }
+
+      if (journal.invoiceId != null && journal.invoiceId > 0) {
+        raise(
+          'Cannot delete an invoice-linked journal. Please delete or return the invoice instead.',
+        );
+      }
+
+      const settlement = await this.db
+        .get<{ id: number }>(SQL.getSettlementByJournalId, { journalId })
+        .catch(() => undefined);
+      if (settlement && settlement.id) {
+        raise(
+          'Cannot delete a settlement-linked journal. Please delete the settlement instead.',
+        );
+      }
+
+      await this.db.transaction(async () => {
+        await this.removeLedgerEffectOfJournals([journalId]);
+        await this.deleteJournalsByIds([journalId]);
+      });
+    } catch (error) {
+      console.error(`Error in deleteManualJournal ${journalId}:`, error);
+      throw error;
+    }
+  }
 }

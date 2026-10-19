@@ -862,6 +862,11 @@ const electronHandler = {
       journalId,
       options,
     ) as Promise<Journal>,
+  /**
+   * Delete an unlinked manual journal
+   */
+  deleteManualJournal: (journalId: number) =>
+    ipcRenderer.invoke('journal:deleteManual', journalId) as Promise<void>,
 
   /** Publish configuration (secrets are write-only; never returned here). */
   getPublishConfig: () =>

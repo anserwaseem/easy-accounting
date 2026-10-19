@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { dateFormatOptions } from 'renderer/lib/constants';
-import { Plus, RotateCcw } from 'lucide-react';
+import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import {
   type DateRange,
   DateRangePickerWithPresets,
@@ -23,6 +23,7 @@ import type {
 import { toNumber } from 'lodash';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
+import { DeleteJournalDialog } from '@/renderer/components/DeleteJournalDialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
 
@@ -182,27 +183,46 @@ const JournalsPage: React.FC<HasMiniView> = ({
                   />
                   {(row.original.invoiceId == null ||
                     row.original.invoiceId <= 0) && (
-                    <ReverseJournalDialog
-                      journalId={row.original.id}
-                      originalNarration={row.original.narration || ''}
-                      totalAmount={row.original.amount}
-                      onSuccess={handleReloadJournals}
-                      trigger={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          title="Reverse Journal"
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                        </Button>
-                      }
-                    />
+                    <>
+                      <ReverseJournalDialog
+                        journalId={row.original.id}
+                        originalNarration={row.original.narration || ''}
+                        totalAmount={row.original.amount}
+                        onSuccess={handleReloadJournals}
+                        trigger={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            title="Reverse Journal"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        }
+                      />
+                      <DeleteJournalDialog
+                        journalId={row.original.id}
+                        narration={row.original.narration || ''}
+                        totalAmount={row.original.amount}
+                        onSuccess={handleReloadJournals}
+                        trigger={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            title="Delete Journal"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        }
+                      />
+                    </>
                   )}
                 </div>
               ),
-              size: 40,
+              size: 60,
             },
           ]) as ColumnDef<JournalView>[],
     [isMini, navigate, handleUpdateJournal, handleReloadJournals],
