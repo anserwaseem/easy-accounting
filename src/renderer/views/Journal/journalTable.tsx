@@ -75,29 +75,33 @@ export const JournalTable: React.FC<JournalTableProps> = ({
         <div className="w-3/4">
           <div className="flex items-center justify-between">
             <h1 className="min-w-0 shrink text-4xl font-light">JOURNAL</h1>
-            {journal &&
-              (journal.invoiceId == null || journal.invoiceId <= 0) && (
-                <div className="flex items-center gap-2">
-                  <ReverseJournalDialog
-                    journalId={journal.id}
-                    originalNarration={journal.narration}
-                    totalAmount={journal.journalEntries.reduce(
-                      (acc, entry) => acc + entry.debitAmount,
+            {journal?.id &&
+            (journal.invoiceId == null || journal.invoiceId <= 0) ? (
+              <div className="flex items-center gap-2">
+                <ReverseJournalDialog
+                  journalId={journal.id}
+                  originalNarration={journal.narration}
+                  totalAmount={
+                    journal.journalEntries?.reduce(
+                      (acc, entry) => acc + (entry.debitAmount || 0),
                       0,
-                    )}
-                    onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
-                  />
-                  <DeleteJournalDialog
-                    journalId={journal.id}
-                    narration={journal.narration}
-                    totalAmount={journal.journalEntries.reduce(
-                      (acc, entry) => acc + entry.debitAmount,
+                    ) ?? 0
+                  }
+                  onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
+                />
+                <DeleteJournalDialog
+                  journalId={journal.id}
+                  narration={journal.narration}
+                  totalAmount={
+                    journal.journalEntries?.reduce(
+                      (acc, entry) => acc + (entry.debitAmount || 0),
                       0,
-                    )}
-                    onSuccess={() => navigate('/journals')}
-                  />
-                </div>
-              )}
+                    ) ?? 0
+                  }
+                  onSuccess={() => navigate('/journals')}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2 mt-8">
