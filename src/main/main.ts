@@ -20,6 +20,7 @@ import type {
   BalanceSheet,
   InsertAccount,
   UpdateAccount,
+  AccountCodeConflict,
   AccountUrduFieldPatch,
   InventoryUrduFieldPatch,
   InventoryAttributeFieldPatch,
@@ -555,6 +556,15 @@ app
       'account:getByNameAndChart',
       (_, chartId: number, name: string) =>
         accountService.getAccountByNameAndChart(chartId, name),
+    );
+    ipcMain.handle(
+      'account:checkCode',
+      (
+        _,
+        code: string | number,
+        excludeAccountId?: number,
+      ): Promise<AccountCodeConflict[]> =>
+        accountService.findAccountCodeConflicts(code, excludeAccountId),
     );
     ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
       accountService.insertAccount(account),

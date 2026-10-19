@@ -1,4 +1,5 @@
-import { Pencil } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertTriangle, Pencil } from 'lucide-react';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch, type Control } from 'react-hook-form';
@@ -12,7 +13,7 @@ import {
   FormControl,
   FormMessage,
 } from 'renderer/shad/ui/form';
-import type { AccountCollectionRole, Chart } from 'types';
+import type { AccountCodeConflict, AccountCollectionRole, Chart } from 'types';
 import { ChartSelect } from 'renderer/components/ChartSelect';
 import { Checkbox } from 'renderer/shad/ui/checkbox';
 import {
@@ -22,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'renderer/shad/ui/select';
+import { cn } from 'renderer/lib/utils';
 import { isDefaultReceiptHead } from '@/core/utils/receiptAccounts';
 
 const COLLECTION_ROLE_OPTIONS = ['default', 'receipt', 'exclude'] as const;
@@ -146,12 +148,92 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     defaultValues: { ...defaultValues, ...initialValues },
   });
 
+  const currentCode = useWatch({ control: form.control, name: 'accountCode' });
+  const [codeConflicts, setCodeConflicts] = useState<AccountCodeConflict[]>([]);
+  const [isCheckingCode, setIsCheckingCode] = useState(false);
+  const [showDuplicatePrompt, setShowDuplicatePrompt] = useState(false);
+
+  // reset confirmation prompt and check for duplicates when code changes
+  useEffect(() => {
+    setShowDuplicatePrompt(false);
+    let cancelled = false;
+
+    if (
+      currentCode === undefined ||
+      currentCode === null ||
+      String(currentCode).trim() === ''
+    ) {
+      setCodeConflicts([]);
+      setIsCheckingCode(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = setTimeout(async () => {
+      if (typeof window === 'undefined' || !window.electron?.checkAccountCode) {
+        return;
+      }
+      setIsCheckingCode(true);
+      try {
+        const conflicts = await window.electron.checkAccountCode(
+          currentCode,
+          initialValues?.id,
+        );
+        if (!cancelled) {
+          setCodeConflicts(conflicts ?? []);
+        }
+      } catch {
+        // non-blocking
+      } finally {
+        if (!cancelled) {
+          setIsCheckingCode(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [currentCode, initialValues?.id]);
+
+  const handleFormSubmit = async (values: AccountFormData) => {
+    const rawCode = values.accountCode;
+    const hasCode =
+      rawCode !== undefined &&
+      rawCode !== null &&
+      String(rawCode).trim() !== '';
+
+    // If code is supplied and the user has not yet acknowledged the duplicate warning
+    if (hasCode && !showDuplicatePrompt && window.electron?.checkAccountCode) {
+      try {
+        const conflicts = await window.electron.checkAccountCode(
+          rawCode,
+          initialValues?.id,
+        );
+        if (conflicts && conflicts.length > 0) {
+          setCodeConflicts(conflicts);
+          setShowDuplicatePrompt(true);
+          return;
+        }
+      } catch {
+        // proceed if check fails
+      }
+    }
+
+    setShowDuplicatePrompt(false);
+    await onSubmit(values);
+  };
+
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(handleFormSubmit)}
         onReset={() => {
           form.reset(defaultValues);
+          setCodeConflicts([]);
+          setShowDuplicatePrompt(false);
           onReset?.();
         }}
         className="space-y-3.5"
@@ -186,11 +268,28 @@ export const AccountForm: React.FC<AccountFormProps> = ({
               name="accountCode"
               render={({ field }) => (
                 <FormItem className="space-y-1">
-                  <FormLabel>Code</FormLabel>
+                  <FormLabel className="flex items-center justify-between">
+                    <span>Code</span>
+                    {isCheckingCode && (
+                      <span className="text-[10px] text-muted-foreground">
+                        Checking...
+                      </span>
+                    )}
+                    {!isCheckingCode && codeConflicts.length > 0 && (
+                      <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                        In use
+                      </span>
+                    )}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       {...field}
-                      className={inputClass}
+                      value={field.value ?? ''}
+                      className={cn(
+                        inputClass,
+                        codeConflicts.length > 0 &&
+                          'border-amber-500 focus-visible:ring-amber-500/30',
+                      )}
                       placeholder="e.g. 1001"
                     />
                   </FormControl>
@@ -200,6 +299,41 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             />
           </div>
         </div>
+
+        {/* Duplicate Code Warning Banner */}
+        {codeConflicts.length > 0 && (
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="space-y-1">
+              <p className="font-semibold">
+                Warning: Code &ldquo;{currentCode}&rdquo; is already in use by{' '}
+                {codeConflicts.length === 1
+                  ? 'an active account'
+                  : `${codeConflicts.length} active accounts`}
+                :
+              </p>
+              <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-amber-900 dark:text-amber-300">
+                {codeConflicts.map((c) => (
+                  <li key={c.id}>
+                    <span className="font-medium text-foreground">
+                      {c.name}
+                    </span>{' '}
+                    <span className="text-muted-foreground">
+                      ({c.headName})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-amber-800 dark:text-amber-400">
+                Reusing codes across accounts can lead to mistaken account
+                selection during journal entry or billing.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Account Names (English & Urdu) */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -483,26 +617,62 @@ export const AccountForm: React.FC<AccountFormProps> = ({
         )}
 
         {/* Footer CTAs */}
-        <div className="flex items-center justify-end gap-2.5 pt-2">
-          {onCancel && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onCancel}
-            >
-              Cancel
-            </Button>
+        <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2">
+          {showDuplicatePrompt ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs dark:border-amber-800 dark:bg-amber-950/40">
+              <span className="font-medium text-amber-900 dark:text-amber-200">
+                Code &ldquo;{currentCode}&rdquo; is already in use. Save anyway?
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setShowDuplicatePrompt(false)}
+                >
+                  Change Code
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={form.formState.isSubmitting}
+                  onClick={() => {
+                    form.handleSubmit(async (v) => {
+                      setShowDuplicatePrompt(false);
+                      await onSubmit(v);
+                    })();
+                  }}
+                >
+                  {form.formState.isSubmitting ? 'Saving...' : 'Save Anyway'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {onCancel && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onCancel}
+                >
+                  Cancel
+                </Button>
+              )}
+              <Button
+                type="submit"
+                size="sm"
+                aria-label="Submit"
+                disabled={form.formState.isSubmitting}
+                className="min-w-[100px]"
+              >
+                {form.formState.isSubmitting ? 'Saving...' : submitLabel}
+              </Button>
+            </>
           )}
-          <Button
-            type="submit"
-            size="sm"
-            aria-label="Submit"
-            disabled={form.formState.isSubmitting}
-            className="min-w-[100px]"
-          >
-            {form.formState.isSubmitting ? 'Saving...' : submitLabel}
-          </Button>
         </div>
       </form>
     </Form>

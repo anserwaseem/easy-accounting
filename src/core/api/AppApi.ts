@@ -22,6 +22,7 @@
  */
 import type {
   Account,
+  AccountCodeConflict,
   UserCredentials,
   BalanceSheet,
   InsertAccount,
@@ -227,6 +228,10 @@ export interface AppApi {
   getAccountByName: (name: string) => Promise<any>;
   getAccountByNameAndCode: (name: string, code?: string) => Promise<any>;
   getAccountByNameAndChart: (chartId: number, name: string) => Promise<any>;
+  checkAccountCode: (
+    code: string | number,
+    excludeAccountId?: number,
+  ) => Promise<AccountCodeConflict[]>;
   /**
    * Insert an account
    * @param account The account to insert

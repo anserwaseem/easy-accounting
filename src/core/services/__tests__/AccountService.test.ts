@@ -350,4 +350,135 @@ describe('BetterSqliteDriver transactions', () => {
     expect(refreshed?.discountProfileId).toBe(profileId);
     db.close();
   });
+
+  describe('findAccountCodeConflicts', () => {
+    it('returns empty array when code is empty, whitespace, null, or undefined', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts } = createCore(db);
+
+      expect(await accounts.findAccountCodeConflicts('')).toEqual([]);
+      expect(await accounts.findAccountCodeConflicts('   ')).toEqual([]);
+      expect(await accounts.findAccountCodeConflicts(null)).toEqual([]);
+      expect(await accounts.findAccountCodeConflicts(undefined)).toEqual([]);
+      db.close();
+    });
+
+    it('returns empty array when no account uses the given code', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts } = createCore(db);
+
+      await accounts.insertAccount(
+        anAccount({ name: 'Account 1', code: 'CODE-100' }),
+      );
+
+      const conflicts = await accounts.findAccountCodeConflicts('CODE-999');
+      expect(conflicts).toHaveLength(0);
+      db.close();
+    });
+
+    it('detects conflict with an active account using the exact code', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts } = createCore(db);
+
+      await accounts.insertAccount(
+        anAccount({ name: 'Maktaba Ashrafia', code: 'Bwp-ashrafia' }),
+      );
+
+      const conflicts = await accounts.findAccountCodeConflicts('Bwp-ashrafia');
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0].name).toBe('Maktaba Ashrafia');
+      expect(conflicts[0].headName).toBe('Current Asset');
+      expect(conflicts[0].isActive).toBe(true);
+      db.close();
+    });
+
+    it('detects conflict case-insensitively and with trimmed whitespace', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts } = createCore(db);
+
+      await accounts.insertAccount(
+        anAccount({ name: 'Party A', code: '  BWP-ASHRAFIA  ' }),
+      );
+
+      const conflicts = await accounts.findAccountCodeConflicts('bwp-ashrafia');
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0].name).toBe('Party A');
+
+      const trimmedConflicts = await accounts.findAccountCodeConflicts(
+        '  BWP-ashrafia  ',
+      );
+      expect(trimmedConflicts).toHaveLength(1);
+      db.close();
+    });
+
+    it('ignores inactive accounts', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts } = createCore(db);
+
+      await accounts.insertAccount(
+        anAccount({ name: 'Old Inactive', code: 'RET-101' }),
+      );
+      const acc = (await accounts.getAccounts())[0];
+      await accounts.toggleAccountActive(acc.id, false);
+
+      const conflicts = await accounts.findAccountCodeConflicts('RET-101');
+      expect(conflicts).toHaveLength(0);
+      db.close();
+    });
+
+    it('excludes self when excludeAccountId is provided', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts } = createCore(db);
+
+      await accounts.insertAccount(
+        anAccount({ name: 'Existing Account', code: 'MY-CODE' }),
+      );
+      const acc = (await accounts.getAccounts())[0];
+
+      // Checking with own id should return no conflict
+      const selfCheck = await accounts.findAccountCodeConflicts(
+        'MY-CODE',
+        acc.id,
+      );
+      expect(selfCheck).toHaveLength(0);
+
+      // Checking without excludeAccountId returns conflict
+      const checkWithoutExclude = await accounts.findAccountCodeConflicts(
+        'MY-CODE',
+      );
+      expect(checkWithoutExclude).toHaveLength(1);
+      db.close();
+    });
+
+    it('returns all conflicting accounts across different heads', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts } = createCore(db);
+
+      await accounts.insertAccount(
+        anAccount({ name: 'Asset Party', headName: 'Current Asset', code: 5 }),
+      );
+      await accounts.insertAccount(
+        anAccount({
+          name: 'Liability Party',
+          headName: 'Current Liability',
+          code: 5,
+        }),
+      );
+
+      const conflicts = await accounts.findAccountCodeConflicts(5);
+      expect(conflicts).toHaveLength(2);
+      expect(conflicts.map((c) => c.headName).sort()).toEqual([
+        'Current Asset',
+        'Current Liability',
+      ]);
+      db.close();
+    });
+  });
 });
