@@ -14,6 +14,7 @@ import type { Journal, JournalEntry, UpdateJournalFields } from 'types';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { Button } from '@/renderer/shad/ui/button';
+import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
 
 interface JournalTableProps {
   journalId: number;
@@ -71,7 +72,21 @@ export const JournalTable: React.FC<JournalTableProps> = ({
     <div>
       <div className="flex">
         <div className="w-3/4">
-          <h1 className="min-w-0 shrink text-4xl font-light">JOURNAL</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="min-w-0 shrink text-4xl font-light">JOURNAL</h1>
+            {journal &&
+              (journal.invoiceId == null || journal.invoiceId <= 0) && (
+                <ReverseJournalDialog
+                  journalId={journal.id}
+                  originalNarration={journal.narration}
+                  totalAmount={journal.journalEntries.reduce(
+                    (acc, entry) => acc + entry.debitAmount,
+                    0,
+                  )}
+                  onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
+                />
+              )}
+          </div>
 
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-8 items-center">

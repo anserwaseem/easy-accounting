@@ -716,6 +716,14 @@ app
       async (_, journalId: number, fields: UpdateJournalFields) =>
         journalService.updateJournalInfo(journalId, fields),
     );
+    ipcMain.handle(
+      'journal:reverse',
+      async (
+        _,
+        journalId: number,
+        options?: { date?: string; narration?: string },
+      ) => journalService.reverseJournal(journalId, options),
+    );
     ipcMain.handle('inventory:save', (_, inventory: InventoryItem[]) =>
       inventoryService.saveInventory(inventory),
     );

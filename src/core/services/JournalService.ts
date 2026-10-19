@@ -86,6 +86,15 @@ const SQL = {
       WHERE j.id IN (SELECT value FROM json_each(@journalIdsJson))
         AND c.userId = (SELECT id FROM users WHERE username = @username)
     `,
+  getSettlementByJournalId: `
+      SELECT id FROM agent_commission_settlements WHERE journalId = @journalId LIMIT 1
+    `,
+  getReversalByOriginalJournalId: `
+      SELECT id FROM journal
+      WHERE narration = @reversalExact
+         OR narration LIKE @reversalPrefix
+      LIMIT 1
+    `,
 };
 
 /** Journal CRUD. Async against DatabaseDriver, session injected. */
@@ -589,6 +598,87 @@ export class JournalService {
       await this.db.run(sql, params);
     } catch (error) {
       console.error(`Error in updateJournalInfo ${journalId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reverses an existing manual journal by flipping debits and credits.
+   * Preserves audit trail and posts a counter-balancing journal.
+   */
+  async reverseJournal(
+    journalId: number,
+    options?: { date?: string; narration?: string },
+  ): Promise<Journal> {
+    try {
+      const original = await this.getJournal(journalId);
+      if (!original || !original.id) {
+        raise(`Journal with Id ${journalId} not found`);
+      }
+
+      if (original.invoiceId != null && original.invoiceId > 0) {
+        raise(
+          'Cannot reverse an invoice-linked journal directly. Please return the invoice instead.',
+        );
+      }
+
+      const settlement = await this.db
+        .get<{ id: number }>(SQL.getSettlementByJournalId, { journalId })
+        .catch(() => undefined);
+      if (settlement && settlement.id) {
+        raise(
+          'Cannot reverse a settlement-linked journal directly. Please delete the settlement instead.',
+        );
+      }
+
+      const existingReversal = await this.db.get<{ id: number }>(
+        SQL.getReversalByOriginalJournalId,
+        {
+          reversalExact: `Reversal of Journal #${journalId}`,
+          reversalPrefix: `Reversal of Journal #${journalId}:%`,
+        },
+      );
+      if (existingReversal && existingReversal.id) {
+        raise(
+          `Journal with Id ${journalId} has already been reversed by Journal #${existingReversal.id}`,
+        );
+      }
+
+      const reversedEntries: JournalEntry[] = (
+        original.journalEntries || []
+      ).map(
+        (entry) =>
+          ({
+            accountId: entry.accountId,
+            debitAmount: entry.creditAmount,
+            creditAmount: entry.debitAmount,
+          }) as JournalEntry,
+      );
+
+      const defaultNarration = original.narration
+        ? `Reversal of Journal #${journalId}: ${original.narration}`
+        : `Reversal of Journal #${journalId}`;
+
+      const narration = options?.narration?.trim() || defaultNarration;
+      const date = options?.date || new Date().toISOString();
+
+      const reversalJournal: Journal = {
+        id: 0,
+        date,
+        narration,
+        isPosted: true,
+        billNumber: original.billNumber,
+        discountPercentage: original.discountPercentage,
+        invoiceId: undefined,
+        journalEntries: reversedEntries,
+      };
+
+      const newJournalId = await this.getNextJournalId();
+      await this.insertJournal(reversalJournal);
+      const inserted = await this.getJournal(newJournalId);
+      return inserted && inserted.id ? inserted : reversalJournal;
+    } catch (error) {
+      console.error(`Error in reverseJournal ${journalId}:`, error);
       throw error;
     }
   }

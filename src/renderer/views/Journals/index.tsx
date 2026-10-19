@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { dateFormatOptions } from 'renderer/lib/constants';
-import { Plus } from 'lucide-react';
+import { Plus, RotateCcw } from 'lucide-react';
 import {
   type DateRange,
   DateRangePickerWithPresets,
@@ -22,6 +22,7 @@ import type {
 } from 'types';
 import { toNumber } from 'lodash';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
+import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
 
@@ -44,16 +45,18 @@ const JournalsPage: React.FC<HasMiniView> = ({
   >(window.electron.store.get('journalFilterSelectValue') || undefined);
   const navigate = useNavigate();
 
+  const handleReloadJournals = useCallback(async () => {
+    const updatedJournals = (await window.electron.getJournals()) as Journal[];
+    const journalsWithAmounts = mapToJournalView(updatedJournals);
+    setJounrals(journalsWithAmounts);
+    setFilteredJournals(journalsWithAmounts);
+  }, []);
+
   const handleUpdateJournal = useCallback(
     async (id: number, fields: UpdateJournalFields) => {
       try {
         await window.electron.updateJournalInfo(id, fields);
-        // Refresh journals data
-        const updatedJournals = await window.electron.getJournals();
-        // Calculate amounts for each journal
-        const journalsWithAmounts = mapToJournalView(updatedJournals);
-        setJounrals(journalsWithAmounts);
-        setFilteredJournals(journalsWithAmounts);
+        await handleReloadJournals();
         toast({
           title: 'Success',
           description: 'Journal updated successfully',
@@ -68,7 +71,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
         throw error;
       }
     },
-    [],
+    [handleReloadJournals],
   );
 
   const columns: ColumnDef<JournalView>[] = useMemo(
@@ -166,10 +169,10 @@ const JournalsPage: React.FC<HasMiniView> = ({
               size: 100,
             },
             {
-              header: 'Edit',
+              header: 'Actions',
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <EditJournalFieldsDialog
                     journalId={row.original.id}
                     narration={row.original.narration || ''}
@@ -177,12 +180,32 @@ const JournalsPage: React.FC<HasMiniView> = ({
                     discountPercentage={row.original.discountPercentage}
                     onSave={handleUpdateJournal}
                   />
+                  {(row.original.invoiceId == null ||
+                    row.original.invoiceId <= 0) && (
+                    <ReverseJournalDialog
+                      journalId={row.original.id}
+                      originalNarration={row.original.narration || ''}
+                      totalAmount={row.original.amount}
+                      onSuccess={handleReloadJournals}
+                      trigger={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          title="Reverse Journal"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
+                  )}
                 </div>
               ),
-              size: 10,
+              size: 40,
             },
           ]) as ColumnDef<JournalView>[],
-    [isMini, navigate, handleUpdateJournal],
+    [isMini, navigate, handleUpdateJournal, handleReloadJournals],
   );
 
   const handleFilterDateSelect = useCallback(

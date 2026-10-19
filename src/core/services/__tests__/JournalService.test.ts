@@ -459,4 +459,288 @@ describe('core JournalService', () => {
     expect(await journal.getJournal(firstJournalId)).toEqual({});
     db.close();
   });
+
+  describe('reverseJournal', () => {
+    it('reverses a simple debit/credit journal and returns balances to zero', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, ledger, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Initial Sale',
+          journalEntries: [
+            { accountId: cash, debitAmount: 500, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 500 },
+          ] as JournalEntry[],
+        }),
+      );
+      const originalId = (await journal.getNextJournalId()) - 1;
+
+      expect((await ledger.getLedger(cash)).at(-1)!.balance).toBe(500);
+      expect((await ledger.getLedger(sale)).at(-1)!.balance).toBe(500);
+
+      const reversed = await journal.reverseJournal(originalId);
+      expect(reversed.id).toBeGreaterThan(originalId);
+      expect(reversed.narration).toBe(
+        `Reversal of Journal #${originalId}: Initial Sale`,
+      );
+      expect(reversed.journalEntries).toHaveLength(2);
+
+      const cashEntry = reversed.journalEntries.find(
+        (e) => e.accountId === cash,
+      );
+      const saleEntry = reversed.journalEntries.find(
+        (e) => e.accountId === sale,
+      );
+      expect(cashEntry?.debitAmount).toBe(0);
+      expect(cashEntry?.creditAmount).toBe(500);
+      expect(saleEntry?.debitAmount).toBe(500);
+      expect(saleEntry?.creditAmount).toBe(0);
+
+      expect((await ledger.getLedger(cash)).at(-1)!.balance).toBe(0);
+      expect((await ledger.getLedger(sale)).at(-1)!.balance).toBe(0);
+      db.close();
+    });
+
+    it('reverses a 1-debit to multi-credit collection journal correctly', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, ledger, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const shopA = await insertAccount(
+        db,
+        accounts,
+        'Shop A',
+        'Current Asset',
+      );
+      const shopB = await insertAccount(
+        db,
+        accounts,
+        'Shop B',
+        'Current Asset',
+      );
+
+      // First give shops opening debit balances
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-01-15',
+          narration: 'Opening balance',
+          journalEntries: [
+            { accountId: shopA, debitAmount: 1000, creditAmount: 0 },
+            { accountId: cash, debitAmount: 0, creditAmount: 1000 },
+          ] as JournalEntry[],
+        }),
+      );
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-01-15',
+          narration: 'Opening balance',
+          journalEntries: [
+            { accountId: shopB, debitAmount: 2000, creditAmount: 0 },
+            { accountId: cash, debitAmount: 0, creditAmount: 2000 },
+          ] as JournalEntry[],
+        }),
+      );
+
+      expect((await ledger.getLedger(shopA)).at(-1)!.balance).toBe(1000);
+      expect((await ledger.getLedger(shopB)).at(-1)!.balance).toBe(2000);
+
+      // Now collection journal: cash debited 3000, shopA credited 1000, shopB credited 2000
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Agent Collection',
+          journalEntries: [
+            { accountId: cash, debitAmount: 3000, creditAmount: 0 },
+            { accountId: shopA, debitAmount: 0, creditAmount: 1000 },
+            { accountId: shopB, debitAmount: 0, creditAmount: 2000 },
+          ] as JournalEntry[],
+        }),
+      );
+      const collectionJournalId = (await journal.getNextJournalId()) - 1;
+
+      expect((await ledger.getLedger(shopA)).at(-1)!.balance).toBe(0);
+      expect((await ledger.getLedger(shopB)).at(-1)!.balance).toBe(0);
+
+      // Reverse collection journal
+      await journal.reverseJournal(collectionJournalId);
+
+      // Balances should be back to 1000 and 2000 Dr
+      expect((await ledger.getLedger(shopA)).at(-1)!.balance).toBe(1000);
+      expect((await ledger.getLedger(shopB)).at(-1)!.balance).toBe(2000);
+      db.close();
+    });
+
+    it('reverses a multi-debit to 1-credit journal correctly', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, ledger, journal } = createCore(db);
+      const expA = await insertAccount(db, accounts, 'Exp A', 'Current Asset');
+      const expB = await insertAccount(db, accounts, 'Exp B', 'Current Asset');
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Expenses',
+          journalEntries: [
+            { accountId: expA, debitAmount: 300, creditAmount: 0 },
+            { accountId: expB, debitAmount: 700, creditAmount: 0 },
+            { accountId: cash, debitAmount: 0, creditAmount: 1000 },
+          ] as JournalEntry[],
+        }),
+      );
+      const originalId = (await journal.getNextJournalId()) - 1;
+
+      const reversed = await journal.reverseJournal(originalId);
+      expect(reversed.journalEntries).toHaveLength(3);
+      const cashEntry = reversed.journalEntries.find(
+        (e) => e.accountId === cash,
+      );
+      expect(cashEntry?.debitAmount).toBe(1000);
+      expect(cashEntry?.creditAmount).toBe(0);
+
+      expect((await ledger.getLedger(expA)).at(-1)!.balance).toBe(0);
+      expect((await ledger.getLedger(expB)).at(-1)!.balance).toBe(0);
+      expect((await ledger.getLedger(cash)).at(-1)!.balance).toBe(0);
+      db.close();
+    });
+
+    it('accepts custom date and narration overrides', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Mistaken entry',
+          journalEntries: [
+            { accountId: cash, debitAmount: 100, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 100 },
+          ] as JournalEntry[],
+        }),
+      );
+      const originalId = (await journal.getNextJournalId()) - 1;
+
+      const customDate = '2025-02-15T00:00:00.000Z';
+      const customNarration = 'Correction by admin';
+      const reversed = await journal.reverseJournal(originalId, {
+        date: customDate,
+        narration: customNarration,
+      });
+
+      expect(reversed.date).toBe(customDate);
+      expect(reversed.narration).toBe(customNarration);
+      db.close();
+    });
+
+    it('throws when journal does not exist', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { journal } = createCore(db);
+
+      await expect(journal.reverseJournal(99999)).rejects.toThrow(
+        'Journal with Id 99999 not found',
+      );
+      db.close();
+    });
+
+    it('throws when attempting to reverse an invoice-linked journal', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Sale invoice #101',
+          invoiceId: 42,
+          journalEntries: [
+            { accountId: cash, debitAmount: 100, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 100 },
+          ] as JournalEntry[],
+        }),
+      );
+      const invoiceJournalId = (await journal.getNextJournalId()) - 1;
+
+      await expect(journal.reverseJournal(invoiceJournalId)).rejects.toThrow(
+        'Cannot reverse an invoice-linked journal directly',
+      );
+      db.close();
+    });
+
+    it('throws when attempting to reverse a commission-settlement-linked journal', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Commission settlement',
+          journalEntries: [
+            { accountId: cash, debitAmount: 100, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 100 },
+          ] as JournalEntry[],
+        }),
+      );
+      const settlementJournalId = (await journal.getNextJournalId()) - 1;
+
+      // Link it in agent_commission_settlements
+      const chartRow = db.prepare('SELECT id FROM chart LIMIT 1').get() as {
+        id: number;
+      };
+      db.prepare(
+        `
+        INSERT INTO agent_commission_settlements (chartId, startDate, endDate, journalId, grossCommission, netCommission)
+        VALUES (?, '2025-01-01', '2025-01-31', ?, 100, 100)
+      `,
+      ).run(chartRow.id, settlementJournalId);
+
+      await expect(journal.reverseJournal(settlementJournalId)).rejects.toThrow(
+        'Cannot reverse a settlement-linked journal directly',
+      );
+      db.close();
+    });
+
+    it('throws when attempting to reverse an already reversed journal (duplicate guard)', async () => {
+      const db = new Database(':memory:');
+      await seedBasicSchema(db);
+      const { accounts, journal } = createCore(db);
+      const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+      const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+
+      await journal.insertJournal(
+        aJournal({
+          date: '2025-02-01',
+          narration: 'Sale',
+          journalEntries: [
+            { accountId: cash, debitAmount: 100, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 100 },
+          ] as JournalEntry[],
+        }),
+      );
+      const originalId = (await journal.getNextJournalId()) - 1;
+
+      const rev = await journal.reverseJournal(originalId);
+      expect(rev.id).toBeDefined();
+
+      // Second reversal attempt should be blocked
+      await expect(journal.reverseJournal(originalId)).rejects.toThrow(
+        `Journal with Id ${originalId} has already been reversed by Journal #${rev.id}`,
+      );
+      db.close();
+    });
+  });
 });

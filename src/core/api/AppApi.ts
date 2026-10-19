@@ -367,6 +367,13 @@ export interface AppApi {
     journalId: number,
     fields: UpdateJournalFields,
   ) => Promise<any>;
+  /**
+   * Reverse an existing manual journal by creating a counter-balancing journal
+   */
+  reverseJournal: (
+    journalId: number,
+    options?: { date?: string; narration?: string },
+  ) => Promise<Journal>;
 
   // ---------------------------------------------------------------------
   // Ledger

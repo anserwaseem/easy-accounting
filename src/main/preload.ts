@@ -850,6 +850,18 @@ const electronHandler = {
    */
   updateJournalInfo: (journalId: number, fields: UpdateJournalFields) =>
     ipcRenderer.invoke('journal:updateInfo', journalId, fields),
+  /**
+   * Reverse an existing manual journal
+   */
+  reverseJournal: (
+    journalId: number,
+    options?: { date?: string; narration?: string },
+  ) =>
+    ipcRenderer.invoke(
+      'journal:reverse',
+      journalId,
+      options,
+    ) as Promise<Journal>,
 
   /** Publish configuration (secrets are write-only; never returned here). */
   getPublishConfig: () =>
