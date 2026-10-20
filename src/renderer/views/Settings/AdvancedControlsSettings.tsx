@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, TriangleAlert } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -9,13 +9,16 @@ import {
 } from '@/renderer/shad/ui/card';
 import { Label } from '@/renderer/shad/ui/label';
 import { Switch } from '@/renderer/shad/ui/switch';
+import { Input } from '@/renderer/shad/ui/input';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { handleAsync } from '@/renderer/lib/utils';
 import {
+  ADVANCED_CAPABILITY_GROUPS,
   ADVANCED_CAPABILITY_LABELS,
   ALL_ADVANCED_CAPABILITIES,
   DESTRUCTIVE_ADVANCED_CAPABILITIES,
   type AdvancedCapability,
+  type AdvancedCapabilityGroup,
 } from '@/core/advancedCapabilities';
 import { useAdvancedCapabilities } from '@/renderer/hooks/useAdvancedCapabilities';
 
@@ -38,6 +41,11 @@ import { useAdvancedCapabilities } from '@/renderer/hooks/useAdvancedCapabilitie
  * why it is a flag rather than a per-user role.
  */
 
+/** a group with the capabilities that match the search, if any */
+interface VisibleGroup extends AdvancedCapabilityGroup {
+  capabilities: AdvancedCapability[];
+}
+
 const AdvancedControlsSettings: React.FC = () => {
   const { enabled, setEnabled, loaded } = useAdvancedCapabilities();
   const [pendingEnable, setPendingEnable] = useState<AdvancedCapability | null>(
@@ -45,6 +53,7 @@ const AdvancedControlsSettings: React.FC = () => {
   );
   const [pendingEnableAll, setPendingEnableAll] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
 
   const isEnabled = useCallback(
     (capability: AdvancedCapability) => loaded && enabled.has(capability),
@@ -130,6 +139,34 @@ const AdvancedControlsSettings: React.FC = () => {
     setPendingEnableAll(false);
   }, [persist]);
 
+  /**
+   * The groups, with the search applied.
+   *
+   * The search matches the label the owner reads, not the capability id:
+   * someone looking for "return" wants the invoice returns, and typing
+   * "invoice.returnSale" is not something they would think to do.
+   */
+  const visibleGroups = useMemo<VisibleGroup[]>(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) {
+      return ADVANCED_CAPABILITY_GROUPS.map((group) => ({
+        ...group,
+        capabilities: [...group.capabilities],
+      }));
+    }
+    return ADVANCED_CAPABILITY_GROUPS.map((group) => ({
+      ...group,
+      capabilities: group.capabilities.filter((capability) =>
+        ADVANCED_CAPABILITY_LABELS[capability].toLowerCase().includes(needle),
+      ),
+    })).filter((group) => group.capabilities.length > 0);
+  }, [query]);
+
+  const destructiveCount = useMemo(
+    () => DESTRUCTIVE_ADVANCED_CAPABILITIES.length,
+    [],
+  );
+
   return (
     <>
       <Card>
@@ -138,8 +175,8 @@ const AdvancedControlsSettings: React.FC = () => {
           <CardDescription>
             Actions that change or remove existing records: reversing or
             deleting a journal, returning a posted invoice, deleting an account
-            or inventory item, adjusting stock by hand. Off by default, and
-            remembered on this device only.
+            or inventory item, adjusting stock by hand, restating opening stock.
+            Off by default, and remembered on this device only.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -165,35 +202,82 @@ const AdvancedControlsSettings: React.FC = () => {
             />
           </div>
 
-          <div className="rounded-lg border">
-            {ALL_ADVANCED_CAPABILITIES.map((capability, index) => (
-              <div
-                key={capability}
-                className={`flex items-center justify-between gap-4 px-4 py-3 ${
-                  index === 0 ? '' : 'border-t'
-                }`}
+          <div className="flex items-center gap-2">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search the controls"
+              aria-label="Search the advanced controls"
+              className="h-9"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
               >
-                <Label
-                  htmlFor={`advancedCapability-${capability}`}
-                  className="cursor-pointer text-sm font-normal"
-                >
-                  {ADVANCED_CAPABILITY_LABELS[capability]}
-                </Label>
-                <Switch
-                  id={`advancedCapability-${capability}`}
-                  checked={isEnabled(capability)}
-                  disabled={busy || !loaded}
-                  onCheckedChange={(next) => handleToggle(capability, next)}
-                />
-              </div>
-            ))}
+                Clear
+              </button>
+            ) : null}
           </div>
+
+          {visibleGroups.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No advanced control matches &ldquo;{query.trim()}&rdquo;.
+            </p>
+          ) : null}
+
+          {visibleGroups.map((group) => (
+            <div key={group.id} className="rounded-lg border">
+              <div className="border-b px-4 py-3">
+                <p className="text-sm font-medium">{group.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {group.description}
+                </p>
+              </div>
+              {group.capabilities.map((capability, index) => (
+                <div
+                  key={capability}
+                  className={`flex items-center justify-between gap-4 px-4 py-3 ${
+                    index === 0 ? '' : 'border-t'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 pr-2">
+                    <Label
+                      htmlFor={`advancedCapability-${capability}`}
+                      className="cursor-pointer text-sm font-normal"
+                    >
+                      {ADVANCED_CAPABILITY_LABELS[capability]}
+                    </Label>
+                    {DESTRUCTIVE_ADVANCED_CAPABILITIES.includes(capability) ? (
+                      <span
+                        className="flex items-center gap-1 text-xs text-destructive"
+                        title="Changes or removes records, and may not be undoable"
+                      >
+                        <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+                        Changes records
+                      </span>
+                    ) : null}
+                  </div>
+                  <Switch
+                    id={`advancedCapability-${capability}`}
+                    checked={isEnabled(capability)}
+                    disabled={busy || !loaded}
+                    onCheckedChange={(next) => handleToggle(capability, next)}
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
 
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
             <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               This hides controls from view; it is not a lock. Anyone who can
               change this device&apos;s stored settings can turn it back on.
+              {destructiveCount > 0
+                ? ` ${destructiveCount} of these change or remove records, and most cannot be undone.`
+                : ''}
             </span>
           </p>
         </CardContent>

@@ -1,7 +1,9 @@
 import {
   ADVANCED_CAPABILITIES,
+  ADVANCED_CAPABILITY_GROUPS,
   ADVANCED_CAPABILITY_LABELS,
   ALL_ADVANCED_CAPABILITIES,
+  ALL_ADVANCED_CAPABILITIES_IN_GROUP_ORDER,
   ALL_ADVANCED_CAPABILITIES_SENTINEL,
   DESTRUCTIVE_ADVANCED_CAPABILITIES,
   hasAdvancedCapability,
@@ -52,6 +54,58 @@ describe('advancedCapabilities registry', () => {
     );
     expect(DESTRUCTIVE_ADVANCED_CAPABILITIES).toContain(
       ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+    );
+  });
+});
+
+describe('advancedCapability groups', () => {
+  it('puts every capability in exactly one group', () => {
+    // a capability that fell out of every group would vanish from the
+    // Settings list with nothing to show it had happened
+    const seen = new Map<string, number>();
+    for (const group of ADVANCED_CAPABILITY_GROUPS) {
+      for (const capability of group.capabilities) {
+        seen.set(capability, (seen.get(capability) ?? 0) + 1);
+      }
+    }
+
+    for (const capability of ALL_ADVANCED_CAPABILITIES) {
+      expect(seen.get(capability)).toBe(1);
+    }
+    expect(seen.size).toBe(ALL_ADVANCED_CAPABILITIES.length);
+  });
+
+  it('lists only real capabilities in a group', () => {
+    const known = new Set<string>(ALL_ADVANCED_CAPABILITIES);
+    for (const group of ADVANCED_CAPABILITY_GROUPS) {
+      for (const capability of group.capabilities) {
+        expect(known.has(capability)).toBe(true);
+      }
+    }
+  });
+
+  it('gives every group a title and a description', () => {
+    for (const group of ADVANCED_CAPABILITY_GROUPS) {
+      expect(group.title).toBeTruthy();
+      expect(group.description).toBeTruthy();
+    }
+  });
+
+  it('keeps a group title from colliding with a capability label', () => {
+    // the Settings list shows both, and a group titled the same as one of
+    // its own controls makes the two impossible to tell apart
+    const labels = new Set(Object.values(ADVANCED_CAPABILITY_LABELS));
+    for (const group of ADVANCED_CAPABILITY_GROUPS) {
+      expect(labels.has(group.title)).toBe(false);
+    }
+  });
+
+  it('covers the whole registry in group order', () => {
+    expect(new Set(ALL_ADVANCED_CAPABILITIES_IN_GROUP_ORDER)).toEqual(
+      new Set(ALL_ADVANCED_CAPABILITIES),
+    );
+    expect(ALL_ADVANCED_CAPABILITIES_IN_GROUP_ORDER.length).toBe(
+      ALL_ADVANCED_CAPABILITIES.length,
     );
   });
 });
@@ -111,7 +165,7 @@ describe('parseAdvancedCapabilities', () => {
 });
 
 describe('serializeAdvancedCapabilities', () => {
-  it('sorts the result into registry order', () => {
+  it('sorts the result into group order', () => {
     const serialized = serializeAdvancedCapabilities([
       ADVANCED_CAPABILITIES.inventoryDelete,
       ADVANCED_CAPABILITIES.journalReverse,

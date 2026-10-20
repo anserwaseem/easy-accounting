@@ -141,6 +141,122 @@ export const ALL_ADVANCED_CAPABILITIES: readonly AdvancedCapability[] =
   Object.values(ADVANCED_CAPABILITIES);
 
 /**
+ * A group of related capabilities, for the Settings list.
+ *
+ * The owner reading this list is looking for "the one about returning
+ * invoices" among two dozen switches. Grouping by what the action is about
+ * is what makes the list findable; a flat list in registry order is not.
+ */
+export interface AdvancedCapabilityGroup {
+  /** Stable id, used as a React key and for the group heading. */
+  id: string;
+  /** What the group is about, in the owner's words. */
+  title: string;
+  /** One line saying what these controls have in common. */
+  description: string;
+  /** The capabilities in this group, in the order they should be listed. */
+  capabilities: readonly AdvancedCapability[];
+}
+
+/**
+ * The Settings list, grouped.
+ *
+ * This is the single source of truth for the order capabilities appear in.
+ * Every capability in the registry appears in exactly one group, and the
+ * groups together cover the whole registry; a test enforces both, because a
+ * capability that fell out of every group would silently vanish from the
+ * Settings list with nothing to show it had happened.
+ */
+export const ADVANCED_CAPABILITY_GROUPS: readonly AdvancedCapabilityGroup[] = [
+  {
+    id: 'journals',
+    title: 'Journals',
+    description: 'What can be done to a journal after it is posted.',
+    capabilities: [
+      ADVANCED_CAPABILITIES.journalReverse,
+      ADVANCED_CAPABILITIES.journalDelete,
+      ADVANCED_CAPABILITIES.journalEditFields,
+    ],
+  },
+  {
+    id: 'invoices',
+    title: 'Invoices',
+    description: 'What can be done to a posted invoice.',
+    capabilities: [
+      ADVANCED_CAPABILITIES.invoiceReturnSale,
+      ADVANCED_CAPABILITIES.invoiceReturnPurchase,
+    ],
+  },
+  {
+    id: 'accounts',
+    title: 'Accounts',
+    description: 'Changes to the people and companies on your books.',
+    capabilities: [
+      ADVANCED_CAPABILITIES.accountDelete,
+      ADVANCED_CAPABILITIES.accountToggleActive,
+      ADVANCED_CAPABILITIES.accountTrackVendorStock,
+      ADVANCED_CAPABILITIES.accountCollectionRole,
+    ],
+  },
+  {
+    id: 'inventory',
+    title: 'Inventory and stock',
+    description: 'Changes to your items and how much stock you have.',
+    capabilities: [
+      ADVANCED_CAPABILITIES.inventoryDelete,
+      ADVANCED_CAPABILITIES.inventoryToggleActive,
+      ADVANCED_CAPABILITIES.inventoryAdjustStock,
+      ADVANCED_CAPABILITIES.inventorySetOpeningStock,
+      ADVANCED_CAPABILITIES.inventoryCatalogHold,
+    ],
+  },
+  {
+    id: 'vendorStock',
+    title: 'Vendor stock',
+    description: 'Changes to the stock you have left at your vendors.',
+    capabilities: [
+      ADVANCED_CAPABILITIES.vendorStockDelete,
+      ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+    ],
+  },
+  {
+    id: 'commissions',
+    title: 'Commissions',
+    description:
+      'The whole agent commission module, and reversing a settlement.',
+    capabilities: [
+      ADVANCED_CAPABILITIES.commissionModule,
+      ADVANCED_CAPABILITIES.commissionUnpostSettlement,
+    ],
+  },
+  {
+    id: 'pricing',
+    title: 'Pricing',
+    description: 'Changes to the pricing policies on your accounts.',
+    capabilities: [ADVANCED_CAPABILITIES.pricingDeletePolicy],
+  },
+  {
+    id: 'data',
+    title: 'Data and devices',
+    description: 'Actions that replace what is on this device.',
+    capabilities: [
+      ADVANCED_CAPABILITIES.syncRebuild,
+      ADVANCED_CAPABILITIES.dataImport,
+    ],
+  },
+];
+
+/**
+ * Every capability id, in the order the groups list them.
+ *
+ * Same set as {@link ALL_ADVANCED_CAPABILITIES}, which is the registry
+ * order; this one is the reading order. Storage serialization uses this
+ * so the stored value follows what the owner sees.
+ */
+export const ALL_ADVANCED_CAPABILITIES_IN_GROUP_ORDER: readonly AdvancedCapability[] =
+  ADVANCED_CAPABILITY_GROUPS.flatMap((group) => [...group.capabilities]);
+
+/**
  * The capabilities that change or destroy financial records.
  *
  * Two things depend on this list, and they are different:
@@ -240,6 +356,9 @@ export const parseAdvancedCapabilities = (
  * Normalizes a capability set for storage: the `all` sentinel collapses
  * to the full list, and the result is sorted so the stored value is
  * stable regardless of the order the user toggled things in.
+ *
+ * The order is the group order, which is the order the Settings list
+ * shows, so the stored value reads the way the owner sees it.
  */
 export const serializeAdvancedCapabilities = (
   capabilities: Iterable<AdvancedCapability>,
@@ -255,7 +374,9 @@ export const serializeAdvancedCapabilities = (
     }
     if (CAPABILITY_IDS.has(capability)) expanded.add(capability);
   }
-  return ALL_ADVANCED_CAPABILITIES.filter((c) => expanded.has(c));
+  return ALL_ADVANCED_CAPABILITIES_IN_GROUP_ORDER.filter((c) =>
+    expanded.has(c),
+  );
 };
 
 /** Whether `capability` is in `enabled`. */
