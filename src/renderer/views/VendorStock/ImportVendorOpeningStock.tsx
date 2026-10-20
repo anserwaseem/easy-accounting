@@ -13,6 +13,8 @@ import {
   DialogTrigger,
 } from '@/renderer/shad/ui/dialog';
 import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { FILE_UPLOAD_HINT_VENDOR_OPENING_STOCK } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import { parseVendorOpeningStock } from '@/renderer/lib/parser';
@@ -118,123 +120,131 @@ export const ImportVendorOpeningStock: React.FC<
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <PackageOpen size={16} className="mr-1.5" />
-          Set starting qty
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle>Set starting qty at vendors</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="vendorOpeningAsOf">As of date</Label>
-            <Input
-              id="vendorOpeningAsOf"
-              type="date"
-              value={asOfDate}
-              onChange={(ev) => setAsOfDate(ev.target.value)}
-            />
-          </div>
-          <div className="flex items-start gap-2">
-            <Checkbox
-              id="vendorOpeningReset"
-              checked={resetOthersToZero}
-              onCheckedChange={(checked) =>
-                setResetOthersToZero(checked === true)
-              }
-            />
-            <Label htmlFor="vendorOpeningReset" className="font-normal">
-              For each vendor in the file, set items not listed to 0
-              {resetOthersToZero ? (
-                <span className="mt-1 block text-destructive">
-                  Warning: other items at those vendors will be zeroed.
-                </span>
-              ) : null}
-            </Label>
-          </div>
-          <FileUploadTooltip content={FILE_UPLOAD_HINT_VENDOR_OPENING_STOCK}>
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={() =>
-                document.getElementById('vendorOpeningStockInput')?.click()
-              }
-            >
-              {previewRows.length
-                ? 'Choose a different file'
-                : 'Choose Excel / CSV'}
-            </Button>
-          </FileUploadTooltip>
-          <input
-            id="vendorOpeningStockInput"
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-
-          {previewRows.length > 0 && (
+    <AdvancedControl
+      capability={ADVANCED_CAPABILITIES.vendorStockSetOpeningStock}
+    >
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <PackageOpen size={16} className="mr-1.5" />
+            Set starting qty
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Set starting qty at vendors</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Preview: {previewSummary.rowCount} rows,{' '}
-                {previewSummary.vendorCount} vendor(s). Nothing written yet.
-              </p>
-              <div className="max-h-48 overflow-auto rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-muted/80">
-                    <tr>
-                      <th className="px-2 py-1 text-left font-medium">
-                        Vendor
-                      </th>
-                      <th className="px-2 py-1 text-left font-medium">Item</th>
-                      <th className="px-2 py-1 text-right font-medium">Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewRows.slice(0, 50).map((row, index) => (
-                      // preview rows have no stable id; index is fine for ephemeral list
-                      // eslint-disable-next-line react/no-array-index-key
-                      <tr key={`${row.name}-${index}`} className="border-t">
-                        <td className="px-2 py-1">
-                          {row.vendorCode || row.vendorName}
-                        </td>
-                        <td className="px-2 py-1">{row.name}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">
-                          {row.quantity}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {previewRows.length > 50 && (
-                <p className="text-xs text-muted-foreground">
-                  Showing first 50 of {previewRows.length} rows.
-                </p>
-              )}
+              <Label htmlFor="vendorOpeningAsOf">As of date</Label>
+              <Input
+                id="vendorOpeningAsOf"
+                type="date"
+                value={asOfDate}
+                onChange={(ev) => setAsOfDate(ev.target.value)}
+              />
             </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => handleOpenChange(false)}
-            disabled={importing}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmImport}
-            disabled={!previewRows.length || importing}
-          >
-            Confirm import
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="vendorOpeningReset"
+                checked={resetOthersToZero}
+                onCheckedChange={(checked) =>
+                  setResetOthersToZero(checked === true)
+                }
+              />
+              <Label htmlFor="vendorOpeningReset" className="font-normal">
+                For each vendor in the file, set items not listed to 0
+                {resetOthersToZero ? (
+                  <span className="mt-1 block text-destructive">
+                    Warning: other items at those vendors will be zeroed.
+                  </span>
+                ) : null}
+              </Label>
+            </div>
+            <FileUploadTooltip content={FILE_UPLOAD_HINT_VENDOR_OPENING_STOCK}>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() =>
+                  document.getElementById('vendorOpeningStockInput')?.click()
+                }
+              >
+                {previewRows.length
+                  ? 'Choose a different file'
+                  : 'Choose Excel / CSV'}
+              </Button>
+            </FileUploadTooltip>
+            <input
+              id="vendorOpeningStockInput"
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {previewRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Preview: {previewSummary.rowCount} rows,{' '}
+                  {previewSummary.vendorCount} vendor(s). Nothing written yet.
+                </p>
+                <div className="max-h-48 overflow-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-muted/80">
+                      <tr>
+                        <th className="px-2 py-1 text-left font-medium">
+                          Vendor
+                        </th>
+                        <th className="px-2 py-1 text-left font-medium">
+                          Item
+                        </th>
+                        <th className="px-2 py-1 text-right font-medium">
+                          Qty
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewRows.slice(0, 50).map((row, index) => (
+                        // preview rows have no stable id; index is fine for ephemeral list
+                        // eslint-disable-next-line react/no-array-index-key
+                        <tr key={`${row.name}-${index}`} className="border-t">
+                          <td className="px-2 py-1">
+                            {row.vendorCode || row.vendorName}
+                          </td>
+                          <td className="px-2 py-1">{row.name}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">
+                            {row.quantity}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {previewRows.length > 50 && (
+                  <p className="text-xs text-muted-foreground">
+                    Showing first 50 of {previewRows.length} rows.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => handleOpenChange(false)}
+              disabled={importing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmImport}
+              disabled={!previewRows.length || importing}
+            >
+              Confirm import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AdvancedControl>
   );
 };

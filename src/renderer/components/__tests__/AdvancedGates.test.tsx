@@ -62,6 +62,33 @@ describe('AdvancedControl', () => {
 
     expect(await screen.findByText('Agent Commissions')).toBeInTheDocument();
   });
+
+  it('hides "Set opening stock" when that capability is off', async () => {
+    renderWith(
+      <AdvancedControl
+        capability={ADVANCED_CAPABILITIES.inventorySetOpeningStock}
+      >
+        <button type="button">Set opening stock</button>
+      </AdvancedControl>,
+      [],
+    );
+
+    await waitFor(() => expect(getAdvancedCapabilities).toHaveBeenCalled());
+    expect(screen.queryByText('Set opening stock')).not.toBeInTheDocument();
+  });
+
+  it('shows "Set starting qty" when that capability is on', async () => {
+    renderWith(
+      <AdvancedControl
+        capability={ADVANCED_CAPABILITIES.vendorStockSetOpeningStock}
+      >
+        <button type="button">Set starting qty</button>
+      </AdvancedControl>,
+      [ADVANCED_CAPABILITIES.vendorStockSetOpeningStock],
+    );
+
+    expect(await screen.findByText('Set starting qty')).toBeInTheDocument();
+  });
 });
 
 describe('AdvancedRoute', () => {

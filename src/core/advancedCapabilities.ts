@@ -78,10 +78,14 @@ export const ADVANCED_CAPABILITIES = {
   inventoryToggleActive: 'inventory.toggleActive',
   /** Write a manual stock adjustment. */
   inventoryAdjustStock: 'inventory.adjustStock',
+  /** Restate warehouse opening stock from a spreadsheet. */
+  inventorySetOpeningStock: 'inventory.setOpeningStock',
   /** Keep an item out of, or put it into, the published catalog. */
   inventoryCatalogHold: 'inventory.catalogHold',
   /** Delete a send-to-vendor issue. */
   vendorStockDelete: 'vendorStock.delete',
+  /** Restate consignment opening stock at vendors from a spreadsheet. */
+  vendorStockSetOpeningStock: 'vendorStock.setOpeningStock',
   /** The whole agent-commission module: report, rates, settlement posting. */
   commissionModule: 'commission.module',
   /** Unpost a frozen agent-commission settlement. */
@@ -118,9 +122,12 @@ export const ADVANCED_CAPABILITY_LABELS: Record<AdvancedCapability, string> = {
   [ADVANCED_CAPABILITIES.inventoryDelete]: 'Delete an inventory item',
   [ADVANCED_CAPABILITIES.inventoryToggleActive]: 'Deactivate an inventory item',
   [ADVANCED_CAPABILITIES.inventoryAdjustStock]: 'Adjust stock by hand',
+  [ADVANCED_CAPABILITIES.inventorySetOpeningStock]: 'Set opening stock',
   [ADVANCED_CAPABILITIES.inventoryCatalogHold]:
     'Keep an item out of the published catalog',
   [ADVANCED_CAPABILITIES.vendorStockDelete]: 'Delete a send to a vendor',
+  [ADVANCED_CAPABILITIES.vendorStockSetOpeningStock]:
+    'Set starting qty at vendors',
   [ADVANCED_CAPABILITIES.commissionModule]: 'Agent commissions',
   [ADVANCED_CAPABILITIES.commissionUnpostSettlement]:
     'Unpost an agent settlement',
@@ -147,9 +154,16 @@ export const ALL_ADVANCED_CAPABILITIES: readonly AdvancedCapability[] =
  *    much damage the action does once it is allowed.
  *
  * Reversing a journal, deleting one, returning a posted invoice, deleting
- * an account or an item, adjusting stock by hand, and unposting a
- * settlement all leave the books in a state the owner cannot trivially get
- * back. Editing a journal's narration or deactivating an account does not.
+ * an account or an item, adjusting stock by hand, restating opening stock,
+ * and unposting a settlement all leave the books in a state the owner cannot
+ * trivially get back. Editing a journal's narration or deactivating an
+ * account does not.
+ *
+ * Restating opening stock is here for a specific reason: its "set the
+ * quantity of everything not in the file to 0" option zeroes out stock the
+ * owner may have recorded by hand since, and there is no undo for it.
+ * Turning the whole capability on asks for confirmation for that reason,
+ * even though a plain import with the option off is only a bulk write.
  */
 export const DESTRUCTIVE_ADVANCED_CAPABILITIES: readonly AdvancedCapability[] =
   [
@@ -160,7 +174,9 @@ export const DESTRUCTIVE_ADVANCED_CAPABILITIES: readonly AdvancedCapability[] =
     ADVANCED_CAPABILITIES.accountDelete,
     ADVANCED_CAPABILITIES.inventoryDelete,
     ADVANCED_CAPABILITIES.inventoryAdjustStock,
+    ADVANCED_CAPABILITIES.inventorySetOpeningStock,
     ADVANCED_CAPABILITIES.vendorStockDelete,
+    ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
     ADVANCED_CAPABILITIES.commissionUnpostSettlement,
   ];
 

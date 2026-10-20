@@ -1108,12 +1108,14 @@ async function main(): Promise<void> {
         rows as Parameters<InventoryService['applyListPositions']>[0],
       ),
     getOpeningStock: () => inventoryService.getOpeningStock(),
-    setOpeningStock: (items, asOfDate, resetOthersToZero) =>
-      inventoryService.setOpeningStock(
+    setOpeningStock: (items, asOfDate, resetOthersToZero) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventorySetOpeningStock);
+      return inventoryService.setOpeningStock(
         items as Parameters<InventoryService['setOpeningStock']>[0],
         asOfDate as string | undefined,
         resetOthersToZero as boolean | undefined,
-      ),
+      );
+    },
     applyStockAdjustment: (payload) => {
       requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryAdjustStock);
       return inventoryService.applyStockAdjustment(
@@ -1255,19 +1257,27 @@ async function main(): Promise<void> {
       items,
       asOfDate,
       resetOthersToZero,
-    ) =>
-      vendorStockService.setOpeningStock(
+    ) => {
+      requireAdvancedCapability(
+        ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+      );
+      return vendorStockService.setOpeningStock(
         vendorAccountId as number,
         items as Parameters<VendorStockService['setOpeningStock']>[1],
         asOfDate as string,
         resetOthersToZero as boolean | undefined,
-      ),
-    importVendorOpeningStock: (rows, asOfDate, resetOthersToZero) =>
-      vendorStockService.importOpeningStock(
+      );
+    },
+    importVendorOpeningStock: (rows, asOfDate, resetOthersToZero) => {
+      requireAdvancedCapability(
+        ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+      );
+      return vendorStockService.importOpeningStock(
         rows as Parameters<VendorStockService['importOpeningStock']>[0],
         asOfDate as string,
         resetOthersToZero as boolean | undefined,
-      ),
+      );
+    },
     getNextVendorIssueNumber: () => vendorStockService.getNextIssueNumber(),
     createVendorIssue: (payload) =>
       vendorStockService.createIssue(

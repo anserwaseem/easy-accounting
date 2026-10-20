@@ -913,7 +913,16 @@ app
         items: SetOpeningStockItem[],
         asOfDate?: string,
         resetOthersToZero?: boolean,
-      ) => inventoryService.setOpeningStock(items, asOfDate, resetOthersToZero),
+      ) => {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.inventorySetOpeningStock,
+        );
+        return inventoryService.setOpeningStock(
+          items,
+          asOfDate,
+          resetOthersToZero,
+        );
+      },
     );
     ipcMain.handle(
       'inventory:applyStockAdjustment',
@@ -1251,13 +1260,17 @@ app
         items: Array<{ name: string; quantity: number }>,
         asOfDate: string,
         resetOthersToZero?: boolean,
-      ) =>
-        vendorStockService.setOpeningStock(
+      ) => {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+        );
+        return vendorStockService.setOpeningStock(
           vendorAccountId,
           items,
           asOfDate,
           resetOthersToZero,
-        ),
+        );
+      },
     );
 
     ipcMain.handle(
@@ -1267,12 +1280,16 @@ app
         rows: VendorStockOpeningRow[],
         asOfDate: string,
         resetOthersToZero?: boolean,
-      ) =>
-        vendorStockService.importOpeningStock(
+      ) => {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+        );
+        return vendorStockService.importOpeningStock(
           rows,
           asOfDate,
           resetOthersToZero,
-        ),
+        );
+      },
     );
 
     ipcMain.handle('vendorStock:getNextIssueNumber', () =>

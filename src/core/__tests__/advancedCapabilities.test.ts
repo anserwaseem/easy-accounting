@@ -43,6 +43,17 @@ describe('advancedCapabilities registry', () => {
       ADVANCED_CAPABILITIES.commissionModule,
     );
   });
+
+  it('treats restating opening stock as destructive', () => {
+    // the "set everything else to 0" option zeroes out stock the owner
+    // recorded by hand since the last import, and there is no undo
+    expect(DESTRUCTIVE_ADVANCED_CAPABILITIES).toContain(
+      ADVANCED_CAPABILITIES.inventorySetOpeningStock,
+    );
+    expect(DESTRUCTIVE_ADVANCED_CAPABILITIES).toContain(
+      ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+    );
+  });
 });
 
 describe('parseAdvancedCapabilities', () => {
