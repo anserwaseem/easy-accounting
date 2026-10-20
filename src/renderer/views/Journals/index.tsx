@@ -25,6 +25,7 @@ import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDi
 import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
 import { DeleteJournalDialog } from '@/renderer/components/DeleteJournalDialog';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { useAnyAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabilities';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
@@ -76,6 +77,15 @@ const JournalsPage: React.FC<HasMiniView> = ({
     },
     [handleReloadJournals],
   );
+
+  // the Actions column holds nothing but advanced controls, so when they
+  // are all off the column itself goes away rather than sitting there
+  // empty with a header over it
+  const hasJournalActions = useAnyAdvancedCapability([
+    ADVANCED_CAPABILITIES.journalEditFields,
+    ADVANCED_CAPABILITIES.journalReverse,
+    ADVANCED_CAPABILITIES.journalDelete,
+  ]);
 
   const columns: ColumnDef<JournalView>[] = useMemo(
     () =>
@@ -244,6 +254,16 @@ const JournalsPage: React.FC<HasMiniView> = ({
     [isMini, navigate, handleUpdateJournal, handleReloadJournals],
   );
 
+  // drop the Actions column entirely when every control in it is hidden:
+  // an empty column with a header over it reads as a broken table
+  const visibleColumns = useMemo(
+    () =>
+      hasJournalActions
+        ? columns
+        : columns.filter((column) => column.id !== 'actions'),
+    [columns, hasJournalActions],
+  );
+
   const handleFilterDateSelect = useCallback(
     (dateRange?: DateRange, selectValue?: string) => {
       if (selectValue) setJournalFilterSelectValue(selectValue);
@@ -344,7 +364,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
       <div className="py-8 flex flex-col gap-6">
         <DataTable
-          columns={columns}
+          columns={visibleColumns}
           data={filteredJournals}
           sortingFns={defaultSortingFunctions}
           defaultSortField="date"

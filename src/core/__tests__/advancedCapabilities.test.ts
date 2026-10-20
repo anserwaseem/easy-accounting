@@ -27,6 +27,22 @@ describe('advancedCapabilities registry', () => {
       expect(known.has(capability)).toBe(true);
     }
   });
+
+  it('treats unposting a settlement as destructive', () => {
+    // unposting deletes a frozen snapshot and its journal entry, so it
+    // must ask for confirmation before it is turned on
+    expect(DESTRUCTIVE_ADVANCED_CAPABILITIES).toContain(
+      ADVANCED_CAPABILITIES.commissionUnpostSettlement,
+    );
+  });
+
+  it('does not treat the whole commission module as destructive', () => {
+    // the module itself only reads and posts a settlement the owner
+    // reviews; unposting the settlement is the destructive part
+    expect(DESTRUCTIVE_ADVANCED_CAPABILITIES).not.toContain(
+      ADVANCED_CAPABILITIES.commissionModule,
+    );
+  });
 });
 
 describe('parseAdvancedCapabilities', () => {

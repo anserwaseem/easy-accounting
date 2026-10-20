@@ -26,6 +26,8 @@ import {
 } from 'types';
 import type { CellContext, Row } from '@tanstack/react-table';
 import { cn, defaultSortingFunctions } from 'renderer/lib/utils';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import {
   Popover,
   PopoverContent,
@@ -726,11 +728,15 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onSelect={() => setShowCommissionSheet(true)}
+                    <AdvancedControl
+                      capability={ADVANCED_CAPABILITIES.commissionModule}
                     >
-                      Agent Commissions
-                    </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => setShowCommissionSheet(true)}
+                      >
+                        Agent Commissions
+                      </DropdownMenuItem>
+                    </AdvancedControl>
                     <ImportExportAccountUrdu
                       accounts={accounts}
                       refetchAccounts={refetchAccounts}

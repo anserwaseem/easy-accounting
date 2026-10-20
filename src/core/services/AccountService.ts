@@ -151,6 +151,12 @@ const SQL = {
       FROM journal_entry
       WHERE accountId = @accountId
     `,
+  getAccountAdvancedFields: `
+      SELECT COALESCE(tracksVendorStock, 0) AS tracksVendorStock,
+             collectionRole
+      FROM account
+      WHERE id = @accountId
+    `,
   deleteAccount: `
       DELETE FROM account
       WHERE id = @accountId
@@ -539,6 +545,30 @@ export class AccountService {
       accountId,
     });
     return Boolean(result && result.count > 0);
+  }
+
+  /**
+   * The account's current stock-tracking and collection-role values.
+   *
+   * Read separately because `updateAccount` writes those two fields in the
+   * same statement as the ordinary ones (name, phone, address...), and the
+   * caller needs to know whether a payload is *changing* an advanced field
+   * or merely carrying the current value back unchanged. A rename of an
+   * account must not need the advanced flag; a toggle of "counts as
+   * collection" must.
+   */
+  async getAccountAdvancedFields(accountId: number): Promise<{
+    tracksVendorStock: boolean;
+    collectionRole: AccountCollectionRole | null;
+  }> {
+    const row = await this.db.get<{
+      tracksVendorStock: number | boolean | null;
+      collectionRole: AccountCollectionRole | null;
+    }>(SQL.getAccountAdvancedFields, { accountId });
+    return {
+      tracksVendorStock: Boolean(row?.tracksVendorStock),
+      collectionRole: row?.collectionRole ?? null,
+    };
   }
 
   async deleteAccount(accountId: number): Promise<boolean> {

@@ -357,39 +357,43 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
               />
             </InventoryForm>
             {showPublishControls ? (
-              <div className="flex items-center gap-2 border-t pt-3">
-                <Checkbox
-                  id={`exclude-${row.original.id}`}
-                  checked={excluded}
-                  onCheckedChange={(checked) =>
-                    onToggleExcluded(checked === true)
-                  }
-                />
-                <div className="flex items-center gap-1.5">
-                  <Label
-                    htmlFor={`exclude-${row.original.id}`}
-                    className="cursor-pointer text-sm font-normal"
-                  >
-                    Keep out of the published catalog
-                  </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex cursor-pointer items-center text-muted-foreground hover:text-foreground">
-                        <Info className="h-3.5 w-3.5" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      align="start"
-                      className="max-w-xs text-xs"
+              <AdvancedControl
+                capability={ADVANCED_CAPABILITIES.inventoryCatalogHold}
+              >
+                <div className="flex items-center gap-2 border-t pt-3">
+                  <Checkbox
+                    id={`exclude-${row.original.id}`}
+                    checked={excluded}
+                    onCheckedChange={(checked) =>
+                      onToggleExcluded(checked === true)
+                    }
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <Label
+                      htmlFor={`exclude-${row.original.id}`}
+                      className="cursor-pointer text-sm font-normal"
                     >
-                      Applies immediately. The item stays in your inventory and
-                      invoices; it just never goes on sale online, even with a
-                      price and a photo.
-                    </TooltipContent>
-                  </Tooltip>
+                      Keep out of the published catalog
+                    </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex cursor-pointer items-center text-muted-foreground hover:text-foreground">
+                          <Info className="h-3.5 w-3.5" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        align="start"
+                        className="max-w-xs text-xs"
+                      >
+                        Applies immediately. The item stays in your inventory
+                        and invoices; it just never goes on sale online, even
+                        with a price and a photo.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
-              </div>
+              </AdvancedControl>
             ) : null}
             <div className="space-y-1.5 border-t pt-3">
               <div className="flex items-center gap-1.5">

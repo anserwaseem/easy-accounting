@@ -25,6 +25,8 @@ import {
 } from 'renderer/shad/ui/select';
 import { cn } from 'renderer/lib/utils';
 import { isDefaultReceiptHead } from '@/core/utils/receiptAccounts';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 
 const COLLECTION_ROLE_OPTIONS = ['default', 'receipt', 'exclude'] as const;
 type CollectionRoleOption = (typeof COLLECTION_ROLE_OPTIONS)[number];
@@ -534,60 +536,68 @@ export const AccountForm: React.FC<AccountFormProps> = ({
         </div>
 
         {/* Vendor Stock Tracking Checkbox */}
-        <FormField
-          control={form.control}
-          name="tracksVendorStock"
-          render={({ field }) => (
-            <FormItem className="pt-0.5">
-              <div className="flex items-start gap-2.5">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={(checked) =>
-                      field.onChange(checked === true)
-                    }
-                    className="mt-0.5"
-                  />
-                </FormControl>
-                <div className="space-y-0.5">
-                  <FormLabel className="cursor-pointer text-xs font-normal text-foreground">
-                    Track stock at this vendor
-                  </FormLabel>
-                  <p className="text-[11px] leading-snug text-muted-foreground">
-                    Count goods held here until repurchased. Leave off for
-                    agents booking consignment returns.
-                  </p>
-                </div>
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="collectionRole"
-          render={({ field }) => (
-            <FormItem className="py-1">
-              <div className="flex items-center justify-between gap-3">
-                <FormLabel>Counts as collection</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
+        <AdvancedControl
+          capability={ADVANCED_CAPABILITIES.accountTrackVendorStock}
+        >
+          <FormField
+            control={form.control}
+            name="tracksVendorStock"
+            render={({ field }) => (
+              <FormItem className="pt-0.5">
+                <div className="flex items-start gap-2.5">
                   <FormControl>
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked) =>
+                        field.onChange(checked === true)
+                      }
+                      className="mt-0.5"
+                    />
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="default">Default</SelectItem>
-                    <SelectItem value="receipt">Always</SelectItem>
-                    <SelectItem value="exclude">Never</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <CollectionRoleHint control={form.control} charts={charts} />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                  <div className="space-y-0.5">
+                    <FormLabel className="cursor-pointer text-xs font-normal text-foreground">
+                      Track stock at this vendor
+                    </FormLabel>
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      Count goods held here until repurchased. Leave off for
+                      agents booking consignment returns.
+                    </p>
+                  </div>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </AdvancedControl>
+        <AdvancedControl
+          capability={ADVANCED_CAPABILITIES.accountCollectionRole}
+        >
+          <FormField
+            control={form.control}
+            name="collectionRole"
+            render={({ field }) => (
+              <FormItem className="py-1">
+                <div className="flex items-center justify-between gap-3">
+                  <FormLabel>Counts as collection</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="default">Default</SelectItem>
+                      <SelectItem value="receipt">Always</SelectItem>
+                      <SelectItem value="exclude">Never</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <CollectionRoleHint control={form.control} charts={charts} />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </AdvancedControl>
 
         {/* Discount Policy with Non-Overpowering Edit Button */}
         {(initialValues?.discountProfileName ||

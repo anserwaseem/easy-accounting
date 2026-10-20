@@ -588,11 +588,53 @@ app
       ): Promise<AccountCodeConflict[]> =>
         accountService.findAccountCodeConflicts(code, excludeAccountId),
     );
-    ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
-      accountService.insertAccount(account),
+    ipcMain.handle(
+      'account:insertAccount',
+      async (_, account: InsertAccount) => {
+        // a new account starts with the advanced fields off, so creating one
+        // with them already set is the same action as turning them on
+        if (account.tracksVendorStock) {
+          requireAdvancedCapability(
+            ADVANCED_CAPABILITIES.accountTrackVendorStock,
+          );
+        }
+        if (account.collectionRole) {
+          requireAdvancedCapability(
+            ADVANCED_CAPABILITIES.accountCollectionRole,
+          );
+        }
+        return accountService.insertAccount(account);
+      },
     );
-    ipcMain.handle('account:updateAccount', async (_, account: UpdateAccount) =>
-      accountService.updateAccount(account),
+    ipcMain.handle(
+      'account:updateAccount',
+      async (_, account: UpdateAccount) => {
+        // This one call writes both advanced account fields alongside the
+        // ordinary ones (name, phone, address...), so the guard compares
+        // against what is already stored: a rename must keep working without
+        // the flag, while a change to "track stock" or "counts as collection"
+        // must not.
+        const advanced = await accountService.getAccountAdvancedFields(
+          account.id!,
+        );
+        if (
+          account.tracksVendorStock !== undefined &&
+          account.tracksVendorStock !== advanced.tracksVendorStock
+        ) {
+          requireAdvancedCapability(
+            ADVANCED_CAPABILITIES.accountTrackVendorStock,
+          );
+        }
+        if (
+          account.collectionRole !== undefined &&
+          account.collectionRole !== advanced.collectionRole
+        ) {
+          requireAdvancedCapability(
+            ADVANCED_CAPABILITIES.accountCollectionRole,
+          );
+        }
+        return accountService.updateAccount(account);
+      },
     );
     ipcMain.handle(
       'account:bulkUpdateUrduFields',
@@ -621,8 +663,10 @@ app
     );
     ipcMain.handle(
       'account:setCollectionRole',
-      (_, accountId: number, role: AccountCollectionRole | null) =>
-        accountService.setCollectionRole(accountId, role),
+      (_, accountId: number, role: AccountCollectionRole | null) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.accountCollectionRole);
+        return accountService.setCollectionRole(accountId, role);
+      },
     );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) => {
@@ -800,8 +844,10 @@ app
     );
     ipcMain.handle(
       'inventory:setExcludedFromCatalog',
-      (_, id: number, excluded: boolean) =>
-        inventoryService.setItemExcludedFromCatalog(id, excluded),
+      (_, id: number, excluded: boolean) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryCatalogHold);
+        return inventoryService.setItemExcludedFromCatalog(id, excluded);
+      },
     );
     ipcMain.handle(
       'inventory:updateAttributes',
@@ -1264,32 +1310,50 @@ app
         vendorStockService.getActivity(filters),
     );
 
-    ipcMain.handle('commission:getConfig', async (_, chartId: number) =>
-      commissionService.getCommissionConfig(chartId),
-    );
+    ipcMain.handle('commission:getConfig', async (_, chartId: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.getCommissionConfig(chartId);
+    });
 
     ipcMain.handle(
       'commission:saveConfig',
-      async (_, config: AgentCommissionConfig) =>
-        commissionService.saveCommissionConfig(config),
+      async (_, config: AgentCommissionConfig) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+        return commissionService.saveCommissionConfig(config);
+      },
     );
 
     ipcMain.handle(
       'commission:getReport',
-      async (_, chartId: number, startDate: string, endDate: string) =>
-        commissionService.getCommissionReport(chartId, startDate, endDate),
+      async (_, chartId: number, startDate: string, endDate: string) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+        return commissionService.getCommissionReport(
+          chartId,
+          startDate,
+          endDate,
+        );
+      },
     );
 
     ipcMain.handle(
       'commission:postSettlement',
-      async (_, payload: PostCommissionSettlementPayload) =>
-        commissionService.postCommissionSettlement(payload),
+      async (_, payload: PostCommissionSettlementPayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+        return commissionService.postCommissionSettlement(payload);
+      },
     );
 
     ipcMain.handle(
       'commission:unpostSettlement',
-      async (_, settlementId: number) =>
-        commissionService.unpostCommissionSettlement(settlementId),
+      async (_, settlementId: number) => {
+        // two gates: the whole module, and the extra one for the destructive
+        // unpost. Turning the module on does not turn unposting on.
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.commissionUnpostSettlement,
+        );
+        return commissionService.unpostCommissionSettlement(settlementId);
+      },
     );
 
     createWindow();

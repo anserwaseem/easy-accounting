@@ -68,14 +68,22 @@ export const ADVANCED_CAPABILITIES = {
   accountDelete: 'account.delete',
   /** Deactivate or reactivate an account. */
   accountToggleActive: 'account.toggleActive',
+  /** Turn stock-at-vendor tracking on or off for an account. */
+  accountTrackVendorStock: 'account.trackVendorStock',
+  /** Change whether an account's sales count as collection. */
+  accountCollectionRole: 'account.collectionRole',
   /** Delete an inventory item. */
   inventoryDelete: 'inventory.delete',
   /** Deactivate or reactivate an inventory item. */
   inventoryToggleActive: 'inventory.toggleActive',
   /** Write a manual stock adjustment. */
   inventoryAdjustStock: 'inventory.adjustStock',
+  /** Keep an item out of, or put it into, the published catalog. */
+  inventoryCatalogHold: 'inventory.catalogHold',
   /** Delete a send-to-vendor issue. */
   vendorStockDelete: 'vendorStock.delete',
+  /** The whole agent-commission module: report, rates, settlement posting. */
+  commissionModule: 'commission.module',
   /** Unpost a frozen agent-commission settlement. */
   commissionUnpostSettlement: 'commission.unpostSettlement',
   /** Delete a discount profile / pricing policy. */
@@ -104,10 +112,16 @@ export const ADVANCED_CAPABILITY_LABELS: Record<AdvancedCapability, string> = {
   [ADVANCED_CAPABILITIES.invoiceReturnPurchase]: 'Return a purchase invoice',
   [ADVANCED_CAPABILITIES.accountDelete]: 'Delete an account',
   [ADVANCED_CAPABILITIES.accountToggleActive]: 'Deactivate an account',
+  [ADVANCED_CAPABILITIES.accountTrackVendorStock]: 'Track stock at a vendor',
+  [ADVANCED_CAPABILITIES.accountCollectionRole]:
+    'Set what counts as a collection',
   [ADVANCED_CAPABILITIES.inventoryDelete]: 'Delete an inventory item',
   [ADVANCED_CAPABILITIES.inventoryToggleActive]: 'Deactivate an inventory item',
   [ADVANCED_CAPABILITIES.inventoryAdjustStock]: 'Adjust stock by hand',
+  [ADVANCED_CAPABILITIES.inventoryCatalogHold]:
+    'Keep an item out of the published catalog',
   [ADVANCED_CAPABILITIES.vendorStockDelete]: 'Delete a send to a vendor',
+  [ADVANCED_CAPABILITIES.commissionModule]: 'Agent commissions',
   [ADVANCED_CAPABILITIES.commissionUnpostSettlement]:
     'Unpost an agent settlement',
   [ADVANCED_CAPABILITIES.pricingDeletePolicy]: 'Delete a pricing policy',
@@ -122,16 +136,20 @@ export const ALL_ADVANCED_CAPABILITIES: readonly AdvancedCapability[] =
 /**
  * The capabilities that change or destroy financial records.
  *
- * These are the ones the main process refuses to perform when the flag is
- * off (see the guard in src/main/main.ts and the equivalent in the web
- * worker), so bypassing the renderer UI is not enough to reach them.
+ * Two things depend on this list, and they are different:
  *
- * The rest are hidden in the UI only: deactivating an account or an item is
- * reversible, unposting a settlement and re-downloading from sync are both
- * guarded by their own confirm dialogs, and editing a journal's narration
- * changes no calculation. Deleting a record, reversing a journal, or
- * returning a posted invoice is not recoverable, so those are refused
- * outright.
+ *  - Turning one of these on asks for confirmation first, because the
+ *    actions it reveals rewrite the books and, for most of them, cannot be
+ *    undone. The Settings panel is the only place that happens.
+ *  - Every capability is refused by the main process (desktop) and the db
+ *    worker (web) while it is off, so the destructive ones are not a
+ *    special case at the enforcement layer. What separates them is how
+ *    much damage the action does once it is allowed.
+ *
+ * Reversing a journal, deleting one, returning a posted invoice, deleting
+ * an account or an item, adjusting stock by hand, and unposting a
+ * settlement all leave the books in a state the owner cannot trivially get
+ * back. Editing a journal's narration or deactivating an account does not.
  */
 export const DESTRUCTIVE_ADVANCED_CAPABILITIES: readonly AdvancedCapability[] =
   [
@@ -143,6 +161,7 @@ export const DESTRUCTIVE_ADVANCED_CAPABILITIES: readonly AdvancedCapability[] =
     ADVANCED_CAPABILITIES.inventoryDelete,
     ADVANCED_CAPABILITIES.inventoryAdjustStock,
     ADVANCED_CAPABILITIES.vendorStockDelete,
+    ADVANCED_CAPABILITIES.commissionUnpostSettlement,
   ];
 
 /**

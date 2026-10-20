@@ -2,8 +2,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useState } from 'react';
 
 import { InvoiceType } from '@/types';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { AuthProvider, ThemeProvider } from './hooks';
 import { AdvancedCapabilitiesProvider } from './hooks/useAdvancedCapabilities';
+import { AdvancedRoute } from './components/AdvancedRoute';
 import { Toaster } from './shad/ui/toaster';
 import BackupToastListener from './components/BackupToastListener';
 import { consumeJoinHashFromWindow } from './lib/joinLink';
@@ -135,7 +137,13 @@ const AppRoutes: React.FC = () => {
                     />
                     <Route
                       path="agent-commission"
-                      element={<AgentCommissionReportPage />}
+                      element={
+                        <AdvancedRoute
+                          capability={ADVANCED_CAPABILITIES.commissionModule}
+                        >
+                          <AgentCommissionReportPage />
+                        </AdvancedRoute>
+                      }
                     />
                   </Route>
                   <Route path="purchase/invoices">

@@ -949,6 +949,8 @@ const SettingsPage: React.FC = () => {
 
           {/* Tab 3: System & Accounting Rules */}
           <TabsContent value="rules" className="space-y-6 max-w-4xl">
+            <AdvancedControlsSettings />
+
             <Card>
               <CardHeader>
                 <CardTitle>Accounting Validation Rules</CardTitle>
@@ -981,8 +983,6 @@ const SettingsPage: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-
-            <AdvancedControlsSettings />
           </TabsContent>
 
           {/* Tab 4: Cloud Sync / Publish */}

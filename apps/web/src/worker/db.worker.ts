@@ -723,14 +723,45 @@ async function main(): Promise<void> {
         code as string | number,
         excludeAccountId as number | undefined,
       ),
-    insertAccount: (account) =>
-      accountService.insertAccount(
-        account as Parameters<AccountService['insertAccount']>[0],
-      ),
-    updateAccount: (account) =>
-      accountService.updateAccount(
-        account as Parameters<AccountService['updateAccount']>[0],
-      ),
+    insertAccount: (account) => {
+      // a new account starts with the advanced fields off, so creating one
+      // with them already set is the same action as turning them on
+      const payload = account as Parameters<AccountService['insertAccount']>[0];
+      if (payload.tracksVendorStock) {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.accountTrackVendorStock,
+        );
+      }
+      if (payload.collectionRole) {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.accountCollectionRole);
+      }
+      return accountService.insertAccount(payload);
+    },
+    updateAccount: async (account) => {
+      // The same call writes both advanced account fields alongside the
+      // ordinary ones, so the guard compares against what is stored: a
+      // rename must keep working without the flag, a change to "track
+      // stock" or "counts as collection" must not.
+      const payload = account as Parameters<AccountService['updateAccount']>[0];
+      const advanced = await accountService.getAccountAdvancedFields(
+        payload.id!,
+      );
+      if (
+        payload.tracksVendorStock !== undefined &&
+        payload.tracksVendorStock !== advanced.tracksVendorStock
+      ) {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.accountTrackVendorStock,
+        );
+      }
+      if (
+        payload.collectionRole !== undefined &&
+        payload.collectionRole !== advanced.collectionRole
+      ) {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.accountCollectionRole);
+      }
+      return accountService.updateAccount(payload);
+    },
     bulkUpdateAccountUrduFields: (patches) =>
       accountService.bulkUpdateUrduFields(
         patches as Parameters<AccountService['bulkUpdateUrduFields']>[0],
@@ -746,11 +777,13 @@ async function main(): Promise<void> {
       requireAdvancedCapability(ADVANCED_CAPABILITIES.accountDelete);
       return accountService.deleteAccount(accountId as number);
     },
-    setAccountCollectionRole: (accountId, role) =>
-      accountService.setCollectionRole(
+    setAccountCollectionRole: (accountId, role) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.accountCollectionRole);
+      return accountService.setCollectionRole(
         accountId as number,
         role as Parameters<AccountService['setCollectionRole']>[1],
-      ),
+      );
+    },
     toggleAccountActive: (accountId, isActive) =>
       accountService.toggleAccountActive(
         accountId as number,
@@ -1103,11 +1136,13 @@ async function main(): Promise<void> {
       ),
     reorderAttributeDefinitions: (ids) =>
       inventoryService.reorderAttributeDefinitions(ids as number[]),
-    setItemExcludedFromCatalog: (id, excluded) =>
-      inventoryService.setItemExcludedFromCatalog(
+    setItemExcludedFromCatalog: (id, excluded) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryCatalogHold);
+      return inventoryService.setItemExcludedFromCatalog(
         id as number,
         excluded as boolean,
-      ),
+      );
+    },
     setAttributeDefinitionPublic: (id, isPublic) =>
       inventoryService.setAttributeDefinitionPublic(
         id as number,
@@ -1280,24 +1315,41 @@ async function main(): Promise<void> {
     },
 
     // -- Commission (src/core/services/CommissionService.ts, migration 047) -
-    commissionGetConfig: (chartId) =>
-      commissionService.getCommissionConfig(chartId as number),
-    commissionSaveConfig: (config) =>
-      commissionService.saveCommissionConfig(
+    commissionGetConfig: (chartId) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.getCommissionConfig(chartId as number);
+    },
+    commissionSaveConfig: (config) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.saveCommissionConfig(
         config as Parameters<CommissionService['saveCommissionConfig']>[0],
-      ),
-    commissionGetReport: (chartId, startDate, endDate) =>
-      commissionService.getCommissionReport(
+      );
+    },
+    commissionGetReport: (chartId, startDate, endDate) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.getCommissionReport(
         chartId as number,
         startDate as string,
         endDate as string,
-      ),
-    commissionPostSettlement: (payload) =>
-      commissionService.postCommissionSettlement(
+      );
+    },
+    commissionPostSettlement: (payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.postCommissionSettlement(
         payload as Parameters<CommissionService['postCommissionSettlement']>[0],
-      ),
-    commissionUnpostSettlement: (settlementId) =>
-      commissionService.unpostCommissionSettlement(settlementId as number),
+      );
+    },
+    commissionUnpostSettlement: (settlementId) => {
+      // two gates: the whole module, and the extra one for the destructive
+      // unpost. Turning the module on does not turn unposting on.
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      requireAdvancedCapability(
+        ADVANCED_CAPABILITIES.commissionUnpostSettlement,
+      );
+      return commissionService.unpostCommissionSettlement(
+        settlementId as number,
+      );
+    },
 
     // -- Publish (./publishConfig.ts + ./publishService.ts) ----------------
     getPublishConfig: () => getWebPublishConfig(webKv, settingsService),

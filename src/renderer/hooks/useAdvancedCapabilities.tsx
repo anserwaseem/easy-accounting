@@ -138,6 +138,22 @@ export const useAdvancedCapability = (
   return loaded && enabled.has(capability);
 };
 
+/**
+ * Whether any of the given capabilities is enabled.
+ *
+ * For the case where a whole table column or a whole page section is made
+ * up of advanced controls: if none of them is available, the container
+ * itself should not render, rather than rendering as an empty column
+ * with a header and no content.
+ */
+export const useAnyAdvancedCapability = (
+  capabilities: readonly AdvancedCapability[],
+): boolean => {
+  const { enabled, loaded } = useAdvancedCapabilities();
+  if (!loaded) return false;
+  return capabilities.some((capability) => enabled.has(capability));
+};
+
 /** Every advanced capability id, for the "turn everything on" case. */
 export const allAdvancedCapabilities = (): AdvancedCapability[] => [
   ...ALL_ADVANCED_CAPABILITIES,

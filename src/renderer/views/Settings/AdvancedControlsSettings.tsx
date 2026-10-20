@@ -12,9 +12,9 @@ import { Switch } from '@/renderer/shad/ui/switch';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { handleAsync } from '@/renderer/lib/utils';
 import {
-  ADVANCED_CAPABILITIES,
   ADVANCED_CAPABILITY_LABELS,
   ALL_ADVANCED_CAPABILITIES,
+  DESTRUCTIVE_ADVANCED_CAPABILITIES,
   type AdvancedCapability,
 } from '@/core/advancedCapabilities';
 import { useAdvancedCapabilities } from '@/renderer/hooks/useAdvancedCapabilities';
@@ -30,30 +30,20 @@ import { useAdvancedCapabilities } from '@/renderer/hooks/useAdvancedCapabilitie
  * Turning a destructive one on asks for confirmation first, because the
  * actions it reveals (reversing a journal, deleting one, returning a posted
  * invoice, deleting an account) change the books and, for most of them,
- * cannot be undone.
+ * cannot be undone. The master switch asks the same question, because
+ * turning it on enables every one of them at once.
  *
  * The setting is device-local: the shop's own machine can have it on while
  * the counter tablet stays clean. See src/core/advancedCapabilities.ts for
  * why it is a flag rather than a per-user role.
  */
 
-/** Capabilities that destroy or rewrite records, so they ask first. */
-const CONFIRM_ON_CAPABILITIES: readonly AdvancedCapability[] = [
-  ADVANCED_CAPABILITIES.journalReverse,
-  ADVANCED_CAPABILITIES.journalDelete,
-  ADVANCED_CAPABILITIES.invoiceReturnSale,
-  ADVANCED_CAPABILITIES.invoiceReturnPurchase,
-  ADVANCED_CAPABILITIES.accountDelete,
-  ADVANCED_CAPABILITIES.inventoryDelete,
-  ADVANCED_CAPABILITIES.inventoryAdjustStock,
-  ADVANCED_CAPABILITIES.vendorStockDelete,
-];
-
 const AdvancedControlsSettings: React.FC = () => {
   const { enabled, setEnabled, loaded } = useAdvancedCapabilities();
   const [pendingEnable, setPendingEnable] = useState<AdvancedCapability | null>(
     null,
   );
+  const [pendingEnableAll, setPendingEnableAll] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const isEnabled = useCallback(
@@ -76,7 +66,7 @@ const AdvancedControlsSettings: React.FC = () => {
     (capability: AdvancedCapability, next: boolean) => {
       const updated = new Set(enabled);
       if (next) {
-        if (CONFIRM_ON_CAPABILITIES.includes(capability)) {
+        if (DESTRUCTIVE_ADVANCED_CAPABILITIES.includes(capability)) {
           setPendingEnable(capability);
           return;
         }
@@ -116,19 +106,29 @@ const AdvancedControlsSettings: React.FC = () => {
 
   const handleAllToggle = useCallback(
     (next: boolean) => {
-      const updated = next
-        ? new Set<AdvancedCapability>(ALL_ADVANCED_CAPABILITIES)
-        : new Set<AdvancedCapability>();
+      // turning everything on is the same decision as turning on every
+      // destructive control at once, so it asks the same question
+      if (next) {
+        setPendingEnableAll(true);
+        return;
+      }
       setBusy(true);
       persist(
-        updated,
-        next
-          ? 'All advanced controls are now available on this device'
-          : 'All advanced controls are now hidden on this device',
+        new Set<AdvancedCapability>(),
+        'All advanced controls are now hidden on this device',
       );
     },
     [persist],
   );
+
+  const handleConfirmEnableAll = useCallback(() => {
+    setBusy(true);
+    persist(
+      new Set<AdvancedCapability>(ALL_ADVANCED_CAPABILITIES),
+      'All advanced controls are now available on this device',
+    );
+    setPendingEnableAll(false);
+  }, [persist]);
 
   return (
     <>
@@ -213,6 +213,18 @@ const AdvancedControlsSettings: React.FC = () => {
         confirmLabel="Turn on"
         confirmVariant="destructive"
         onConfirm={handleConfirmEnable}
+      />
+
+      <ConfirmDialog
+        open={pendingEnableAll}
+        onOpenChange={(open) => {
+          if (!open) setPendingEnableAll(false);
+        }}
+        title="Show all advanced controls?"
+        description="Every advanced control will appear for everyone using this device, including the ones that delete records, reverse journals, and return posted invoices. Several of those actions cannot be undone. Turn on only the ones you need instead if you are unsure."
+        confirmLabel="Show all"
+        confirmVariant="destructive"
+        onConfirm={handleConfirmEnableAll}
       />
     </>
   );

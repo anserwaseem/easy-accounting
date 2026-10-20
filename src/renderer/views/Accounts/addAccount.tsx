@@ -89,6 +89,8 @@ export const AddAccount: React.FC<AddAccountProps> = ({
           if (error.includes('UNIQUE')) {
             return 'Account name and code must be unique';
           }
+          // the advanced-capability guard explains itself; do not bury it
+          if (error.includes('advanced action')) return error;
           return 'An unexpected error occurred';
         },
       },

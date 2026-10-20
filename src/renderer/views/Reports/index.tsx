@@ -23,6 +23,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
+import {
+  ADVANCED_CAPABILITIES,
+  type AdvancedCapability,
+} from '@/core/advancedCapabilities';
+import { useAdvancedCapabilities } from '@/renderer/hooks/useAdvancedCapabilities';
 
 interface ReportOption {
   title: string;
@@ -31,6 +36,12 @@ interface ReportOption {
   path: string;
   icon: React.ReactNode;
   status?: 'coming-soon' | 'available';
+  /**
+   * When set, the report is only offered if this advanced capability is
+   * enabled on this device. The card disappears entirely rather than
+   * being shown disabled.
+   */
+  capability?: AdvancedCapability;
 }
 
 const accountingReports: ReportOption[] = [
@@ -85,6 +96,7 @@ const accountingReports: ReportOption[] = [
     help: 'Calculates commission earnings on sales and collections per tier rate, with one-click posting to ledger settlement accounts.',
     path: '/reports/agent-commission',
     icon: <Percent className="h-6 w-6" />,
+    capability: ADVANCED_CAPABILITIES.commissionModule,
   },
 ];
 
@@ -141,6 +153,13 @@ interface ReportCardProps {
 
 const ReportCard: React.FC<ReportCardProps> = ({ option }: ReportCardProps) => {
   const [dismissed, setDismissed] = useState(false);
+  const { enabled, loaded } = useAdvancedCapabilities();
+
+  // an advanced report is not offered at all on a device where it is off:
+  // a card that leads to "not available" is worse than no card
+  const available =
+    !option.capability || (loaded && enabled.has(option.capability));
+  if (option.capability && !available) return null;
 
   if (option.status === 'coming-soon') {
     if (dismissed) return null;
