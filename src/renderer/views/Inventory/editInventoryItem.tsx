@@ -9,6 +9,8 @@ import {
 } from 'renderer/shad/ui/dialog';
 import { Button } from '@/renderer/shad/ui/button';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from 'renderer/shad/ui/use-toast';
@@ -448,26 +450,36 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
             <Tag className="mr-2 h-4 w-4" />
             Attributes
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpenAdjustStock(true)}>
-            <SlidersHorizontal className="mr-2 h-4 w-4" />
-            Adjust stock
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleToggleActive}>
-            {isActive ? (
-              <Ban className="mr-2 h-4 w-4" />
-            ) : (
-              <Power className="mr-2 h-4 w-4" />
-            )}
-            {toggleLabel}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={handleDeleteClick}
-            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          <AdvancedControl
+            capability={ADVANCED_CAPABILITIES.inventoryAdjustStock}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete item
-          </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setOpenAdjustStock(true)}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Adjust stock
+            </DropdownMenuItem>
+          </AdvancedControl>
+          <DropdownMenuSeparator />
+          <AdvancedControl
+            capability={ADVANCED_CAPABILITIES.inventoryToggleActive}
+          >
+            <DropdownMenuItem onClick={handleToggleActive}>
+              {isActive ? (
+                <Ban className="mr-2 h-4 w-4" />
+              ) : (
+                <Power className="mr-2 h-4 w-4" />
+              )}
+              {toggleLabel}
+            </DropdownMenuItem>
+          </AdvancedControl>
+          <AdvancedControl capability={ADVANCED_CAPABILITIES.inventoryDelete}>
+            <DropdownMenuItem
+              onClick={handleDeleteClick}
+              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete item
+            </DropdownMenuItem>
+          </AdvancedControl>
         </DropdownMenuContent>
       </DropdownMenu>
 

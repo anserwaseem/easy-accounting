@@ -24,6 +24,8 @@ import { toNumber } from 'lodash';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
 import { DeleteJournalDialog } from '@/renderer/components/DeleteJournalDialog';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
 
@@ -176,50 +178,62 @@ const JournalsPage: React.FC<HasMiniView> = ({
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
                 <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
-                  <EditJournalFieldsDialog
-                    journalId={row.original.id}
-                    narration={row.original.narration || ''}
-                    billNumber={row.original.billNumber}
-                    discountPercentage={row.original.discountPercentage}
-                    onSave={handleUpdateJournal}
-                  />
+                  <AdvancedControl
+                    capability={ADVANCED_CAPABILITIES.journalEditFields}
+                  >
+                    <EditJournalFieldsDialog
+                      journalId={row.original.id}
+                      narration={row.original.narration || ''}
+                      billNumber={row.original.billNumber}
+                      discountPercentage={row.original.discountPercentage}
+                      onSave={handleUpdateJournal}
+                    />
+                  </AdvancedControl>
                   {(row.original.invoiceId == null ||
                     row.original.invoiceId <= 0) && (
                     <>
-                      <ReverseJournalDialog
-                        journalId={row.original.id}
-                        originalNarration={row.original.narration || ''}
-                        totalAmount={row.original.amount}
-                        onSuccess={handleReloadJournals}
-                        trigger={
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                            title="Reverse Journal"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        }
-                      />
-                      <DeleteJournalDialog
-                        journalId={row.original.id}
-                        narration={row.original.narration || ''}
-                        totalAmount={row.original.amount}
-                        onSuccess={handleReloadJournals}
-                        trigger={
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                            title="Delete Journal"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        }
-                      />
+                      <AdvancedControl
+                        capability={ADVANCED_CAPABILITIES.journalReverse}
+                      >
+                        <ReverseJournalDialog
+                          journalId={row.original.id}
+                          originalNarration={row.original.narration || ''}
+                          totalAmount={row.original.amount}
+                          onSuccess={handleReloadJournals}
+                          trigger={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                              title="Reverse Journal"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                      </AdvancedControl>
+                      <AdvancedControl
+                        capability={ADVANCED_CAPABILITIES.journalDelete}
+                      >
+                        <DeleteJournalDialog
+                          journalId={row.original.id}
+                          narration={row.original.narration || ''}
+                          totalAmount={row.original.amount}
+                          onSuccess={handleReloadJournals}
+                          trigger={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                              title="Delete Journal"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                      </AdvancedControl>
                     </>
                   )}
                 </div>

@@ -84,6 +84,7 @@ import type {
   AgentCommissionReport,
   PostCommissionSettlementPayload,
 } from '../../types';
+import type { AdvancedCapability } from '../advancedCapabilities';
 
 /*
  * Publish-domain support types.
@@ -775,6 +776,29 @@ export interface AppApi {
   deleteSetting: (key: string) => Promise<void>;
   /** Every stored business setting, parsed, keyed by name. */
   getAllSettings: () => Promise<Record<string, unknown>>;
+
+  // ---------------------------------------------------------------------
+  // Advanced capabilities (src/core/advancedCapabilities.ts)
+  // ---------------------------------------------------------------------
+  //
+  // The set of destructive/rare actions this device's user has chosen to
+  // be allowed to see — see that module's doc comment for why this is a
+  // device-local flag and not a per-user role.
+  //
+  // These are NOT business settings and deliberately do not live in the
+  // `settings` table: that table replicates across devices and ships in
+  // backups/exports, and this is a per-device UI preference, exactly like
+  // the sidebar-collapsed state and the table filters that already live
+  // in device-local storage. Both platforms back them with the
+  // `KeyValueStore` port (src/core/ports.ts) — `electron-store` on
+  // desktop, the `web_kv` table in the web worker.
+
+  /** The advanced capabilities enabled on this device. */
+  getAdvancedCapabilities: () => Promise<AdvancedCapability[]>;
+  /** Replaces the enabled set. Unknown ids are dropped. */
+  setAdvancedCapabilities: (
+    capabilities: AdvancedCapability[],
+  ) => Promise<void>;
 
   // ---------------------------------------------------------------------
   // Agent Commissions (src/core/services/CommissionService.ts, migration 047)

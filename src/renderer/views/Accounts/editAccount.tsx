@@ -16,6 +16,8 @@ import {
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
 import type { UpdateAccount, Chart } from 'types';
@@ -243,21 +245,27 @@ export const EditAccount: React.FC<EditAccountProps> = ({
               Create a copy
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={handleToggleActive}>
-              {isActive ? (
-                <Ban className="mr-2 h-4 w-4" />
-              ) : (
-                <Power className="mr-2 h-4 w-4" />
-              )}
-              {toggleLabel}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setIsDeleteDialogOpen(true)}
-              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+            <AdvancedControl
+              capability={ADVANCED_CAPABILITIES.accountToggleActive}
             >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete account
-            </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleToggleActive}>
+                {isActive ? (
+                  <Ban className="mr-2 h-4 w-4" />
+                ) : (
+                  <Power className="mr-2 h-4 w-4" />
+                )}
+                {toggleLabel}
+              </DropdownMenuItem>
+            </AdvancedControl>
+            <AdvancedControl capability={ADVANCED_CAPABILITIES.accountDelete}>
+              <DropdownMenuItem
+                onSelect={() => setIsDeleteDialogOpen(true)}
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete account
+              </DropdownMenuItem>
+            </AdvancedControl>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

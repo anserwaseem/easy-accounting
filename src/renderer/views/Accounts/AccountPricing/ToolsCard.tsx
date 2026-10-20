@@ -12,6 +12,8 @@ import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Input } from '@/renderer/shad/ui/input';
 import { Separator } from '@/renderer/shad/ui/separator';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import type {
   AssignmentProps,
   CreatePolicyProps,
@@ -210,15 +212,19 @@ const renderDangerSection = (assignment: AssignmentProps) => (
             Delete this policy completely. This also removes it from this
             account.
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 min-w-[160px] justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={assignment.onDeletePolicy}
-            disabled={assignment.busyAction !== null}
+          <AdvancedControl
+            capability={ADVANCED_CAPABILITIES.pricingDeletePolicy}
           >
-            Delete policy
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 min-w-[160px] justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={assignment.onDeletePolicy}
+              disabled={assignment.busyAction !== null}
+            >
+              Delete policy
+            </Button>
+          </AdvancedControl>
         </div>
       </div>
     </div>

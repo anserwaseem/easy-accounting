@@ -98,6 +98,13 @@ import { repairInvoiceEditedTimestamps } from '@core/sync/repairInvoiceTimestamp
 import { INITIAL_CHARTS } from '@core/utils/constants';
 import { enrichLedgerRowsWithJournalSummaries } from '@core/utils/ledgerJournalEnrichment';
 import type { UserCredentials } from 'types';
+import {
+  ADVANCED_CAPABILITIES,
+  ADVANCED_CAPABILITIES_STORE_KEY,
+  parseAdvancedCapabilities,
+  serializeAdvancedCapabilities,
+  type AdvancedCapability,
+} from '@core/advancedCapabilities';
 import { openDeserializedDatabase } from './deserializeDatabase';
 import { PLACEHOLDER_USERNAME } from '@core/sync/placeholderUser';
 import {
@@ -542,6 +549,22 @@ async function main(): Promise<void> {
   // src/api/client.ts can expose the real `AppApi` type directly.
   // print:*/backup:* are intentionally absent here — client.ts stubs those
   // without ever reaching this worker.
+  //
+  // The advanced-capability guard (see `requireAdvancedCapability` below)
+  // is this platform's counterpart of the one in src/main/main.ts: the
+  // renderer hides the destructive controls, and these handlers refuse
+  // the call even if the renderer asks anyway.
+  const requireAdvancedCapability = (capability: AdvancedCapability): void => {
+    const enabled = parseAdvancedCapabilities(
+      webKv.get(ADVANCED_CAPABILITIES_STORE_KEY),
+    );
+    if (enabled.has(capability)) return;
+    throw new Error(
+      `"${capability}" is an advanced action and is turned off on this ` +
+        'device. Turn on advanced controls in Settings to use it.',
+    );
+  };
+
   const handlers: Handlers = {
     // -- Auth --------------------------------------------------------------
     login: async (user) => {
@@ -719,8 +742,10 @@ async function main(): Promise<void> {
       ),
     hasJournalEntries: (accountId) =>
       accountService.hasJournalEntries(accountId as number),
-    deleteAccount: (accountId) =>
-      accountService.deleteAccount(accountId as number),
+    deleteAccount: (accountId) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.accountDelete);
+      return accountService.deleteAccount(accountId as number);
+    },
     setAccountCollectionRole: (accountId, role) =>
       accountService.setCollectionRole(
         accountId as number,
@@ -778,23 +803,31 @@ async function main(): Promise<void> {
       journalService.getJournalNarrationSummariesByIds(journalIds as number[]),
     getJournalsByInvoiceId: (invoiceId) =>
       journalService.getJournalsByInvoiceId(invoiceId as number),
-    updateJournalNarration: (journalId, narration) =>
-      journalService.updateJournalNarration(
+    updateJournalNarration: (journalId, narration) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalEditFields);
+      return journalService.updateJournalNarration(
         journalId as number,
         narration as string,
-      ),
-    updateJournalInfo: (journalId, fields) =>
-      journalService.updateJournalInfo(
+      );
+    },
+    updateJournalInfo: (journalId, fields) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalEditFields);
+      return journalService.updateJournalInfo(
         journalId as number,
         fields as Parameters<JournalService['updateJournalInfo']>[1],
-      ),
-    reverseJournal: (journalId, options) =>
-      journalService.reverseJournal(
+      );
+    },
+    reverseJournal: (journalId, options) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalReverse);
+      return journalService.reverseJournal(
         journalId as number,
         options as Parameters<JournalService['reverseJournal']>[1],
-      ),
-    deleteManualJournal: (journalId) =>
-      journalService.deleteManualJournal(journalId as number),
+      );
+    },
+    deleteManualJournal: (journalId) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalDelete);
+      return journalService.deleteManualJournal(journalId as number);
+    },
 
     // -- Ledger ------------------------------------------------------------
     getLedger: async (accountId) => {
@@ -913,16 +946,20 @@ async function main(): Promise<void> {
         invoiceType as Parameters<InvoiceService['getInvoices']>[0],
       ),
     getInvoice: (invoiceId) => invoiceService.getInvoice(invoiceId as number),
-    returnSaleInvoice: (invoiceId, payload) =>
-      invoiceService.returnSaleInvoice(
+    returnSaleInvoice: (invoiceId, payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
+      return invoiceService.returnSaleInvoice(
         invoiceId as number,
         payload as Parameters<InvoiceService['returnSaleInvoice']>[1],
-      ),
-    returnPurchaseInvoice: (invoiceId, payload) =>
-      invoiceService.returnPurchaseInvoice(
+      );
+    },
+    returnPurchaseInvoice: (invoiceId, payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnPurchase);
+      return invoiceService.returnPurchaseInvoice(
         invoiceId as number,
         payload as Parameters<InvoiceService['returnPurchaseInvoice']>[1],
-      ),
+      );
+    },
     getInvoiceEditDateBounds: (
       invoiceId,
       accountId,
@@ -1010,8 +1047,10 @@ async function main(): Promise<void> {
       inventoryService.hasInvoiceItems(id as number),
     canDeleteInventoryItem: (id) =>
       inventoryService.canDeleteInventoryItem(id as number),
-    deleteInventoryItem: (id) =>
-      inventoryService.deleteInventoryItem(id as number),
+    deleteInventoryItem: (id) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryDelete);
+      return inventoryService.deleteInventoryItem(id as number);
+    },
     bulkUpdateInventoryUrduFields: (patches) =>
       inventoryService.bulkUpdateUrduFields(
         patches as Parameters<InventoryService['bulkUpdateUrduFields']>[0],
@@ -1042,10 +1081,12 @@ async function main(): Promise<void> {
         asOfDate as string | undefined,
         resetOthersToZero as boolean | undefined,
       ),
-    applyStockAdjustment: (payload) =>
-      inventoryService.applyStockAdjustment(
+    applyStockAdjustment: (payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryAdjustStock);
+      return inventoryService.applyStockAdjustment(
         payload as Parameters<InventoryService['applyStockAdjustment']>[0],
-      ),
+      );
+    },
     getStockAdjustments: (inventoryId) =>
       inventoryService.getStockAdjustments(inventoryId as number | undefined),
     getInventoryIdsWithHistory: () =>
@@ -1202,8 +1243,10 @@ async function main(): Promise<void> {
         issueId as number,
         payload as Parameters<VendorStockService['updateIssue']>[1],
       ),
-    deleteVendorIssue: (issueId) =>
-      vendorStockService.deleteIssue(issueId as number),
+    deleteVendorIssue: (issueId) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.vendorStockDelete);
+      return vendorStockService.deleteIssue(issueId as number);
+    },
     getVendorIssues: () => vendorStockService.getIssues(),
     getVendorIssue: (issueId) => vendorStockService.getIssue(issueId as number),
     getVendorStockActivity: (filters) =>
@@ -1216,6 +1259,25 @@ async function main(): Promise<void> {
     setSetting: (key, value) => settingsService.set(key as string, value),
     deleteSetting: (key) => settingsService.delete(key as string),
     getAllSettings: () => settingsService.getAll(),
+
+    // -- Advanced capabilities (src/core/advancedCapabilities.ts) ---------
+    // Device-local, so they live in `web_kv` (this worker's own
+    // KeyValueStore) rather than the `settings` table — the latter
+    // replicates across devices and ships in backups/exports, and this is
+    // a per-device UI preference. Note this is a DIFFERENT store from the
+    // renderer's `window.electron.store` (localStorage on the main
+    // thread, see electronShim.ts): the renderer reads and writes these
+    // only through these two methods, so the two never disagree.
+    getAdvancedCapabilities: async () =>
+      Array.from(
+        parseAdvancedCapabilities(webKv.get(ADVANCED_CAPABILITIES_STORE_KEY)),
+      ),
+    setAdvancedCapabilities: async (capabilities) => {
+      const normalized = serializeAdvancedCapabilities(
+        capabilities as AdvancedCapability[],
+      );
+      await webKv.setAwaited(ADVANCED_CAPABILITIES_STORE_KEY, normalized);
+    },
 
     // -- Commission (src/core/services/CommissionService.ts, migration 047) -
     commissionGetConfig: (chartId) =>

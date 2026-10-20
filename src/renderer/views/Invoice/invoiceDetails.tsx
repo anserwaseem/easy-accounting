@@ -50,6 +50,8 @@ import {
 } from '@/renderer/shad/ui/dialog';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 
 interface InvoiceDetailsProps {
   invoiceType: InvoiceType;
@@ -431,19 +433,27 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               </Button>
             ) : null}
             {canEditPostedInvoice ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
-                onClick={() => {
-                  setReturnReasonDraft('');
-                  setReturnDialogOpen(true);
-                }}
+              <AdvancedControl
+                capability={
+                  invoiceType === InvoiceType.Sale
+                    ? ADVANCED_CAPABILITIES.invoiceReturnSale
+                    : ADVANCED_CAPABILITIES.invoiceReturnPurchase
+                }
               >
-                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                Return
-              </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
+                  onClick={() => {
+                    setReturnReasonDraft('');
+                    setReturnDialogOpen(true);
+                  }}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                  Return
+                </Button>
+              </AdvancedControl>
             ) : null}
             {showQuotationActions ? (
               <>

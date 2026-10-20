@@ -17,6 +17,7 @@ export * from './ports';
 export * from './errorLogger';
 export * from './db/driver';
 export * from './utils/sqlite';
+export * from './advancedCapabilities';
 export type { AppApi } from './api/AppApi';
 export { AccountService } from './services/AccountService';
 export { ChartService } from './services/ChartService';

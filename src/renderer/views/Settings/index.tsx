@@ -43,6 +43,8 @@ import {
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
 import { downloadDatabaseExport } from '@/renderer/lib/exportDatabase';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import type {
   InvoicePrintLabelKey,
   InvoicePrintLabels,
@@ -64,6 +66,7 @@ import {
 import PublishSettings from './PublishSettings';
 import BackupSettings from './BackupSettings';
 import SyncSettings from './SyncSettings';
+import AdvancedControlsSettings from './AdvancedControlsSettings';
 
 interface InvoicePrintLabelsAccordionProps {
   title: string;
@@ -978,6 +981,8 @@ const SettingsPage: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
+
+            <AdvancedControlsSettings />
           </TabsContent>
 
           {/* Tab 4: Cloud Sync / Publish */}
@@ -1020,9 +1025,13 @@ const SettingsPage: React.FC = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild variant="destructive">
-                    <Link to="/import">Import from desktop app&hellip;</Link>
-                  </Button>
+                  <AdvancedControl
+                    capability={ADVANCED_CAPABILITIES.dataImport}
+                  >
+                    <Button asChild variant="destructive">
+                      <Link to="/import">Import from desktop app&hellip;</Link>
+                    </Button>
+                  </AdvancedControl>
                 </CardContent>
               </Card>
             )}

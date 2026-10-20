@@ -64,6 +64,8 @@ import {
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import {
   loadSavedFilters,
   makeSavedState,
@@ -1055,14 +1057,18 @@ const AgentCommissionReportPage: React.FC = () => {
                   View Journal #{report.settlement.journalId}
                 </Button>
               )}
-              <Button
-                variant="destructive"
-                size="sm"
-                className="h-8 text-xs"
-                onClick={() => setShowUnpostConfirm(true)}
+              <AdvancedControl
+                capability={ADVANCED_CAPABILITIES.commissionUnpostSettlement}
               >
-                Unpost Settlement
-              </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setShowUnpostConfirm(true)}
+                >
+                  Unpost Settlement
+                </Button>
+              </AdvancedControl>
             </div>
           </div>
         )}

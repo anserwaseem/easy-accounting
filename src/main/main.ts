@@ -72,6 +72,15 @@ import {
 } from './utils/publishConfig';
 import { migrateBusinessSettingsFromStore } from './utils/migrateBusinessSettings';
 import {
+  getEnabledAdvancedCapabilities,
+  requireAdvancedCapability,
+  setEnabledAdvancedCapabilities,
+} from './utils/advancedCapabilities';
+import {
+  ADVANCED_CAPABILITIES,
+  type AdvancedCapability,
+} from '../core/advancedCapabilities';
+import {
   getBackupConfig,
   saveBackupConfig,
   type BackupConfigInput,
@@ -432,6 +441,19 @@ app
     );
     ipcMain.handle('settings:getAll', async () => settingsService.getAll());
 
+    // Advanced capabilities — device-local, NOT business settings, so they
+    // live in electron-store rather than the `settings` table (which
+    // replicates across devices and ships in backups). See
+    // src/core/advancedCapabilities.ts for the full rationale.
+    ipcMain.handle('advanced:getCapabilities', async () =>
+      Array.from(getEnabledAdvancedCapabilities()),
+    );
+    ipcMain.handle(
+      'advanced:setCapabilities',
+      async (_, capabilities: AdvancedCapability[]) =>
+        setEnabledAdvancedCapabilities(capabilities),
+    );
+
     ipcMain.handle('publish:getConfig', async () => getPublishConfig());
     ipcMain.handle('publish:saveConfig', async (_, input: PublishConfigInput) =>
       savePublishConfig(input),
@@ -588,9 +610,10 @@ app
     ipcMain.handle('account:hasJournalEntries', (_, accountId: number) =>
       accountService.hasJournalEntries(accountId),
     );
-    ipcMain.handle('account:deleteAccount', (_, accountId: number) =>
-      accountService.deleteAccount(accountId),
-    );
+    ipcMain.handle('account:deleteAccount', (_, accountId: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.accountDelete);
+      return accountService.deleteAccount(accountId);
+    });
     ipcMain.handle(
       'account:toggleActive',
       (_, accountId: number, isActive: boolean) =>
@@ -718,13 +741,17 @@ app
     );
     ipcMain.handle(
       'journal:updateNarration',
-      async (_, journalId: number, narration: string) =>
-        journalService.updateJournalNarration(journalId, narration),
+      async (_, journalId: number, narration: string) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.journalEditFields);
+        return journalService.updateJournalNarration(journalId, narration);
+      },
     );
     ipcMain.handle(
       'journal:updateInfo',
-      async (_, journalId: number, fields: UpdateJournalFields) =>
-        journalService.updateJournalInfo(journalId, fields),
+      async (_, journalId: number, fields: UpdateJournalFields) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.journalEditFields);
+        return journalService.updateJournalInfo(journalId, fields);
+      },
     );
     ipcMain.handle(
       'journal:reverse',
@@ -732,11 +759,15 @@ app
         _,
         journalId: number,
         options?: { date?: string; narration?: string },
-      ) => journalService.reverseJournal(journalId, options),
+      ) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.journalReverse);
+        return journalService.reverseJournal(journalId, options);
+      },
     );
-    ipcMain.handle('journal:deleteManual', async (_, journalId: number) =>
-      journalService.deleteManualJournal(journalId),
-    );
+    ipcMain.handle('journal:deleteManual', async (_, journalId: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalDelete);
+      return journalService.deleteManualJournal(journalId);
+    });
     ipcMain.handle('inventory:save', (_, inventory: InventoryItem[]) =>
       inventoryService.saveInventory(inventory),
     );
@@ -797,9 +828,10 @@ app
     ipcMain.handle('inventory:canDelete', (_, id: number) =>
       inventoryService.canDeleteInventoryItem(id),
     );
-    ipcMain.handle('inventory:delete', (_, id: number) =>
-      inventoryService.deleteInventoryItem(id),
-    );
+    ipcMain.handle('inventory:delete', (_, id: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryDelete);
+      return inventoryService.deleteInventoryItem(id);
+    });
     ipcMain.handle(
       'inventory:bulkUpdateUrduFields',
       async (_, patches: InventoryUrduFieldPatch[]) =>
@@ -839,8 +871,10 @@ app
     );
     ipcMain.handle(
       'inventory:applyStockAdjustment',
-      (_, payload: ApplyStockAdjustmentPayload) =>
-        inventoryService.applyStockAdjustment(payload),
+      (_, payload: ApplyStockAdjustmentPayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryAdjustStock);
+        return inventoryService.applyStockAdjustment(payload);
+      },
     );
     ipcMain.handle('inventory:getStockAdjustments', (_, inventoryId?: number) =>
       inventoryService.getStockAdjustments(inventoryId),
@@ -944,13 +978,17 @@ app
     );
     ipcMain.handle(
       'invoice:returnSale',
-      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
-        invoiceService.returnSaleInvoice(invoiceId, payload),
+      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
+        return invoiceService.returnSaleInvoice(invoiceId, payload);
+      },
     );
     ipcMain.handle(
       'invoice:returnPurchase',
-      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
-        invoiceService.returnPurchaseInvoice(invoiceId, payload),
+      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnPurchase);
+        return invoiceService.returnPurchaseInvoice(invoiceId, payload);
+      },
     );
     ipcMain.handle(
       'invoice:getEditDateBounds',
@@ -1207,9 +1245,10 @@ app
         vendorStockService.updateIssue(issueId, payload),
     );
 
-    ipcMain.handle('vendorStock:deleteIssue', async (_, issueId: number) =>
-      vendorStockService.deleteIssue(issueId),
-    );
+    ipcMain.handle('vendorStock:deleteIssue', async (_, issueId: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.vendorStockDelete);
+      return vendorStockService.deleteIssue(issueId);
+    });
 
     ipcMain.handle('vendorStock:getIssues', () =>
       vendorStockService.getIssues(),
