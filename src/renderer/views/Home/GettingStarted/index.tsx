@@ -25,6 +25,7 @@ import { ImportListNumbers } from '@/renderer/views/Inventory/ImportListNumbers'
 import { useAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabilities';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { SetOpeningStock } from '../../Inventory/SetOpeningStock';
+import { AdvancedControlsCard } from './AdvancedControlsCard';
 
 export const GettingStarted: React.FC = () => {
   const navigate = useNavigate();
@@ -305,6 +306,8 @@ export const GettingStarted: React.FC = () => {
             </Button>
           </CardFooter>
         </Card>
+
+        <AdvancedControlsCard />
       </div>
     </div>
   );

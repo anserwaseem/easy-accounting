@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { APP_VERSION } from '@/lib/appVersion';
 import SettingsPage from '../index';
 
@@ -75,8 +76,12 @@ describe('SettingsPage', () => {
     };
   });
 
-  const renderSettings = async () => {
-    const view = render(<SettingsPage />);
+  const renderSettings = async (initialEntry = '/settings') => {
+    const view = render(
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
     await screen.findByTestId('app-version');
     return view;
   };
@@ -187,7 +192,6 @@ describe('SettingsPage', () => {
 
   it('switches to Sync tab and renders PublishSettings and BackupSettings', async () => {
     await renderSettings();
-
     const syncTab = screen.getByRole('tab', { name: /sync/i });
     act(() => {
       syncTab.focus();
@@ -196,5 +200,27 @@ describe('SettingsPage', () => {
 
     expect(screen.getByTestId('publish-settings')).toBeInTheDocument();
     expect(screen.getByTestId('backup-settings')).toBeInTheDocument();
+  });
+
+  it('opens the tab named in the URL', async () => {
+    // the onboarding notes point at ?tab=rules, where the advanced
+    // controls live, so a link can land on the right screen
+    await renderSettings('/settings?tab=rules');
+
+    expect(
+      await screen.findByText(/accounting validation rules/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /rules/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('ignores a tab it does not know', async () => {
+    await renderSettings('/settings?tab=nonsense');
+
+    // an unknown tab falls back to the first one rather than showing
+    // a blank screen
+    expect(await screen.findByText(/company details/i)).toBeInTheDocument();
   });
 });
