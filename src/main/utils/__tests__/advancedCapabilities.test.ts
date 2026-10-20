@@ -1,6 +1,7 @@
 import {
   ADVANCED_CAPABILITIES,
   ADVANCED_CAPABILITIES_STORE_KEY,
+  ADVANCED_CAPABILITY_ERROR_MARKER,
 } from '../../../core/advancedCapabilities';
 
 jest.mock('../../store', () => {
@@ -55,7 +56,7 @@ describe('advanced capabilities store', () => {
   it('throws from the guard when the capability is off', () => {
     expect(() =>
       requireAdvancedCapability(ADVANCED_CAPABILITIES.accountDelete),
-    ).toThrow(/advanced action/i);
+    ).toThrow(/advanced control/i);
   });
 
   it('does not throw from the guard when the capability is on', () => {
@@ -65,12 +66,21 @@ describe('advanced capabilities store', () => {
     ).not.toThrow();
   });
 
-  it('names the setting so the message points somewhere useful', () => {
+  it('names the action so the message points somewhere useful', () => {
+    // the capability id means nothing to a shop owner, the label does
     expect(() =>
       requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryDelete),
-    ).toThrow(/inventory\.delete/);
+    ).toThrow(/Delete an inventory item/);
     expect(() =>
       requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryDelete),
     ).toThrow(/Settings/);
+  });
+
+  it('carries the marker the renderer recognizes', () => {
+    // the renderer turns the refusal into a message the person can act
+    // on, and it finds it by this marker
+    expect(() =>
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryDelete),
+    ).toThrow(ADVANCED_CAPABILITY_ERROR_MARKER);
   });
 });

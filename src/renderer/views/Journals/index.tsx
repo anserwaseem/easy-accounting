@@ -28,6 +28,7 @@ import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { useAnyAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabilities';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
 
 export type JournalView = Journal & { amount: number };
@@ -67,9 +68,12 @@ const JournalsPage: React.FC<HasMiniView> = ({
         });
       } catch (error) {
         console.error('Error updating journal:', error);
+        // the guard refuses this when "Edit a journal after posting" is
+        // off; the toast layer turns that into a message the person can
+        // act on
         toast({
           title: 'Error',
-          description: 'Failed to update journal',
+          description: ipcErrorMessage(error) || 'Failed to update journal',
           variant: 'destructive',
         });
         throw error;

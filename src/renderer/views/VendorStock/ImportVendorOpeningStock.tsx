@@ -20,7 +20,7 @@ import { convertFileToJson } from '@/renderer/lib/lib';
 import { parseVendorOpeningStock } from '@/renderer/lib/parser';
 import { toLocalDateInputValue } from '@/renderer/lib/localDate';
 import { toast } from '@/renderer/shad/ui/use-toast';
-import { toString } from 'lodash';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import type { VendorStockOpeningRow } from 'types';
 
 interface ImportVendorOpeningStockProps {
@@ -79,7 +79,7 @@ export const ImportVendorOpeningStock: React.FC<
       setPreviewRows(rows);
     } catch (err) {
       toast({
-        description: toString(err),
+        description: ipcErrorMessage(err) || 'Failed to read the file',
         variant: 'destructive',
       });
       setPreviewRows([]);
@@ -111,7 +111,7 @@ export const ImportVendorOpeningStock: React.FC<
       }
     } catch (err) {
       toast({
-        description: toString(err),
+        description: ipcErrorMessage(err) || 'Failed to import starting qty',
         variant: 'destructive',
       });
     } finally {

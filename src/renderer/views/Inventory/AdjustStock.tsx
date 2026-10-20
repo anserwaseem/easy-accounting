@@ -8,6 +8,7 @@ import {
   DialogHeader,
 } from '@/renderer/shad/ui/dialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { useMemo, useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
@@ -68,12 +69,23 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
       });
       return;
     }
-    const result = await window.electron.applyStockAdjustment({
-      inventoryId: item.id,
-      quantityDelta,
-      reason: reason.trim(),
-      date,
-    });
+    let result;
+    try {
+      result = await window.electron.applyStockAdjustment({
+        inventoryId: item.id,
+        quantityDelta,
+        reason: reason.trim(),
+        date,
+      });
+    } catch (error) {
+      // the guard refuses this when "Adjust stock by hand" is off; the
+      // toast layer turns that into a message the person can act on
+      toast({
+        description: ipcErrorMessage(error) || 'Failed to adjust stock',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (result.success) {
       refetchInventory();
       setOpen(false);

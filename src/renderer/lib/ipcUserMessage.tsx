@@ -1,4 +1,8 @@
 import type { ReactNode } from 'react';
+import {
+  isAdvancedCapabilityError,
+  advancedCapabilityErrorLabel,
+} from '@/core/advancedCapabilities';
 
 const stripElectronIpcWrappers = (raw: string): string => {
   let s = raw.trim();
@@ -147,5 +151,37 @@ export const toastContentFromInvoiceReturnError = (
   return {
     title: "Couldn't return this invoice",
     description: <p className="text-sm leading-snug break-words">{message}</p>,
+  };
+};
+
+/**
+ * Turns a raw IPC failure into toast content, replacing the advanced
+ * capability refusal with something a person can act on.
+ *
+ * The refusal is not a failure of the action: the action is off because
+ * the owner turned it off, so the toast says which action it was and
+ * where to turn it on, rather than showing the raw capability id next to
+ * "Operation failed".
+ *
+ * Returns null when the message is not a capability refusal, so the
+ * caller can fall through to its own wording.
+ */
+export const toastContentFromAdvancedCapabilityError = (
+  raw: string,
+): { title: string; description: ReactNode } | null => {
+  const message = stripElectronIpcWrappers(raw);
+  if (!isAdvancedCapabilityError(message)) return null;
+
+  const label = advancedCapabilityErrorLabel(message);
+  const action = label ? `“${label}” is` : 'That action is';
+
+  return {
+    title: 'Turned off on this device',
+    description: (
+      <p className="text-sm leading-snug">
+        {action} an advanced control, so it is not available here. The shop
+        owner can turn it on in Settings, under Advanced controls.
+      </p>
+    ),
   };
 };

@@ -20,6 +20,7 @@ import { DateHeader } from '@/renderer/components/common/DateHeader';
 import { Badge } from '@/renderer/shad/ui/badge';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { cn } from '@/renderer/lib/utils';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
 import {
   dateFormatOptions,
@@ -128,7 +129,7 @@ const VendorStockPage: React.FC = () => {
       }
     } catch (error) {
       toast({
-        description: String(error),
+        description: ipcErrorMessage(error) || 'Failed to delete send',
         variant: 'destructive',
       });
     } finally {

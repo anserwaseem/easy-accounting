@@ -20,6 +20,7 @@ import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import type { UpdateAccount, Chart } from 'types';
 import { useState } from 'react';
 import {
@@ -73,26 +74,38 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   });
 
   const onSubmit = async (values: AccountFormData) => {
-    const isUpdated: boolean = await window.electron.updateAccount({
-      id: values.id!,
-      name: values.accountName,
-      headName: values.headName,
-      code: values.accountCode,
-      address: values.address,
-      addressUrdu: values.addressUrdu,
-      city: values.city,
-      cityUrdu: values.cityUrdu,
-      phone1: values.phone1,
-      phone2: values.phone2,
-      goodsName: values.goodsName,
-      nameUrdu: values.nameUrdu,
-      goodsNameUrdu: values.goodsNameUrdu,
-      discountProfileId:
-        values.discountProfileId ?? row.original.discountProfileId ?? null,
-      isActive: row.original.isActive,
-      tracksVendorStock: values.tracksVendorStock,
-      collectionRole: toCollectionRole(values.collectionRole),
-    });
+    let isUpdated: boolean;
+    try {
+      isUpdated = await window.electron.updateAccount({
+        id: values.id!,
+        name: values.accountName,
+        headName: values.headName,
+        code: values.accountCode,
+        address: values.address,
+        addressUrdu: values.addressUrdu,
+        city: values.city,
+        cityUrdu: values.cityUrdu,
+        phone1: values.phone1,
+        phone2: values.phone2,
+        goodsName: values.goodsName,
+        nameUrdu: values.nameUrdu,
+        goodsNameUrdu: values.goodsNameUrdu,
+        discountProfileId:
+          values.discountProfileId ?? row.original.discountProfileId ?? null,
+        isActive: row.original.isActive,
+        tracksVendorStock: values.tracksVendorStock,
+        collectionRole: toCollectionRole(values.collectionRole),
+      });
+    } catch (error) {
+      // the guard refuses this when one of the advanced account fields is
+      // changed while its control is off; the toast layer turns that into
+      // a message the person can act on
+      toast({
+        description: ipcErrorMessage(error) || 'Failed to update account',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     toast({
       description: isUpdated
@@ -174,8 +187,10 @@ export const EditAccount: React.FC<EditAccountProps> = ({
 
       if (isDeleted) refetchAccounts();
     } catch (error) {
+      // the guard refuses this when "Delete an account" is off; the toast
+      // layer turns that into a message the person can act on
       toast({
-        description: `Error deleting account: ${error}`,
+        description: ipcErrorMessage(error) || 'Error deleting account',
         variant: 'destructive',
       });
     } finally {

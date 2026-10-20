@@ -43,10 +43,12 @@ export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
       setOpen(false);
       onSuccess?.();
     } catch (error: unknown) {
-      const message = ipcErrorMessage(error) || 'Failed to delete journal';
+      // the toast layer swaps in the "turned off on this device" wording
+      // when the refusal is an advanced control, so the raw message is
+      // only used for the other failures
       toast({
         title: 'Delete Failed',
-        description: message,
+        description: ipcErrorMessage(error) || 'Failed to delete journal',
         variant: 'destructive',
       });
     } finally {

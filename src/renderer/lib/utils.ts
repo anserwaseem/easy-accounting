@@ -23,6 +23,7 @@ import {
   currencyIntFormatter,
 } from './constants';
 import { toast } from '../shad/ui/use-toast';
+import { toastContentFromAdvancedCapabilityError } from './ipcUserMessage';
 
 /**
  * Throws an error with the given message. Useful for nullish coalescing with ?? operator.
@@ -344,14 +345,28 @@ export async function handleAsync<T>(
     console.error(error);
 
     const errorMsg = error instanceof Error ? error.message : toString(error);
-    const description = getErrorMessage
-      ? getErrorMessage(errorMsg)
-      : errorMessage || 'Operation failed';
 
-    toast({
-      description,
-      variant: 'destructive',
-    });
+    // An advanced control that is turned off is not a failure of the
+    // action, it is the action being turned off. This is checked before
+    // getErrorMessage, because a caller's own wording would bury the
+    // refusal under a generic message ("An unexpected error occurred"),
+    // and the person who hit it needs to know the action is available
+    // rather than broken.
+    const refusal = toastContentFromAdvancedCapabilityError(errorMsg);
+    if (refusal) {
+      toast({
+        title: refusal.title,
+        description: refusal.description,
+        variant: 'warning',
+      });
+    } else {
+      toast({
+        description: getErrorMessage
+          ? getErrorMessage(errorMsg)
+          : errorMessage || 'Operation failed',
+        variant: 'destructive',
+      });
+    }
 
     onError?.(error);
   } finally {

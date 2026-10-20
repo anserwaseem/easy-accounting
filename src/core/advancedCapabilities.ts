@@ -311,6 +311,73 @@ export const ALL_ADVANCED_CAPABILITIES_SENTINEL = 'all';
 const CAPABILITY_IDS = new Set<string>(ALL_ADVANCED_CAPABILITIES);
 
 /**
+ * The marker the guard's error message carries.
+ *
+ * The message has to survive the trip from the main process (or the db
+ * worker) back to the renderer, where it is stripped of its Electron IPC
+ * wrapper and shown in a toast. This substring is how the renderer
+ * recognizes the message and replaces it with something a person can act
+ * on, instead of showing the raw capability id.
+ */
+export const ADVANCED_CAPABILITY_ERROR_MARKER = 'is an advanced control';
+
+/**
+ * The error thrown when an advanced capability is turned off.
+ *
+ * Lives here, in the shared registry, because both platforms raise it and
+ * the renderer has to recognize it. The message names the action the way
+ * the Settings list does, not the capability id: "journal.reverse" means
+ * nothing to a shop owner, "Reverse a journal" does.
+ *
+ * The second sentence says where to go, because the person who hit this
+ * needs to know the action is available rather than broken.
+ */
+export const advancedCapabilityError = (
+  capability: AdvancedCapability,
+): string => {
+  const label = ADVANCED_CAPABILITY_LABELS[capability] ?? capability;
+  return (
+    `"${label}" ${ADVANCED_CAPABILITY_ERROR_MARKER}, turned off on this ` +
+    'device. Turn it on in Settings to use it.'
+  );
+};
+
+/**
+ * Whether a message is the advanced-capability refusal.
+ *
+ * The renderer calls this on a stripped IPC error message to decide
+ * whether to show the raw text or the friendlier version.
+ */
+export const isAdvancedCapabilityError = (message: string): boolean =>
+  message.includes(ADVANCED_CAPABILITY_ERROR_MARKER);
+
+/**
+ * The action a refusal names, if it names one we recognize.
+ *
+ * The guard's message quotes the label the Settings list uses, so the
+ * person reading the toast can tell which action was turned off. A label
+ * that is not one of ours is dropped rather than shown: a label nobody
+ * recognizes is no better than the raw id.
+ *
+ * The search is not anchored to the start of the message, because some
+ * call sites prefix the error with what they were doing ("Error deleting
+ * account: ..."). The caller has already established that the message is
+ * a refusal, so the first quoted label in it is the one that was refused.
+ */
+export const advancedCapabilityErrorLabel = (
+  message: string,
+): string | null => {
+  // the message is:  "<label>" is an advanced control, turned off ...
+  const match = message.match(/"([^"]+)"\s/);
+  if (!match) return null;
+  const label = match[1];
+  const known = Object.values(ADVANCED_CAPABILITY_LABELS).includes(
+    label as AdvancedCapability,
+  );
+  return known ? label : null;
+};
+
+/**
  * Parses a stored value into a set of capability ids.
  *
  * Tolerates the shapes a hand-edited or legacy store could hold: a

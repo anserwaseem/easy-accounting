@@ -20,6 +20,7 @@
 import { store } from '../store';
 import {
   ADVANCED_CAPABILITIES_STORE_KEY,
+  advancedCapabilityError,
   parseAdvancedCapabilities,
   serializeAdvancedCapabilities,
   type AdvancedCapability,
@@ -71,13 +72,13 @@ export const isAdvancedCapabilityEnabled = (
  * The message is deliberately specific about *how* to enable the action
  * rather than merely failing: the person who hit this is at the Settings
  * screen, and "Advanced controls are turned off" tells them where to go.
+ * The text itself is built in the shared registry so the web worker's
+ * guard and this one say the same thing, and so the renderer can
+ * recognize either.
  */
 export const requireAdvancedCapability = (
   capability: AdvancedCapability,
 ): void => {
   if (isAdvancedCapabilityEnabled(capability)) return;
-  throw new Error(
-    `"${capability}" is an advanced action and is turned off on this ` +
-      'device. Turn on advanced controls in Settings to use it.',
-  );
+  throw new Error(advancedCapabilityError(capability));
 };

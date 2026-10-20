@@ -74,6 +74,7 @@ import {
 import { TableVirtuoso } from 'react-virtuoso';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
 import { cn } from '@/renderer/lib/utils';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { printStyles } from '../components/printStyles';
 import { AgentCommissionSheet } from '../../Accounts/AgentCommissionSheet';
 import { PostSettlementDialog } from './PostSettlementDialog';
@@ -305,9 +306,13 @@ const AgentCommissionReportPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load commission report:', error);
+      // the guard refuses this when the commission module is off; the
+      // toast layer turns that into a message the person can act on
       toast({
         title: 'Error loading report',
-        description: 'Could not fetch agent commission report data.',
+        description:
+          ipcErrorMessage(error) ||
+          'Could not fetch agent commission report data.',
         variant: 'destructive',
       });
     } finally {
@@ -451,6 +456,8 @@ const AgentCommissionReportPage: React.FC = () => {
       fetchReport();
     } catch (error) {
       console.error('Failed to unpost settlement:', error);
+      // the guard refuses this when the unpost control is off; the toast
+      // layer turns that into a message the person can act on
       toast({
         title: 'Unpost failed',
         description:

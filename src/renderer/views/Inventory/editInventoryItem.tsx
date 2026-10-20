@@ -14,6 +14,7 @@ import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from 'renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import type { UpdateInventoryItem, ItemType, InventoryItem } from '@/types';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -154,10 +155,24 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   // is disabled for existing items anyway
   const onToggleExcluded = async (next: boolean) => {
     setExcluded(next);
-    const ok = await window.electron.setItemExcludedFromCatalog(
-      row.original.id,
-      next,
-    );
+    let ok: boolean;
+    try {
+      ok = await window.electron.setItemExcludedFromCatalog(
+        row.original.id,
+        next,
+      );
+    } catch (error) {
+      // the guard refuses this when "Keep an item out of the catalog" is
+      // off; the toast layer turns that into a message the person can
+      // act on
+      setExcluded(!next);
+      toast({
+        description:
+          ipcErrorMessage(error) || 'Could not change the publishing setting',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (!ok) {
       setExcluded(!next);
       toast({
@@ -279,7 +294,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
       setIsDeleteDialogOpen(true);
     } catch (error) {
       toast({
-        description: `Error checking item deletion: ${error}`,
+        description: ipcErrorMessage(error) || 'Error checking item deletion',
         variant: 'destructive',
       });
     }
@@ -304,8 +319,10 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
         });
       }
     } catch (error) {
+      // the guard refuses this when "Delete an inventory item" is off;
+      // the toast layer turns that into a message the person can act on
       toast({
-        description: `Error deleting item: ${error}`,
+        description: ipcErrorMessage(error) || 'Error deleting item',
         variant: 'destructive',
       });
     } finally {

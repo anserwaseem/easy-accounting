@@ -14,9 +14,10 @@ import {
   DialogHeader,
 } from '@/renderer/shad/ui/dialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { Label } from '@/renderer/shad/ui/label';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
-import { max, toString } from 'lodash';
+import { max } from 'lodash';
 import { useEffect, useState } from 'react';
 import { PackageOpen } from 'lucide-react';
 import { toLocalDateInputValue } from '@/renderer/lib/localDate';
@@ -101,7 +102,7 @@ export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
       }
     } catch (err) {
       toast({
-        description: toString(err),
+        description: ipcErrorMessage(err) || 'Failed to set opening stock',
         variant: 'destructive',
       });
     }

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { toastContentFromAdvancedCapabilityError } from '@/renderer/lib/ipcUserMessage';
 import type { ToastActionElement, ToastProps } from './toast';
 
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000;
 const DEFAULT_DURATION = 3500; // ms
 const ERROR_DURATION = 6000; // ms for error/warning so users have time to read
+const REFUSAL_DURATION = 9000; // ms for a turned-off advanced control
 
 const cleanToastMessage = (message: unknown): string => {
   if (message instanceof Error) {
@@ -166,7 +168,7 @@ type Toast = Omit<ToasterToast, 'id' | 'title' | 'description'> & {
 function toast({ ...props }: Toast) {
   const id = genId();
 
-  let { title, description, duration } = props;
+  let { title, description, duration, variant } = props;
   if (typeof description === 'string' || description instanceof Error) {
     description = cleanToastMessage(description);
   }
@@ -174,9 +176,25 @@ function toast({ ...props }: Toast) {
     title = cleanToastMessage(title);
   }
 
+  // An advanced control that is turned off is not a failure of the
+  // action, so the caller's "Delete Failed" title and its red styling
+  // would both be misleading. Swap the whole toast for one that says
+  // what happened and what to do about it. Doing it here means every
+  // call site is covered, including the ones that show the raw error
+  // without going through a helper.
+  if (typeof description === 'string') {
+    const refusal = toastContentFromAdvancedCapabilityError(description);
+    if (refusal) {
+      description = refusal.description;
+      title = refusal.title;
+      variant = 'warning';
+      if (duration === undefined) duration = REFUSAL_DURATION;
+    }
+  }
+
   if (duration === undefined) {
     duration =
-      props.variant === 'destructive' || props.variant === 'warning'
+      variant === 'destructive' || variant === 'warning'
         ? ERROR_DURATION
         : DEFAULT_DURATION;
   }
@@ -192,6 +210,7 @@ function toast({ ...props }: Toast) {
     type: 'ADD_TOAST',
     toast: {
       ...props,
+      variant,
       duration,
       title,
       description,

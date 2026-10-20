@@ -6,7 +6,10 @@ import {
   ALL_ADVANCED_CAPABILITIES_IN_GROUP_ORDER,
   ALL_ADVANCED_CAPABILITIES_SENTINEL,
   DESTRUCTIVE_ADVANCED_CAPABILITIES,
+  advancedCapabilityError,
+  advancedCapabilityErrorLabel,
   hasAdvancedCapability,
+  isAdvancedCapabilityError,
   parseAdvancedCapabilities,
   serializeAdvancedCapabilities,
 } from '../advancedCapabilities';
@@ -212,5 +215,71 @@ describe('hasAdvancedCapability', () => {
     expect(
       hasAdvancedCapability(enabled, ADVANCED_CAPABILITIES.accountDelete),
     ).toBe(false);
+  });
+});
+
+describe('advancedCapabilityError', () => {
+  it('names the action the way the Settings list does', () => {
+    // the capability id means nothing to a shop owner; the label does
+    const message = advancedCapabilityError(
+      ADVANCED_CAPABILITIES.journalReverse,
+    );
+    expect(message).toContain('Reverse a journal');
+    expect(message).not.toContain('journal.reverse');
+  });
+
+  it('is recognized by isAdvancedCapabilityError', () => {
+    expect(
+      isAdvancedCapabilityError(
+        advancedCapabilityError(ADVANCED_CAPABILITIES.accountDelete),
+      ),
+    ).toBe(true);
+  });
+
+  it('leaves an ordinary error alone', () => {
+    expect(
+      isAdvancedCapabilityError('Account name and code must be unique'),
+    ).toBe(false);
+    expect(isAdvancedCapabilityError('Error: something else failed')).toBe(
+      false,
+    );
+  });
+
+  it('says where to turn the action on', () => {
+    // the person who hit this needs to know the action is available
+    // rather than broken
+    expect(
+      advancedCapabilityError(ADVANCED_CAPABILITIES.inventorySetOpeningStock),
+    ).toContain('Settings');
+  });
+});
+
+describe('advancedCapabilityErrorLabel', () => {
+  it('reads the action back out of the refusal', () => {
+    const message = advancedCapabilityError(
+      ADVANCED_CAPABILITIES.accountDelete,
+    );
+    expect(advancedCapabilityErrorLabel(message)).toBe('Delete an account');
+  });
+
+  it('reads the label out of a message that has a prefix', () => {
+    // some call sites prefix the error with what they were doing
+    const message = `Error deleting account: ${advancedCapabilityError(
+      ADVANCED_CAPABILITIES.accountDelete,
+    )}`;
+    expect(advancedCapabilityErrorLabel(message)).toBe('Delete an account');
+  });
+
+  it('drops a label it does not recognize', () => {
+    // a label nobody knows is no better than the raw capability id
+    expect(
+      advancedCapabilityErrorLabel(
+        '"Do something odd" is an advanced control, turned off on this device.',
+      ),
+    ).toBeNull();
+  });
+
+  it('returns null for an ordinary error', () => {
+    expect(advancedCapabilityErrorLabel('Failed to update journal')).toBeNull();
   });
 });

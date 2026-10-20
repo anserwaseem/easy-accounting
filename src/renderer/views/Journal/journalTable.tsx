@@ -18,6 +18,8 @@ import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog
 import { DeleteJournalDialog } from '@/renderer/components/DeleteJournalDialog';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
+import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 
 interface JournalTableProps {
   journalId: number;
@@ -44,6 +46,14 @@ export const JournalTable: React.FC<JournalTableProps> = ({
       setJournal(await window.electron.getJournal(journalId));
     } catch (error) {
       console.error('Error updating journal:', error);
+      // the guard refuses this when "Edit a journal after posting" is
+      // off; the toast layer turns that into a message the person can
+      // act on
+      toast({
+        title: 'Error',
+        description: ipcErrorMessage(error) || 'Failed to update journal',
+        variant: 'destructive',
+      });
     }
   };
 

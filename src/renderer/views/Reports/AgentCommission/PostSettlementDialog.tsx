@@ -171,6 +171,8 @@ export const PostSettlementDialog: React.FC<PostSettlementDialogProps> = ({
       onSuccess();
     } catch (error) {
       console.error('Failed to post commission settlement:', error);
+      // the guard refuses this when the commission module is off; the
+      // toast layer turns that into a message the person can act on
       toast({
         title: 'Posting Failed',
         description:

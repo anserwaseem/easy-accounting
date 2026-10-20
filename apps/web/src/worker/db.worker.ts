@@ -101,6 +101,7 @@ import type { UserCredentials } from 'types';
 import {
   ADVANCED_CAPABILITIES,
   ADVANCED_CAPABILITIES_STORE_KEY,
+  advancedCapabilityError,
   parseAdvancedCapabilities,
   serializeAdvancedCapabilities,
   type AdvancedCapability,
@@ -559,10 +560,7 @@ async function main(): Promise<void> {
       webKv.get(ADVANCED_CAPABILITIES_STORE_KEY),
     );
     if (enabled.has(capability)) return;
-    throw new Error(
-      `"${capability}" is an advanced action and is turned off on this ` +
-        'device. Turn on advanced controls in Settings to use it.',
-    );
+    throw new Error(advancedCapabilityError(capability));
   };
 
   const handlers: Handlers = {
