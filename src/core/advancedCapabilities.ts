@@ -90,6 +90,8 @@ export const ADVANCED_CAPABILITIES = {
   commissionModule: 'commission.module',
   /** Unpost a frozen agent-commission settlement. */
   commissionUnpostSettlement: 'commission.unpostSettlement',
+  /** The sales performance report: trends, top customers, top items. */
+  salesPerformanceReport: 'salesPerformance.report',
   /** Delete a discount profile / pricing policy. */
   pricingDeletePolicy: 'pricing.deletePolicy',
   /** Re-download every row from the sync server. */
@@ -129,6 +131,7 @@ export const ADVANCED_CAPABILITY_LABELS: Record<AdvancedCapability, string> = {
   [ADVANCED_CAPABILITIES.vendorStockSetOpeningStock]:
     'Set starting qty at vendors',
   [ADVANCED_CAPABILITIES.commissionModule]: 'Agent commissions',
+  [ADVANCED_CAPABILITIES.salesPerformanceReport]: 'Sales performance report',
   [ADVANCED_CAPABILITIES.commissionUnpostSettlement]:
     'Unpost an agent settlement',
   [ADVANCED_CAPABILITIES.pricingDeletePolicy]: 'Delete a pricing policy',
@@ -228,6 +231,12 @@ export const ADVANCED_CAPABILITY_GROUPS: readonly AdvancedCapabilityGroup[] = [
       ADVANCED_CAPABILITIES.commissionModule,
       ADVANCED_CAPABILITIES.commissionUnpostSettlement,
     ],
+  },
+  {
+    id: 'reports',
+    title: 'Reports',
+    description: 'Reports the owner may not want on every device.',
+    capabilities: [ADVANCED_CAPABILITIES.salesPerformanceReport],
   },
   {
     id: 'pricing',

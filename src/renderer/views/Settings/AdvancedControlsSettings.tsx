@@ -176,7 +176,8 @@ const AdvancedControlsSettings: React.FC = () => {
             Actions that change or remove existing records: reversing or
             deleting a journal, returning a posted invoice, deleting an account
             or inventory item, adjusting stock by hand, restating opening stock.
-            Off by default, and remembered on this device only.
+            Also the reports the owner may not want on every device. Off by
+            default, and remembered on this device only.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

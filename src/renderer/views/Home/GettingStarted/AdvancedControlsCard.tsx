@@ -60,9 +60,10 @@ export const AdvancedControlsCard: React.FC = () => {
         <CardDescription>
           Actions that change or remove records that already exist, such as
           reversing a journal, returning a posted invoice, deleting an account
-          or an item, and restating opening stock. They are turned off by
-          default, so nobody stumbles into one by accident. Each one is switched
-          on individually, and the setting is remembered on this device only.
+          or an item, and restating opening stock. Also the reports the owner
+          may not want on every device. They are turned off by default, so
+          nobody stumbles into one by accident. Each one is switched on
+          individually, and the setting is remembered on this device only.
         </CardDescription>
       </CardHeader>
       <CardContent>

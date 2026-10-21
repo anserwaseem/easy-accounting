@@ -46,6 +46,7 @@ import {
   type ReportExportPayload,
 } from '@/renderer/lib/reportExport';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { Badge } from '@/renderer/shad/ui/badge';
 import { useNavigate } from 'react-router-dom';
@@ -204,6 +205,32 @@ const SalesPerformanceReportPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('customers');
   const [seriesIndex, setSeriesIndex] = useState(0);
   const filterRef = useRef(0);
+  /**
+   * rows of the active tab as the grid shows them (search + column sort).
+   *
+   * The export feeds from this rather than from the raw API rows, so what
+   * lands in the spreadsheet is what the user is looking at. Null until the
+   * grid has reported its rows for the first time.
+   */
+  const [gridViewRows, setGridViewRows] = useState<Array<
+    Record<string, unknown>
+  > | null>(null);
+
+  const handleGridViewModelChange = useCallback(
+    (next: Array<Record<string, unknown>>) => {
+      setGridViewRows((prev) => {
+        if (
+          prev &&
+          prev.length === next.length &&
+          next.every((row, i) => row === prev[i])
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const computeComparisonDates = useCallback(
     (range: DateRange, mode: string) => {
@@ -271,6 +298,15 @@ const SalesPerformanceReportPage: React.FC = () => {
         }
       } catch (error) {
         console.error('Error fetching sales performance:', error);
+        // the guard refuses this when the report is turned off on this
+        // device; the toast layer turns that into a message the person can
+        // act on rather than a silent empty report
+        toast({
+          title: 'Error loading sales performance',
+          description:
+            ipcErrorMessage(error) || 'Could not fetch sales performance data.',
+          variant: 'destructive',
+        });
       } finally {
         if (thisFilter === filterRef.current) setIsLoading(false);
       }
@@ -431,10 +467,10 @@ const SalesPerformanceReportPage: React.FC = () => {
   const handleExport = useCallback(() => {
     if (!response) return;
     try {
-      let tabRows: Array<Record<string, unknown>>;
+      let sourceRows: Array<Record<string, unknown>>;
       let columns: ReportExportPayload['columns'];
       if (activeTab === 'customers') {
-        tabRows = response.rows;
+        sourceRows = response.rows;
         columns = groupByPolicy
           ? [
               {
@@ -483,15 +519,19 @@ const SalesPerformanceReportPage: React.FC = () => {
               },
             ];
       } else if (activeTab === 'items') {
-        tabRows = response.topItems;
+        sourceRows = response.topItems;
         columns = EXPORT_COLUMNS[activeTab];
       } else if (activeTab === 'returns') {
-        tabRows = response.returns;
+        sourceRows = response.returns;
         columns = EXPORT_COLUMNS[activeTab];
       } else {
-        tabRows = response.quotationBacklog;
+        sourceRows = response.quotationBacklog;
         columns = EXPORT_COLUMNS[activeTab];
       }
+
+      // export what the grid shows, not the raw rows: a search or a column
+      // sort the user applied should carry into the spreadsheet
+      const rows = gridViewRows ?? sourceRows;
 
       const payload: ReportExportPayload = {
         title: 'Sales Performance Report',
@@ -503,7 +543,7 @@ const SalesPerformanceReportPage: React.FC = () => {
             : '',
         sheetName: 'Sales Performance',
         columns,
-        rows: tabRows,
+        rows,
         suggestedFileName: `Sales_Performance_${format(
           new Date(),
           'yyyy-MM-dd',
@@ -522,7 +562,7 @@ const SalesPerformanceReportPage: React.FC = () => {
         variant: 'destructive',
       });
     }
-  }, [response, dateRange, activeTab, groupByPolicy]);
+  }, [response, dateRange, activeTab, groupByPolicy, gridViewRows]);
 
   const handlePrint = useCallback(() => window.print(), []);
 
@@ -1009,7 +1049,13 @@ const SalesPerformanceReportPage: React.FC = () => {
               <button
                 key={tab}
                 type="button"
-                onClick={() => setActiveTab(tab)}
+                onClick={() => {
+                  // the grid rows belong to the tab that produced them, so
+                  // drop them on a tab change rather than let the previous
+                  // tab's rows reach the export
+                  setGridViewRows(null);
+                  setActiveTab(tab);
+                }}
                 className={`text-sm px-3 py-1.5 rounded transition ${
                   tab === activeTab
                     ? 'bg-primary text-primary-foreground'
@@ -1046,6 +1092,7 @@ const SalesPerformanceReportPage: React.FC = () => {
             searchPersistenceKey={`${REPORT_FILTER_KEYS.salesPerformance}.customersSearch`}
             virtual
             virtualHeightMode="fill"
+            onViewModelChange={handleGridViewModelChange}
           />
         )}
 
@@ -1055,11 +1102,12 @@ const SalesPerformanceReportPage: React.FC = () => {
             data={response.topItems}
             defaultSortField="totalAmount"
             defaultSortDirection="desc"
-            searchFields={['groupName', 'groupCode']}
+            searchFields={['itemName']}
             searchPlaceholder="Search items..."
             searchPersistenceKey={`${REPORT_FILTER_KEYS.salesPerformance}.itemsSearch`}
             virtual
             virtualHeightMode="fill"
+            onViewModelChange={handleGridViewModelChange}
           />
         )}
 
@@ -1077,6 +1125,7 @@ const SalesPerformanceReportPage: React.FC = () => {
               searchPersistenceKey={`${REPORT_FILTER_KEYS.salesPerformance}.returnsSearch`}
               virtual
               virtualHeightMode="fill"
+              onViewModelChange={handleGridViewModelChange}
             />
           )}
 
@@ -1094,6 +1143,7 @@ const SalesPerformanceReportPage: React.FC = () => {
               searchPersistenceKey={`${REPORT_FILTER_KEYS.salesPerformance}.quotationsSearch`}
               virtual
               virtualHeightMode="fill"
+              onViewModelChange={handleGridViewModelChange}
             />
           )}
 

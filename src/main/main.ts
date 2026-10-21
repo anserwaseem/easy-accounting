@@ -1226,8 +1226,10 @@ app
 
     ipcMain.handle(
       'report:getSalesPerformance',
-      async (_, filters: { startDate: string; endDate: string }) =>
-        invoiceService.getSalesPerformance(filters),
+      async (_, filters: { startDate: string; endDate: string }) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.salesPerformanceReport);
+        return invoiceService.getSalesPerformance(filters);
+      },
     );
 
     ipcMain.handle(
