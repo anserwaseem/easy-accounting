@@ -121,7 +121,15 @@ const AppRoutes: React.FC = () => {
                     />
                     <Route
                       path="sales-performance"
-                      element={<SalesPerformanceReportPage />}
+                      element={
+                        <AdvancedRoute
+                          capability={
+                            ADVANCED_CAPABILITIES.salesPerformanceReport
+                          }
+                        >
+                          <SalesPerformanceReportPage />
+                        </AdvancedRoute>
+                      }
                     />
                     <Route
                       path="sales-by-customer"

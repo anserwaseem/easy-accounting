@@ -105,6 +105,17 @@ describe('AdvancedRoute', () => {
           </AdvancedRoute>
         }
       />
+      <Route
+        path="/reports/sales-performance"
+        element={
+          <AdvancedRoute
+            capability={ADVANCED_CAPABILITIES.salesPerformanceReport}
+            fallback="/reports"
+          >
+            <div>Sales performance report</div>
+          </AdvancedRoute>
+        }
+      />
       <Route path="/reports" element={<div>Reports list</div>} />
     </Routes>
   );
@@ -127,5 +138,26 @@ describe('AdvancedRoute', () => {
     );
 
     expect(await screen.findByText('Commission report')).toBeInTheDocument();
+  });
+
+  it('redirects away from the sales performance report when it is off', async () => {
+    renderWith(routes, [], '/reports/sales-performance');
+
+    expect(await screen.findByText('Reports list')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Sales performance report'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the sales performance report when it is on', async () => {
+    renderWith(
+      routes,
+      [ADVANCED_CAPABILITIES.salesPerformanceReport],
+      '/reports/sales-performance',
+    );
+
+    expect(
+      await screen.findByText('Sales performance report'),
+    ).toBeInTheDocument();
   });
 });

@@ -122,6 +122,7 @@ const operationsReports: ReportOption[] = [
     help: 'Sales volume analytics, top customers, bestselling items, return rates, and period-over-period comparisons.',
     path: '/reports/sales-performance',
     icon: <TrendingUp className="h-6 w-6" />,
+    capability: ADVANCED_CAPABILITIES.salesPerformanceReport,
   },
   {
     title: 'Sales by Customer',

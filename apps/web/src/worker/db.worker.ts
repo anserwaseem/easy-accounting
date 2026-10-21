@@ -1233,10 +1233,12 @@ async function main(): Promise<void> {
       inventoryService.getStockAsOf(
         filters as Parameters<InventoryService['getStockAsOf']>[0],
       ),
-    reportGetSalesPerformance: (filters) =>
-      invoiceService.getSalesPerformance(
+    reportGetSalesPerformance: (filters) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.salesPerformanceReport);
+      return invoiceService.getSalesPerformance(
         filters as Parameters<InvoiceService['getSalesPerformance']>[0],
-      ),
+      );
+    },
     reportGetPurchasesByVendor: (filters) =>
       invoiceService.getPurchasesByVendor(
         filters as Parameters<InvoiceService['getPurchasesByVendor']>[0],
