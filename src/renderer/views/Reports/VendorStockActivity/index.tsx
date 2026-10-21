@@ -531,7 +531,7 @@ const VendorStockActivityPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3 print:hidden">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Vendor:</span>
-              <div className="w-full sm:w-[220px]">
+              <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
                 <VirtualSelect
                   options={vendorOptions}
                   value={selectedVendorId}

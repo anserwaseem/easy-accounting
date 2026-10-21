@@ -5,12 +5,11 @@ import { cn } from 'renderer/lib/utils';
 interface PageHeaderProps {
   /** Screen title. Rendered as the page's h1. */
   title: ReactNode;
-  /** Filter/sort controls that sit next to the title on desktop. */
+  /** Filter/sort controls that sit next to the title. */
   filters?: ReactNode;
-  /** Primary and secondary actions. Right-aligned on desktop, full-width
-   *  row on mobile. */
+  /** Primary and secondary actions. */
   actions?: ReactNode;
-  /** Drop the the h1 (used by the split-pane detail screens, which render
+  /** Drop the h1 (used by the split-pane detail screens, which render
    *  their own heading). */
   hideTitle?: boolean;
   className?: string;
@@ -25,11 +24,10 @@ interface PageHeaderProps {
  * side by side, so the "VIEW BY:" label, the date range picker, the
  * title and the primary button all overlapped.
  *
- * Layout:
- *   desktop  title .................. filters ..... actions
- *   mobile   title
- *            filters
- *            actions
+ * On a phone the title and the actions share the first row, and the
+ * filters sit in a row of their own beneath it. A phone header used to
+ * take three full-width rows before the user reached any content; two
+ * compact rows leave the list visible immediately.
  */
 export const PageHeader: React.FC<PageHeaderProps> = ({
   title,
@@ -38,20 +36,24 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   hideTitle = false,
   className,
 }) => (
-  <div className={cn('flex flex-col gap-3 py-4', className)}>
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      {hideTitle ? null : (
-        <h1 className="title-new text-left sm:text-center">{title}</h1>
+  <div className={cn('flex flex-col gap-2 py-3 sm:gap-3 sm:py-4', className)}>
+    <div className="flex items-center justify-between gap-2 sm:justify-end sm:gap-4">
+      {hideTitle ? (
+        <div className="sm:hidden" />
+      ) : (
+        <h1 className="title-new min-w-0 truncate text-left sm:text-center">
+          {title}
+        </h1>
       )}
-      {filters ? (
-        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-4">
-          {filters}
+      {actions ? (
+        <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+          {actions}
         </div>
       ) : null}
     </div>
-    {actions ? (
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-        {actions}
+    {filters ? (
+      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+        {filters}
       </div>
     ) : null}
   </div>
@@ -64,23 +66,20 @@ interface FilterGroupProps {
 }
 
 /**
- * A labelled filter cluster ("VIEW BY: [date range]"). The label sits
- * above the control on a phone so neither is squeezed, and inline on a
- * wider screen.
+ * A labelled filter cluster ("VIEW BY: [date range]"). On a phone the
+ * label sits inline before the control rather than above it, so the
+ * control gets the width it needs to show a date range.
  */
 export const FilterGroup: React.FC<FilterGroupProps> = ({
   label,
   children,
   className,
 }) => (
-  <div
-    className={cn(
-      'flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3',
-      className,
-    )}
-  >
+  <div className={cn('flex min-w-0 items-center gap-2 sm:gap-3', className)}>
     {label ? (
-      <p className="text-muted-foreground font-bold text-sm">{label}</p>
+      <p className="shrink-0 text-muted-foreground font-bold text-sm">
+        {label}
+      </p>
     ) : null}
     {children}
   </div>

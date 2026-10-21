@@ -313,13 +313,20 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
           price. Deactivating a list hides it without losing its prices.
         </p>
 
+        {/* Each price list is a card: the name and the count on one row,
+            the actions on their own row. A single row of four buttons
+            and two fixed-width labels needed ~500px, so on a phone the
+            row ran off the edge. */}
         <div className="flex flex-col gap-2">
           {priceLists.map((list) => (
-            <div key={list.id} className="flex items-center gap-2 text-sm">
+            <div
+              key={list.id}
+              className="flex flex-col gap-2 rounded-lg border p-3 text-sm sm:flex-row sm:items-center"
+            >
               {editingId === list.id ? (
                 <>
                   <Input
-                    className="max-w-48"
+                    className="w-full sm:max-w-48"
                     value={editingName}
                     onChange={(e) => setEditingName(e.target.value)}
                     aria-label={`New name for ${list.name}`}
@@ -337,49 +344,55 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
                 </>
               ) : (
                 <>
-                  <span className="min-w-32 font-medium">{list.name}</span>
-                  <span className="min-w-32 text-muted-foreground">
-                    {list.itemCount} priced
-                    {list.isActive ? '' : ' · inactive'}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingId(list.id);
-                      setEditingName(list.name);
-                    }}
-                  >
-                    Rename
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleToggle(list)}
-                  >
-                    {list.isActive ? 'Deactivate' : 'Reactivate'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="gap-1"
-                    onClick={() => handleStartSeed(list.id)}
-                  >
-                    <ListPlus size={14} />
-                    Set prices
-                  </Button>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-medium">{list.name}</span>
+                    <span className="text-muted-foreground">
+                      {list.itemCount} priced
+                      {list.isActive ? '' : ' · inactive'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="gap-1"
+                      onClick={() => handleStartSeed(list.id)}
+                    >
+                      <ListPlus size={14} />
+                      Set prices
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingId(list.id);
+                        setEditingName(list.name);
+                      }}
+                    >
+                      Rename
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleToggle(list)}
+                    >
+                      {list.isActive ? 'Deactivate' : 'Reactivate'}
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
           ))}
         </div>
 
-        <div className="flex items-end gap-2 border-t pt-3">
-          <div className="flex flex-col gap-2">
+        {/* The label sat above a 192px input with the Add button beside
+            it, so the pair was off-centre on a phone. */}
+        <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-end">
+          <div className="flex flex-1 flex-col gap-2">
             <Label htmlFor="new-price-list">New price list</Label>
             <Input
               id="new-price-list"
-              className="max-w-48"
+              className="w-full sm:max-w-48"
               placeholder="e.g. Retail"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -389,7 +402,7 @@ export const ManagePriceLists: React.FC<ManagePriceListsProps> = ({
             variant="outline"
             onClick={handleCreate}
             disabled={!newName.trim()}
-            className="mb-2"
+            className="sm:mb-0"
           >
             Add
           </Button>

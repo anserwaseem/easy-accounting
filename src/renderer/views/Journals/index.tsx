@@ -121,6 +121,9 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               accessorKey: 'id',
               header: <span className="whitespace-nowrap">Journal #</span>,
+              // The card's label comes from the header, but this
+              // column's header is a node — name it explicitly.
+              cardLabel: 'Journal #',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
@@ -129,12 +132,10 @@ const JournalsPage: React.FC<HasMiniView> = ({
                 </span>
               ),
               size: 90,
-              hideBelow: 'sm',
             },
             {
               accessorKey: 'date',
               header: 'Date',
-              hideBelow: 'sm' as const,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
@@ -145,6 +146,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               accessorKey: 'narration',
               header: 'Narration',
+              cardHeadline: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               // 360px was wider than a phone on its own, which pushed the
               // Amount (the number the list is scanned for) off-screen.
@@ -157,7 +159,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
               cell: ({ row }) => row.original.billNumber || '-',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               size: 90,
-              hideBelow: 'md',
             },
             {
               accessorKey: 'discountPercentage',
@@ -166,7 +167,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
                 formatJournalDiscountLabel(row.original.discountPercentage),
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               size: 80,
-              hideBelow: 'lg',
             },
             {
               accessorKey: 'amount',
@@ -179,6 +179,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
               ),
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               size: 130,
+              cardAside: true,
             },
             {
               accessorKey: 'createdAt',
@@ -187,7 +188,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
               cell: ({ row }) => <DateCell value={row.original.createdAt} />,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               size: 120,
-              hideBelow: 'lg',
             },
             {
               id: 'actions',
@@ -355,7 +355,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
           <Button
             variant="outline"
             onClick={() => navigate('/journals/new')}
-            className="w-full sm:w-fit"
+            className="shrink-0"
           >
             <Plus size={16} className="mr-2" />
             New Journal

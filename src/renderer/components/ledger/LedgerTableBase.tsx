@@ -84,6 +84,9 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         header: 'Particulars',
         cell: renderLedgerParticularsCell,
         size: 180,
+        // The account/particulars is what a ledger row is read for, so
+        // it heads the card; the debit and credit follow underneath.
+        cardHeadline: true,
       },
       {
         header: 'Narration',
@@ -111,6 +114,9 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
             .replace(currency, '')
             .trim(),
         size: 120,
+        // The running balance is the number a ledger is read for; it
+        // sits beside the particulars.
+        cardAside: true,
       },
       {
         accessorKey: 'balanceType',

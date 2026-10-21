@@ -397,11 +397,11 @@ const InvoiceLineQuantityCell = <T extends FieldValues>({
       name={`invoiceItems.${rowIndex}.quantity` as Path<T>}
       render={({ field }) => (
         <FormItem className="space-y-0">
-          <div className="flex h-8 min-h-8 max-h-8 w-full items-center gap-1.5">
+          <div className="flex h-11 min-h-11 max-h-11 w-full items-center gap-1.5 md:h-8 md:min-h-8 md:max-h-8">
             <FormControl className="m-0 flex min-w-0 flex-1">
               <Input
                 {...field}
-                className="my-0 h-8 w-full min-w-0"
+                className="my-0 h-11 w-full min-w-0 md:h-8"
                 type="number"
                 step={1}
                 min={0}
@@ -503,7 +503,9 @@ export function useNewInvoiceColumns<T extends FieldValues>(
         id: 'lineNumber',
         header: '#',
         size: 40,
-        hideBelow: 'sm',
+        // The card already numbers the lines implicitly, and a line
+        // number is noise next to an item name.
+        cardHidden: true,
         cell: ({ row }) => (
           <span className="text-xs tabular-nums text-muted-foreground">
             {row.index + 1}
@@ -514,6 +516,10 @@ export function useNewInvoiceColumns<T extends FieldValues>(
         header: 'Item',
         size: 260,
         minSize: 180,
+        cardHeadline: true,
+        // The select needs the whole card width to be usable — a
+        // half-width dropdown on a phone is unusable.
+        cardFullWidth: true,
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -578,7 +584,9 @@ export function useNewInvoiceColumns<T extends FieldValues>(
         header: 'Quantity',
         size: 140,
         minSize: 120,
-        hideBelow: 'sm',
+        // The quantity input is the other field the user must be able
+        // to reach and type into; it gets the full card width.
+        cardFullWidth: true,
         cell: ({ row }) => (
           <InvoiceLineQuantityCell<T>
             form={form}

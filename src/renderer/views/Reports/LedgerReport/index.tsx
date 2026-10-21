@@ -5,6 +5,7 @@ import { Download, Printer, RefreshCw } from 'lucide-react';
 import { cn, getFormattedCurrency } from 'renderer/lib/utils';
 import { Card } from 'renderer/shad/ui/card';
 import { ReportLayout } from 'renderer/components/ReportLayout';
+import { ReportFilter, ReportHeader } from 'renderer/components/ReportHeader';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import {
   exportReportToExcel,
@@ -194,70 +195,73 @@ const LedgerReportPage = () => {
     <ReportLayout
       printStyles={`${printStyles}${ledgerPrintStyles}`}
       header={
-        <div className="print-header flex flex-col gap-2 pb-2">
-          <div className="flex justify-between items-center pb-2">
-            <h1 className="title-new">Ledger Report</h1>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Account:</span>
-                <div className="w-full sm:w-[200px]">
-                  <VirtualSelect
-                    options={accounts || []}
-                    value={selectedAccount?.toString()}
-                    onChange={(value) => setSelectedAccount(Number(value))}
-                    placeholder="Select account"
-                    searchPlaceholder="Search accounts..."
-                    autoFocusTrigger={selectedAccount == null}
+        <>
+          <ReportHeader
+            title="Ledger Report"
+            filters={
+              <>
+                <ReportFilter label="Account:">
+                  <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
+                    <VirtualSelect
+                      options={accounts || []}
+                      value={selectedAccount?.toString()}
+                      onChange={(value) => setSelectedAccount(Number(value))}
+                      placeholder="Select account"
+                      searchPlaceholder="Search accounts..."
+                      autoFocusTrigger={selectedAccount == null}
+                    />
+                  </div>
+                </ReportFilter>
+                <ReportFilter label="Range:">
+                  <DateRangePickerWithPresets
+                    $onSelect={handleDateChange}
+                    presets={[{ label: 'All', value: 'all' }]}
+                    initialRange={dateRange ?? undefined}
+                    initialSelectValue={presetValue}
                   />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Range:</span>
-                <DateRangePickerWithPresets
-                  $onSelect={handleDateChange}
-                  presets={[{ label: 'All', value: 'all' }]}
-                  initialRange={dateRange ?? undefined}
-                  initialSelectValue={presetValue}
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={refreshData}
-                title="Refresh Data"
-                disabled={isLoading}
-              >
-                <RefreshCw
-                  className={cn('h-4 w-4', isLoading && 'animate-spin')}
-                />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setExportDialogOpen(true)}
-                title="Export to Excel"
-                disabled={!canExport}
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handlePrint}
-                title="Print Ledger Report"
-              >
-                <Printer className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
+                </ReportFilter>
+              </>
+            }
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={refreshData}
+                  title="Refresh Data"
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={cn('h-4 w-4', isLoading && 'animate-spin')}
+                  />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setExportDialogOpen(true)}
+                  title="Export to Excel"
+                  disabled={!canExport}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrint}
+                  title="Print Ledger Report"
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </>
+            }
+          />
           {selectedAccount && !isLoading && latestBalance && (
             <div className="print:hidden text-right text-sm text-muted-foreground">
               Closing Balance:{' '}
               <span className="font-semibold">{latestBalance}</span>
             </div>
           )}
-        </div>
+        </>
       }
     >
       <LedgerParticularsExportDialog

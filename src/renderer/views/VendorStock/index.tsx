@@ -263,13 +263,14 @@ const VendorStockPage: React.FC = () => {
               accessorKey: 'vendorAccountName',
               header: 'Vendor',
               size: 200,
-              hideBelow: 'md' as const,
             },
           ]),
       {
         accessorKey: 'inventoryName',
         header: 'Item',
         size: 200,
+        cardHeadline: true,
+        cardLabel: 'Item',
       },
       {
         accessorKey: 'quantity',
@@ -321,7 +322,6 @@ const VendorStockPage: React.FC = () => {
         accessorKey: 'date',
         header: 'Date',
         size: 110,
-        hideBelow: 'sm' as const,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => <DateCell value={row.original.date} />,
       },
@@ -332,13 +332,13 @@ const VendorStockPage: React.FC = () => {
               accessorKey: 'vendorAccountName',
               header: 'Vendor',
               size: 180,
-              hideBelow: 'md' as const,
             },
           ]),
       {
         accessorKey: 'totalQuantity',
         header: 'Qty',
         size: 100,
+        cardAside: true,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <span className="tabular-nums">
@@ -350,7 +350,6 @@ const VendorStockPage: React.FC = () => {
         accessorKey: 'lineCount',
         header: 'Lines',
         size: 90,
-        hideBelow: 'lg' as const,
       },
       {
         id: 'actions',

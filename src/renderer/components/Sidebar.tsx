@@ -39,6 +39,7 @@ import BackupStatus from 'renderer/components/BackupStatus';
 import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth, useIsMobile } from '../hooks';
+import { useNavigationHistory } from '../hooks/useNavigationHistory';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 
 const ITEM_BUTTON_CLASSNAME = 'px-3';
@@ -362,6 +363,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
   useAppNavigationShortcuts();
   const { logout } = useAuth();
   const isMobile = useIsMobile();
+  const { canGoBack, goBack } = useNavigationHistory();
 
   // persist collapsed state across restarts (desktop icon-only mode only —
   // on mobile the sidebar is an off-canvas overlay instead, see mobileOpen)
@@ -540,16 +542,33 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               md+, where the persistent sidebar (collapsed or not) is
               always visible instead. */}
           <div className="flex items-center gap-1 h-14 px-2 border-b bg-background flex-shrink-0 md:hidden print:hidden safe-top">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 -ml-1"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open menu"
-              type="button"
-            >
-              <Menu size={22} aria-hidden />
-            </Button>
+            {/* Back is the primary way out of a detail screen on a
+                phone. Without it every move between two related
+                screens meant opening the menu and hunting for the
+                destination again. */}
+            {canGoBack ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 -ml-1"
+                onClick={goBack}
+                aria-label="Go back"
+                type="button"
+              >
+                <ChevronLeft size={22} aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 -ml-1"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open menu"
+                type="button"
+              >
+                <Menu size={22} aria-hidden />
+              </Button>
+            )}
             <Link
               to="/"
               className="font-semibold text-base truncate"
@@ -558,6 +577,16 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               Easy Accounting
             </Link>
             <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation menu"
+                type="button"
+              >
+                <Menu size={22} aria-hidden />
+              </Button>
               {/* The global search palette has no keyboard shortcut on a
                   phone, so the top bar gets a button for it. */}
               <Button

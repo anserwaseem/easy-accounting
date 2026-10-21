@@ -1,10 +1,6 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from '@/renderer/shad/ui/dialog';
+import { Dialog, DialogContent } from '@/renderer/shad/ui/dialog';
 import { isNil, toNumber } from 'lodash';
-import { Copy, File, Loader2, Plus } from 'lucide-react';
+import { Copy, File, Loader2, MoreHorizontal, Plus } from 'lucide-react';
 import type { Row } from '@tanstack/react-table';
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
@@ -27,6 +23,13 @@ import { InvoiceType } from 'types';
 import { formatDisplayDateTime } from '@/lib/displayDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
 import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
+// eslint-disable-next-line import/no-cycle
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from 'renderer/shad/ui/dropdown-menu';
 // eslint-disable-next-line import/no-cycle
 import InvoicePage from '../Invoice';
 import { ExportInvoices } from './exportInvoices';
@@ -139,6 +142,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
     string | undefined
   >(window.electron.store.get('invoiceFilterSelectValue') || undefined);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<number>();
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -230,6 +234,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
             {
               accessorKey: 'invoiceNumber',
               header: <span className="whitespace-nowrap">Invoice #</span>,
+              cardLabel: 'Invoice #',
               cell: ({ row }) => (
                 <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
                   {row.original.invoiceNumber}
@@ -266,12 +271,10 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
               size: 110,
-              hideBelow: 'sm',
             },
             {
               accessorKey: 'date',
               header: 'Date',
-              hideBelow: 'sm' as const,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (row) =>
@@ -283,6 +286,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
             {
               accessorKey: 'accountName',
               header: invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor',
+              // The party is what a reader scans for on an invoice
+              // list, so it heads the card.
+              cardHeadline: true,
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
@@ -301,7 +307,6 @@ const InvoicesPage: FC<InvoicesProps> = ({
               size: 100,
               // Low-value on a narrow screen — the account name/customer
               // column already identifies the party.
-              hideBelow: 'sm',
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -318,6 +323,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                       </span>
                     ),
                     size: 140,
+                    cardAside: true,
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),
@@ -331,7 +337,6 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
               size: 90,
-              hideBelow: 'md',
             },
             {
               accessorKey: 'cartons',
@@ -453,29 +458,50 @@ const InvoicesPage: FC<InvoicesProps> = ({
         }
         actions={
           <>
-            {invoiceType === InvoiceType.Sale && filteredInvoices?.length ? (
-              <Dialog>
-                <DialogTrigger>
-                  <Button variant="secondary" className="w-full sm:w-fit">
-                    <File size={16} className="mr-2" />
-                    Export Sale Invoices
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <ExportInvoices />
-                </DialogContent>
-              </Dialog>
-            ) : null}
             <Button
               variant="outline"
               onClick={() =>
                 navigate(`/${invoiceType.toLowerCase()}/invoices/new`)
               }
-              className="w-full sm:w-fit"
+              className="shrink-0"
             >
               <Plus size={16} className="mr-2" />
               New Invoice
             </Button>
+            {/* Export is a once-in-a-while action, so it lives in an
+                overflow menu rather than taking a full row on a phone. */}
+            {invoiceType === InvoiceType.Sale && filteredInvoices?.length ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      aria-label="More actions"
+                    >
+                      <MoreHorizontal className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => setExportDialogOpen(true)}
+                    >
+                      <File className="mr-2 h-4 w-4" />
+                      Export Sale Invoices
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Dialog
+                  open={exportDialogOpen}
+                  onOpenChange={setExportDialogOpen}
+                >
+                  <DialogContent>
+                    <ExportInvoices />
+                  </DialogContent>
+                </Dialog>
+              </>
+            ) : null}
           </>
         }
       />

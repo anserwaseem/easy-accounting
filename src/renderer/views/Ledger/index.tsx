@@ -39,41 +39,42 @@ const LedgerPage: React.FC = () => {
         <AccountsPage isMini onRowClick={onRowClick} />
       </div>
       <div className="w-full md:w-3/4 overflow-y-auto scrollbar justify-between items-center px-3 py-4 md:px-4 md:py-5">
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-start gap-x-4 gap-y-2">
-          <div>
-            <p className="text-sm text-slate-400 whitespace-normal break-words">
-              {headName}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="title-new whitespace-normal break-words">
-                {accountName}
-              </h1>
-              {accountCode ? (
-                <Badge
-                  variant="secondary"
-                  className="whitespace-nowrap font-medium"
-                >
-                  {accountCode}
-                </Badge>
-              ) : null}
+        {/* The heading was a three-column grid — account name, the word
+            "Ledger", then the balance — which on a phone put the title
+            in the middle of the screen and the balance on a third row.
+            The account name and the balance now share the first row and
+            the balance drops below it on a narrow screen. */}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div className="min-w-0">
+              <p className="text-sm text-muted-foreground break-words">
+                {headName}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="title-new break-words">{accountName}</h1>
+                {accountCode ? (
+                  <Badge
+                    variant="secondary"
+                    className="whitespace-nowrap font-medium"
+                  >
+                    {accountCode}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
-          </div>
 
-          <h1 className="text-2xl text-center">Ledger</h1>
-
-          {ledger.length ? (
-            <div className="flex gap-2 items-center justify-self-end">
-              <h3 className="text-center">Balance:</h3>
-              <h3>
-                <span className="font-bold">
+            {ledger.length ? (
+              <div className="shrink-0 text-right">
+                <p className="text-sm text-muted-foreground">Balance</p>
+                <p className="text-lg font-semibold tabular-nums">
                   {getFormattedCurrency(ledger[ledger.length - 1].balance)}{' '}
-                </span>
-                {ledger[ledger.length - 1].balanceType}
-              </h3>
-            </div>
-          ) : (
-            <div />
-          )}
+                  <span className="text-sm font-normal">
+                    {ledger[ledger.length - 1].balanceType}
+                  </span>
+                </p>
+              </div>
+            ) : null}
+          </div>
         </div>
         <LedgerTableBase ledger={ledger} printMode={false} className="py-8" />
       </div>

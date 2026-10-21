@@ -8,6 +8,7 @@ import {
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
 import { ReportLayout } from 'renderer/components/ReportLayout';
+import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
 import {
   exportReportToExcel,
   type ReportExportPayload,
@@ -122,11 +123,10 @@ const AverageEquityBalancesPage = () => {
     <ReportLayout
       printStyles={printStyles}
       header={
-        <div className="flex justify-between items-center pb-2 print-header">
-          <h1 className="title-new">Average Equity Balances</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Period:</span>
+        <ReportHeader
+          title="Average Equity Balances"
+          filters={
+            <ReportFilter label="Period:">
               <DateRangePickerWithPresets
                 initialRange={{ from: startDate, to: endDate }}
                 $onSelect={(range?: DateRange) => {
@@ -134,37 +134,41 @@ const AverageEquityBalancesPage = () => {
                   if (range?.to) handleEndDateChange(range.to);
                 }}
               />
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleRefresh}
-              title="Refresh Data"
-              disabled={isLoading}
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
-              />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleExportExcel}
-              title="Export to Excel"
-              disabled={!canExport}
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handlePrint}
-              title="Print Average Equity Balances"
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+            </ReportFilter>
+          }
+          actions={
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleRefresh}
+                title="Refresh Data"
+                disabled={isLoading}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+                />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleExportExcel}
+                title="Export to Excel"
+                disabled={!canExport}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handlePrint}
+                title="Print Average Equity Balances"
+              >
+                <Printer className="h-4 w-4" />
+              </Button>
+            </>
+          }
+        />
       }
     >
       {/* Title that shows when printing */}

@@ -250,9 +250,14 @@ const VirtualSelect = <T extends BaseOption = Account>({
 
   const defaultRenderSelectItem = useCallback(
     (item: T) => (
-      <div>
-        <h2>{item.name}</h2>
-        {item.code && <p className="text-xs text-slate-400">{item.code}</p>}
+      // The name must be able to wrap: a long account name in a narrow
+      // dropdown (the report filters are a third of the phone's width)
+      // was clipped mid-word.
+      <div className="min-w-0">
+        <h2 className="break-words leading-snug">{item.name}</h2>
+        {item.code && (
+          <p className="text-xs text-slate-400 break-words">{item.code}</p>
+        )}
       </div>
     ),
     [],

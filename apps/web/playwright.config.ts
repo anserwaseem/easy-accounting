@@ -4,6 +4,9 @@ import { defineConfig } from '@playwright/test';
 const PORT = Number(process.env.E2E_PORT) || 4173;
 const CI_CHROMIUM = '/opt/pw-browsers/chromium';
 
+/** The specs that need the 390x844 phone viewport. */
+const MOBILE_SPECS = ['mobile.spec.ts', 'mobile-back.spec.ts'];
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -28,16 +31,16 @@ export default defineConfig({
   // Two projects, split by test file rather than run every spec twice:
   // every existing spec keeps running at Playwright's default desktop
   // viewport (unchanged — those specs' selectors were written against that
-  // layout), while mobile.spec.ts is the one place that actually needs the
-  // 390x844 phone viewport the mobile shell/layout work targets.
+  // layout), while the mobile-*.spec.ts files are the ones that actually
+  // need the 390x844 phone viewport the mobile shell/layout work targets.
   projects: [
     {
       name: 'desktop',
-      testIgnore: ['mobile.spec.ts'],
+      testIgnore: MOBILE_SPECS,
     },
     {
       name: 'mobile-390x844',
-      testMatch: ['mobile.spec.ts'],
+      testMatch: MOBILE_SPECS,
       use: { viewport: { width: 390, height: 844 } },
     },
   ],

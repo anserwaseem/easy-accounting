@@ -68,8 +68,47 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
    * column and the horizontal scroll never actually shrinks. This
    * property removes the column from the layout entirely below the
    * breakpoint.
+   *
+   * Hiding a column drops information the user may need. Prefer the
+   * card layout (see `cardLayout` on the table) on a phone: it shows
+   * EVERY column, stacked and labelled, instead of a table that is
+   * either too wide to read or missing data.
    */
   hideBelow?: 'sm' | 'md' | 'lg';
+  /**
+   * In the card layout, this column is the card's headline: it is
+   * rendered large and unlabelled at the top of the card, and the
+   * remaining columns follow as labelled rows beneath it.
+   *
+   * The first visible column is the headline by default.
+   */
+  cardHeadline?: boolean;
+  /**
+   * In the card layout, this column is laid out on the headline's row
+   * (to the right of it) rather than as its own labelled row — for the
+   * one other number a reader wants at a glance, e.g. the amount.
+   */
+  cardAside?: boolean;
+  /**
+   * In the card layout, this column is omitted entirely. For a column
+   * that carries no information on its own (a row number, a kind of
+   * icon) once the card has given the row some context.
+   */
+  cardHidden?: boolean;
+  /**
+   * In the card layout, this column takes the full card width and is
+   * left-aligned rather than right-aligned in a label/value row. For a
+   * column holding an input or a select, which needs the whole width
+   * to be usable.
+   */
+  cardFullWidth?: boolean;
+  /**
+   * The label shown for this column in the card layout. Defaults to the
+   * column's header when that is a string; set it when the header is a
+   * node (an icon, a formatted label) or when the fallback would be
+   * meaningless (the raw column id).
+   */
+  cardLabel?: string;
 };
 
 // TODO: search by field(s)
@@ -84,6 +123,19 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
   virtual?: boolean;
   /** tighter row/header/cell padding for dense grids */
   compact?: boolean;
+  /**
+   * Render each row as a card on a phone instead of a table row.
+   *
+   * The table layout needs a horizontal scroll on a narrow screen, and
+   * every column that does not fit is either cut off or hidden. The card
+   * layout shows EVERY column: the headline (the first column, or one
+   * marked `cardHeadline`) at the top, the `cardAside` column beside it,
+   * and the rest as labelled rows underneath. Nothing is dropped.
+   *
+   * Defaults to true below 640px, which is where the table layout stops
+   * being readable. Pass false to keep the table at every width.
+   */
+  cardLayout?: boolean;
   /**
    * controls how virtual table height is computed
    * - content: shrink-to-rows (best for editors/forms; reduces wasted space)
@@ -273,6 +325,7 @@ const DataTable = <TData, TValue>({
   infoData,
   virtual = false,
   compact = false,
+  cardLayout,
   virtualHeightMode = 'content',
   stickyFooterRow,
   virtualScrollToIndex = null,
@@ -589,6 +642,11 @@ const DataTable = <TData, TValue>({
   const leafHeaders =
     table.getHeaderGroups()[0]?.headers.filter((h) => !h.isPlaceholder) ?? [];
 
+  // The card layout replaces the table below 640px, where a table can
+  // only be read by scrolling sideways and every column that does not
+  // fit is either cut off or hidden. It shows every column instead.
+  const useCardLayout = cardLayout ?? !isSmUp;
+
   const renderStickyFooterTableRow = () => {
     if (!hasStickyFooter || !stickyFooterRow) return null;
     return (
@@ -646,6 +704,123 @@ const DataTable = <TData, TValue>({
             ))}
           </TableBody>
         </Table>
+      </div>
+    );
+  };
+
+  /**
+   * The card layout: one card per row, every column shown.
+   *
+   * A table on a phone is a horizontal scroll with columns cut off at
+   * the edge. The card layout stacks the same data instead: the
+   * headline column large at the top-left, the `cardAside` column
+   * (the amount, usually) on the same row, and every remaining column
+   * as a labelled row underneath. Nothing is hidden and nothing needs
+   * scrolling sideways.
+   */
+  const rowKeyOf = (row: Row<TData>) =>
+    toString(resolveRowKey(row.original, row.index));
+
+  const renderCard = (row: Row<TData>) => {
+    const cells = row.getVisibleCells();
+    if (cells.length === 0) return null;
+
+    const defOf = (cell: (typeof cells)[number]) =>
+      cell.column.columnDef as ColumnDef<TData, TValue>;
+
+    const visible = cells.filter((c) => !defOf(c).cardHidden);
+    if (visible.length === 0) return null;
+
+    const headlineCell =
+      visible.find((c) => defOf(c).cardHeadline) ?? visible[0];
+    const asideCell = visible.find(
+      (c) => c !== headlineCell && defOf(c).cardAside,
+    );
+    const fullWidthCells = visible.filter((c) => defOf(c).cardFullWidth);
+    const restCells = visible.filter(
+      (c) => c !== headlineCell && c !== asideCell && !defOf(c).cardFullWidth,
+    );
+
+    const cellContent = (cell: (typeof cells)[number]) => (
+      <div key={`${rowKeyOf(row)}:${cell.column.id}`}>
+        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+      </div>
+    );
+
+    const labelFor = (cell: (typeof cells)[number]) => {
+      const explicit = defOf(cell).cardLabel;
+      if (explicit) return explicit;
+      const { header } = cell.column.columnDef;
+      if (typeof header === 'string') return header;
+      if (typeof header === 'number') return String(header);
+      return cell.column.id;
+    };
+
+    return (
+      <div
+        key={rowKeyOf(row)}
+        // A stable hook for the e2e tests: the card's headline is the
+        // row's identity, and on a phone it is the only way to reach
+        // the row's detail screen (there is no `cell` role any more).
+        data-card-headline={String(headlineCell.column.id)}
+        className="rounded-lg border bg-card p-3 text-card-foreground"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            className="min-w-0 flex-1 text-left text-[15px] font-medium leading-snug"
+            onClick={() => defOf(headlineCell).onClick?.(row)}
+          >
+            {cellContent(headlineCell)}
+          </button>
+          {asideCell ? (
+            <button
+              type="button"
+              className="shrink-0 text-right text-[15px] font-semibold tabular-nums"
+              onClick={() => defOf(asideCell).onClick?.(row)}
+            >
+              {cellContent(asideCell)}
+            </button>
+          ) : null}
+        </div>
+
+        {fullWidthCells.length > 0 ? (
+          <div className="mt-2 flex flex-col gap-2 border-t pt-2">
+            {fullWidthCells.map((cell) => (
+              <div key={`${rowKeyOf(row)}:${cell.column.id}:full`}>
+                {cellContent(cell)}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {restCells.length > 0 ? (
+          <dl className="mt-2 flex flex-col gap-1 border-t pt-2">
+            {restCells.map((cell) => (
+              <div
+                key={`${rowKeyOf(row)}:${cell.column.id}:row`}
+                className="flex items-baseline justify-between gap-3"
+              >
+                <dt className="shrink-0 text-xs text-muted-foreground">
+                  {labelFor(cell)}
+                </dt>
+                <dd className="min-w-0 text-right text-sm">
+                  {defOf(cell).onClick ? (
+                    <button
+                      type="button"
+                      className="text-right"
+                      onClick={() => defOf(cell).onClick?.(row)}
+                    >
+                      {cellContent(cell)}
+                    </button>
+                  ) : (
+                    cellContent(cell)
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
       </div>
     );
   };
@@ -774,6 +949,28 @@ const DataTable = <TData, TValue>({
                 />
               </div>
             </div>
+          </div>
+        );
+      }
+
+      if (useCardLayout) {
+        return (
+          <div
+            className="flex flex-col gap-2 overflow-y-auto"
+            style={{ height: virtualTableHeight }}
+          >
+            {virtualItems.map((item) =>
+              isDetailItem(item) ? (
+                <div
+                  key={virtualItemKey(item)}
+                  className="rounded-lg border bg-muted/30 p-3"
+                >
+                  {renderRowDetail?.(item.detailFor.original)}
+                </div>
+              ) : (
+                renderCard(item)
+              ),
+            )}
           </div>
         );
       }
@@ -907,125 +1104,134 @@ const DataTable = <TData, TValue>({
           </div>
         </div>
       ) : null}
-      <div className="overflow-x-auto w-full scroll-shadow">
-        <Table className={hasStickyFooter ? 'table-fixed' : undefined}>
-          {hasStickyFooter ? (
-            <colgroup>
-              {leafHeaders.map((header) => (
-                <col
-                  key={header.id}
-                  style={{ width: header.column.getSize() }}
+      {useCardLayout ? (
+        <div className="flex flex-col gap-2 p-2">
+          {rows.map((row) => renderCard(row))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto w-full scroll-shadow">
+          <Table className={hasStickyFooter ? 'table-fixed' : undefined}>
+            {hasStickyFooter ? (
+              <colgroup>
+                {leafHeaders.map((header) => (
+                  <col
+                    key={header.id}
+                    style={{ width: header.column.getSize() }}
+                  />
+                ))}
+              </colgroup>
+            ) : null}
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <HeaderRow
+                  key={headerGroup.id}
+                  headerGroup={headerGroup}
+                  compact={compact}
                 />
               ))}
-            </colgroup>
-          ) : null}
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <HeaderRow
-                key={headerGroup.id}
-                headerGroup={headerGroup}
-                compact={compact}
-              />
-            ))}
-          </TableHeader>
-          <TableBody>
-            {rows?.length ? (
-              <>
-                {rows.map((row) => (
-                  <TableRow
-                    key={resolveRowKey(row.original, row.index)}
-                    data-state={row.getIsSelected() && 'selected'}
-                  >
-                    {row.getVisibleCells().map((cell) => (
+            </TableHeader>
+            <TableBody>
+              {rows?.length ? (
+                <>
+                  {rows.map((row) => (
+                    <TableRow
+                      key={resolveRowKey(row.original, row.index)}
+                      data-state={row.getIsSelected() && 'selected'}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          onClick={() =>
+                            (
+                              cell.column.columnDef as ColumnDef<TData, TValue>
+                            )?.onClick?.(cell.row)
+                          }
+                          className={cn(
+                            cellPad,
+                            (cell.column.columnDef as ColumnDef<TData, TValue>)
+                              ?.onClick && 'cursor-pointer',
+                            (cell.column.columnDef as ColumnDef<TData, TValue>)
+                              ?.responsiveClassName,
+                          )}
+                          style={
+                            hasStickyFooter
+                              ? {
+                                  width: cell.column.getSize(),
+                                  minWidth: cell.column.getSize(),
+                                  maxWidth: cell.column.getSize(),
+                                }
+                              : undefined
+                          }
+                        >
+                          {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
+                          <div
+                            key={toString(
+                              `${resolveRowKey(
+                                cell.row.original,
+                                cell.row.index,
+                              )}:${cell.row.index}`,
+                            )}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </div>
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                  {/* Info Rows */}
+                  {infoData?.map((row, rowIndex) => (
+                    <TableRow
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={`info-row-${rowIndex}`}
+                      className="bg-muted/50 font-medium"
+                    >
+                      {row.map((cell, cellIndex) => (
+                        <TableCell
+                          // eslint-disable-next-line react/no-array-index-key
+                          key={`info-cell-${rowIndex}-${cellIndex}`}
+                          className={cellPad}
+                        >
+                          {cell}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </>
+              ) : (
+                <NoResultsRow columns={columns} />
+              )}
+            </TableBody>
+            {hasStickyFooter ? (
+              <TableFooter className="sticky bottom-0 z-10 border-t bg-background print:hidden [&>tr]:bg-background">
+                <TableRow className="border-t bg-background hover:bg-background font-semibold [&>td]:bg-background">
+                  {leafHeaders.map((header, i) => {
+                    const w = header.column.getSize();
+                    return (
                       <TableCell
-                        key={cell.id}
-                        onClick={() =>
-                          (
-                            cell.column.columnDef as ColumnDef<TData, TValue>
-                          )?.onClick?.(cell.row)
-                        }
+                        key={header.id}
                         className={cn(
                           cellPad,
-                          (cell.column.columnDef as ColumnDef<TData, TValue>)
-                            ?.onClick && 'cursor-pointer',
-                          (cell.column.columnDef as ColumnDef<TData, TValue>)
-                            ?.responsiveClassName,
+                          'whitespace-nowrap bg-background',
                         )}
-                        style={
-                          hasStickyFooter
-                            ? {
-                                width: cell.column.getSize(),
-                                minWidth: cell.column.getSize(),
-                                maxWidth: cell.column.getSize(),
-                              }
-                            : undefined
-                        }
+                        style={{
+                          width: w,
+                          minWidth: w,
+                          maxWidth: w,
+                        }}
                       >
-                        {/* HACK: Passing fields of useFieldArray as data requires field.id to be used or else it always removes only the last element https://stackoverflow.com/a/76339991/13183269 */}
-                        <div
-                          key={toString(
-                            `${resolveRowKey(
-                              cell.row.original,
-                              cell.row.index,
-                            )}:${cell.row.index}`,
-                          )}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </div>
+                        {stickyFooterRow![i] ?? null}
                       </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-                {/* Info Rows */}
-                {infoData?.map((row, rowIndex) => (
-                  <TableRow
-                    // eslint-disable-next-line react/no-array-index-key
-                    key={`info-row-${rowIndex}`}
-                    className="bg-muted/50 font-medium"
-                  >
-                    {row.map((cell, cellIndex) => (
-                      <TableCell
-                        // eslint-disable-next-line react/no-array-index-key
-                        key={`info-cell-${rowIndex}-${cellIndex}`}
-                        className={cellPad}
-                      >
-                        {cell}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </>
-            ) : (
-              <NoResultsRow columns={columns} />
-            )}
-          </TableBody>
-          {hasStickyFooter ? (
-            <TableFooter className="sticky bottom-0 z-10 border-t bg-background print:hidden [&>tr]:bg-background">
-              <TableRow className="border-t bg-background hover:bg-background font-semibold [&>td]:bg-background">
-                {leafHeaders.map((header, i) => {
-                  const w = header.column.getSize();
-                  return (
-                    <TableCell
-                      key={header.id}
-                      className={cn(cellPad, 'whitespace-nowrap bg-background')}
-                      style={{
-                        width: w,
-                        minWidth: w,
-                        maxWidth: w,
-                      }}
-                    >
-                      {stickyFooterRow![i] ?? null}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            </TableFooter>
-          ) : null}
-        </Table>
-      </div>
+                    );
+                  })}
+                </TableRow>
+              </TableFooter>
+            ) : null}
+          </Table>
+        </div>
+      )}
     </div>
   );
 };

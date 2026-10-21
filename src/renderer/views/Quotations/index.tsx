@@ -221,6 +221,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               header: () => (
                 <span className="whitespace-nowrap">Quotation #</span>
               ),
+              cardLabel: 'Quotation #',
               cell: ({ row }) => (
                 <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
                   {getQuotationDisplayNumber(
@@ -243,7 +244,6 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               ),
               onClick: (r) => navigateToRow(r.original.id),
               size: 120,
-              hideBelow: 'sm' as const,
             },
             {
               accessorKey: 'date',
@@ -256,6 +256,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
             {
               accessorKey: 'accountName',
               header: partyLabel,
+              cardHeadline: true,
               onClick: (r) => navigateToRow(r.original.id),
               size: 200,
             },
@@ -264,7 +265,6 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               header: 'Code',
               onClick: (r) => navigateToRow(r.original.id),
               size: 100,
-              hideBelow: 'sm' as const,
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -278,6 +278,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                       </span>
                     ),
                     size: 140,
+                    cardAside: true,
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),
@@ -290,7 +291,6 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                   : '—',
               onClick: (r) => navigateToRow(r.original.id),
               size: 150,
-              hideBelow: 'lg' as const,
             },
             createQuotationActionsColumn(invoiceType, navigate),
             /* eslint-enable react/no-unstable-nested-components */
@@ -411,7 +411,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
         actions={
           <Button
             variant="outline"
-            className="w-full sm:w-fit"
+            className="shrink-0"
             onClick={() =>
               navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
                 state: { isQuotation: true },
