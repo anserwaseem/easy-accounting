@@ -19,6 +19,7 @@ import {
 import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
 import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { LedgerParticularsExportDialog, printStyles } from '../components';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
@@ -40,8 +41,8 @@ const buildLedgerReportPayload = (
   accountName: string,
   dateRange?: DateRange,
 ): ReportExportPayload<LedgerReportRow> => {
-  const fromStr = dateRange?.from ? format(dateRange.from, 'PPP') : '';
-  const toStr = dateRange?.to ? format(dateRange.to, 'PPP') : '';
+  const fromStr = dateRange?.from ? formatDisplayDate(dateRange.from) : '';
+  const toStr = dateRange?.to ? formatDisplayDate(dateRange.to) : '';
   const subtitle = `${accountName} — ${fromStr} to ${toStr}`;
 
   return {
@@ -184,7 +185,9 @@ const LedgerReportPage = () => {
 
   const dateSubtitle =
     dateRange?.from && dateRange?.to
-      ? `${format(dateRange.from, 'PP')} – ${format(dateRange.to, 'PP')}`
+      ? `${formatDisplayDate(dateRange.from)} – ${formatDisplayDate(
+          dateRange.to,
+        )}`
       : '';
 
   return (

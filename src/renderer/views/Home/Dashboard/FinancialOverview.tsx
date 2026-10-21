@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from '@/renderer/shad/ui/tooltip';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
+import { formatDisplayDateTime } from '@/lib/displayDate';
 import { METRIC_DESCRIPTIONS, CALCULATION_DESCRIPTIONS } from './constants';
 import type { FinancialOverviewProps } from './types';
 import { useFinancialOverview } from './useFinancialOverview';
@@ -246,7 +247,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
       </div>
 
       <div className="text-xs text-muted-foreground text-right">
-        Last updated: {overview.lastUpdated.toLocaleString()}
+        Last updated: {formatDisplayDateTime(overview.lastUpdated)}
       </div>
     </div>
   );

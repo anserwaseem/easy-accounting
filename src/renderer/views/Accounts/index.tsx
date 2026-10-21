@@ -16,7 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
-import { dateFormatOptions } from 'renderer/lib/constants';
 import {
   AccountType,
   type Account,
@@ -33,6 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
@@ -522,10 +522,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'updatedAt',
               header: 'Updated At',
               cell: ({ row }: CellContext<Account, unknown>) =>
-                new Date(row.original.updatedAt || '').toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                ),
+                formatDisplayDate(row.original.updatedAt || ''),
               onClick: openAccount,
               size: 1,
             },
@@ -534,10 +531,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'createdAt',
               header: 'Created At',
               cell: ({ row }: CellContext<Account, unknown>) =>
-                new Date(row.original.createdAt || '').toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                ),
+                formatDisplayDate(row.original.createdAt || ''),
               onClick: openAccount,
               size: 1,
             },

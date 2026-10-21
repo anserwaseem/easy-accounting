@@ -4,6 +4,7 @@ import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Input } from '@/renderer/shad/ui/input';
 import type { SuggestedAgentTour } from 'types';
 import { BULK_RECEIPT_MIN_CREDIT_LINES } from '@/core/utils/suggestAgentTours';
+import { AppDateInput } from '@/renderer/components/AppDateInput';
 import type { TourDraft } from './useAgentTours';
 
 interface SuggestedToursReviewProps {
@@ -108,21 +109,19 @@ export const SuggestedToursReview: React.FC<SuggestedToursReviewProps> = ({
                 />
               </td>
               <td className="py-1 pr-2">
-                <Input
-                  type="date"
+                <AppDateInput
                   value={row.startDate}
-                  onChange={(event) =>
-                    patch(row.key, { startDate: event.target.value })
-                  }
+                  onChange={(value) => patch(row.key, { startDate: value })}
+                  aria-label="Tour start date"
                 />
               </td>
               <td className="py-1 pr-2">
-                <Input
-                  type="date"
+                <AppDateInput
                   value={row.endDate ?? ''}
-                  onChange={(event) =>
-                    patch(row.key, { endDate: event.target.value || null })
+                  onChange={(value) =>
+                    patch(row.key, { endDate: value || null })
                   }
+                  aria-label="Tour end date"
                 />
               </td>
               <td className="py-1 text-right tabular-nums">

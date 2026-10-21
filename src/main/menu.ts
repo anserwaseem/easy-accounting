@@ -20,6 +20,7 @@ import { PrintService } from './services/Print.service';
 import { AppUpdater } from './appUpdater';
 import { store } from './store';
 import { DatabaseService } from './services';
+import { formatDateTime } from '../core/utils/dateFormat';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -336,7 +337,7 @@ export default class MenuBuilder {
         {
           label: 'Available Backups',
           submenu: backups.map((backup) => ({
-            label: `${new Date(backup.timestamp).toLocaleString()} | ${
+            label: `${formatDateTime(backup.timestamp)} | ${
               backup.size / 1024
             } KB | ${backup.type}`,
             click: async () => {
@@ -349,9 +350,9 @@ export default class MenuBuilder {
                   type: 'warning',
                   buttons: ['Yes', 'No'],
                   title: 'Confirm Restore',
-                  message: `Restore backup from ${new Date(
+                  message: `Restore backup from ${formatDateTime(
                     backup.timestamp,
-                  ).toLocaleString()}? \nThis will replace your current database and restart the application.`,
+                  )}? \nThis will replace your current database and restart the application.`,
                 },
               );
 

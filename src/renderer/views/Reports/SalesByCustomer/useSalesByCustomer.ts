@@ -9,6 +9,7 @@ import {
 import { toLowerTrim } from '@/renderer/lib/utils';
 import type { Account, SalesByCustomerResponse } from 'types';
 import { AccountType, InvoiceType, REPORT_FILTER_KEYS } from 'types';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 /** shown while no customers are selected */
 export const SALES_BY_CUSTOMER_EMPTY_SELECTION_MESSAGE =
@@ -173,7 +174,9 @@ export const useSalesByCustomer = () => {
 
   const dateSubtitle = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return '';
-    return `${format(dateRange.from, 'PP')} – ${format(dateRange.to, 'PP')}`;
+    return `${formatDisplayDate(dateRange.from)} – ${formatDisplayDate(
+      dateRange.to,
+    )}`;
   }, [dateRange]);
 
   return {

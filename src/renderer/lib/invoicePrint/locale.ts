@@ -1,4 +1,5 @@
-import { format, isValid } from 'date-fns';
+import { format } from 'date-fns';
+import { formatDisplayDate, parseStoredDate } from '@/lib/displayDate';
 
 export type InvoicePrintLocale = 'en' | 'ur';
 
@@ -223,7 +224,7 @@ export interface InvoicePrintDateParts {
   day: number;
   month: string;
   year: number;
-  /** english `PP` string when locale is en */
+  /** the app-wide display date when locale is en */
   formatted: string;
 }
 
@@ -232,8 +233,10 @@ export const getInvoicePrintDateParts = (
   value: string | Date,
   locale: InvoicePrintLocale,
 ): InvoicePrintDateParts | null => {
-  const date = value instanceof Date ? value : new Date(value);
-  if (!isValid(date)) {
+  // parseStoredDate, not new Date(): a bare 'YYYY-MM-DD' would be read as UTC
+  // midnight and print a day earlier west of UTC
+  const date = parseStoredDate(value);
+  if (!date) {
     return null;
   }
 
@@ -242,7 +245,7 @@ export const getInvoicePrintDateParts = (
       day: date.getDate(),
       month: format(date, 'MMM'),
       year: date.getFullYear(),
-      formatted: format(date, 'PP'),
+      formatted: formatDisplayDate(date),
     };
   }
 

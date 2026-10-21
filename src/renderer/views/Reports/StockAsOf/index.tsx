@@ -38,6 +38,7 @@ import { ReportLayout } from '@/renderer/components/ReportLayout';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { REPORT_FILTER_KEYS } from 'types';
 import type { StockAsOfReportResponse, StockAsOfRow } from 'types';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { printStockAsOfReportIframe } from './printStockAsOfReport';
 import { stockAsOfPrintStyles } from './stockAsOfPrintStyles';
@@ -212,7 +213,7 @@ const StockAsOfReportPage: React.FC = () => {
   );
 
   const reportSubtitle = useMemo(() => {
-    const asOf = format(selectedDate, 'PPP');
+    const asOf = formatDisplayDate(selectedDate);
     if (filterItemType === 'all') return asOf;
     return `${asOf} — Type: ${filterItemType}`;
   }, [filterItemType, selectedDate]);
@@ -390,7 +391,7 @@ const StockAsOfReportPage: React.FC = () => {
                       disabled={isLoading}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                      {format(selectedDate, 'PPP')}
+                      {formatDisplayDate(selectedDate)}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="end">

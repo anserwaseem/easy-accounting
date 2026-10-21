@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 import { cn } from 'renderer/lib/utils';
+import { formatDisplayDateTime } from '@/lib/displayDate';
 
 // slow lazy poll — staleness moves in hours, not seconds
 const POLL_INTERVAL_MS = 10 * 60 * 1000;
@@ -204,7 +205,7 @@ const BackupStatusInner: FC<BackupStatusProps> = ({
           <p className={cn('text-xs', text)}>{label}</p>
           {lastBackupAt && (
             <p className="text-xs text-muted-foreground">
-              {`Last backup: ${new Date(lastBackupAt).toLocaleString()}`}
+              {`Last backup: ${formatDisplayDateTime(lastBackupAt)}`}
               {info?.type ? ` (${info.type})` : ''}
             </p>
           )}

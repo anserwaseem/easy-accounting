@@ -1,5 +1,5 @@
-import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
+import { formatDisplayDate } from '@/lib/displayDate';
 import {
   Dialog,
   DialogContent,
@@ -25,8 +25,8 @@ export const DateConfirmationDialog: React.FC<DateConfirmationDialogProps> = ({
       <DialogHeader>
         <DialogTitle>Confirm date</DialogTitle>
         <DialogDescription>
-          You are using today&apos;s date ({format(new Date(), 'PPP')}). Would
-          you like to proceed with this date or set a different one?
+          You are using today&apos;s date ({formatDisplayDate(new Date())}).
+          Would you like to proceed with this date or set a different one?
         </DialogDescription>
       </DialogHeader>
       <DialogFooter className="sm:justify-between">

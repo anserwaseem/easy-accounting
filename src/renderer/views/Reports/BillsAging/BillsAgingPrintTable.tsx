@@ -1,5 +1,4 @@
 import React, { type FC, useMemo } from 'react';
-import { format } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -14,6 +13,7 @@ import {
   formatDaysDuration,
 } from 'renderer/lib/utils';
 import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
+import { formatDisplayDate } from '@/lib/displayDate';
 import type { BillsAging, BillsAgingRow } from './types';
 import './PrintStyles.css';
 
@@ -128,9 +128,7 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = React.memo(
                   {showHeadNames && row.headName ? ` — ${row.headName}` : ''}
                 </TableCell>
                 <TableCell>{row.billNumber}</TableCell>
-                <TableCell>
-                  {format(new Date(row.billDate), 'dd/MM/yy')}
-                </TableCell>
+                <TableCell>{formatDisplayDate(row.billDate)}</TableCell>
                 <TableCell>
                   {formatJournalDiscountLabel(row.billPercentage)}
                 </TableCell>

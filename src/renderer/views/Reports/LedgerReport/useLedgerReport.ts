@@ -8,6 +8,7 @@ import {
 } from '@/renderer/lib/reportFilters';
 import { addDays, format } from 'date-fns';
 import { BalanceType, REPORT_FILTER_KEYS } from 'types';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { printLedgerReportIframe } from './printLedgerReport';
 
 type LedgerReportTotals = {
@@ -139,7 +140,9 @@ export const useLedgerReport = () => {
 
   const printDateSubtitle = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return '';
-    return `${format(dateRange.from, 'PP')} – ${format(dateRange.to, 'PP')}`;
+    return `${formatDisplayDate(dateRange.from)} – ${formatDisplayDate(
+      dateRange.to,
+    )}`;
   }, [dateRange]);
 
   const totals = useMemo<LedgerReportTotals>(() => {

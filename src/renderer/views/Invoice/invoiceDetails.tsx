@@ -2,10 +2,6 @@ import { usePrimaryItemType } from '@/renderer/hooks';
 import { isNil, toNumber } from 'lodash';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  dateFormatOptions,
-  datetimeFormatOptions,
-} from 'renderer/lib/constants';
-import {
   computeSectionTotals,
   getQuotationDisplayNumber,
   groupInvoiceItemsByType,
@@ -53,6 +49,7 @@ import { Label } from '@/renderer/shad/ui/label';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
+import { formatDisplayDateTime, formatDisplayDate } from '@/lib/displayDate';
 
 interface InvoiceDetailsProps {
   invoiceType: InvoiceType;
@@ -420,10 +417,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                   Last edited
                 </Badge>
                 <p className="mt-1 text-muted-foreground">
-                  {new Date(invoice.updatedAt).toLocaleString(
-                    'en-US',
-                    datetimeFormatOptions,
-                  )}
+                  {formatDisplayDateTime(invoice.updatedAt)}
                 </p>
               </div>
             ) : null}
@@ -561,26 +555,14 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <p className="font-medium text-md w-[110px] sm:w-[160px]">
                 Date:
               </p>
-              <p>
-                {invoice?.date
-                  ? new Date(invoice.date).toLocaleString(
-                      'en-US',
-                      dateFormatOptions,
-                    )
-                  : ''}
-              </p>
+              <p>{invoice?.date ? formatDisplayDate(invoice.date) : ''}</p>
             </div>
             {invoice?.isReturned && invoice.returnedAt ? (
               <div className="flex gap-4 sm:gap-8">
                 <p className="font-medium text-md w-[110px] sm:w-[160px]">
                   Returned:
                 </p>
-                <p>
-                  {new Date(invoice.returnedAt).toLocaleString(
-                    'en-US',
-                    datetimeFormatOptions,
-                  )}
-                </p>
+                <p>{formatDisplayDateTime(invoice.returnedAt)}</p>
               </div>
             ) : null}
             {invoice?.isReturned &&
@@ -727,10 +709,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                               {j.narration}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(j.date || '').toLocaleString(
-                                'en-US',
-                                dateFormatOptions,
-                              )}
+                              {formatDisplayDate(j.date || '')}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">

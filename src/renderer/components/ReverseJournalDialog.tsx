@@ -16,6 +16,11 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import type { Journal } from '@/types';
 import { getFormattedCurrency } from 'renderer/lib/utils';
+import { AppDateInput } from '@/renderer/components/AppDateInput';
+import {
+  toLocalDateInputValue,
+  toLocalNoonIsoStringFromStored,
+} from '@/renderer/lib/localDate';
 
 export interface ReverseJournalDialogProps {
   journalId: number;
@@ -33,7 +38,7 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
   trigger,
 }: ReverseJournalDialogProps) => {
   const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => toLocalDateInputValue(new Date()));
   const [narration, setNarration] = useState(
     () =>
       `Reversal of Journal #${journalId}${
@@ -44,7 +49,7 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
-      setDate(new Date().toISOString().slice(0, 10));
+      setDate(toLocalDateInputValue(new Date()));
       setNarration(
         `Reversal of Journal #${journalId}${
           originalNarration ? `: ${originalNarration}` : ''
@@ -57,7 +62,7 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
   const handleConfirm = async () => {
     setIsLoading(true);
     try {
-      const isoDate = new Date(`${date}T12:00:00.000Z`).toISOString();
+      const isoDate = toLocalNoonIsoStringFromStored(date);
       const result = await window.electron.reverseJournal(journalId, {
         date: isoDate,
         narration: narration.trim(),
@@ -113,12 +118,12 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor={`reversal-date-${journalId}`}>Reversal Date</Label>
-            <Input
+            <AppDateInput
               id={`reversal-date-${journalId}`}
-              type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
               disabled={isLoading}
+              aria-label="Reversal Date"
             />
           </div>
 

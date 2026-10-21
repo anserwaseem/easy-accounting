@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import {
   Sheet,
@@ -8,6 +7,7 @@ import {
   SheetTitle,
 } from '@/renderer/shad/ui/sheet';
 import type { SalesByCustomerItem } from 'types';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 interface SalesByCustomerInvoiceSheetProps {
   item: SalesByCustomerItem | null;
@@ -17,10 +17,7 @@ interface SalesByCustomerInvoiceSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const formatDate = (value: string): string => {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : format(parsed, 'PP');
-};
+const formatDate = (value: string): string => formatDisplayDate(value);
 
 const formatCustomerCell = (
   name: string,

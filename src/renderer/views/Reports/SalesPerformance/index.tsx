@@ -52,6 +52,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import type { Row } from '@tanstack/react-table';
 import { REPORT_FILTER_KEYS } from '@/types';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 interface SalesPerformanceResponse {
   kpis: Record<string, number>;
@@ -496,9 +497,8 @@ const SalesPerformanceReportPage: React.FC = () => {
         title: 'Sales Performance Report',
         subtitle:
           dateRange?.from && dateRange?.to
-            ? `${format(dateRange.from, 'PPP')} – ${format(
+            ? `${formatDisplayDate(dateRange.from)} – ${formatDisplayDate(
                 dateRange.to,
-                'PPP',
               )}`
             : '',
         sheetName: 'Sales Performance',
@@ -610,7 +610,7 @@ const SalesPerformanceReportPage: React.FC = () => {
     const val = row[key];
     if (typeof val === 'string' && val) {
       try {
-        return format(new Date(val), 'PP');
+        return formatDisplayDate(val);
       } catch {
         return '—';
       }

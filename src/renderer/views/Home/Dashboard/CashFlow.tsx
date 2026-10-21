@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from '@/renderer/shad/ui/tooltip';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
+import { formatDisplayDateTime } from '@/lib/displayDate';
 import { useCashFlow } from './useCashFlow';
 import { METRIC_DESCRIPTIONS, CALCULATION_DESCRIPTIONS } from './constants';
 import type { CashFlowProps } from './types';
@@ -239,7 +240,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
       </div>
 
       <div className="text-xs text-muted-foreground text-right">
-        Last updated: {cashFlow.lastUpdated.toLocaleString()}
+        Last updated: {formatDisplayDateTime(cashFlow.lastUpdated)}
       </div>
     </div>
   );

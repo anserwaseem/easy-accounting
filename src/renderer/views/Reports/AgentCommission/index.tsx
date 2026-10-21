@@ -75,6 +75,7 @@ import { TableVirtuoso } from 'react-virtuoso';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
 import { cn } from '@/renderer/lib/utils';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
+import { formatDisplayDate, parseStoredDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { AgentCommissionSheet } from '../../Accounts/AgentCommissionSheet';
 import { PostSettlementDialog } from './PostSettlementDialog';
@@ -87,13 +88,9 @@ const formatMoney = (val: number | null | undefined): string => {
 
 const formatInvoiceDate = (dateStr: string): string => {
   if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return dateStr.slice(0, 10);
-    return format(d, 'dd MMM yyyy');
-  } catch {
-    return dateStr.slice(0, 10);
-  }
+  return parseStoredDate(dateStr)
+    ? formatDisplayDate(dateStr)
+    : dateStr.slice(0, 10);
 };
 
 const getAdjustmentColorClass = (adj: number) => {
@@ -495,7 +492,9 @@ const AgentCommissionReportPage: React.FC = () => {
   const handlePrint = () => {
     if (!report) return;
     const title = `Agent Commission Statement: ${report.agentName}`;
-    const subtitle = `Period: ${report.startDate} to ${report.endDate}`;
+    const subtitle = `Period: ${formatInvoiceDate(
+      report.startDate,
+    )} to ${formatInvoiceDate(report.endDate)}`;
     printAgentCommissionIframe({
       report,
       adjustments,
@@ -509,7 +508,9 @@ const AgentCommissionReportPage: React.FC = () => {
   const handleExportExcel = () => {
     if (!report) return;
     const title = `Agent Commission: ${report.agentName}`;
-    const subtitle = `${report.startDate} to ${report.endDate}`;
+    const subtitle = `${formatInvoiceDate(
+      report.startDate,
+    )} to ${formatInvoiceDate(report.endDate)}`;
 
     const summaryRows: Array<Record<string, unknown>> = report.buckets.map(
       (b) => ({

@@ -22,10 +22,6 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import { cn } from '@/renderer/lib/utils';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
-import {
-  dateFormatOptions,
-  datetimeFormatOptions,
-} from '@/renderer/lib/constants';
 import { isPersistedRowEdited } from '@/renderer/lib/invoiceUtils';
 import type { VendorIssueListItem, VendorStockRow } from 'types';
 import {
@@ -40,6 +36,7 @@ import {
   persistVendorStockVendorId,
   readStoredVendorStockVendorId,
 } from '@/renderer/lib/vendorStockSelection';
+import { formatDisplayDateTime, formatDisplayDate } from '@/lib/displayDate';
 import { ImportVendorOpeningStock } from './ImportVendorOpeningStock';
 import { printVendorStockIframe } from './printVendorStock';
 
@@ -305,10 +302,7 @@ const VendorStockPage: React.FC = () => {
                 className="px-1.5 py-0 text-[10px] font-normal"
                 title={
                   row.original.updatedAt
-                    ? new Date(row.original.updatedAt).toLocaleString(
-                        'en-US',
-                        datetimeFormatOptions,
-                      )
+                    ? formatDisplayDateTime(row.original.updatedAt)
                     : undefined
                 }
               >
@@ -322,12 +316,7 @@ const VendorStockPage: React.FC = () => {
         accessorKey: 'date',
         header: DateHeader,
         cell: ({ row }) =>
-          row.original.date
-            ? new Date(row.original.date).toLocaleString(
-                'en-US',
-                dateFormatOptions,
-              )
-            : '',
+          row.original.date ? formatDisplayDate(row.original.date) : '',
       },
       ...(selectedVendorId
         ? []

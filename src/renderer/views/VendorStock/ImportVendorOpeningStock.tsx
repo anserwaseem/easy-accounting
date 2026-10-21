@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { PackageOpen } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
-import { Input } from '@/renderer/shad/ui/input';
 import { Label } from '@/renderer/shad/ui/label';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import {
@@ -22,6 +21,7 @@ import { toLocalDateInputValue } from '@/renderer/lib/localDate';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import type { VendorStockOpeningRow } from 'types';
+import { AppDateInput } from '@/renderer/components/AppDateInput';
 
 interface ImportVendorOpeningStockProps {
   onImported?: () => void;
@@ -137,11 +137,11 @@ export const ImportVendorOpeningStock: React.FC<
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="vendorOpeningAsOf">As of date</Label>
-              <Input
+              <AppDateInput
                 id="vendorOpeningAsOf"
-                type="date"
                 value={asOfDate}
-                onChange={(ev) => setAsOfDate(ev.target.value)}
+                onChange={setAsOfDate}
+                aria-label="As of date"
               />
             </div>
             <div className="flex items-start gap-2">

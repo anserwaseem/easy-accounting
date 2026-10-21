@@ -11,6 +11,7 @@ import {
 } from '@/renderer/hooks/usePublishSettings';
 import { parseAttributeKeyList } from '@/main/utils/catalog';
 import { MultiSelect } from 'renderer/shad/ui/multiSelect';
+import { formatDisplayDateTime } from '@/lib/displayDate';
 
 /** marks a required field label */
 const Required: React.FC = () => (
@@ -640,12 +641,7 @@ const PublishSettings: React.FC = () => {
             <p>
               Last publish: {lastResult.publishableCount} item(s) ready,{' '}
               {lastResult.uploaded.length} file(s) uploaded on{' '}
-              {new Date(lastResult.generatedAt).toLocaleString(undefined, {
-                dateStyle: 'long',
-                timeStyle: 'medium',
-                hour12: true,
-              })}
-              .
+              {formatDisplayDateTime(lastResult.generatedAt)}.
             </p>
           ) : (
             <p className="text-destructive">

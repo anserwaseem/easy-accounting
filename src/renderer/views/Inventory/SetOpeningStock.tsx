@@ -21,6 +21,7 @@ import { max } from 'lodash';
 import { useEffect, useState } from 'react';
 import { PackageOpen } from 'lucide-react';
 import { toLocalDateInputValue } from '@/renderer/lib/localDate';
+import { AppDateInput } from '@/renderer/components/AppDateInput';
 
 interface SetOpeningStockProps {
   refetchInventory?: () => void;
@@ -147,11 +148,11 @@ export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
           )}
           <div className="space-y-2">
             <Label className="text-sm font-medium">As of date</Label>
-            <Input
-              type="date"
+            <AppDateInput
               value={asOfDate}
               max={today}
-              onChange={(e) => setAsOfDate(e.target.value)}
+              onChange={setAsOfDate}
+              aria-label="As of date"
             />
           </div>
           <div className="mt-2 flex items-center gap-2">

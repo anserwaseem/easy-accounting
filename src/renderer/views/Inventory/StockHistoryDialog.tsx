@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isEmpty, orderBy, toString } from 'lodash';
-import { format } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +12,7 @@ import type {
   InventoryOpeningStock,
   StockAdjustment,
 } from '@/types';
+import { formatDisplayDate, parseStoredDate } from '@/lib/displayDate';
 
 type StockHistoryDialogProps = {
   open: boolean;
@@ -32,9 +32,7 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
 
   const formatRowDate = (dateValue: string): string => {
     if (!dateValue) return '—';
-    const d = new Date(dateValue);
-    if (Number.isNaN(d.getTime())) return '—';
-    return format(d, 'MM/dd/yyyy');
+    return parseStoredDate(dateValue) ? formatDisplayDate(dateValue) : '—';
   };
 
   useEffect(() => {

@@ -10,7 +10,7 @@ export const DateHeader = () => (
   <div className="flex items-center gap-1">
     <span>Date</span>
     {/* <span className="hidden print:block text-[6px] text-muted-foreground mb-auto">
-      (MM/DD/YYYY)
+      (DD MMM, YYYY)
     </span> */}
     <TooltipProvider delayDuration={100}>
       <Tooltip delayDuration={100}>
@@ -18,7 +18,7 @@ export const DateHeader = () => (
           <Info className="h-3 w-3 text-muted-foreground" />
         </TooltipTrigger>
         <TooltipContent>
-          <p>Date format: MM/DD/YYYY</p>
+          <p>Date format: DD MMM, YYYY</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

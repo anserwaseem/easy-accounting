@@ -11,7 +11,6 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { useMemo, useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
-import { format } from 'date-fns';
 import type { InventoryItem } from '@/types';
 import { Label } from '@/renderer/shad/ui/label';
 import { toLocalDateInputValue } from '@/renderer/lib/localDate';
@@ -21,6 +20,7 @@ import {
   PopoverTrigger,
 } from '@/renderer/shad/ui/popover';
 import { Calendar } from '@/renderer/shad/ui/calendar';
+import { formatDisplayDate, parseStoredDate } from '@/lib/displayDate';
 
 interface AdjustStockProps {
   item: InventoryItem;
@@ -52,11 +52,11 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
   const [date, setDate] = useState(() => toLocalDateInputValue(new Date()));
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
+  // parseStoredDate, not new Date(): the stored value is a bare 'YYYY-MM-DD',
+  // which new Date() reads as UTC midnight and would show a day earlier west of UTC
   const selectedDate = useMemo(() => {
     if (!date) return undefined;
-    const d = new Date(date);
-    if (Number.isNaN(d.getTime())) return undefined;
-    return d;
+    return parseStoredDate(date) ?? undefined;
   }, [date]);
 
   const newQuantity = item.quantity + quantityDelta;
@@ -164,7 +164,7 @@ export const AdjustStock: React.FC<AdjustStockProps> = ({
                 variant="outline"
                 className="w-full justify-start font-normal"
               >
-                {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : '—'}
+                {selectedDate ? formatDisplayDate(selectedDate) : '—'}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">

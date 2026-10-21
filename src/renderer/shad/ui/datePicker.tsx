@@ -3,7 +3,6 @@ import {
   addDays,
   addMonths,
   addYears,
-  format,
   startOfMonth,
   startOfYear,
   endOfYear,
@@ -32,6 +31,7 @@ import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { toNumber, isNaN } from 'lodash';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 export const DatePicker: React.FC = () => {
   const [date, setDate] = useState<Date>();
@@ -47,7 +47,7 @@ export const DatePicker: React.FC = () => {
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, 'PPP') : <span>Pick a date</span>}
+          {date ? formatDisplayDate(date) : <span>Pick a date</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
@@ -76,7 +76,7 @@ export const DatePickerWithPresets: React.FC = () => {
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, 'PPP') : <span>Pick a date</span>}
+          {date ? formatDisplayDate(date) : <span>Pick a date</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="flex w-auto flex-col space-y-2 p-2">
@@ -118,10 +118,10 @@ export const DateRangePicker: React.FC<Partial<DateRangePickerProps>> = ({
 
   const dateDisplay = useMemo(() => {
     if (!date?.from) return <span>Pick a date</span>;
-    if (!date?.to) return format(date.from, 'LLL dd, y');
+    if (!date?.to) return formatDisplayDate(date.from);
     return (
       <>
-        {format(date.from, 'LLL dd, y')} - {format(date.to, 'LLL dd, y')}
+        {formatDisplayDate(date.from)} - {formatDisplayDate(date.to)}
       </>
     );
   }, [date]);
@@ -200,12 +200,9 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
       return presets.find((preset) => preset.value === selectValue)?.label;
 
     if (date?.from && date.to)
-      return `${format(date.from, 'LLL dd, y')} - ${format(
-        date.to,
-        'LLL dd, y',
-      )}`;
+      return `${formatDisplayDate(date.from)} - ${formatDisplayDate(date.to)}`;
 
-    if (date?.from) return format(date.from, 'LLL dd, y');
+    if (date?.from) return formatDisplayDate(date.from);
 
     return 'Pick a date';
   }, [date?.from, date?.to, presets, selectValue]);

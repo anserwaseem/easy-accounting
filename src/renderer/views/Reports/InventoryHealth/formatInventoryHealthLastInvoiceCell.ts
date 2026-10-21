@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 /** last sale / last purchase cell: date + invoice # for table, print, and excel */
 export const formatInventoryHealthLastInvoiceCell = (
@@ -7,7 +7,7 @@ export const formatInventoryHealthLastInvoiceCell = (
 ): string => {
   if (!isoDate) return '';
   try {
-    const d = format(new Date(isoDate), 'MM/dd/yyyy');
+    const d = formatDisplayDate(isoDate);
     if (invoiceNumber != null) {
       return `${d} | #${invoiceNumber}`;
     }

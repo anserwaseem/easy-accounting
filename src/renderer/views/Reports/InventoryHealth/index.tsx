@@ -45,6 +45,7 @@ import {
 } from '@/renderer/shad/ui/tooltip';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { cn, createListPositionSortingFn } from '@/renderer/lib/utils';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { inventoryHealthPrintStyles } from './inventoryHealthPrintStyles';
 import { printInventoryHealthReportIframe } from './printInventoryHealthReport';
@@ -348,9 +349,8 @@ const InventoryHealthPage: React.FC = () => {
     if (!exportPrintRows.length || !dateRange?.from || !dateRange?.to) return;
     printInventoryHealthReportIframe({
       rows: exportPrintRows,
-      dateSubtitle: `${format(dateRange.from, 'PP')} – ${format(
+      dateSubtitle: `${formatDisplayDate(dateRange.from)} – ${formatDisplayDate(
         dateRange.to,
-        'PP',
       )}`,
       showAdjustedColumn,
     });
@@ -438,9 +438,8 @@ const InventoryHealthPage: React.FC = () => {
         title: 'Inventory Health Report',
         subtitle:
           dateRange?.from && dateRange?.to
-            ? `${format(dateRange.from, 'PPP')} - ${format(
+            ? `${formatDisplayDate(dateRange.from)} - ${formatDisplayDate(
                 dateRange.to,
-                'PPP',
               )}`
             : '',
         sheetName: 'Inventory Health',

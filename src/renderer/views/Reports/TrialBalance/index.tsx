@@ -18,6 +18,7 @@ import {
 import { Card } from 'renderer/shad/ui/card';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { ReportLayout } from 'renderer/components/ReportLayout';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { ExportOrderDialog, printStyles } from '../components';
 import { TrialBalanceTable } from './TrialBalanceTable';
 import type { TrialBalance as TrialBalanceType } from './types';
@@ -70,7 +71,7 @@ const buildTrialBalancePayload = (
   const rows = buildSortedTrialBalanceRows(trialBalance, exportSortOrder);
   return {
     title: 'Trial Balance',
-    subtitle: `As of ${format(selectedDate, 'PPP')}`,
+    subtitle: `As of ${formatDisplayDate(selectedDate)}`,
     sheetName: 'Trial Balance',
     suggestedFileName: `Trial_Balance_${format(
       selectedDate,
@@ -152,7 +153,7 @@ const TrialBalancePage = () => {
                     disabled={isLoading}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(selectedDate, 'PPP')}
+                    {formatDisplayDate(selectedDate)}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">

@@ -41,6 +41,7 @@ import {
   buildPartyTypingContext,
   getHeaderTypedSuffixFromCode,
 } from 'renderer/views/NewInvoice/lib/partyAccountTyping';
+import { formatDisplayDate } from '@/lib/displayDate';
 import {
   useBillsAging,
   ALL_PARTIES_HEAD,
@@ -101,7 +102,7 @@ const buildBillsAgingExportPayload = (
       accountCode: row.accountCode,
       headName: showHeadNames ? row.headName : undefined,
       billNumber: row.billNumber,
-      billDate: format(new Date(row.billDate), 'dd/MM/yy'),
+      billDate: formatDisplayDate(row.billDate),
       billPercentage: formatJournalDiscountLabel(row.billPercentage),
       balance: row.balance,
       daysStatus: daysStatusText,
@@ -131,9 +132,8 @@ const buildBillsAgingExportPayload = (
   }
 
   const title = 'Bills Aging';
-  const subtitle = `Report for ${selectedHead} on ${format(
+  const subtitle = `Report for ${selectedHead} on ${formatDisplayDate(
     selectedDate,
-    'dd/MM/yy',
   )}`;
 
   return {
@@ -821,7 +821,7 @@ const BillsAgingPage = () => {
       {/* Title that shows when printing */}
       <div className="hidden print:block mb-4 print-header">
         <h1 className="text-left font-black text-2xl mb-1">
-          Report for {selectedHead} on {format(selectedDate, 'dd/MM/yy')}
+          Report for {selectedHead} on {formatDisplayDate(selectedDate)}
         </h1>
       </div>
 

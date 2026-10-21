@@ -1,18 +1,5 @@
 import { BaseEntity } from '@/types';
 
-export const dateFormatOptions: Intl.DateTimeFormatOptions = {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-};
-
-export const datetimeFormatOptions: Intl.DateTimeFormatOptions = {
-  ...dateFormatOptions,
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-};
-
 export const currency = 'PKR';
 
 export const currencyFormatOptions: Intl.NumberFormatOptions = {
