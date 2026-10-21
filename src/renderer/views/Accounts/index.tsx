@@ -16,7 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
-import { dateFormatOptions } from 'renderer/lib/constants';
 import {
   AccountType,
   type Account,
@@ -33,6 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
+import { DateCell } from '@/renderer/components/common/DateCell';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
@@ -521,11 +521,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               id: 'updatedAt',
               accessorKey: 'updatedAt',
               header: 'Updated At',
-              cell: ({ row }: CellContext<Account, unknown>) =>
-                new Date(row.original.updatedAt || '').toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                ),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: CellContext<Account, unknown>) => (
+                <DateCell value={row.original.updatedAt} />
+              ),
               onClick: openAccount,
               size: 1,
             },
@@ -533,11 +532,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               id: 'createdAt',
               accessorKey: 'createdAt',
               header: 'Created At',
-              cell: ({ row }: CellContext<Account, unknown>) =>
-                new Date(row.original.createdAt || '').toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                ),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }: CellContext<Account, unknown>) => (
+                <DateCell value={row.original.createdAt} />
+              ),
               onClick: openAccount,
               size: 1,
             },

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import { dateFormatOptions } from 'renderer/lib/constants';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import {
   type DateRange,
@@ -29,7 +28,7 @@ import { useAnyAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabiliti
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
-import { DateHeader } from '@/renderer/components/common/DateHeader';
+import { DateCell } from '@/renderer/components/common/DateCell';
 
 export type JournalView = Journal & { amount: number };
 
@@ -103,10 +102,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                 <div className="flex justify-between items-start w-full">
                   <div className="flex flex-col min-w-0">
                     <p>
-                      {new Date(row.original.date || '').toLocaleString(
-                        'en-US',
-                        dateFormatOptions,
-                      )}
+                      <DateCell value={row.original.date} />
                     </p>
                     <p className="text-xs text-muted-foreground mt-auto break-words">
                       {row.original.narration}
@@ -136,13 +132,10 @@ const JournalsPage: React.FC<HasMiniView> = ({
             },
             {
               accessorKey: 'date',
-              header: DateHeader,
+              header: 'Date',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              cell: ({ row }) =>
-                new Date(row.original.date).toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                ),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => <DateCell value={row.original.date} />,
               size: 40,
             },
             {
@@ -177,11 +170,8 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               accessorKey: 'createdAt',
               header: 'Created At',
-              cell: ({ row }) =>
-                new Date(row.original.createdAt || '').toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                ),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => <DateCell value={row.original.createdAt} />,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               size: 100,
             },

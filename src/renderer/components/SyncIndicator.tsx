@@ -1,14 +1,11 @@
 import type { FC } from 'react';
+import { formatDisplayTime } from '@/lib/displayDate';
 import { useSyncStatus } from '../hooks';
 
 function formatTime(iso: string | undefined): string | null {
   if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const time = formatDisplayTime(iso);
+  return time || null;
 }
 
 interface SyncIndicatorProps {

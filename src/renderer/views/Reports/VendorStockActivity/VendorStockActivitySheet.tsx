@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import {
   Sheet,
@@ -9,6 +8,7 @@ import {
 } from '@/renderer/shad/ui/sheet';
 import { cn } from '@/renderer/lib/utils';
 import type { VendorStockActivityItem } from 'types';
+import { formatDisplayDate } from '@/lib/displayDate';
 import {
   ACTIVITY_FILTER_LABELS,
   activityMovementHref,
@@ -24,11 +24,6 @@ interface VendorStockActivitySheetProps {
   dateSubtitle: string;
   onOpenChange: (open: boolean) => void;
 }
-
-const formatDate = (value: string): string => {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : format(parsed, 'PP');
-};
 
 export const VendorStockActivitySheet: React.FC<
   VendorStockActivitySheetProps
@@ -75,7 +70,9 @@ export const VendorStockActivitySheet: React.FC<
                 const label = activityMovementLabel(movement);
                 return (
                   <tr key={movement.id} className="border-b last:border-0">
-                    <td className="py-2 pr-3">{formatDate(movement.date)}</td>
+                    <td className="py-2 pr-3">
+                      {formatDisplayDate(movement.date)}
+                    </td>
                     <td className="py-2 pr-3">
                       {href ? (
                         <Link

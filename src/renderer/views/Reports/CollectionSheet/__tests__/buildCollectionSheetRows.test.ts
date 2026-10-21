@@ -299,7 +299,7 @@ describe('buildCollectionSheetRows', () => {
         startDate: '2026-07-27',
         endDate: '2026-08-30',
       }),
-    ).toBe('Aug 2026 · 27/07–30/08');
+    ).toBe('Aug 2026 · 27 Jul–30 Aug');
     expect(
       tourColumnHeader({
         id: 2,
@@ -307,7 +307,7 @@ describe('buildCollectionSheetRows', () => {
         startDate: '2026-10-01',
         endDate: null,
       }),
-    ).toBe('Oct 2026 · 01/10–…');
+    ).toBe('Oct 2026 · 01 Oct–…');
     expect(
       tourColumnHeader({
         id: 3,
@@ -316,7 +316,7 @@ describe('buildCollectionSheetRows', () => {
         endDate: '2026-01-25',
         clipped: true,
       }),
-    ).toBe('Jan 2026 · 01/01–25/01 (part)');
+    ).toBe('Jan 2026 · 01 Jan–25 Jan (part)');
   });
 
   describe('sorting options', () => {

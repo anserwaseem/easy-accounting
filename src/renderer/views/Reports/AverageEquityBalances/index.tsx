@@ -13,6 +13,7 @@ import {
   type ReportExportPayload,
 } from 'renderer/lib/reportExport';
 import { toast } from 'renderer/shad/ui/use-toast';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { useSorting, printStyles } from '../components';
 import type {
   AverageEquityBalancesState,
@@ -35,7 +36,7 @@ const buildAverageEquityPayload = (
   endDate: Date,
 ): ReportExportPayload<AverageEquityRow> => ({
   title: 'Average Equity Balances',
-  subtitle: `${format(startDate, 'PPP')} to ${format(endDate, 'PPP')}`,
+  subtitle: `${formatDisplayDate(startDate)} to ${formatDisplayDate(endDate)}`,
   sheetName: 'Average Equity Balances',
   suggestedFileName: `Average_Equity_Balances_${format(
     startDate,
@@ -169,8 +170,8 @@ const AverageEquityBalancesPage = () => {
       {/* Title that shows when printing */}
       <div className="hidden print:block text-center mb-4 print-header">
         <h1 className="text-lg font-medium text-center mb-1">
-          Average Equity Balances from {format(startDate, 'PPP')} to{' '}
-          {format(endDate, 'PPP')}
+          Average Equity Balances from {formatDisplayDate(startDate)} to{' '}
+          {formatDisplayDate(endDate)}
         </h1>
       </div>
 

@@ -4,6 +4,7 @@ import { InvoiceType } from 'types';
 import type { Invoice } from 'types';
 import type { z } from 'zod';
 
+import { formatDisplayDate } from '@/lib/displayDate';
 import { getInvoiceAccountIdsFromForm } from './getInvoiceAccountIdsFromForm';
 
 interface UseInvoiceDateValidationParams {
@@ -95,9 +96,8 @@ export const useInvoiceDateValidation = ({
     minRequired.setHours(0, 0, 0, 0);
     if (invoiceDate >= minRequired) return null;
 
-    return `Invoice date must be on or after ${format(
+    return `Invoice date must be on or after ${formatDisplayDate(
       minRequired,
-      'PPP',
     )} for the selected ${partyLabel}${
       useSingleAccount && !splitByItemType ? '' : '(s)'
     } (last ledger date).`;

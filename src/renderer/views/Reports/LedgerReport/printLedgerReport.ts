@@ -1,5 +1,5 @@
 import { escape, toString } from 'lodash';
-import { currency, dateFormatOptions } from 'renderer/lib/constants';
+import { currency } from 'renderer/lib/constants';
 import {
   getFormattedCurrency,
   getFormattedDebitCreditWithoutCurrency,
@@ -7,6 +7,7 @@ import {
 import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
 import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
@@ -62,9 +63,7 @@ const buildLedgerTableBodyHtml = (
       const narration = narrationLinesForRow(row)
         .map((l) => escape(l))
         .join(' | ');
-      const dateStr = row.date
-        ? escape(new Date(row.date).toLocaleString('en-US', dateFormatOptions))
-        : '';
+      const dateStr = row.date ? escape(formatDisplayDate(row.date)) : '';
       const debit = escape(
         getFormattedDebitCreditWithoutCurrency(row.debit, debitCreditZeroLabel),
       );

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/renderer/shad/ui/button';
 import { Input } from '@/renderer/shad/ui/input';
 import { Label } from '@/renderer/shad/ui/label';
+import { AppDateInput } from '@/renderer/components/AppDateInput';
 import type { TourDraft } from './useAgentTours';
 
 interface TourFormProps {
@@ -49,22 +50,22 @@ export const TourForm: React.FC<TourFormProps> = ({
       </div>
       <div className="space-y-1">
         <Label htmlFor="tour-start">Start</Label>
-        <Input
+        <AppDateInput
           id="tour-start"
-          type="date"
           value={draft.startDate}
-          onChange={(event) => set({ startDate: event.target.value })}
+          onChange={(value) => set({ startDate: value })}
           required
+          aria-label="Tour start date"
         />
       </div>
       <div className="space-y-1">
         <Label htmlFor="tour-end">End</Label>
-        <Input
+        <AppDateInput
           id="tour-end"
-          type="date"
           value={draft.endDate ?? ''}
           min={draft.startDate}
-          onChange={(event) => set({ endDate: event.target.value || null })}
+          onChange={(value) => set({ endDate: value || null })}
+          aria-label="Tour end date"
         />
         <p className="text-xs text-muted-foreground">
           Leave empty while the agent is still out.

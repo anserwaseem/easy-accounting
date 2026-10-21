@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { format } from 'date-fns';
 import { orderBy } from 'lodash';
 import { cn, getFormattedCurrency } from 'renderer/lib/utils';
 import { currency } from 'renderer/lib/constants';
@@ -12,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from 'renderer/shad/ui/table';
+import { formatDisplayDate } from '@/lib/displayDate';
 import type { TrialBalanceItem, TrialBalance } from './types';
 import {
   EmptyState,
@@ -65,12 +65,12 @@ export const TrialBalanceTable = ({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden print:block print:overflow-visible">
       <h2 className="mb-1 hidden text-center text-lg font-medium print:block print-header">
-        Trial Balance as of {format(trialBalance.date, 'PPP')}
+        Trial Balance as of {formatDisplayDate(trialBalance.date)}
       </h2>
       <div className="relative min-h-0 flex-1 w-full overflow-auto print:overflow-visible">
         <table className="w-full caption-bottom border-collapse text-sm print-table print-tfoot-no-repeat">
           <TableCaption className="mt-4 text-sm text-muted-foreground italic print-caption print:hidden">
-            Trial Balance Summary as of {format(trialBalance.date, 'PPP')}
+            Trial Balance Summary as of {formatDisplayDate(trialBalance.date)}
           </TableCaption>
           <TableHeader>
             <TableRow className="border-b border-primary bg-muted/50">

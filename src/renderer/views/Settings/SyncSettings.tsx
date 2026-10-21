@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from 'renderer/shad/ui/dialog';
+import { formatDisplayDateTime } from '@/lib/displayDate';
 import {
   buildJoinLink,
   isLoopbackOrigin,
@@ -37,11 +38,11 @@ function isStaleSyncing(status: SyncStatus): boolean {
 function syncStatusLine(status: SyncStatus | null): string {
   if (status?.syncing && !isStaleSyncing(status)) {
     return status.lastSyncAt
-      ? `Syncing… · last ${new Date(status.lastSyncAt).toLocaleString()}`
+      ? `Syncing… · last ${formatDisplayDateTime(status.lastSyncAt)}`
       : 'Syncing…';
   }
   if (status?.lastSyncAt)
-    return `Last synced ${new Date(status.lastSyncAt).toLocaleString()}`;
+    return `Last synced ${formatDisplayDateTime(status.lastSyncAt)}`;
   return 'Not synced yet';
 }
 

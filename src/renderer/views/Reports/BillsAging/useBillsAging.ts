@@ -3,6 +3,7 @@ import { isEmpty, sumBy } from 'lodash';
 import { format, subDays } from 'date-fns';
 import { getFixedNumber, getMonthsAndDaysBetween } from 'renderer/lib/utils';
 import type { Account, Chart, ItemType, LedgerView } from '@/types';
+import { formatDisplayDate } from '@/lib/displayDate';
 import type {
   BillsAging,
   BillsAgingAccount,
@@ -209,10 +210,9 @@ export const useBillsAging = () => {
           setInfoMessage(
             `No entries found for ${
               isAllPartiesScope ? 'the selected customers' : headName
-            } during period: ${format(
+            } during period: ${formatDisplayDate(
               selectedDateStart,
-              'dd/MM/yyyy',
-            )} to ${format(end, 'dd/MM/yyyy')}`,
+            )} to ${formatDisplayDate(end)}`,
           );
           setBillsAging({
             headName,

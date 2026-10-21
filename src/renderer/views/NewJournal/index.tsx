@@ -11,7 +11,6 @@ import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
 import { get, toNumber, toString } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
-import { format } from 'date-fns';
 import {
   cn,
   defaultSortingFunctions,
@@ -56,6 +55,7 @@ import {
   DialogTitle,
 } from 'renderer/shad/ui/dialog';
 
+import { formatDisplayDate } from '@/lib/displayDate';
 import { formSchema } from './schema';
 import { AccountCell, CreditCell, DebitCell } from './cells';
 
@@ -671,7 +671,7 @@ const NewJournalPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Confirm Date</DialogTitle>
             <DialogDescription>
-              You are using today&apos;s date ({format(new Date(), 'PPP')}).
+              You are using today&apos;s date ({formatDisplayDate(new Date())}).
               Would you like to proceed with this date or set a different one?
             </DialogDescription>
           </DialogHeader>

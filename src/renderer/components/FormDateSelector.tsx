@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import type {
   ControllerRenderProps,
@@ -13,6 +12,7 @@ import {
   FormLabel,
   FormMessage,
 } from 'renderer/shad/ui/form';
+import { formatDisplayDate } from '@/lib/displayDate';
 import {
   Popover,
   PopoverContent,
@@ -63,7 +63,7 @@ export const FormDateSelector = <
           >
             <CalendarIcon className={calendarIconClassName} />
             {field.value ? (
-              format(new Date(field.value as string), 'PPP')
+              formatDisplayDate(field.value as string)
             ) : (
               <span>Pick a date</span>
             )}

@@ -26,6 +26,7 @@ import type {
   VendorStockActivityResponse,
 } from 'types';
 import { REPORT_FILTER_KEYS } from 'types';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { EmptyState, LoadingState } from '../components';
 import {
@@ -406,7 +407,9 @@ const VendorStockActivityPage: React.FC = () => {
 
   const dateSubtitle = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return '';
-    return `${format(dateRange.from, 'PP')} – ${format(dateRange.to, 'PP')}`;
+    return `${formatDisplayDate(dateRange.from)} – ${formatDisplayDate(
+      dateRange.to,
+    )}`;
   }, [dateRange]);
 
   const exportRows = gridViewRows ?? response?.items ?? [];

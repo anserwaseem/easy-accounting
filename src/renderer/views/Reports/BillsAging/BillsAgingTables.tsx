@@ -22,6 +22,8 @@ import {
   getFixedNumber,
   formatDaysDuration,
 } from 'renderer/lib/utils';
+import { formatDisplayDate } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 import type { BillsAging, BillsAgingAccount } from './types';
 
 interface BillsAgingTablesProps {
@@ -338,7 +340,7 @@ const AccountCard: FC<AccountCardProps> = React.memo(
                           {formatJournalDiscountLabel(bill.billPercentage)}
                         </TableCell>
                         <TableCell className="align-bottom">
-                          {format(new Date(bill.billDate), 'MMM dd, yyyy')}
+                          <DateCell value={bill.billDate} />
                         </TableCell>
                         <TableCell className="text-right align-bottom">
                           {getFormattedCurrencyInt(bill.billAmount, {
@@ -431,9 +433,7 @@ const AccountCard: FC<AccountCardProps> = React.memo(
                   key={`${account.accountId}-unallocated-${receipt.receivedDate}-${receipt.receivedAmount}`}
                   className="flex justify-between text-sm"
                 >
-                  <span>
-                    {format(new Date(receipt.receivedDate), 'MMM dd, yyyy')}
-                  </span>
+                  <span>{formatDisplayDate(receipt.receivedDate)}</span>
                   <span>
                     {getFormattedCurrencyInt(receipt.receivedAmount, {
                       withoutCurrency: true,

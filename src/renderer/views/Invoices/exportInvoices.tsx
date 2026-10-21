@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Button } from '@/renderer/shad/ui/button';
-import { Input } from '@/renderer/shad/ui/input';
 import { format } from 'date-fns';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { AppDateInput } from '@/renderer/components/AppDateInput';
 
 export const ExportInvoices = () => {
   const [startDate, setStartDate] = useState<string>();
@@ -40,17 +40,17 @@ export const ExportInvoices = () => {
     <div className="flex flex-col space-y-4">
       <h2 className="text-2xl font-bold">Export Sale Invoices to Excel</h2>
       <div className="flex space-x-4">
-        <Input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
+        <AppDateInput
+          value={startDate ?? ''}
+          onChange={setStartDate}
           placeholder="Start Date"
+          aria-label="Start Date"
         />
-        <Input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
+        <AppDateInput
+          value={endDate ?? ''}
+          onChange={setEndDate}
           placeholder="End Date"
+          aria-label="End Date"
         />
       </div>
       <Button onClick={handleExport}>Export to Excel</Button>

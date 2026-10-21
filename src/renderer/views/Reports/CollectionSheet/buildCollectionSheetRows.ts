@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { sumBy, trim } from 'lodash';
 import { getFixedNumber } from '@/renderer/lib/utils';
+import { formatDisplayDate, formatDisplayDayMonth } from '@/lib/displayDate';
 import {
   buildPartyTypingContext,
   splitPartyCode,
@@ -124,18 +125,8 @@ export const signedSheetBalance = (
 const isZeroBalance = (balance: number): boolean =>
   getFixedNumber(balance, 2) === 0;
 
-/** date-only strings stay as written. timestamps use the local calendar day. */
-export const formatBillDate = (raw: string): string => {
-  const trimmed = trim(raw);
-  if (!trimmed) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    const [year, month, day] = trimmed.split('-');
-    return `${day}/${month}/${year.slice(2)}`;
-  }
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return trimmed;
-  return format(parsed, 'dd/MM/yy');
-};
+/** the bill's calendar day, in the app-wide display format. */
+export const formatBillDate = (raw: string): string => formatDisplayDate(raw);
 
 const billSortKey = (raw: string): string => {
   const trimmed = trim(raw);
@@ -596,10 +587,11 @@ export interface CollectionSheetTourColumn {
   clipped?: boolean;
 }
 
-/** "Aug 2026 · 27/07–30/08"; a running tour shows "…" for its end, a clipped one "(part)" */
+/** "Aug 2026 · 27 Jul–30 Aug"; a running tour shows "…" for its end, a clipped one "(part)" */
 export const tourColumnHeader = (tour: CollectionSheetTourColumn): string => {
-  const day = (iso: string) => formatBillDate(iso).slice(0, 5);
-  const end = tour.endDate ? day(tour.endDate) : '…';
+  const end = tour.endDate ? formatDisplayDayMonth(tour.endDate) : '…';
   const part = tour.clipped ? ' (part)' : '';
-  return `${tour.name} · ${day(tour.startDate)}–${end}${part}`;
+  return `${tour.name} · ${formatDisplayDayMonth(
+    tour.startDate,
+  )}–${end}${part}`;
 };

@@ -10,10 +10,6 @@ import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  dateFormatOptions,
-  datetimeFormatOptions,
-} from 'renderer/lib/constants';
-import {
   cn,
   defaultSortingFunctions,
   getFormattedCurrency,
@@ -27,9 +23,10 @@ import {
   type DateRange,
 } from 'renderer/shad/ui/datePicker';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
-import { DateHeader } from 'renderer/components/common/DateHeader';
 import type { HasMiniView, InvoicesView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
+import { formatDisplayDateTime } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 // eslint-disable-next-line import/no-cycle
 import InvoicePage from '../Invoice';
 import { ExportInvoices } from './exportInvoices';
@@ -162,10 +159,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   <div className="flex justify-between items-start w-full">
                     <div className="flex flex-col">
                       <p>
-                        {new Date(invoice.date).toLocaleString(
-                          'en-US',
-                          dateFormatOptions,
-                        )}
+                        <DateCell value={invoice.date} />
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-extrabold">
@@ -177,10 +171,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                             className="text-[10px] font-normal"
                             title={
                               invoice.returnedAt
-                                ? new Date(invoice.returnedAt).toLocaleString(
-                                    'en-US',
-                                    datetimeFormatOptions,
-                                  )
+                                ? formatDisplayDateTime(invoice.returnedAt)
                                 : undefined
                             }
                           >
@@ -193,10 +184,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                             className="text-[10px] font-normal"
                             title={
                               invoice.updatedAt
-                                ? new Date(invoice.updatedAt).toLocaleString(
-                                    'en-US',
-                                    datetimeFormatOptions,
-                                  )
+                                ? formatDisplayDateTime(invoice.updatedAt)
                                 : undefined
                             }
                           >
@@ -249,10 +237,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                       className="px-1.5 py-0 text-[10px] font-normal"
                       title={
                         row.original.returnedAt
-                          ? new Date(row.original.returnedAt).toLocaleString(
-                              'en-US',
-                              datetimeFormatOptions,
-                            )
+                          ? formatDisplayDateTime(row.original.returnedAt)
                           : undefined
                       }
                     >
@@ -265,10 +250,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                       className="px-1.5 py-0 text-[10px] font-normal"
                       title={
                         row.original.updatedAt
-                          ? new Date(row.original.updatedAt).toLocaleString(
-                              'en-US',
-                              datetimeFormatOptions,
-                            )
+                          ? formatDisplayDateTime(row.original.updatedAt)
                           : undefined
                       }
                     >
@@ -285,12 +267,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
             },
             {
               accessorKey: 'date',
-              header: DateHeader,
-              cell: ({ row }) =>
-                new Date(row.original.date).toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                ),
+              header: 'Date',
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)

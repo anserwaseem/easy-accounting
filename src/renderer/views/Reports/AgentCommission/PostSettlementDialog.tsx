@@ -15,10 +15,11 @@ import {
   DialogTitle,
 } from '@/renderer/shad/ui/dialog';
 import { Button } from '@/renderer/shad/ui/button';
-import { Input } from '@/renderer/shad/ui/input';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
+import { toLocalDateInputValue } from '@/renderer/lib/localDate';
+import { AppDateInput } from '@/renderer/components/AppDateInput';
 
 interface PostSettlementDialogProps {
   open: boolean;
@@ -38,7 +39,7 @@ export const PostSettlementDialog: React.FC<PostSettlementDialogProps> = ({
   onSuccess,
 }: PostSettlementDialogProps) => {
   const [postingDate, setPostingDate] = useState<string>(
-    report.endDate || new Date().toISOString().slice(0, 10),
+    report.endDate || toLocalDateInputValue(new Date()),
   );
   const [payableAccountId, setPayableAccountId] = useState<number | null>(
     report.payableAccountId ?? null,
@@ -205,11 +206,11 @@ export const PostSettlementDialog: React.FC<PostSettlementDialogProps> = ({
           {/* Posting Date */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold">Posting Date</Label>
-            <Input
-              type="date"
+            <AppDateInput
               className="h-9"
               value={postingDate}
-              onChange={(e) => setPostingDate(e.target.value)}
+              onChange={setPostingDate}
+              aria-label="Posting Date"
             />
           </div>
 

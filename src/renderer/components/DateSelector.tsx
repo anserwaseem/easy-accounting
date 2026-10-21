@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { Calendar } from '@/renderer/shad/ui/calendar';
@@ -8,6 +7,7 @@ import {
   PopoverTrigger,
 } from '@/renderer/shad/ui/popover';
 import { cn } from '@/renderer/lib/utils';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 interface DateSelectorProps {
   id?: string;
@@ -41,7 +41,7 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
           {isValid && selected ? (
-            format(selected, 'PPP')
+            formatDisplayDate(selected)
           ) : (
             <span>Pick a date</span>
           )}

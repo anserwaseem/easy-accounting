@@ -10,6 +10,7 @@ import { pinStockAccounts } from '@/renderer/lib/pinStockAccounts';
 import { toLowerTrim } from '@/renderer/lib/utils';
 import type { Account, PurchasesByVendorResponse } from 'types';
 import { AccountType, InvoiceType, REPORT_FILTER_KEYS } from 'types';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 const isVendorParty = (account: Account): boolean => {
   if (toLowerTrim(account.name) === InvoiceType.Sale.toLowerCase()) {
@@ -159,7 +160,9 @@ export const usePurchasesByVendor = () => {
 
   const dateSubtitle = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return '';
-    return `${format(dateRange.from, 'PP')} – ${format(dateRange.to, 'PP')}`;
+    return `${formatDisplayDate(dateRange.from)} – ${formatDisplayDate(
+      dateRange.to,
+    )}`;
   }, [dateRange]);
 
   return {

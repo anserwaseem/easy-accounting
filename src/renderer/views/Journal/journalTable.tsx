@@ -1,10 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  dateFormatOptions,
-  datetimeFormatOptions,
-} from 'renderer/lib/constants';
-import {
   defaultSortingFunctions,
   getFormattedCurrency,
   getFormattedDebitCreditWithoutCurrency,
@@ -20,6 +16,8 @@ import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
+import { formatDisplayDateTime } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 
 interface JournalTableProps {
   journalId: number;
@@ -153,10 +151,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Date:</p>
               <p>
-                {new Date(journal?.date || '').toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                )}
+                <DateCell value={journal?.date} />
               </p>
             </div>
             <div className="flex gap-8">
@@ -193,10 +188,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({
                 {journal?.createdAt !== journal?.updatedAt && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Updated: At{' '}
-                    {new Date(journal?.updatedAt || '').toLocaleString(
-                      'en-US',
-                      datetimeFormatOptions,
-                    )}
+                    {formatDisplayDateTime(journal?.updatedAt || '')}
                   </p>
                 )}
               </div>

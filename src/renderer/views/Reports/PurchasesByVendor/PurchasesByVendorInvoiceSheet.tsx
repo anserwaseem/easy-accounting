@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import {
   Sheet,
@@ -8,6 +7,7 @@ import {
   SheetTitle,
 } from '@/renderer/shad/ui/sheet';
 import type { PurchasesByVendorItem } from 'types';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 interface PurchasesByVendorInvoiceSheetProps {
   item: PurchasesByVendorItem | null;
@@ -15,11 +15,6 @@ interface PurchasesByVendorInvoiceSheetProps {
   dateSubtitle: string;
   onOpenChange: (open: boolean) => void;
 }
-
-const formatDate = (value: string): string => {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : format(parsed, 'PP');
-};
 
 export const PurchasesByVendorInvoiceSheet: React.FC<
   PurchasesByVendorInvoiceSheetProps
@@ -56,7 +51,7 @@ export const PurchasesByVendorInvoiceSheet: React.FC<
             <tbody>
               {item.invoices.map((line) => (
                 <tr key={line.invoiceId} className="border-b last:border-0">
-                  <td className="py-2 pr-3">{formatDate(line.date)}</td>
+                  <td className="py-2 pr-3">{formatDisplayDate(line.date)}</td>
                   <td className="py-2 pr-3">
                     <Link
                       className="text-primary underline-offset-2 hover:underline"

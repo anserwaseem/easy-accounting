@@ -13,11 +13,11 @@ import {
   toLocalNoonIsoString,
   toLocalNoonIsoStringFromStored,
 } from '@/renderer/lib/localDate';
-import { datetimeFormatOptions } from '@/renderer/lib/constants';
 import { isPersistedRowEdited } from '@/renderer/lib/invoiceUtils';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
 import type { InventoryItem } from 'types';
+import { formatDisplayDateTime } from '@/lib/displayDate';
 
 interface IssueLine {
   key: string;
@@ -286,10 +286,7 @@ const NewVendorIssuePage: React.FC = () => {
               Last edited
             </Badge>
             <p className="mt-1 text-muted-foreground">
-              {new Date(updatedAt).toLocaleString(
-                'en-US',
-                datetimeFormatOptions,
-              )}
+              {formatDisplayDateTime(updatedAt)}
             </p>
           </div>
         ) : null}

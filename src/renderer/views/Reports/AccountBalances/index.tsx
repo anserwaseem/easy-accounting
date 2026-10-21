@@ -25,6 +25,7 @@ import {
   type ReportExportPayload,
 } from 'renderer/lib/reportExport';
 import { toast } from 'renderer/shad/ui/use-toast';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { ExportOrderDialog, printStyles } from '../components';
 import { useAccountBalances } from './useAccountBalances';
 import { AccountBalancesTable } from './AccountBalancesTable';
@@ -54,7 +55,7 @@ const buildAccountBalancesPayload = (
   );
   return {
     title: 'Account Balances',
-    subtitle: `${selectedHead} as of ${format(selectedDate, 'PPP')}`,
+    subtitle: `${selectedHead} as of ${formatDisplayDate(selectedDate)}`,
     sheetName: 'Account Balances',
     suggestedFileName: `Account_Balances_${selectedHead.replace(
       /\s+/g,
@@ -156,7 +157,7 @@ const AccountBalancesPage = () => {
                     disabled={isLoading}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(selectedDate, 'PPP')}
+                    {formatDisplayDate(selectedDate)}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -200,7 +201,7 @@ const AccountBalancesPage = () => {
       <div className="hidden print:block text-center mb-4 print-header">
         <h1 className="text-lg font-medium text-center mb-1">
           Account Balances Report for {selectedHead} as of{' '}
-          {format(selectedDate, 'PPP')}
+          {formatDisplayDate(selectedDate)}
         </h1>
       </div>
 

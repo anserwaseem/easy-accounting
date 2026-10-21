@@ -1,5 +1,5 @@
-import { format } from 'date-fns';
 import { write, utils } from 'xlsx';
+import { formatDisplayDate } from '@/lib/displayDate';
 
 type ReportColumnFormat = 'string' | 'number' | 'currency' | 'date';
 
@@ -63,9 +63,9 @@ function formatCellValue(
     return Number.isNaN(num) ? 0 : num;
   }
   if (colFormat === 'date') {
-    if (value instanceof Date) return format(value, 'PP');
-    const d = new Date(String(value));
-    return Number.isNaN(d.getTime()) ? String(value) : format(d, 'PP');
+    // pass the raw value through: formatDisplayDate handles both a Date and a
+    // stored string, and a bare 'YYYY-MM-DD' must not be parsed as UTC midnight
+    return formatDisplayDate(value as string | Date);
   }
   return String(value);
 }

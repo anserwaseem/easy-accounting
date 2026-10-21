@@ -5,10 +5,6 @@ import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  dateFormatOptions,
-  datetimeFormatOptions,
-} from 'renderer/lib/constants';
-import {
   cn,
   defaultSortingFunctions,
   getFormattedCurrency,
@@ -21,7 +17,6 @@ import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Badge } from 'renderer/shad/ui/badge';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import { DateHeader } from 'renderer/components/common/DateHeader';
 import {
   Tooltip,
   TooltipContent,
@@ -30,6 +25,8 @@ import {
 } from 'renderer/shad/ui/tooltip';
 import type { InvoicesView } from 'types';
 import { InvoiceType } from 'types';
+import { formatDisplayDateTime } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 
 interface QuotationsPageProps {
   invoiceType: InvoiceType;
@@ -163,10 +160,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                   <div className="flex justify-between items-start w-full">
                     <div className="flex flex-col">
                       <p>
-                        {new Date(inv.date).toLocaleString(
-                          'en-US',
-                          dateFormatOptions,
-                        )}
+                        <DateCell value={inv.date} />
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-extrabold">
@@ -180,10 +174,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                             className="text-[10px] font-normal"
                             title={
                               inv.updatedAt
-                                ? new Date(inv.updatedAt).toLocaleString(
-                                    'en-US',
-                                    datetimeFormatOptions,
-                                  )
+                                ? formatDisplayDateTime(inv.updatedAt)
                                 : undefined
                             }
                           >
@@ -238,10 +229,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                       className="px-1.5 py-0 text-[10px] font-normal"
                       title={
                         row.original.updatedAt
-                          ? new Date(row.original.updatedAt).toLocaleString(
-                              'en-US',
-                              datetimeFormatOptions,
-                            )
+                          ? formatDisplayDateTime(row.original.updatedAt)
                           : undefined
                       }
                     >
@@ -255,12 +243,9 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
             },
             {
               accessorKey: 'date',
-              header: DateHeader,
-              cell: ({ row }) =>
-                new Date(row.original.date).toLocaleString(
-                  'en-US',
-                  dateFormatOptions,
-                ),
+              header: 'Date',
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (r) => navigateToRow(r.original.id),
               size: 108,
             },
@@ -292,10 +277,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               header: 'Updated',
               cell: ({ row }) =>
                 row.original.updatedAt
-                  ? new Date(row.original.updatedAt).toLocaleString(
-                      'en-US',
-                      datetimeFormatOptions,
-                    )
+                  ? formatDisplayDateTime(row.original.updatedAt)
                   : '—',
               onClick: (r) => navigateToRow(r.original.id),
               size: 140,

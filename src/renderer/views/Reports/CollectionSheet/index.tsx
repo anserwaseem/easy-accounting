@@ -26,6 +26,7 @@ import {
 } from '@/renderer/lib/reportExport';
 import { cn } from '@/renderer/lib/utils';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { CollectionSheetTable } from './CollectionSheetTable';
 import { CollectionSheetGuideDialog } from './CollectionSheetGuideDialog';
@@ -78,7 +79,7 @@ interface LanguageToggleProps {
 
 const dateLabel = (range: { from?: Date; to?: Date } | undefined): string => {
   if (!range?.from || !range?.to) return '';
-  return `${format(range.from, 'PPP')} - ${format(range.to, 'PPP')}`;
+  return `${formatDisplayDate(range.from)} - ${formatDisplayDate(range.to)}`;
 };
 
 const LanguageToggle: React.FC<LanguageToggleProps> = ({

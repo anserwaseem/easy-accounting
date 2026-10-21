@@ -16,16 +16,11 @@ import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
-import { DateHeader } from '@/renderer/components/common/DateHeader';
 import { Badge } from '@/renderer/shad/ui/badge';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { cn } from '@/renderer/lib/utils';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
-import {
-  dateFormatOptions,
-  datetimeFormatOptions,
-} from '@/renderer/lib/constants';
 import { isPersistedRowEdited } from '@/renderer/lib/invoiceUtils';
 import type { VendorIssueListItem, VendorStockRow } from 'types';
 import {
@@ -40,6 +35,8 @@ import {
   persistVendorStockVendorId,
   readStoredVendorStockVendorId,
 } from '@/renderer/lib/vendorStockSelection';
+import { formatDisplayDateTime } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 import { ImportVendorOpeningStock } from './ImportVendorOpeningStock';
 import { printVendorStockIframe } from './printVendorStock';
 
@@ -305,10 +302,7 @@ const VendorStockPage: React.FC = () => {
                 className="px-1.5 py-0 text-[10px] font-normal"
                 title={
                   row.original.updatedAt
-                    ? new Date(row.original.updatedAt).toLocaleString(
-                        'en-US',
-                        datetimeFormatOptions,
-                      )
+                    ? formatDisplayDateTime(row.original.updatedAt)
                     : undefined
                 }
               >
@@ -320,14 +314,9 @@ const VendorStockPage: React.FC = () => {
       },
       {
         accessorKey: 'date',
-        header: DateHeader,
-        cell: ({ row }) =>
-          row.original.date
-            ? new Date(row.original.date).toLocaleString(
-                'en-US',
-                dateFormatOptions,
-              )
-            : '',
+        header: 'Date',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => <DateCell value={row.original.date} />,
       },
       ...(selectedVendorId
         ? []

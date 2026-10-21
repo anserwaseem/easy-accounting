@@ -2,7 +2,7 @@ import { useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { CellContext } from '@tanstack/react-table';
 import { toString } from 'lodash';
-import { currency, dateFormatOptions } from 'renderer/lib/constants';
+import { currency } from 'renderer/lib/constants';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
@@ -12,7 +12,7 @@ import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Badge } from 'renderer/shad/ui/badge';
 import type { LedgerView } from '@/types';
 import { renderJournalCell } from '@/renderer/components/journal/NarrationCell';
-import { DateHeader } from '@/renderer/components/common/DateHeader';
+import { DateCell } from '@/renderer/components/common/DateCell';
 
 interface LedgerParticularsCellProps {
   row: LedgerView;
@@ -74,12 +74,9 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
     () => [
       {
         accessorKey: 'date',
-        header: DateHeader,
-        cell: ({ row }) =>
-          new Date(row.original.date).toLocaleString(
-            'en-US',
-            dateFormatOptions,
-          ),
+        header: 'Date',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => <DateCell value={row.original.date} />,
         size: 40,
       },
       {

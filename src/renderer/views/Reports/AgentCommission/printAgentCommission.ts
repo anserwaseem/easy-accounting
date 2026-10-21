@@ -1,5 +1,6 @@
 import { escape } from 'lodash';
 import type { AgentCommissionReport, CommissionAdjustment } from '@/types';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 
 interface PrintAgentCommissionOptions {
@@ -60,7 +61,7 @@ export const printAgentCommissionIframe = (
       .map(
         (line, idx) => `<tr>
         <td class="fit num">${idx + 1}</td>
-        <td class="fit">${escape(line.invoiceDate)}</td>
+        <td class="fit">${escape(formatDisplayDate(line.invoiceDate))}</td>
         <td class="fit num">${line.invoiceNumber}</td>
         <td>${escape(line.accountName)}${
           line.accountCode ? ` (${escape(line.accountCode)})` : ''

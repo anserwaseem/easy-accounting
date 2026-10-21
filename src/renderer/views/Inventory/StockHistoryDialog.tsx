@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isEmpty, orderBy, toString } from 'lodash';
-import { format } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +12,11 @@ import type {
   InventoryOpeningStock,
   StockAdjustment,
 } from '@/types';
+import { formatDisplayDate, parseStoredDate } from '@/lib/displayDate';
+
+/** a movement's day, in the app-wide display format; '—' when there is none. */
+const formatStockDate = (dateValue: string): string =>
+  parseStoredDate(dateValue) ? formatDisplayDate(dateValue) : '—';
 
 type StockHistoryDialogProps = {
   open: boolean;
@@ -29,13 +33,6 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
   const [openingStockRow, setOpeningStockRow] =
     useState<InventoryOpeningStock | null>(null);
-
-  const formatRowDate = (dateValue: string): string => {
-    if (!dateValue) return '—';
-    const d = new Date(dateValue);
-    if (Number.isNaN(d.getTime())) return '—';
-    return format(d, 'MM/dd/yyyy');
-  };
 
   useEffect(() => {
     if (!open || !item) return;
@@ -126,7 +123,7 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-medium">Opening stock</span>
                       <span className="text-muted-foreground">
-                        {formatRowDate(r.date)}
+                        {formatStockDate(r.date)}
                       </span>
                     </div>
                     <div className="mt-1 flex items-center justify-between">
@@ -157,7 +154,7 @@ export const StockHistoryDialog: React.FC<StockHistoryDialogProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Adjustment</span>
                     <span className="text-muted-foreground">
-                      {formatRowDate(r.date)}
+                      {formatStockDate(r.date)}
                     </span>
                   </div>
                   <div className="mt-1 flex items-center justify-between">
