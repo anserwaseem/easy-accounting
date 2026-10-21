@@ -30,7 +30,11 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { TableVirtuoso, type TableVirtuosoHandle } from 'react-virtuoso';
+import {
+  TableVirtuoso,
+  Virtuoso,
+  type TableVirtuosoHandle,
+} from 'react-virtuoso';
 import { HelpCircle } from 'lucide-react';
 import {
   Tooltip,
@@ -731,15 +735,27 @@ const DataTable = <TData, TValue>({
     const visible = cells.filter((c) => !defOf(c).cardHidden);
     if (visible.length === 0) return null;
 
+    // A column marked `cardFullWidth` takes the whole card, so it cannot
+    // also be the headline — otherwise its content is rendered twice.
+    const fullWidthCells = visible.filter((c) => defOf(c).cardFullWidth);
+    const headlineCandidates = visible.filter((c) => !defOf(c).cardFullWidth);
     const headlineCell =
-      visible.find((c) => defOf(c).cardHeadline) ?? visible[0];
+      headlineCandidates.find((c) => defOf(c).cardHeadline) ??
+      headlineCandidates[0] ??
+      fullWidthCells[0];
     const asideCell = visible.find(
       (c) => c !== headlineCell && defOf(c).cardAside,
     );
-    const fullWidthCells = visible.filter((c) => defOf(c).cardFullWidth);
     const restCells = visible.filter(
       (c) => c !== headlineCell && c !== asideCell && !defOf(c).cardFullWidth,
     );
+    // A headline that is also full-width would render its content twice
+    // (once in the headline row, once in the full-width block). Drop it
+    // from the full-width block and let the headline row carry it.
+    const headlineIsFullWidth = fullWidthCells.includes(headlineCell);
+    const fullWidthRenderCells = headlineIsFullWidth
+      ? fullWidthCells.filter((c) => c !== headlineCell)
+      : fullWidthCells;
 
     const cellContent = (cell: (typeof cells)[number]) => (
       <div key={`${rowKeyOf(row)}:${cell.column.id}`}>
@@ -762,18 +778,39 @@ const DataTable = <TData, TValue>({
         // A stable hook for the e2e tests: the card's headline is the
         // row's identity, and on a phone it is the only way to reach
         // the row's detail screen (there is no `cell` role any more).
-        data-card-headline={String(headlineCell.column.id)}
+        data-card-headline={
+          headlineCell ? String(headlineCell.column.id) : undefined
+        }
         className="rounded-lg border bg-card p-3 text-card-foreground"
       >
-        <div className="flex items-start justify-between gap-3">
-          <button
-            type="button"
-            className="min-w-0 flex-1 text-left text-[15px] font-medium leading-snug"
-            onClick={() => defOf(headlineCell).onClick?.(row)}
-          >
-            {cellContent(headlineCell)}
-          </button>
-          {asideCell ? (
+        {headlineCell && !headlineIsFullWidth ? (
+          <div className="flex items-start justify-between gap-3">
+            <button
+              type="button"
+              className="min-w-0 flex-1 text-left text-[15px] font-medium leading-snug"
+              onClick={() => defOf(headlineCell).onClick?.(row)}
+            >
+              {defOf(headlineCell).cardLabel ? (
+                <span className="mb-0.5 block text-xs font-normal text-muted-foreground">
+                  {defOf(headlineCell).cardLabel}
+                </span>
+              ) : null}
+              {cellContent(headlineCell)}
+            </button>
+            {asideCell ? (
+              <button
+                type="button"
+                className="shrink-0 text-right text-[15px] font-semibold tabular-nums"
+                onClick={() => defOf(asideCell).onClick?.(row)}
+              >
+                {cellContent(asideCell)}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {!headlineCell && asideCell ? (
+          // No headline, but there is an action: it gets its own row.
+          <div className="flex justify-end">
             <button
               type="button"
               className="shrink-0 text-right text-[15px] font-semibold tabular-nums"
@@ -781,13 +818,21 @@ const DataTable = <TData, TValue>({
             >
               {cellContent(asideCell)}
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
-        {fullWidthCells.length > 0 ? (
+        {fullWidthRenderCells.length > 0 ? (
           <div className="mt-2 flex flex-col gap-2 border-t pt-2">
-            {fullWidthCells.map((cell) => (
+            {fullWidthRenderCells.map((cell) => (
               <div key={`${rowKeyOf(row)}:${cell.column.id}:full`}>
+                {/* A full-width field is usually an input or a select,
+                    which needs to say what it is — a bare input with no
+                    label is not identifiable. */}
+                {defOf(cell).cardLabel ? (
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {defOf(cell).cardLabel}
+                  </p>
+                ) : null}
                 {cellContent(cell)}
               </div>
             ))}
@@ -876,6 +921,17 @@ const DataTable = <TData, TValue>({
   const virtualItemKey = (item: Row<TData> | DetailItem) =>
     isDetailItem(item) ? `${item.detailFor.id}:detail` : item.id;
 
+  const renderCardItem = (item: Row<TData> | DetailItem) => {
+    if (isDetailItem(item)) {
+      return (
+        <div className="rounded-lg border bg-muted/30 p-3">
+          {renderRowDetail?.(item.detailFor.original)}
+        </div>
+      );
+    }
+    return <div className="pb-2">{renderCard(item)}</div>;
+  };
+
   const renderVirtualItem = (item: Row<TData> | DetailItem) => {
     if (!isDetailItem(item)) return renderVirtualItemCells(item);
     return (
@@ -954,24 +1010,37 @@ const DataTable = <TData, TValue>({
       }
 
       if (useCardLayout) {
+        // A card's height depends on how many columns it has and how
+        // their values wrap, so the table's fixed row-height estimate
+        // does not apply.
+        //
+        // In 'content' mode (the mode the form grids use) the list
+        // grows with its content and the page scrolls — a Virtuoso
+        // scroller would need a fixed height and would clip the last
+        // card. In 'fill' mode the list takes the available space, so
+        // it keeps the virtual scroller and stays bounded.
+        if (virtualHeightMode !== 'fill') {
+          return (
+            <div className="flex flex-col gap-2 p-2">
+              {virtualItems.map((item) => (
+                <div key={virtualItemKey(item)}>{renderCardItem(item)}</div>
+              ))}
+            </div>
+          );
+        }
+
         return (
-          <div
-            className="flex flex-col gap-2 overflow-y-auto"
+          <Virtuoso
+            data={virtualItems}
             style={{ height: virtualTableHeight }}
-          >
-            {virtualItems.map((item) =>
-              isDetailItem(item) ? (
-                <div
-                  key={virtualItemKey(item)}
-                  className="rounded-lg border bg-muted/30 p-3"
-                >
-                  {renderRowDetail?.(item.detailFor.original)}
-                </div>
-              ) : (
-                renderCard(item)
-              ),
-            )}
-          </div>
+            increaseViewportBy={{ top: 400, bottom: 400 }}
+            computeItemKey={(_, item) =>
+              virtualItemKey(item as Row<TData> | DetailItem)
+            }
+            itemContent={(index, item) =>
+              renderCardItem(item as Row<TData> | DetailItem)
+            }
+          />
         );
       }
 
@@ -1106,7 +1175,9 @@ const DataTable = <TData, TValue>({
       ) : null}
       {useCardLayout ? (
         <div className="flex flex-col gap-2 p-2">
-          {rows.map((row) => renderCard(row))}
+          {rows.map((row) => (
+            <div key={rowKeyOf(row)}>{renderCard(row)}</div>
+          ))}
         </div>
       ) : (
         <div className="overflow-x-auto w-full scroll-shadow">

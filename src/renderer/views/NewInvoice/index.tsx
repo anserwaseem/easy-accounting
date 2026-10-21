@@ -2650,10 +2650,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 )}
               </div>
 
-              {/* Invoice summary — always visible while scrolling line items */}
+              {/* Invoice summary. On a phone it sticks to the bottom of
+                  the page and covers the field above it (the Cartons
+                  input was half-hidden behind it), so it scrolls with
+                  the content there and only sticks on a wider screen. */}
               {isSale && (
                 <section
-                  className="sticky bottom-0 z-10 border-t bg-background/95 px-3 py-2 space-y-1.5 backdrop-blur-sm safe-bottom"
+                  className="z-10 border-t bg-background/95 px-3 py-2 space-y-1.5 backdrop-blur-sm sm:sticky sm:bottom-0 sm:z-10 safe-bottom"
                   aria-label="Invoice summary"
                 >
                   {isDiscountEditEnabled && (

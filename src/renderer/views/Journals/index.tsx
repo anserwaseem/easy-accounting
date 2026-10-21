@@ -192,6 +192,9 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               id: 'actions',
               header: 'Actions',
+              // The row's buttons sit on the headline's row in the card
+              // layout, where a labelled "Actions" row was pure noise.
+              cardAside: true,
               enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (

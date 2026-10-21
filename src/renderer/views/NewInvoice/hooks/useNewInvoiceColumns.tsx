@@ -517,6 +517,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
         size: 260,
         minSize: 180,
         cardHeadline: true,
+        cardLabel: 'Item',
         // The select needs the whole card width to be usable — a
         // half-width dropdown on a phone is unusable.
         cardFullWidth: true,
@@ -587,6 +588,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
         // The quantity input is the other field the user must be able
         // to reach and type into; it gets the full card width.
         cardFullWidth: true,
+        cardLabel: 'Quantity',
         cell: ({ row }) => (
           <InvoiceLineQuantityCell<T>
             form={form}
@@ -604,6 +606,9 @@ export function useNewInvoiceColumns<T extends FieldValues>(
         header: 'Action',
         size: 56,
         minSize: 44,
+        // The delete button is a control, not a value: it sits on the
+        // headline's row rather than in a labelled value row.
+        cardAside: true,
         cell: ({ row }) => (
           <button
             type="button"
@@ -732,6 +737,9 @@ export function useNewInvoiceColumns<T extends FieldValues>(
           ? [
               {
                 header: 'Account',
+                // The account is a value the user reads, not a control,
+                // so it is a labelled row rather than a full-width field.
+                cardLabel: 'Account',
                 cell: ({ row }) => {
                   const label = resolvedRowLabels[row.index] ?? '—';
                   const code = resolvedRowCodes[row.index]?.trim();
