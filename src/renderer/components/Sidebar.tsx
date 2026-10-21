@@ -40,6 +40,7 @@ import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth, useIsMobile } from '../hooks';
 import { useNavigationHistory } from '../hooks/useNavigationHistory';
+import { ScrollToTopButton } from './ScrollToTopButton';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 
 const ITEM_BUTTON_CLASSNAME = 'px-3';
@@ -604,13 +605,19 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               <ModeToggle />
             </div>
           </div>
-          <div className="flex-grow overflow-y-auto overflow-x-hidden p-3 md:p-4">
+          {/* The app's scroll container. ScrollToTopButton finds it by
+              this attribute. */}
+          <div
+            data-app-scroll
+            className="flex-grow overflow-y-auto overflow-x-hidden p-3 md:p-4"
+          >
             {children}
             <Outlet />
           </div>
         </div>
         {/* ⌘/Ctrl+K palette; mounted here so it is available on every authenticated page */}
         <GlobalSearch />
+        <ScrollToTopButton />
       </div>
     </TooltipProvider>
   );

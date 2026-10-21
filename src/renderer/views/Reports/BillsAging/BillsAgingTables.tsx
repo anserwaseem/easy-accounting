@@ -24,6 +24,7 @@ import {
 } from 'renderer/lib/utils';
 import { formatDisplayDate } from '@/lib/displayDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { useIsMobile } from '@/renderer/hooks/useIsMobile';
 import type { BillsAging, BillsAgingAccount } from './types';
 
 interface BillsAgingTablesProps {
@@ -168,6 +169,7 @@ const AccountCard: FC<AccountCardProps> = React.memo(
     hideStatus = false,
     showHeadNames = false,
   }: AccountCardProps) => {
+    const isMobile = useIsMobile();
     const visibleBills = useMemo(() => {
       return hideZeroRows
         ? account.bills.filter((b) => getFixedNumber(b.finalBalance, 0) !== 0)
@@ -264,57 +266,29 @@ const AccountCard: FC<AccountCardProps> = React.memo(
         </div>
 
         {visibleBills.length > 0 && (
-          <div className="overflow-x-auto shadow-md">
-            <Table className="border-collapse w-full">
-              <TableHeader>
-                <TableRow className="bg-gray-200 dark:bg-gray-900 whitespace-nowrap">
-                  <TableCell className="w-[120px] align-bottom">
-                    Bill #
-                  </TableCell>
-                  <TableCell className="w-[100px] align-bottom">
-                    Bill %
-                  </TableCell>
-                  <TableCell className="w-[120px] align-bottom">
-                    Bill Date
-                  </TableCell>
-                  <TableCell className="w-[120px] text-right align-bottom">
-                    Bill Amount
-                  </TableCell>
-                  {activeReceiptIndexes.map((i) => (
-                    <React.Fragment key={`receipt-head-${i}`}>
-                      <TableCell className="w-[120px] text-right align-bottom">
-                        Received {i + 1}
-                      </TableCell>
-                      <TableCell className="w-[120px] text-right align-bottom">
-                        Balance {i + 1}
-                      </TableCell>
-                    </React.Fragment>
-                  ))}
-                  {!hideStatus && (
-                    <TableCell className="w-[120px] text-center align-bottom">
-                      Days Status
-                    </TableCell>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <>
+            {/* On a phone the table scrolls sideways with the amount
+              columns off the edge. The bill becomes a card instead:
+              the bill number and the amount head it, and each receipt
+              is a labelled row. */}
+            {isMobile ? (
+              <div className="flex flex-col gap-2 sm:hidden">
                 {visibleBills.map((bill) => {
-                  const columnCount =
-                    4 + activeReceiptIndexes.length * 2 + (hideStatus ? 0 : 1);
                   const linesOpen =
                     bill.invoiceId != null && openInvoiceId === bill.invoiceId;
                   return (
-                    <React.Fragment
+                    <div
                       key={`${account.accountId}-${bill.billNumber}-${bill.billDate}`}
+                      className="rounded-lg border bg-card p-3"
                     >
-                      <TableRow>
-                        <TableCell className="font-medium align-bottom">
-                          <span className="inline-flex items-center gap-1">
-                            {bill.billNumber}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[15px] font-medium">
+                            Bill {bill.billNumber}
                             {bill.invoiceId != null ? (
                               <button
                                 type="button"
-                                className="inline-flex h-6 w-6 items-center justify-center rounded-sm hover:bg-muted"
+                                className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-sm hover:bg-muted"
                                 aria-expanded={linesOpen}
                                 aria-label={
                                   linesOpen
@@ -328,30 +302,37 @@ const AccountCard: FC<AccountCardProps> = React.memo(
                                 }}
                               >
                                 {linesOpen ? (
-                                  <ChevronDown size={14} />
+                                  <ChevronDown size={16} />
                                 ) : (
-                                  <ChevronRight size={14} />
+                                  <ChevronRight size={16} />
                                 )}
                               </button>
                             ) : null}
-                          </span>
-                        </TableCell>
-                        <TableCell className="align-bottom">
-                          {formatJournalDiscountLabel(bill.billPercentage)}
-                        </TableCell>
-                        <TableCell className="align-bottom">
-                          <DateCell value={bill.billDate} />
-                        </TableCell>
-                        <TableCell className="text-right align-bottom">
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatJournalDiscountLabel(bill.billPercentage)} ·{' '}
+                            {formatDisplayDate(bill.billDate)}
+                          </p>
+                        </div>
+                        <p className="shrink-0 text-right text-[15px] font-semibold tabular-nums">
                           {getFormattedCurrencyInt(bill.billAmount, {
                             withoutCurrency: true,
                           })}
-                        </TableCell>
+                        </p>
+                      </div>
+
+                      <dl className="mt-2 flex flex-col gap-1 border-t pt-2">
                         {activeReceiptIndexes.map((i) => {
                           const receipt = bill.receipts[i];
                           return (
-                            <React.Fragment key={`receipt-cell-${i}`}>
-                              <TableCell className="text-right align-bottom">
+                            <div
+                              key={`receipt-card-${i}`}
+                              className="flex items-baseline justify-between gap-3"
+                            >
+                              <dt className="shrink-0 text-xs text-muted-foreground">
+                                Received {i + 1}
+                              </dt>
+                              <dd className="text-right text-sm tabular-nums">
                                 {receipt ? (
                                   <>
                                     <div className="text-xs text-muted-foreground">
@@ -370,21 +351,17 @@ const AccountCard: FC<AccountCardProps> = React.memo(
                                 ) : (
                                   '-'
                                 )}
-                              </TableCell>
-                              <TableCell className="text-right align-bottom">
-                                {receipt
-                                  ? getFormattedCurrencyInt(receipt.balance, {
-                                      withoutCurrency: true,
-                                    })
-                                  : '-'}
-                              </TableCell>
-                            </React.Fragment>
+                              </dd>
+                            </div>
                           );
                         })}
-                        {!hideStatus && (
-                          <TableCell className="text-center align-bottom">
-                            <span
-                              className={`text-sm font-medium whitespace-pre-line leading-tight ${
+                        {!hideStatus ? (
+                          <div className="flex items-baseline justify-between gap-3">
+                            <dt className="shrink-0 text-xs text-muted-foreground">
+                              Status
+                            </dt>
+                            <dd
+                              className={`text-right text-sm font-medium whitespace-pre-line leading-tight ${
                                 bill.daysStatus.isFullyPaid
                                   ? 'text-green-600'
                                   : 'text-red-600'
@@ -399,29 +376,177 @@ const AccountCard: FC<AccountCardProps> = React.memo(
                                     bill.daysStatus.months,
                                     bill.daysStatus.remainingDays,
                                   )}`}
-                            </span>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                      {linesOpen && bill.invoiceId != null ? (
-                        <TableRow>
-                          <TableCell
-                            colSpan={columnCount}
-                            className="bg-muted/40"
-                          >
-                            <BillLinePanel
-                              invoice={openInvoice}
-                              accountId={account.accountId}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ) : null}
-                    </React.Fragment>
+                            </dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                    </div>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
+              </div>
+            ) : null}
+            <div className="hidden overflow-x-auto shadow-md sm:block">
+              <Table className="border-collapse w-full">
+                <TableHeader>
+                  <TableRow className="bg-gray-200 dark:bg-gray-900 whitespace-nowrap">
+                    <TableCell className="w-[120px] align-bottom">
+                      Bill #
+                    </TableCell>
+                    <TableCell className="w-[100px] align-bottom">
+                      Bill %
+                    </TableCell>
+                    <TableCell className="w-[120px] align-bottom">
+                      Bill Date
+                    </TableCell>
+                    <TableCell className="w-[120px] text-right align-bottom">
+                      Bill Amount
+                    </TableCell>
+                    {activeReceiptIndexes.map((i) => (
+                      <React.Fragment key={`receipt-head-${i}`}>
+                        <TableCell className="w-[120px] text-right align-bottom">
+                          Received {i + 1}
+                        </TableCell>
+                        <TableCell className="w-[120px] text-right align-bottom">
+                          Balance {i + 1}
+                        </TableCell>
+                      </React.Fragment>
+                    ))}
+                    {!hideStatus && (
+                      <TableCell className="w-[120px] text-center align-bottom">
+                        Days Status
+                      </TableCell>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleBills.map((bill) => {
+                    const columnCount =
+                      4 +
+                      activeReceiptIndexes.length * 2 +
+                      (hideStatus ? 0 : 1);
+                    const linesOpen =
+                      bill.invoiceId != null &&
+                      openInvoiceId === bill.invoiceId;
+                    return (
+                      <React.Fragment
+                        key={`${account.accountId}-${bill.billNumber}-${bill.billDate}`}
+                      >
+                        <TableRow>
+                          <TableCell className="font-medium align-bottom">
+                            <span className="inline-flex items-center gap-1">
+                              {bill.billNumber}
+                              {bill.invoiceId != null ? (
+                                <button
+                                  type="button"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-sm hover:bg-muted"
+                                  aria-expanded={linesOpen}
+                                  aria-label={
+                                    linesOpen
+                                      ? 'Hide bill lines'
+                                      : 'Show bill lines'
+                                  }
+                                  onClick={() => {
+                                    if (bill.invoiceId != null) {
+                                      toggleBillLines(bill.invoiceId);
+                                    }
+                                  }}
+                                >
+                                  {linesOpen ? (
+                                    <ChevronDown size={14} />
+                                  ) : (
+                                    <ChevronRight size={14} />
+                                  )}
+                                </button>
+                              ) : null}
+                            </span>
+                          </TableCell>
+                          <TableCell className="align-bottom">
+                            {formatJournalDiscountLabel(bill.billPercentage)}
+                          </TableCell>
+                          <TableCell className="align-bottom">
+                            <DateCell value={bill.billDate} />
+                          </TableCell>
+                          <TableCell className="text-right align-bottom">
+                            {getFormattedCurrencyInt(bill.billAmount, {
+                              withoutCurrency: true,
+                            })}
+                          </TableCell>
+                          {activeReceiptIndexes.map((i) => {
+                            const receipt = bill.receipts[i];
+                            return (
+                              <React.Fragment key={`receipt-cell-${i}`}>
+                                <TableCell className="text-right align-bottom">
+                                  {receipt ? (
+                                    <>
+                                      <div className="text-xs text-muted-foreground">
+                                        {format(
+                                          new Date(receipt.receivedDate),
+                                          'MMM dd',
+                                        )}
+                                      </div>
+                                      <div>
+                                        {getFormattedCurrencyInt(
+                                          receipt.receivedAmount,
+                                          { withoutCurrency: true },
+                                        )}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right align-bottom">
+                                  {receipt
+                                    ? getFormattedCurrencyInt(receipt.balance, {
+                                        withoutCurrency: true,
+                                      })
+                                    : '-'}
+                                </TableCell>
+                              </React.Fragment>
+                            );
+                          })}
+                          {!hideStatus && (
+                            <TableCell className="text-center align-bottom">
+                              <span
+                                className={`text-sm font-medium whitespace-pre-line leading-tight ${
+                                  bill.daysStatus.isFullyPaid
+                                    ? 'text-green-600'
+                                    : 'text-red-600'
+                                }`}
+                              >
+                                {bill.daysStatus.isFullyPaid
+                                  ? `Cleared in\n${formatDaysDuration(
+                                      bill.daysStatus.months,
+                                      bill.daysStatus.remainingDays,
+                                    )}`
+                                  : `Overdue by\n${formatDaysDuration(
+                                      bill.daysStatus.months,
+                                      bill.daysStatus.remainingDays,
+                                    )}`}
+                              </span>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                        {linesOpen && bill.invoiceId != null ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={columnCount}
+                              className="bg-muted/40"
+                            >
+                              <BillLinePanel
+                                invoice={openInvoice}
+                                accountId={account.accountId}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
 
         {account.unallocatedReceipts.length > 0 && (

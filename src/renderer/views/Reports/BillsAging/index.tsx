@@ -499,9 +499,12 @@ const BillsAgingPage = () => {
       }
       header={
         <div className="print-header flex flex-col gap-2.5 pb-2">
-          {/* Row 1: Title, Summary KPI & Action Buttons */}
-          <div className="flex flex-wrap justify-between items-center gap-3 pb-1 border-b border-border/40">
-            <div className="flex items-center gap-3">
+          {/* Row 1: Title, Summary KPI & Action Buttons. On a phone the
+              KPI and the buttons each take a row of their own — they
+              shared one row before and the refresh button ran off the
+              right edge. */}
+          <div className="flex flex-col gap-3 pb-2 border-b border-border/40 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
               <h1 className="title-new text-2xl font-bold tracking-tight">
                 Bills Aging
               </h1>
@@ -513,14 +516,14 @@ const BillsAgingPage = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {!isLoading && visibleAccounts.length > 0 && (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card/80 shadow-xs text-sm">
                   <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
                     Total Outstanding:
                   </span>
                   <span
-                    className={`font-bold font-mono text-base ${totalColor}`}
+                    className={`font-bold font-mono text-base tabular-nums ${totalColor}`}
                   >
                     {getFormattedCurrencyInt(totalOutstanding, {
                       withoutCurrency: true,
@@ -663,8 +666,10 @@ const BillsAgingPage = () => {
             </div>
           </div>
 
-          {/* Row 2: Filter Controls Toolbar */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+          {/* Row 2: Filter Controls Toolbar. Each control takes a
+              full row on a phone rather than wrapping into a ragged
+              grid, and the fixed widths become flexible above sm. */}
+          <div className="grid grid-cols-1 gap-2.5 pt-1 sm:flex sm:flex-wrap sm:items-center">
             <VirtualMultiSelect
               options={customerOptions}
               value={selectedCustomerIds}
@@ -680,7 +685,7 @@ const BillsAgingPage = () => {
               disabled={!customerOptions.length}
             />
             <Select value={selectedHead} onValueChange={handleHeadChange}>
-              <SelectTrigger className="w-[170px]">
+              <SelectTrigger className="w-full sm:w-[170px]">
                 <SelectValue placeholder="Select head" />
               </SelectTrigger>
               <SelectContent>
@@ -698,7 +703,7 @@ const BillsAgingPage = () => {
               value={accountTypeFilter}
               onValueChange={setAccountTypeFilter}
             >
-              <SelectTrigger className="w-[155px]">
+              <SelectTrigger className="w-full sm:w-[155px]">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -713,7 +718,7 @@ const BillsAgingPage = () => {
             </Select>
             <div className="flex items-center gap-1">
               <Select value={agePreset} onValueChange={setAgePreset}>
-                <SelectTrigger className="w-[135px]">
+                <SelectTrigger className="w-full sm:w-[135px]">
                   <SelectValue placeholder="Overdue Age" />
                 </SelectTrigger>
                 <SelectContent>
@@ -740,7 +745,7 @@ const BillsAgingPage = () => {
             </div>
             <div className="flex items-center gap-1">
               <Select value={discountPreset} onValueChange={setDiscountPreset}>
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-full sm:w-[130px]">
                   <SelectValue placeholder="Discount %" />
                 </SelectTrigger>
                 <SelectContent>
@@ -767,7 +772,7 @@ const BillsAgingPage = () => {
               )}
             </div>
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[155px]">
+              <SelectTrigger className="w-full sm:w-[155px]">
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>

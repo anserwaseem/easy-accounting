@@ -2884,8 +2884,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       />
                     </div>
                   )}
-                  <div className="flex items-center gap-x-3 pt-1 border-t border-border/60">
-                    <span className="w-full shrink-0 text-sm font-semibold text-primary sm:w-44">
+                  {/* The label was `w-full` below sm, which pushed the
+                      amount off the right edge of the screen — the total
+                      of the invoice was invisible on a phone. */}
+                  <div className="flex items-center justify-between gap-x-3 pt-1 border-t border-border/60">
+                    <span className="shrink-0 text-sm font-semibold text-primary sm:w-44">
                       Total
                     </span>
                     <p

@@ -82,14 +82,25 @@ export const JournalTable: React.FC<JournalTableProps> = ({
   return (
     <div>
       <div className="flex">
-        <div className="w-3/4">
-          <div className="flex items-center justify-between">
-            <h1 className="min-w-0 shrink text-3xl font-light sm:text-4xl">
-              JOURNAL
-            </h1>
+        <div className="min-w-0 flex-1">
+          {/* The title and the actions shared a row with no wrapping, so
+              on a phone the "Reverse Journal" button sat on top of the
+              word "JOURNAL". The title now has the row to itself on a
+              phone, and the actions sit under it. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <h1 className="min-w-0 shrink text-3xl font-light sm:text-4xl">
+                JOURNAL
+              </h1>
+              {journal?.isPosted ? (
+                <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-semibold text-white">
+                  Posted
+                </span>
+              ) : null}
+            </div>
             {journal?.id &&
             (journal.invoiceId == null || journal.invoiceId <= 0) ? (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <AdvancedControl
                   capability={ADVANCED_CAPABILITIES.journalReverse}
                 >
@@ -125,15 +136,15 @@ export const JournalTable: React.FC<JournalTableProps> = ({
           </div>
 
           <div className="flex flex-col gap-2 mt-8">
-            <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8 sm:items-center">
-              <p className="font-extrabold text-md w-full sm:w-[160px] sm:shrink-0">
+            <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8 sm:items-center">
+              <p className="font-extrabold text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
                 Journal #:
               </p>
               <p className="tabular-nums">{journal?.id ?? journalId}</p>
             </div>
             {journal?.invoiceId != null && journal.invoiceId > 0 ? (
-              <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
-                <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+              <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8">
+                <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
                   Invoice:
                 </p>
                 <Button
@@ -154,16 +165,16 @@ export const JournalTable: React.FC<JournalTableProps> = ({
                 </Button>
               </div>
             ) : null}
-            <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
-              <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+            <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8">
+              <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
                 Date:
               </p>
               <p>
                 <DateCell value={journal?.date} />
               </p>
             </div>
-            <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
-              <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+            <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8">
+              <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
                 Amount:
               </p>
               <p>
@@ -176,8 +187,8 @@ export const JournalTable: React.FC<JournalTableProps> = ({
               </p>
             </div>
 
-            <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
-              <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+            <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8">
+              <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
                 Narration:
               </p>
               <div className="flex flex-col">
@@ -207,8 +218,8 @@ export const JournalTable: React.FC<JournalTableProps> = ({
             </div>
 
             {journal?.billNumber && (
-              <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
-                <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+              <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8">
+                <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
                   Bill#:
                 </p>
                 <p>{journal.billNumber}</p>
@@ -217,21 +228,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({
 
             {formatJournalDiscountLabel(journal?.discountPercentage) !==
               '-' && (
-              <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
-                <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+              <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8">
+                <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
                   Discount%:
                 </p>
                 <p>{formatJournalDiscountLabel(journal?.discountPercentage)}</p>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="w-1/4 flex items-center justify-center relative overflow-hidden">
-          <div className="absolute right-0 top-0 w-40">
-            <div className="w-40 bg-green-600 text-center rounded-xl rotate-45 py-1 translate-x-1/4 translate-y-3/4">
-              Posted
-            </div>
           </div>
         </div>
       </div>
