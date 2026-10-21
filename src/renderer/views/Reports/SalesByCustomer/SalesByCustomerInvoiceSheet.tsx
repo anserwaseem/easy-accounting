@@ -17,8 +17,6 @@ interface SalesByCustomerInvoiceSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const formatDate = (value: string): string => formatDisplayDate(value);
-
 const formatCustomerCell = (
   name: string,
   code: string | number | null | undefined,
@@ -69,7 +67,7 @@ export const SalesByCustomerInvoiceSheet: React.FC<
                   key={`${line.invoiceId}:${line.customerAccountId}`}
                   className="border-b last:border-0"
                 >
-                  <td className="py-2 pr-3">{formatDate(line.date)}</td>
+                  <td className="py-2 pr-3">{formatDisplayDate(line.date)}</td>
                   <td className="py-2 pr-3">
                     <Link
                       className="text-primary underline-offset-2 hover:underline"

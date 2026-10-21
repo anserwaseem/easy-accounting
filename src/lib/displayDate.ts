@@ -91,6 +91,23 @@ export const parseStoredDate = (
 };
 
 /**
+ * Format a stored date with one of the DISPLAY_* formats.
+ *
+ * A value that cannot be parsed is returned as-is, so a bad value stays
+ * visible instead of vanishing.
+ */
+const formatWith = (
+  raw: string | Date | null | undefined,
+  pattern: string,
+): string => {
+  const parsed = parseStoredDate(raw);
+  if (!parsed) {
+    return raw == null ? '' : String(raw).trim();
+  }
+  return format(parsed, pattern);
+};
+
+/**
  * Format a stored date as the app-wide display date, e.g. '03 Feb, 2026'.
  *
  * @param raw - a stored date string or Date
@@ -99,13 +116,7 @@ export const parseStoredDate = (
  */
 export const formatDisplayDate = (
   raw: string | Date | null | undefined,
-): string => {
-  const parsed = parseStoredDate(raw);
-  if (!parsed) {
-    return raw == null ? '' : String(raw).trim();
-  }
-  return format(parsed, DISPLAY_DATE_FORMAT);
-};
+): string => formatWith(raw, DISPLAY_DATE_FORMAT);
 
 /**
  * Format a stored timestamp as the app-wide display timestamp, e.g.
@@ -113,13 +124,7 @@ export const formatDisplayDate = (
  */
 export const formatDisplayDateTime = (
   raw: string | Date | null | undefined,
-): string => {
-  const parsed = parseStoredDate(raw);
-  if (!parsed) {
-    return raw == null ? '' : String(raw).trim();
-  }
-  return format(parsed, DISPLAY_DATETIME_FORMAT);
-};
+): string => formatWith(raw, DISPLAY_DATETIME_FORMAT);
 
 /**
  * The hover text for a date cell: the full date with hour and minute, e.g.
@@ -132,10 +137,8 @@ export const formatDisplayDateTime = (
  */
 export const displayDateTitle = (
   raw: string | Date | null | undefined,
-): string | undefined => {
-  if (!parseStoredDate(raw)) return undefined;
-  return formatDisplayDateTime(raw);
-};
+): string | undefined =>
+  parseStoredDate(raw) ? formatDisplayDateTime(raw) : undefined;
 
 /**
  * Format a stored date as a compact day + month, e.g. '03 Feb'. Used by
@@ -143,23 +146,11 @@ export const displayDateTitle = (
  */
 export const formatDisplayDayMonth = (
   raw: string | Date | null | undefined,
-): string => {
-  const parsed = parseStoredDate(raw);
-  if (!parsed) {
-    return raw == null ? '' : String(raw).trim();
-  }
-  return format(parsed, DISPLAY_DAY_MONTH_FORMAT);
-};
+): string => formatWith(raw, DISPLAY_DAY_MONTH_FORMAT);
 
 /**
  * Format a stored timestamp as a time only, e.g. '02:05 PM'.
  */
 export const formatDisplayTime = (
   raw: string | Date | null | undefined,
-): string => {
-  const parsed = parseStoredDate(raw);
-  if (!parsed) {
-    return raw == null ? '' : String(raw).trim();
-  }
-  return format(parsed, DISPLAY_TIME_FORMAT);
-};
+): string => formatWith(raw, DISPLAY_TIME_FORMAT);

@@ -25,8 +25,6 @@ interface VendorStockActivitySheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const formatDate = (value: string): string => formatDisplayDate(value);
-
 export const VendorStockActivitySheet: React.FC<
   VendorStockActivitySheetProps
 > = ({
@@ -72,7 +70,9 @@ export const VendorStockActivitySheet: React.FC<
                 const label = activityMovementLabel(movement);
                 return (
                   <tr key={movement.id} className="border-b last:border-0">
-                    <td className="py-2 pr-3">{formatDate(movement.date)}</td>
+                    <td className="py-2 pr-3">
+                      {formatDisplayDate(movement.date)}
+                    </td>
                     <td className="py-2 pr-3">
                       {href ? (
                         <Link

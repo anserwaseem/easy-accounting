@@ -16,8 +16,6 @@ interface PurchasesByVendorInvoiceSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const formatDate = (value: string): string => formatDisplayDate(value);
-
 export const PurchasesByVendorInvoiceSheet: React.FC<
   PurchasesByVendorInvoiceSheetProps
 > = ({
@@ -53,7 +51,7 @@ export const PurchasesByVendorInvoiceSheet: React.FC<
             <tbody>
               {item.invoices.map((line) => (
                 <tr key={line.invoiceId} className="border-b last:border-0">
-                  <td className="py-2 pr-3">{formatDate(line.date)}</td>
+                  <td className="py-2 pr-3">{formatDisplayDate(line.date)}</td>
                   <td className="py-2 pr-3">
                     <Link
                       className="text-primary underline-offset-2 hover:underline"

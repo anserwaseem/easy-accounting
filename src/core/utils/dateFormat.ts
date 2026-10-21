@@ -5,16 +5,6 @@ import {
 } from '../../lib/displayDate';
 
 /**
- * Formats a date to the app-wide display format, e.g. '03 Feb, 2026'.
- * Pure, no platform dependency — safe to call from the main process.
- * @param date - Date object or string or number that can be parsed into a Date
- * @returns formatted date string
- */
-export const formatDate = (date: Date | string | number): string => {
-  return formatDisplayDate(date instanceof Date ? date : new Date(date));
-};
-
-/**
  * Formats a timestamp to the app-wide display format, e.g.
  * '03 Feb, 2026, 02:05 PM'. Safe to call from the main process.
  */

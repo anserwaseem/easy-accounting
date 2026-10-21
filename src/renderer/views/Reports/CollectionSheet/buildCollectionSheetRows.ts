@@ -125,12 +125,8 @@ export const signedSheetBalance = (
 const isZeroBalance = (balance: number): boolean =>
   getFixedNumber(balance, 2) === 0;
 
-/** date-only strings stay as written. timestamps use the local calendar day. */
-export const formatBillDate = (raw: string): string => {
-  const trimmed = trim(raw);
-  if (!trimmed) return '';
-  return formatDisplayDate(trimmed);
-};
+/** the bill's calendar day, in the app-wide display format. */
+export const formatBillDate = (raw: string): string => formatDisplayDate(raw);
 
 const billSortKey = (raw: string): string => {
   const trimmed = trim(raw);
@@ -593,8 +589,9 @@ export interface CollectionSheetTourColumn {
 
 /** "Aug 2026 · 27 Jul–30 Aug"; a running tour shows "…" for its end, a clipped one "(part)" */
 export const tourColumnHeader = (tour: CollectionSheetTourColumn): string => {
-  const day = (iso: string) => formatDisplayDayMonth(iso);
-  const end = tour.endDate ? day(tour.endDate) : '…';
+  const end = tour.endDate ? formatDisplayDayMonth(tour.endDate) : '…';
   const part = tour.clipped ? ' (part)' : '';
-  return `${tour.name} · ${day(tour.startDate)}–${end}${part}`;
+  return `${tour.name} · ${formatDisplayDayMonth(
+    tour.startDate,
+  )}–${end}${part}`;
 };

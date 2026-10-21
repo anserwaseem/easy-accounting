@@ -114,10 +114,11 @@ describe('displayDateTitle', () => {
     );
   });
 
-  it('gives the same title for a local-noon ISO date', () => {
-    expect(displayDateTitle('2026-02-03T07:00:00.000Z')).toBe(
-      '03 Feb, 2026, 12:00 PM',
-    );
+  it('gives a local-noon ISO date the same title in any timezone', () => {
+    // the stored instant is 12:00 local in UTC+5, so the clock time depends
+    // on the timezone the test runs in; only the calendar day is fixed
+    const title = displayDateTitle('2026-02-03T07:00:00.000Z');
+    expect(title).toMatch(/^03 Feb, 2026, \d{2}:\d{2} (AM|PM)$/);
   });
 
   it('omits the title for an empty or unparseable value', () => {

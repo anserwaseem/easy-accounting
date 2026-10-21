@@ -1,11 +1,11 @@
 import type { FC } from 'react';
-import { formatDisplayTime, parseStoredDate } from '@/lib/displayDate';
+import { formatDisplayTime } from '@/lib/displayDate';
 import { useSyncStatus } from '../hooks';
 
 function formatTime(iso: string | undefined): string | null {
   if (!iso) return null;
-  if (!parseStoredDate(iso)) return null;
-  return formatDisplayTime(iso);
+  const time = formatDisplayTime(iso);
+  return time || null;
 }
 
 interface SyncIndicatorProps {

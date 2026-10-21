@@ -75,7 +75,7 @@ import { TableVirtuoso } from 'react-virtuoso';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
 import { cn } from '@/renderer/lib/utils';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
-import { formatDisplayDate, parseStoredDate } from '@/lib/displayDate';
+import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { AgentCommissionSheet } from '../../Accounts/AgentCommissionSheet';
 import { PostSettlementDialog } from './PostSettlementDialog';
@@ -86,12 +86,8 @@ const formatMoney = (val: number | null | undefined): string => {
   return Math.round(val).toLocaleString();
 };
 
-const formatInvoiceDate = (dateStr: string): string => {
-  if (!dateStr) return '';
-  return parseStoredDate(dateStr)
-    ? formatDisplayDate(dateStr)
-    : dateStr.slice(0, 10);
-};
+const formatInvoiceDate = (dateStr: string): string =>
+  formatDisplayDate(dateStr);
 
 const getAdjustmentColorClass = (adj: number) => {
   if (adj < 0) return 'text-destructive';
