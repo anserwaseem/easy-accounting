@@ -6,7 +6,10 @@ import { cn } from '@/renderer/lib/utils';
 
 /**
  * Consistent ghost icon trigger for edit flows (tables, dialogs, menus).
- * Default: Lucide Pencil, 32×32 tap target, ghost + icon sizing.
+ * Default: Lucide Pencil, ghost + icon sizing.
+ *
+ * 32×32 on desktop, 44×44 on a phone — 32px is below the smallest
+ * comfortable touch target.
  */
 export const EditActionButton = forwardRef<HTMLButtonElement, ButtonProps>(
   (
@@ -27,7 +30,7 @@ export const EditActionButton = forwardRef<HTMLButtonElement, ButtonProps>(
       type={type}
       variant={variant}
       size={size}
-      className={cn('h-8 w-8 shrink-0', className)}
+      className={cn('h-11 w-11 shrink-0 md:h-8 md:w-8', className)}
       aria-label={ariaLabel}
       title={title ?? ariaLabel}
       {...props}

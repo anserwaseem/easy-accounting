@@ -132,7 +132,10 @@ test.describe('mobile shell (390x844)', () => {
     await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
     await assertNoBodyOverflow(page, 'accounts list');
 
-    await page.getByRole('button', { name: 'New Account' }).click();
+    // "New Account" lives inside the "New" dropdown (see
+    // views/Accounts/index.tsx), not on the button itself.
+    await page.getByRole('button', { name: 'New', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'New Account' }).click();
     const accountDialog = page.getByRole('dialog');
     await expect(accountDialog).toBeVisible();
     await assertNoBodyOverflow(page, 'account dialog open');
@@ -197,8 +200,10 @@ test.describe('mobile shell (390x844)', () => {
     const invDialog = page.getByRole('dialog');
     await expect(invDialog).toBeVisible();
     await assertNoBodyOverflow(page, 'inventory dialog open');
-    await invDialog.getByLabel('name', { exact: true }).fill(itemName);
-    await invDialog.getByLabel('price', { exact: true }).fill('150');
+    // The form labels are capitalized ("Name", "Price") — see
+    // views/Inventory/InventoryForm.tsx's inventoryFieldLabel.
+    await invDialog.getByLabel('Name', { exact: true }).fill(itemName);
+    await invDialog.getByLabel('Price', { exact: true }).fill('150');
     const invSubmit = invDialog.getByRole('button', { name: 'Submit' });
     await expect(invSubmit).toBeVisible();
     await expect(invSubmit).toBeEnabled();
@@ -212,6 +217,16 @@ test.describe('mobile shell (390x844)', () => {
     // refuses to render its real form for an item with no stock at all,
     // and this test's whole point is to check that real form fits the
     // viewport.
+    //
+    // "Adjust stock by hand" is an advanced control that is off by
+    // default on a fresh device, so it has to be enabled first (the
+    // capability set lives in the worker's `web_kv` store — see
+    // apps/web/src/worker/db.worker.ts).
+    await page.evaluate(async () => {
+      await window.easyAccounting.api.setAdvancedCapabilities([
+        'inventory.adjustStock',
+      ]);
+    });
     await page.evaluate(async (name) => {
       const items = await window.easyAccounting.api.getInventory();
       const item = (items as { id: number; name: string }[]).find(

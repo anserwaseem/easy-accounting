@@ -170,7 +170,7 @@ const InventoryNameCell: React.FC<InventoryNameCellProps> = ({
     <div className={cn('flex items-center gap-1.5', !isActive && 'opacity-60')}>
       <span>{item.name}</span>
       {!isActive && (
-        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800">
+        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-800">
           Inactive
         </span>
       )}
@@ -792,6 +792,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               header: 'List #',
               headerTooltip: 'Catalog list order (nulls sort last).',
               size: 72,
+              hideBelow: 'lg' as const,
               sortingFn: listPositionSortingFn,
               enableSorting: !editMode,
               // eslint-disable-next-line react/no-unstable-nested-components
@@ -826,7 +827,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         accessorKey: 'name',
         header: 'Name',
-        size: 110,
+        size: 180,
         enableSorting: !editMode,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }: { row: { original: InventoryItem } }) => (
@@ -837,6 +838,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         ? [
             {
               id: 'family',
+              hideBelow: 'lg' as const,
               header: 'Family',
               headerTooltip:
                 'Heads show variant count; variants show their assigned head. Own head means no parent is assigned.',
@@ -904,6 +906,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             {
               accessorKey: 'description',
               header: 'Description',
+              hideBelow: 'lg' as const,
               size: 240,
               enableSorting: !editMode,
               // eslint-disable-next-line react/no-unstable-nested-components
@@ -938,6 +941,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         ? [
             {
               accessorKey: 'descriptionUrdu',
+              hideBelow: 'lg' as const,
               header: 'Description (Urdu)',
               size: 200,
               enableSorting: !editMode,
@@ -982,6 +986,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         ? [
             {
               accessorKey: 'itemTypeName',
+              hideBelow: 'md' as const,
               header: 'Type',
               size: 92,
               enableSorting: !editMode,
@@ -1029,7 +1034,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         accessorKey: 'price',
         header: 'Price',
-        size: 88,
+        size: 100,
         enableSorting: !editMode,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
@@ -1109,7 +1114,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         accessorKey: 'quantity',
         header: 'Quantity',
-        size: 80,
+        size: 100,
         enableSorting: !editMode,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
@@ -1149,6 +1154,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               id: 'displayTitle',
               header: 'Display title',
               size: 220,
+              hideBelow: 'lg' as const,
               enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
               cell: ({
@@ -1211,8 +1217,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             )}
           </div>
         ),
-        // two 32px icon buttons + gaps: Edit, More Actions
-        size: 70,
+        // two icon buttons + gaps: Edit, More Actions
+        size: 100,
       },
     ];
     // updateItemType closes over itemTypes/editMode; columns rebuild when those

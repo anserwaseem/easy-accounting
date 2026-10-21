@@ -8,7 +8,6 @@ import {
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
 import {
-  cn,
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
@@ -29,6 +28,7 @@ import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
 
 export type JournalView = Journal & { amount: number };
 
@@ -128,28 +128,36 @@ const JournalsPage: React.FC<HasMiniView> = ({
                   {row.original.id}
                 </span>
               ),
-              size: 40,
+              size: 90,
+              hideBelow: 'sm',
             },
             {
               accessorKey: 'date',
               header: 'Date',
+              hideBelow: 'sm' as const,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
-              size: 40,
+              // Was 40px, which is narrower than the "03 Feb, 2026" the
+              // cell renders — the text overflowed into Narration.
+              size: 110,
             },
             {
               accessorKey: 'narration',
               header: 'Narration',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 360,
+              // 360px was wider than a phone on its own, which pushed the
+              // Amount (the number the list is scanned for) off-screen.
+              // 190px leaves room for the amount beside it.
+              size: 190,
             },
             {
               accessorKey: 'billNumber',
               header: 'Bill#',
               cell: ({ row }) => row.original.billNumber || '-',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 80,
+              size: 90,
+              hideBelow: 'md',
             },
             {
               accessorKey: 'discountPercentage',
@@ -157,15 +165,20 @@ const JournalsPage: React.FC<HasMiniView> = ({
               cell: ({ row }) =>
                 formatJournalDiscountLabel(row.original.discountPercentage),
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 70,
+              size: 80,
+              hideBelow: 'lg',
             },
             {
               accessorKey: 'amount',
               header: 'Amount',
-              cell: ({ getValue }) =>
-                getFormattedCurrency(toNumber(getValue())),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ getValue }) => (
+                <span className="tabular">
+                  {getFormattedCurrency(toNumber(getValue()))}
+                </span>
+              ),
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 150,
+              size: 130,
             },
             {
               accessorKey: 'createdAt',
@@ -173,7 +186,8 @@ const JournalsPage: React.FC<HasMiniView> = ({
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.createdAt} />,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 100,
+              size: 120,
+              hideBelow: 'lg',
             },
             {
               id: 'actions',
@@ -209,7 +223,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                              className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground md:h-8 md:w-8"
                               title="Reverse Journal"
                             >
                               <RotateCcw className="h-4 w-4" />
@@ -230,7 +244,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                              className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive md:h-8 md:w-8"
                               title="Delete Journal"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -242,7 +256,9 @@ const JournalsPage: React.FC<HasMiniView> = ({
                   )}
                 </div>
               ),
-              size: 120,
+              // Three buttons: edit, reverse, delete. At the 44px mobile
+              // touch target that needs ~140px, not 120px.
+              size: 140,
             },
           ]) as ColumnDef<JournalView>[],
     [isMini, navigate, handleUpdateJournal, handleReloadJournals],
@@ -323,38 +339,29 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
   return (
     <div>
-      <div
-        className={cn(
-          'grid py-4',
-          isMini ? 'grid-cols-2 grid-rows-2 gap-4' : 'grid-cols-3 items-center',
-        )}
-      >
-        <div
-          className={cn(
-            'flex gap-4 items-center',
-            isMini && 'col-span-2 row-span-1 order-1',
-          )}
-        >
-          <p className="text-muted-foreground font-bold text-sm">VIEW BY:</p>
-          <DateRangePickerWithPresets
-            $onSelect={handleFilterDateSelect}
-            presets={[{ label: 'All', value: 'all' }]}
-            initialRange={journalFilterDate}
-            initialSelectValue={journalFilterSelectValue}
-          />
-        </div>
-
-        <h1 className="title">Journals</h1>
-
-        <Button
-          variant="outline"
-          onClick={() => navigate('/journals/new')}
-          className="col-span-1 row-span-1 w-fit ml-auto"
-        >
-          <Plus size={16} className="mr-2" />
-          New Journal
-        </Button>
-      </div>
+      <PageHeader
+        title="Journals"
+        filters={
+          <FilterGroup label="VIEW BY:">
+            <DateRangePickerWithPresets
+              $onSelect={handleFilterDateSelect}
+              presets={[{ label: 'All', value: 'all' }]}
+              initialRange={journalFilterDate}
+              initialSelectValue={journalFilterSelectValue}
+            />
+          </FilterGroup>
+        }
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => navigate('/journals/new')}
+            className="w-full sm:w-fit"
+          >
+            <Plus size={16} className="mr-2" />
+            New Journal
+          </Button>
+        }
+      />
 
       <div className="py-8 flex flex-col gap-6">
         <DataTable

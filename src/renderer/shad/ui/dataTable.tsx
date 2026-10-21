@@ -38,6 +38,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/renderer/shad/ui/tooltip';
+import {
+  useMediaQuery,
+  useIsSmallScreenUp,
+  useIsLargeScreenUp,
+} from '@/renderer/hooks/useMediaQuery';
 import { CompactSearchBar } from './compactSearchBar';
 import { Search } from './search';
 
@@ -51,6 +56,20 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
    * columns so layout remains byte-identical.
    */
   responsiveClassName?: string;
+  /**
+   * Breakpoint below which this column is hidden.
+   *
+   * `sm` hides the column under 640px, `md` under 768px, `lg` under 1024px.
+   *
+   * Prefer this over `responsiveClassName: 'hidden sm:table-cell'`: a
+   * column hidden with a plain CSS class still contributes its `size` to
+   * TanStack's `getTotalSize()`, which is the `minWidth` the scroll
+   * container is sized to — so the table stays as wide as the hidden
+   * column and the horizontal scroll never actually shrinks. This
+   * property removes the column from the layout entirely below the
+   * breakpoint.
+   */
+  hideBelow?: 'sm' | 'md' | 'lg';
 };
 
 // TODO: search by field(s)
@@ -183,9 +202,12 @@ const HeaderRow = ({
           key={header.id}
           colSpan={header.colSpan}
           className={cn(
+            // Header used a hard grey in both themes — a light slab that
+            // fought the page in light mode and a mismatched grey in dark
+            // mode. It now uses the muted token so it tracks the theme.
             header.column.getIsSorted()
-              ? 'bg-gray-300 dark:bg-gray-800'
-              : 'bg-gray-200 dark:bg-gray-900',
+              ? 'bg-muted text-foreground'
+              : 'bg-muted/60 text-muted-foreground',
             compact ? 'h-7 px-2 py-1 text-xs' : 'h-8',
             (header.column.columnDef as ColumnDef<unknown>)
               ?.responsiveClassName,
@@ -278,6 +300,49 @@ const DataTable = <TData, TValue>({
   });
   const [searchValue, setSearchValue] = useState('');
   const [searchInputValue, setSearchInputValue] = useState('');
+
+  // Breakpoint state for `hideBelow` columns. Each is a separate media
+  // query so a column can declare its own threshold.
+  const isSmUp = useIsSmallScreenUp();
+  const isMdUp = useMediaQuery('(min-width: 768px)');
+  const isLgUp = useIsLargeScreenUp();
+
+  /**
+   * Maps `hideBelow` on each column to a `columnVisibility` entry.
+   *
+   * TanStack's `columnVisibility` is keyed by column id, where `false`
+   * hides the column outright: no header cell, no body cell, and no
+   * width contribution to `getTotalSize()`.
+   *
+   * Only ever sets `false`. A column that the user hid through a
+   * "Columns" menu must stay hidden, so a `hideBelow` rule that happens
+   * to be satisfied at the current width must not flip it back on.
+   */
+  const hiddenColumnVisibility = useMemo(() => {
+    const visibility: Record<string, boolean> = {};
+    for (const column of columns) {
+      const { hideBelow } = column as ColumnDef<TData, TValue>;
+      if (!hideBelow) continue;
+      let withinBreakpoint: boolean;
+      if (hideBelow === 'sm') withinBreakpoint = isSmUp;
+      else if (hideBelow === 'md') withinBreakpoint = isMdUp;
+      else withinBreakpoint = isLgUp;
+      if (withinBreakpoint) continue; // wide enough to show it
+      // TanStack derives the column id from `id`, else `accessorKey`,
+      // else the header string. Mirror that exactly so the visibility
+      // key always matches the id the table actually uses — a column
+      // defined only by `header: 'Price'` has the id "Price".
+      const accessorKey =
+        'accessorKey' in column && typeof column.accessorKey === 'string'
+          ? column.accessorKey
+          : undefined;
+      const headerId =
+        typeof column.header === 'string' ? column.header : undefined;
+      const id = column.id ?? accessorKey ?? headerId;
+      if (typeof id === 'string') visibility[id] = false;
+    }
+    return visibility;
+  }, [columns, isSmUp, isMdUp, isLgUp]);
   const containerRef = useRef<HTMLDivElement>(null);
   const isSearchHydratedRef = useRef(false);
   const [fillMeasure, setFillMeasure] = useState<{
@@ -360,6 +425,14 @@ const DataTable = <TData, TValue>({
     state: {
       ...userTableState,
       sorting,
+      // Columns whose `hideBelow` breakpoint has passed are removed from
+      // the visible set here, so they contribute neither a cell nor a
+      // width to `getTotalSize()` — the scroll container shrinks with
+      // them.
+      columnVisibility: {
+        ...(userTableState?.columnVisibility ?? {}),
+        ...hiddenColumnVisibility,
+      },
     },
     onSortingChange: (updater) => {
       setSorting(updater);
@@ -401,7 +474,9 @@ const DataTable = <TData, TValue>({
 
   const searchClassName = useMemo(() => 'w-full md:w-[320px]', []);
 
-  const cellPad = compact ? 'py-1 px-2' : 'py-2 px-4';
+  // Tighter horizontal padding on a phone: 16px on each side of six
+  // columns is 192px of a 366px content area.
+  const cellPad = compact ? 'py-1 px-2' : 'py-2 px-2 sm:px-4';
 
   const hasStickyFooter = Boolean(
     stickyFooterRow && stickyFooterRow.length > 0,
@@ -556,7 +631,7 @@ const DataTable = <TData, TValue>({
               <TableRow
                 // eslint-disable-next-line react/no-array-index-key
                 key={`virtual-info-row-${rowIndex}`}
-                className="bg-gray-50 dark:bg-gray-800 font-medium"
+                className="bg-muted/50 font-medium"
               >
                 {row.map((cell, cellIndex) => (
                   <TableCell
@@ -666,7 +741,7 @@ const DataTable = <TData, TValue>({
       if (hasStickyFooter) {
         return (
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
-            <div className="overflow-x-auto flex-1 min-h-0">
+            <div className="overflow-x-auto flex-1 min-h-0 scroll-shadow">
               <div
                 className="flex flex-col min-h-0"
                 style={{ minWidth: table.getTotalSize() }}
@@ -704,32 +779,40 @@ const DataTable = <TData, TValue>({
       }
 
       return (
-        <div className="overflow-x-auto">
-          <TableVirtuoso
-            ref={tableVirtuosoRef}
-            data={virtualItems}
-            style={{ height: virtualTableHeight }}
-            computeItemKey={(_, item) =>
-              virtualItemKey(item as Row<TData> | DetailItem)
-            }
-            components={{
-              Table: TableComponent,
-            }}
-            itemContent={(index, item) =>
-              renderVirtualItem(item as Row<TData> | DetailItem)
-            }
-            fixedHeaderContent={() =>
-              table
-                .getHeaderGroups()
-                .map((headerGroup) => (
-                  <HeaderRow
-                    key={headerGroup.id}
-                    headerGroup={headerGroup}
-                    compact={compact}
-                  />
-                ))
-            }
-          />
+        <div className="overflow-x-auto scroll-shadow">
+          <div
+            className="flex flex-col min-h-0"
+            // Without this floor the table compresses to fit the viewport
+            // instead of scrolling, and every cell gets squeezed until
+            // its content is clipped mid-word.
+            style={{ minWidth: table.getTotalSize() }}
+          >
+            <TableVirtuoso
+              ref={tableVirtuosoRef}
+              data={virtualItems}
+              style={{ height: virtualTableHeight }}
+              computeItemKey={(_, item) =>
+                virtualItemKey(item as Row<TData> | DetailItem)
+              }
+              components={{
+                Table: TableComponent,
+              }}
+              itemContent={(index, item) =>
+                renderVirtualItem(item as Row<TData> | DetailItem)
+              }
+              fixedHeaderContent={() =>
+                table
+                  .getHeaderGroups()
+                  .map((headerGroup) => (
+                    <HeaderRow
+                      key={headerGroup.id}
+                      headerGroup={headerGroup}
+                      compact={compact}
+                    />
+                  ))
+              }
+            />
+          </div>
         </div>
       );
     };
@@ -746,8 +829,12 @@ const DataTable = <TData, TValue>({
           <div className="search-container border-b shrink-0">
             <div
               className={cn(
-                'gap-2 flex justify-between items-center',
-                isMini ? 'px-2 py-2' : 'px-4 py-3',
+                // On a phone the count sits under the field rather than
+                // competing with it for width — side by side, the
+                // "Showing X out of Y records" text squeezed the input
+                // down to an unusable width.
+                'gap-2 flex flex-col items-stretch sm:flex-row sm:items-center sm:justify-between',
+                isMini ? 'px-2 py-2' : 'px-3 py-2 sm:px-4 sm:py-3',
               )}
             >
               {isMini ? (
@@ -789,8 +876,8 @@ const DataTable = <TData, TValue>({
         <div className="search-container border-b">
           <div
             className={cn(
-              'gap-2 flex justify-between items-center',
-              isMini ? 'px-2 py-2' : 'px-4 py-3',
+              'gap-2 flex flex-col items-stretch sm:flex-row sm:items-center sm:justify-between',
+              isMini ? 'px-2 py-2' : 'px-3 py-2 sm:px-4 sm:py-3',
             )}
           >
             {isMini ? (
@@ -820,7 +907,7 @@ const DataTable = <TData, TValue>({
           </div>
         </div>
       ) : null}
-      <div className="overflow-x-auto w-full">
+      <div className="overflow-x-auto w-full scroll-shadow">
         <Table className={hasStickyFooter ? 'table-fixed' : undefined}>
           {hasStickyFooter ? (
             <colgroup>
@@ -897,7 +984,7 @@ const DataTable = <TData, TValue>({
                   <TableRow
                     // eslint-disable-next-line react/no-array-index-key
                     key={`info-row-${rowIndex}`}
-                    className="bg-gray-50 dark:bg-gray-800 font-medium"
+                    className="bg-muted/50 font-medium"
                   >
                     {row.map((cell, cellIndex) => (
                       <TableCell

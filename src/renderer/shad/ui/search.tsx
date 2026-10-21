@@ -36,7 +36,7 @@ export const Search = ({
       autoFocus={autoFocus}
       spellCheck={false}
       disabled={disabled}
-      className={`h-10 pl-9 pr-3 text-sm ${className}`}
+      className={`h-11 pl-9 pr-3 text-sm md:h-10 ${className}`}
     />
   </div>
 );

@@ -346,6 +346,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'name',
               header: 'Account',
               onClick: openAccount,
+              size: 200,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (
                 <div
@@ -360,7 +361,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                     </span>
                     {row.original.tracksVendorStock && (
                       <span
-                        className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
+                        className="rounded bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
                         title="Stock at this vendor is tracked in inventory"
                       >
                         Vendor stock
@@ -369,7 +370,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                     <CollectionRoleBadge role={row.original.collectionRole} />
                     {!row.original.isActive && (
                       <span
-                        className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+                        className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600"
                         title="Inactive account"
                       >
                         Inactive
@@ -393,12 +394,16 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'code',
               header: 'Code',
               onClick: openAccount,
+              size: 100,
+              hideBelow: 'sm' as const,
             },
             {
               id: 'city',
               accessorKey: 'city',
               header: 'City',
               onClick: openAccount,
+              size: 120,
+              hideBelow: 'md' as const,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (
                 <BilingualCell
@@ -413,6 +418,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'address',
               header: 'Address',
               onClick: openAccount,
+              size: 200,
+              hideBelow: 'lg' as const,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (
                 <BilingualCell
@@ -428,18 +435,24 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'phone1',
               header: 'Phone 1',
               onClick: openAccount,
+              size: 130,
+              hideBelow: 'lg' as const,
             },
             {
               id: 'phone2',
               accessorKey: 'phone2',
               header: 'Phone 2',
               onClick: openAccount,
+              size: 130,
+              hideBelow: 'lg' as const,
             },
             {
               id: 'goodsName',
               accessorKey: 'goodsName',
               header: 'Goods Name',
               onClick: openAccount,
+              size: 160,
+              hideBelow: 'lg' as const,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (
                 <BilingualCell
@@ -455,6 +468,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                     id: 'policy',
                     accessorKey: 'discountProfileName',
                     header: 'Policy',
+                    size: 130,
+                    hideBelow: 'lg' as const,
                     // eslint-disable-next-line react/no-unstable-nested-components
                     cell: ({ row }: CellContext<Account, unknown>) => {
                       if (row.original.type !== AccountType.Asset) {
@@ -508,14 +523,19 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               accessorKey: 'headName',
               header: 'Head',
               onClick: openAccount,
-              size: 1,
+              // `size: 1` used to be the "shrink to fit" idiom, but
+              // TanStack clamps a column to `minSize` (20px), so these
+              // columns were 20px wide with their content clipped.
+              size: 140,
+              hideBelow: 'md' as const,
             },
             {
               id: 'type',
               accessorKey: 'type',
               header: 'Type',
               onClick: openAccount,
-              size: 1,
+              size: 110,
+              hideBelow: 'lg' as const,
             },
             {
               id: 'updatedAt',
@@ -526,7 +546,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 <DateCell value={row.original.updatedAt} />
               ),
               onClick: openAccount,
-              size: 1,
+              size: 120,
+              hideBelow: 'lg' as const,
             },
             {
               id: 'createdAt',
@@ -537,7 +558,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 <DateCell value={row.original.createdAt} />
               ),
               onClick: openAccount,
-              size: 1,
+              size: 120,
+              hideBelow: 'lg' as const,
             },
             {
               id: 'edit',
@@ -552,8 +574,9 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   onEditPolicy={() => setPricingAccountId(row.original.id)}
                 />
               ),
-              // two 32px icon buttons + gaps — match inventory Actions width
-              size: 70,
+              // Two icon buttons (edit + more). At the 44px mobile
+              // touch target that needs ~100px.
+              size: 100,
             },
           ].filter(
             (column) =>

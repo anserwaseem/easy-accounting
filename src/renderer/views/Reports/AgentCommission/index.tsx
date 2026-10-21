@@ -947,7 +947,7 @@ const AgentCommissionReportPage: React.FC = () => {
                   value={selectedChartId ? String(selectedChartId) : undefined}
                   onValueChange={handleHeadChange}
                 >
-                  <SelectTrigger className="w-[200px] h-9 text-xs">
+                  <SelectTrigger className="w-full h-9 text-xs sm:w-[200px]">
                     <SelectValue placeholder="Select Agent..." />
                   </SelectTrigger>
                   <SelectContent>

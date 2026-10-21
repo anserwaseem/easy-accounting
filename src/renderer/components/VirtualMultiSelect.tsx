@@ -294,7 +294,7 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
 
   return (
     <Select open={isOpen} onOpenChange={handleOpenChange} disabled={disabled}>
-      <SelectTrigger className="w-[260px] gap-1" disabled={disabled}>
+      <SelectTrigger className="w-full gap-1 sm:w-[260px]" disabled={disabled}>
         <span className="truncate">{displayText}</span>
         {hasSelection && !disabled && (
           <span
@@ -302,7 +302,7 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
             tabIndex={-1}
             aria-label="Clear selection"
             title="Clear selection"
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:h-5 md:w-5"
             // radix opens the select on pointer down, so stop it before it reaches the trigger
             onPointerDown={(e) => {
               e.preventDefault();
@@ -367,7 +367,12 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
         <div className="transition-opacity duration-150 ease-in-out">
           <Virtuoso
             data={filteredOptions}
-            style={{ height: 400 }}
+            // A fixed 400px list overflowed a short screen and sat under
+            // the on-screen keyboard. Bound it to the space available.
+            style={{
+              height:
+                'min(400px, var(--radix-select-content-available-height, 400px))',
+            }}
             itemContent={itemRenderer}
           />
         </div>

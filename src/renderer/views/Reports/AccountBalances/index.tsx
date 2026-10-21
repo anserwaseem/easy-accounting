@@ -126,13 +126,17 @@ const AccountBalancesPage = () => {
     <ReportLayout
       printStyles={printStyles}
       header={
-        <div className="flex justify-between items-center pb-2 print-header">
+        // The filters were a single non-wrapping row: a 250px head
+        // select, a 200px date button and an icon button needed ~522px,
+        // so on a phone the date control and the export button were
+        // pushed off-screen and clipped.
+        <div className="flex flex-col gap-3 pb-2 print-header lg:flex-row lg:items-center lg:justify-between">
           <h1 className="title-new">Account Balances</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
               <span className="text-sm text-muted-foreground">Head:</span>
               <Select value={selectedHead} onValueChange={handleHeadChange}>
-                <SelectTrigger className="w-[250px]">
+                <SelectTrigger className="w-full sm:w-[250px]">
                   <SelectValue placeholder="Select a head" />
                 </SelectTrigger>
                 <SelectContent>
@@ -144,14 +148,14 @@ const AccountBalancesPage = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
               <span className="text-sm text-muted-foreground">As of:</span>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      'w-[200px] justify-start text-left font-normal',
+                      'w-full justify-start text-left font-normal sm:w-[200px]',
                       isLoading && 'opacity-70 cursor-not-allowed',
                     )}
                     disabled={isLoading}

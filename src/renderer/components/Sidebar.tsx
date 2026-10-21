@@ -21,6 +21,7 @@ import {
   Menu,
   Plus,
   Quote,
+  Search,
   Settings,
   Store,
   Table2,
@@ -31,7 +32,9 @@ import type { FC, PropsWithChildren, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { cn } from 'renderer/lib/utils';
 import { ModeToggle } from 'renderer/components/ModeToggle';
-import GlobalSearch from 'renderer/components/GlobalSearch';
+import GlobalSearch, {
+  GLOBAL_SEARCH_OPEN_EVENT,
+} from 'renderer/components/GlobalSearch';
 import BackupStatus from 'renderer/components/BackupStatus';
 import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
@@ -525,6 +528,9 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           onClick={handleSidebarClick}
           className={cn(
             'print:hidden h-full fixed inset-y-0 left-0 z-50 shadow-xl transition-transform duration-200 md:static md:z-auto md:shadow-none md:translate-x-0',
+            // The off-canvas panel must clear the notch and the home
+            // indicator, and its own content must not scroll under them.
+            'safe-top safe-bottom',
             mobileOpen ? 'translate-x-0' : '-translate-x-full',
           )}
           collapsed={effectiveCollapsed}
@@ -533,16 +539,16 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           {/* Mobile top bar — hamburger opens the off-canvas nav. Hidden at
               md+, where the persistent sidebar (collapsed or not) is
               always visible instead. */}
-          <div className="flex items-center gap-1 h-14 px-2 border-b bg-background flex-shrink-0 md:hidden print:hidden">
+          <div className="flex items-center gap-1 h-14 px-2 border-b bg-background flex-shrink-0 md:hidden print:hidden safe-top">
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10"
+              className="h-10 w-10 -ml-1"
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
               type="button"
             >
-              <Menu size={20} aria-hidden />
+              <Menu size={22} aria-hidden />
             </Button>
             <Link
               to="/"
@@ -551,6 +557,23 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             >
               Easy Accounting
             </Link>
+            <div className="ml-auto flex items-center gap-1">
+              {/* The global search palette has no keyboard shortcut on a
+                  phone, so the top bar gets a button for it. */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10"
+                aria-label="Search"
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(new Event(GLOBAL_SEARCH_OPEN_EVENT))
+                }
+              >
+                <Search size={19} aria-hidden />
+              </Button>
+              <ModeToggle />
+            </div>
           </div>
           <div className="flex-grow overflow-y-auto overflow-x-hidden p-3 md:p-4">
             {children}

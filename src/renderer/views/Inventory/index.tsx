@@ -104,7 +104,10 @@ const InventoryPage: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3">
+      {/* Six checkbox labels at a 24px column gap wrapped into three or
+          four ragged rows on a phone, eating ~200px of vertical space
+          before the grid even started. Tighter below sm. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-3 py-2 sm:gap-x-6 sm:gap-y-2 sm:px-4 sm:py-3">
         <span className="text-sm font-medium text-muted-foreground">
           Hide items:
         </span>

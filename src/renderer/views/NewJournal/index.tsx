@@ -56,6 +56,9 @@ import {
 } from 'renderer/shad/ui/dialog';
 
 import { formatDisplayDate } from '@/lib/displayDate';
+import { scrollToFirstInvalidField } from '@/renderer/lib/scrollToFirstError';
+import { useUnsavedChangesGuard } from '@/renderer/hooks/useUnsavedChangesGuard';
+import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { formSchema } from './schema';
 import { AccountCell, CreditCell, DebitCell } from './cells';
 
@@ -66,6 +69,7 @@ const NewJournalPage: React.FC = () => {
   const [totalDebits, setTotalDebits] = useState<number>(0);
   const [differenceCredit, setDifferenceCredit] = useState<number>(0);
   const [differenceDebit, setDifferenceDebit] = useState<number>(0);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [isDateExplicitlySet, setIsDateExplicitlySet] =
     useState<boolean>(false);
   const [showDateConfirmation, setShowDateConfirmation] =
@@ -108,6 +112,11 @@ const NewJournalPage: React.FC = () => {
     control: form.control,
     name: 'journalEntries',
   });
+
+  // A journal draft was lost silently if the PWA tab was closed or
+  // reloaded, and cancelling discarded it without asking.
+  const { isDirty } = form.formState;
+  useUnsavedChangesGuard(isDirty);
 
   // calculate totals via subscription
   useEffect(() => {
@@ -376,16 +385,19 @@ const NewJournalPage: React.FC = () => {
       {
         id: 'remove',
         header: 'Action',
-        size: 80,
+        size: 100,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            {/* These were bare 16px icons with no padding — a ~16×16px
+                tap target. The icon keeps its size; the button around
+                it carries the 44px target. */}
             <button
               type="button"
               title="Fill balancing amount"
               aria-label="Fill balancing amount"
               onClick={() => handleBalanceRow(row.index)}
-              className="outline-none"
+              className="flex h-10 w-10 items-center justify-center rounded-md outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring md:h-8 md:w-8"
             >
               <Equal
                 size={16}
@@ -397,7 +409,7 @@ const NewJournalPage: React.FC = () => {
               title="Remove row"
               aria-label="Remove row"
               onClick={() => handleRemoveRow(row.index)}
-              className="outline-none"
+              className="flex h-10 w-10 items-center justify-center rounded-md outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring md:h-8 md:w-8"
             >
               <X color="red" size={16} cursor="pointer" />
             </button>
@@ -724,7 +736,11 @@ const NewJournalPage: React.FC = () => {
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={form.handleSubmit(onSubmit, () => {
+              // A failed validation set the field errors but nothing
+              // brought them into view, so the form looked unchanged.
+              scrollToFirstInvalidField();
+            })}
             onReset={() => {
               form.reset(defaultFormValues);
               setIsDateExplicitlySet(false);
@@ -732,7 +748,13 @@ const NewJournalPage: React.FC = () => {
             onKeyDown={handleFormEnterKeyDown}
             role="presentation"
           >
-            <div className="grid grid-cols-[180px_1fr_120px_120px] gap-4 items-start">
+            {/* Was a fixed `grid-cols-[180px_1fr_120px_120px]` — 468px of
+                fixed columns before the narration field got any width, so
+                on a 390px phone the Discount% and Bill# fields were
+                clipped off-screen entirely (the shell hides overflow-x,
+                so they could not be scrolled to either). One column on
+                mobile, the original four on desktop. */}
+            <div className="grid grid-cols-1 gap-4 items-start md:grid-cols-[180px_1fr_120px_120px]">
               <FormField
                 control={form.control}
                 name="date"
@@ -828,13 +850,18 @@ const NewJournalPage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-between gap-20 pb-20">
+            {/* `gap-20` (80px) plus a 300px+ button plus the totals table
+                needed ~630px — it overflowed a 390px phone and was
+                clipped. The action column now stacks under the totals on
+                a narrow screen, and the button stops forcing a fixed
+                128px horizontal padding. */}
+            <div className="flex flex-col gap-4 pb-4 sm:flex-row sm:justify-between sm:gap-6">
               <div className="flex flex-col gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
-                      className="dark:bg-gray-200 bg-gray-800 gap-2 px-16 py-4 rounded-3xl"
+                      className="dark:bg-gray-200 bg-gray-800 w-full gap-2 rounded-3xl px-6 py-3 sm:w-auto sm:px-16 sm:py-4"
                       aria-label={`Add new row, shortcut ${getOsModifierLabel()}+N`}
                       onClick={() => handleAddNewRow()}
                     >
@@ -915,14 +942,37 @@ const NewJournalPage: React.FC = () => {
               </Table>
             </div>
 
-            <div className="flex justify-between fixed bottom-6">
-              <div className="flex gap-4">
+            {/*
+              Was `fixed bottom-6` with a separately `fixed right-9` Cancel
+              button. On a phone that floated over the on-screen keyboard,
+              covered the totals table, and could overlap its own two
+              fixed children. A sticky bar inside the form's own scroll
+              container keeps the actions reachable without covering
+              anything, and clears the home indicator.
+            */}
+            <ConfirmDialog
+              open={showDiscardConfirm}
+              onOpenChange={setShowDiscardConfirm}
+              title="Discard this journal?"
+              description="The entries you entered have not been saved. Discarding them cannot be undone."
+              confirmLabel="Discard"
+              confirmVariant="destructive"
+              onConfirm={() => {
+                setShowDiscardConfirm(false);
+                form.reset(defaultFormValues);
+                navigate(-1);
+              }}
+            />
+
+            <div className="sticky bottom-0 z-10 -mx-3 mt-4 flex flex-wrap items-center justify-between gap-3 border-t bg-background/95 px-3 py-3 backdrop-blur safe-bottom md:-mx-0 md:px-0">
+              <div className="flex gap-2 md:gap-4">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       type="submit"
                       variant="default"
                       disabled={isPublishDisabled}
+                      className="flex-1 md:flex-none"
                     >
                       Save and Publish
                     </Button>
@@ -943,9 +993,14 @@ const NewJournalPage: React.FC = () => {
               </div>
 
               <Button
-                className="fixed right-9"
                 variant="secondary"
                 onClick={() => {
+                  // Cancelling used to discard a half-entered journal
+                  // with no warning.
+                  if (isDirty) {
+                    setShowDiscardConfirm(true);
+                    return;
+                  }
                   form.reset(defaultFormValues);
                   navigate(-1);
                 }}

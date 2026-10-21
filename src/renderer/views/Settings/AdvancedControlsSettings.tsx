@@ -209,7 +209,7 @@ const AdvancedControlsSettings: React.FC = () => {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search the controls"
               aria-label="Search the advanced controls"
-              className="h-9"
+              className="h-11 md:h-9"
             />
             {query ? (
               <button

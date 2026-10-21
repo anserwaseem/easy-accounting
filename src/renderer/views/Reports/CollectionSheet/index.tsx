@@ -345,7 +345,7 @@ const CollectionSheetPage: React.FC = () => {
                   onValueChange={handleHeadChange}
                   disabled={!catalogReady}
                 >
-                  <SelectTrigger className="w-[220px]">
+                  <SelectTrigger className="w-full sm:w-[220px]">
                     <SelectValue placeholder="Select an agent" />
                   </SelectTrigger>
                   <SelectContent>

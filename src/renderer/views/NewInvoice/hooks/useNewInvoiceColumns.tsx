@@ -283,8 +283,11 @@ const SaleDiscountCell = <T extends FieldValues>({
 };
 
 /** line-item row height; child input/button fill shell so empty + selected states match customer control proportions */
+// The line-item cell controls are 32px tall on desktop (the grid is
+// dense) but 44px on a phone, where a 32px control is below the touch
+// target.
 const compactLineSelectTrigger =
-  'h-8 min-h-8 max-h-8 [&_input]:my-0 [&_input]:h-full [&_input]:min-h-0 [&_input]:border-0 [&_input]:py-0 [&_input]:text-sm [&_input]:leading-tight [&_button]:h-full [&_button]:min-h-0';
+  'h-11 min-h-11 max-h-11 md:h-8 md:min-h-8 md:max-h-8 [&_input]:my-0 [&_input]:h-full [&_input]:min-h-0 [&_input]:border-0 [&_input]:py-0 [&_input]:text-sm [&_input]:leading-tight [&_button]:h-full [&_button]:min-h-0';
 
 interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
   form: {
@@ -499,7 +502,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       {
         id: 'lineNumber',
         header: '#',
-        size: 30,
+        size: 40,
+        hideBelow: 'sm',
         cell: ({ row }) => (
           <span className="text-xs tabular-nums text-muted-foreground">
             {row.index + 1}
@@ -509,7 +513,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       {
         header: 'Item',
         size: 260,
-        minSize: 200,
+        minSize: 180,
         cell: ({ row }) => (
           <FormField
             control={form.control}
@@ -548,7 +552,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                     )
                   }
                   renderSelectItem={(item) => (
-                    <div className="flex min-w-[240px] justify-between gap-2">
+                    <div className="flex min-w-0 justify-between gap-2">
                       <span className="supports-[overflow-wrap:anywhere]:[overflow-wrap:anywhere] text-sm font-medium leading-snug">
                         {item.name}
                       </span>
@@ -573,7 +577,8 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       {
         header: 'Quantity',
         size: 140,
-        minSize: 132,
+        minSize: 120,
+        hideBelow: 'sm',
         cell: ({ row }) => (
           <InvoiceLineQuantityCell<T>
             form={form}
@@ -589,16 +594,18 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       {
         id: 'remove',
         header: 'Action',
-        size: 48,
-        minSize: 40,
+        size: 56,
+        minSize: 44,
         cell: ({ row }) => (
-          <X
-            color="red"
-            size={14}
-            className="shrink-0"
+          <button
+            type="button"
+            aria-label={`Remove line ${row.index + 1}`}
+            title="Remove line"
             onClick={() => handleRemoveRow(row.index)}
-            cursor="pointer"
-          />
+            className="flex h-10 w-10 items-center justify-center rounded-md outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring md:h-8 md:w-8"
+          >
+            <X color="red" size={16} className="shrink-0" />
+          </button>
         ),
       },
     ];
@@ -606,9 +613,11 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     if (invoiceType === InvoiceType.Sale) {
       const priceColumns: ColumnDef<InvoiceItem>[] = [
         {
+          id: 'price',
           header: 'Price',
           size: 120,
           minSize: 108,
+          hideBelow: 'md',
           cell: ({ row }) => (
             <SalePriceCell<T>
               form={form}
@@ -624,9 +633,11 @@ export function useNewInvoiceColumns<T extends FieldValues>(
           ),
         },
         {
+          id: 'discount',
           header: 'Disc',
           size: isDiscountEditEnabled ? 120 : 72,
           minSize: isDiscountEditEnabled ? 102 : 64,
+          hideBelow: 'lg',
           cell: ({ row }) => (
             <SaleDiscountCell<T>
               form={form}
@@ -641,9 +652,11 @@ export function useNewInvoiceColumns<T extends FieldValues>(
           ),
         },
         {
+          id: 'discountedPrice',
           header: 'Discounted Price',
           size: 112,
           minSize: 80,
+          hideBelow: 'lg',
           cell: ({ row }) => (
             <FormField
               control={form.control}
@@ -726,7 +739,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                       {code ? (
                         <Badge
                           variant="secondary"
-                          className="shrink-0 font-mono text-[10px] leading-none"
+                          className="shrink-0 font-mono text-[11px] leading-none"
                         >
                           {code}
                         </Badge>

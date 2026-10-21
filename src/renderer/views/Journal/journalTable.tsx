@@ -84,7 +84,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({
       <div className="flex">
         <div className="w-3/4">
           <div className="flex items-center justify-between">
-            <h1 className="min-w-0 shrink text-4xl font-light">JOURNAL</h1>
+            <h1 className="min-w-0 shrink text-3xl font-light sm:text-4xl">
+              JOURNAL
+            </h1>
             {journal?.id &&
             (journal.invoiceId == null || journal.invoiceId <= 0) ? (
               <div className="flex items-center gap-2">
@@ -123,13 +125,17 @@ export const JournalTable: React.FC<JournalTableProps> = ({
           </div>
 
           <div className="flex flex-col gap-2 mt-8">
-            <div className="flex gap-8 items-center">
-              <p className="font-extrabold text-md w-[160px]">Journal #:</p>
+            <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8 sm:items-center">
+              <p className="font-extrabold text-md w-full sm:w-[160px] sm:shrink-0">
+                Journal #:
+              </p>
               <p className="tabular-nums">{journal?.id ?? journalId}</p>
             </div>
             {journal?.invoiceId != null && journal.invoiceId > 0 ? (
-              <div className="flex gap-8">
-                <p className="font-medium text-md w-[160px]">Invoice:</p>
+              <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
+                <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+                  Invoice:
+                </p>
                 <Button
                   type="button"
                   variant="outline"
@@ -148,14 +154,18 @@ export const JournalTable: React.FC<JournalTableProps> = ({
                 </Button>
               </div>
             ) : null}
-            <div className="flex gap-8">
-              <p className="font-medium text-md w-[160px]">Date:</p>
+            <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
+              <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+                Date:
+              </p>
               <p>
                 <DateCell value={journal?.date} />
               </p>
             </div>
-            <div className="flex gap-8">
-              <p className="font-medium text-md w-[160px]">Amount:</p>
+            <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
+              <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+                Amount:
+              </p>
               <p>
                 {getFormattedCurrency(
                   journal?.journalEntries.reduce(
@@ -166,8 +176,10 @@ export const JournalTable: React.FC<JournalTableProps> = ({
               </p>
             </div>
 
-            <div className="flex gap-8">
-              <p className="font-medium text-md w-[160px]">Narration:</p>
+            <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
+              <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+                Narration:
+              </p>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                   <p>{journal?.narration}</p>
@@ -195,16 +207,20 @@ export const JournalTable: React.FC<JournalTableProps> = ({
             </div>
 
             {journal?.billNumber && (
-              <div className="flex gap-8">
-                <p className="font-medium text-md w-[160px]">Bill#:</p>
+              <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
+                <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+                  Bill#:
+                </p>
                 <p>{journal.billNumber}</p>
               </div>
             )}
 
             {formatJournalDiscountLabel(journal?.discountPercentage) !==
               '-' && (
-              <div className="flex gap-8">
-                <p className="font-medium text-md w-[160px]">Discount%:</p>
+              <div className="flex flex-col gap-1 items-start sm:flex-row sm:gap-8">
+                <p className="font-medium text-md w-full sm:w-[160px] sm:shrink-0">
+                  Discount%:
+                </p>
                 <p>{formatJournalDiscountLabel(journal?.discountPercentage)}</p>
               </div>
             )}

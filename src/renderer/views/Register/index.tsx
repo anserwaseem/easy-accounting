@@ -44,10 +44,15 @@ const RegisterPage: React.FC = () => {
   }
 
   return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
-        <h1 className="title-new">Sign Up</h1>
-        <form onSubmit={(e) => handleRegister(e)}>
+    <div className="flex justify-center items-center min-h-screen p-4">
+      {/* The card had no width of its own, so it sized to its content
+          and the submit button sat small under full-width inputs. */}
+      <div className="w-full max-w-sm p-6 rounded-xl shadow-md border border-border bg-card text-card-foreground">
+        <h1 className="title-new mb-4">Sign Up</h1>
+        <form
+          onSubmit={(e) => handleRegister(e)}
+          className="flex flex-col gap-3"
+        >
           <Input
             type="text"
             placeholder="Username"
@@ -66,6 +71,7 @@ const RegisterPage: React.FC = () => {
           <Button
             variant="outline"
             type="submit"
+            className="w-full"
             disabled={
               username.length < 4 ||
               password.length < 4 ||
@@ -76,7 +82,7 @@ const RegisterPage: React.FC = () => {
             Sign Up
           </Button>
         </form>
-        <p className="text-sm tracking-tight text-black">
+        <p className="mt-4 text-sm tracking-tight text-muted-foreground">
           Already have an account?
           <Button asChild variant="link">
             <Link to="/login">Login</Link>

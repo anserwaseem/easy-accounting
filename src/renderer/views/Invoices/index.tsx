@@ -10,7 +10,6 @@ import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  cn,
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
@@ -27,6 +26,7 @@ import type { HasMiniView, InvoicesView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
 import { formatDisplayDateTime } from '@/lib/displayDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
 // eslint-disable-next-line import/no-cycle
 import InvoicePage from '../Invoice';
 import { ExportInvoices } from './exportInvoices';
@@ -99,7 +99,9 @@ const createInvoiceActionsColumn = (
 ): ColumnDef<InvoicesView> => ({
   id: 'actions',
   header: 'Actions',
-  size: 80,
+  // Two icon buttons. At the 44px mobile touch target that needs
+  // ~100px, not the 80px the 32px desktop buttons needed.
+  size: 100,
   onClick: () => undefined,
   cell({ row }) {
     return (
@@ -168,7 +170,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                         {invoice.isReturned ? (
                           <Badge
                             variant="destructive"
-                            className="text-[10px] font-normal"
+                            className="text-[11px] font-normal"
                             title={
                               invoice.returnedAt
                                 ? formatDisplayDateTime(invoice.returnedAt)
@@ -181,7 +183,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                         {showInvoiceEditedIndicator(invoice) ? (
                           <Badge
                             variant="amber"
-                            className="text-[10px] font-normal"
+                            className="text-[11px] font-normal"
                             title={
                               invoice.updatedAt
                                 ? formatDisplayDateTime(invoice.updatedAt)
@@ -201,7 +203,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                         {invoice.accountCode != null ? (
                           <Badge
                             variant="secondary"
-                            className="shrink-0 px-1.5 py-0 text-[10px] font-mono font-normal tabular-nums"
+                            className="shrink-0 px-1.5 py-0 text-[11px] font-mono font-normal tabular-nums"
                             title={`Account code ${invoice.accountCode}`}
                           >
                             {invoice.accountCode}
@@ -234,7 +236,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   {row.original.isReturned ? (
                     <Badge
                       variant="destructive"
-                      className="px-1.5 py-0 text-[10px] font-normal"
+                      className="px-1.5 py-0 text-[11px] font-normal"
                       title={
                         row.original.returnedAt
                           ? formatDisplayDateTime(row.original.returnedAt)
@@ -247,7 +249,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                   {showInvoiceEditedIndicator(row.original) ? (
                     <Badge
                       variant="amber"
-                      className="px-1.5 py-0 text-[10px] font-normal"
+                      className="px-1.5 py-0 text-[11px] font-normal"
                       title={
                         row.original.updatedAt
                           ? formatDisplayDateTime(row.original.updatedAt)
@@ -263,18 +265,20 @@ const InvoicesPage: FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 96,
+              size: 110,
+              hideBelow: 'sm',
             },
             {
               accessorKey: 'date',
               header: 'Date',
+              hideBelow: 'sm' as const,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 108,
+              size: 110,
             },
             {
               accessorKey: 'accountName',
@@ -283,7 +287,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 260,
+              // 200px left the total amount cut off at the right edge on
+              // a phone; 150px leaves room for it.
+              size: 150,
             },
             {
               accessorKey: 'accountCode',
@@ -295,7 +301,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
               size: 100,
               // Low-value on a narrow screen — the account name/customer
               // column already identifies the party.
-              responsiveClassName: 'hidden sm:table-cell',
+              hideBelow: 'sm',
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -306,9 +312,12 @@ const InvoicesPage: FC<InvoicesProps> = ({
                       propInvoices
                         ? setPreviewInvoiceId(row.original.invoiceNumber)
                         : navigateToInvoice(row.original.id),
-                    cell: ({ getValue }) =>
-                      getFormattedCurrency(toNumber(getValue())),
-                    size: 128,
+                    cell: ({ getValue }) => (
+                      <span className="tabular">
+                        {getFormattedCurrency(toNumber(getValue()))}
+                      </span>
+                    ),
+                    size: 140,
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),
@@ -321,8 +330,8 @@ const InvoicesPage: FC<InvoicesProps> = ({
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)
                   : navigateToInvoice(row.original.id),
-              size: 72,
-              responsiveClassName: 'hidden sm:table-cell',
+              size: 90,
+              hideBelow: 'md',
             },
             {
               accessorKey: 'cartons',
@@ -429,57 +438,47 @@ const InvoicesPage: FC<InvoicesProps> = ({
   // TODO: fix scrollbar when isMini is true
   return (
     <div>
-      <div
-        className={cn(
-          'grid py-4',
-          isMini ? 'grid-cols-2 grid-rows-2 gap-4' : 'grid-cols-3 items-center',
-        )}
-      >
-        <div
-          className={cn(
-            'flex gap-4 items-center',
-            isMini && 'col-span-2 row-span-1 order-1',
-          )}
-        >
-          <p className="text-muted-foreground font-bold text-sm">VIEW BY:</p>
-          <DateRangePickerWithPresets
-            $onSelect={handleFilterDateSelect}
-            presets={[{ label: 'All', value: 'all' }]}
-            initialRange={invoiceFilterDate}
-            initialSelectValue={invoiceFilterSelectValue}
-          />
-        </div>
-
-        <h1 className={cn('title', isMini && 'hidden')}>
-          {invoiceType} Invoices
-        </h1>
-
-        <div className="flex items-center gap-2 w-fit ml-auto">
-          {invoiceType === InvoiceType.Sale && filteredInvoices?.length ? (
-            <Dialog>
-              <DialogTrigger>
-                <Button variant="secondary">
-                  <File size={16} className="mr-2" />
-                  Export Sale Invoices
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <ExportInvoices />
-              </DialogContent>
-            </Dialog>
-          ) : null}
-          <Button
-            variant="outline"
-            onClick={() =>
-              navigate(`/${invoiceType.toLowerCase()}/invoices/new`)
-            }
-            className="col-span-1 row-span-1"
-          >
-            <Plus size={16} className="mr-2" />
-            New Invoice
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={`${invoiceType} Invoices`}
+        hideTitle={isMini}
+        filters={
+          <FilterGroup label="VIEW BY:">
+            <DateRangePickerWithPresets
+              $onSelect={handleFilterDateSelect}
+              presets={[{ label: 'All', value: 'all' }]}
+              initialRange={invoiceFilterDate}
+              initialSelectValue={invoiceFilterSelectValue}
+            />
+          </FilterGroup>
+        }
+        actions={
+          <>
+            {invoiceType === InvoiceType.Sale && filteredInvoices?.length ? (
+              <Dialog>
+                <DialogTrigger>
+                  <Button variant="secondary" className="w-full sm:w-fit">
+                    <File size={16} className="mr-2" />
+                    Export Sale Invoices
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <ExportInvoices />
+                </DialogContent>
+              </Dialog>
+            ) : null}
+            <Button
+              variant="outline"
+              onClick={() =>
+                navigate(`/${invoiceType.toLowerCase()}/invoices/new`)
+              }
+              className="w-full sm:w-fit"
+            >
+              <Plus size={16} className="mr-2" />
+              New Invoice
+            </Button>
+          </>
+        }
+      />
 
       <div className="py-8 flex flex-col gap-6">
         {isLoading ? (

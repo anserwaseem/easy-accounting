@@ -2,8 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#2f6fed" />
+    <!-- viewport-fit=cover lets the app draw under the notch/home indicator;
+         the shell adds the matching env(safe-area-inset-*) padding. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0e1626"
+      media="(prefers-color-scheme: dark)"
+    />
     <meta
       name="description"
       content="Easy Accounting — offline-capable accounting app."
@@ -11,8 +25,51 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <title>Easy Accounting (web)</title>
+    <!--
+      Theme is resolved BEFORE first paint, not in ThemeProvider's effect.
+      The provider only re-applies the class on change, so without this the
+      PWA painted one flash of the wrong theme on every cold start.
+      Keep the storage key ('ui-theme') in lockstep with
+      src/renderer/hooks/useTheme.tsx.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('ui-theme');
+          var theme =
+            stored === 'dark' || stored === 'light'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          var root = document.documentElement;
+          root.classList.remove('light', 'dark');
+          root.classList.add(theme);
+          root.style.colorScheme = theme;
+        } catch (e) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
+    <style>
+      /* Boot splash colors, so the pre-bundle frame matches the theme that
+         was just resolved above instead of flashing the opposite one. The
+         real design tokens arrive with App.global.css once the bundle
+         loads; these only cover that first frame. */
+      html,
+      body {
+        margin: 0;
+        background: #ffffff;
+        color: #0f172a;
+      }
+      html.dark,
+      html.dark body {
+        background: #0e1626;
+        color: #e2e8f0;
+      }
+    </style>
   </head>
-  <body style="margin: 0; background: #020817; color: #e2e8f0">
+  <body>
     <div id="root">
       <div
         style="

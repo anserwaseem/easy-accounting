@@ -27,6 +27,7 @@ import type { InvoicesView } from 'types';
 import { InvoiceType } from 'types';
 import { formatDisplayDateTime } from '@/lib/displayDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { PageHeader } from '@/renderer/components/PageHeader';
 
 interface QuotationsPageProps {
   invoiceType: InvoiceType;
@@ -88,7 +89,9 @@ const createQuotationActionsColumn = (
 ): ColumnDef<InvoicesView> => ({
   id: 'actions',
   header: 'Actions',
-  size: 80,
+  // Two icon buttons. At the 44px mobile touch target that needs
+  // ~100px, not the 80px the 32px desktop buttons needed.
+  size: 100,
   onClick: () => undefined,
   cell({ row }) {
     return (
@@ -240,6 +243,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               ),
               onClick: (r) => navigateToRow(r.original.id),
               size: 120,
+              hideBelow: 'sm' as const,
             },
             {
               accessorKey: 'date',
@@ -247,18 +251,20 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (r) => navigateToRow(r.original.id),
-              size: 108,
+              size: 110,
             },
             {
               accessorKey: 'accountName',
               header: partyLabel,
               onClick: (r) => navigateToRow(r.original.id),
+              size: 200,
             },
             {
               accessorKey: 'accountCode',
               header: 'Code',
               onClick: (r) => navigateToRow(r.original.id),
               size: 100,
+              hideBelow: 'sm' as const,
             },
             ...(invoiceType === InvoiceType.Sale
               ? ([
@@ -266,9 +272,12 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                     accessorKey: 'totalAmount',
                     header: 'Total Amount',
                     onClick: (r) => navigateToRow(r.original.id),
-                    cell: ({ getValue }) =>
-                      getFormattedCurrency(toNumber(getValue())),
-                    size: 128,
+                    cell: ({ getValue }) => (
+                      <span className="tabular">
+                        {getFormattedCurrency(toNumber(getValue()))}
+                      </span>
+                    ),
+                    size: 140,
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),
@@ -280,7 +289,8 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                   ? formatDisplayDateTime(row.original.updatedAt)
                   : '—',
               onClick: (r) => navigateToRow(r.original.id),
-              size: 140,
+              size: 150,
+              hideBelow: 'lg' as const,
             },
             createQuotationActionsColumn(invoiceType, navigate),
             /* eslint-enable react/no-unstable-nested-components */
@@ -374,41 +384,45 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
 
   return (
     <div className="flex flex-col px-1">
-      <div className="py-4 flex justify-between items-center gap-2">
-        <div className="flex items-center gap-2">
-          <h1 className="title">{listTitle}</h1>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 text-muted-foreground"
-                  aria-label="About quotations"
-                >
-                  <Info className="h-5 w-5" aria-hidden />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs text-left">
-                {QUOTATIONS_INFO_TOOLTIP}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        <Button
-          variant="outline"
-          onClick={() =>
-            navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
-              state: { isQuotation: true },
-            })
-          }
-        >
-          <Plus size={16} className="mr-2" />
-          New Quotation
-        </Button>
-      </div>
+      <PageHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            {listTitle}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-muted-foreground"
+                    aria-label="About quotations"
+                  >
+                    <Info className="h-5 w-5" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-left">
+                  {QUOTATIONS_INFO_TOOLTIP}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </span>
+        }
+        actions={
+          <Button
+            variant="outline"
+            className="w-full sm:w-fit"
+            onClick={() =>
+              navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
+                state: { isQuotation: true },
+              })
+            }
+          >
+            <Plus size={16} className="mr-2" />
+            New Quotation
+          </Button>
+        }
+      />
 
       <div className="py-6 flex flex-col gap-6">{quotationsBody}</div>
     </div>

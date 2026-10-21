@@ -385,7 +385,7 @@ const StockAsOfReportPage: React.FC = () => {
                     <Button
                       variant="outline"
                       className={cn(
-                        'w-[200px] justify-start text-left font-normal',
+                        'w-full justify-start text-left font-normal sm:w-[200px]',
                         isLoading && 'opacity-70',
                       )}
                       disabled={isLoading}

@@ -40,7 +40,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   <aside
     onClick={onClick}
     className={cn(
-      'flex flex-col bg-gray-200 dark:bg-gray-800 transition-all duration-200',
+      // Was bg-gray-200 in both themes: a light slab in a light app and a
+      // hard grey slab in a dark one. The nav is now a real surface
+      // (card-colored) with a hairline border, so it reads as a panel
+      // rather than a different app.
+      'flex flex-col bg-card text-card-foreground border-r transition-all duration-200',
       position === 'right' ? 'order-1' : '',
       collapsed ? 'w-14' : 'w-[260px]',
       className,
@@ -48,12 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   >
     {/* header */}
     {title && (
-      <div
-        className={cn(
-          'flex-shrink-0 bg-gray-200 dark:bg-background border-b border-gray-800 dark:border-gray-300',
-          titleClassName,
-        )}
-      >
+      <div className={cn('flex-shrink-0 bg-card border-b', titleClassName)}>
         {title}
       </div>
     )}
@@ -78,10 +77,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </div>
 
     {/* pinned footer */}
-    {footer && (
-      <div className="flex-shrink-0 border-t border-gray-800 dark:border-gray-300">
-        {footer}
-      </div>
-    )}
+    {footer && <div className="flex-shrink-0 border-t">{footer}</div>}
   </aside>
 );

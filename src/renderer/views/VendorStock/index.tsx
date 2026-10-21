@@ -262,15 +262,19 @@ const VendorStockPage: React.FC = () => {
             {
               accessorKey: 'vendorAccountName',
               header: 'Vendor',
+              size: 200,
+              hideBelow: 'md' as const,
             },
           ]),
       {
         accessorKey: 'inventoryName',
         header: 'Item',
+        size: 200,
       },
       {
         accessorKey: 'quantity',
         header: 'Qty',
+        size: 100,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <span
@@ -292,6 +296,7 @@ const VendorStockPage: React.FC = () => {
       {
         accessorKey: 'issueNumber',
         header: '#',
+        size: 110,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
@@ -299,7 +304,7 @@ const VendorStockPage: React.FC = () => {
             {isPersistedRowEdited(row.original) ? (
               <Badge
                 variant="amber"
-                className="px-1.5 py-0 text-[10px] font-normal"
+                className="px-1.5 py-0 text-[11px] font-normal"
                 title={
                   row.original.updatedAt
                     ? formatDisplayDateTime(row.original.updatedAt)
@@ -315,6 +320,8 @@ const VendorStockPage: React.FC = () => {
       {
         accessorKey: 'date',
         header: 'Date',
+        size: 110,
+        hideBelow: 'sm' as const,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => <DateCell value={row.original.date} />,
       },
@@ -324,11 +331,14 @@ const VendorStockPage: React.FC = () => {
             {
               accessorKey: 'vendorAccountName',
               header: 'Vendor',
+              size: 180,
+              hideBelow: 'md' as const,
             },
           ]),
       {
         accessorKey: 'totalQuantity',
         header: 'Qty',
+        size: 100,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <span className="tabular-nums">
@@ -339,10 +349,13 @@ const VendorStockPage: React.FC = () => {
       {
         accessorKey: 'lineCount',
         header: 'Lines',
+        size: 90,
+        hideBelow: 'lg' as const,
       },
       {
         id: 'actions',
         header: '',
+        size: 100,
         enableSorting: false,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
@@ -360,7 +373,7 @@ const VendorStockPage: React.FC = () => {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                className="h-11 w-11 shrink-0 text-destructive hover:text-destructive md:h-8 md:w-8"
                 onClick={() => setIssueToDelete(row.original)}
                 aria-label={`Delete issue #${row.original.issueNumber}`}
                 title="Delete"
@@ -454,7 +467,7 @@ const VendorStockPage: React.FC = () => {
       ) : (
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted-foreground">Vendor</span>
-          <div className="min-w-[240px]">
+          <div className="w-full min-w-0 sm:min-w-[240px]">
             <VirtualSelect
               options={vendorFilterOptions}
               value={selectedVendorId ?? 'all'}

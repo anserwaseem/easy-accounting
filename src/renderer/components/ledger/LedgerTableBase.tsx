@@ -77,29 +77,31 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         header: 'Date',
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => <DateCell value={row.original.date} />,
-        size: 40,
+        size: 110,
+        hideBelow: 'sm' as const,
       },
       {
         header: 'Particulars',
         cell: renderLedgerParticularsCell,
-        size: 100,
+        size: 180,
       },
       {
         header: 'Narration',
         cell: (info) => renderJournalCell(info, printMode),
-        size: 120,
+        size: 200,
+        hideBelow: 'lg' as const,
       },
       {
         accessorKey: 'debit',
         header: 'Debit',
         cell: ({ row }) => formatDebitCredit(row.original.debit),
-        size: 60,
+        size: 110,
       },
       {
         accessorKey: 'credit',
         header: 'Credit',
         cell: ({ row }) => formatDebitCredit(row.original.credit),
-        size: 60,
+        size: 110,
       },
       {
         accessorKey: 'balance',
@@ -108,12 +110,13 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
           getFormattedCurrency(row.original.balance)
             .replace(currency, '')
             .trim(),
-        size: 70,
+        size: 120,
       },
       {
         accessorKey: 'balanceType',
         header: 'Type',
-        size: 10,
+        size: 90,
+        hideBelow: 'md' as const,
       },
     ],
     [printMode, formatDebitCredit],

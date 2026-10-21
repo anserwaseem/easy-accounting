@@ -706,7 +706,11 @@ const VirtualSelect = <T extends BaseOption = Account>({
       </PopoverTrigger>
       <PopoverContent
         container={container ?? autoContainer}
-        className="flex max-h-[min(520px,var(--radix-popper-available-height,100dvh))] w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden p-0"
+        // The panel matched the trigger's width exactly, so a trigger in a
+        // 420px table cell opened a 420px panel — wider than a phone
+        // screen. It now grows with the trigger but never past the
+        // viewport.
+        className="flex max-h-[min(520px,var(--radix-popper-available-height,100dvh))] w-[min(var(--radix-popover-trigger-width),calc(100vw-2rem))] flex-col overflow-hidden p-0"
         align="start"
         onOpenAutoFocus={(e) => {
           // We do not want popover to auto focus and blur our Trigger Input if we didn't have an option selected
