@@ -14,10 +14,13 @@ import { Button } from '@/renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
 import { Badge } from '@/renderer/shad/ui/badge';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { cn } from '@/renderer/lib/utils';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
 import {
   dateFormatOptions,
@@ -126,7 +129,7 @@ const VendorStockPage: React.FC = () => {
       }
     } catch (error) {
       toast({
-        description: String(error),
+        description: ipcErrorMessage(error) || 'Failed to delete send',
         variant: 'destructive',
       });
     } finally {
@@ -361,17 +364,21 @@ const VendorStockPage: React.FC = () => {
               }
               aria-label={`Edit issue #${row.original.issueNumber}`}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
-              onClick={() => setIssueToDelete(row.original)}
-              aria-label={`Delete issue #${row.original.issueNumber}`}
-              title="Delete"
+            <AdvancedControl
+              capability={ADVANCED_CAPABILITIES.vendorStockDelete}
             >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                onClick={() => setIssueToDelete(row.original)}
+                aria-label={`Delete issue #${row.original.issueNumber}`}
+                title="Delete"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </AdvancedControl>
           </div>
         ),
       },

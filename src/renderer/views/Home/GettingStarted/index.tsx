@@ -22,12 +22,21 @@ import { toast } from 'renderer/shad/ui/use-toast';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ImportListNumbers } from '@/renderer/views/Inventory/ImportListNumbers';
+import { useAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabilities';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { SetOpeningStock } from '../../Inventory/SetOpeningStock';
+import { AdvancedControlsCard } from './AdvancedControlsCard';
 
 export const GettingStarted: React.FC = () => {
   const navigate = useNavigate();
   const [isDismissed, setIsDismissed] = useState<boolean>(
     window.electron.store.get('gettingStartedDismissed') === true,
+  );
+
+  // the card promises a "Set opening stock" button, so say so when the
+  // button is not there rather than leaving the reader looking for it
+  const canSetOpeningStock = useAdvancedCapability(
+    ADVANCED_CAPABILITIES.inventorySetOpeningStock,
   );
 
   const shouldShow = useMemo(() => !isDismissed, [isDismissed]);
@@ -164,6 +173,12 @@ export const GettingStarted: React.FC = () => {
             <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
               Recommended: upload your balance sheet first, then set opening
               stock as of the same date.
+              {!canSetOpeningStock ? (
+                <span className="mt-1 block">
+                  Setting opening stock is an advanced control on this device.
+                  Turn it on in Settings to use it.
+                </span>
+              ) : null}
             </div>
             <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
               <span className="font-medium text-foreground">
@@ -291,6 +306,8 @@ export const GettingStarted: React.FC = () => {
             </Button>
           </CardFooter>
         </Card>
+
+        <AdvancedControlsCard />
       </div>
     </div>
   );

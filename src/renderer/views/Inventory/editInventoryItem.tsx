@@ -9,9 +9,12 @@ import {
 } from 'renderer/shad/ui/dialog';
 import { Button } from '@/renderer/shad/ui/button';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from 'renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import type { UpdateInventoryItem, ItemType, InventoryItem } from '@/types';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -152,10 +155,24 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
   // is disabled for existing items anyway
   const onToggleExcluded = async (next: boolean) => {
     setExcluded(next);
-    const ok = await window.electron.setItemExcludedFromCatalog(
-      row.original.id,
-      next,
-    );
+    let ok: boolean;
+    try {
+      ok = await window.electron.setItemExcludedFromCatalog(
+        row.original.id,
+        next,
+      );
+    } catch (error) {
+      // the guard refuses this when "Keep an item out of the catalog" is
+      // off; the toast layer turns that into a message the person can
+      // act on
+      setExcluded(!next);
+      toast({
+        description:
+          ipcErrorMessage(error) || 'Could not change the publishing setting',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (!ok) {
       setExcluded(!next);
       toast({
@@ -277,7 +294,7 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
       setIsDeleteDialogOpen(true);
     } catch (error) {
       toast({
-        description: `Error checking item deletion: ${error}`,
+        description: ipcErrorMessage(error) || 'Error checking item deletion',
         variant: 'destructive',
       });
     }
@@ -302,8 +319,10 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
         });
       }
     } catch (error) {
+      // the guard refuses this when "Delete an inventory item" is off;
+      // the toast layer turns that into a message the person can act on
       toast({
-        description: `Error deleting item: ${error}`,
+        description: ipcErrorMessage(error) || 'Error deleting item',
         variant: 'destructive',
       });
     } finally {
@@ -355,39 +374,43 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
               />
             </InventoryForm>
             {showPublishControls ? (
-              <div className="flex items-center gap-2 border-t pt-3">
-                <Checkbox
-                  id={`exclude-${row.original.id}`}
-                  checked={excluded}
-                  onCheckedChange={(checked) =>
-                    onToggleExcluded(checked === true)
-                  }
-                />
-                <div className="flex items-center gap-1.5">
-                  <Label
-                    htmlFor={`exclude-${row.original.id}`}
-                    className="cursor-pointer text-sm font-normal"
-                  >
-                    Keep out of the published catalog
-                  </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex cursor-pointer items-center text-muted-foreground hover:text-foreground">
-                        <Info className="h-3.5 w-3.5" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      align="start"
-                      className="max-w-xs text-xs"
+              <AdvancedControl
+                capability={ADVANCED_CAPABILITIES.inventoryCatalogHold}
+              >
+                <div className="flex items-center gap-2 border-t pt-3">
+                  <Checkbox
+                    id={`exclude-${row.original.id}`}
+                    checked={excluded}
+                    onCheckedChange={(checked) =>
+                      onToggleExcluded(checked === true)
+                    }
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <Label
+                      htmlFor={`exclude-${row.original.id}`}
+                      className="cursor-pointer text-sm font-normal"
                     >
-                      Applies immediately. The item stays in your inventory and
-                      invoices; it just never goes on sale online, even with a
-                      price and a photo.
-                    </TooltipContent>
-                  </Tooltip>
+                      Keep out of the published catalog
+                    </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex cursor-pointer items-center text-muted-foreground hover:text-foreground">
+                          <Info className="h-3.5 w-3.5" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        align="start"
+                        className="max-w-xs text-xs"
+                      >
+                        Applies immediately. The item stays in your inventory
+                        and invoices; it just never goes on sale online, even
+                        with a price and a photo.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
-              </div>
+              </AdvancedControl>
             ) : null}
             <div className="space-y-1.5 border-t pt-3">
               <div className="flex items-center gap-1.5">
@@ -448,26 +471,36 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
             <Tag className="mr-2 h-4 w-4" />
             Attributes
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpenAdjustStock(true)}>
-            <SlidersHorizontal className="mr-2 h-4 w-4" />
-            Adjust stock
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleToggleActive}>
-            {isActive ? (
-              <Ban className="mr-2 h-4 w-4" />
-            ) : (
-              <Power className="mr-2 h-4 w-4" />
-            )}
-            {toggleLabel}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={handleDeleteClick}
-            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          <AdvancedControl
+            capability={ADVANCED_CAPABILITIES.inventoryAdjustStock}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete item
-          </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setOpenAdjustStock(true)}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Adjust stock
+            </DropdownMenuItem>
+          </AdvancedControl>
+          <DropdownMenuSeparator />
+          <AdvancedControl
+            capability={ADVANCED_CAPABILITIES.inventoryToggleActive}
+          >
+            <DropdownMenuItem onClick={handleToggleActive}>
+              {isActive ? (
+                <Ban className="mr-2 h-4 w-4" />
+              ) : (
+                <Power className="mr-2 h-4 w-4" />
+              )}
+              {toggleLabel}
+            </DropdownMenuItem>
+          </AdvancedControl>
+          <AdvancedControl capability={ADVANCED_CAPABILITIES.inventoryDelete}>
+            <DropdownMenuItem
+              onClick={handleDeleteClick}
+              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete item
+            </DropdownMenuItem>
+          </AdvancedControl>
         </DropdownMenuContent>
       </DropdownMenu>
 

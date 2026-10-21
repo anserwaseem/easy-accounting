@@ -6,6 +6,8 @@ import { Label } from 'renderer/shad/ui/label';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { useAuth, useSyncStatus, type SyncStatus } from '@/renderer/hooks';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import {
   Dialog,
   DialogContent,
@@ -431,16 +433,18 @@ const SyncSettings: React.FC = () => {
             <p className="text-xs font-medium text-muted-foreground">
               Advanced
             </p>
-            <Button
-              variant="outline"
-              className="self-start"
-              onClick={() => setRebuildConfirmOpen(true)}
-              disabled={rebuilding}
-            >
-              {rebuilding
-                ? 'Re-downloading…'
-                : 'Re-download everything from sync'}
-            </Button>
+            <AdvancedControl capability={ADVANCED_CAPABILITIES.syncRebuild}>
+              <Button
+                variant="outline"
+                className="self-start"
+                onClick={() => setRebuildConfirmOpen(true)}
+                disabled={rebuilding}
+              >
+                {rebuilding
+                  ? 'Re-downloading…'
+                  : 'Re-download everything from sync'}
+              </Button>
+            </AdvancedControl>
             <span className="text-xs text-muted-foreground">
               If this device&apos;s data looks broken or a row was skipped
               during sync, this replaces it with a fresh copy from the server.

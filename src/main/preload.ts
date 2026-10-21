@@ -62,6 +62,7 @@ import type {
   AgentCommissionReport,
   PostCommissionSettlementPayload,
 } from '../types';
+import type { AdvancedCapability } from '../core/advancedCapabilities';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
 import type { BackupConfig, BackupConfigInput } from './utils/backupConfig';
 import type {
@@ -1040,6 +1041,25 @@ const electronHandler = {
     ipcRenderer.invoke('settings:delete', key) as Promise<void>,
   getAllSettings: () =>
     ipcRenderer.invoke('settings:getAll') as Promise<Record<string, unknown>>,
+
+  /**
+   * The advanced capabilities enabled on this device — see
+   * src/core/advancedCapabilities.ts for what these are and why they are
+   * device-local rather than per-user.
+   *
+   * Backed by electron-store, not the `settings` table: this is a
+   * per-device UI preference, so it must not replicate across devices nor
+   * ship in backups/exports.
+   */
+  getAdvancedCapabilities: () =>
+    ipcRenderer.invoke('advanced:getCapabilities') as Promise<
+      AdvancedCapability[]
+    >,
+  setAdvancedCapabilities: (capabilities: AdvancedCapability[]) =>
+    ipcRenderer.invoke(
+      'advanced:setCapabilities',
+      capabilities,
+    ) as Promise<void>,
 
   commissionGetConfig: (chartId: number) =>
     ipcRenderer.invoke(

@@ -69,10 +69,12 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
       setOpen(false);
       onSuccess?.(result);
     } catch (error: unknown) {
-      const message = ipcErrorMessage(error) || 'Failed to reverse journal';
+      // the toast layer swaps in the "turned off on this device" wording
+      // when the refusal is an advanced control, so the raw message is
+      // only used for the other failures
       toast({
         title: 'Reversal Failed',
-        description: message,
+        description: ipcErrorMessage(error) || 'Failed to reverse journal',
         variant: 'destructive',
       });
     } finally {

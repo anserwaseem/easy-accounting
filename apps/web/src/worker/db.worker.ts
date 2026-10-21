@@ -98,6 +98,14 @@ import { repairInvoiceEditedTimestamps } from '@core/sync/repairInvoiceTimestamp
 import { INITIAL_CHARTS } from '@core/utils/constants';
 import { enrichLedgerRowsWithJournalSummaries } from '@core/utils/ledgerJournalEnrichment';
 import type { UserCredentials } from 'types';
+import {
+  ADVANCED_CAPABILITIES,
+  ADVANCED_CAPABILITIES_STORE_KEY,
+  advancedCapabilityError,
+  parseAdvancedCapabilities,
+  serializeAdvancedCapabilities,
+  type AdvancedCapability,
+} from '@core/advancedCapabilities';
 import { openDeserializedDatabase } from './deserializeDatabase';
 import { PLACEHOLDER_USERNAME } from '@core/sync/placeholderUser';
 import {
@@ -542,6 +550,19 @@ async function main(): Promise<void> {
   // src/api/client.ts can expose the real `AppApi` type directly.
   // print:*/backup:* are intentionally absent here — client.ts stubs those
   // without ever reaching this worker.
+  //
+  // The advanced-capability guard (see `requireAdvancedCapability` below)
+  // is this platform's counterpart of the one in src/main/main.ts: the
+  // renderer hides the destructive controls, and these handlers refuse
+  // the call even if the renderer asks anyway.
+  const requireAdvancedCapability = (capability: AdvancedCapability): void => {
+    const enabled = parseAdvancedCapabilities(
+      webKv.get(ADVANCED_CAPABILITIES_STORE_KEY),
+    );
+    if (enabled.has(capability)) return;
+    throw new Error(advancedCapabilityError(capability));
+  };
+
   const handlers: Handlers = {
     // -- Auth --------------------------------------------------------------
     login: async (user) => {
@@ -700,14 +721,45 @@ async function main(): Promise<void> {
         code as string | number,
         excludeAccountId as number | undefined,
       ),
-    insertAccount: (account) =>
-      accountService.insertAccount(
-        account as Parameters<AccountService['insertAccount']>[0],
-      ),
-    updateAccount: (account) =>
-      accountService.updateAccount(
-        account as Parameters<AccountService['updateAccount']>[0],
-      ),
+    insertAccount: (account) => {
+      // a new account starts with the advanced fields off, so creating one
+      // with them already set is the same action as turning them on
+      const payload = account as Parameters<AccountService['insertAccount']>[0];
+      if (payload.tracksVendorStock) {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.accountTrackVendorStock,
+        );
+      }
+      if (payload.collectionRole) {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.accountCollectionRole);
+      }
+      return accountService.insertAccount(payload);
+    },
+    updateAccount: async (account) => {
+      // The same call writes both advanced account fields alongside the
+      // ordinary ones, so the guard compares against what is stored: a
+      // rename must keep working without the flag, a change to "track
+      // stock" or "counts as collection" must not.
+      const payload = account as Parameters<AccountService['updateAccount']>[0];
+      const advanced = await accountService.getAccountAdvancedFields(
+        payload.id!,
+      );
+      if (
+        payload.tracksVendorStock !== undefined &&
+        payload.tracksVendorStock !== advanced.tracksVendorStock
+      ) {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.accountTrackVendorStock,
+        );
+      }
+      if (
+        payload.collectionRole !== undefined &&
+        payload.collectionRole !== advanced.collectionRole
+      ) {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.accountCollectionRole);
+      }
+      return accountService.updateAccount(payload);
+    },
     bulkUpdateAccountUrduFields: (patches) =>
       accountService.bulkUpdateUrduFields(
         patches as Parameters<AccountService['bulkUpdateUrduFields']>[0],
@@ -719,13 +771,17 @@ async function main(): Promise<void> {
       ),
     hasJournalEntries: (accountId) =>
       accountService.hasJournalEntries(accountId as number),
-    deleteAccount: (accountId) =>
-      accountService.deleteAccount(accountId as number),
-    setAccountCollectionRole: (accountId, role) =>
-      accountService.setCollectionRole(
+    deleteAccount: (accountId) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.accountDelete);
+      return accountService.deleteAccount(accountId as number);
+    },
+    setAccountCollectionRole: (accountId, role) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.accountCollectionRole);
+      return accountService.setCollectionRole(
         accountId as number,
         role as Parameters<AccountService['setCollectionRole']>[1],
-      ),
+      );
+    },
     toggleAccountActive: (accountId, isActive) =>
       accountService.toggleAccountActive(
         accountId as number,
@@ -778,23 +834,31 @@ async function main(): Promise<void> {
       journalService.getJournalNarrationSummariesByIds(journalIds as number[]),
     getJournalsByInvoiceId: (invoiceId) =>
       journalService.getJournalsByInvoiceId(invoiceId as number),
-    updateJournalNarration: (journalId, narration) =>
-      journalService.updateJournalNarration(
+    updateJournalNarration: (journalId, narration) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalEditFields);
+      return journalService.updateJournalNarration(
         journalId as number,
         narration as string,
-      ),
-    updateJournalInfo: (journalId, fields) =>
-      journalService.updateJournalInfo(
+      );
+    },
+    updateJournalInfo: (journalId, fields) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalEditFields);
+      return journalService.updateJournalInfo(
         journalId as number,
         fields as Parameters<JournalService['updateJournalInfo']>[1],
-      ),
-    reverseJournal: (journalId, options) =>
-      journalService.reverseJournal(
+      );
+    },
+    reverseJournal: (journalId, options) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalReverse);
+      return journalService.reverseJournal(
         journalId as number,
         options as Parameters<JournalService['reverseJournal']>[1],
-      ),
-    deleteManualJournal: (journalId) =>
-      journalService.deleteManualJournal(journalId as number),
+      );
+    },
+    deleteManualJournal: (journalId) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalDelete);
+      return journalService.deleteManualJournal(journalId as number);
+    },
 
     // -- Ledger ------------------------------------------------------------
     getLedger: async (accountId) => {
@@ -913,16 +977,20 @@ async function main(): Promise<void> {
         invoiceType as Parameters<InvoiceService['getInvoices']>[0],
       ),
     getInvoice: (invoiceId) => invoiceService.getInvoice(invoiceId as number),
-    returnSaleInvoice: (invoiceId, payload) =>
-      invoiceService.returnSaleInvoice(
+    returnSaleInvoice: (invoiceId, payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
+      return invoiceService.returnSaleInvoice(
         invoiceId as number,
         payload as Parameters<InvoiceService['returnSaleInvoice']>[1],
-      ),
-    returnPurchaseInvoice: (invoiceId, payload) =>
-      invoiceService.returnPurchaseInvoice(
+      );
+    },
+    returnPurchaseInvoice: (invoiceId, payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnPurchase);
+      return invoiceService.returnPurchaseInvoice(
         invoiceId as number,
         payload as Parameters<InvoiceService['returnPurchaseInvoice']>[1],
-      ),
+      );
+    },
     getInvoiceEditDateBounds: (
       invoiceId,
       accountId,
@@ -1010,8 +1078,10 @@ async function main(): Promise<void> {
       inventoryService.hasInvoiceItems(id as number),
     canDeleteInventoryItem: (id) =>
       inventoryService.canDeleteInventoryItem(id as number),
-    deleteInventoryItem: (id) =>
-      inventoryService.deleteInventoryItem(id as number),
+    deleteInventoryItem: (id) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryDelete);
+      return inventoryService.deleteInventoryItem(id as number);
+    },
     bulkUpdateInventoryUrduFields: (patches) =>
       inventoryService.bulkUpdateUrduFields(
         patches as Parameters<InventoryService['bulkUpdateUrduFields']>[0],
@@ -1036,16 +1106,20 @@ async function main(): Promise<void> {
         rows as Parameters<InventoryService['applyListPositions']>[0],
       ),
     getOpeningStock: () => inventoryService.getOpeningStock(),
-    setOpeningStock: (items, asOfDate, resetOthersToZero) =>
-      inventoryService.setOpeningStock(
+    setOpeningStock: (items, asOfDate, resetOthersToZero) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventorySetOpeningStock);
+      return inventoryService.setOpeningStock(
         items as Parameters<InventoryService['setOpeningStock']>[0],
         asOfDate as string | undefined,
         resetOthersToZero as boolean | undefined,
-      ),
-    applyStockAdjustment: (payload) =>
-      inventoryService.applyStockAdjustment(
+      );
+    },
+    applyStockAdjustment: (payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryAdjustStock);
+      return inventoryService.applyStockAdjustment(
         payload as Parameters<InventoryService['applyStockAdjustment']>[0],
-      ),
+      );
+    },
     getStockAdjustments: (inventoryId) =>
       inventoryService.getStockAdjustments(inventoryId as number | undefined),
     getInventoryIdsWithHistory: () =>
@@ -1062,11 +1136,13 @@ async function main(): Promise<void> {
       ),
     reorderAttributeDefinitions: (ids) =>
       inventoryService.reorderAttributeDefinitions(ids as number[]),
-    setItemExcludedFromCatalog: (id, excluded) =>
-      inventoryService.setItemExcludedFromCatalog(
+    setItemExcludedFromCatalog: (id, excluded) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryCatalogHold);
+      return inventoryService.setItemExcludedFromCatalog(
         id as number,
         excluded as boolean,
-      ),
+      );
+    },
     setAttributeDefinitionPublic: (id, isPublic) =>
       inventoryService.setAttributeDefinitionPublic(
         id as number,
@@ -1179,19 +1255,27 @@ async function main(): Promise<void> {
       items,
       asOfDate,
       resetOthersToZero,
-    ) =>
-      vendorStockService.setOpeningStock(
+    ) => {
+      requireAdvancedCapability(
+        ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+      );
+      return vendorStockService.setOpeningStock(
         vendorAccountId as number,
         items as Parameters<VendorStockService['setOpeningStock']>[1],
         asOfDate as string,
         resetOthersToZero as boolean | undefined,
-      ),
-    importVendorOpeningStock: (rows, asOfDate, resetOthersToZero) =>
-      vendorStockService.importOpeningStock(
+      );
+    },
+    importVendorOpeningStock: (rows, asOfDate, resetOthersToZero) => {
+      requireAdvancedCapability(
+        ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+      );
+      return vendorStockService.importOpeningStock(
         rows as Parameters<VendorStockService['importOpeningStock']>[0],
         asOfDate as string,
         resetOthersToZero as boolean | undefined,
-      ),
+      );
+    },
     getNextVendorIssueNumber: () => vendorStockService.getNextIssueNumber(),
     createVendorIssue: (payload) =>
       vendorStockService.createIssue(
@@ -1202,8 +1286,10 @@ async function main(): Promise<void> {
         issueId as number,
         payload as Parameters<VendorStockService['updateIssue']>[1],
       ),
-    deleteVendorIssue: (issueId) =>
-      vendorStockService.deleteIssue(issueId as number),
+    deleteVendorIssue: (issueId) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.vendorStockDelete);
+      return vendorStockService.deleteIssue(issueId as number);
+    },
     getVendorIssues: () => vendorStockService.getIssues(),
     getVendorIssue: (issueId) => vendorStockService.getIssue(issueId as number),
     getVendorStockActivity: (filters) =>
@@ -1217,25 +1303,61 @@ async function main(): Promise<void> {
     deleteSetting: (key) => settingsService.delete(key as string),
     getAllSettings: () => settingsService.getAll(),
 
-    // -- Commission (src/core/services/CommissionService.ts, migration 047) -
-    commissionGetConfig: (chartId) =>
-      commissionService.getCommissionConfig(chartId as number),
-    commissionSaveConfig: (config) =>
-      commissionService.saveCommissionConfig(
-        config as Parameters<CommissionService['saveCommissionConfig']>[0],
+    // -- Advanced capabilities (src/core/advancedCapabilities.ts) ---------
+    // Device-local, so they live in `web_kv` (this worker's own
+    // KeyValueStore) rather than the `settings` table — the latter
+    // replicates across devices and ships in backups/exports, and this is
+    // a per-device UI preference. Note this is a DIFFERENT store from the
+    // renderer's `window.electron.store` (localStorage on the main
+    // thread, see electronShim.ts): the renderer reads and writes these
+    // only through these two methods, so the two never disagree.
+    getAdvancedCapabilities: async () =>
+      Array.from(
+        parseAdvancedCapabilities(webKv.get(ADVANCED_CAPABILITIES_STORE_KEY)),
       ),
-    commissionGetReport: (chartId, startDate, endDate) =>
-      commissionService.getCommissionReport(
+    setAdvancedCapabilities: async (capabilities) => {
+      const normalized = serializeAdvancedCapabilities(
+        capabilities as AdvancedCapability[],
+      );
+      await webKv.setAwaited(ADVANCED_CAPABILITIES_STORE_KEY, normalized);
+    },
+
+    // -- Commission (src/core/services/CommissionService.ts, migration 047) -
+    commissionGetConfig: (chartId) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.getCommissionConfig(chartId as number);
+    },
+    commissionSaveConfig: (config) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.saveCommissionConfig(
+        config as Parameters<CommissionService['saveCommissionConfig']>[0],
+      );
+    },
+    commissionGetReport: (chartId, startDate, endDate) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.getCommissionReport(
         chartId as number,
         startDate as string,
         endDate as string,
-      ),
-    commissionPostSettlement: (payload) =>
-      commissionService.postCommissionSettlement(
+      );
+    },
+    commissionPostSettlement: (payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.postCommissionSettlement(
         payload as Parameters<CommissionService['postCommissionSettlement']>[0],
-      ),
-    commissionUnpostSettlement: (settlementId) =>
-      commissionService.unpostCommissionSettlement(settlementId as number),
+      );
+    },
+    commissionUnpostSettlement: (settlementId) => {
+      // two gates: the whole module, and the extra one for the destructive
+      // unpost. Turning the module on does not turn unposting on.
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      requireAdvancedCapability(
+        ADVANCED_CAPABILITIES.commissionUnpostSettlement,
+      );
+      return commissionService.unpostCommissionSettlement(
+        settlementId as number,
+      );
+    },
 
     // -- Publish (./publishConfig.ts + ./publishService.ts) ----------------
     getPublishConfig: () => getWebPublishConfig(webKv, settingsService),

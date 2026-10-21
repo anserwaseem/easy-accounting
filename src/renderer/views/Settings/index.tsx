@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import isEqual from 'lodash/isEqual';
 import {
   Building2,
@@ -43,6 +43,8 @@ import {
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
 import { downloadDatabaseExport } from '@/renderer/lib/exportDatabase';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import type {
   InvoicePrintLabelKey,
   InvoicePrintLabels,
@@ -64,6 +66,7 @@ import {
 import PublishSettings from './PublishSettings';
 import BackupSettings from './BackupSettings';
 import SyncSettings from './SyncSettings';
+import AdvancedControlsSettings from './AdvancedControlsSettings';
 
 interface InvoicePrintLabelsAccordionProps {
   title: string;
@@ -143,8 +146,30 @@ const InvoicePrintLabelsAccordion: React.FC<
 
 const DEFAULT_LABELS = [' ', '0', '-', 'X'];
 
+/**
+ * The tabs on this page, in the order they appear.
+ *
+ * The ids are part of the URL (?tab=rules), so that a message elsewhere
+ * in the app can send the owner straight to the one screen they need.
+ */
+const SETTINGS_TABS = [
+  { id: 'profile', label: 'Company' },
+  { id: 'invoicing', label: 'Invoicing' },
+  { id: 'rules', label: 'Rules' },
+  { id: 'sync', label: 'Sync' },
+] as const;
+
 const SettingsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('profile');
+  // the tab can be chosen in the URL, so a message elsewhere in the app
+  // can send the owner straight to the one screen they need (the
+  // onboarding notes point at the advanced controls, for one)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(
+    SETTINGS_TABS.some((tab) => tab.id === requestedTab)
+      ? (requestedTab as string)
+      : 'profile',
+  );
   const [isSavedRecently, setIsSavedRecently] = useState(false);
   const appVersion = useAppVersion();
 
@@ -508,7 +533,19 @@ const SettingsPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto py-6">
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={(tab) => {
+            setActiveTab(tab);
+            // keep the tab in the URL, so a link to a particular screen
+            // can be shared or reached again from the browser history
+            setSearchParams(
+              (prev) => {
+                const next = new URLSearchParams(prev);
+                next.set('tab', tab);
+                return next;
+              },
+              { replace: true },
+            );
+          }}
           className="space-y-6"
         >
           <TabsList className="grid grid-cols-4 w-full max-w-2xl">
@@ -946,6 +983,8 @@ const SettingsPage: React.FC = () => {
 
           {/* Tab 3: System & Accounting Rules */}
           <TabsContent value="rules" className="space-y-6 max-w-4xl">
+            <AdvancedControlsSettings />
+
             <Card>
               <CardHeader>
                 <CardTitle>Accounting Validation Rules</CardTitle>
@@ -1020,9 +1059,13 @@ const SettingsPage: React.FC = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild variant="destructive">
-                    <Link to="/import">Import from desktop app&hellip;</Link>
-                  </Button>
+                  <AdvancedControl
+                    capability={ADVANCED_CAPABILITIES.dataImport}
+                  >
+                    <Button asChild variant="destructive">
+                      <Link to="/import">Import from desktop app&hellip;</Link>
+                    </Button>
+                  </AdvancedControl>
                 </CardContent>
               </Card>
             )}

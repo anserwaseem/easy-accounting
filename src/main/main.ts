@@ -72,6 +72,15 @@ import {
 } from './utils/publishConfig';
 import { migrateBusinessSettingsFromStore } from './utils/migrateBusinessSettings';
 import {
+  getEnabledAdvancedCapabilities,
+  requireAdvancedCapability,
+  setEnabledAdvancedCapabilities,
+} from './utils/advancedCapabilities';
+import {
+  ADVANCED_CAPABILITIES,
+  type AdvancedCapability,
+} from '../core/advancedCapabilities';
+import {
   getBackupConfig,
   saveBackupConfig,
   type BackupConfigInput,
@@ -432,6 +441,19 @@ app
     );
     ipcMain.handle('settings:getAll', async () => settingsService.getAll());
 
+    // Advanced capabilities — device-local, NOT business settings, so they
+    // live in electron-store rather than the `settings` table (which
+    // replicates across devices and ships in backups). See
+    // src/core/advancedCapabilities.ts for the full rationale.
+    ipcMain.handle('advanced:getCapabilities', async () =>
+      Array.from(getEnabledAdvancedCapabilities()),
+    );
+    ipcMain.handle(
+      'advanced:setCapabilities',
+      async (_, capabilities: AdvancedCapability[]) =>
+        setEnabledAdvancedCapabilities(capabilities),
+    );
+
     ipcMain.handle('publish:getConfig', async () => getPublishConfig());
     ipcMain.handle('publish:saveConfig', async (_, input: PublishConfigInput) =>
       savePublishConfig(input),
@@ -566,11 +588,53 @@ app
       ): Promise<AccountCodeConflict[]> =>
         accountService.findAccountCodeConflicts(code, excludeAccountId),
     );
-    ipcMain.handle('account:insertAccount', async (_, account: InsertAccount) =>
-      accountService.insertAccount(account),
+    ipcMain.handle(
+      'account:insertAccount',
+      async (_, account: InsertAccount) => {
+        // a new account starts with the advanced fields off, so creating one
+        // with them already set is the same action as turning them on
+        if (account.tracksVendorStock) {
+          requireAdvancedCapability(
+            ADVANCED_CAPABILITIES.accountTrackVendorStock,
+          );
+        }
+        if (account.collectionRole) {
+          requireAdvancedCapability(
+            ADVANCED_CAPABILITIES.accountCollectionRole,
+          );
+        }
+        return accountService.insertAccount(account);
+      },
     );
-    ipcMain.handle('account:updateAccount', async (_, account: UpdateAccount) =>
-      accountService.updateAccount(account),
+    ipcMain.handle(
+      'account:updateAccount',
+      async (_, account: UpdateAccount) => {
+        // This one call writes both advanced account fields alongside the
+        // ordinary ones (name, phone, address...), so the guard compares
+        // against what is already stored: a rename must keep working without
+        // the flag, while a change to "track stock" or "counts as collection"
+        // must not.
+        const advanced = await accountService.getAccountAdvancedFields(
+          account.id!,
+        );
+        if (
+          account.tracksVendorStock !== undefined &&
+          account.tracksVendorStock !== advanced.tracksVendorStock
+        ) {
+          requireAdvancedCapability(
+            ADVANCED_CAPABILITIES.accountTrackVendorStock,
+          );
+        }
+        if (
+          account.collectionRole !== undefined &&
+          account.collectionRole !== advanced.collectionRole
+        ) {
+          requireAdvancedCapability(
+            ADVANCED_CAPABILITIES.accountCollectionRole,
+          );
+        }
+        return accountService.updateAccount(account);
+      },
     );
     ipcMain.handle(
       'account:bulkUpdateUrduFields',
@@ -588,9 +652,10 @@ app
     ipcMain.handle('account:hasJournalEntries', (_, accountId: number) =>
       accountService.hasJournalEntries(accountId),
     );
-    ipcMain.handle('account:deleteAccount', (_, accountId: number) =>
-      accountService.deleteAccount(accountId),
-    );
+    ipcMain.handle('account:deleteAccount', (_, accountId: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.accountDelete);
+      return accountService.deleteAccount(accountId);
+    });
     ipcMain.handle(
       'account:toggleActive',
       (_, accountId: number, isActive: boolean) =>
@@ -598,8 +663,10 @@ app
     );
     ipcMain.handle(
       'account:setCollectionRole',
-      (_, accountId: number, role: AccountCollectionRole | null) =>
-        accountService.setCollectionRole(accountId, role),
+      (_, accountId: number, role: AccountCollectionRole | null) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.accountCollectionRole);
+        return accountService.setCollectionRole(accountId, role);
+      },
     );
     ipcMain.handle('chart:getAll', async () => chartService.getCharts());
     ipcMain.handle('ledger:get', async (_, accountId: number) => {
@@ -718,13 +785,17 @@ app
     );
     ipcMain.handle(
       'journal:updateNarration',
-      async (_, journalId: number, narration: string) =>
-        journalService.updateJournalNarration(journalId, narration),
+      async (_, journalId: number, narration: string) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.journalEditFields);
+        return journalService.updateJournalNarration(journalId, narration);
+      },
     );
     ipcMain.handle(
       'journal:updateInfo',
-      async (_, journalId: number, fields: UpdateJournalFields) =>
-        journalService.updateJournalInfo(journalId, fields),
+      async (_, journalId: number, fields: UpdateJournalFields) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.journalEditFields);
+        return journalService.updateJournalInfo(journalId, fields);
+      },
     );
     ipcMain.handle(
       'journal:reverse',
@@ -732,11 +803,15 @@ app
         _,
         journalId: number,
         options?: { date?: string; narration?: string },
-      ) => journalService.reverseJournal(journalId, options),
+      ) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.journalReverse);
+        return journalService.reverseJournal(journalId, options);
+      },
     );
-    ipcMain.handle('journal:deleteManual', async (_, journalId: number) =>
-      journalService.deleteManualJournal(journalId),
-    );
+    ipcMain.handle('journal:deleteManual', async (_, journalId: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.journalDelete);
+      return journalService.deleteManualJournal(journalId);
+    });
     ipcMain.handle('inventory:save', (_, inventory: InventoryItem[]) =>
       inventoryService.saveInventory(inventory),
     );
@@ -769,8 +844,10 @@ app
     );
     ipcMain.handle(
       'inventory:setExcludedFromCatalog',
-      (_, id: number, excluded: boolean) =>
-        inventoryService.setItemExcludedFromCatalog(id, excluded),
+      (_, id: number, excluded: boolean) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryCatalogHold);
+        return inventoryService.setItemExcludedFromCatalog(id, excluded);
+      },
     );
     ipcMain.handle(
       'inventory:updateAttributes',
@@ -797,9 +874,10 @@ app
     ipcMain.handle('inventory:canDelete', (_, id: number) =>
       inventoryService.canDeleteInventoryItem(id),
     );
-    ipcMain.handle('inventory:delete', (_, id: number) =>
-      inventoryService.deleteInventoryItem(id),
-    );
+    ipcMain.handle('inventory:delete', (_, id: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryDelete);
+      return inventoryService.deleteInventoryItem(id);
+    });
     ipcMain.handle(
       'inventory:bulkUpdateUrduFields',
       async (_, patches: InventoryUrduFieldPatch[]) =>
@@ -835,12 +913,23 @@ app
         items: SetOpeningStockItem[],
         asOfDate?: string,
         resetOthersToZero?: boolean,
-      ) => inventoryService.setOpeningStock(items, asOfDate, resetOthersToZero),
+      ) => {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.inventorySetOpeningStock,
+        );
+        return inventoryService.setOpeningStock(
+          items,
+          asOfDate,
+          resetOthersToZero,
+        );
+      },
     );
     ipcMain.handle(
       'inventory:applyStockAdjustment',
-      (_, payload: ApplyStockAdjustmentPayload) =>
-        inventoryService.applyStockAdjustment(payload),
+      (_, payload: ApplyStockAdjustmentPayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.inventoryAdjustStock);
+        return inventoryService.applyStockAdjustment(payload);
+      },
     );
     ipcMain.handle('inventory:getStockAdjustments', (_, inventoryId?: number) =>
       inventoryService.getStockAdjustments(inventoryId),
@@ -944,13 +1033,17 @@ app
     );
     ipcMain.handle(
       'invoice:returnSale',
-      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
-        invoiceService.returnSaleInvoice(invoiceId, payload),
+      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
+        return invoiceService.returnSaleInvoice(invoiceId, payload);
+      },
     );
     ipcMain.handle(
       'invoice:returnPurchase',
-      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
-        invoiceService.returnPurchaseInvoice(invoiceId, payload),
+      (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnPurchase);
+        return invoiceService.returnPurchaseInvoice(invoiceId, payload);
+      },
     );
     ipcMain.handle(
       'invoice:getEditDateBounds',
@@ -1167,13 +1260,17 @@ app
         items: Array<{ name: string; quantity: number }>,
         asOfDate: string,
         resetOthersToZero?: boolean,
-      ) =>
-        vendorStockService.setOpeningStock(
+      ) => {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+        );
+        return vendorStockService.setOpeningStock(
           vendorAccountId,
           items,
           asOfDate,
           resetOthersToZero,
-        ),
+        );
+      },
     );
 
     ipcMain.handle(
@@ -1183,12 +1280,16 @@ app
         rows: VendorStockOpeningRow[],
         asOfDate: string,
         resetOthersToZero?: boolean,
-      ) =>
-        vendorStockService.importOpeningStock(
+      ) => {
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.vendorStockSetOpeningStock,
+        );
+        return vendorStockService.importOpeningStock(
           rows,
           asOfDate,
           resetOthersToZero,
-        ),
+        );
+      },
     );
 
     ipcMain.handle('vendorStock:getNextIssueNumber', () =>
@@ -1207,9 +1308,10 @@ app
         vendorStockService.updateIssue(issueId, payload),
     );
 
-    ipcMain.handle('vendorStock:deleteIssue', async (_, issueId: number) =>
-      vendorStockService.deleteIssue(issueId),
-    );
+    ipcMain.handle('vendorStock:deleteIssue', async (_, issueId: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.vendorStockDelete);
+      return vendorStockService.deleteIssue(issueId);
+    });
 
     ipcMain.handle('vendorStock:getIssues', () =>
       vendorStockService.getIssues(),
@@ -1225,32 +1327,50 @@ app
         vendorStockService.getActivity(filters),
     );
 
-    ipcMain.handle('commission:getConfig', async (_, chartId: number) =>
-      commissionService.getCommissionConfig(chartId),
-    );
+    ipcMain.handle('commission:getConfig', async (_, chartId: number) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+      return commissionService.getCommissionConfig(chartId);
+    });
 
     ipcMain.handle(
       'commission:saveConfig',
-      async (_, config: AgentCommissionConfig) =>
-        commissionService.saveCommissionConfig(config),
+      async (_, config: AgentCommissionConfig) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+        return commissionService.saveCommissionConfig(config);
+      },
     );
 
     ipcMain.handle(
       'commission:getReport',
-      async (_, chartId: number, startDate: string, endDate: string) =>
-        commissionService.getCommissionReport(chartId, startDate, endDate),
+      async (_, chartId: number, startDate: string, endDate: string) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+        return commissionService.getCommissionReport(
+          chartId,
+          startDate,
+          endDate,
+        );
+      },
     );
 
     ipcMain.handle(
       'commission:postSettlement',
-      async (_, payload: PostCommissionSettlementPayload) =>
-        commissionService.postCommissionSettlement(payload),
+      async (_, payload: PostCommissionSettlementPayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+        return commissionService.postCommissionSettlement(payload);
+      },
     );
 
     ipcMain.handle(
       'commission:unpostSettlement',
-      async (_, settlementId: number) =>
-        commissionService.unpostCommissionSettlement(settlementId),
+      async (_, settlementId: number) => {
+        // two gates: the whole module, and the extra one for the destructive
+        // unpost. Turning the module on does not turn unposting on.
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.commissionModule);
+        requireAdvancedCapability(
+          ADVANCED_CAPABILITIES.commissionUnpostSettlement,
+        );
+        return commissionService.unpostCommissionSettlement(settlementId);
+      },
     );
 
     createWindow();

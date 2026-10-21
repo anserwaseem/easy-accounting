@@ -18,6 +18,7 @@ import {
   netRateOffer,
 } from '@/lib/invoiceLineAmount';
 import {
+  toastContentFromAdvancedCapabilityError,
   toastContentFromConvertQuotationError,
   toastContentFromInvoiceReturnError,
 } from '@/renderer/lib/ipcUserMessage';
@@ -50,6 +51,8 @@ import {
 } from '@/renderer/shad/ui/dialog';
 import { Label } from '@/renderer/shad/ui/label';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 
 interface InvoiceDetailsProps {
   invoiceType: InvoiceType;
@@ -266,8 +269,20 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
       await reloadInvoice();
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      const { title, description } = toastContentFromInvoiceReturnError(raw);
-      toast({ variant: 'destructive', title, description, duration: 12000 });
+      // the guard refuses this when the matching return control is off;
+      // the toast layer turns that into a message the person can act on
+      const refusal = toastContentFromAdvancedCapabilityError(raw);
+      if (refusal) {
+        toast({
+          variant: 'warning',
+          title: refusal.title,
+          description: refusal.description,
+          duration: 12000,
+        });
+      } else {
+        const { title, description } = toastContentFromInvoiceReturnError(raw);
+        toast({ variant: 'destructive', title, description, duration: 12000 });
+      }
     } finally {
       setIsReturning(false);
     }
@@ -431,19 +446,27 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               </Button>
             ) : null}
             {canEditPostedInvoice ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
-                onClick={() => {
-                  setReturnReasonDraft('');
-                  setReturnDialogOpen(true);
-                }}
+              <AdvancedControl
+                capability={
+                  invoiceType === InvoiceType.Sale
+                    ? ADVANCED_CAPABILITIES.invoiceReturnSale
+                    : ADVANCED_CAPABILITIES.invoiceReturnPurchase
+                }
               >
-                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                Return
-              </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
+                  onClick={() => {
+                    setReturnReasonDraft('');
+                    setReturnDialogOpen(true);
+                  }}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                  Return
+                </Button>
+              </AdvancedControl>
             ) : null}
             {showQuotationActions ? (
               <>

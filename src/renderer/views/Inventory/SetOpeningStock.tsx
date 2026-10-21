@@ -1,4 +1,6 @@
 import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { FILE_UPLOAD_HINT_OPENING_STOCK } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import { parseOpeningStock } from '@/renderer/lib/parser';
@@ -12,9 +14,10 @@ import {
   DialogHeader,
 } from '@/renderer/shad/ui/dialog';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { Label } from '@/renderer/shad/ui/label';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
-import { max, toString } from 'lodash';
+import { max } from 'lodash';
 import { useEffect, useState } from 'react';
 import { PackageOpen } from 'lucide-react';
 import { toLocalDateInputValue } from '@/renderer/lib/localDate';
@@ -99,7 +102,7 @@ export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
       }
     } catch (err) {
       toast({
-        description: toString(err),
+        description: ipcErrorMessage(err) || 'Failed to set opening stock',
         variant: 'destructive',
       });
     }
@@ -107,83 +110,87 @@ export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-fit">
-          <PackageOpen size={16} className="mr-1.5" />
-          Set opening stock
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Set opening stock</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Upload an Excel file with columns <strong>name</strong> and&nbsp;
-          <strong>quantity</strong> to set starting quantities (e.g. when
-          migrating from another system).
-        </p>
-        <p className="text-xs text-muted-foreground italic">
-          Usually done once when you start or switch to this app. You can run it
-          again later to correct or restate opening stock if needed.
-        </p>
-        {latestOpeningDate && (
-          <>
-            <p className="text-xs text-muted-foreground">
-              Last opening stock set on: <strong>{latestOpeningDate}</strong>
-            </p>
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              Warning: Running this again will overwrite current quantities with
-              the Excel values. Any purchases or sales recorded after the first
-              run will no longer be reflected in stock.
-            </p>
-          </>
-        )}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">As of date</Label>
-          <Input
-            type="date"
-            value={asOfDate}
-            max={today}
-            onChange={(e) => setAsOfDate(e.target.value)}
-          />
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <Checkbox
-            id="reset-others-zero"
-            checked={resetOthersToZero}
-            onCheckedChange={(checked) =>
-              setResetOthersToZero(checked === true)
-            }
-          />
-          <Label
-            htmlFor="reset-others-zero"
-            className="text-xs font-normal text-muted-foreground"
-          >
-            Set quantity of items not listed in this file to 0
-          </Label>
-        </div>
-        <div className="ml-auto">
-          <FileUploadTooltip content={FILE_UPLOAD_HINT_OPENING_STOCK}>
-            <Button
-              type="button"
-              className="w-fit"
-              onClick={() =>
-                document.getElementById('setOpeningStockInput')?.click()
+    <AdvancedControl
+      capability={ADVANCED_CAPABILITIES.inventorySetOpeningStock}
+    >
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="w-fit">
+            <PackageOpen size={16} className="mr-1.5" />
+            Set opening stock
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Set opening stock</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Upload an Excel file with columns <strong>name</strong> and&nbsp;
+            <strong>quantity</strong> to set starting quantities (e.g. when
+            migrating from another system).
+          </p>
+          <p className="text-xs text-muted-foreground italic">
+            Usually done once when you start or switch to this app. You can run
+            it again later to correct or restate opening stock if needed.
+          </p>
+          {latestOpeningDate && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Last opening stock set on: <strong>{latestOpeningDate}</strong>
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Warning: Running this again will overwrite current quantities
+                with the Excel values. Any purchases or sales recorded after the
+                first run will no longer be reflected in stock.
+              </p>
+            </>
+          )}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">As of date</Label>
+            <Input
+              type="date"
+              value={asOfDate}
+              max={today}
+              onChange={(e) => setAsOfDate(e.target.value)}
+            />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Checkbox
+              id="reset-others-zero"
+              checked={resetOthersToZero}
+              onCheckedChange={(checked) =>
+                setResetOthersToZero(checked === true)
               }
+            />
+            <Label
+              htmlFor="reset-others-zero"
+              className="text-xs font-normal text-muted-foreground"
             >
-              Choose file
-            </Button>
-          </FileUploadTooltip>
-          <Input
-            id="setOpeningStockInput"
-            type="file"
-            accept=".xlsx, .xls, .csv"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-        </div>
-      </DialogContent>
-    </Dialog>
+              Set quantity of items not listed in this file to 0
+            </Label>
+          </div>
+          <div className="ml-auto">
+            <FileUploadTooltip content={FILE_UPLOAD_HINT_OPENING_STOCK}>
+              <Button
+                type="button"
+                className="w-fit"
+                onClick={() =>
+                  document.getElementById('setOpeningStockInput')?.click()
+                }
+              >
+                Choose file
+              </Button>
+            </FileUploadTooltip>
+            <Input
+              id="setOpeningStockInput"
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </AdvancedControl>
   );
 };

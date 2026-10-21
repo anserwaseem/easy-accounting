@@ -1,5 +1,6 @@
 export * from './useTheme';
 export * from './useAuth';
+export * from './useAdvancedCapabilities';
 export * from './usePrimaryItemType';
 export * from './useCompanyProfile';
 export * from './useInvoicePrintSettings';

@@ -24,7 +24,11 @@ import { toNumber } from 'lodash';
 import { EditJournalFieldsDialog } from 'renderer/components/EditJournalFieldsDialog';
 import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
 import { DeleteJournalDialog } from '@/renderer/components/DeleteJournalDialog';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { useAnyAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabilities';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { DateHeader } from '@/renderer/components/common/DateHeader';
 
 export type JournalView = Journal & { amount: number };
@@ -64,9 +68,12 @@ const JournalsPage: React.FC<HasMiniView> = ({
         });
       } catch (error) {
         console.error('Error updating journal:', error);
+        // the guard refuses this when "Edit a journal after posting" is
+        // off; the toast layer turns that into a message the person can
+        // act on
         toast({
           title: 'Error',
-          description: 'Failed to update journal',
+          description: ipcErrorMessage(error) || 'Failed to update journal',
           variant: 'destructive',
         });
         throw error;
@@ -74,6 +81,15 @@ const JournalsPage: React.FC<HasMiniView> = ({
     },
     [handleReloadJournals],
   );
+
+  // the Actions column holds nothing but advanced controls, so when they
+  // are all off the column itself goes away rather than sitting there
+  // empty with a header over it
+  const hasJournalActions = useAnyAdvancedCapability([
+    ADVANCED_CAPABILITIES.journalEditFields,
+    ADVANCED_CAPABILITIES.journalReverse,
+    ADVANCED_CAPABILITIES.journalDelete,
+  ]);
 
   const columns: ColumnDef<JournalView>[] = useMemo(
     () =>
@@ -176,50 +192,62 @@ const JournalsPage: React.FC<HasMiniView> = ({
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
                 <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
-                  <EditJournalFieldsDialog
-                    journalId={row.original.id}
-                    narration={row.original.narration || ''}
-                    billNumber={row.original.billNumber}
-                    discountPercentage={row.original.discountPercentage}
-                    onSave={handleUpdateJournal}
-                  />
+                  <AdvancedControl
+                    capability={ADVANCED_CAPABILITIES.journalEditFields}
+                  >
+                    <EditJournalFieldsDialog
+                      journalId={row.original.id}
+                      narration={row.original.narration || ''}
+                      billNumber={row.original.billNumber}
+                      discountPercentage={row.original.discountPercentage}
+                      onSave={handleUpdateJournal}
+                    />
+                  </AdvancedControl>
                   {(row.original.invoiceId == null ||
                     row.original.invoiceId <= 0) && (
                     <>
-                      <ReverseJournalDialog
-                        journalId={row.original.id}
-                        originalNarration={row.original.narration || ''}
-                        totalAmount={row.original.amount}
-                        onSuccess={handleReloadJournals}
-                        trigger={
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                            title="Reverse Journal"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        }
-                      />
-                      <DeleteJournalDialog
-                        journalId={row.original.id}
-                        narration={row.original.narration || ''}
-                        totalAmount={row.original.amount}
-                        onSuccess={handleReloadJournals}
-                        trigger={
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                            title="Delete Journal"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        }
-                      />
+                      <AdvancedControl
+                        capability={ADVANCED_CAPABILITIES.journalReverse}
+                      >
+                        <ReverseJournalDialog
+                          journalId={row.original.id}
+                          originalNarration={row.original.narration || ''}
+                          totalAmount={row.original.amount}
+                          onSuccess={handleReloadJournals}
+                          trigger={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                              title="Reverse Journal"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                      </AdvancedControl>
+                      <AdvancedControl
+                        capability={ADVANCED_CAPABILITIES.journalDelete}
+                      >
+                        <DeleteJournalDialog
+                          journalId={row.original.id}
+                          narration={row.original.narration || ''}
+                          totalAmount={row.original.amount}
+                          onSuccess={handleReloadJournals}
+                          trigger={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                              title="Delete Journal"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                      </AdvancedControl>
                     </>
                   )}
                 </div>
@@ -228,6 +256,16 @@ const JournalsPage: React.FC<HasMiniView> = ({
             },
           ]) as ColumnDef<JournalView>[],
     [isMini, navigate, handleUpdateJournal, handleReloadJournals],
+  );
+
+  // drop the Actions column entirely when every control in it is hidden:
+  // an empty column with a header over it reads as a broken table
+  const visibleColumns = useMemo(
+    () =>
+      hasJournalActions
+        ? columns
+        : columns.filter((column) => column.id !== 'actions'),
+    [columns, hasJournalActions],
   );
 
   const handleFilterDateSelect = useCallback(
@@ -330,7 +368,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
       <div className="py-8 flex flex-col gap-6">
         <DataTable
-          columns={columns}
+          columns={visibleColumns}
           data={filteredJournals}
           sortingFns={defaultSortingFunctions}
           defaultSortField="date"

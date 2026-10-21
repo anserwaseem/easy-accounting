@@ -16,8 +16,11 @@ import {
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import type { UpdateAccount, Chart } from 'types';
 import { useState } from 'react';
 import {
@@ -71,26 +74,38 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   });
 
   const onSubmit = async (values: AccountFormData) => {
-    const isUpdated: boolean = await window.electron.updateAccount({
-      id: values.id!,
-      name: values.accountName,
-      headName: values.headName,
-      code: values.accountCode,
-      address: values.address,
-      addressUrdu: values.addressUrdu,
-      city: values.city,
-      cityUrdu: values.cityUrdu,
-      phone1: values.phone1,
-      phone2: values.phone2,
-      goodsName: values.goodsName,
-      nameUrdu: values.nameUrdu,
-      goodsNameUrdu: values.goodsNameUrdu,
-      discountProfileId:
-        values.discountProfileId ?? row.original.discountProfileId ?? null,
-      isActive: row.original.isActive,
-      tracksVendorStock: values.tracksVendorStock,
-      collectionRole: toCollectionRole(values.collectionRole),
-    });
+    let isUpdated: boolean;
+    try {
+      isUpdated = await window.electron.updateAccount({
+        id: values.id!,
+        name: values.accountName,
+        headName: values.headName,
+        code: values.accountCode,
+        address: values.address,
+        addressUrdu: values.addressUrdu,
+        city: values.city,
+        cityUrdu: values.cityUrdu,
+        phone1: values.phone1,
+        phone2: values.phone2,
+        goodsName: values.goodsName,
+        nameUrdu: values.nameUrdu,
+        goodsNameUrdu: values.goodsNameUrdu,
+        discountProfileId:
+          values.discountProfileId ?? row.original.discountProfileId ?? null,
+        isActive: row.original.isActive,
+        tracksVendorStock: values.tracksVendorStock,
+        collectionRole: toCollectionRole(values.collectionRole),
+      });
+    } catch (error) {
+      // the guard refuses this when one of the advanced account fields is
+      // changed while its control is off; the toast layer turns that into
+      // a message the person can act on
+      toast({
+        description: ipcErrorMessage(error) || 'Failed to update account',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     toast({
       description: isUpdated
@@ -172,8 +187,10 @@ export const EditAccount: React.FC<EditAccountProps> = ({
 
       if (isDeleted) refetchAccounts();
     } catch (error) {
+      // the guard refuses this when "Delete an account" is off; the toast
+      // layer turns that into a message the person can act on
       toast({
-        description: `Error deleting account: ${error}`,
+        description: ipcErrorMessage(error) || 'Error deleting account',
         variant: 'destructive',
       });
     } finally {
@@ -243,21 +260,27 @@ export const EditAccount: React.FC<EditAccountProps> = ({
               Create a copy
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={handleToggleActive}>
-              {isActive ? (
-                <Ban className="mr-2 h-4 w-4" />
-              ) : (
-                <Power className="mr-2 h-4 w-4" />
-              )}
-              {toggleLabel}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setIsDeleteDialogOpen(true)}
-              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+            <AdvancedControl
+              capability={ADVANCED_CAPABILITIES.accountToggleActive}
             >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete account
-            </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleToggleActive}>
+                {isActive ? (
+                  <Ban className="mr-2 h-4 w-4" />
+                ) : (
+                  <Power className="mr-2 h-4 w-4" />
+                )}
+                {toggleLabel}
+              </DropdownMenuItem>
+            </AdvancedControl>
+            <AdvancedControl capability={ADVANCED_CAPABILITIES.accountDelete}>
+              <DropdownMenuItem
+                onSelect={() => setIsDeleteDialogOpen(true)}
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete account
+              </DropdownMenuItem>
+            </AdvancedControl>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -1,5 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { Switch } from '@/renderer/shad/ui/switch';
+import { useAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabilities';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
 import { cn } from '@/renderer/lib/utils';
 import { formatBillDate, formatSheetAmount } from '../buildCollectionSheetRows';
@@ -18,12 +20,15 @@ interface CollectionSourcesReviewProps {
 interface SourceRowProps {
   source: ReviewedSource;
   saving: boolean;
+  /** whether the switch that changes an account's role is available */
+  canSetRole: boolean;
   onToggle: (source: ReviewedSource, wantCounts: boolean) => void;
 }
 
 const SourceRow: React.FC<SourceRowProps> = ({
   source,
   saving,
+  canSetRole,
   onToggle,
 }: SourceRowProps) => {
   const { verdict } = source;
@@ -52,14 +57,16 @@ const SourceRow: React.FC<SourceRowProps> = ({
           {source.shops} shop{source.shops === 1 ? '' : 's'}
         </div>
       </td>
-      <td className="py-2 text-right">
-        <Switch
-          checked={verdict.counts}
-          disabled={saving}
-          onCheckedChange={(checked) => onToggle(source, checked)}
-          aria-label={`${source.name} counts as payment`}
-        />
-      </td>
+      {canSetRole ? (
+        <td className="py-2 text-right">
+          <Switch
+            checked={verdict.counts}
+            disabled={saving}
+            onCheckedChange={(checked) => onToggle(source, checked)}
+            aria-label={`${source.name} counts as payment`}
+          />
+        </td>
+      ) : null}
     </tr>
   );
 };
@@ -71,6 +78,14 @@ export const CollectionSourcesReview: React.FC<
   const { sources, isLoading, savingId, load, setCounts } =
     useCollectionSources(chartId, range, onChanged);
 
+  // the switch writes account.collectionRole, which the main process
+  // refuses while the capability is off. Without this the switch would be
+  // on screen and every flip would come back as an error, so the column
+  // goes away instead.
+  const canSetRole = useAdvancedCapability(
+    ADVANCED_CAPABILITIES.accountCollectionRole,
+  );
+
   useMountEffect(() => {
     load().catch((error) => console.error('Error loading sources:', error));
   });
@@ -81,9 +96,10 @@ export const CollectionSourcesReview: React.FC<
     <div className="mt-4 space-y-3">
       <p className="text-sm text-muted-foreground">
         Every account that credited this agent&apos;s shops from{' '}
-        {formatBillDate(range.from)} to {formatBillDate(range.to)}. Switched on
-        means it is money received: it shows in Collected and the tour columns.
-        Usually only the highlighted rows need a decision.
+        {formatBillDate(range.from)} to {formatBillDate(range.to)}.
+        {canSetRole
+          ? ' Switched on means it is money received: it shows in Collected and the tour columns. Usually only the highlighted rows need a decision.'
+          : ' Money received shows in Collected and the tour columns. Usually only the highlighted rows need a decision.'}
       </p>
       {flagged > 0 ? (
         <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
@@ -101,7 +117,9 @@ export const CollectionSourcesReview: React.FC<
             <tr className="border-b text-left text-muted-foreground">
               <th className="py-2 pr-2 font-medium">Account</th>
               <th className="py-2 pr-2 text-right font-medium">Amount</th>
-              <th className="py-2 text-right font-medium">Payment</th>
+              {canSetRole ? (
+                <th className="py-2 text-right font-medium">Payment</th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -110,6 +128,7 @@ export const CollectionSourcesReview: React.FC<
                 key={source.accountId}
                 source={source}
                 saving={savingId === source.accountId}
+                canSetRole={canSetRole}
                 onToggle={(target, wantCounts) => {
                   setCounts(target, wantCounts).catch((error) =>
                     console.error('Error saving collection role:', error),

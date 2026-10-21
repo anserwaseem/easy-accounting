@@ -16,6 +16,10 @@ import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { Button } from '@/renderer/shad/ui/button';
 import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
 import { DeleteJournalDialog } from '@/renderer/components/DeleteJournalDialog';
+import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
+import { toast } from '@/renderer/shad/ui/use-toast';
+import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 
 interface JournalTableProps {
   journalId: number;
@@ -42,6 +46,14 @@ export const JournalTable: React.FC<JournalTableProps> = ({
       setJournal(await window.electron.getJournal(journalId));
     } catch (error) {
       console.error('Error updating journal:', error);
+      // the guard refuses this when "Edit a journal after posting" is
+      // off; the toast layer turns that into a message the person can
+      // act on
+      toast({
+        title: 'Error',
+        description: ipcErrorMessage(error) || 'Failed to update journal',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -78,28 +90,36 @@ export const JournalTable: React.FC<JournalTableProps> = ({
             {journal?.id &&
             (journal.invoiceId == null || journal.invoiceId <= 0) ? (
               <div className="flex items-center gap-2">
-                <ReverseJournalDialog
-                  journalId={journal.id}
-                  originalNarration={journal.narration}
-                  totalAmount={
-                    journal.journalEntries?.reduce(
-                      (acc, entry) => acc + (entry.debitAmount || 0),
-                      0,
-                    ) ?? 0
-                  }
-                  onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
-                />
-                <DeleteJournalDialog
-                  journalId={journal.id}
-                  narration={journal.narration}
-                  totalAmount={
-                    journal.journalEntries?.reduce(
-                      (acc, entry) => acc + (entry.debitAmount || 0),
-                      0,
-                    ) ?? 0
-                  }
-                  onSuccess={() => navigate('/journals')}
-                />
+                <AdvancedControl
+                  capability={ADVANCED_CAPABILITIES.journalReverse}
+                >
+                  <ReverseJournalDialog
+                    journalId={journal.id}
+                    originalNarration={journal.narration}
+                    totalAmount={
+                      journal.journalEntries?.reduce(
+                        (acc, entry) => acc + (entry.debitAmount || 0),
+                        0,
+                      ) ?? 0
+                    }
+                    onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
+                  />
+                </AdvancedControl>
+                <AdvancedControl
+                  capability={ADVANCED_CAPABILITIES.journalDelete}
+                >
+                  <DeleteJournalDialog
+                    journalId={journal.id}
+                    narration={journal.narration}
+                    totalAmount={
+                      journal.journalEntries?.reduce(
+                        (acc, entry) => acc + (entry.debitAmount || 0),
+                        0,
+                      ) ?? 0
+                    }
+                    onSuccess={() => navigate('/journals')}
+                  />
+                </AdvancedControl>
               </div>
             ) : null}
           </div>
@@ -157,13 +177,17 @@ export const JournalTable: React.FC<JournalTableProps> = ({
                 <div className="flex items-center gap-2">
                   <p>{journal?.narration}</p>
                   {journal && (
-                    <EditJournalFieldsDialog
-                      journalId={journal.id}
-                      narration={journal.narration || ''}
-                      billNumber={journal.billNumber}
-                      discountPercentage={journal.discountPercentage}
-                      onSave={handleUpdateJournal}
-                    />
+                    <AdvancedControl
+                      capability={ADVANCED_CAPABILITIES.journalEditFields}
+                    >
+                      <EditJournalFieldsDialog
+                        journalId={journal.id}
+                        narration={journal.narration || ''}
+                        billNumber={journal.billNumber}
+                        discountPercentage={journal.discountPercentage}
+                        onSave={handleUpdateJournal}
+                      />
+                    </AdvancedControl>
                   )}
                 </div>
                 {journal?.createdAt !== journal?.updatedAt && (
