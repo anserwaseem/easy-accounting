@@ -10,8 +10,15 @@ import { format, isValid } from 'date-fns';
  */
 export const DISPLAY_DATE_FORMAT = 'dd MMM, yyyy';
 
-/** the app-wide display format for a timestamp, e.g. '03 Feb, 2026, 02:05:09 PM'. */
-export const DISPLAY_DATETIME_FORMAT = 'dd MMM, yyyy, hh:mm:ss a';
+/**
+ * The app-wide display format for a timestamp, e.g. '03 Feb, 2026, 02:05 PM'.
+ *
+ * This is the format a date cell falls back to when hovered: the cell shows
+ * the plain `DISPLAY_DATE_FORMAT` and its `title` attribute carries the time
+ * as well, so a reader can pin down exactly when a row was touched without
+ * widening every column.
+ */
+export const DISPLAY_DATETIME_FORMAT = 'dd MMM, yyyy, hh:mm a';
 
 /** compact day + month for narrow cells, e.g. '03 Feb'. */
 export const DISPLAY_DAY_MONTH_FORMAT = 'dd MMM';
@@ -102,7 +109,7 @@ export const formatDisplayDate = (
 
 /**
  * Format a stored timestamp as the app-wide display timestamp, e.g.
- * '03 Feb, 2026, 02:05:09 PM'.
+ * '03 Feb, 2026, 02:05 PM'.
  */
 export const formatDisplayDateTime = (
   raw: string | Date | null | undefined,
@@ -112,6 +119,22 @@ export const formatDisplayDateTime = (
     return raw == null ? '' : String(raw).trim();
   }
   return format(parsed, DISPLAY_DATETIME_FORMAT);
+};
+
+/**
+ * The hover text for a date cell: the full date with hour and minute, e.g.
+ * '03 Feb, 2026, 02:05 PM'.
+ *
+ * A date cell shows the plain `DISPLAY_DATE_FORMAT` and carries this as its
+ * `title`, so the time is one hover away instead of crowding the column.
+ * Returns undefined when there is no date to show, so the attribute is
+ * omitted rather than rendering an empty tooltip.
+ */
+export const displayDateTitle = (
+  raw: string | Date | null | undefined,
+): string | undefined => {
+  if (!parseStoredDate(raw)) return undefined;
+  return formatDisplayDateTime(raw);
 };
 
 /**

@@ -47,7 +47,7 @@ describe('app-wide date format integration', () => {
 
   it('formats audit timestamps with a time', () => {
     expect(formatDisplayDateTime('2026-02-03 14:05:09')).toBe(
-      '03 Feb, 2026, 02:05:09 PM',
+      '03 Feb, 2026, 02:05 PM',
     );
   });
 });

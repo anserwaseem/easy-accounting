@@ -3,6 +3,7 @@ import {
   formatDisplayDateTime,
   formatDisplayDayMonth,
   formatDisplayTime,
+  displayDateTitle,
   parseStoredDate,
 } from '../displayDate';
 
@@ -89,7 +90,7 @@ describe('formatDisplayDate', () => {
 describe('formatDisplayDateTime', () => {
   it('formats a timestamp with its time', () => {
     expect(formatDisplayDateTime('2026-02-03 14:05:09')).toBe(
-      '03 Feb, 2026, 02:05:09 PM',
+      '03 Feb, 2026, 02:05 PM',
     );
   });
 });
@@ -103,5 +104,26 @@ describe('formatDisplayDayMonth', () => {
 describe('formatDisplayTime', () => {
   it('formats a time only', () => {
     expect(formatDisplayTime('2026-02-03 14:05:09')).toBe('02:05 PM');
+  });
+});
+
+describe('displayDateTitle', () => {
+  it('gives the full date with hour and minute for a hover title', () => {
+    expect(displayDateTitle('2026-02-03 14:05:09')).toBe(
+      '03 Feb, 2026, 02:05 PM',
+    );
+  });
+
+  it('gives the same title for a local-noon ISO date', () => {
+    expect(displayDateTitle('2026-02-03T07:00:00.000Z')).toBe(
+      '03 Feb, 2026, 12:00 PM',
+    );
+  });
+
+  it('omits the title for an empty or unparseable value', () => {
+    expect(displayDateTitle(null)).toBeUndefined();
+    expect(displayDateTitle(undefined)).toBeUndefined();
+    expect(displayDateTitle('')).toBeUndefined();
+    expect(displayDateTitle('not a date')).toBeUndefined();
   });
 });

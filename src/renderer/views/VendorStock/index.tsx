@@ -16,7 +16,6 @@ import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
-import { DateHeader } from '@/renderer/components/common/DateHeader';
 import { Badge } from '@/renderer/shad/ui/badge';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { cn } from '@/renderer/lib/utils';
@@ -36,7 +35,8 @@ import {
   persistVendorStockVendorId,
   readStoredVendorStockVendorId,
 } from '@/renderer/lib/vendorStockSelection';
-import { formatDisplayDateTime, formatDisplayDate } from '@/lib/displayDate';
+import { formatDisplayDateTime } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 import { ImportVendorOpeningStock } from './ImportVendorOpeningStock';
 import { printVendorStockIframe } from './printVendorStock';
 
@@ -314,9 +314,9 @@ const VendorStockPage: React.FC = () => {
       },
       {
         accessorKey: 'date',
-        header: DateHeader,
-        cell: ({ row }) =>
-          row.original.date ? formatDisplayDate(row.original.date) : '',
+        header: 'Date',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => <DateCell value={row.original.date} />,
       },
       ...(selectedVendorId
         ? []

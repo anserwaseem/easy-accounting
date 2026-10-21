@@ -17,7 +17,6 @@ import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Badge } from 'renderer/shad/ui/badge';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import { DateHeader } from 'renderer/components/common/DateHeader';
 import {
   Tooltip,
   TooltipContent,
@@ -26,7 +25,8 @@ import {
 } from 'renderer/shad/ui/tooltip';
 import type { InvoicesView } from 'types';
 import { InvoiceType } from 'types';
-import { formatDisplayDateTime, formatDisplayDate } from '@/lib/displayDate';
+import { formatDisplayDateTime } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 
 interface QuotationsPageProps {
   invoiceType: InvoiceType;
@@ -159,7 +159,9 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                 return (
                   <div className="flex justify-between items-start w-full">
                     <div className="flex flex-col">
-                      <p>{formatDisplayDate(inv.date)}</p>
+                      <p>
+                        <DateCell value={inv.date} />
+                      </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-extrabold">
                           {getQuotationDisplayNumber(
@@ -241,8 +243,9 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
             },
             {
               accessorKey: 'date',
-              header: DateHeader,
-              cell: ({ row }) => formatDisplayDate(row.original.date),
+              header: 'Date',
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (r) => navigateToRow(r.original.id),
               size: 108,
             },

@@ -12,8 +12,7 @@ import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Badge } from 'renderer/shad/ui/badge';
 import type { LedgerView } from '@/types';
 import { renderJournalCell } from '@/renderer/components/journal/NarrationCell';
-import { DateHeader } from '@/renderer/components/common/DateHeader';
-import { formatDisplayDate } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 
 interface LedgerParticularsCellProps {
   row: LedgerView;
@@ -75,8 +74,9 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
     () => [
       {
         accessorKey: 'date',
-        header: DateHeader,
-        cell: ({ row }) => formatDisplayDate(row.original.date),
+        header: 'Date',
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cell: ({ row }) => <DateCell value={row.original.date} />,
         size: 40,
       },
       {

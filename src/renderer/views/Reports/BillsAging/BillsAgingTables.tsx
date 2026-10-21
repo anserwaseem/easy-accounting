@@ -23,6 +23,7 @@ import {
   formatDaysDuration,
 } from 'renderer/lib/utils';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 import type { BillsAging, BillsAgingAccount } from './types';
 
 interface BillsAgingTablesProps {
@@ -339,7 +340,7 @@ const AccountCard: FC<AccountCardProps> = React.memo(
                           {formatJournalDiscountLabel(bill.billPercentage)}
                         </TableCell>
                         <TableCell className="align-bottom">
-                          {formatDisplayDate(bill.billDate)}
+                          <DateCell value={bill.billDate} />
                         </TableCell>
                         <TableCell className="text-right align-bottom">
                           {getFormattedCurrencyInt(bill.billAmount, {

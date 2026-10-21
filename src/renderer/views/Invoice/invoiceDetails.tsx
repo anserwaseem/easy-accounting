@@ -50,6 +50,7 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { formatDisplayDateTime, formatDisplayDate } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 
 interface InvoiceDetailsProps {
   invoiceType: InvoiceType;
@@ -555,7 +556,9 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <p className="font-medium text-md w-[110px] sm:w-[160px]">
                 Date:
               </p>
-              <p>{invoice?.date ? formatDisplayDate(invoice.date) : ''}</p>
+              <p>
+                <DateCell value={invoice?.date} />
+              </p>
             </div>
             {invoice?.isReturned && invoice.returnedAt ? (
               <div className="flex gap-4 sm:gap-8">

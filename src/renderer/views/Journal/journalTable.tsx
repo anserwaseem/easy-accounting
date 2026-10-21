@@ -16,7 +16,8 @@ import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
-import { formatDisplayDateTime, formatDisplayDate } from '@/lib/displayDate';
+import { formatDisplayDateTime } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 
 interface JournalTableProps {
   journalId: number;
@@ -149,7 +150,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({
             ) : null}
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Date:</p>
-              <p>{formatDisplayDate(journal?.date || '')}</p>
+              <p>
+                <DateCell value={journal?.date} />
+              </p>
             </div>
             <div className="flex gap-8">
               <p className="font-medium text-md w-[160px]">Amount:</p>

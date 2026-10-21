@@ -23,10 +23,10 @@ import {
   type DateRange,
 } from 'renderer/shad/ui/datePicker';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
-import { DateHeader } from 'renderer/components/common/DateHeader';
 import type { HasMiniView, InvoicesView, InvoiceView } from 'types';
 import { InvoiceType } from 'types';
-import { formatDisplayDateTime, formatDisplayDate } from '@/lib/displayDate';
+import { formatDisplayDateTime } from '@/lib/displayDate';
+import { DateCell } from '@/renderer/components/common/DateCell';
 // eslint-disable-next-line import/no-cycle
 import InvoicePage from '../Invoice';
 import { ExportInvoices } from './exportInvoices';
@@ -158,7 +158,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
                 return (
                   <div className="flex justify-between items-start w-full">
                     <div className="flex flex-col">
-                      <p>{formatDisplayDate(invoice.date)}</p>
+                      <p>
+                        <DateCell value={invoice.date} />
+                      </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-extrabold">
                           {invoice.invoiceNumber}
@@ -265,8 +267,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
             },
             {
               accessorKey: 'date',
-              header: DateHeader,
-              cell: ({ row }) => formatDisplayDate(row.original.date),
+              header: 'Date',
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (row) =>
                 propInvoices
                   ? setPreviewInvoiceId(row.original.invoiceNumber)

@@ -16,7 +16,7 @@ export const formatDate = (date: Date | string | number): string => {
 
 /**
  * Formats a timestamp to the app-wide display format, e.g.
- * '03 Feb, 2026, 02:05:09 PM'. Safe to call from the main process.
+ * '03 Feb, 2026, 02:05 PM'. Safe to call from the main process.
  */
 export const formatDateTime = (date: Date | string | number): string => {
   return formatDisplayDateTime(date instanceof Date ? date : new Date(date));
