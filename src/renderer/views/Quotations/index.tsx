@@ -89,8 +89,9 @@ const createQuotationActionsColumn = (
 ): ColumnDef<InvoicesView> => ({
   id: 'actions',
   header: 'Actions',
-  // The row's buttons sit on the headline's row in the card layout.
-  cardAside: true,
+  // The row's buttons get their own row in the card layout, without a
+  // redundant "Actions" label.
+  cardActions: true,
   // Two icon buttons. At the 44px mobile touch target that needs
   // ~100px, not the 80px the 32px desktop buttons needed.
   size: 100,

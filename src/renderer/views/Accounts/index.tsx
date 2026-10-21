@@ -554,9 +554,9 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             {
               id: 'edit',
               header: 'Actions',
-              // The row's buttons sit on the headline's row in the card
-              // layout, where a labelled "Actions" row was pure noise.
-              cardAside: true,
+              // The row's buttons get their own row in the card layout,
+              // without a redundant "Actions" label.
+              cardActions: true,
               enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }: CellContext<Account, unknown>) => (

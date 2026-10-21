@@ -100,6 +100,12 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
    */
   cardHidden?: boolean;
   /**
+   * In the card layout, this column's buttons get a row of their own
+   * at the bottom of the card, without a label — the row's actions,
+   * which are controls rather than values.
+   */
+  cardActions?: boolean;
+  /**
    * In the card layout, this column takes the full card width and is
    * left-aligned rather than right-aligned in a label/value row. For a
    * column holding an input or a select, which needs the whole width
@@ -746,8 +752,13 @@ const DataTable = <TData, TValue>({
     const asideCell = visible.find(
       (c) => c !== headlineCell && defOf(c).cardAside,
     );
+    const actionCells = visible.filter((c) => defOf(c).cardActions);
     const restCells = visible.filter(
-      (c) => c !== headlineCell && c !== asideCell && !defOf(c).cardFullWidth,
+      (c) =>
+        c !== headlineCell &&
+        c !== asideCell &&
+        !defOf(c).cardFullWidth &&
+        !defOf(c).cardActions,
     );
     // A headline that is also full-width would render its content twice
     // (once in the headline row, once in the full-width block). Drop it
@@ -833,6 +844,16 @@ const DataTable = <TData, TValue>({
                     {defOf(cell).cardLabel}
                   </p>
                 ) : null}
+                {cellContent(cell)}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {actionCells.length > 0 ? (
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-1 border-t pt-2">
+            {actionCells.map((cell) => (
+              <div key={`${rowKeyOf(row)}:${cell.column.id}:actions`}>
                 {cellContent(cell)}
               </div>
             ))}
