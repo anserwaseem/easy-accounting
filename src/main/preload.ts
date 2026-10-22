@@ -1105,6 +1105,11 @@ const electronHandler = {
 
   supportsSync: true as const,
   supportsBackup: true as const,
+  // the host can write a PDF file to the local filesystem (Electron's print
+  // pipeline). A browser cannot: it can only open the system print screen,
+  // which is where "Save as PDF" lives. The printable invoice screen reads
+  // this to decide whether the file buttons are real or a lie.
+  supportsPrintToFile: true as const,
 
   syncGetStatus: () => ipcRenderer.invoke('sync:getStatus'),
 

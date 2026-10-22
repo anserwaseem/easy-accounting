@@ -135,6 +135,14 @@ interface ElectronEventBridge {
   renderJoinQr?: (text: string) => Promise<string>;
   /** Running app version. Desktop: `app.getVersion()`. Web: root package.json. */
   getAppVersion: () => Promise<string>;
+  /**
+   * The host can write a PDF file to the local filesystem. Only the
+   * Electron host can (see src/main/preload.ts); the web build never sets
+   * this, so it is always undefined here and the shared UI hides the file
+   * buttons. A browser can still print — the system print screen is where
+   * "Save as PDF" lives on Android.
+   */
+  supportsPrintToFile?: true;
 }
 
 declare global {
@@ -243,6 +251,25 @@ const printToPdf: AppApi['printToPdf'] = () => {
   return Promise.reject(
     new Error(
       "'printToPdf' is not available in the web build — batch PDF export needs the desktop app.",
+    ),
+  );
+};
+
+/**
+ * `printWithDialog` renders the current page to a PDF with page numbers
+ * ("1/N") and opens it in the OS viewer. Both halves need the desktop app:
+ * the rendering is Electron's print pipeline and the viewer is a local
+ * file. Without this override the call would fall through to the worker's
+ * RPC, which answers "Unknown method: printWithDialog" — a raw IPC string
+ * the user would read in a toast.
+ */
+const printWithDialog = () => {
+  console.warn(
+    'Opening a page-stamped PDF needs the desktop app. Use the browser print dialog instead.',
+  );
+  return Promise.reject(
+    new Error(
+      "'printWithDialog' is not available in the web build — print from the browser instead.",
     ),
   );
 };
@@ -359,6 +386,7 @@ export const installElectronShim = (): void => {
     login,
     logout,
     printToPdf,
+    printWithDialog,
     ipcRenderer,
     store,
     supportsDbImport: true,
@@ -392,6 +420,17 @@ export const installElectronShim = (): void => {
         if (prop in target) {
           return (target as unknown as Record<string, unknown>)[prop];
         }
+        // Capability flags are plain booleans, never methods — and the
+        // api client's proxy answers EVERY unknown property with a
+        // function (see client.ts's buildApi). So a desktop-only flag the
+        // web build does not set (supportsPrintToFile, supportsBackup)
+        // would fall through to that proxy and read as TRUTHY, and the
+        // desktop-only UI would show up in the browser. Answer the
+        // capability namespace here instead: present in `overrides` means
+        // supported, absent means not.
+        if (prop.startsWith('supports')) {
+          return undefined;
+        }
         return (api as unknown as Record<string, unknown>)[prop];
       },
       set(target, prop: string | symbol, value: unknown) {
@@ -402,6 +441,9 @@ export const installElectronShim = (): void => {
       },
       has(target, prop: string | symbol) {
         if (typeof prop !== 'string') return false;
+        if (prop.startsWith('supports')) {
+          return prop in target;
+        }
         return prop in target || prop in api;
       },
     },

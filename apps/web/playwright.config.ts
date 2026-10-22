@@ -5,7 +5,11 @@ const PORT = Number(process.env.E2E_PORT) || 4173;
 const CI_CHROMIUM = '/opt/pw-browsers/chromium';
 
 /** The specs that need the 390x844 phone viewport. */
-const MOBILE_SPECS = ['mobile.spec.ts', 'mobile-back.spec.ts'];
+const MOBILE_SPECS = [
+  'mobile.spec.ts',
+  'mobile-back.spec.ts',
+  'mobile-print.spec.ts',
+];
 
 export default defineConfig({
   testDir: './e2e',
