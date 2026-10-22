@@ -3,6 +3,7 @@ import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Button } from 'renderer/shad/ui/button';
 import { Input } from 'renderer/shad/ui/input';
 import { Label } from 'renderer/shad/ui/label';
+import { Textarea } from 'renderer/shad/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -114,8 +115,10 @@ export const EditJournalFieldsDialog: React.FC<
     );
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // The narration is a textarea now, so Enter is a new line and the
+    // save shortcut is Cmd/Ctrl+Enter.
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (!isLoading && editedNarration !== narration) {
         handleSave();
@@ -139,16 +142,19 @@ export const EditJournalFieldsDialog: React.FC<
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
+          <div className="grid grid-cols-4 items-start gap-4">
             <Label htmlFor="narration" className="text-right">
               Narration
             </Label>
-            <Input
+            {/* a narration is a sentence or two, not a word: a single
+                line cut it off, and on a phone it hid the tail behind
+                the keyboard */}
+            <Textarea
               id="narration"
               value={editedNarration}
               onChange={(e) => setEditedNarration(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="col-span-3"
+              className="col-span-3 min-h-[72px]"
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">

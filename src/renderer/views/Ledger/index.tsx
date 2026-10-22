@@ -38,7 +38,13 @@ const LedgerPage: React.FC = () => {
       <div className="hidden md:block md:w-1/4 overflow-y-scroll scrollbar">
         <AccountsPage isMini onRowClick={onRowClick} />
       </div>
-      <div className="w-full md:w-3/4 data-detail-scroll overflow-y-auto scrollbar justify-between items-center px-3 py-4 md:px-4 md:py-5">
+      {/* `data-detail-scroll` is an attribute, not a class name: it is
+          how ScrollToTopButton finds this pane as the screen's real
+          scroller. */}
+      <div
+        data-detail-scroll
+        className="w-full md:w-3/4 overflow-y-auto scrollbar justify-between items-center px-3 py-4 md:px-4 md:py-5"
+      >
         {/* The heading was a three-column grid — account name, the word
             "Ledger", then the balance — which on a phone put the title
             in the middle of the screen and the balance on a third row.

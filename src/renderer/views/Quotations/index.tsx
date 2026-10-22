@@ -459,17 +459,21 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
           </span>
         }
         actions={
+          // Just a + on a phone: the word "New Quotation" was most of
+          // the row, and the row is what the list gets its height from.
           <Button
             variant="outline"
+            size="icon"
             className="shrink-0"
+            title="New Quotation"
+            aria-label="New Quotation"
             onClick={() =>
               navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
                 state: { isQuotation: true },
               })
             }
           >
-            <Plus size={16} className="mr-2" />
-            New Quotation
+            <Plus size={16} />
           </Button>
         }
       />

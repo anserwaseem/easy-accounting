@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from 'renderer/shad/ui/button';
-import { Input } from 'renderer/shad/ui/input';
 import { Label } from 'renderer/shad/ui/label';
+import { Textarea } from 'renderer/shad/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -154,12 +154,14 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor={`reversal-narration-${journalId}`}>Narration</Label>
-            <Input
+            {/* a reason is a sentence, not a word: one line cut it off */}
+            <Textarea
               id={`reversal-narration-${journalId}`}
               value={narration}
               onChange={(e) => setNarration(e.target.value)}
               placeholder="Reason for reversal"
               disabled={isLoading}
+              className="min-h-[72px]"
             />
           </div>
         </div>

@@ -117,6 +117,13 @@ interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
   presets?: { label: string; value: string }[];
   initialRange?: DateRange;
   initialSelectValue?: string;
+  /**
+   * Classes for the trigger button. Used to squeeze the picker into
+   * the space left over on a header row: the button shrinks and its
+   * label truncates instead of pushing the rest of the header off the
+   * screen.
+   */
+  triggerClassName?: string;
 }
 
 export const DateRangePicker: React.FC<Partial<DateRangePickerProps>> = ({
@@ -195,6 +202,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   presets = [],
   initialRange,
   initialSelectValue,
+  triggerClassName,
 }: DateRangePickerProps) => {
   const [date, setDate] = useState<DateRange | undefined>(initialRange);
   const [selectValue, setSelectValue] = useState<string | undefined>(
@@ -309,10 +317,11 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
             className={cn(
               'w-auto justify-start text-left font-normal',
               !date && 'text-muted-foreground',
+              triggerClassName,
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            <span>{getSelectLabel()}</span>
+            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">{getSelectLabel()}</span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="flex w-auto flex-col space-y-2 p-2">

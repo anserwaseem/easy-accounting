@@ -7,6 +7,15 @@ interface PageHeaderProps {
   title: ReactNode;
   /** Filter/sort controls that sit next to the title. */
   filters?: ReactNode;
+  /**
+   * Put the filters on the title's row instead of a row of their own.
+   *
+   * A header that costs two rows costs the list a row of content. When
+   * the filter is one control (a date range, a "view by" picker) it can
+   * share the title's row: the title truncates, the filter takes what
+   * is left.
+   */
+  filtersInline?: boolean;
   /** Primary and secondary actions. */
   actions?: ReactNode;
   /** Drop the h1 (used by the split-pane detail screens, which render
@@ -32,6 +41,7 @@ interface PageHeaderProps {
 export const PageHeader: React.FC<PageHeaderProps> = ({
   title,
   filters,
+  filtersInline = false,
   actions,
   hideTitle = false,
   className,
@@ -45,13 +55,21 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           {title}
         </h1>
       )}
+      {filtersInline && filters ? (
+        // The filter shares the title's row: it takes the space the
+        // title does not need, and the title truncates before the
+        // filter does.
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:justify-end">
+          {filters}
+        </div>
+      ) : null}
       {actions ? (
         <div className="flex shrink-0 items-center gap-2 sm:justify-end">
           {actions}
         </div>
       ) : null}
     </div>
-    {filters ? (
+    {filters && !filtersInline ? (
       <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
         {filters}
       </div>
@@ -62,6 +80,12 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 interface FilterGroupProps {
   label?: string;
   children: ReactNode;
+  /**
+   * Hide the label on a phone. The control itself says what it is (a
+   * calendar button, a "view by" picker), and on a narrow row the
+   * label is the first thing to go.
+   */
+  hideLabelOnMobile?: boolean;
   className?: string;
 }
 
@@ -73,11 +97,17 @@ interface FilterGroupProps {
 export const FilterGroup: React.FC<FilterGroupProps> = ({
   label,
   children,
+  hideLabelOnMobile = false,
   className,
 }) => (
   <div className={cn('flex min-w-0 items-center gap-2 sm:gap-3', className)}>
     {label ? (
-      <p className="shrink-0 text-muted-foreground font-bold text-sm">
+      <p
+        className={cn(
+          'shrink-0 text-muted-foreground font-bold text-sm',
+          hideLabelOnMobile && 'hidden sm:block',
+        )}
+      >
         {label}
       </p>
     ) : null}

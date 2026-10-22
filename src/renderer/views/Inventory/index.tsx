@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ChevronDown, Settings2 } from 'lucide-react';
+import { Settings2 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import {
   DropdownMenu,
@@ -119,60 +119,72 @@ const InventoryPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="title-new">Inventory</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* bulk-edit toolbar portals here — state stays in InventoryTable */}
-          <div
-            ref={toolbarHostRef}
-            className="flex flex-wrap items-center gap-2"
-          />
-          {!bulkEditActive ? (
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <Settings2 size={16} />
-                    Manage
-                    <ChevronDown size={14} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onSelect={() => setManageDialog('itemTypes')}
-                  >
-                    Item types
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => setManageDialog('priceLists')}
-                  >
-                    Price lists
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => setManageDialog('attributes')}
-                  >
-                    Attributes
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <ImportExportInventoryAttributes
-                    refetchInventory={refetchInventory}
-                  />
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <AddInventoryItem refetchInventory={refetchInventory} />
-            </>
-          ) : null}
-          {/* The hide filters live behind the ⋮ in the header: as a strip
-              of six checkboxes they were three ragged rows on a phone,
-              more screen than the list they were filtering. */}
-          <HideItemsMenu
-            options={hideOptions}
-            allChecked={allHideOptionsChecked}
-            onAllCheckedChange={handleAllHideOptionsChange}
-            disabled={bulkEditActive}
-            className={bulkEditActive ? 'opacity-60' : undefined}
-          />
+      {/* The three controls share the title's row: on a phone they used
+          to sit on a row of their own, and the row of their own was a
+          row the list did not have. The table's own toolbar (columns,
+          filters, bulk edit) keeps the row below it — it is three wide
+          buttons, and squeezing them onto the title's row crushed the
+          title to nothing. */}
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2 sm:contents">
+          <h1 className="title-new min-w-0 truncate sm:order-1">Inventory</h1>
+          <div className="flex shrink-0 items-center gap-2 sm:order-3">
+            {!bulkEditActive ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      title="Manage"
+                      aria-label="Manage"
+                    >
+                      <Settings2 size={16} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => setManageDialog('itemTypes')}
+                    >
+                      Item types
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => setManageDialog('priceLists')}
+                    >
+                      Price lists
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => setManageDialog('attributes')}
+                    >
+                      Attributes
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <ImportExportInventoryAttributes
+                      refetchInventory={refetchInventory}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <AddInventoryItem refetchInventory={refetchInventory} />
+              </>
+            ) : null}
+            {/* The hide filters live behind the ⋮ in the header: as a
+                strip of six checkboxes they were three ragged rows on a
+                phone, more screen than the list they were filtering. */}
+            <HideItemsMenu
+              options={hideOptions}
+              allChecked={allHideOptionsChecked}
+              onAllCheckedChange={handleAllHideOptionsChange}
+              disabled={bulkEditActive}
+              className={bulkEditActive ? 'opacity-60' : undefined}
+            />
+          </div>
         </div>
+        {/* bulk-edit toolbar portals here — state stays in InventoryTable */}
+        <div
+          ref={toolbarHostRef}
+          className="flex flex-wrap items-center gap-2 sm:order-2"
+        />
       </header>
 
       <ManageItemTypes

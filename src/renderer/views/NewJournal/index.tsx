@@ -9,6 +9,7 @@ import {
 } from 'renderer/shad/ui/tooltip';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Input } from 'renderer/shad/ui/input';
+import { Textarea } from 'renderer/shad/ui/textarea';
 import { get, toNumber, toString } from 'lodash';
 import { Table, TableBody, TableCell, TableRow } from 'renderer/shad/ui/table';
 import {
@@ -784,7 +785,14 @@ const NewJournalPage: React.FC = () => {
                       Narration
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      {/* a narration is a sentence or two: one line cut
+                          it off, and on a phone the tail sat behind the
+                          keyboard */}
+                      <Textarea
+                        {...field}
+                        rows={2}
+                        className="min-h-[64px] resize-y"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

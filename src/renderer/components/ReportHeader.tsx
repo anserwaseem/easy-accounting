@@ -66,7 +66,11 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2">
         {summary ? <div className="min-w-0 flex-1">{summary}</div> : null}
         {actions ? (
-          <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
+          // `ml-auto` so the actions sit at the far right even when the
+          // report has no summary to push them there
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {actions}
+          </div>
         ) : null}
       </div>
     ) : null}

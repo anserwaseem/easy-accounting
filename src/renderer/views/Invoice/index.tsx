@@ -67,9 +67,15 @@ const InvoicePage: React.FC<InvoiceProps> = ({
         </div>
       )}
       <div
+        // `data-detail-scroll` is an attribute, not a class name: it is
+        // how ScrollToTopButton finds this pane as the screen's real
+        // scroller. Written inside className it was a class that
+        // nothing styled and nothing queried, so the button scrolled
+        // the shell instead — a few pixels, on the invoice screen.
+        data-detail-scroll
         className={`${
           propInvoices ? 'w-full mb-6' : 'w-full md:w-3/4'
-        } data-detail-scroll overflow-y-auto scrollbar justify-between items-center p-3 md:p-4 md:pl-8`}
+        } overflow-y-auto scrollbar justify-between items-center p-3 md:p-4 md:pl-8`}
       >
         <InvoiceDetails
           invoiceType={invoiceType}

@@ -518,27 +518,34 @@ const InvoicesPage: FC<InvoicesProps> = ({
       <PageHeader
         title={`${invoiceType} Invoices`}
         hideTitle={isMini}
+        filtersInline
         filters={
-          <FilterGroup label="VIEW BY:">
+          <FilterGroup label="VIEW BY:" hideLabelOnMobile>
             <DateRangePickerWithPresets
               $onSelect={handleFilterDateSelect}
               presets={[{ label: 'All', value: 'all' }]}
               initialRange={invoiceFilterDate}
               initialSelectValue={invoiceFilterSelectValue}
+              triggerClassName="max-w-full min-w-0"
             />
           </FilterGroup>
         }
         actions={
           <>
+            {/* Just a + on a phone: "New Invoice" was a word that
+                pushed the view-by control off the row, and the row is
+                what the list gets its height from. */}
             <Button
               variant="outline"
+              size="icon"
               onClick={() =>
                 navigate(`/${invoiceType.toLowerCase()}/invoices/new`)
               }
               className="shrink-0"
+              title="New Invoice"
+              aria-label="New Invoice"
             >
-              <Plus size={16} className="mr-2" />
-              New Invoice
+              <Plus size={16} />
             </Button>
             {/* Export is a once-in-a-while action, so it lives in an
                 overflow menu rather than taking a full row on a phone. */}

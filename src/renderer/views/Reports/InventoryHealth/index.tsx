@@ -693,21 +693,25 @@ const InventoryHealthPage: React.FC = () => {
         <ReportHeader
           title="Inventory Health"
           filters={
-            <>
-              <ReportFilter>
+            // The date range and the type filter share one row: on a
+            // phone they were two rows, and the report's own controls
+            // were a third.
+            <div className="flex min-w-0 items-center gap-2">
+              <ReportFilter className="min-w-0 flex-1">
                 <DateRangePickerWithPresets
                   $onSelect={handleDateChange}
                   presets={[{ label: 'All', value: 'all' }]}
                   initialRange={defaultDateRange}
                   initialSelectValue={presetValue}
+                  triggerClassName="max-w-full min-w-0"
                 />
               </ReportFilter>
-              <ReportFilter>
+              <ReportFilter className="shrink-0">
                 <Select
                   value={filterItemType}
                   onValueChange={handleItemTypeChange}
                 >
-                  <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectTrigger className="w-[110px] sm:w-[150px]">
                     <SelectValue placeholder="All types" />
                   </SelectTrigger>
                   <SelectContent>
@@ -720,40 +724,10 @@ const InventoryHealthPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </ReportFilter>
-            </>
+            </div>
           }
           actions={
             <>
-              {visibleAnomalies.length > 0 && itemsWithAnyIssue > 0 ? (
-                // the warning is a fact, not a headline: an icon that
-                // opens the explanation, instead of a banner that took
-                // a third of the screen before the report began
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Items with issues"
-                      aria-label="Items with issues"
-                      className="border-red-200 text-red-600 hover:text-red-700 dark:border-red-900 dark:text-red-400"
-                    >
-                      <AlertTriangle className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-72 text-sm">
-                    <p className="font-medium">
-                      {itemsWithAnyIssue} of {totalItemsCount}{' '}
-                      {totalItemsCount === 1 ? 'item' : 'items'}{' '}
-                      {itemsWithAnyIssue === 1 ? 'has' : 'have'} at least one
-                      issue
-                    </p>
-                    <p className="mt-1 text-muted-foreground">
-                      Click a chip below to filter the table to that issue;
-                      click it again to clear.
-                    </p>
-                  </PopoverContent>
-                </Popover>
-              ) : null}
               <Button
                 variant="outline"
                 size="icon"
@@ -787,6 +761,38 @@ const InventoryHealthPage: React.FC = () => {
                 allChecked={allHideOptionsChecked}
                 onAllCheckedChange={handleAllHideOptionsChange}
               />
+              {visibleAnomalies.length > 0 && itemsWithAnyIssue > 0 ? (
+                // the warning is a fact, not a headline: an icon that
+                // opens the explanation, instead of a banner that took
+                // a third of the screen before the report began. It
+                // sits at the far right of the header, so the eye
+                // finds it last.
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Items with issues"
+                      aria-label="Items with issues"
+                      className="border-red-200 text-red-600 hover:text-red-700 dark:border-red-900 dark:text-red-400"
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72 text-sm">
+                    <p className="font-medium">
+                      {itemsWithAnyIssue} of {totalItemsCount}{' '}
+                      {totalItemsCount === 1 ? 'item' : 'items'}{' '}
+                      {itemsWithAnyIssue === 1 ? 'has' : 'have'} at least one
+                      issue
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Click a chip below to filter the table to that issue;
+                      click it again to clear.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              ) : null}
             </>
           }
         />
