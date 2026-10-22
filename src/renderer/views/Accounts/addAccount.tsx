@@ -82,7 +82,14 @@ export const AddAccount: React.FC<AddAccountProps> = ({
         successMessage: `"${values.accountName}" account created successfully`,
         errorMessage: 'Failed to create account',
         onSuccess: () => {
-          setOpenCreateForm(false);
+          // close through handleOpenChange, not setOpenCreateForm directly:
+          // the parent owns the open state too (isOpen/onOpenChange), and
+          // leaving the parent thinking the dialog is still open means the
+          // NEXT "New Account" click sets a prop to the value it already
+          // has — no state change, no re-render, no dialog. Closing only
+          // the internal state is what made that menu item work exactly
+          // once per page load.
+          handleOpenChange(false);
           refetchAccounts();
         },
         getErrorMessage: (error) => {
