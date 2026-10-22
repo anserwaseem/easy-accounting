@@ -1,5 +1,5 @@
 import type { Row } from '@tanstack/react-table';
-import { Copy, FileText, Info, Plus } from 'lucide-react';
+import { Copy, FileText, Info, Pencil, Plus } from 'lucide-react';
 import { toNumber } from 'lodash';
 import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
@@ -14,6 +14,8 @@ import {
   showInvoiceEditedIndicator,
 } from '@/renderer/lib/invoiceUtils';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { RowMenu } from '@/renderer/components/RowMenu';
+import { DropdownMenuItem } from 'renderer/shad/ui/dropdown-menu';
 import { Badge } from 'renderer/shad/ui/badge';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -83,6 +85,41 @@ const QuotationDuplicateActionCell: FC<QuotationEditActionCellProps> = ({
   </EditActionButton>
 );
 
+/**
+ * The card's row control: one ⋮ at the end of the name, with the
+ * row's actions behind it. The table keeps the two icon buttons.
+ */
+const QuotationRowMenu: FC<QuotationEditActionCellProps> = ({
+  row,
+  invoiceType,
+  navigate,
+}: QuotationEditActionCellProps) => (
+  <RowMenu label="Quotation actions">
+    {row.original.isReturned ? null : (
+      <DropdownMenuItem
+        onSelect={() =>
+          navigate(
+            `/${invoiceType.toLowerCase()}/invoices/${row.original.id}/edit`,
+          )
+        }
+      >
+        <Pencil className="mr-2 h-4 w-4" />
+        Edit quotation
+      </DropdownMenuItem>
+    )}
+    <DropdownMenuItem
+      onSelect={() =>
+        navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
+          state: { duplicateFromId: row.original.id },
+        })
+      }
+    >
+      <Copy className="mr-2 h-4 w-4" />
+      Duplicate quotation
+    </DropdownMenuItem>
+  </RowMenu>
+);
+
 const createQuotationActionsColumn = (
   invoiceType: InvoiceType,
   navigate: NavigateFunction,
@@ -92,6 +129,12 @@ const createQuotationActionsColumn = (
   // The row's buttons get their own row in the card layout, without a
   // redundant "Actions" label.
   cardActions: true,
+  // On a card there is room for one control, so both actions sit
+  // behind a single ⋮ at the end of the name.
+  // eslint-disable-next-line react/no-unstable-nested-components
+  cardMenu: ({ row }) => (
+    <QuotationRowMenu row={row} invoiceType={invoiceType} navigate={navigate} />
+  ),
   // Two icon buttons. At the 44px mobile touch target that needs
   // ~100px, not the 80px the 32px desktop buttons needed.
   size: 100,

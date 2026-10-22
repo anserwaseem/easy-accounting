@@ -22,6 +22,12 @@ interface EditJournalFieldsDialogProps {
   billNumber?: number;
   discountPercentage?: number | string;
   onSave: (journalId: number, fields: UpdateJournalFields) => Promise<void>;
+  /**
+   * Controlled open state, for a menu item that opens this dialog: the
+   * dialog lives outside the menu, so the item cannot use a trigger.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const EditJournalFieldsDialog: React.FC<
@@ -32,8 +38,17 @@ export const EditJournalFieldsDialog: React.FC<
   billNumber,
   discountPercentage,
   onSave,
+  open: openProp,
+  onOpenChange,
 }: EditJournalFieldsDialogProps) => {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  // controlled when the caller passes `open`, so a menu item can open a
+  // dialog that is mounted outside the menu
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [editedNarration, setEditedNarration] = useState(narration);
   const [editedBillNumber, setEditedBillNumber] = useState<string>(
     billNumber?.toString() ?? '',

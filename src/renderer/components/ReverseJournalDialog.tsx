@@ -28,6 +28,12 @@ export interface ReverseJournalDialogProps {
   totalAmount?: number;
   onSuccess?: (reversalJournal: Journal) => void;
   trigger?: React.ReactNode;
+  /**
+   * Controlled open state, for a menu item that opens this dialog: the
+   * dialog lives outside the menu, so the item cannot use a trigger.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
@@ -36,8 +42,17 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
   totalAmount,
   onSuccess,
   trigger,
+  open: openProp,
+  onOpenChange,
 }: ReverseJournalDialogProps) => {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  // controlled when the caller passes `open`, so a menu item can
+  // open a dialog that is mounted outside the menu
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [date, setDate] = useState(() => toLocalDateInputValue(new Date()));
   const [narration, setNarration] = useState(
     () =>

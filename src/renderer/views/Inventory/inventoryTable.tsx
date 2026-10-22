@@ -1203,6 +1203,20 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         // the row's buttons get their own row at the bottom of the
         // card, without a redundant "Actions" label
         cardActions: true,
+        // On a card there is room for one control, so the item's
+        // actions sit behind a single ⋮ at the end of the name.
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cardMenu: ({ row }) => (
+          <EditInventoryItem
+            variant="menu"
+            row={row}
+            refetchInventory={refetchAll}
+            refreshPublishStatuses={refreshPublishStatuses}
+            showPublishControls={publishEnabled && showPublishColumn}
+            priceLists={priceLists}
+            inventoryItems={inventory ?? []}
+          />
+        ),
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           // -ml-2 cancels the icon buttons' internal padding so the first

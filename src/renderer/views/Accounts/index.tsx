@@ -340,255 +340,284 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               },
             },
           ]
-        : [
-            {
-              // The list is sorted by id (see defaultSortField), but
-              // there was no column with that id — so the sort silently
-              // did nothing and TanStack logged an error on every
-              // render. This column carries the sort and is hidden from
-              // the table and the card.
-              id: 'id',
-              accessorKey: 'id',
-              header: () => null,
-              enableHiding: true,
-              cell: () => null,
-            },
-            {
-              id: 'name',
-              accessorKey: 'name',
-              header: 'Account',
-              cardHeadline: true,
-              onClick: openAccount,
-              size: 200,
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <div
-                  className={cn(
-                    'space-y-0.5',
-                    !row.original.isActive && 'opacity-60',
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground">
-                      {row.original.name}
-                    </span>
-                    {row.original.tracksVendorStock && (
-                      <span
-                        className="rounded bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
-                        title="Stock at this vendor is tracked in inventory"
-                      >
-                        Vendor stock
-                      </span>
+        : (
+            [
+              {
+                // The list is sorted by id (see defaultSortField), but
+                // there was no column with that id — so the sort silently
+                // did nothing and TanStack logged an error on every
+                // render. This column carries the sort and is hidden from
+                // the table and the card.
+                id: 'id',
+                accessorKey: 'id',
+                header: () => null,
+                enableHiding: true,
+                cell: () => null,
+              },
+              {
+                id: 'name',
+                accessorKey: 'name',
+                header: 'Account',
+                cardHeadline: true,
+                onClick: openAccount,
+                size: 200,
+                // eslint-disable-next-line react/no-unstable-nested-components
+                cell: ({ row }: CellContext<Account, unknown>) => (
+                  <div
+                    className={cn(
+                      'space-y-0.5',
+                      !row.original.isActive && 'opacity-60',
                     )}
-                    <CollectionRoleBadge role={row.original.collectionRole} />
-                    {!row.original.isActive && (
-                      <span
-                        className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600"
-                        title="Inactive account"
-                      >
-                        Inactive
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">
+                        {row.original.name}
                       </span>
-                    )}
-                  </div>
-                  {showUrdu && row.original.nameUrdu ? (
-                    <div
-                      dir="rtl"
-                      lang="ur"
-                      className="text-xs font-normal leading-tight text-muted-foreground"
-                    >
-                      {row.original.nameUrdu}
-                    </div>
-                  ) : null}
-                </div>
-              ),
-            },
-            {
-              id: 'code',
-              accessorKey: 'code',
-              header: 'Code',
-              // the code and the city say which account this is, so they
-              // ride the muted line under the name instead of taking a
-              // labelled cell each in the grid below it
-              cardMeta: true,
-              onClick: openAccount,
-              size: 100,
-            },
-            {
-              id: 'city',
-              accessorKey: 'city',
-              header: 'City',
-              cardMeta: true,
-              onClick: openAccount,
-              size: 120,
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <BilingualCell
-                  primary={row.original.city}
-                  secondary={row.original.cityUrdu}
-                  showSecondary={showUrdu}
-                />
-              ),
-            },
-            {
-              id: 'address',
-              accessorKey: 'address',
-              header: 'Address',
-              onClick: openAccount,
-              size: 200,
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <BilingualCell
-                  primary={row.original.address}
-                  secondary={row.original.addressUrdu}
-                  showSecondary={showUrdu}
-                  className="max-w-[280px] truncate"
-                />
-              ),
-            },
-            {
-              id: 'phone1',
-              accessorKey: 'phone1',
-              header: 'Phone 1',
-              onClick: openAccount,
-              size: 130,
-            },
-            {
-              id: 'phone2',
-              accessorKey: 'phone2',
-              header: 'Phone 2',
-              onClick: openAccount,
-              size: 130,
-            },
-            {
-              id: 'goodsName',
-              accessorKey: 'goodsName',
-              header: 'Goods Name',
-              onClick: openAccount,
-              size: 160,
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <BilingualCell
-                  primary={row.original.goodsName}
-                  secondary={row.original.goodsNameUrdu}
-                  showSecondary={showUrdu}
-                />
-              ),
-            },
-            ...(shouldShowPolicyColumn
-              ? [
-                  {
-                    id: 'policy',
-                    accessorKey: 'discountProfileName',
-                    header: 'Policy',
-                    size: 130,
-                    // eslint-disable-next-line react/no-unstable-nested-components
-                    cell: ({ row }: CellContext<Account, unknown>) => {
-                      if (row.original.type !== AccountType.Asset) {
-                        return (
-                          <span className="text-xs text-muted-foreground">
-                            -
-                          </span>
-                        );
-                      }
-
-                      let pricingLabel = 'Set up';
-                      if (row.original.discountProfileId) {
-                        pricingLabel =
-                          row.original.discountProfileIsActive === false
-                            ? 'Auto off'
-                            : 'Edit';
-                      }
-
-                      return (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={
-                            row.original.discountProfileId
-                              ? 'outline'
-                              : 'secondary'
-                          }
-                          title={
-                            row.original.discountProfileId
-                              ? `${
-                                  row.original.discountProfileName || 'Policy'
-                                }`
-                              : 'Set up policy'
-                          }
-                          className={cn(
-                            'h-8 min-w-[96px] justify-center px-3',
-                            row.original.discountProfileIsActive === false &&
-                              'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100',
-                          )}
-                          onClick={() => setPricingAccountId(row.original.id)}
+                      {row.original.tracksVendorStock && (
+                        <span
+                          className="rounded bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-800 ring-1 ring-inset ring-sky-600/20"
+                          title="Stock at this vendor is tracked in inventory"
                         >
-                          {pricingLabel}
-                        </Button>
-                      );
-                    },
-                  } as ColumnDef<Account>,
-                ]
-              : []),
-            {
-              id: 'headName',
-              accessorKey: 'headName',
-              header: 'Head',
-              onClick: openAccount,
-              // `size: 1` used to be the "shrink to fit" idiom, but
-              // TanStack clamps a column to `minSize` (20px), so these
-              // columns were 20px wide with their content clipped.
-              size: 140,
-            },
-            {
-              id: 'type',
-              accessorKey: 'type',
-              header: 'Type',
-              onClick: openAccount,
-              size: 110,
-            },
-            {
-              id: 'updatedAt',
-              accessorKey: 'updatedAt',
-              header: 'Updated At',
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <DateCell value={row.original.updatedAt} />
-              ),
-              onClick: openAccount,
-              size: 120,
-            },
-            {
-              id: 'createdAt',
-              accessorKey: 'createdAt',
-              header: 'Created At',
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <DateCell value={row.original.createdAt} />
-              ),
-              onClick: openAccount,
-              size: 120,
-            },
-            {
-              id: 'edit',
-              header: 'Actions',
-              // The row's buttons get their own row in the card layout,
-              // without a redundant "Actions" label.
-              cardActions: true,
-              enableSorting: false,
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }: CellContext<Account, unknown>) => (
-                <EditAccount
-                  row={row}
-                  refetchAccounts={refetchAccounts}
-                  charts={charts}
-                  onEditPolicy={() => setPricingAccountId(row.original.id)}
-                />
-              ),
-              // Two icon buttons (edit + more). At the 44px mobile
-              // touch target that needs ~100px.
-              size: 100,
-            },
-          ].filter(
+                          Vendor stock
+                        </span>
+                      )}
+                      <CollectionRoleBadge role={row.original.collectionRole} />
+                      {!row.original.isActive && (
+                        <span
+                          className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600"
+                          title="Inactive account"
+                        >
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    {showUrdu && row.original.nameUrdu ? (
+                      <div
+                        dir="rtl"
+                        lang="ur"
+                        className="text-xs font-normal leading-tight text-muted-foreground"
+                      >
+                        {row.original.nameUrdu}
+                      </div>
+                    ) : null}
+                  </div>
+                ),
+              },
+              {
+                id: 'code',
+                accessorKey: 'code',
+                header: 'Code',
+                // the code and the city say which account this is, so they
+                // ride the muted line under the name instead of taking a
+                // labelled cell each in the grid below it
+                cardMeta: true,
+                onClick: openAccount,
+                size: 100,
+              },
+              {
+                id: 'city',
+                accessorKey: 'city',
+                header: 'City',
+                cardMeta: true,
+                onClick: openAccount,
+                size: 120,
+                // eslint-disable-next-line react/no-unstable-nested-components
+                cell: ({ row }: CellContext<Account, unknown>) => (
+                  <BilingualCell
+                    primary={row.original.city}
+                    secondary={row.original.cityUrdu}
+                    showSecondary={showUrdu}
+                  />
+                ),
+              },
+              {
+                id: 'address',
+                accessorKey: 'address',
+                header: 'Address',
+                onClick: openAccount,
+                size: 200,
+                // eslint-disable-next-line react/no-unstable-nested-components
+                cell: ({ row }: CellContext<Account, unknown>) => (
+                  <BilingualCell
+                    primary={row.original.address}
+                    secondary={row.original.addressUrdu}
+                    showSecondary={showUrdu}
+                    // the table keeps the address on one line; on a card
+                    // it wraps, because a truncated value is a value the
+                    // reader cannot read
+                    className="sm:max-w-[200px] sm:truncate"
+                  />
+                ),
+              },
+              {
+                id: 'phone1',
+                accessorKey: 'phone1',
+                header: 'Phone 1',
+                // the two numbers are one fact, so they share a line on
+                // the card, under one label
+                cardGroup: 'phone',
+                cardLabel: 'Phone',
+                onClick: openAccount,
+                size: 130,
+              },
+              {
+                id: 'phone2',
+                accessorKey: 'phone2',
+                header: 'Phone 2',
+                cardGroup: 'phone',
+                cardLabel: 'Phone',
+                onClick: openAccount,
+                size: 130,
+              },
+              {
+                id: 'goodsName',
+                accessorKey: 'goodsName',
+                header: 'Goods Name',
+                onClick: openAccount,
+                size: 160,
+                // eslint-disable-next-line react/no-unstable-nested-components
+                cell: ({ row }: CellContext<Account, unknown>) => (
+                  <BilingualCell
+                    primary={row.original.goodsName}
+                    secondary={row.original.goodsNameUrdu}
+                    showSecondary={showUrdu}
+                  />
+                ),
+              },
+              ...(shouldShowPolicyColumn
+                ? [
+                    {
+                      id: 'policy',
+                      accessorKey: 'discountProfileName',
+                      header: 'Policy',
+                      size: 130,
+                      // the column is a button, not a value: it keeps its
+                      // place on the card even with no policy set
+                      cardAlwaysShow: true,
+                      // eslint-disable-next-line react/no-unstable-nested-components
+                      cell: ({ row }: CellContext<Account, unknown>) => {
+                        if (row.original.type !== AccountType.Asset) {
+                          return (
+                            <span className="text-xs text-muted-foreground">
+                              -
+                            </span>
+                          );
+                        }
+
+                        let pricingLabel = 'Set up';
+                        if (row.original.discountProfileId) {
+                          pricingLabel =
+                            row.original.discountProfileIsActive === false
+                              ? 'Auto off'
+                              : 'Edit';
+                        }
+
+                        return (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                              row.original.discountProfileId
+                                ? 'outline'
+                                : 'secondary'
+                            }
+                            title={
+                              row.original.discountProfileId
+                                ? `${
+                                    row.original.discountProfileName || 'Policy'
+                                  }`
+                                : 'Set up policy'
+                            }
+                            className={cn(
+                              'h-8 min-w-[96px] justify-center px-3',
+                              row.original.discountProfileIsActive === false &&
+                                'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100',
+                            )}
+                            onClick={() => setPricingAccountId(row.original.id)}
+                          >
+                            {pricingLabel}
+                          </Button>
+                        );
+                      },
+                    } as ColumnDef<Account>,
+                  ]
+                : []),
+              {
+                id: 'headName',
+                accessorKey: 'headName',
+                header: 'Head',
+                // the head and the type are one fact about the account,
+                // so they share a line on the card
+                cardGroup: 'classification',
+                cardLabel: 'Head / Type',
+                onClick: openAccount,
+                // `size: 1` used to be the "shrink to fit" idiom, but
+                // TanStack clamps a column to `minSize` (20px), so these
+                // columns were 20px wide with their content clipped.
+                size: 140,
+              },
+              {
+                id: 'type',
+                accessorKey: 'type',
+                header: 'Type',
+                cardGroup: 'classification',
+                onClick: openAccount,
+                size: 110,
+              },
+              {
+                id: 'createdAt',
+                accessorKey: 'createdAt',
+                header: 'Created At',
+                // eslint-disable-next-line react/no-unstable-nested-components
+                cell: ({ row }: CellContext<Account, unknown>) => (
+                  <DateCell value={row.original.createdAt} />
+                ),
+                onClick: openAccount,
+                size: 120,
+              },
+              {
+                id: 'updatedAt',
+                accessorKey: 'updatedAt',
+                header: 'Updated At',
+                // eslint-disable-next-line react/no-unstable-nested-components
+                cell: ({ row }: CellContext<Account, unknown>) => (
+                  <DateCell value={row.original.updatedAt} />
+                ),
+                onClick: openAccount,
+                size: 120,
+              },
+              {
+                id: 'edit',
+                header: 'Actions',
+                // On a card the row has one control: the ⋮ at the end of
+                // the name, with every action behind it.
+                cardActions: true,
+                // eslint-disable-next-line react/no-unstable-nested-components
+                cardMenu: ({ row }) => (
+                  <EditAccount
+                    variant="menu"
+                    row={row}
+                    refetchAccounts={refetchAccounts}
+                    charts={charts}
+                    onEditPolicy={() => setPricingAccountId(row.original.id)}
+                  />
+                ),
+                enableSorting: false,
+                // eslint-disable-next-line react/no-unstable-nested-components
+                cell: ({ row }: CellContext<Account, unknown>) => (
+                  <EditAccount
+                    row={row}
+                    refetchAccounts={refetchAccounts}
+                    charts={charts}
+                    onEditPolicy={() => setPricingAccountId(row.original.id)}
+                  />
+                ),
+                // Two icon buttons (edit + more). At the 44px mobile
+                // touch target that needs ~100px.
+                size: 100,
+              },
+            ] as ColumnDef<Account>[]
+          ).filter(
             (column) =>
               column.id === 'id' ||
               column.id === 'name' ||

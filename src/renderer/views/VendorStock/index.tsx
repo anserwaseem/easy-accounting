@@ -276,6 +276,10 @@ const VendorStockPage: React.FC = () => {
         accessorKey: 'quantity',
         header: 'Qty',
         size: 100,
+        // the quantity is the number the list is scanned for, so it
+        // sits at the end of the card's name row instead of taking a
+        // line of its own
+        cardAside: true,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           <span

@@ -20,6 +20,12 @@ export interface DeleteJournalDialogProps {
   totalAmount?: number;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
+  /**
+   * Controlled open state, for a menu item that opens this dialog: the
+   * dialog lives outside the menu, so the item cannot use a trigger.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
@@ -28,8 +34,17 @@ export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
   totalAmount,
   onSuccess,
   trigger,
+  open: openProp,
+  onOpenChange,
 }: DeleteJournalDialogProps) => {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  // controlled when the caller passes `open`, so a menu item can
+  // open a dialog that is mounted outside the menu
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [isLoading, setIsLoading] = useState(false);
 
   const handleConfirm = async () => {

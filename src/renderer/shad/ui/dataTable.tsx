@@ -101,9 +101,9 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
    */
   cardHidden?: boolean;
   /**
-   * In the card layout, this column's buttons get a row of their own
-   * at the bottom of the card, without a label — the row's actions,
-   * which are controls rather than values.
+   * In the card layout, this column's buttons sit at the end of the
+   * headline row, without a label — the row's actions, which are
+   * controls rather than values.
    */
   cardActions?: boolean;
   /**
@@ -122,14 +122,41 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
   cardLabel?: string;
   /**
    * In the card layout, this column joins the muted line under the
-   * headline instead of taking a cell in the grid below it.
+   * headline instead of taking a row of its own below it.
    *
    * It is for the row's secondary identity — the invoice number, the
    * date — the two things that say *which* row this is. On their own
-   * they are too small to earn a labelled cell each, but side by side
+   * they are too small to earn a labelled row each, but side by side
    * they are the line a reader looks for under the name.
    */
   cardMeta?: boolean;
+  /**
+   * Groups this column with the others that carry the same key: they
+   * share one row of the card, under one label.
+   *
+   * Two fields that belong together (the two phone numbers, the head
+   * and the type) read as one fact when they sit on the same line,
+   * and they leave no hole in the card when one of them has no value.
+   */
+  cardGroup?: string;
+  /**
+   * Keeps this column on the card even when it has no value. For a
+   * column that renders a control rather than a value (the pricing
+   * policy button, the item type picker): an empty value is the
+   * column's normal state, not missing data.
+   */
+  cardAlwaysShow?: boolean;
+  /**
+   * The card's row control: it is rendered at the end of the headline
+   * row, where the amount is.
+   *
+   * The table keeps the column's own buttons; on a card there is room
+   * for one control, so everything the row can do belongs behind it.
+   * The caller renders the whole control (the trigger, the menu and
+   * any dialog it opens), so a dialog opened from a menu item is not
+   * unmounted with the menu.
+   */
+  cardMenu?: (props: { row: Row<TData> }) => React.ReactNode;
 };
 
 // TODO: search by field(s)
@@ -150,9 +177,10 @@ interface DataTableProps<TData, TValue> extends Partial<TableOptions<TData>> {
    * The table layout needs a horizontal scroll on a narrow screen, and
    * every column that does not fit is either cut off or hidden. The card
    * layout shows EVERY column: the headline (the first column, or one
-   * marked `cardHeadline`) at the top, the `cardAside` column beside it,
-   * the `cardMeta` columns in a muted line under it, and the rest as a
-   * two-up grid of labelled fields underneath. Nothing is dropped.
+   * marked `cardHeadline`) at the top, the `cardAside` column and the
+   * row's control beside it, the `cardMeta` columns in a muted line
+   * under it, and the rest as labelled lines underneath. A column with
+   * no value is left off the card.
    *
    * Defaults to true below 640px, which is where the table layout stops
    * being readable. Pass false to keep the table at every width.
@@ -753,10 +781,12 @@ const DataTable = <TData, TValue>({
    * A table on a phone is a horizontal scroll with columns cut off at
    * the edge. The card layout stacks the same data instead: the
    * headline column large at the top-left, the `cardAside` column
-   * (the amount, usually) on the same row, the `cardMeta` columns in a
-   * muted line under it, and every remaining column in a two-up grid of
-   * labelled fields. Nothing is hidden and nothing needs scrolling
-   * sideways.
+   * (the amount, usually) and the row's control on the same row, the
+   * `cardMeta` columns in a muted line under it, and every remaining
+   * column on a line of its own below that, labelled. A column with
+   * no value is not on the card at all.
+   *
+   * Nothing is hidden and nothing needs scrolling sideways.
    */
   const rowKeyOf = (row: Row<TData>) =>
     toString(resolveRowKey(row.original, row.index));
@@ -788,21 +818,18 @@ const DataTable = <TData, TValue>({
     const asideCell = visible.find(
       (c) => c !== headlineCell && defOf(c).cardAside,
     );
-    const actionCells = visible.filter((c) => defOf(c).cardActions);
+    // a column that brings its own row control replaces the buttons
+    const actionCells = visible.filter(
+      (c) => defOf(c).cardActions && !defOf(c).cardMenu,
+    );
+    // the card's own row control (the ⋮ menu), when the column has one
+    const menuCell = visible.find((c) => defOf(c).cardMenu);
     // the meta line: the row's secondary identity, in one muted line
-    // under the headline rather than a cell each in the grid. A meta
-    // item with no value is dropped rather than leaving a dangling
-    // separator in the line.
+    // under the headline rather than a row each below it. A meta item
+    // with no value is dropped rather than leaving a dangling separator
+    // in the line.
     const metaCells = visible.filter(
       (c) => c !== headlineCell && defOf(c).cardMeta && !hasNoValue(c),
-    );
-    const restCells = visible.filter(
-      (c) =>
-        c !== headlineCell &&
-        c !== asideCell &&
-        !defOf(c).cardFullWidth &&
-        !defOf(c).cardActions &&
-        !defOf(c).cardMeta,
     );
     // A headline that is also full-width would render its content twice
     // (once in the headline row, once in the full-width block). Drop it
@@ -828,16 +855,53 @@ const DataTable = <TData, TValue>({
     };
 
     /**
-     * A cell with nothing in it leaves its label hanging over blank
-     * space, which reads as a broken card rather than as missing data.
-     * A column that brings its own renderer decides for itself what
-     * empty looks like (a button, a badge, a dash); a plain one gets a
-     * dash here.
+     * A field with no value is left off the card entirely: a label
+     * over blank space reads as a broken card, and a card that only
+     * carries what this row actually has is a shorter card. A column
+     * that renders a control (a button, a picker) keeps its place:
+     * there, an empty value is the column's normal state.
      */
-    const isBlankValue = (cell: (typeof cells)[number]) => {
-      if (defOf(cell).cell) return false;
+    const isEmptyField = (cell: (typeof cells)[number]) => {
+      if (defOf(cell).cardAlwaysShow) return false;
       return hasNoValue(cell);
     };
+
+    /**
+     * The card's detail rows, in column order. Fields that share a
+     * `cardGroup` share a row, so two things that belong together read
+     * as one line and leave no hole when one of them is missing.
+     */
+    type CardDetailRow = {
+      key: string;
+      label: string;
+      cells: (typeof cells)[number][];
+    };
+    const detailRows: CardDetailRow[] = [];
+    for (const cell of visible) {
+      if (cell === headlineCell || cell === asideCell) continue;
+      const def = defOf(cell);
+      if (def.cardFullWidth || def.cardActions || def.cardMeta) continue;
+      if (isEmptyField(cell)) continue;
+      const groupKey = def.cardGroup;
+      if (groupKey) {
+        const existing = detailRows.find((r) => r.key === groupKey);
+        if (existing) {
+          existing.cells.push(cell);
+          continue;
+        }
+        detailRows.push({
+          key: groupKey,
+          label: labelFor(cell),
+          cells: [cell],
+        });
+        continue;
+      }
+      detailRows.push({
+        key: cell.column.id,
+        label: labelFor(cell),
+        cells: [cell],
+      });
+    }
 
     return (
       <div
@@ -854,9 +918,9 @@ const DataTable = <TData, TValue>({
         className="rounded-2xl bg-card p-4 text-card-foreground shadow-[0_1px_3px_rgba(0,0,0,0.07)] ring-1 ring-inset ring-black/[0.05] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] dark:ring-white/[0.07]"
       >
         {headlineCell && !headlineIsFullWidth ? (
-          // The two things a trader reads first, side by side: who it
-          // is, and how much.
-          <div className="flex items-baseline justify-between gap-3">
+          // The three things a trader reads first, on one line: who it
+          // is, how much, and what they can do with it.
+          <div className="flex items-start justify-between gap-1">
             <button
               type="button"
               className="min-w-0 flex-1 text-left text-[17px] font-semibold leading-snug tracking-[-0.01em]"
@@ -864,15 +928,27 @@ const DataTable = <TData, TValue>({
             >
               {cellContent(headlineCell)}
             </button>
-            {asideCell ? (
-              <button
-                type="button"
-                className="shrink-0 whitespace-nowrap text-right text-[17px] font-semibold leading-snug tracking-[-0.01em] tabular-nums"
-                onClick={() => defOf(asideCell).onClick?.(row)}
-              >
-                {cellContent(asideCell)}
-              </button>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-1">
+              {asideCell ? (
+                <button
+                  type="button"
+                  className="whitespace-nowrap text-right text-[17px] font-semibold leading-snug tracking-[-0.01em] tabular-nums"
+                  onClick={() => defOf(asideCell).onClick?.(row)}
+                >
+                  {cellContent(asideCell)}
+                </button>
+              ) : null}
+              {menuCell ? (
+                <div className="-mr-1">
+                  {defOf(menuCell).cardMenu?.({ row })}
+                </div>
+              ) : null}
+              {actionCells.map((cell) => (
+                <div key={`${rowKeyOf(row)}:${cell.column.id}:actions`}>
+                  {cellContent(cell)}
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
         {!headlineCell && asideCell ? (
@@ -929,63 +1005,47 @@ const DataTable = <TData, TValue>({
           </div>
         ) : null}
 
-        {restCells.length > 0 ? (
-          // The remaining fields as a two-up grid with the label above
-          // the value, so the labels line up in a column the way a
-          // ledger's do. Stacked label/value rows made every field
-          // look the same and forced the eye to scan a wall of pairs.
-          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-border/60 pt-3">
-            {restCells.map((cell, index) => {
-              // an odd field count leaves a hole in the last row; the
-              // last one spans the full width instead of sitting in
-              // half a row with empty space beside it
-              const isLoneLast =
-                restCells.length % 2 === 1 && index === restCells.length - 1;
-              // a value with nothing in it, a value that opens the
-              // row, or the value itself
-              let valueContent: React.ReactNode = cellContent(cell);
-              if (isBlankValue(cell)) {
-                valueContent = (
-                  <span className="font-normal text-muted-foreground">
-                    &mdash;
-                  </span>
-                );
-              } else if (defOf(cell).onClick) {
-                valueContent = (
-                  <button
-                    type="button"
-                    className="text-left"
-                    onClick={() => defOf(cell).onClick?.(row)}
-                  >
-                    {cellContent(cell)}
-                  </button>
-                );
-              }
-              return (
-                <div
-                  key={`${rowKeyOf(row)}:${cell.column.id}:row`}
-                  className={cn(
-                    'min-w-0',
-                    // the odd one out runs the full width with its
-                    // label beside its value, so the last row of the
-                    // grid is a line of text and not a hole in a grid
-                    isLoneLast && 'col-span-2 flex items-baseline gap-2',
-                  )}
-                >
-                  <dt className="text-[10.5px] font-semibold uppercase leading-tight tracking-[0.04em] text-muted-foreground/80">
-                    {labelFor(cell)}
-                  </dt>
-                  <dd
-                    className={cn(
-                      'text-sm font-medium leading-snug break-words',
-                      isLoneLast ? '' : 'mt-0.5',
-                    )}
-                  >
-                    {valueContent}
-                  </dd>
-                </div>
-              );
-            })}
+        {detailRows.length > 0 ? (
+          // One line per field: the label in a narrow column on the
+          // left, the value beside it. A field that has no value is
+          // not here at all, so there is no empty half of a card and
+          // no label hanging over nothing.
+          <dl className="mt-2.5 space-y-1 border-t border-border/60 pt-2">
+            {detailRows.map((detailRow) => (
+              <div
+                key={`${rowKeyOf(row)}:${detailRow.key}:row`}
+                className="flex items-baseline gap-3"
+              >
+                <dt className="w-[86px] shrink-0 text-[10.5px] font-semibold uppercase leading-[1.35] tracking-[0.04em] text-muted-foreground/80">
+                  {detailRow.label}
+                </dt>
+                <dd className="min-w-0 flex-1 text-sm font-medium leading-snug break-words">
+                  {detailRow.cells.map((cell, index) => (
+                    <span
+                      key={`${rowKeyOf(row)}:${cell.column.id}:value`}
+                      className="inline-flex items-baseline"
+                    >
+                      {index > 0 ? (
+                        <span aria-hidden className="mx-1.5 text-border">
+                          &middot;
+                        </span>
+                      ) : null}
+                      {defOf(cell).onClick ? (
+                        <button
+                          type="button"
+                          className="text-left"
+                          onClick={() => defOf(cell).onClick?.(row)}
+                        >
+                          {cellContent(cell)}
+                        </button>
+                      ) : (
+                        cellContent(cell)
+                      )}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            ))}
           </dl>
         ) : null}
 
@@ -1001,18 +1061,6 @@ const DataTable = <TData, TValue>({
                     {defOf(cell).cardLabel}
                   </p>
                 ) : null}
-                {cellContent(cell)}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {actionCells.length > 0 ? (
-          // The row's actions, in the corner and unlabelled. A row
-          // that said "Actions" and held two icons was pure noise.
-          <div className="mt-2.5 flex flex-wrap items-center justify-end gap-1">
-            {actionCells.map((cell) => (
-              <div key={`${rowKeyOf(row)}:${cell.column.id}:actions`}>
                 {cellContent(cell)}
               </div>
             ))}

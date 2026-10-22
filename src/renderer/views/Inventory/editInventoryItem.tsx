@@ -9,6 +9,7 @@ import {
 } from 'renderer/shad/ui/dialog';
 import { Button } from '@/renderer/shad/ui/button';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { RowMenu } from '@/renderer/components/RowMenu';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
@@ -20,6 +21,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Trash2,
   Ban,
+  Pencil,
   Power,
   Info,
   MoreHorizontal,
@@ -49,6 +51,11 @@ import { FamilyHeadPicker } from './FamilyHeadPicker';
 import { changedListPrices, getRowListPrice } from './inventoryBulkEdit';
 
 interface EditInventoryItemProps {
+  /**
+   * 'buttons' is the table: a pencil and a more-menu. 'menu' is the
+   * card: one ⋮ that opens everything the row can do, edit included.
+   */
+  variant?: 'buttons' | 'menu';
   row: {
     original: UpdateInventoryItem & {
       excludeFromCatalog?: 0 | 1;
@@ -80,6 +87,7 @@ interface EditInventoryItemProps {
 }
 
 export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
+  variant = 'buttons',
   row,
   refetchInventory,
   refreshPublishStatuses,
@@ -330,6 +338,42 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
     }
   };
 
+  // the row's other actions, as menu items
+  const moreItems = (
+    <>
+      <DropdownMenuItem onClick={() => setOpenAttributes(true)}>
+        <Tag className="mr-2 h-4 w-4" />
+        Attributes
+      </DropdownMenuItem>
+      <AdvancedControl capability={ADVANCED_CAPABILITIES.inventoryAdjustStock}>
+        <DropdownMenuItem onClick={() => setOpenAdjustStock(true)}>
+          <SlidersHorizontal className="mr-2 h-4 w-4" />
+          Adjust stock
+        </DropdownMenuItem>
+      </AdvancedControl>
+      <DropdownMenuSeparator />
+      <AdvancedControl capability={ADVANCED_CAPABILITIES.inventoryToggleActive}>
+        <DropdownMenuItem onClick={handleToggleActive}>
+          {isActive ? (
+            <Ban className="mr-2 h-4 w-4" />
+          ) : (
+            <Power className="mr-2 h-4 w-4" />
+          )}
+          {toggleLabel}
+        </DropdownMenuItem>
+      </AdvancedControl>
+      <AdvancedControl capability={ADVANCED_CAPABILITIES.inventoryDelete}>
+        <DropdownMenuItem
+          onClick={handleDeleteClick}
+          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete item
+        </DropdownMenuItem>
+      </AdvancedControl>
+    </>
+  );
+
   return (
     <>
       <Dialog
@@ -345,12 +389,14 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
           }
         }}
       >
-        <DialogTrigger asChild>
-          <EditActionButton
-            aria-label="Edit inventory item"
-            title="Edit inventory item"
-          />
-        </DialogTrigger>
+        {variant === 'buttons' ? (
+          <DialogTrigger asChild>
+            <EditActionButton
+              aria-label="Edit inventory item"
+              title="Edit inventory item"
+            />
+          </DialogTrigger>
+        ) : null}
         <DialogContent className="sm:max-w-[480px]">
           <TooltipProvider delayDuration={150}>
             <DialogHeader>
@@ -453,56 +499,34 @@ export const EditInventoryItem: React.FC<EditInventoryItemProps> = ({
         </DialogContent>
       </Dialog>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-11 w-11 shrink-0 md:h-8 md:w-8"
-            title="More actions"
-            aria-label="More actions"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem onClick={() => setOpenAttributes(true)}>
-            <Tag className="mr-2 h-4 w-4" />
-            Attributes
+      {variant === 'menu' ? (
+        // the card: one control, and everything the row can do is in it
+        <RowMenu label="Item actions">
+          <DropdownMenuItem onSelect={() => setIsOpen(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit item
           </DropdownMenuItem>
-          <AdvancedControl
-            capability={ADVANCED_CAPABILITIES.inventoryAdjustStock}
-          >
-            <DropdownMenuItem onClick={() => setOpenAdjustStock(true)}>
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
-              Adjust stock
-            </DropdownMenuItem>
-          </AdvancedControl>
-          <DropdownMenuSeparator />
-          <AdvancedControl
-            capability={ADVANCED_CAPABILITIES.inventoryToggleActive}
-          >
-            <DropdownMenuItem onClick={handleToggleActive}>
-              {isActive ? (
-                <Ban className="mr-2 h-4 w-4" />
-              ) : (
-                <Power className="mr-2 h-4 w-4" />
-              )}
-              {toggleLabel}
-            </DropdownMenuItem>
-          </AdvancedControl>
-          <AdvancedControl capability={ADVANCED_CAPABILITIES.inventoryDelete}>
-            <DropdownMenuItem
-              onClick={handleDeleteClick}
-              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          {moreItems}
+        </RowMenu>
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 shrink-0 md:h-8 md:w-8"
+              title="More actions"
+              aria-label="More actions"
             >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete item
-            </DropdownMenuItem>
-          </AdvancedControl>
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {moreItems}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       <AdjustStock
         item={row.original as unknown as InventoryItem}

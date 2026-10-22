@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import { Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import {
   type DateRange,
   DateRangePickerWithPresets,
@@ -29,8 +29,113 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { DateCell } from '@/renderer/components/common/DateCell';
 import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
+import { RowMenu } from '@/renderer/components/RowMenu';
+import { DropdownMenuItem } from 'renderer/shad/ui/dropdown-menu';
 
 export type JournalView = Journal & { amount: number };
+
+interface JournalRowMenuProps {
+  row: { original: JournalView };
+  onSave: (journalId: number, fields: UpdateJournalFields) => Promise<void>;
+  onSuccess: () => void;
+}
+
+/**
+ * The card's row control: one ⋮ at the end of the name, with the
+ * row's actions behind it. The table keeps the three icon buttons.
+ *
+ * The dialogs are mounted next to the menu, not inside it: a menu
+ * item that opens a dialog unmounts the dialog with the menu when the
+ * dialog lives inside it.
+ */
+const JournalRowMenu: React.FC<JournalRowMenuProps> = ({
+  row,
+  onSave,
+  onSuccess,
+}: JournalRowMenuProps) => {
+  const [editOpen, setEditOpen] = useState(false);
+  // the edit dialog is remounted on every open, so its fields start
+  // from the journal's own values instead of the last edit
+  const [editKey, setEditKey] = useState(0);
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const canReverse =
+    row.original.invoiceId == null || row.original.invoiceId <= 0;
+
+  return (
+    <>
+      <RowMenu label="Journal actions">
+        <AdvancedControl capability={ADVANCED_CAPABILITIES.journalEditFields}>
+          <DropdownMenuItem
+            onSelect={() => {
+              setEditKey((key) => key + 1);
+              setEditOpen(true);
+            }}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit fields
+          </DropdownMenuItem>
+        </AdvancedControl>
+        {canReverse ? (
+          <>
+            <AdvancedControl capability={ADVANCED_CAPABILITIES.journalReverse}>
+              <DropdownMenuItem onSelect={() => setReverseOpen(true)}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reverse journal
+              </DropdownMenuItem>
+            </AdvancedControl>
+            <AdvancedControl capability={ADVANCED_CAPABILITIES.journalDelete}>
+              <DropdownMenuItem
+                onSelect={() => setDeleteOpen(true)}
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete journal
+              </DropdownMenuItem>
+            </AdvancedControl>
+          </>
+        ) : null}
+      </RowMenu>
+
+      <AdvancedControl capability={ADVANCED_CAPABILITIES.journalEditFields}>
+        <EditJournalFieldsDialog
+          key={editKey}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          journalId={row.original.id}
+          narration={row.original.narration || ''}
+          billNumber={row.original.billNumber}
+          discountPercentage={row.original.discountPercentage}
+          onSave={onSave}
+        />
+      </AdvancedControl>
+      {canReverse ? (
+        <>
+          <AdvancedControl capability={ADVANCED_CAPABILITIES.journalReverse}>
+            <ReverseJournalDialog
+              open={reverseOpen}
+              onOpenChange={setReverseOpen}
+              journalId={row.original.id}
+              originalNarration={row.original.narration || ''}
+              totalAmount={row.original.amount}
+              onSuccess={onSuccess}
+            />
+          </AdvancedControl>
+          <AdvancedControl capability={ADVANCED_CAPABILITIES.journalDelete}>
+            <DeleteJournalDialog
+              open={deleteOpen}
+              onOpenChange={setDeleteOpen}
+              journalId={row.original.id}
+              narration={row.original.narration || ''}
+              totalAmount={row.original.amount}
+              onSuccess={onSuccess}
+            />
+          </AdvancedControl>
+        </>
+      ) : null}
+    </>
+  );
+};
 
 const JournalsPage: React.FC<HasMiniView> = ({
   isMini = false,
@@ -200,6 +305,16 @@ const JournalsPage: React.FC<HasMiniView> = ({
               // The row's buttons get their own row in the card layout,
               // without a redundant "Actions" label.
               cardActions: true,
+              // On a card there is room for one control, so the three
+              // actions sit behind a single ⋮ at the end of the name.
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cardMenu: ({ row }) => (
+                <JournalRowMenu
+                  row={row}
+                  onSave={handleUpdateJournal}
+                  onSuccess={handleReloadJournals}
+                />
+              ),
               enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
