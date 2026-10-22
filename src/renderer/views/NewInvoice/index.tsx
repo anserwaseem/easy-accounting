@@ -2330,7 +2330,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                               <FormDateSelector
                                 field={field}
                                 onDateSelection={onDateSelection}
-                                formItemClassName="min-w-0"
+                                formItemClassName="min-w-0 col-span-2 md:col-span-1"
                                 buttonClassName={cn(
                                   'w-full justify-start text-left font-normal min-w-0',
                                   !field.value && 'text-muted-foreground',
@@ -2439,7 +2439,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                               <FormDateSelector
                                 field={field}
                                 onDateSelection={onDateSelection}
-                                formItemClassName="min-w-0"
+                                formItemClassName="min-w-0 col-span-2 md:col-span-1"
                                 buttonClassName={cn(
                                   'w-full justify-start text-left font-normal min-w-0',
                                   !field.value && 'text-muted-foreground',

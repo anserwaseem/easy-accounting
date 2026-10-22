@@ -1,4 +1,12 @@
-import { createContext, forwardRef, useContext, useMemo } from 'react';
+import {
+  createContext,
+  forwardRef,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   TooltipProvider,
   Tooltip,
@@ -35,8 +43,9 @@ TooltipContent.displayName = Content.displayName;
  * Whether the primary pointer is a touch one.
  *
  * A tooltip that only opens on hover is unreachable on a phone: there
- * is no hover, and a tap on a non-focusable element does nothing. So on
- * a touch device the tooltip opens on tap instead.
+ * is no hover, and Radix deliberately refuses to open on focus while a
+ * pointer is down (its way of keeping tooltips off touch devices).
+ * So on a touch device the tooltip is driven explicitly.
  *
  * Read from `matchMedia` rather than a one-time check, so a
  * touchscreen laptop (which reports a fine pointer but no hover) is
@@ -47,22 +56,66 @@ const isTouchPrimary = (): boolean => {
   return window.matchMedia('(hover: none)').matches;
 };
 
-/** Tells the trigger that the primary pointer is a touch one. */
-const TooltipTouchContext = createContext<{ touch: boolean }>({
-  touch: false,
-});
+/** Lets the trigger ask the tooltip to open on a tap. */
+const TooltipTouchContext = createContext<{
+  touch: boolean;
+  openOnTap: () => void;
+}>({ touch: false, openOnTap: () => {} });
 
 const TooltipWrapper = ({
   delayDuration = 200,
   children,
+  onOpenChange,
   ...props
 }: React.ComponentPropsWithoutRef<typeof Tooltip>) => {
   const touch = isTouchPrimary();
-  const contextValue = useMemo(() => ({ touch }), [touch]);
+  // On a touch device the tooltip's open state is ours, not Radix's:
+  // Radix opens on focus (which a tap triggers) and closes on click
+  // (which the same tap also triggers), so the tooltip would flash and
+  // vanish before it could be read.
+  const [open, setOpen] = useState(false);
+  // A tap that opened the tooltip also produces a click, and Radix
+  // closes on click. This flag lets that one close be ignored, while a
+  // later tap elsewhere still closes it.
+  const tapGuardRef = useRef(false);
+
+  const openOnTap = useCallback(() => {
+    tapGuardRef.current = true;
+    setOpen(true);
+  }, []);
+
+  const contextValue = useMemo(
+    () => ({ touch, openOnTap }),
+    [touch, openOnTap],
+  );
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next && tapGuardRef.current) {
+        tapGuardRef.current = false;
+        // Let the guard lapse so a later close (a tap elsewhere) works.
+        window.setTimeout(() => {
+          tapGuardRef.current = false;
+        }, 400);
+        return;
+      }
+      if (touch) {
+        setOpen(next);
+        return;
+      }
+      onOpenChange?.(next);
+    },
+    [onOpenChange, touch],
+  );
 
   return (
     <TooltipTouchContext.Provider value={contextValue}>
-      <Tooltip {...props} delayDuration={touch ? 0 : delayDuration}>
+      <Tooltip
+        {...props}
+        delayDuration={touch ? 0 : delayDuration}
+        open={touch ? open : undefined}
+        onOpenChange={handleOpenChange}
+      >
         {children}
       </Tooltip>
     </TooltipTouchContext.Provider>
@@ -73,32 +126,21 @@ TooltipWrapper.displayName = 'Tooltip';
 const TooltipTriggerWrapper = forwardRef<
   React.ElementRef<typeof TooltipTrigger>,
   React.ComponentPropsWithoutRef<typeof TooltipTrigger>
->(({ children, onClick, ...props }, ref) => {
-  const { touch } = useContext(TooltipTouchContext);
+>(({ children, onPointerDown, ...props }, ref) => {
+  const { touch, openOnTap } = useContext(TooltipTouchContext);
   return (
     <TooltipTrigger
       ref={ref}
-      // A tap opens the tooltip on a touch device (a second tap closes
-      // it). Without this the information is simply unreachable on a
-      // phone.
-      //
-      // The `preventDefault` matters: Radix's own click handler closes
-      // the tooltip, so without it the tap opened and closed it in the
-      // same gesture. Radix skips its handler when the event is already
-      // default-prevented.
-      onClick={
+      // A tap opens the tooltip on a touch device. Without this the
+      // information is simply unreachable on a phone.
+      onPointerDown={
         touch
           ? (event) => {
-              // Radix closes the tooltip on click. On a touch device the
-              // tap that focuses the trigger (which opens it) is
-              // followed by the click (which closed it again), so the
-              // tooltip flashed and vanished. Preventing the default
-              // makes Radix skip its close handler; the tooltip then
-              // stays open until the user taps elsewhere, and Radix's
-              // own focus handler does the opening.
-              event.preventDefault();
+              // Only a real tap, not the start of a scroll.
+              if (event.pointerType !== 'touch') return;
+              openOnTap();
             }
-          : onClick
+          : onPointerDown
       }
       {...props}
     >
