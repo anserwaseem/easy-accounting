@@ -434,6 +434,17 @@ export interface AppApi {
     startDate?: string | null,
     endDate?: string | null,
   ) => Promise<Record<number, Record<number, number>>>;
+  /** running balance per account at each tour's end (accountId -> tourId -> balance); a range clips each tour */
+  getTourBalancesForAccountIds: (
+    accountIds: number[],
+    tourIds: number[],
+    endDate?: string | null,
+  ) => Promise<
+    Record<
+      number,
+      Record<number, { balance: number; balanceType: BalanceType }>
+    >
+  >;
   /** receipts in the range on days no tour of the head covers */
   getUntouredCollectionsForAccountIds: (
     accountIds: number[],

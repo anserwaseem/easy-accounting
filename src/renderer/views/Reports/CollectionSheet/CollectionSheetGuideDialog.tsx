@@ -79,8 +79,8 @@ export const CollectionSheetGuideDialog: React.FC<
           </h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {urdu
-              ? 'گاہک کی ادائیگیاں خودکار طور پر پہلے پرانے بلوں کو ختم کرتی ہیں (FIFO)۔ اس لیے مکمل ادا شدہ پرانے بل شیٹ پر نہیں دکھائے جاتے تاکہ ایجنٹ صرف غیر ادا شدہ بلوں پر توجہ دے سکے۔ ایک سے زائد بلوں والے گاہکوں کے سامنے بل نمبر کے ساتھ نمبر شمار (1/3، 2/3، 3/3) اور کل واجب الادا رقم لکھی ہوتی ہے۔'
-              : 'Customer payments automatically clear older debt first (FIFO). Fully paid bills are omitted so the agent focuses solely on active unpaid bills (indexed 1/3, 2/3, 3/3 with Total Due summary). Any older balance predating invoices in the system is labeled Opening Bal.'}
+              ? 'گاہک کی ادائیگیاں خودکار طور پر پہلے پرانے بلوں کو ختم کرتی ہیں (FIFO)۔ اس لیے مکمل ادا شدہ پرانے بل شیٹ پر نہیں دکھائے جاتے تاکہ ایجنٹ صرف غیر ادا شدہ بلوں پر توجہ دے سکے۔ شیٹ گاہک کے کوڈ سے منسلک ہے: ایک ہی گاہک کے بل ایک ہی کوڈ کے ساتھ آتے ہیں اور اگلی سطروں میں // لکھا ہوتا ہے۔ کوڈ پر ہوور کرنے سے کل واجب الادا بلوں کی تعداد اور رقم معلوم ہوتی ہے۔'
+              : 'Customer payments automatically clear older debt first (FIFO). Fully paid bills are omitted so the agent focuses solely on active unpaid bills. Rows are keyed by the account code: a shop’s bills share that code, and the following rows show //. Hover the code to see how many bills are due and their total. Any older balance predating invoices in the system is labeled Opening Bal.'}
           </p>
         </div>
 
@@ -94,8 +94,8 @@ export const CollectionSheetGuideDialog: React.FC<
           </h4>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {urdu
-              ? 'ہر کالم ایک مخصوص دورے کی تاریخوں میں وصول شدہ رقم کو ظاہر کرتا ہے۔ سرخ 0 ان دوروں کو نمایاں کرتا ہے جن میں گاہک سے کوئی رقم موصول نہیں ہوئی، تاکہ مسلسل ادائیگی نہ کرنے والے گاہکوں کی فوری نشاندہی ہو سکے۔'
-              : 'Each tour column shows receipts collected during that dated trip window. A red cell (0) highlights tours where the customer was visited but made Rs. 0 payment, allowing you to instantly spot non-paying or delaying customers.'}
+              ? 'ہر دورہ کالم میں اوپر اس دورے کے دوران وصول شدہ رقم اور نیچے اس دورے کے اختتام پر گاہک کا بقایا (سرمئی رنگ میں) ہے۔ سرخ 0 ان دوروں کو نمایاں کرتا ہے جن میں گاہک سے کوئی رقم موصول نہیں ہوئی، تاکہ مسلسل ادائیگی نہ کرنے والے گاہکوں کی فوری نشاندہی ہو سکے۔'
+              : 'Each tour column shows what was collected during that dated trip window, with the shop’s balance at the end of that tour beneath it in grey. A red cell (0) highlights tours where the customer was visited but made Rs. 0 payment, allowing you to instantly spot non-paying or delaying customers.'}
           </p>
         </div>
 

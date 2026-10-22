@@ -921,6 +921,12 @@ async function main(): Promise<void> {
         (startDate as string | null | undefined) ?? null,
         (endDate as string | null | undefined) ?? null,
       ),
+    getTourBalancesForAccountIds: (accountIds, tourIds, endDate) =>
+      ledgerService.getTourBalancesForAccountIds(
+        accountIds as number[],
+        tourIds as number[],
+        (endDate as string | null | undefined) ?? null,
+      ),
     getUntouredCollectionsForAccountIds: (
       accountIds,
       chartId,

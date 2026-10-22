@@ -429,6 +429,82 @@ describe('LedgerService.getTourCollectionsForAccountIds', () => {
   });
 });
 
+describe('LedgerService.getTourBalancesForAccountIds', () => {
+  let fx: Fixture;
+
+  beforeEach(async () => {
+    fx = await setup();
+  });
+
+  afterEach(() => fx.db.close());
+
+  it('returns the running balance at each tour end and ignores later entries', async () => {
+    const cash = insertAccountRow(fx.db, fx.currentAssetId, 'Cash');
+    const sales = insertAccountRow(fx.db, fx.otherHeadId, 'Sales');
+    const shop = insertAccountRow(fx.db, fx.agentHeadId, 'Shop');
+    const jan = await fx.tours.insertAgentTour({
+      chartId: fx.agentHeadId,
+      name: 'Jan',
+      startDate: '2026-01-01',
+      endDate: '2026-01-31',
+    });
+    const feb = await fx.tours.insertAgentTour({
+      chartId: fx.agentHeadId,
+      name: 'Feb',
+      startDate: '2026-02-01',
+      endDate: '2026-02-28',
+    });
+
+    // sale of 100 then a 40 receipt in Jan: 60 due at the Jan tour's end
+    insertJournal(fx.db, '2026-01-05', [[shop, 100]], [[sales, 100]]);
+    insertJournal(fx.db, '2026-01-20', [[cash, 40]], [[shop, 40]]);
+    // another 50 sold in Feb: 110 due at the Feb tour's end
+    insertJournal(fx.db, '2026-02-10', [[shop, 50]], [[sales, 50]]);
+    // March is after both tour ends and must not leak into either figure
+    insertJournal(fx.db, '2026-03-01', [[shop, 25]], [[sales, 25]]);
+
+    const balances = await fx.ledger.getTourBalancesForAccountIds(
+      [shop],
+      [jan, feb],
+    );
+    expect(balances[shop][jan]).toEqual({ balance: 60, balanceType: 'Dr' });
+    expect(balances[shop][feb]).toEqual({ balance: 110, balanceType: 'Dr' });
+  });
+
+  it('clips each tour at the sheet range and omits accounts with no entries yet', async () => {
+    const cash = insertAccountRow(fx.db, fx.currentAssetId, 'Cash');
+    const sales = insertAccountRow(fx.db, fx.otherHeadId, 'Sales');
+    const shop = insertAccountRow(fx.db, fx.agentHeadId, 'Shop');
+    const quiet = insertAccountRow(fx.db, fx.agentHeadId, 'Quiet shop');
+    const feb = await fx.tours.insertAgentTour({
+      chartId: fx.agentHeadId,
+      name: 'Feb',
+      startDate: '2026-02-01',
+      endDate: '2026-02-28',
+    });
+    insertJournal(fx.db, '2026-01-05', [[shop, 100]], [[sales, 100]]);
+    insertJournal(fx.db, '2026-02-20', [[cash, 40]], [[shop, 40]]);
+
+    // a Jan-31 sheet end clips the Feb tour: the Feb receipt is outside it
+    const clipped = await fx.ledger.getTourBalancesForAccountIds(
+      [shop],
+      [feb],
+      '2026-01-31',
+    );
+    expect(clipped[shop][feb]).toEqual({ balance: 100, balanceType: 'Dr' });
+
+    const balances = await fx.ledger.getTourBalancesForAccountIds(
+      [shop, quiet],
+      [feb],
+    );
+    expect(balances[shop][feb]).toEqual({ balance: 60, balanceType: 'Dr' });
+    expect(balances[quiet]).toBeUndefined();
+    expect(await fx.ledger.getTourBalancesForAccountIds([shop], [])).toEqual(
+      {},
+    );
+  });
+});
+
 describe('LedgerService untoured collections and collection sources', () => {
   let fx: Fixture;
 
