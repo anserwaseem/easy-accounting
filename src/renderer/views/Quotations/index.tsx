@@ -225,6 +225,9 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                 <span className="whitespace-nowrap">Quotation #</span>
               ),
               cardLabel: 'Quotation #',
+              // the number and the date identify the quotation, so they
+              // ride the muted line under the party's name
+              cardMeta: true,
               cell: ({ row }) => (
                 <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
                   {getQuotationDisplayNumber(
@@ -251,6 +254,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
             {
               accessorKey: 'date',
               header: 'Date',
+              cardMeta: true,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (r) => navigateToRow(r.original.id),

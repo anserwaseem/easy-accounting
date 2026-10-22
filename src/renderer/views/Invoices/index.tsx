@@ -238,6 +238,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
               accessorKey: 'invoiceNumber',
               header: <span className="whitespace-nowrap">Invoice #</span>,
               cardLabel: 'Invoice #',
+              // the number and the date identify the invoice, so they
+              // ride the muted line under the customer's name
+              cardMeta: true,
               cell: ({ row }) => (
                 <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
                   {row.original.invoiceNumber}
@@ -278,6 +281,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
             {
               accessorKey: 'date',
               header: 'Date',
+              cardMeta: true,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (row) =>

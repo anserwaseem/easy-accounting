@@ -342,6 +342,18 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           ]
         : [
             {
+              // The list is sorted by id (see defaultSortField), but
+              // there was no column with that id — so the sort silently
+              // did nothing and TanStack logged an error on every
+              // render. This column carries the sort and is hidden from
+              // the table and the card.
+              id: 'id',
+              accessorKey: 'id',
+              header: () => null,
+              enableHiding: true,
+              cell: () => null,
+            },
+            {
               id: 'name',
               accessorKey: 'name',
               header: 'Account',
@@ -394,6 +406,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               id: 'code',
               accessorKey: 'code',
               header: 'Code',
+              // the code and the city say which account this is, so they
+              // ride the muted line under the name instead of taking a
+              // labelled cell each in the grid below it
+              cardMeta: true,
               onClick: openAccount,
               size: 100,
             },
@@ -401,6 +417,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               id: 'city',
               accessorKey: 'city',
               header: 'City',
+              cardMeta: true,
               onClick: openAccount,
               size: 120,
               // eslint-disable-next-line react/no-unstable-nested-components
@@ -573,6 +590,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
             },
           ].filter(
             (column) =>
+              column.id === 'id' ||
               column.id === 'name' ||
               column.id === 'edit' ||
               visibleColumnSet.has(column.id as OptionalAccountColumnId),
@@ -797,6 +815,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         <DataTable
           columns={columns}
           data={getAccounts()}
+          state={{ columnVisibility: { id: false } }}
           defaultSortField="id"
           sortingFns={defaultSortingFunctions}
           virtual

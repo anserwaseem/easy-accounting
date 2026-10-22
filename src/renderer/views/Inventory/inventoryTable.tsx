@@ -762,6 +762,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         header: '',
         size: 28,
         enableSorting: false,
+        // the chevron is a control, not a value: it joins the row's
+        // buttons at the bottom of the card instead of taking a cell
+        // in the grid
+        cardActions: true,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
           const isOpen = expandedIds.has(row.original.id);
@@ -791,6 +795,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               accessorKey: 'listPosition',
               header: 'List #',
               headerTooltip: 'Catalog list order (nulls sort last).',
+              // the catalog number says which item this is, so it rides
+              // the muted line under the name
+              cardLabel: 'List #',
+              cardMeta: true,
               size: 72,
               sortingFn: listPositionSortingFn,
               enableSorting: !editMode,
@@ -1192,6 +1200,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         header: 'Actions',
         enableSorting: false,
+        // the row's buttons get their own row at the bottom of the
+        // card, without a redundant "Actions" label
+        cardActions: true,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           // -ml-2 cancels the icon buttons' internal padding so the first

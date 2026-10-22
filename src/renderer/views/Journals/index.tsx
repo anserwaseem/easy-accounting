@@ -124,6 +124,10 @@ const JournalsPage: React.FC<HasMiniView> = ({
               // The card's label comes from the header, but this
               // column's header is a node — name it explicitly.
               cardLabel: 'Journal #',
+              // the number and the date identify the row, so they ride
+              // the muted line under the headline instead of taking a
+              // labelled cell each in the grid below it
+              cardMeta: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
@@ -136,6 +140,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               accessorKey: 'date',
               header: 'Date',
+              cardMeta: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,

@@ -653,12 +653,15 @@ const BillsAgingPage = () => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
               {!isLoading && visibleAccounts.length > 0 && (
-                <div className="flex min-w-0 items-center gap-2 rounded-lg border bg-card/80 px-2.5 py-1.5 text-sm">
-                  <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
-                    Total Outstanding:
+                // The label sat beside the figure and took the room the
+                // figure needed, so the total was cut off. It is now
+                // its own line above it.
+                <div className="flex min-w-0 flex-col rounded-lg border bg-card/80 px-2.5 py-1.5">
+                  <span className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground">
+                    Total outstanding
                   </span>
                   <span
-                    className={`truncate font-bold font-mono text-base tabular-nums ${totalColor}`}
+                    className={`mt-0.5 text-[15px] font-semibold leading-tight tabular-nums ${totalColor}`}
                   >
                     {getFormattedCurrencyInt(totalOutstanding, {
                       withoutCurrency: true,
