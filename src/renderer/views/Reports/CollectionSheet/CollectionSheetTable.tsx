@@ -17,7 +17,7 @@ import {
   formatTourAmount,
   isUnpaidTourCell,
   isUntouredCell,
-  tourColumnHeader,
+  tourColumnRange,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
   type CollectionSheetTourColumn,
@@ -76,11 +76,17 @@ const HeaderWithTooltip: React.FC<HeaderWithTooltipProps> = ({
   </Tooltip>
 );
 
-const headCell = 'border border-border px-2 py-2 bg-background';
-const bodyCell = 'border border-border px-2 py-1.5';
-const writeCell = 'min-w-[4.5rem]';
-const tourCell = 'text-end tabular-nums whitespace-nowrap';
+const headCell =
+  'border border-border px-1 py-2 bg-background text-[11px] leading-tight';
+const bodyCell = 'border border-border px-1 py-1';
+const writeCell = 'w-[3.75rem] min-w-[3.75rem]';
+const tourCell = 'text-end tabular-nums whitespace-nowrap px-1';
 const unpaidCell = 'bg-destructive/10';
+// the code column is the sheet's only identity column, so it stays in view
+// while the tour columns scroll sideways; the blurred shadow marks it as
+// floating above the columns sliding underneath. bg is set per surface
+const codeRail =
+  'sticky start-0 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)] rtl:shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.35)]';
 
 export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   rows,
@@ -107,6 +113,18 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   const hasTours = tours.length > 0;
   // fixed columns span both header rows when tour columns add a second one
   const span = hasTours ? 2 : undefined;
+  // one row per bill; the sticky code is the only shop identity left, so the
+  // multi-bill and total-due summary that used to sit in the Shop cell lives
+  // in its tooltip instead of widening the table
+  const codeTitle = (row: CollectionSheetRow): string | undefined => {
+    if (row.billIndex !== 1 || row.billCount <= 1 || row.totalBilled == null) {
+      return undefined;
+    }
+    const total = formatSheetAmount(row.totalBilled);
+    return urdu
+      ? `${row.billCount} واجب الادا بل · کل: ${total}`
+      : `${row.billCount} due bills · Total Due: ${total}`;
+  };
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -118,33 +136,24 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
           >
             <thead className="sticky top-0 z-20 bg-background shadow-[0_1px_0_hsl(var(--border))]">
               <tr className="text-start">
-                <th rowSpan={span} className={cn(headCell, 'text-end w-10')}>
-                  {headers.serial}
-                </th>
-                <th rowSpan={span} className={cn(headCell, 'text-start')}>
-                  {headers.shop}
-                </th>
-                <th rowSpan={span} className={cn(headCell, 'text-start')}>
-                  {headers.address}
-                </th>
                 <th
                   rowSpan={span}
                   dir="ltr"
-                  className={cn(headCell, 'text-left')}
+                  className={cn(headCell, codeRail, 'z-30 text-left')}
                 >
                   {headers.code}
                 </th>
                 <th
                   rowSpan={span}
                   dir="ltr"
-                  className={cn(headCell, 'text-left')}
+                  className={cn(headCell, 'text-left whitespace-nowrap')}
                 >
                   {headers.bill}
                 </th>
                 <th
                   rowSpan={span}
                   dir="ltr"
-                  className={cn(headCell, 'text-left')}
+                  className={cn(headCell, 'text-left whitespace-nowrap')}
                 >
                   {headers.billDate}
                 </th>
@@ -159,17 +168,6 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     }
                   />
                 </th>
-                <th rowSpan={span} className={cn(headCell, 'text-end')}>
-                  <HeaderWithTooltip
-                    label={headers.collected}
-                    align="end"
-                    tooltip={
-                      urdu
-                        ? 'منتخب دوروں کی تاریخوں میں گاہک سے وصول ہونے والی کل رقم۔'
-                        : 'Total payments collected from this customer across all selected tours in this date range.'
-                    }
-                  />
-                </th>
                 {hasTours ? (
                   <th
                     colSpan={tours.length}
@@ -180,8 +178,8 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       align="center"
                       tooltip={
                         urdu
-                          ? 'مخصوص دوروں کے دوران ہونے والی وصولیاں۔ سرخ 0 کا مطلب ہے کہ اس دورے میں کوئی وصولی نہیں ہوئی۔'
-                          : 'Receipts collected during each specific tour window. A red 0 cell means the customer paid nothing on that tour.'
+                          ? 'ہر کالم میں اوپر اس دورے کے دوران وصولی اور نیچے اس دورے کے اختتام پر گاہک کا بقایا (سرمئی) ہے۔ سرخ 0 کا مطلب ہے کہ اس دورے میں کوئی وصولی نہیں ہوئی۔'
+                          : 'Top number: receipts collected during that tour. Grey number below it: the shop’s balance at the end of that tour. A red 0 means nothing was collected on that tour.'
                       }
                     />
                   </th>
@@ -191,7 +189,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     rowSpan={span}
                     className={cn(
                       headCell,
-                      'text-end whitespace-nowrap text-muted-foreground/80 bg-muted/30 font-normal',
+                      'w-[4.5rem] text-end text-muted-foreground/80 bg-muted/30 font-normal',
                     )}
                   >
                     <HeaderWithTooltip
@@ -244,9 +242,18 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     <th
                       key={tour.id}
                       dir="ltr"
-                      className={cn(headCell, 'text-end whitespace-nowrap')}
+                      className={cn(
+                        headCell,
+                        'w-[5.5rem] min-w-[4.75rem] text-center align-bottom font-normal',
+                      )}
                     >
-                      {tourColumnHeader(tour)}
+                      <span className="block font-semibold leading-tight">
+                        {tour.name}
+                      </span>
+                      <span className="block whitespace-nowrap text-[10px] leading-tight text-muted-foreground">
+                        {tourColumnRange(tour)}
+                        {tour.clipped ? ' (part)' : ''}
+                      </span>
                     </th>
                   ))}
                 </tr>
@@ -255,70 +262,25 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="align-top">
-                  <td className={cn(bodyCell, 'text-end tabular-nums')}>
-                    {row.serial}
-                  </td>
-                  <td
-                    dir={row.shopDisplay === '//' ? 'ltr' : 'auto'}
-                    className={cn(
-                      bodyCell,
-                      row.shopDisplay === '//' && 'text-muted-foreground/45',
-                      row.shopDisplay === '//' && urdu && 'text-right',
-                    )}
-                  >
-                    {row.shopDisplay === '//' ? (
-                      '//'
-                    ) : (
-                      <span>
-                        <span className="font-medium">{row.shop}</span>
-                        {row.billCount > 1 && row.totalBilled != null ? (
-                          <span className="text-muted-foreground/75 text-xs ml-1.5 font-normal whitespace-nowrap">
-                            {urdu
-                              ? `(${
-                                  row.billCount
-                                } واجب الادا بل · کل: ${formatSheetAmount(
-                                  row.totalBilled,
-                                )})`
-                              : `(${
-                                  row.billCount
-                                } due bills · Total Due: ${formatSheetAmount(
-                                  row.totalBilled,
-                                )})`}
-                          </span>
-                        ) : null}
-                      </span>
-                    )}
-                  </td>
-                  <td
-                    dir={row.addressDisplay === '//' ? 'ltr' : 'auto'}
-                    className={cn(
-                      bodyCell,
-                      row.addressDisplay === '//' && 'text-muted-foreground/45',
-                      row.addressDisplay === '//' && urdu && 'text-right',
-                    )}
-                  >
-                    {row.addressDisplay}
-                  </td>
                   <td
                     dir="ltr"
+                    title={codeTitle(row)}
                     className={cn(
                       bodyCell,
-                      'whitespace-nowrap text-left',
-                      row.codeDisplay === '//' && 'text-muted-foreground/45',
+                      codeRail,
+                      'z-10 bg-background whitespace-nowrap text-left',
+                      row.billIndex === 1
+                        ? 'font-medium'
+                        : 'text-muted-foreground/45',
                     )}
                   >
-                    {row.codeDisplay}
+                    {row.billIndex === 1 ? row.code : '//'}
                   </td>
                   <td
                     dir="ltr"
                     className={cn(bodyCell, 'whitespace-nowrap text-left')}
                   >
-                    <span>{row.billNumber}</span>
-                    {row.billCount > 1 ? (
-                      <span className="text-muted-foreground/60 text-[11px] ml-1 font-mono">
-                        ({row.billIndex}/{row.billCount})
-                      </span>
-                    ) : null}
+                    {row.billNumber}
                   </td>
                   <td
                     dir="ltr"
@@ -329,32 +291,22 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                   <td className={cn(bodyCell, 'text-end')}>
                     <Amount amount={row.balance} />
                   </td>
-                  <td
-                    className={cn(
-                      bodyCell,
-                      'text-end',
-                      row.collected == null && 'text-muted-foreground/35',
-                    )}
-                    title={
-                      row.collected == null
-                        ? 'Collected amount credited on first bill row'
-                        : undefined
-                    }
-                  >
-                    {row.collected == null ? (
-                      <span className="select-none">—</span>
-                    ) : (
-                      <Amount amount={row.collected} />
-                    )}
-                  </td>
                   {tours.map((tour) => {
                     const paid = row.tourPaid[tour.id];
+                    const balance = row.tourBalance[tour.id];
                     const isContinuation = paid === null;
-                    let tourCellTitle: string | undefined;
-                    if (isUnpaidTourCell(paid)) {
-                      tourCellTitle = 'Not paid';
-                    } else if (isContinuation) {
-                      tourCellTitle = 'Tour receipt credited on first bill row';
+                    const titleParts: string[] = [];
+                    if (isContinuation) {
+                      titleParts.push(
+                        'Tour receipt credited on first bill row',
+                      );
+                    } else if (isUnpaidTourCell(paid)) {
+                      titleParts.push('Not paid');
+                    }
+                    if (balance != null) {
+                      titleParts.push(
+                        `Balance at tour end: ${formatSheetAmount(balance)}`,
+                      );
                     }
                     return (
                       <td
@@ -365,12 +317,27 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                           isUnpaidTourCell(paid) && unpaidCell,
                           isContinuation && 'text-muted-foreground/35',
                         )}
-                        title={tourCellTitle}
+                        title={
+                          titleParts.length > 0
+                            ? titleParts.join(' · ')
+                            : undefined
+                        }
                       >
                         {isContinuation ? (
                           <span className="select-none">—</span>
                         ) : (
-                          formatTourAmount(paid)
+                          <>
+                            <div>
+                              {isUnpaidTourCell(paid)
+                                ? '0'
+                                : formatTourAmount(paid)}
+                            </div>
+                            {balance != null ? (
+                              <div className="mt-0.5 border-t border-border/60 pt-0.5 text-[10px] leading-tight font-normal text-muted-foreground/80">
+                                {formatSheetAmount(balance)}
+                              </div>
+                            ) : null}
+                          </>
                         )}
                       </td>
                     );
@@ -401,17 +368,16 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             </tbody>
             <tfoot className="sticky bottom-0 z-20 border-t border-border bg-muted/95 shadow-[0_-1px_0_hsl(var(--border))] backdrop-blur-sm print:static print:z-auto">
               <tr className="font-semibold bg-muted/95">
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'bg-inherit')}>{headers.total}</td>
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'bg-inherit')} />
+                <td
+                  dir="ltr"
+                  className={cn(bodyCell, codeRail, 'z-30 bg-muted text-left')}
+                >
+                  {headers.total}
+                </td>
                 <td className={cn(bodyCell, 'bg-inherit')} />
                 <td className={cn(bodyCell, 'bg-inherit')} />
                 <td className={cn(bodyCell, 'text-end bg-inherit')}>
                   <Amount amount={totals.balance} />
-                </td>
-                <td className={cn(bodyCell, 'text-end bg-inherit')}>
-                  <Amount amount={totals.collected} />
                 </td>
                 {tours.map((tour) => (
                   <td

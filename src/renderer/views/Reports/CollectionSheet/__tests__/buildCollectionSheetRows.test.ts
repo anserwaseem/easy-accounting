@@ -8,6 +8,7 @@ import {
   isUnpaidTourCell,
   isUntouredCell,
   tourColumnHeader,
+  tourColumnRange,
   type CollectionSheetSource,
 } from '../buildCollectionSheetRows';
 
@@ -249,6 +250,34 @@ describe('buildCollectionSheetRows', () => {
       });
     });
 
+    it('folds tiers per tour for the balance at tour end, first row only', () => {
+      const rows = buildCollectionSheetRows(
+        accounts,
+        itemTypes,
+        money,
+        bills,
+        'en',
+        tourIds,
+        {},
+        {
+          1: {
+            10: { balance: 100, balanceType: 'Dr' },
+            11: { balance: 80, balanceType: 'Dr' },
+          },
+          2: {
+            10: { balance: 20, balanceType: 'Cr' },
+            11: { balance: 10, balanceType: 'Dr' },
+          },
+        },
+      );
+      expect(rows.map((r) => [r.code, r.tourBalance])).toEqual([
+        ['IDLE', { 10: 0, 11: 0 }],
+        // tier 2's Cr balance offsets tier 1: 100 - 20, then 80 + 10
+        ['NOOR', { 10: 80, 11: 90 }],
+        ['NOOR', { 10: null, 11: null }],
+      ]);
+    });
+
     it('puts the family "not in a tour" sum on the first row only', () => {
       const rows = buildCollectionSheetRows(
         accounts,
@@ -257,6 +286,7 @@ describe('buildCollectionSheetRows', () => {
         bills,
         'en',
         tourIds,
+        {},
         {},
         { 1: 7, 2: 3 },
       );
@@ -317,6 +347,23 @@ describe('buildCollectionSheetRows', () => {
         clipped: true,
       }),
     ).toBe('Jan 2026 · 01 Jan–25 Jan (part)');
+    // the sheet header stacks this range under the tour name, so it must stay short
+    expect(
+      tourColumnRange({
+        id: 1,
+        name: 'Aug 2026',
+        startDate: '2026-07-27',
+        endDate: '2026-08-30',
+      }),
+    ).toBe('27 Jul–30 Aug');
+    expect(
+      tourColumnRange({
+        id: 2,
+        name: 'Oct 2026',
+        startDate: '2026-10-01',
+        endDate: null,
+      }),
+    ).toBe('01 Oct–…');
   });
 
   describe('sorting options', () => {
@@ -368,6 +415,7 @@ describe('buildCollectionSheetRows', () => {
         tourIds,
         tourCollections,
         {},
+        {},
         'outstanding-desc',
       );
       // Gamma (200), Alpha (80), Beta (10)
@@ -384,6 +432,7 @@ describe('buildCollectionSheetRows', () => {
         tourIds,
         tourCollections,
         {},
+        {},
         'unpaid-tours-desc',
       );
       // Gamma (2 unpaid), Alpha (1 unpaid), Beta (0 unpaid)
@@ -399,6 +448,7 @@ describe('buildCollectionSheetRows', () => {
         'en',
         tourIds,
         tourCollections,
+        {},
         {},
         'bills-desc',
       );

@@ -4,10 +4,11 @@ import {
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
+  collectionSheetUntouredTotal,
   formatSheetAmount,
   formatTourAmount,
   isUnpaidTourCell,
-  tourColumnHeader,
+  tourColumnRange,
   type CollectionSheetLanguage,
   type CollectionSheetRow,
   type CollectionSheetTourColumn,
@@ -29,10 +30,12 @@ export const printCollectionSheetIframe = (
   options: CollectionSheetPrintOptions,
 ) => {
   const { rows, tours, title, subtitle, language } = options;
+  const showUntoured = options.showUntoured ?? false;
   if (rows.length === 0) return;
 
   const headers = collectionSheetHeaders(language);
   const totals = collectionSheetTotals(rows);
+  const untouredTotal = collectionSheetUntouredTotal(rows);
   const tourTotals = collectionSheetTourTotals(
     rows,
     tours.map((tour) => tour.id),
@@ -47,64 +50,47 @@ export const printCollectionSheetIframe = (
         if (paid === null) {
           return `<td class="num tour continuation">—</td>`;
         }
+        const balance = row.tourBalance[tour.id];
         const unpaid = isUnpaidTourCell(paid) ? ' unpaid' : '';
-        return `<td class="num tour${unpaid}">${escape(
-          formatTourAmount(paid),
-        )}</td>`;
+        const paidText = isUnpaidTourCell(paid) ? '0' : formatTourAmount(paid);
+        const balanceText =
+          balance == null
+            ? ''
+            : `<span class="tour-balance">${escape(
+                formatSheetAmount(balance),
+              )}</span>`;
+        return `<td class="num tour${unpaid}"><span class="tour-paid">${escape(
+          paidText,
+        )}</span>${balanceText}</td>`;
       })
       .join('');
   };
+  const untouredHead = showUntoured
+    ? `<th class="num tour"${span}>${escape(headers.untoured)}</th>`
+    : '';
+  const untouredBody = (row: CollectionSheetRow): string =>
+    showUntoured
+      ? `<td class="num tour">${escape(formatTourAmount(row.untoured))}</td>`
+      : '';
+  const untouredFoot = showUntoured
+    ? `<td class="num tour"><strong>${escape(
+        formatTourAmount(untouredTotal),
+      )}</strong></td>`
+    : '';
+
   const body = rows
     .map((row) => {
-      const shopDittoClass =
-        row.shopDisplay === '//'
-          ? ` class="ditto${language === 'ur' ? ' ditto-right' : ''}" dir="ltr"`
-          : '';
-      const shopSummary =
-        row.billCount > 1 && row.totalBilled != null && row.shopDisplay !== '//'
-          ? ` <span class="continuation">(${row.billCount} ${
-              language === 'ur' ? 'واجب الادا بل' : 'due bills'
-            } · ${language === 'ur' ? 'کل' : 'Total Due'}: ${escape(
-              formatSheetAmount(row.totalBilled),
-            )})</span>`
-          : '';
-      const shopCell =
-        row.shopDisplay === '//'
-          ? `<td${shopDittoClass}>//</td>`
-          : `<td>${escape(row.shop)}${shopSummary}</td>`;
-      const dittoClass =
-        row.addressDisplay === '//'
-          ? ` class="ditto${language === 'ur' ? ' ditto-right' : ''}" dir="ltr"`
-          : '';
-      const addressCell =
-        row.addressDisplay === '//'
-          ? `<td${dittoClass}>//</td>`
-          : cell(row.addressDisplay);
-      const codeDittoClass =
-        row.codeDisplay === '//'
-          ? ' class="ditto ltr fit" dir="ltr"'
-          : ' class="ltr fit" dir="ltr"';
-      const codeCell = `<td${codeDittoClass}>${escape(row.codeDisplay)}</td>`;
-      const billIndexText =
-        row.billCount > 1
-          ? ` <span class="continuation">(${row.billIndex}/${row.billCount})</span>`
-          : '';
-      const collectedContent =
-        row.collected === null
-          ? `<span class="continuation">—</span>`
-          : escape(formatSheetAmount(row.collected));
+      const codeCell =
+        row.billIndex === 1
+          ? `<td class="ltr fit code" dir="ltr">${escape(row.code)}</td>`
+          : '<td class="ltr fit ditto" dir="ltr">//</td>';
       return `<tr>
-        ${cell(String(row.serial), ' class="num"')}
-        ${shopCell}
-        ${addressCell}
         ${codeCell}
-        <td class="ltr fit" dir="ltr">${escape(
-          row.billNumber,
-        )}${billIndexText}</td>
+        <td class="ltr fit" dir="ltr">${escape(row.billNumber)}</td>
         ${cell(row.billDate, ' class="ltr fit" dir="ltr"')}
         <td class="num fit">${escape(formatSheetAmount(row.balance))}</td>
-        <td class="num">${collectedContent}</td>
         ${tourCells(row)}
+        ${untouredBody(row)}
         <td class="write"></td>
         <td class="write"></td>
         <td class="write"></td>
@@ -154,10 +140,15 @@ export const printCollectionSheetIframe = (
     td.num, th.num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
     th.ltr, td.ltr { text-align: left; direction: ltr; }
     th.fit, td.fit { width: 1%; white-space: nowrap; padding-left: 3px; padding-right: 3px; }
+    td.code, th.code { font-weight: 600; }
     td.ditto { color: #bdbdbd; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    td.ditto-right { text-align: right; }
-    th.write, td.write { min-width: 16mm; }
+    th.write, td.write { min-width: 14mm; }
     th.tour, td.tour { white-space: nowrap; }
+    th.tour .tour-name { display: block; font-weight: 700; }
+    th.tour .tour-range { display: block; font-weight: 400; font-size: 9px; }
+    td.tour .tour-paid { display: block; }
+    td.tour .tour-balance { display: block; font-size: 9px; color: #555; border-top: 1px dotted #bbb; margin-top: 1px; padding-top: 1px; }
+    .legend { margin: -4px 0 8px; font-size: 9px; color: #555; }
     td.unpaid { background: #ececec; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .continuation { color: #9e9e9e; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     tr { break-inside: avoid; }
@@ -166,22 +157,28 @@ export const printCollectionSheetIframe = (
 <body>
   <h1>${safeTitle}</h1>
   <p>${escape(subtitle)}</p>
+  ${
+    tours.length > 0
+      ? `<p class="legend">${escape(
+          language === 'ur'
+            ? 'ہر دورہ کالم: اوپر اس دورے کی وصولی، نیچے اس دورے کے اختتام پر بقایا (سرمئی)'
+            : 'Tour columns: top = collected during the tour, grey = balance at the tour’s end',
+        )}</p>`
+      : ''
+  }
   <table>
     <thead>
       <tr>
-        <th class="num"${span}>${escape(headers.serial)}</th>
-        <th${span}>${escape(headers.shop)}</th>
-        <th${span}>${escape(headers.address)}</th>
-        <th class="ltr fit" dir="ltr"${span}>${escape(headers.code)}</th>
+        <th class="ltr fit code" dir="ltr"${span}>${escape(headers.code)}</th>
         <th class="ltr fit" dir="ltr"${span}>${escape(headers.bill)}</th>
         <th class="ltr fit" dir="ltr"${span}>${escape(headers.billDate)}</th>
         <th class="num fit"${span}>${escape(headers.balance)}</th>
-        <th class="num"${span}>${escape(headers.collected)}</th>
         ${
           tours.length > 0
             ? `<th colspan="${tours.length}">${escape(headers.tours)}</th>`
             : ''
         }
+        ${untouredHead}
         <th class="write"${span}>${escape(headers.collection)}</th>
         <th class="write"${span}>${escape(headers.difference)}</th>
         <th class="write"${span}>${escape(headers.remaining)}</th>
@@ -191,9 +188,11 @@ export const printCollectionSheetIframe = (
           ? `<tr>${tours
               .map(
                 (tour) =>
-                  `<th class="num tour" dir="ltr">${escape(
-                    tourColumnHeader(tour),
-                  )}</th>`,
+                  `<th class="num tour" dir="ltr"><span class="tour-name">${escape(
+                    tour.name,
+                  )}</span><span class="tour-range">${escape(
+                    tourColumnRange(tour),
+                  )}${tour.clipped ? ' (part)' : ''}</span></th>`,
               )
               .join('')}</tr>`
           : ''
@@ -202,17 +201,13 @@ export const printCollectionSheetIframe = (
     <tbody>
       ${body}
       <tr>
-        <td></td>
-        <td><strong>${escape(headers.total)}</strong></td>
-        <td></td>
-        <td></td>
+        <td class="ltr code" dir="ltr"><strong>${escape(
+          headers.total,
+        )}</strong></td>
         <td></td>
         <td></td>
         <td class="num"><strong>${escape(
           formatSheetAmount(totals.balance),
-        )}</strong></td>
-        <td class="num"><strong>${escape(
-          formatSheetAmount(totals.collected),
         )}</strong></td>
         ${tours
           .map(
@@ -222,6 +217,7 @@ export const printCollectionSheetIframe = (
               )}</strong></td>`,
           )
           .join('')}
+        ${untouredFoot}
         <td class="write"></td>
         <td class="write"></td>
         <td class="write"></td>

@@ -17,6 +17,7 @@ import {
   type CollectionSheetLanguage,
   type CollectionSheetMoney,
   type CollectionSheetSortBy,
+  type CollectionSheetTourBalances,
   type CollectionSheetTourPaid,
 } from './buildCollectionSheetRows';
 
@@ -30,6 +31,8 @@ interface CollectionSheetSnapshot {
   /** the head's tours overlapping the sheet range, clipped to it, oldest first */
   tours: (AgentTour & { clipped: boolean })[];
   tourPaid: CollectionSheetTourPaid;
+  /** running balance per account at each tour's end */
+  tourBalances: CollectionSheetTourBalances;
   /** null when the agent has no tours at all, which hides the column */
   untoured: Record<number, number> | null;
 }
@@ -39,7 +42,8 @@ const NO_TOURS: CollectionSheetSnapshot['tours'] = [];
 /**
  * tours are clipped to the sheet range so a row's tour columns plus
  * "not in a tour" always equal Collected. "not in a tour" only means
- * something once the agent has tours.
+ * something once the agent has tours. each tour's balance is read at that
+ * clipped end date, matching the column's "Balance at tour end" line.
  */
 const loadTourColumns = async (
   chartId: number,
@@ -47,10 +51,15 @@ const loadTourColumns = async (
   from: string,
   to: string,
 ): Promise<
-  Pick<CollectionSheetSnapshot, 'tours' | 'tourPaid' | 'untoured'>
+  Pick<
+    CollectionSheetSnapshot,
+    'tours' | 'tourPaid' | 'tourBalances' | 'untoured'
+  >
 > => {
   const all = await window.electron.getAgentTours(chartId);
-  if (all.length === 0) return { tours: [], tourPaid: {}, untoured: null };
+  if (all.length === 0) {
+    return { tours: [], tourPaid: {}, tourBalances: {}, untoured: null };
+  }
   const today = format(new Date(), 'yyyy-MM-dd');
   const tours = orderBy(
     all
@@ -59,15 +68,19 @@ const loadTourColumns = async (
     ['startDate'],
     ['asc'],
   );
-  const [tourPaid, untoured] = await Promise.all([
+  const tourIds = tours.map((tour) => tour.id);
+  const [tourPaid, tourBalances, untoured] = await Promise.all([
     tours.length === 0
       ? Promise.resolve({})
       : window.electron.getTourCollectionsForAccountIds(
           accountIds,
-          tours.map((tour) => tour.id),
+          tourIds,
           from,
           to,
         ),
+    tours.length === 0
+      ? Promise.resolve({})
+      : window.electron.getTourBalancesForAccountIds(accountIds, tourIds, to),
     window.electron.getUntouredCollectionsForAccountIds(
       accountIds,
       chartId,
@@ -75,7 +88,7 @@ const loadTourColumns = async (
       to,
     ),
   ]);
-  return { tours, tourPaid, untoured };
+  return { tours, tourPaid, tourBalances, untoured };
 };
 
 /** rolling presets are recomputed from today. a saved range that does not match is a custom pick. */
@@ -340,6 +353,7 @@ export const useCollectionSheet = () => {
       language,
       snapshot.tours.map((tour) => tour.id),
       snapshot.tourPaid,
+      snapshot.tourBalances,
       snapshot.untoured,
       sortBy,
     );
