@@ -69,7 +69,7 @@ const InvoicePage: React.FC<InvoiceProps> = ({
       <div
         className={`${
           propInvoices ? 'w-full mb-6' : 'w-full md:w-3/4'
-        } overflow-y-auto scrollbar justify-between items-center p-3 md:p-4 md:pl-8`}
+        } data-detail-scroll overflow-y-auto scrollbar justify-between items-center p-3 md:p-4 md:pl-8`}
       >
         <InvoiceDetails
           invoiceType={invoiceType}

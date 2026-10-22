@@ -212,10 +212,18 @@ const SidebarListPlusNewRow: FC<SidebarListPlusNewRowProps> = ({
 
 interface SidebarHeaderProps {
   collapsed: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  goBack: () => void;
+  goForward: () => void;
 }
 
 const SidebarHeader: FC<SidebarHeaderProps> = ({
   collapsed,
+  canGoBack,
+  canGoForward,
+  goBack,
+  goForward,
 }: SidebarHeaderProps) => {
   if (collapsed) {
     return (
@@ -235,7 +243,7 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
   }
 
   return (
-    <div className="flex items-center justify-center h-14 px-4">
+    <div className="flex items-center justify-between gap-1 h-14 px-4">
       <Link
         to="/"
         className="text-lg font-semibold hover:opacity-80 transition-opacity truncate"
@@ -243,6 +251,36 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
       >
         Easy Accounting
       </Link>
+      {/* Back and forward, the way a browser and a desktop app both do
+          it. The app renders inside a MemoryRouter, which keeps its own
+          history but never touches the browser URL — so without these
+          the only way back was the sidebar. */}
+      <div className="flex shrink-0 items-center gap-0.5">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={goBack}
+          disabled={!canGoBack}
+          aria-label="Go back"
+          title="Go back"
+          type="button"
+        >
+          <ChevronLeft size={18} aria-hidden />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={goForward}
+          disabled={!canGoForward}
+          aria-label="Go forward"
+          title="Go forward"
+          type="button"
+        >
+          <ChevronRight size={18} aria-hidden />
+        </Button>
+      </div>
     </div>
   );
 };
@@ -364,7 +402,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
   useAppNavigationShortcuts();
   const { logout } = useAuth();
   const isMobile = useIsMobile();
-  const { canGoBack, goBack } = useNavigationHistory();
+  const { canGoBack, canGoForward, goBack, goForward } = useNavigationHistory();
 
   // persist collapsed state across restarts (desktop icon-only mode only —
   // on mobile the sidebar is an off-canvas overlay instead, see mobileOpen)
@@ -432,7 +470,15 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           />
         )}
         <ShadSidebar
-          title={<SidebarHeader collapsed={effectiveCollapsed} />}
+          title={
+            <SidebarHeader
+              collapsed={effectiveCollapsed}
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              goBack={goBack}
+              goForward={goForward}
+            />
+          }
           items={[
             <SidebarOutlineLink
               key="accounts"

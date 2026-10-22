@@ -22,6 +22,13 @@ import {
   profilePercentFromJournalLabel,
 } from '@/lib/journalDiscountLabel';
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/renderer/shad/ui/sheet';
+import {
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -172,6 +179,9 @@ const BillsAgingPage = () => {
   const [hideNonPositiveOutstanding, setHideNonPositiveOutstanding] =
     useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // The phone's filter sheet: the same controls as the inline toolbar,
+  // in a sheet that can be dismissed with a swipe.
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // overdue follow-up filters
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
@@ -533,11 +543,14 @@ const BillsAgingPage = () => {
               )}
 
               <div className="flex items-center gap-1.5">
+                {/* On a phone the sheet below carries every control, so
+                    this button is hidden there — two "Filters" buttons
+                    on one screen is a trap. */}
                 <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant={hasActiveFilters ? 'secondary' : 'outline'}
-                      className="gap-2"
+                      className="hidden gap-2 sm:inline-flex"
                       aria-expanded={filtersOpen}
                       title="Filters"
                     >
@@ -666,10 +679,13 @@ const BillsAgingPage = () => {
             </div>
           </div>
 
-          {/* Row 2: Filter Controls Toolbar. Each control takes a
-              full row on a phone rather than wrapping into a ragged
-              grid, and the fixed widths become flexible above sm. */}
-          <div className="grid grid-cols-1 gap-2.5 pt-1 sm:flex sm:flex-wrap sm:items-center">
+          {/* Row 2: Filter Controls Toolbar. On a phone these seven
+              controls each took a full row, so the report's own content
+              started below the fold — the header ate the screen. They
+              now collapse behind one "Filters" button (which shows how
+              many are active) and open into a sheet on demand; above
+              sm they stay inline. */}
+          <div className="hidden pt-1 sm:flex sm:flex-wrap sm:items-center">
             <VirtualMultiSelect
               options={customerOptions}
               value={selectedCustomerIds}
@@ -795,6 +811,226 @@ const BillsAgingPage = () => {
                 if (range?.to) handleDateChange(range.to);
               }}
             />
+          </div>
+
+          {/* The same controls, in a sheet, for a phone. */}
+          <div className="sm:hidden print:hidden">
+            <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="w-full gap-2">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Filters
+                  {activeFilterCount > 0 ? (
+                    <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+                      {activeFilterCount}
+                    </span>
+                  ) : null}
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="bottom"
+                className="max-h-[85dvh] overflow-y-auto"
+              >
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-3 pb-6">
+                  <div className="rounded-lg border p-3">
+                    <p className="mb-2 text-sm font-medium">Show</p>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-all-mobile"
+                          checked={hideAllFilters}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            setHideAllFilters(next);
+                            setHideStatus(next);
+                            setHideZeroRows(next);
+                            setHideNonPositiveOutstanding(next);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-all-mobile"
+                          className="cursor-pointer"
+                        >
+                          Hide all
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-status-mobile"
+                          checked={hideStatus}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            const nextHideAllFilters =
+                              next &&
+                              hideZeroRows &&
+                              hideNonPositiveOutstanding;
+                            setHideStatus(next);
+                            setHideAllFilters(nextHideAllFilters);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-status-mobile"
+                          className="cursor-pointer"
+                        >
+                          Hide cleared accounts
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-zero-mobile"
+                          checked={hideZeroRows}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            setHideZeroRows(next);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-zero-mobile"
+                          className="cursor-pointer"
+                        >
+                          Hide zero balances
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                  <VirtualMultiSelect
+                    options={customerOptions}
+                    value={selectedCustomerIds}
+                    onChange={(ids) =>
+                      handleCustomerFilterChange(ids.map((id) => Number(id)))
+                    }
+                    placeholder="All customers"
+                    searchPlaceholder="Search customers..."
+                    searchFields={
+                      isAllParties ? ['name', 'code', 'headName'] : undefined
+                    }
+                    renderSelectItem={
+                      isAllParties ? renderPartyOption : undefined
+                    }
+                    disabled={!customerOptions.length}
+                  />
+                  <Select value={selectedHead} onValueChange={handleHeadChange}>
+                    <SelectTrigger className="w-full sm:w-[170px]">
+                      <SelectValue placeholder="Select head" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_PARTIES_HEAD}>
+                        {ALL_PARTIES_HEAD}
+                      </SelectItem>
+                      {charts.map((chart) => (
+                        <SelectItem key={chart.id} value={chart.name}>
+                          {chart.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={accountTypeFilter}
+                    onValueChange={setAccountTypeFilter}
+                  >
+                    <SelectTrigger className="w-full sm:w-[155px]">
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="main">Base</SelectItem>
+                      {itemTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.name}>
+                          Type {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center gap-1">
+                    <Select value={agePreset} onValueChange={setAgePreset}>
+                      <SelectTrigger className="w-full sm:w-[135px]">
+                        <SelectValue placeholder="Overdue Age" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Overdue</SelectItem>
+                        <SelectItem value="30">&gt; 30 Days</SelectItem>
+                        <SelectItem value="45">&gt; 45 Days</SelectItem>
+                        <SelectItem value="60">&gt; 60 Days (2M)</SelectItem>
+                        <SelectItem value="90">&gt; 90 Days (3M)</SelectItem>
+                        <SelectItem value="180">&gt; 180 Days (6M)</SelectItem>
+                        <SelectItem value="365">&gt; 1 Year</SelectItem>
+                        <SelectItem value="custom">Custom Days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {agePreset === 'custom' && (
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Days"
+                        value={customDays}
+                        onChange={(e) => setCustomDays(e.target.value)}
+                        className="w-16 h-9 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Select
+                      value={discountPreset}
+                      onValueChange={setDiscountPreset}
+                    >
+                      <SelectTrigger className="w-full sm:w-[130px]">
+                        <SelectValue placeholder="Discount %" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Discounts</SelectItem>
+                        <SelectItem value="15">≥ 15%</SelectItem>
+                        <SelectItem value="20">≥ 20%</SelectItem>
+                        <SelectItem value="22">≥ 22%</SelectItem>
+                        <SelectItem value="25">≥ 25%</SelectItem>
+                        <SelectItem value="28">≥ 28%</SelectItem>
+                        <SelectItem value="30">≥ 30%</SelectItem>
+                        <SelectItem value="custom">Custom %</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {discountPreset === 'custom' && (
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="Min %"
+                        value={customDiscount}
+                        onChange={(e) => setCustomDiscount(e.target.value)}
+                        className="w-16 h-9 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    )}
+                  </div>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-full sm:w-[155px]">
+                      <SelectValue placeholder="Sort By" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="code">Code (Default)</SelectItem>
+                      <SelectItem value="due_desc">
+                        Due: Highest First
+                      </SelectItem>
+                      <SelectItem value="due_asc">Due: Lowest First</SelectItem>
+                      <SelectItem value="overdue_desc">
+                        Overdue: Oldest First
+                      </SelectItem>
+                      <SelectItem value="discount_desc">
+                        Discount: Highest First
+                      </SelectItem>
+                      <SelectItem value="name_asc">Name (A–Z)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <DateRangePickerWithPresets
+                    initialRange={{ from: startDate, to: selectedDate }}
+                    $onSelect={(range?: DateRange) => {
+                      if (range?.from) handleStartDateChange(range.from);
+                      if (range?.to) handleDateChange(range.to);
+                    }}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
 
           {/* Row 3: Agent Subtotals Chips (under All Parties) */}

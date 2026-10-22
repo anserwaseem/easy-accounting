@@ -17,7 +17,7 @@ const JournalPage: React.FC = () => {
       <div className="hidden md:block md:w-1/4 overflow-y-scroll scrollbar">
         <JournalsPage isMini />
       </div>
-      <div className="w-full md:w-3/4 overflow-y-auto scrollbar justify-between items-center px-3 py-4 md:px-4 md:py-5 md:pl-8">
+      <div className="w-full md:w-3/4 data-detail-scroll overflow-y-auto scrollbar justify-between items-center px-3 py-4 md:px-4 md:py-5 md:pl-8">
         <JournalTable journalId={toNumber(id)} />
       </div>
     </div>

@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { get, isNil, pick, toNumber, toString } from 'lodash';
-import { Plus, Printer, RefreshCw, Upload } from 'lucide-react';
+import { MoreHorizontal, Plus, Printer, RefreshCw, Upload } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -37,6 +37,13 @@ import {
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
 import { toast } from 'renderer/shad/ui/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from 'renderer/shad/ui/dropdown-menu';
 import { scrollToFirstInvalidField } from '@/renderer/lib/scrollToFirstError';
 import { useUnsavedChangesGuard } from '@/renderer/hooks/useUnsavedChangesGuard';
 import {
@@ -2161,54 +2168,76 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
             ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {invoiceType === InvoiceType.Sale && showInvoiceForm && (
-              <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                <div className="flex items-center gap-2 min-h-[44px]">
-                  <Checkbox
-                    id="useSingleAccount"
-                    checked={useSingleAccount}
-                    onCheckedChange={onUseSingleAccountCheckedChange}
-                  />
-                  <Label
-                    htmlFor="useSingleAccount"
-                    className="cursor-pointer select-none"
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The two posting options were a boxed row of checkboxes
+                under the title — a whole block of screen for settings
+                most invoices never change. They now live in a compact
+                overflow menu, with the count shown when one is on, so
+                the form starts with the customer field. */}
+            {invoiceType === InvoiceType.Sale && showInvoiceForm ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    aria-label="Posting options"
+                    title="Posting options"
                   >
-                    One customer for entire invoice
-                  </Label>
-                </div>
-                {useSingleAccount && (
-                  <div className="flex items-center gap-2 min-h-[44px]">
+                    <MoreHorizontal className="h-5 w-5" />
+                    {useSingleAccount ? (
+                      <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary" />
+                    ) : null}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Posting options
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    className="gap-2"
+                    onSelect={(e) => e.preventDefault()}
+                  >
                     <Checkbox
-                      id="splitByItemType"
-                      checked={splitByItemType}
-                      onCheckedChange={onSplitByItemTypeCheckedChange}
+                      id="useSingleAccount"
+                      checked={useSingleAccount}
+                      onCheckedChange={onUseSingleAccountCheckedChange}
                     />
                     <Label
-                      htmlFor="splitByItemType"
+                      htmlFor="useSingleAccount"
                       className="cursor-pointer select-none"
                     >
-                      Split ledger by item type
+                      One customer for entire invoice
                     </Label>
-                  </div>
-                )}
-                {accountMappingErrorMessage ? (
-                  <div className="w-full min-w-0">
-                    <p
-                      role="alert"
-                      className="text-sm font-medium text-destructive"
+                  </DropdownMenuItem>
+                  {useSingleAccount ? (
+                    <DropdownMenuItem
+                      className="gap-2"
+                      onSelect={(e) => e.preventDefault()}
                     >
-                      {accountMappingErrorMessage}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            )}
+                      <Checkbox
+                        id="splitByItemType"
+                        checked={splitByItemType}
+                        onCheckedChange={onSplitByItemTypeCheckedChange}
+                      />
+                      <Label
+                        htmlFor="splitByItemType"
+                        className="cursor-pointer select-none"
+                      >
+                        Split ledger by item type
+                      </Label>
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             <Button
               variant="outline"
               size="icon"
+              className="shrink-0"
               onClick={handleRefreshLookups}
               title="Refresh accounts, inventory, discounts, and balance"
+              aria-label="Refresh accounts, inventory, discounts, and balance"
               disabled={isRefreshingLookups}
             >
               <RefreshCw
@@ -2248,14 +2277,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   <div className="grid grid-cols-2 gap-x-8 gap-y-6">
                     {isSingleAccountSale && (
                       <>
-                        <div className="grid grid-cols-1 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
+                        <div className="grid grid-cols-2 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
                           <FormField
                             control={form.control}
                             name="accountMapping.singleAccountId"
                             render={({ field }) => (
                               <FormItem
                                 labelPosition="top"
-                                className="min-w-0 ml-[1px]"
+                                className="min-w-0 ml-[1px] col-span-2 md:col-span-1"
                               >
                                 <span className="flex items-center justify-between">
                                   <FormLabel className="text-base">
@@ -2268,6 +2297,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                     refreshKey={partyBalanceRefreshKey}
                                   />
                                 </span>
+                                {accountMappingErrorMessage ? (
+                                  <p
+                                    role="alert"
+                                    className="text-sm font-medium text-destructive"
+                                  >
+                                    {accountMappingErrorMessage}
+                                  </p>
+                                ) : null}
                                 <VirtualSelect
                                   options={customerVendorSelectOptions}
                                   value={field.value}
@@ -2364,7 +2401,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     )}
                     {isSingleAccountOrPurchase && !isSingleAccountSale && (
                       <>
-                        <div className="grid grid-cols-1 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
+                        <div className="grid grid-cols-2 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
                           <FormField
                             control={form.control}
                             name="accountMapping.singleAccountId"

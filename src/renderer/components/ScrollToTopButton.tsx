@@ -1,19 +1,70 @@
 /* eslint-disable react/prop-types -- props fully typed via ScrollToTopButtonProps interface */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 
 import { cn } from 'renderer/lib/utils';
 import { Button } from 'renderer/shad/ui/button';
 
 interface ScrollToTopButtonProps {
-  /**
-   * The scrollable element. Defaults to the app shell's content pane
-   * (the element with `data-app-scroll`), which is what every screen
-   * scrolls inside.
-   */
-  target?: HTMLElement | null;
   className?: string;
 }
+
+/**
+ * The element that actually scrolls the current screen.
+ *
+ * There is no single scroller: the app shell's content pane scrolls
+ * most screens, but the virtualised tables (react-virtuoso) own their
+ * own scroller, and the split-pane detail screens (invoice, ledger,
+ * journal) put an `overflow-y-auto` div inside the shell. Scrolling the
+ * wrong one does nothing, which is why the button appeared to be
+ * broken on exactly those screens.
+ *
+ * So: ask the DOM which element can scroll, preferring the innermost
+ * one that still has room to move.
+ */
+const findScrollableElement = (): HTMLElement | null => {
+  if (typeof document === 'undefined') return null;
+
+  const candidates: HTMLElement[] = [];
+
+  // The virtualised tables' own scroller.
+  document
+    .querySelectorAll<HTMLElement>('[data-virtuoso-scroller]')
+    .forEach((el) => candidates.push(el));
+
+  // The app shell's content pane.
+  const shell = document.querySelector<HTMLElement>('[data-app-scroll]');
+  if (shell) candidates.push(shell);
+
+  // The split-pane detail screens' inner pane.
+  document
+    .querySelectorAll<HTMLElement>('[data-detail-scroll]')
+    .forEach((el) => candidates.push(el));
+
+  const scrollable = candidates.filter(
+    (el) => el.scrollHeight - el.clientHeight > 8,
+  );
+
+  if (scrollable.length === 0) return candidates[0] ?? null;
+
+  // The one that matters is the one the user is actually looking at.
+  //
+  // A virtualised table's own scroller is nested INSIDE the app shell,
+  // so "innermost" and "last in the document" both point at the table —
+  // but the table's scroller is the one with the rows. The shell has a
+  // few pixels of give and would win a naive "most scrollable" test
+  // only by accident.
+  //
+  // So: prefer the scroller that holds the most content, and break
+  // ties towards the innermost one.
+  return scrollable.reduce((best, el) => {
+    const bestRange = best.scrollHeight - best.clientHeight;
+    const range = el.scrollHeight - el.clientHeight;
+    if (range > bestRange * 1.2) return el;
+    if (range > bestRange) return el;
+    return best;
+  });
+};
 
 /**
  * A floating button that jumps to the top or the bottom of the current
@@ -26,39 +77,42 @@ interface ScrollToTopButtonProps {
  * every long mobile list uses.
  *
  * It only appears once the screen is long enough for the jump to be
- * worth the space, and it sits above the content rather than in it, so
- * it never covers a row.
+ * worth the space, and it floats above the content rather than sitting
+ * in it, so it never covers a row.
  */
 export const ScrollToTopButton: React.FC<ScrollToTopButtonProps> = ({
-  target,
   className,
 }) => {
   const [atBottom, setAtBottom] = useState(true);
   const [visible, setVisible] = useState(false);
 
+  const measure = useCallback(() => {
+    const scroller = findScrollableElement();
+    if (!scroller) {
+      setVisible(false);
+      return;
+    }
+    const { scrollTop, scrollHeight, clientHeight } = scroller;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    setVisible(scrollTop > 40 || distanceFromBottom > 40);
+    setAtBottom(distanceFromBottom <= 40);
+  }, []);
+
   useEffect(() => {
-    const scroller =
-      target ??
-      (typeof document !== 'undefined'
-        ? document.querySelector<HTMLElement>('[data-app-scroll]')
-        : null);
-    if (!scroller) return undefined;
+    measure();
 
-    const onScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = scroller;
-      const scrolled = scrollTop > 40;
-      setVisible(scrolled || scrollHeight - scrollTop - clientHeight > 40);
-      setAtBottom(scrollHeight - scrollTop - clientHeight <= 40);
+    // Scroll events do not bubble, so they are captured on the
+    // document to catch every scroller on the page.
+    document.addEventListener('scroll', measure, true);
+    window.addEventListener('resize', measure);
+    return () => {
+      document.removeEventListener('scroll', measure, true);
+      window.removeEventListener('resize', measure);
     };
-
-    onScroll();
-    scroller.addEventListener('scroll', onScroll, { passive: true });
-    return () => scroller.removeEventListener('scroll', onScroll);
-  }, [target]);
+  }, [measure]);
 
   const scrollTo = (edge: 'top' | 'bottom') => {
-    const scroller =
-      target ?? document.querySelector<HTMLElement>('[data-app-scroll]');
+    const scroller = findScrollableElement();
     if (!scroller) return;
     scroller.scrollTo({
       top: edge === 'top' ? 0 : scroller.scrollHeight,
