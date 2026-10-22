@@ -54,6 +54,10 @@ export const useNavigationHistory = (): NavigationHistory => {
   const stackRef = useRef<string[]>([]);
   // Where "forward" would go, once the user goes back.
   const forwardRef = useRef<string | null>(null);
+  // True while a "back"/"forward" press is being applied, so the
+  // location effect does not treat it as a fresh destination and throw
+  // away the forward target.
+  const isRestoringRef = useRef(false);
 
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
@@ -66,11 +70,17 @@ export const useNavigationHistory = (): NavigationHistory => {
     // re-render, a filter change); do not push a second copy.
     if (stack[stack.length - 1] !== currentPath) {
       stack.push(currentPath);
+      // A genuinely new destination clears the forward history. When
+      // the user pressed "back", the forward target was set BEFORE the
+      // navigation, so it is kept (the `isRestoring` flag marks that
+      // case).
+      if (!isRestoringRef.current) {
+        forwardRef.current = null;
+        setCanGoForward(false);
+      }
     }
-    // A new destination clears the forward history.
-    forwardRef.current = null;
+    isRestoringRef.current = false;
     setCanGoBack(stack.length > 1);
-    setCanGoForward(false);
   }, [currentPath]);
 
   // Mirror the location into the browser's history so the browser's own
@@ -105,11 +115,13 @@ export const useNavigationHistory = (): NavigationHistory => {
     if (stack.length > 1) {
       const leaving = stack.pop()!;
       forwardRef.current = leaving;
+      isRestoringRef.current = true;
       setCanGoBack(stack.length > 1);
       setCanGoForward(true);
       navigate(stack[stack.length - 1]);
       return;
     }
+    isRestoringRef.current = true;
     navigate(HOME_PATH);
   }, [navigate]);
 
@@ -117,6 +129,7 @@ export const useNavigationHistory = (): NavigationHistory => {
     const forward = forwardRef.current;
     if (!forward) return;
     forwardRef.current = null;
+    isRestoringRef.current = true;
     setCanGoForward(false);
     // The effect above pushes the new path onto the stack.
     navigate(forward);

@@ -226,8 +226,10 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
   goForward,
 }: SidebarHeaderProps) => {
   if (collapsed) {
+    // The icon-only rail still needs a way back and forward, so the
+    // home button is joined by them.
     return (
-      <div className="flex items-center justify-center h-14">
+      <div className="flex flex-col items-center gap-1 py-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="ghost" size="icon">
@@ -238,6 +240,30 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
           </TooltipTrigger>
           <TooltipContent side="right">Home</TooltipContent>
         </Tooltip>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={goBack}
+          disabled={!canGoBack}
+          aria-label="Go back"
+          title="Go back"
+          type="button"
+        >
+          <ChevronLeft size={16} aria-hidden />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={goForward}
+          disabled={!canGoForward}
+          aria-label="Go forward"
+          title="Go forward"
+          type="button"
+        >
+          <ChevronRight size={16} aria-hidden />
+        </Button>
       </div>
     );
   }
