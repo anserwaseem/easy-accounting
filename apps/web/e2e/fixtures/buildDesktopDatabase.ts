@@ -4,15 +4,18 @@
  *
  * "Desktop-format" means built exactly the way the Electron app builds one:
  * src/sql/schema.sql followed by every frozen JS migration
- * (src/main/migrations/001.js..028.js) via better-sqlite3 — the same
- * bootstrap sequence src/main/migrations/index.ts's MigrationRunner and
+ * (src/main/migrations/001.js..028.js) — the same bootstrap sequence
+ * src/main/migrations/index.ts's MigrationRunner and
  * scripts/generate-schema-snapshot.ts both use (see the latter's
  * `buildProductionDatabase`, which this mirrors for a Node/Playwright
- * context rather than a Jest one). better-sqlite3 itself is loaded from
- * release/app/node_modules (the packaged Electron build's own copy — see
- * the repo's root jest.config.js, which resolves it the same way) since
- * apps/web has no dependency on it at all; a plain `require('better-sqlite3')`
- * from this file would fail to resolve.
+ * context rather than a Jest one).
+ *
+ * The SQL itself runs through Node's built-in `node:sqlite` behind a
+ * better-sqlite3-shaped shim (see ./nodeSqlite.ts): the repo's only
+ * better-sqlite3 lives in release/app/node_modules and is compiled for
+ * Electron 25's ABI, which plain Node can never load. The migrations only
+ * use `prepare().run/all/get`, `exec` and `transaction(fn)()`, so the shim
+ * covers them exactly.
  *
  * The seeded user's password hash is produced by importing
  * src/main/utils/encrypt.ts's real `hashPassword` directly — not a
@@ -24,6 +27,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { openNodeSqlite } from './nodeSqlite';
 
 const require = createRequire(import.meta.url);
 // src/main/utils/encrypt.ts compiles to CommonJS (root tsconfig's
@@ -38,15 +42,8 @@ const { hashPassword } =
   require('../../../../src/main/utils/encrypt') as typeof import('../../../../src/main/utils/encrypt');
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../../..');
-const BETTER_SQLITE3_PATH = path.join(
-  REPO_ROOT,
-  'release/app/node_modules/better-sqlite3',
-);
 const SCHEMA_SQL_PATH = path.join(REPO_ROOT, 'src/sql/schema.sql');
 const MIGRATIONS_DIR = path.join(REPO_ROOT, 'src/main/migrations');
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type BetterSqliteDb = any;
 
 export interface DesktopFixtureUser {
   username: string;
@@ -99,13 +96,11 @@ export function buildDesktopDatabaseFixture(
   openingBalance?: { amount: number; equityAccountName: string };
 } {
   const { preMigration025 = false } = opts;
-  // eslint-disable-next-line global-require, import/no-dynamic-require
-  const Database = require(BETTER_SQLITE3_PATH);
   const filePath = path.join(
     fs.mkdtempSync(path.join(os.tmpdir(), 'easy-accounting-import-fixture-')),
     'database.db',
   );
-  const db: BetterSqliteDb = new Database(filePath);
+  const db = openNodeSqlite(filePath);
 
   const schemaSql = fs.readFileSync(SCHEMA_SQL_PATH, 'utf-8');
   db.exec(schemaSql);

@@ -77,12 +77,12 @@ test.describe('bring your database — import from desktop app', () => {
     // --- Accounts: the imported account is there ---
     await page.getByRole('link', { name: 'Accounts', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
-    await page
-      .getByRole('button', {
-        name: /^(All|Asset|Liability|Equity|Revenue|Expense) Accounts$/,
-      })
-      .click();
-    await page.getByRole('menuitem', { name: 'All Accounts' }).click();
+    // the type filter lives in the header's "Filters" popover
+    await page.getByRole('button', { name: /Filters/ }).click();
+    const filters = page.getByRole('dialog');
+    await filters.getByRole('combobox').first().click();
+    await page.getByRole('option', { name: 'All', exact: true }).click();
+    await page.keyboard.press('Escape');
     await expect(
       page.getByRole('cell', { name: fixture.accountName, exact: true }),
     ).toBeVisible();
@@ -112,7 +112,14 @@ test.describe('bring your database — import from desktop app', () => {
     await expect(
       page.getByRole('heading', { name: 'Inventory' }),
     ).toBeVisible();
-    await page.getByRole('checkbox', { name: 'All', exact: true }).click();
+    // the hide-filters live in the header's "Hide items" menu now (a
+    // dropdown of checkboxes whose "All" turns every one of them off at
+    // once) — the imported item has no type, so without this it is
+    // filtered out of the table
+    await page.getByRole('button', { name: /Hide items/ }).click();
+    await page
+      .getByRole('menuitemcheckbox', { name: 'All', exact: true })
+      .click();
     const row = page.locator('tr', { hasText: fixture.inventoryName });
     await expect(row).toBeVisible({ timeout: 10_000 });
     await expect(row).toContainText(String(fixture.ids.expectedStock));
@@ -178,25 +185,24 @@ test.describe('bring your database — import from desktop app', () => {
     // --- Open the Cash account's ledger and find the backfilled entry -----
     await page.getByRole('link', { name: 'Accounts', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
-    await page
-      .getByRole('button', {
-        name: /^(All|Asset|Liability|Equity|Revenue|Expense) Accounts$/,
-      })
-      .click();
-    await page.getByRole('menuitem', { name: 'All Accounts' }).click();
+    // the type filter lives in the header's "Filters" popover
+    await page.getByRole('button', { name: /Filters/ }).click();
+    const filters = page.getByRole('dialog');
+    await filters.getByRole('combobox').first().click();
+    await page.getByRole('option', { name: 'All', exact: true }).click();
+    await page.keyboard.press('Escape');
     await page
       .getByRole('cell', { name: fixture.accountName, exact: true })
       .click();
 
-    await expect(page.getByRole('heading', { name: 'Ledger' })).toBeVisible({
-      timeout: 10_000,
-    });
+    // the account detail page's own <h1> is the account name — the page
+    // has no "Ledger" heading of its own any more.
     // level: 1 — the mini account-switcher rail (desktop layout) also
     // renders every account name as a heading (an <h2>), which would
     // otherwise make this ambiguous with the page's own <h1> title.
     await expect(
       page.getByRole('heading', { name: fixture.accountName, level: 1 }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10_000 });
     // The backfilled journal's contra side landed on the system "Opening
     // Balance Equity" account — that is what the ledger row's particulars
     // column shows (LedgerTableBase: linkedAccountName ?? particulars),
@@ -212,10 +218,10 @@ test.describe('bring your database — import from desktop app', () => {
     // locator ambiguous.
     const openingBalanceRow = page.getByRole('row', {
       name: new RegExp(
-        `01/01/2024.*${fixture.openingBalance!.equityAccountName}.*` +
-          fixture.openingBalance!.amount.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-          }),
+        // the app-wide date format ('dd MMM, yyyy', see
+        // src/lib/displayDate.ts) and a whole-number amount
+        `01 Jan, 2024.*${fixture.openingBalance!.equityAccountName}.*` +
+          fixture.openingBalance!.amount.toLocaleString('en-US'),
       ),
     });
     await expect(openingBalanceRow).toBeVisible();

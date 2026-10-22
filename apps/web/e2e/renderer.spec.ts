@@ -119,6 +119,24 @@ async function confirmTodaysDateIfAsked(page: Page) {
   await useCurrentDate.click();
 }
 
+/**
+ * A new invoice whose line has no discount (0%) raises a confirmation
+ * before it saves — the "Item with no discount" dialog, offering
+ * "Review items" (cancel) and "Save anyway" (confirm) — see
+ * src/renderer/views/NewInvoice/index.tsx's `hasZeroDiscountItem` check.
+ * The item in this spec carries no discount profile, so the dialog always
+ * shows; confirm it and let the save go through.
+ */
+async function confirmNoDiscountIfAsked(page: Page) {
+  const saveAnyway = page.getByRole('button', { name: 'Save anyway' });
+  try {
+    await saveAnyway.waitFor({ state: 'visible', timeout: 3_000 });
+  } catch {
+    return; // dialog didn't appear — nothing to confirm
+  }
+  await saveAnyway.click();
+}
+
 async function createAccount(
   page: Page,
   accountName: string,
@@ -131,14 +149,16 @@ async function createAccount(
   // "Asset Accounts" the first time. Switch it to "All Accounts" so a
   // Revenue-head account (e.g. "Sales") isn't filtered out of the table we
   // assert against right after creating it.
-  await page
-    .getByRole('button', {
-      name: /^(All|Asset|Liability|Equity|Revenue|Expense) Accounts$/,
-    })
-    .click();
-  await page.getByRole('menuitem', { name: 'All Accounts' }).click();
+  // the type filter lives in the header's "Filters" popover
+  await page.getByRole('button', { name: /Filters/ }).click();
+  const filters = page.getByRole('dialog');
+  await filters.getByRole('combobox').first().click();
+  await page.getByRole('option', { name: 'All', exact: true }).click();
+  await page.keyboard.press('Escape');
 
-  await page.getByRole('button', { name: 'New Account' }).click();
+  // account creation lives in the header's "New" dropdown now
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New Account' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
 
@@ -198,8 +218,10 @@ test.describe('real renderer — full UI flows', () => {
     await page.getByRole('button', { name: 'New item' }).click();
     const invDialog = page.getByRole('dialog');
     await expect(invDialog).toBeVisible();
-    await invDialog.getByLabel('name', { exact: true }).fill(itemName);
-    await invDialog.getByLabel('price', { exact: true }).fill('150');
+    // the form labels its fields with a capitalised version of the field
+    // name ("Name", "Price") — see InventoryForm's inventoryFieldLabel
+    await invDialog.getByLabel('Name', { exact: true }).fill(itemName);
+    await invDialog.getByLabel('Price', { exact: true }).fill('150');
     await invDialog.getByRole('button', { name: 'Submit' }).click();
     await expect(
       page.getByText('Inventory Item created successfully', { exact: true }),
@@ -209,9 +231,14 @@ test.describe('real renderer — full UI flows', () => {
     // A brand-new item has 0 quantity and no item type, and the Inventory
     // view hides zero-quantity AND no-type rows by default
     // (src/renderer/views/Inventory/index.tsx — hideZeroQuantity/hideNoType
-    // both start `true`) — "All" clears every hide-filter at once so the row
-    // we just created is visible.
-    await page.getByRole('checkbox', { name: 'All', exact: true }).click();
+    // both start `true`). The hide-filters live in the header's "Hide
+    // items" menu now (a dropdown of checkboxes whose "All" turns every
+    // one of them off at once), so one click there clears them all and
+    // the row we just created is visible.
+    await page.getByRole('button', { name: /Hide items/ }).click();
+    await page
+      .getByRole('menuitemcheckbox', { name: 'All', exact: true })
+      .click();
     await expect(
       page.getByRole('cell', { name: itemName, exact: true }),
     ).toBeVisible();
@@ -257,8 +284,11 @@ test.describe('real renderer — full UI flows', () => {
     await page.getByRole('link', { name: 'Accounts', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
     await page.getByRole('cell', { name: cashName, exact: true }).click();
+    // the account detail page's own <h1> is the account name (the desktop
+    // layout's mini account-switcher rail renders the same name as an
+    // <h2>, so the level is what makes this unambiguous)
     await expect(
-      page.getByRole('heading', { name: 'Ledger', exact: true }),
+      page.getByRole('heading', { name: cashName, level: 1, exact: true }),
     ).toBeVisible({
       timeout: 10_000,
     });
@@ -269,6 +299,15 @@ test.describe('real renderer — full UI flows', () => {
 
     // --- Sale Invoice: give the item stock (setup, see file doc comment),
     // then create the invoice through the real New Invoice view ---
+    // "Adjust stock by hand" is an advanced control, off on a fresh device
+    // — the worker refuses the call until the device enables it. The
+    // check happens on the call itself, so (unlike a UI-gated control)
+    // no reload is needed here.
+    await page.evaluate(() =>
+      window.easyAccounting.api.setAdvancedCapabilities([
+        'inventory.adjustStock',
+      ]),
+    );
     const inventoryId: number = await page.evaluate(async (name) => {
       const items = await window.easyAccounting.api.getInventory();
       const item = (items as { id: number; name: string }[]).find(
@@ -321,6 +360,9 @@ test.describe('real renderer — full UI flows', () => {
     );
 
     await page.getByRole('button', { name: 'Save', exact: true }).click();
+    // the 0%-discount confirmation comes first, then (if the date is
+    // still today's and unconfirmed) the date confirmation
+    await confirmNoDiscountIfAsked(page);
     await confirmTodaysDateIfAsked(page);
 
     // Saving navigates to the new invoice's own detail page (see
@@ -347,8 +389,12 @@ test.describe('real renderer — full UI flows', () => {
     ).toBeVisible();
     // The hide-filters are plain component state (see the earlier comment)
     // — they reset to their zero-quantity/no-type-hiding defaults on this
-    // fresh mount, and our item still has no item type.
-    await page.getByRole('checkbox', { name: 'All', exact: true }).click();
+    // fresh mount, and our item still has no item type, so clear them
+    // again through the header's "Hide items" menu.
+    await page.getByRole('button', { name: /Hide items/ }).click();
+    await page
+      .getByRole('menuitemcheckbox', { name: 'All', exact: true })
+      .click();
     const row = page.locator('tr', { hasText: itemName });
     await expect(row).toBeVisible({ timeout: 10_000 });
     await expect(row).toContainText('17');
