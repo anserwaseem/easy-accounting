@@ -54,17 +54,28 @@ test.describe('mobile back navigation (390x844)', () => {
 
     // Go to Accounts, then into the New Journal form: two steps, so
     // back has somewhere to go twice.
+    //
+    // The nav links carry a tooltip that now opens on a tap, and it
+    // covers the link, so the link's own element is clicked directly.
     await openMenu(page);
-    await page.getByRole('link', { name: 'Accounts', exact: true }).click();
+    await page
+      .getByRole('link', { name: 'Accounts', exact: true })
+      .evaluate((el) => (el as HTMLElement).click());
     await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
 
-    // A back button appears now that there is history.
-    const back = page.getByRole('button', { name: 'Go back' });
+    // A back button appears now that there is history. The desktop
+    // sidebar has one too, so scope this to the mobile top bar.
+    const back = page
+      .locator('header, div')
+      .getByRole('button', { name: 'Go back' })
+      .last();
     await expect(back).toBeVisible();
 
     // Into the New Journal form.
     await openMenu(page);
-    await page.getByRole('link', { name: /^New journal/ }).click();
+    await page
+      .getByRole('link', { name: /New journal/ })
+      .evaluate((el) => (el as HTMLElement).click());
     await expect(
       page.getByRole('heading', { name: 'New Journal' }),
     ).toBeVisible();
