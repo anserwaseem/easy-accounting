@@ -108,13 +108,27 @@ const TooltipWrapper = ({
     [onOpenChange, touch],
   );
 
+  // The open state is only OURS on a touch device. Passing `open` (even
+  // as `undefined`) or `onOpenChange` makes Radix treat the state as
+  // controlled, and a controlled tooltip that is never told to open
+  // never opens — which is why the hover tooltip stopped working once
+  // this wrapper was introduced.
+  let controlledProps: {
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  } = {};
+  if (touch) {
+    controlledProps = { open, onOpenChange: handleOpenChange };
+  } else if (onOpenChange) {
+    controlledProps = { onOpenChange: handleOpenChange };
+  }
+
   return (
     <TooltipTouchContext.Provider value={contextValue}>
       <Tooltip
         {...props}
+        {...controlledProps}
         delayDuration={touch ? 0 : delayDuration}
-        open={touch ? open : undefined}
-        onOpenChange={handleOpenChange}
       >
         {children}
       </Tooltip>
@@ -133,6 +147,7 @@ const TooltipTriggerWrapper = forwardRef<
       ref={ref}
       // A tap opens the tooltip on a touch device. Without this the
       // information is simply unreachable on a phone.
+      {...props}
       onPointerDown={
         touch
           ? (event) => {
@@ -142,7 +157,6 @@ const TooltipTriggerWrapper = forwardRef<
             }
           : onPointerDown
       }
-      {...props}
     >
       {children}
     </TooltipTrigger>

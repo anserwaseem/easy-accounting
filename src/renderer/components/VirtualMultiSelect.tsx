@@ -4,12 +4,13 @@ import type { ReactNode } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { Input } from '@/renderer/shad/ui/input';
 import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-} from '@/renderer/shad/ui/select';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/renderer/shad/ui/popover';
+import { Button } from '@/renderer/shad/ui/button';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
 import type { Account } from 'types';
 
@@ -41,40 +42,69 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
   disabled = false,
 }: VirtualMultiSelectProps<T>) => {
   const [searchInputValue, setSearchInputValue] = useState('');
+  // The element the popover is portalled into: the closest dialog or
+  // sheet. Portalled to the body it would land outside that dialog's
+  // focus scope, and the scope would pull the focus straight back to
+  // the trigger — so the search field could not be typed into.
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+    null,
+  );
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [filteredSearchValue, setFilteredSearchValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
 
-  // auto focus the search input when the select dropdown is opened
+  // Focus the search field when the popover opens. Radix focuses the
+  // trigger after its own auto-focus runs, so this has to win the race:
+  // the field is focused on the open event itself, and the trigger's
+  // focus is undone right after.
   useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      // use a small timeout to ensure the input is in the DOM
-      const timer = setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 10);
-      return () => clearTimeout(timer);
-    }
+    if (!isOpen) return undefined;
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isOpen]);
 
-  // maintain focus on input while typing
+  // Portalled into the closest dialog or sheet, so the popover lives
+  // inside that layer's focus scope (see the note on portalContainer).
+  useEffect(() => {
+    if (!isOpen || portalContainer) return;
+    const dialog = triggerRef.current?.closest<HTMLElement>(
+      '[role="dialog"], [role="alertdialog"], [data-radix-dialog-content]',
+    );
+    if (dialog) setPortalContainer(dialog);
+  }, [isOpen, portalContainer]);
+
+  // Keep the focus on the search field while the popover is open.
+  //
+  // This listens for `focusout` on the FIELD itself rather than for
+  // `focusin` on the document: a document-level `focusin` fires when
+  // anything takes focus, including the popover's own trigger, and
+  // pulling the focus straight back from it fought with the popover's
+  // own focus management — the field could never be typed into.
   useEffect(() => {
     if (!isOpen) return undefined;
 
-    // function to refocus the input if it loses focus while typing
+    const input = searchInputRef.current;
+    if (!input) return undefined;
+
     const handleFocusOut = () => {
-      if (isTypingRef.current) {
-        if (document.activeElement !== searchInputRef.current) {
-          setTimeout(() => {
-            searchInputRef.current?.focus();
-          }, 0);
+      // The popover closing (or the clear button being pressed) is a
+      // deliberate focus move, not the user tabbing away.
+      if (!isOpen) return;
+      if (input.ownerDocument.activeElement === input) return;
+      requestAnimationFrame(() => {
+        if (isOpen && input.ownerDocument.activeElement !== input) {
+          input.focus();
         }
-      }
+      });
     };
 
-    document.addEventListener('focusin', handleFocusOut);
+    input.addEventListener('focusout', handleFocusOut);
     return () => {
-      document.removeEventListener('focusin', handleFocusOut);
+      input.removeEventListener('focusout', handleFocusOut);
     };
   }, [isOpen]);
 
@@ -293,38 +323,72 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
   }, [value, options, placeholder]);
 
   return (
-    <Select open={isOpen} onOpenChange={handleOpenChange} disabled={disabled}>
-      <SelectTrigger className="w-full gap-1 sm:w-[260px]" disabled={disabled}>
-        <span className="truncate">{displayText}</span>
-        {hasSelection && !disabled && (
-          <span
-            role="button"
-            tabIndex={-1}
-            aria-label="Clear selection"
-            title="Clear selection"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:h-5 md:w-5"
-            // radix opens the select on pointer down, so stop it before it reaches the trigger
-            onPointerDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleClearSelection();
-            }}
-            onKeyDown={(e) => {
-              if (e.key !== 'Enter' && e.key !== ' ') return;
-              e.preventDefault();
-              e.stopPropagation();
-              handleClearSelection();
-            }}
-          >
-            <X className="h-3.5 w-3.5" />
-          </span>
-        )}
-      </SelectTrigger>
-      <SelectContent className="overflow-hidden">
+    <Popover open={isOpen} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          ref={triggerRef}
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={isOpen}
+          disabled={disabled}
+          className="w-full justify-between gap-1 sm:w-[260px]"
+        >
+          <span className="truncate">{displayText}</span>
+          {hasSelection && !disabled && (
+            <span
+              role="button"
+              tabIndex={-1}
+              aria-label="Clear selection"
+              title="Clear selection"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:h-5 md:w-5"
+              // radix opens the select on pointer down, so stop it before it reaches the trigger
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleClearSelection();
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                e.stopPropagation();
+                handleClearSelection();
+              }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        container={portalContainer}
+        className="w-[min(22rem,calc(100vw-2rem))] overflow-hidden p-0"
+        align="start"
+        // Radix moves focus to the trigger when the popover opens and
+        // restores it there when it closes. Either way the search field
+        // could not be typed into, so the focus is placed on the
+        // search field explicitly and the trigger's restore is
+        // suppressed.
+        // Radix's focus scope traps the focus inside the popover, and
+        // the trigger is OUTSIDE that scope — so the moment the search
+        // field took focus, the scope pulled it straight back to the
+        // trigger and the field could not be typed into at all.
+        //
+        // The scope is not needed here: the popover holds one input
+        // and a list, and the list's rows are ordinary buttons.
+        trapFocus={false}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          // Put the focus in the search field ourselves.
+          requestAnimationFrame(() => searchInputRef.current?.focus());
+        }}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <div className="p-2">
           <Input
             ref={searchInputRef}
@@ -376,8 +440,8 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
             itemContent={itemRenderer}
           />
         </div>
-      </SelectContent>
-    </Select>
+      </PopoverContent>
+    </Popover>
   );
 };
 

@@ -28,6 +28,15 @@ const forcedPointerEvents: React.CSSProperties = { pointerEvents: 'auto' };
 interface PopoverContentProps
   extends React.ComponentPropsWithoutRef<typeof Content> {
   container?: HTMLElement | null;
+  /**
+   * Whether the focus is trapped inside the popover.
+   *
+   * Radix's public `Content` type omits it (it is on the impl), but
+   * the runtime honours it. A popover that holds a text field needs it
+   * off: with the trap on, the scope pulls the focus straight back to
+   * the trigger and the field cannot be typed into.
+   */
+  trapFocus?: boolean;
 }
 
 const PopoverContent = forwardRef<
@@ -35,7 +44,15 @@ const PopoverContent = forwardRef<
   PopoverContentProps
 >(
   (
-    { className, align = 'center', sideOffset = 4, style, container, ...props },
+    {
+      className,
+      align = 'center',
+      sideOffset = 4,
+      style,
+      container,
+      trapFocus,
+      ...props
+    },
     ref,
   ) => (
     <Portal container={container}>
@@ -43,6 +60,9 @@ const PopoverContent = forwardRef<
         ref={ref}
         align={align}
         sideOffset={sideOffset}
+        // `trapFocus` is on Radix's impl props, not its public `Content`
+        // type, so it needs the cast.
+        {...({ trapFocus } as { trapFocus?: boolean })}
         style={{ ...forcedPointerEvents, ...style }}
         className={cn(
           // above dialog (z-50) so VirtualSelect works inside modals

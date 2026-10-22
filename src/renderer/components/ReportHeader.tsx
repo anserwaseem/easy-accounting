@@ -5,9 +5,17 @@ import { cn } from 'renderer/lib/utils';
 interface ReportHeaderProps {
   /** Report title. Rendered as the page's h1. */
   title: ReactNode;
-  /** The filter controls (account picker, date range, ...). */
+  /** A count or status chip beside the title (e.g. "297 accounts"). */
+  badge?: ReactNode;
+  /** The filter trigger. Sits on the title's row. */
   filters?: ReactNode;
-  /** Icon buttons and the like (refresh, export). */
+  /**
+   * A key figure (e.g. "Total outstanding"). It shares the row with
+   * the action buttons, so it is squeezed rather than given a row of
+   * its own.
+   */
+  summary?: ReactNode;
+  /** Icon buttons and the like (refresh, export, print). */
   actions?: ReactNode;
   className?: string;
 }
@@ -16,34 +24,45 @@ interface ReportHeaderProps {
  * The header shared by the report screens.
  *
  * Every report had its own hand-rolled header, and they all had the
- * same problem on a phone: a title on the left, a row of filter controls
- * and icon buttons on the right, and no wrapping. A report with an
- * account picker and a date range needed ~500px, so on a 390px screen
- * the title was squeezed to two words per line and the controls ran off
- * the edge (see the Ledger Report, where the account dropdown opened
- * off-screen entirely).
+ * same problem on a phone: the title, a key figure, a Filters button and
+ * three icon buttons stacked into a tall column that pushed the report's
+ * own content off the screen. A report's header should cost two rows,
+ * not five.
  *
  * Layout:
- *   desktop  title ........................ filters .... actions
- *   mobile   title ....................... actions
- *            filters
+ *   desktop  title ....... badge ...... filters | summary .... actions
+ *   mobile   title ....... badge ...... filters
+ *            summary .... actions
+ *
+ * The Filters button travels with the title (it is about what the
+ * report shows, like the title is), and the key figure travels with the
+ * action buttons (it is the report's result, next to the controls that
+ * change it).
  */
 export const ReportHeader: React.FC<ReportHeaderProps> = ({
   title,
+  badge,
   filters,
+  summary,
   actions,
   className,
 }) => (
   <div className={cn('print-header flex flex-col gap-2 pb-2', className)}>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h1 className="title-new min-w-0 truncate">{title}</h1>
-      {actions ? (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h1 className="title-new min-w-0 truncate">{title}</h1>
+        {badge}
+      </div>
+      {filters ? (
+        <div className="flex shrink-0 items-center gap-2">{filters}</div>
       ) : null}
     </div>
-    {filters ? (
-      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-        {filters}
+    {summary || actions ? (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {summary ? <div className="min-w-0 flex-1">{summary}</div> : null}
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
+        ) : null}
       </div>
     ) : null}
   </div>

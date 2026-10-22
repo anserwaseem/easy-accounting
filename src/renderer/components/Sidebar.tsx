@@ -40,6 +40,7 @@ import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth, useIsMobile } from '../hooks';
 import { useNavigationHistory } from '../hooks/useNavigationHistory';
+import { useBrowserNavigationShortcuts } from '../hooks/useBrowserNavigationShortcuts';
 import { ScrollToTopButton } from './ScrollToTopButton';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 
@@ -240,30 +241,42 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
           </TooltipTrigger>
           <TooltipContent side="right">Home</TooltipContent>
         </Tooltip>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={goBack}
-          disabled={!canGoBack}
-          aria-label="Go back"
-          title="Go back"
-          type="button"
-        >
-          <ChevronLeft size={16} aria-hidden />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={goForward}
-          disabled={!canGoForward}
-          aria-label="Go forward"
-          title="Go forward"
-          type="button"
-        >
-          <ChevronRight size={16} aria-hidden />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              onClick={goBack}
+              className="h-8 w-8"
+              aria-label="Go back"
+              type="button"
+            >
+              <ChevronLeft size={16} aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <KbdGroup>
+              Back <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>←</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              onClick={goForward}
+              className="h-8 w-8"
+              aria-label="Go forward"
+              type="button"
+            >
+              <ChevronRight size={16} aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <KbdGroup>
+              Forward <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>→</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
       </div>
     );
   }
@@ -282,30 +295,46 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
           history but never touches the browser URL — so without these
           the only way back was the sidebar. */}
       <div className="flex shrink-0 items-center gap-0.5">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={goBack}
-          disabled={!canGoBack}
-          aria-label="Go back"
-          title="Go back"
-          type="button"
-        >
-          <ChevronLeft size={18} aria-hidden />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={goForward}
-          disabled={!canGoForward}
-          aria-label="Go forward"
-          title="Go forward"
-          type="button"
-        >
-          <ChevronRight size={18} aria-hidden />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={goBack}
+              disabled={!canGoBack}
+              aria-label="Go back"
+              type="button"
+            >
+              <ChevronLeft size={18} aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <KbdGroup>
+              Back <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>←</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={goForward}
+              disabled={!canGoForward}
+              aria-label="Go forward"
+              type="button"
+            >
+              <ChevronRight size={18} aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <KbdGroup>
+              Forward <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>→</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
@@ -429,6 +458,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
   const { logout } = useAuth();
   const isMobile = useIsMobile();
   const { canGoBack, canGoForward, goBack, goForward } = useNavigationHistory();
+  useBrowserNavigationShortcuts(goBack, goForward);
 
   // persist collapsed state across restarts (desktop icon-only mode only —
   // on mobile the sidebar is an off-canvas overlay instead, see mobileOpen)
@@ -620,16 +650,21 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
                 screens meant opening the menu and hunting for the
                 destination again. */}
             {canGoBack ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 -ml-1"
-                onClick={goBack}
-                aria-label="Go back"
-                type="button"
-              >
-                <ChevronLeft size={22} aria-hidden />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 -ml-1"
+                    onClick={goBack}
+                    aria-label="Go back"
+                    type="button"
+                  >
+                    <ChevronLeft size={22} aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Back</TooltipContent>
+              </Tooltip>
             ) : (
               <Button
                 variant="ghost"
