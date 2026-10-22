@@ -35,6 +35,7 @@ import {
 } from '@/renderer/lib/reportFilters';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
+import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { REPORT_FILTER_KEYS } from 'types';
 import type { StockAsOfReportResponse, StockAsOfRow } from 'types';
@@ -372,85 +373,90 @@ const StockAsOfReportPage: React.FC = () => {
     <ReportLayout
       printStyles={`${printStyles}${stockAsOfPrintStyles}`}
       header={
-        <div className="flex flex-col gap-3 pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="title-new">Stock as of date</h1>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground shrink-0">
-                  As of:
-                </span>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal sm:w-[200px]',
-                        isLoading && 'opacity-70',
-                      )}
-                      disabled={isLoading}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                      {formatDisplayDate(selectedDate)}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={handleDateChange}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <Select
-                value={filterItemType}
-                onValueChange={handleItemTypeChange}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  {itemTypes.map((t) => (
-                    <SelectItem key={t.id} value={t.name}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={fetchReport}
-                title="Refresh"
-                disabled={isLoading}
-              >
-                <RefreshCw
-                  className={cn('h-4 w-4', isLoading && 'animate-spin')}
-                />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleExport}
-                title="Export to Excel"
-                disabled={!exportPrintRows.length}
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handlePrint}
-                title="Print stock as of (PDF)"
-                disabled={!exportPrintRows.length}
-              >
-                <Printer className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+        <>
+          <ReportHeader
+            title="Stock as of date"
+            filters={
+              <>
+                <ReportFilter label="As of:">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal sm:w-[200px]',
+                          isLoading && 'opacity-70',
+                        )}
+                        disabled={isLoading}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                        {formatDisplayDate(selectedDate)}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={handleDateChange}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </ReportFilter>
+                <ReportFilter>
+                  <Select
+                    value={filterItemType}
+                    onValueChange={handleItemTypeChange}
+                  >
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="All types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All types</SelectItem>
+                      {itemTypes.map((t) => (
+                        <SelectItem key={t.id} value={t.name}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </ReportFilter>
+              </>
+            }
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={fetchReport}
+                  title="Refresh"
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={cn('h-4 w-4', isLoading && 'animate-spin')}
+                  />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleExport}
+                  title="Export to Excel"
+                  disabled={!exportPrintRows.length}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrint}
+                  title="Print stock as of (PDF)"
+                  disabled={!exportPrintRows.length}
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </>
+            }
+          />
           <div className="max-w-3xl space-y-2">
             <p className="text-sm text-muted-foreground leading-relaxed">
               <span className="font-medium text-foreground">
@@ -484,7 +490,7 @@ const StockAsOfReportPage: React.FC = () => {
               </ul>
             </details>
           </div>
-        </div>
+        </>
       }
     >
       {isLoading && (

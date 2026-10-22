@@ -26,6 +26,7 @@ import {
 } from 'renderer/lib/reportExport';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
 import { ExportOrderDialog, printStyles } from '../components';
 import { useAccountBalances } from './useAccountBalances';
 import { AccountBalancesTable } from './AccountBalancesTable';
@@ -130,77 +131,82 @@ const AccountBalancesPage = () => {
         // select, a 200px date button and an icon button needed ~522px,
         // so on a phone the date control and the export button were
         // pushed off-screen and clipped.
-        <div className="flex flex-col gap-3 pb-2 print-header lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="title-new">Account Balances</h1>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-              <span className="text-sm text-muted-foreground">Head:</span>
-              <Select value={selectedHead} onValueChange={handleHeadChange}>
-                <SelectTrigger className="w-full sm:w-[250px]">
-                  <SelectValue placeholder="Select a head" />
-                </SelectTrigger>
-                <SelectContent>
-                  {charts.map((chart) => (
-                    <SelectItem key={chart.id} value={chart.name}>
-                      {chart.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-              <span className="text-sm text-muted-foreground">As of:</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'w-full justify-start text-left font-normal sm:w-[200px]',
-                      isLoading && 'opacity-70 cursor-not-allowed',
-                    )}
-                    disabled={isLoading}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formatDisplayDate(selectedDate)}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={handleDateChange}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setExportDialogOpen(true)}
-              title="Export to Excel"
-              disabled={!canExport}
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <ExportOrderDialog
-              open={exportDialogOpen}
-              onOpenChange={setExportDialogOpen}
-              onConfirm={handleExportExcel}
-              title="Export Account Balances"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handlePrint}
-              title="Print Account Balances"
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <ReportHeader
+          title="Account Balances"
+          filters={
+            <>
+              <ReportFilter label="Head:">
+                <Select value={selectedHead} onValueChange={handleHeadChange}>
+                  <SelectTrigger className="w-full sm:w-[250px]">
+                    <SelectValue placeholder="Select a head" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {charts.map((chart) => (
+                      <SelectItem key={chart.id} value={chart.name}>
+                        {chart.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </ReportFilter>
+              <ReportFilter label="As of:">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal sm:w-[200px]',
+                        isLoading && 'opacity-70 cursor-not-allowed',
+                      )}
+                      disabled={isLoading}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formatDisplayDate(selectedDate)}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={handleDateChange}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </ReportFilter>
+            </>
+          }
+          actions={
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setExportDialogOpen(true)}
+                title="Export to Excel"
+                disabled={!canExport}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handlePrint}
+                title="Print Account Balances"
+              >
+                <Printer className="h-4 w-4" />
+              </Button>
+            </>
+          }
+        />
       }
     >
+      <ExportOrderDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        onConfirm={handleExportExcel}
+        title="Export Account Balances"
+      />
+
       {/* Title that shows when printing */}
       <div className="hidden print:block text-center mb-4 print-header">
         <h1 className="text-lg font-medium text-center mb-1">

@@ -20,6 +20,7 @@ import {
 } from '@/renderer/shad/ui/select';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
+import { ReportHeader } from '@/renderer/components/ReportHeader';
 import {
   exportReportToExcel,
   type ReportExportPayload,
@@ -319,23 +320,26 @@ const CollectionSheetPage: React.FC = () => {
       printStyles={printStyles}
       bodyClassName="overflow-hidden h-full flex flex-col print:p-0 print:overflow-visible"
       header={
-        <div className="print-header flex flex-col gap-2 pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <h1 className="title-new flex items-center gap-2">
-                <ClipboardList className="h-5 w-5" />
-                {headers.title}
-              </h1>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                title="How to read this report"
-                onClick={() => setGuideOpen(true)}
-              >
-                <HelpCircle className="h-4 w-4" />
-              </Button>
-            </div>
+        <ReportHeader
+          title={
+            <span className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" />
+              {headers.title}
+            </span>
+          }
+          badge={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              title="How to read this report"
+              aria-label="How to read this report"
+              onClick={() => setGuideOpen(true)}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          }
+          filters={
             <div className="flex flex-wrap items-center gap-3">
               <LanguageToggle language={language} onChange={setLanguage} />
               <div className="flex items-center gap-2">
@@ -404,11 +408,16 @@ const CollectionSheetPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          }
+          actions={
+            <>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={refreshData}
                 title="Refresh"
+                aria-label="Refresh"
                 disabled={isLoading}
               >
                 <RefreshCw className="h-4 w-4" />
@@ -418,6 +427,7 @@ const CollectionSheetPage: React.FC = () => {
                 size="icon"
                 onClick={handleExport}
                 title="Export to Excel"
+                aria-label="Export to Excel"
                 disabled={!canExport}
               >
                 <Download className="h-4 w-4" />
@@ -427,18 +437,21 @@ const CollectionSheetPage: React.FC = () => {
                 size="icon"
                 onClick={handlePrint}
                 title="Print"
+                aria-label="Print"
                 disabled={!canExport}
               >
                 <Printer className="h-4 w-4" />
               </Button>
-            </div>
-          </div>
-          {subtitle ? (
-            <p className="text-sm text-muted-foreground" dir="auto">
-              {subtitle}
-            </p>
-          ) : null}
-        </div>
+            </>
+          }
+          summary={
+            subtitle ? (
+              <p className="text-sm text-muted-foreground" dir="auto">
+                {subtitle}
+              </p>
+            ) : null
+          }
+        />
       }
     >
       <CollectionSheetTable

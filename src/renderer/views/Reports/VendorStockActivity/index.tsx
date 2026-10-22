@@ -5,6 +5,7 @@ import type { DateRange } from 'react-day-picker';
 import { Download, Printer } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
+import { ReportHeader } from '@/renderer/components/ReportHeader';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
@@ -517,60 +518,68 @@ const VendorStockActivityPage: React.FC = () => {
     <ReportLayout
       printStyles={printStyles}
       header={
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
-          <div>
-            <h1 className="title-new">At-vendor activity</h1>
-            <p className="text-sm text-muted-foreground">
+        <ReportHeader
+          title="At-vendor activity"
+          badge={
+            <span className="text-sm text-muted-foreground">
               Qty held at this vendor — not warehouse stock. Click a number to
               see the sends or purchases behind it.
-            </p>
-            <p className="mt-1 text-sm font-medium tabular-nums">
+            </span>
+          }
+          summary={
+            <p className="text-sm font-medium tabular-nums">
               {ACTIVITY_EQUATION}
             </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 print:hidden">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Vendor:</span>
-              <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
-                <VirtualSelect
-                  options={vendorOptions}
-                  value={selectedVendorId}
-                  onChange={handleVendorChange}
-                  placeholder="Select vendor"
-                  searchPlaceholder="Search vendors..."
+          }
+          filters={
+            <div className="flex flex-wrap items-center gap-3 print:hidden">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Vendor:</span>
+                <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
+                  <VirtualSelect
+                    options={vendorOptions}
+                    value={selectedVendorId}
+                    onChange={handleVendorChange}
+                    placeholder="Select vendor"
+                    searchPlaceholder="Search vendors..."
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Range:</span>
+                <DateRangePickerWithPresets
+                  $onSelect={handleDateChange}
+                  initialRange={defaultDateRange}
+                  initialSelectValue={presetValue}
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Range:</span>
-              <DateRangePickerWithPresets
-                $onSelect={handleDateChange}
-                initialRange={defaultDateRange}
-                initialSelectValue={presetValue}
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleExport}
-              disabled={!response?.items.length}
-              title="Export to Excel"
-              aria-label="Export to Excel"
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handlePrint}
-              disabled={!response?.items.length}
-              title="Print report"
-              aria-label="Print report"
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+          }
+          actions={
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleExport}
+                disabled={!response?.items.length}
+                title="Export to Excel"
+                aria-label="Export to Excel"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handlePrint}
+                disabled={!response?.items.length}
+                title="Print report"
+                aria-label="Print report"
+              >
+                <Printer className="h-4 w-4" />
+              </Button>
+            </>
+          }
+        />
       }
     >
       <VendorStockActivitySheet

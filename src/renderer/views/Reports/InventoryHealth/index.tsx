@@ -13,6 +13,7 @@ import { Card } from '@/renderer/shad/ui/card';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { Label } from '@/renderer/shad/ui/label';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
+import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
 import {
   DateRangePickerWithPresets,
   type DateRange,
@@ -643,32 +644,40 @@ const InventoryHealthPage: React.FC = () => {
     <ReportLayout
       printStyles={`${printStyles}${inventoryHealthPrintStyles}`}
       header={
-        <div className="flex flex-col gap-3 pb-3">
-          <div className="flex items-center justify-between">
-            <h1 className="title-new">Inventory Health</h1>
-            <div className="flex items-center gap-3">
-              <DateRangePickerWithPresets
-                $onSelect={handleDateChange}
-                presets={[{ label: 'All', value: 'all' }]}
-                initialRange={defaultDateRange}
-                initialSelectValue={presetValue}
-              />
-              <Select
-                value={filterItemType}
-                onValueChange={handleItemTypeChange}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  {itemTypes.map((t) => (
-                    <SelectItem key={t.id} value={t.name}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <ReportHeader
+          title="Inventory Health"
+          filters={
+            <>
+              <ReportFilter>
+                <DateRangePickerWithPresets
+                  $onSelect={handleDateChange}
+                  presets={[{ label: 'All', value: 'all' }]}
+                  initialRange={defaultDateRange}
+                  initialSelectValue={presetValue}
+                />
+              </ReportFilter>
+              <ReportFilter>
+                <Select
+                  value={filterItemType}
+                  onValueChange={handleItemTypeChange}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {itemTypes.map((t) => (
+                      <SelectItem key={t.id} value={t.name}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </ReportFilter>
+            </>
+          }
+          actions={
+            <>
               <Button
                 variant="outline"
                 size="icon"
@@ -697,9 +706,9 @@ const InventoryHealthPage: React.FC = () => {
               >
                 <Printer className="h-4 w-4" />
               </Button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
       }
     >
       <TooltipProvider>

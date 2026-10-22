@@ -5,6 +5,7 @@ import { Download, Printer, RefreshCw } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import VirtualMultiSelect from '@/renderer/components/VirtualMultiSelect';
+import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { cn } from '@/renderer/lib/utils';
@@ -294,14 +295,11 @@ const SalesByCustomerPage: React.FC = () => {
     <ReportLayout
       printStyles={printStyles}
       header={
-        <div className="print-header flex flex-col gap-2 pb-2">
-          <div className="flex items-center justify-between pb-2">
-            <h1 className="title-new">Sales by Customer</h1>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  Customers:
-                </span>
+        <ReportHeader
+          title="Sales by Customer"
+          filters={
+            <>
+              <ReportFilter label="Customers:">
                 <VirtualMultiSelect
                   options={customers}
                   value={selectedCustomerIds}
@@ -310,16 +308,19 @@ const SalesByCustomerPage: React.FC = () => {
                   searchPlaceholder="Search customers..."
                   disabled={!customers.length}
                 />
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-sm text-muted-foreground">Range:</span>
+              </ReportFilter>
+              <ReportFilter label="Range:">
                 <DateRangePickerWithPresets
                   $onSelect={handleDateChange}
                   presets={[{ label: 'All', value: 'all' }]}
                   initialRange={dateRange ?? undefined}
                   initialSelectValue={presetValue}
                 />
-              </div>
+              </ReportFilter>
+            </>
+          }
+          actions={
+            <>
               <Button
                 variant="outline"
                 size="icon"
@@ -349,14 +350,16 @@ const SalesByCustomerPage: React.FC = () => {
               >
                 <Printer className="h-4 w-4" />
               </Button>
-            </div>
-          </div>
-          {hasSelection && !isLoading && sourceRows.length > 0 && (
-            <div className="print:hidden text-right text-sm text-muted-foreground">
-              {totalQty.toLocaleString()} items sold
-            </div>
-          )}
-        </div>
+            </>
+          }
+          summary={
+            hasSelection && !isLoading && sourceRows.length > 0 ? (
+              <p className="text-right text-sm text-muted-foreground">
+                {totalQty.toLocaleString()} items sold
+              </p>
+            ) : null
+          }
+        />
       }
     >
       <SalesByCustomerInvoiceSheet

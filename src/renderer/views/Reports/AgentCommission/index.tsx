@@ -63,6 +63,7 @@ import {
 } from '@/renderer/shad/ui/table';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
+import { ReportHeader } from '@/renderer/components/ReportHeader';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
@@ -931,12 +932,15 @@ const AgentCommissionReportPage: React.FC = () => {
     <ReportLayout
       printStyles={printStyles}
       header={
-        <div className="flex flex-col gap-3 pb-3 print:hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="title-new flex items-center gap-2">
+        <ReportHeader
+          title={
+            <span className="flex items-center gap-2">
               <Percent className="h-5 w-5 text-primary" />
               Agent Commissions
-            </h1>
+            </span>
+          }
+          className="print:hidden"
+          filters={
             <div className="flex flex-wrap items-center gap-2">
               {/* Agent Picker */}
               <div className="flex items-center gap-1.5">
@@ -1027,8 +1031,8 @@ const AgentCommissionReportPage: React.FC = () => {
                 Excel
               </Button>
             </div>
-          </div>
-        </div>
+          }
+        />
       }
     >
       <div className="space-y-5 pb-12">
