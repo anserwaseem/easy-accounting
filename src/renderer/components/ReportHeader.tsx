@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types -- props fully typed via ReportHeaderProps interface */
 import type { ReactNode } from 'react';
 import { cn } from 'renderer/lib/utils';
 
@@ -46,7 +45,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
   summary,
   actions,
   className,
-}) => (
+}: ReportHeaderProps) => (
   <div className={cn('print-header flex flex-col gap-2 pb-2', className)}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -54,7 +53,13 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
         {badge}
       </div>
       {filters ? (
-        <div className="flex shrink-0 items-center gap-2">{filters}</div>
+        // On a phone the filters take a row each. Side by side they
+        // did not fit, and the report's own controls were cut off at the
+        // edge of the screen: a date range that ended in "22 Oct, 20…"
+        // and a picker you could not read.
+        <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:shrink-0">
+          {filters}
+        </div>
       ) : null}
     </div>
     {summary || actions ? (
@@ -83,7 +88,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
   label,
   children,
   className,
-}) => (
+}: ReportFilterProps) => (
   <div className={cn('flex min-w-0 items-center gap-2', className)}>
     {label ? (
       <span className="shrink-0 text-sm text-muted-foreground">{label}</span>

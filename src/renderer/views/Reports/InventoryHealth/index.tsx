@@ -10,10 +10,17 @@ import {
 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { Card } from '@/renderer/shad/ui/card';
-import { Checkbox } from '@/renderer/shad/ui/checkbox';
-import { Label } from '@/renderer/shad/ui/label';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
+import {
+  HideItemsMenu,
+  type HideItemsOption,
+} from '@/renderer/components/HideItemsMenu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/renderer/shad/ui/popover';
 import {
   DateRangePickerWithPresets,
   type DateRange,
@@ -140,6 +147,45 @@ const InventoryHealthPage: React.FC = () => {
   const [hideNoType, setHideNoType] = useState(true);
   /** click anomaly chip → table shows only rows with that flag; stacks with hide checkboxes */
   const [issueChipFilter, setIssueChipFilter] = useState<string | null>(null);
+  /** the hide filters, as the header menu shows them */
+  const hideOptions = useMemo<HideItemsOption[]>(
+    () => [
+      {
+        id: 'negative-quantity',
+        label: 'Negative quantity',
+        checked: hideNegativeQuantity,
+        onCheckedChange: setHideNegativeQuantity,
+      },
+      {
+        id: 'zero-quantity',
+        label: 'Zero quantity',
+        checked: hideZeroQuantity,
+        onCheckedChange: setHideZeroQuantity,
+      },
+      {
+        id: 'zero-price',
+        label: 'Zero price',
+        checked: hideZeroPrice,
+        onCheckedChange: setHideZeroPrice,
+      },
+      {
+        id: 'no-type',
+        label: 'No type',
+        checked: hideNoType,
+        onCheckedChange: setHideNoType,
+      },
+    ],
+    [hideNegativeQuantity, hideZeroQuantity, hideZeroPrice, hideNoType],
+  );
+  const allHideOptionsChecked =
+    hideNegativeQuantity && hideZeroQuantity && hideZeroPrice && hideNoType;
+  // "All" turns every filter on or off at once
+  const handleAllHideOptionsChange = useCallback((checked: boolean) => {
+    setHideNegativeQuantity(checked);
+    setHideZeroQuantity(checked);
+    setHideZeroPrice(checked);
+    setHideNoType(checked);
+  }, []);
   /** rows as shown in grid (hide + chip + search + column sort); null until table syncs */
   const [gridViewRows, setGridViewRows] = useState<InventoryHealthRow[] | null>(
     null,
@@ -678,6 +724,36 @@ const InventoryHealthPage: React.FC = () => {
           }
           actions={
             <>
+              {visibleAnomalies.length > 0 && itemsWithAnyIssue > 0 ? (
+                // the warning is a fact, not a headline: an icon that
+                // opens the explanation, instead of a banner that took
+                // a third of the screen before the report began
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Items with issues"
+                      aria-label="Items with issues"
+                      className="border-red-200 text-red-600 hover:text-red-700 dark:border-red-900 dark:text-red-400"
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72 text-sm">
+                    <p className="font-medium">
+                      {itemsWithAnyIssue} of {totalItemsCount}{' '}
+                      {totalItemsCount === 1 ? 'item' : 'items'}{' '}
+                      {itemsWithAnyIssue === 1 ? 'has' : 'have'} at least one
+                      issue
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Click a chip below to filter the table to that issue;
+                      click it again to clear.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              ) : null}
               <Button
                 variant="outline"
                 size="icon"
@@ -706,6 +782,11 @@ const InventoryHealthPage: React.FC = () => {
               >
                 <Printer className="h-4 w-4" />
               </Button>
+              <HideItemsMenu
+                options={hideOptions}
+                allChecked={allHideOptionsChecked}
+                onAllCheckedChange={handleAllHideOptionsChange}
+              />
             </>
           }
         />
@@ -713,25 +794,12 @@ const InventoryHealthPage: React.FC = () => {
     >
       <TooltipProvider>
         <div className="space-y-3">
-          {/* issue summary + chip filters (counts match table badges; click = narrow table) */}
+          {/* issue chips (counts match table badges; click = narrow table) */}
           {visibleAnomalies.length > 0 && itemsWithAnyIssue > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-1 p-3 bg-red-50 border border-red-200 rounded-lg dark:bg-red-950/30 dark:border-red-900">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0" />
-                  <span className="font-medium text-red-900 dark:text-red-100">
-                    {itemsWithAnyIssue} of {totalItemsCount}{' '}
-                    {totalItemsCount === 1 ? 'item' : 'items'}{' '}
-                    {itemsWithAnyIssue === 1 ? 'has' : 'have'} at least one
-                    issue
-                  </span>
-                </div>
-                <p className="text-xs text-red-900/80 dark:text-red-100/80 pl-7">
-                  Click chip → filter table to that issue; click again to clear.
-                  Hide checkboxes stack (narrow first, then chip).
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 print:hidden">
+            <div className="print:hidden -mx-2 overflow-x-auto px-2">
+              {/* one row that scrolls sideways on a phone, so the chips
+                  cost a single line instead of three wrapped ones */}
+              <div className="flex w-max flex-nowrap items-center gap-2 sm:w-full sm:flex-wrap">
                 {visibleAnomalies.map((a) => {
                   const flagConfig = HEALTH_ISSUE_LABELS[a.type] || {
                     label: a.message,
@@ -750,7 +818,7 @@ const InventoryHealthPage: React.FC = () => {
                       }}
                       className={cn(
                         badgeVariants({ variant: flagConfig.variant }),
-                        'cursor-pointer py-1 px-2.5 outline-none ring-offset-background transition-shadow',
+                        'cursor-pointer whitespace-nowrap py-0.5 px-2 text-xs outline-none ring-offset-background transition-shadow',
                         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                         selected &&
                           'ring-2 ring-primary ring-offset-2 shadow-sm',
@@ -762,7 +830,7 @@ const InventoryHealthPage: React.FC = () => {
                   return (
                     <span
                       key={a.type}
-                      className="inline-flex items-center gap-0.5"
+                      className="inline-flex shrink-0 items-center gap-0.5"
                     >
                       {chipButton}
                       {chipTip ? (
@@ -799,87 +867,6 @@ const InventoryHealthPage: React.FC = () => {
             </Card>
           )}
 
-          {/* hide rows (same idea as inventory list; default on = in-stock, priced, typed items) */}
-          {!isLoading && tableData && tableData.length > 0 && (
-            <div className="print:hidden flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3">
-              <span className="text-sm font-medium text-muted-foreground">
-                Hide items:
-              </span>
-              <Label
-                htmlFor="ih-filter-hide-all"
-                className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-              >
-                <Checkbox
-                  id="ih-filter-hide-all"
-                  checked={
-                    hideNegativeQuantity &&
-                    hideZeroQuantity &&
-                    hideZeroPrice &&
-                    hideNoType
-                  }
-                  onCheckedChange={(checked) => {
-                    const value = checked === true;
-                    setHideNegativeQuantity(value);
-                    setHideZeroQuantity(value);
-                    setHideZeroPrice(value);
-                    setHideNoType(value);
-                  }}
-                />
-                <span>All</span>
-              </Label>
-              <Label
-                htmlFor="ih-filter-hide-negative-qty"
-                className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-              >
-                <Checkbox
-                  id="ih-filter-hide-negative-qty"
-                  checked={hideNegativeQuantity}
-                  onCheckedChange={(checked) =>
-                    setHideNegativeQuantity(checked === true)
-                  }
-                />
-                <span>Negative quantity</span>
-              </Label>
-              <Label
-                htmlFor="ih-filter-hide-zero-qty"
-                className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-              >
-                <Checkbox
-                  id="ih-filter-hide-zero-qty"
-                  checked={hideZeroQuantity}
-                  onCheckedChange={(checked) =>
-                    setHideZeroQuantity(checked === true)
-                  }
-                />
-                <span>Zero quantity</span>
-              </Label>
-              <Label
-                htmlFor="ih-filter-hide-zero-price"
-                className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-              >
-                <Checkbox
-                  id="ih-filter-hide-zero-price"
-                  checked={hideZeroPrice}
-                  onCheckedChange={(checked) =>
-                    setHideZeroPrice(checked === true)
-                  }
-                />
-                <span>Zero price</span>
-              </Label>
-              <Label
-                htmlFor="ih-filter-hide-no-type"
-                className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-              >
-                <Checkbox
-                  id="ih-filter-hide-no-type"
-                  checked={hideNoType}
-                  onCheckedChange={(checked) => setHideNoType(checked === true)}
-                />
-                <span>No type</span>
-              </Label>
-            </div>
-          )}
-
           {/* Inventory Table */}
           {!isLoading && filteredTableData && filteredTableData.length > 0 && (
             <DataTable<InventoryHealthRow, unknown>
@@ -910,7 +897,8 @@ const InventoryHealthPage: React.FC = () => {
             afterHideFilters &&
             afterHideFilters.length === 0 && (
               <Card className="p-6 text-center text-muted-foreground">
-                No rows match your hide filters. Uncheck some options above.
+                No rows match your hide filters. Turn some of them off in the
+                hide-items menu.
               </Card>
             )}
 

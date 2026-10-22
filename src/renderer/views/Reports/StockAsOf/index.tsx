@@ -8,8 +8,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { Card } from '@/renderer/shad/ui/card';
-import { Checkbox } from '@/renderer/shad/ui/checkbox';
-import { Label } from '@/renderer/shad/ui/label';
 import { Calendar } from '@/renderer/shad/ui/calendar';
 import {
   Popover,
@@ -36,6 +34,10 @@ import {
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
+import {
+  HideItemsMenu,
+  type HideItemsOption,
+} from '@/renderer/components/HideItemsMenu';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { REPORT_FILTER_KEYS } from 'types';
 import type { StockAsOfReportResponse, StockAsOfRow } from 'types';
@@ -74,6 +76,45 @@ const StockAsOfReportPage: React.FC = () => {
   const [hideZeroPrice, setHideZeroPrice] = useState(true);
   const [hideNegativeQuantity, setHideNegativeQuantity] = useState(true);
   const [hideNoType, setHideNoType] = useState(true);
+  /** the hide filters, as the header menu shows them */
+  const hideOptions = useMemo<HideItemsOption[]>(
+    () => [
+      {
+        id: 'negative-quantity',
+        label: 'Negative quantity',
+        checked: hideNegativeQuantity,
+        onCheckedChange: setHideNegativeQuantity,
+      },
+      {
+        id: 'zero-quantity',
+        label: 'Zero quantity',
+        checked: hideZeroQuantity,
+        onCheckedChange: setHideZeroQuantity,
+      },
+      {
+        id: 'zero-price',
+        label: 'Zero price',
+        checked: hideZeroPrice,
+        onCheckedChange: setHideZeroPrice,
+      },
+      {
+        id: 'no-type',
+        label: 'No type',
+        checked: hideNoType,
+        onCheckedChange: setHideNoType,
+      },
+    ],
+    [hideNegativeQuantity, hideZeroQuantity, hideZeroPrice, hideNoType],
+  );
+  const allHideOptionsChecked =
+    hideNegativeQuantity && hideZeroQuantity && hideZeroPrice && hideNoType;
+  // "All" turns every filter on or off at once
+  const handleAllHideOptionsChange = useCallback((checked: boolean) => {
+    setHideNegativeQuantity(checked);
+    setHideZeroQuantity(checked);
+    setHideZeroPrice(checked);
+    setHideNoType(checked);
+  }, []);
   /** rows after grid search + sort; null until DataTable syncs (export/print parity) */
   const [gridViewRows, setGridViewRows] = useState<StockAsOfTableRow[] | null>(
     null,
@@ -454,6 +495,11 @@ const StockAsOfReportPage: React.FC = () => {
                 >
                   <Printer className="h-4 w-4" />
                 </Button>
+                <HideItemsMenu
+                  options={hideOptions}
+                  allChecked={allHideOptionsChecked}
+                  onAllCheckedChange={handleAllHideOptionsChange}
+                />
               </>
             }
           />
@@ -497,84 +543,6 @@ const StockAsOfReportPage: React.FC = () => {
         <Card className="p-6 text-center text-muted-foreground">Loading…</Card>
       )}
 
-      {!isLoading && tableRows.length > 0 && (
-        <div className="print:hidden flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3 mb-3">
-          <span className="text-sm font-medium text-muted-foreground">
-            Hide items:
-          </span>
-          <Label
-            htmlFor="sa-filter-hide-all"
-            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-          >
-            <Checkbox
-              id="sa-filter-hide-all"
-              checked={
-                hideNegativeQuantity &&
-                hideZeroQuantity &&
-                hideZeroPrice &&
-                hideNoType
-              }
-              onCheckedChange={(checked) => {
-                const value = checked === true;
-                setHideNegativeQuantity(value);
-                setHideZeroQuantity(value);
-                setHideZeroPrice(value);
-                setHideNoType(value);
-              }}
-            />
-            <span>All</span>
-          </Label>
-          <Label
-            htmlFor="sa-filter-hide-negative-qty"
-            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-          >
-            <Checkbox
-              id="sa-filter-hide-negative-qty"
-              checked={hideNegativeQuantity}
-              onCheckedChange={(checked) =>
-                setHideNegativeQuantity(checked === true)
-              }
-            />
-            <span>Negative quantity</span>
-          </Label>
-          <Label
-            htmlFor="sa-filter-hide-zero-qty"
-            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-          >
-            <Checkbox
-              id="sa-filter-hide-zero-qty"
-              checked={hideZeroQuantity}
-              onCheckedChange={(checked) =>
-                setHideZeroQuantity(checked === true)
-              }
-            />
-            <span>Zero quantity</span>
-          </Label>
-          <Label
-            htmlFor="sa-filter-hide-zero-price"
-            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-          >
-            <Checkbox
-              id="sa-filter-hide-zero-price"
-              checked={hideZeroPrice}
-              onCheckedChange={(checked) => setHideZeroPrice(checked === true)}
-            />
-            <span>Zero price</span>
-          </Label>
-          <Label
-            htmlFor="sa-filter-hide-no-type"
-            className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-          >
-            <Checkbox
-              id="sa-filter-hide-no-type"
-              checked={hideNoType}
-              onCheckedChange={(checked) => setHideNoType(checked === true)}
-            />
-            <span>No type</span>
-          </Label>
-        </div>
-      )}
-
       {!isLoading && filteredTableData && filteredTableData.length > 0 && (
         <DataTable<StockAsOfTableRow, unknown>
           columns={columns}
@@ -596,7 +564,8 @@ const StockAsOfReportPage: React.FC = () => {
         filteredTableData &&
         filteredTableData.length === 0 && (
           <Card className="p-6 text-center text-muted-foreground">
-            No rows match your hide filters. Uncheck some options above.
+            No rows match your hide filters. Turn some of them off in the
+            hide-items menu.
           </Card>
         )}
 

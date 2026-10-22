@@ -1,9 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ChevronDown, Settings2 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
-import { Checkbox } from '@/renderer/shad/ui/checkbox';
-import { Label } from '@/renderer/shad/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/renderer/shad/ui/dropdown-menu';
+import {
+  HideItemsMenu,
+  type HideItemsOption,
+} from '@/renderer/components/HideItemsMenu';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
 import { ImportExportInventoryAttributes } from './ImportExportInventoryAttributes';
@@ -54,6 +56,65 @@ const InventoryPage: React.FC = () => {
 
   const handleFilteredIdsChange = useCallback((ids: number[]) => {
     setFilteredIds(ids);
+  }, []);
+
+  // the hide filters, as the header menu shows them
+  const hideOptions = useMemo<HideItemsOption[]>(
+    () => [
+      {
+        id: 'inactive',
+        label: 'Inactive',
+        checked: hideInactive,
+        onCheckedChange: setHideInactive,
+      },
+      {
+        id: 'negative-quantity',
+        label: 'Negative quantity',
+        checked: hideNegativeQuantity,
+        onCheckedChange: setHideNegativeQuantity,
+      },
+      {
+        id: 'zero-quantity',
+        label: 'Zero quantity',
+        checked: hideZeroQuantity,
+        onCheckedChange: setHideZeroQuantity,
+      },
+      {
+        id: 'zero-price',
+        label: 'Zero price',
+        checked: hideZeroPrice,
+        onCheckedChange: setHideZeroPrice,
+      },
+      {
+        id: 'no-type',
+        label: 'No type',
+        checked: hideNoType,
+        onCheckedChange: setHideNoType,
+      },
+    ],
+    [
+      hideInactive,
+      hideNegativeQuantity,
+      hideZeroQuantity,
+      hideZeroPrice,
+      hideNoType,
+    ],
+  );
+
+  const allHideOptionsChecked =
+    hideInactive &&
+    hideNegativeQuantity &&
+    hideZeroQuantity &&
+    hideZeroPrice &&
+    hideNoType;
+
+  // "All" turns every filter on or off at once
+  const handleAllHideOptionsChange = useCallback((checked: boolean) => {
+    setHideInactive(checked);
+    setHideNegativeQuantity(checked);
+    setHideZeroQuantity(checked);
+    setHideZeroPrice(checked);
+    setHideNoType(checked);
   }, []);
 
   return (
@@ -101,135 +162,18 @@ const InventoryPage: React.FC = () => {
               <AddInventoryItem refetchInventory={refetchInventory} />
             </>
           ) : null}
+          {/* The hide filters live behind the ⋮ in the header: as a strip
+              of six checkboxes they were three ragged rows on a phone,
+              more screen than the list they were filtering. */}
+          <HideItemsMenu
+            options={hideOptions}
+            allChecked={allHideOptionsChecked}
+            onAllCheckedChange={handleAllHideOptionsChange}
+            disabled={bulkEditActive}
+            className={bulkEditActive ? 'opacity-60' : undefined}
+          />
         </div>
       </header>
-
-      {/* Six checkbox labels at a 24px column gap wrapped into three or
-          four ragged rows on a phone, eating ~200px of vertical space
-          before the grid even started. Tighter below sm. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/30 px-3 py-2 sm:gap-x-6 sm:gap-y-2 sm:px-4 sm:py-3">
-        <span className="text-sm font-medium text-muted-foreground">
-          Hide items:
-        </span>
-        <Label
-          htmlFor="filter-hide-all"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-all"
-            disabled={bulkEditActive}
-            checked={
-              hideInactive &&
-              hideNegativeQuantity &&
-              hideZeroQuantity &&
-              hideZeroPrice &&
-              hideNoType
-            }
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              const value = checked === true;
-              setHideInactive(value);
-              setHideNegativeQuantity(value);
-              setHideZeroQuantity(value);
-              setHideZeroPrice(value);
-              setHideNoType(value);
-            }}
-          />
-          <span>All</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-inactive"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-inactive"
-            disabled={bulkEditActive}
-            checked={hideInactive}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideInactive(checked === true);
-            }}
-          />
-          <span>Inactive</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-negative-qty"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-negative-qty"
-            disabled={bulkEditActive}
-            checked={hideNegativeQuantity}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideNegativeQuantity(checked === true);
-            }}
-          />
-          <span>Negative quantity</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-zero-qty"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-zero-qty"
-            disabled={bulkEditActive}
-            checked={hideZeroQuantity}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideZeroQuantity(checked === true);
-            }}
-          />
-          <span>Zero quantity</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-zero-price"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-zero-price"
-            disabled={bulkEditActive}
-            checked={hideZeroPrice}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideZeroPrice(checked === true);
-            }}
-          />
-          <span>Zero price</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-no-type"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-no-type"
-            disabled={bulkEditActive}
-            checked={hideNoType}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideNoType(checked === true);
-            }}
-          />
-          <span>No type</span>
-        </Label>
-        {bulkEditActive ? (
-          <span className="text-xs text-muted-foreground">
-            Filters locked while editing prices
-          </span>
-        ) : null}
-      </div>
 
       <ManageItemTypes
         onUpdated={refetchInventory}

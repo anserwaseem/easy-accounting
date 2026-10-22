@@ -27,7 +27,11 @@ export interface ReverseJournalDialogProps {
   originalNarration?: string;
   totalAmount?: number;
   onSuccess?: (reversalJournal: Journal) => void;
-  trigger?: React.ReactNode;
+  /**
+   * What opens the dialog. `null` means "nothing opens it from here" —
+   * a menu item opens it instead.
+   */
+  trigger?: React.ReactNode | null;
   /**
    * Controlled open state, for a menu item that opens this dialog: the
    * dialog lives outside the menu, so the item cannot use a trigger.
@@ -49,6 +53,10 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
   // controlled when the caller passes `open`, so a menu item can
   // open a dialog that is mounted outside the menu
   const open = openProp ?? openState;
+  // a dialog that a menu opens has no trigger of its own: the menu item
+  // is the trigger, and a button left on the card would be a second,
+  // unexplained control next to the ⋮ that opened the menu
+  const showTrigger = trigger !== null && openProp === undefined;
   const setOpen = (next: boolean) => {
     setOpenState(next);
     onOpenChange?.(next);
@@ -104,14 +112,16 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button type="button" variant="outline" size="sm">
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reverse Journal
-          </Button>
-        )}
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button type="button" variant="outline" size="sm">
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Reverse Journal
+            </Button>
+          )}
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Reverse Journal #{journalId}</DialogTitle>

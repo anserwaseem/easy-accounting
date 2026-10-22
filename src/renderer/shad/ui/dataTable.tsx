@@ -147,6 +147,15 @@ export type ColumnDef<TData, TValue = unknown> = ColDef<TData, TValue> & {
    */
   cardAlwaysShow?: boolean;
   /**
+   * In the card layout, a zero in this column counts as no value: the
+   * column's row is left off the card.
+   *
+   * For a column where zero means "nothing happened" — the debit side
+   * of a ledger row that is all credit — a labelled row with an empty
+   * figure under it reads as a card that is missing data.
+   */
+  cardHideWhenZero?: boolean;
+  /**
    * The card's row control: it is rendered at the end of the headline
    * row, where the amount is.
    *
@@ -363,6 +372,20 @@ const CardEmptyState = ({
   </div>
 );
 
+/**
+ * The column's own name, for a label that has no header cell to read
+ * it from (the totals card in the card layout).
+ */
+const headerLabel = (header: {
+  id: string;
+  column: { columnDef: { header?: unknown } };
+}): string => {
+  const title = header.column.columnDef.header;
+  if (typeof title === 'string') return title;
+  if (typeof title === 'number') return String(title);
+  return header.id;
+};
+
 const RecordCount = ({
   filtered,
   total,
@@ -468,6 +491,7 @@ const DataTable = <TData, TValue>({
   const [fillMeasure, setFillMeasure] = useState<{
     rectTop: number;
     searchBarHeight: number;
+    totalsCardHeight: number;
   } | null>(null);
 
   const windowInnerHeight = useSyncExternalStore(
@@ -610,16 +634,22 @@ const DataTable = <TData, TValue>({
     const searchBarHeight =
       container.querySelector('.search-container')?.getBoundingClientRect()
         .height ?? 0;
+    // the totals card sits above the list in the card layout, so the
+    // list starts that much further down the screen
+    const totalsCardHeight =
+      container.querySelector('.totals-card')?.getBoundingClientRect().height ??
+      0;
 
     setFillMeasure((prev) => {
       if (
         prev &&
         Math.abs(prev.rectTop - rectTop) < 0.5 &&
-        Math.abs(prev.searchBarHeight - searchBarHeight) < 0.5
+        Math.abs(prev.searchBarHeight - searchBarHeight) < 0.5 &&
+        Math.abs(prev.totalsCardHeight - totalsCardHeight) < 0.5
       ) {
         return prev;
       }
-      return { rectTop, searchBarHeight };
+      return { rectTop, searchBarHeight, totalsCardHeight };
     });
   }, []);
 
@@ -675,6 +705,7 @@ const DataTable = <TData, TValue>({
         windowInnerHeight -
         fillMeasure.rectTop -
         fillMeasure.searchBarHeight -
+        fillMeasure.totalsCardHeight -
         24;
       const minPx = 240;
       const maxPx = Math.max(320, windowInnerHeight - 120);
@@ -741,6 +772,42 @@ const DataTable = <TData, TValue>({
     );
   };
 
+  /**
+   * The table's totals, as a card above the list.
+   *
+   * The table sticks its totals to the bottom of the scroll area. A card
+   * list has no table to stick a row to, and a table on a phone is a
+   * sideways scroll with the right-hand columns cut off — which is
+   * exactly where a report's totals used to disappear. The totals ride
+   * above the list instead, where they are always in view.
+   */
+  const renderStickyFooterCard = () => {
+    if (!hasStickyFooter || !stickyFooterRow) return null;
+    const entries = leafHeaders
+      .map((header, index) => ({ header, node: stickyFooterRow[index] }))
+      .filter((entry) => entry.node != null);
+    if (!entries.length) return null;
+    return (
+      <div className="totals-card mx-2 mt-2 rounded-xl bg-card p-3 shadow-[0_1px_3px_rgba(0,0,0,0.07)] ring-1 ring-inset ring-black/[0.05] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] dark:ring-white/[0.07]">
+        <p className="text-[10.5px] font-semibold uppercase leading-[1.35] tracking-[0.04em] text-muted-foreground/80">
+          Totals
+        </p>
+        <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1">
+          {entries.map(({ header, node }) => (
+            <div key={header.id} className="flex items-baseline gap-1.5">
+              <dt className="text-[11px] font-medium text-muted-foreground">
+                {headerLabel(header)}
+              </dt>
+              <dd className="text-sm font-semibold leading-snug tabular-nums">
+                {node}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  };
+
   const renderInfoRowsTable = () => {
     if (!infoData?.length) return null;
     return (
@@ -797,6 +864,21 @@ const DataTable = <TData, TValue>({
     return value === null || value === undefined || value === '';
   };
 
+  /**
+   * Whether a field is blank for the card's purposes. A zero counts as
+   * blank for a column that says so (`cardHideWhenZero`): on a ledger
+   * card, the debit side of a row that is all credit is not a figure
+   * worth a labelled row.
+   */
+  const isCardBlank = (cell: {
+    getValue: () => unknown;
+    column: { columnDef: unknown };
+  }): boolean => {
+    const def = cell.column.columnDef as ColumnDef<TData, TValue>;
+    if (def.cardHideWhenZero && cell.getValue() === 0) return true;
+    return hasNoValue(cell);
+  };
+
   const renderCard = (row: Row<TData>) => {
     const cells = row.getVisibleCells();
     if (cells.length === 0) return null;
@@ -829,7 +911,7 @@ const DataTable = <TData, TValue>({
     // with no value is dropped rather than leaving a dangling separator
     // in the line.
     const metaCells = visible.filter(
-      (c) => c !== headlineCell && defOf(c).cardMeta && !hasNoValue(c),
+      (c) => c !== headlineCell && defOf(c).cardMeta && !isCardBlank(c),
     );
     // A headline that is also full-width would render its content twice
     // (once in the headline row, once in the full-width block). Drop it
@@ -863,7 +945,7 @@ const DataTable = <TData, TValue>({
      */
     const isEmptyField = (cell: (typeof cells)[number]) => {
       if (defOf(cell).cardAlwaysShow) return false;
-      return hasNoValue(cell);
+      return isCardBlank(cell);
     };
 
     /**
@@ -1177,7 +1259,7 @@ const DataTable = <TData, TValue>({
         );
       }
 
-      if (hasStickyFooter) {
+      if (hasStickyFooter && !useCardLayout) {
         return (
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
             <div className="overflow-x-auto flex-1 min-h-0 scroll-shadow">
@@ -1229,29 +1311,35 @@ const DataTable = <TData, TValue>({
         // it keeps the virtual scroller and stays bounded.
         if (virtualHeightMode !== 'fill') {
           return (
-            // The cards sit on a tinted, inset surface and are separated
-            // by elevation. That is what makes them read as cards
-            // rather than as a stack of bordered boxes.
-            <div className="flex flex-col gap-2.5 bg-muted/40 p-2">
-              {virtualItems.map((item) => (
-                <div key={virtualItemKey(item)}>{renderCardItem(item)}</div>
-              ))}
-            </div>
+            <>
+              {renderStickyFooterCard()}
+              {/* The cards sit on a tinted, inset surface and are separated
+                  by elevation. That is what makes them read as cards
+                  rather than as a stack of bordered boxes. */}
+              <div className="flex flex-col gap-2.5 bg-muted/40 p-2">
+                {virtualItems.map((item) => (
+                  <div key={virtualItemKey(item)}>{renderCardItem(item)}</div>
+                ))}
+              </div>
+            </>
           );
         }
 
         return (
-          <Virtuoso
-            data={virtualItems}
-            style={{ height: virtualTableHeight }}
-            increaseViewportBy={{ top: 400, bottom: 400 }}
-            computeItemKey={(_, item) =>
-              virtualItemKey(item as Row<TData> | DetailItem)
-            }
-            itemContent={(index, item) =>
-              renderCardItem(item as Row<TData> | DetailItem)
-            }
-          />
+          <>
+            {renderStickyFooterCard()}
+            <Virtuoso
+              data={virtualItems}
+              style={{ height: virtualTableHeight }}
+              increaseViewportBy={{ top: 400, bottom: 400 }}
+              computeItemKey={(_, item) =>
+                virtualItemKey(item as Row<TData> | DetailItem)
+              }
+              itemContent={(index, item) =>
+                renderCardItem(item as Row<TData> | DetailItem)
+              }
+            />
+          </>
         );
       }
 
@@ -1394,16 +1482,21 @@ const DataTable = <TData, TValue>({
         </div>
       ) : null}
       {useCardLayout ? (
-        <div className="flex flex-col gap-2.5 bg-muted/40 p-2">
-          {rows.length ? (
-            rows.map((row) => <div key={rowKeyOf(row)}>{renderCard(row)}</div>)
-          ) : (
-            <CardEmptyState
-              searchFields={searchFields}
-              searchValue={searchValue}
-            />
-          )}
-        </div>
+        <>
+          {renderStickyFooterCard()}
+          <div className="flex flex-col gap-2.5 bg-muted/40 p-2">
+            {rows.length ? (
+              rows.map((row) => (
+                <div key={rowKeyOf(row)}>{renderCard(row)}</div>
+              ))
+            ) : (
+              <CardEmptyState
+                searchFields={searchFields}
+                searchValue={searchValue}
+              />
+            )}
+          </div>
+        </>
       ) : (
         <div className="overflow-x-auto w-full scroll-shadow">
           <Table className={hasStickyFooter ? 'table-fixed' : undefined}>

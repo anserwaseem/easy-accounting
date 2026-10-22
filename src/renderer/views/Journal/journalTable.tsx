@@ -13,6 +13,9 @@ import { Button } from '@/renderer/shad/ui/button';
 import { ReverseJournalDialog } from '@/renderer/components/ReverseJournalDialog';
 import { DeleteJournalDialog } from '@/renderer/components/DeleteJournalDialog';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { RowMenu } from '@/renderer/components/RowMenu';
+import { DropdownMenuItem } from '@/renderer/shad/ui/dropdown-menu';
+import { RotateCcw, Trash2 } from 'lucide-react';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
@@ -29,6 +32,11 @@ export const JournalTable: React.FC<JournalTableProps> = ({
   // eslint-disable-next-line no-console
   console.log('JournalTable', journalId);
   const [journal, setJournal] = useState<Journal>();
+  // the dialogs the ⋮ menu opens live outside the menu: a menu item
+  // that opens a dialog unmounts the dialog with the menu when the
+  // dialog lives inside it
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -68,6 +76,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
         cell: ({ row }) =>
           getFormattedDebitCreditWithoutCurrency(row.original.debitAmount),
+        // a line is a debit or a credit: the empty side is left off
+        // the card rather than shown as a label over a blank
+        cardHideWhenZero: true,
       },
       {
         accessorKey: 'creditAmount',
@@ -75,6 +86,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({
         onClick: (row) => navigate(`/accounts/${row.original.accountId}`),
         cell: ({ row }) =>
           getFormattedDebitCreditWithoutCurrency(row.original.creditAmount),
+        cardHideWhenZero: true,
       },
     ];
   }, [navigate]);
@@ -85,10 +97,11 @@ export const JournalTable: React.FC<JournalTableProps> = ({
         <div className="min-w-0 flex-1">
           {/* The title and the actions shared a row with no wrapping, so
               on a phone the "Reverse Journal" button sat on top of the
-              word "JOURNAL". The title now has the row to itself on a
-              phone, and the actions sit under it. */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              word "JOURNAL". The two action buttons are now one ⋮, and
+              it sits at the end of the title's row, where a control
+              belongs. */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
               <h1 className="min-w-0 shrink text-3xl font-light sm:text-4xl">
                 JOURNAL
               </h1>
@@ -100,40 +113,74 @@ export const JournalTable: React.FC<JournalTableProps> = ({
             </div>
             {journal?.id &&
             (journal.invoiceId == null || journal.invoiceId <= 0) ? (
-              <div className="flex flex-wrap items-center gap-2">
+              // Two big buttons under the title said "this screen is
+              // about reversing and deleting". They are occasional
+              // actions, so they sit behind one ⋮ and the title keeps
+              // the screen to itself.
+              <RowMenu label="Journal actions">
                 <AdvancedControl
                   capability={ADVANCED_CAPABILITIES.journalReverse}
                 >
-                  <ReverseJournalDialog
-                    journalId={journal.id}
-                    originalNarration={journal.narration}
-                    totalAmount={
-                      journal.journalEntries?.reduce(
-                        (acc, entry) => acc + (entry.debitAmount || 0),
-                        0,
-                      ) ?? 0
-                    }
-                    onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
-                  />
+                  <DropdownMenuItem onSelect={() => setReverseOpen(true)}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reverse journal
+                  </DropdownMenuItem>
                 </AdvancedControl>
                 <AdvancedControl
                   capability={ADVANCED_CAPABILITIES.journalDelete}
                 >
-                  <DeleteJournalDialog
-                    journalId={journal.id}
-                    narration={journal.narration}
-                    totalAmount={
-                      journal.journalEntries?.reduce(
-                        (acc, entry) => acc + (entry.debitAmount || 0),
-                        0,
-                      ) ?? 0
-                    }
-                    onSuccess={() => navigate('/journals')}
-                  />
+                  <DropdownMenuItem
+                    onSelect={() => setDeleteOpen(true)}
+                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete journal
+                  </DropdownMenuItem>
                 </AdvancedControl>
-              </div>
+              </RowMenu>
             ) : null}
           </div>
+
+          {/* the dialogs the menu opens, mounted outside it */}
+          {journal?.id &&
+          (journal.invoiceId == null || journal.invoiceId <= 0) ? (
+            <>
+              <AdvancedControl
+                capability={ADVANCED_CAPABILITIES.journalReverse}
+              >
+                <ReverseJournalDialog
+                  journalId={journal.id}
+                  originalNarration={journal.narration}
+                  totalAmount={
+                    journal.journalEntries?.reduce(
+                      (acc, entry) => acc + (entry.debitAmount || 0),
+                      0,
+                    ) ?? 0
+                  }
+                  onSuccess={(rev) => navigate(`/journals/${rev.id}`)}
+                  open={reverseOpen}
+                  onOpenChange={setReverseOpen}
+                  trigger={null}
+                />
+              </AdvancedControl>
+              <AdvancedControl capability={ADVANCED_CAPABILITIES.journalDelete}>
+                <DeleteJournalDialog
+                  journalId={journal.id}
+                  narration={journal.narration}
+                  totalAmount={
+                    journal.journalEntries?.reduce(
+                      (acc, entry) => acc + (entry.debitAmount || 0),
+                      0,
+                    ) ?? 0
+                  }
+                  onSuccess={() => navigate('/journals')}
+                  open={deleteOpen}
+                  onOpenChange={setDeleteOpen}
+                  trigger={null}
+                />
+              </AdvancedControl>
+            </>
+          ) : null}
 
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8 sm:items-center">

@@ -23,6 +23,11 @@ interface EditJournalFieldsDialogProps {
   discountPercentage?: number | string;
   onSave: (journalId: number, fields: UpdateJournalFields) => Promise<void>;
   /**
+   * What opens the dialog. `null` means "nothing opens it from here" —
+   * a menu item opens it instead.
+   */
+  trigger?: React.ReactNode | null;
+  /**
    * Controlled open state, for a menu item that opens this dialog: the
    * dialog lives outside the menu, so the item cannot use a trigger.
    */
@@ -38,6 +43,7 @@ export const EditJournalFieldsDialog: React.FC<
   billNumber,
   discountPercentage,
   onSave,
+  trigger,
   open: openProp,
   onOpenChange,
 }: EditJournalFieldsDialogProps) => {
@@ -45,6 +51,10 @@ export const EditJournalFieldsDialog: React.FC<
   // controlled when the caller passes `open`, so a menu item can open a
   // dialog that is mounted outside the menu
   const open = openProp ?? openState;
+  // a dialog that a menu opens has no trigger of its own: the menu item
+  // is the trigger, and a pencil left on the card would be a second,
+  // unexplained control next to the ⋮ that opened the menu
+  const showTrigger = trigger !== null && openProp === undefined;
   const setOpen = (next: boolean) => {
     setOpenState(next);
     onOpenChange?.(next);
@@ -115,9 +125,11 @@ export const EditJournalFieldsDialog: React.FC<
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <EditActionButton aria-label="Edit journal fields" />
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          {trigger ?? <EditActionButton aria-label="Edit journal fields" />}
+        </DialogTrigger>
+      ) : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Journal</DialogTitle>
