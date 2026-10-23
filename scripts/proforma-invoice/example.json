@@ -1,0 +1,18 @@
+{
+  "company": {
+    "name": "Example Trading Co.",
+    "address": "1 Example Street, Lahore, Pakistan",
+    "contact": "+92-300-0000000  |  sales@example.com  |  example.com",
+    "taxIds": "NTN: 0000000-0  STRN: 0000000000000"
+  },
+  "invoiceNumber": "0001",
+  "date": "23 Oct, 2026",
+  "currency": "US Dollar (USD)",
+  "currencySymbol": "$",
+  "billTo": { "name": "BUYER (PTY) LTD", "location": "Johannesburg, South Africa" },
+  "amountInWords": "One Hundred US Dollars only",
+  "footerNote": "This is a proforma invoice and not a demand for payment.",
+  "items": [
+    { "description": "Example Machine", "weight": "60 kg", "dimensions": "2 ft x 5 ft x 4 ft", "qty": 1, "amount": 100 }
+  ]
+}
