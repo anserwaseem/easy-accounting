@@ -509,9 +509,9 @@ const BillsAgingPage = () => {
       }
       header={
         <div className="flex flex-col gap-2.5 pb-2">
-          {/* Row 1: the title and the Filters button (both about what
-              the report shows). Row 2: the key figure and the action
-              buttons (both about acting on the report). */}
+          {/* Header row: title, the key figure, the action buttons and
+              the Filters button all on one row on a wide screen, so the
+              report gets more room below. On a phone they still wrap. */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h1 className="title-new truncate">Bills Aging</h1>
@@ -523,10 +523,59 @@ const BillsAgingPage = () => {
               )}
             </div>
 
-            {/* The Filters button travels with the title: both are about
-                what the report shows. On a phone it opens the sheet
-                below; on a wide screen it opens the popover. */}
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!isLoading && visibleAccounts.length > 0 && (
+                // The label sat beside the figure and took the room the
+                // figure needed, so the total was cut off. It is now
+                // its own line above it.
+                <div className="flex min-w-0 flex-col rounded-lg border bg-card/80 px-2.5 py-1.5">
+                  <span className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground">
+                    Total outstanding
+                  </span>
+                  <span
+                    className={`mt-0.5 text-[15px] font-semibold leading-tight tabular-nums ${totalColor}`}
+                  >
+                    {getFormattedCurrencyInt(totalOutstanding, {
+                      withoutCurrency: true,
+                    })}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={refreshData}
+                  title="Refresh Data"
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+                  />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleExportExcel}
+                  title="Export Bills Aging"
+                  disabled={canExport === false}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrint}
+                  title="Print Bills Aging"
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* The Filters button travels with the title: both are about
+                  what the report shows. On a phone it opens the sheet
+                  below; on a wide screen it opens the popover. */}
               <div className="sm:hidden">
                 <Sheet
                   open={mobileFiltersOpen}
@@ -650,66 +699,11 @@ const BillsAgingPage = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              {!isLoading && visibleAccounts.length > 0 && (
-                // The label sat beside the figure and took the room the
-                // figure needed, so the total was cut off. It is now
-                // its own line above it.
-                <div className="flex min-w-0 flex-col rounded-lg border bg-card/80 px-2.5 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground">
-                    Total outstanding
-                  </span>
-                  <span
-                    className={`mt-0.5 text-[15px] font-semibold leading-tight tabular-nums ${totalColor}`}
-                  >
-                    {getFormattedCurrencyInt(totalOutstanding, {
-                      withoutCurrency: true,
-                    })}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex shrink-0 items-center gap-1.5">
-              <div className="flex shrink-0 items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={refreshData}
-                  title="Refresh Data"
-                  disabled={isLoading}
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
-                  />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleExportExcel}
-                  title="Export Bills Aging"
-                  disabled={canExport === false}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handlePrint}
-                  title="Print Bills Aging"
-                >
-                  <Printer className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-
           {/* Row 3: the filter controls, inline on a wide screen. On a
               phone they live in the Filters sheet instead — a row of
               seven controls each took a full row and pushed the report's
               own content below the fold. */}
-          <div className="hidden pt-1 sm:flex sm:flex-wrap sm:items-center">
+          <div className="hidden pt-1 sm:flex sm:flex-wrap sm:items-center sm:gap-1">
             <VirtualMultiSelect
               options={customerOptions}
               value={selectedCustomerIds}
