@@ -1157,6 +1157,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             {
               id: 'displayTitle',
               header: 'Display title',
+              cardLabel: 'Display title',
+              cardAlwaysShow: true,
               size: 220,
               enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
@@ -1186,6 +1188,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             {
               id: 'publishState',
               header: 'Publish',
+              cardLabel: 'Publish',
+              cardAlwaysShow: true,
               size: 150,
               enableSorting: false,
               headerTooltip:

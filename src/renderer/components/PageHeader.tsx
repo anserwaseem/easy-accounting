@@ -28,15 +28,14 @@ interface PageHeaderProps {
  * The screen header shared by the list screens (Journals, Invoices,
  * Quotations, Accounts).
  *
- * It replaces the hand-rolled `grid-cols-3` headers those screens used,
- * which had no responsive rules: on a phone the three columns stayed
- * side by side, so the "VIEW BY:" label, the date range picker, the
- * title and the primary button all overlapped.
- *
- * On a phone the title and the actions share the first row, and the
- * filters sit in a row of their own beneath it. A phone header used to
- * take three full-width rows before the user reached any content; two
- * compact rows leave the list visible immediately.
+ * Layout is responsive by intent:
+ *  - On a phone (<sm) the title and the actions share the first row and
+ *    the filters sit in a row of their own beneath it — that is what keeps
+ *    the mobile header to two compact rows.
+ *  - On a desktop (sm+) it returns to the original three-column row:
+ *    filters on the left, the title centred, actions on the right. Putting
+ *    everything on one row there leaves the list room and keeps the title
+ *    anchored in the middle of the screen.
  */
 export const PageHeader: React.FC<PageHeaderProps> = ({
   title,
@@ -47,33 +46,43 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   className,
 }) => (
   <div className={cn('flex flex-col gap-2 py-3 sm:gap-3 sm:py-4', className)}>
-    <div className="flex items-center justify-between gap-2 sm:justify-end sm:gap-4">
-      {hideTitle ? (
-        <div className="sm:hidden" />
-      ) : (
-        <h1 className="title-new min-w-0 truncate text-left sm:text-center">
-          {title}
-        </h1>
-      )}
-      {filtersInline && filters ? (
-        // The filter shares the title's row: it takes the space the
-        // title does not need, and the title truncates before the
-        // filter does.
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:justify-end">
-          {filters}
-        </div>
-      ) : null}
-      {actions ? (
-        <div className="flex shrink-0 items-center gap-2 sm:justify-end">
-          {actions}
-        </div>
+    {/* Mobile layout: title + actions on one row, filters below. */}
+    <div className="sm:hidden">
+      <div className="flex items-center justify-between gap-2">
+        {hideTitle ? (
+          <div className="min-w-0 flex-1" />
+        ) : (
+          <h1 className="title-new min-w-0 truncate text-left">{title}</h1>
+        )}
+        {filtersInline && filters ? (
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+            {filters}
+          </div>
+        ) : null}
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        ) : null}
+      </div>
+      {filters && !filtersInline ? (
+        <div className="mt-2 flex flex-col items-stretch gap-2">{filters}</div>
       ) : null}
     </div>
-    {filters && !filtersInline ? (
-      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-        {filters}
+
+    {/* Desktop layout: filters left, title centred, actions right. */}
+    <div className="hidden sm:grid sm:grid-cols-3 sm:items-center sm:gap-4">
+      <div className="flex min-w-0 items-center gap-2 sm:justify-self-start">
+        {!filtersInline && filters ? filters : null}
       </div>
-    ) : null}
+      <div className="flex min-w-0 justify-center">
+        {hideTitle ? null : (
+          <h1 className="title-new min-w-0 truncate text-center">{title}</h1>
+        )}
+      </div>
+      <div className="flex min-w-0 items-center justify-end gap-2 sm:justify-self-end">
+        {filtersInline && filters ? filters : null}
+        {actions || null}
+      </div>
+    </div>
   </div>
 );
 
@@ -96,8 +105,8 @@ interface FilterGroupProps {
  */
 export const FilterGroup: React.FC<FilterGroupProps> = ({
   label,
-  children,
   hideLabelOnMobile = false,
+  children,
   className,
 }) => (
   <div className={cn('flex min-w-0 items-center gap-2 sm:gap-3', className)}>
