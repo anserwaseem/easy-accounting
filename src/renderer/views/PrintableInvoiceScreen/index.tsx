@@ -184,7 +184,7 @@ const PrintableInvoiceScreen = () => {
   const printFiredRef = useRef(false);
   // desktop can write a PDF file to disk; a browser can only print
   const canPrintToFile = Boolean(window.electron.supportsPrintToFile);
-  const previewScale = usePrintPreviewScale();
+  const previewScale = usePrintPreviewScale(isUrdu);
   const printSessionOptions = useMemo(
     () => ({
       locale: effectiveLocale,
