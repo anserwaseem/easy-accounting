@@ -104,9 +104,11 @@ export default defineConfig({
     format: 'es',
   },
   server: {
+    allowedHosts: true,
     headers: crossOriginIsolationHeaders,
   },
   preview: {
+    allowedHosts: true,
     headers: crossOriginIsolationHeaders,
   },
   build: {

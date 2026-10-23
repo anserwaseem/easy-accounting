@@ -26,6 +26,19 @@ export const INVOICE_PRINT_PAGE_CSS = `
     width: 100% !important;
   }
 
+  /* The phone preview lays the sheet out at A4 width and scales it down to
+     fit the screen (see usePrintPreviewScale). The paper is a full-width
+     A4 page, so the scale and the fixed box both come off here. */
+  .invoice-print-scale-wrap {
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .invoice-print-sheet {
+    transform: none !important;
+  }
+
   .invoice-print-table {
     table-layout: fixed !important;
     width: 100% !important;

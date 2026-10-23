@@ -8,14 +8,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { InvoiceType, type Account, type InvoiceView } from 'types';
-import { Button } from 'renderer/shad/ui/button';
-import { getOsModifierLabel, Kbd, KbdGroup } from 'renderer/shad/ui/kbd';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from 'renderer/shad/ui/tooltip';
 import { dismissAllToasts, toast } from '@/renderer/shad/ui/use-toast';
 import { toWords } from 'number-to-words';
 import { toNumber, truncate } from 'lodash';
@@ -47,15 +39,21 @@ import {
   getPartyFamilyAccountIds,
   sumLedgerBalances,
 } from '@/renderer/views/NewInvoice/lib/partyFamilyBalance';
-import { RadioGroup, RadioGroupItem } from 'renderer/shad/ui/radio-group';
-import { Label } from 'renderer/shad/ui/label';
-import { ChevronRight, FileText } from 'lucide-react';
 import {
   ensureUrduInvoiceFonts,
   getUrduFontClass,
   getUrduFontFaceCss,
   isJameelPrintFace,
 } from '@/renderer/lib/invoicePrint/urduFont';
+import {
+  getPrintEnvironment,
+  getPrintHelp,
+  getPrintHint,
+  type PrintHelp,
+} from '@/renderer/lib/invoicePrint/mobilePrint';
+import PrintToolbar from './PrintToolbar';
+import PrintHelpDialog from './PrintHelpDialog';
+import { usePrintPreviewScale } from './usePrintPreviewScale';
 
 /**
  * Nastaliq only on Urdu chrome — never on SKUs/numbers (EN visual parity).
@@ -85,29 +83,20 @@ const pickPrintSpacingClass = (
 
 /** screen preview only; print stays neutral/black ink */
 const printPreviewRootClass =
-  'invoice-print-root min-h-screen bg-white p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:p-0 print:text-black';
-
-/** lock controls to light surfaces so shadcn tokens (bg-background, accent) never go dark-on-dark */
-const printToolbarPanelClass =
-  'print:hidden mb-4 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-200 dark:bg-white dark:shadow-md';
-
-const printToolbarOutlineBtnClass =
-  'border-neutral-300 bg-white text-neutral-900 shadow-sm hover:bg-neutral-50 hover:text-neutral-900 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-50 dark:hover:text-neutral-900';
-
-const printToolbarPrimaryBtnClass =
-  'border border-neutral-800 bg-neutral-900 text-white shadow-sm hover:bg-neutral-800 hover:text-white dark:border-neutral-800 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 dark:hover:text-white';
-
-const printToolbarKbdClass =
-  'border-neutral-200 bg-neutral-100 text-neutral-800 dark:border-neutral-200 dark:bg-neutral-100 dark:text-neutral-800';
-
-const printToolbarKbdOnPrimaryClass =
-  'border-white/30 bg-white/15 text-white dark:border-white/30 dark:bg-white/15 dark:text-white';
+  'invoice-print-root min-h-screen bg-white p-3 sm:p-8 text-neutral-900 [color-scheme:light] antialiased print:bg-white print:p-0 print:text-black';
 
 /** force latin metrics so table data matches EN print */
 const printLatinClass = 'font-sans';
 
 /** sticky batch toasts clear on navigation/print; this caps lifetime if user stays idle */
 const BATCH_TOAST_FALLBACK_MS = 45_000;
+
+/**
+ * How long to wait for the browser to start printing before assuming it
+ * will not. Chrome opens its print screen almost immediately; a browser
+ * that is going to refuse takes about this long to do nothing.
+ */
+const PRINT_FALLBACK_DELAY_MS = 1500;
 
 const normalizePdfOutputDir = (value: unknown): string | null => {
   if (typeof value !== 'string') {
@@ -130,46 +119,6 @@ const getPrintDocumentTitleBase = (inv: InvoiceView): string =>
     invoiceNumber: inv.invoiceNumber,
     isQuotation: Boolean(inv.isQuotation),
   });
-
-interface PrintSessionChoiceRowProps {
-  label: string;
-  value: string;
-  disabled: boolean;
-  options: Array<{ id: string; value: string; caption: string }>;
-  onValueChange: (value: string) => void;
-}
-
-const PrintSessionChoiceRow: React.FC<PrintSessionChoiceRowProps> = ({
-  label,
-  value,
-  disabled,
-  options,
-  onValueChange,
-}: PrintSessionChoiceRowProps) => (
-  <div className="flex items-center gap-2">
-    <span className="text-[0.6875rem] font-medium uppercase tracking-wide text-neutral-500 shrink-0">
-      {label}
-    </span>
-    <RadioGroup
-      value={value}
-      onValueChange={onValueChange}
-      className="flex flex-row items-center gap-2.5"
-      disabled={disabled}
-    >
-      {options.map((option: { id: string; value: string; caption: string }) => (
-        <div className="flex items-center gap-1.5" key={option.value}>
-          <RadioGroupItem value={option.value} id={option.id} />
-          <Label
-            htmlFor={option.id}
-            className="text-xs font-normal cursor-pointer"
-          >
-            {option.caption}
-          </Label>
-        </div>
-      ))}
-    </RadioGroup>
-  </div>
-);
 
 const PrintableInvoiceScreen = () => {
   const { id } = useParams<{ id: string }>();
@@ -222,6 +171,38 @@ const PrintableInvoiceScreen = () => {
     (sessionShowPrintNote != null &&
       sessionShowPrintNote !== invoicePrintSettings.showPrintNote);
   const isUrdu = effectiveLocale === 'ur';
+  // what the browser at hand can do with a print request; it does not change
+  // while the app is open
+  const printEnvironment = useMemo(() => getPrintEnvironment(), []);
+  const printHint = useMemo(
+    () => getPrintHint(printEnvironment),
+    [printEnvironment],
+  );
+  const [printHelp, setPrintHelp] = useState<PrintHelp | null>(null);
+  const [showPrintHelp, setShowPrintHelp] = useState(false);
+  // set when the browser actually starts printing
+  const printFiredRef = useRef(false);
+  // desktop can write a PDF file to disk; a browser can only print
+  const canPrintToFile = Boolean(window.electron.supportsPrintToFile);
+  const previewScale = usePrintPreviewScale(isUrdu);
+  const printSessionOptions = useMemo(
+    () => ({
+      locale: effectiveLocale,
+      showPartyBalances: effectiveShowPartyBalances,
+      showAgent: effectiveShowAgent,
+      showBillBalance: effectiveShowBillBalance,
+      showPrintNote: effectiveShowPrintNote,
+      isOverride: isPrintSessionOverride,
+    }),
+    [
+      effectiveLocale,
+      effectiveShowPartyBalances,
+      effectiveShowAgent,
+      effectiveShowBillBalance,
+      effectiveShowPrintNote,
+      isPrintSessionOverride,
+    ],
+  );
   const labels = useMemo(
     () =>
       getInvoicePrintLabels(
@@ -405,6 +386,9 @@ const PrintableInvoiceScreen = () => {
 
     window.onbeforeprint = () => {
       document.title = titleBase;
+      // the browser is actually printing; the fallback sheet is not needed
+      printFiredRef.current = true;
+      setShowPrintHelp(false);
     };
 
     window.onafterprint = () => {
@@ -415,7 +399,28 @@ const PrintableInvoiceScreen = () => {
   const handlePrint = async () => {
     dismissAllToasts();
     await waitForInvoicePrintFonts(effectiveLocale);
+
+    // Chrome on iOS is a WKWebView wrapper: it takes the call and prints
+    // nothing, so the browser's own share sheet is the only way out.
+    if (!printEnvironment.hasPrintApi || printEnvironment.isIosChrome) {
+      setPrintHelp(getPrintHelp(printEnvironment));
+      setShowPrintHelp(true);
+      return;
+    }
+
+    printFiredRef.current = false;
     window.print();
+
+    // A browser that swallows the request (some installed PWA builds on
+    // Android) never fires beforeprint. If nothing happened shortly after
+    // the call, the browser cannot print this page and the user needs the
+    // manual steps instead of a button that does nothing.
+    window.setTimeout(() => {
+      if (!printFiredRef.current) {
+        setPrintHelp(getPrintHelp(printEnvironment));
+        setShowPrintHelp(true);
+      }
+    }, PRINT_FALLBACK_DELAY_MS);
   };
 
   const handleOpenPdf = async () => {
@@ -1151,639 +1156,490 @@ const PrintableInvoiceScreen = () => {
           </ul>
         </div>
       ) : null}
-      <div dir="ltr" className={printToolbarPanelClass}>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={handleClose}
-              variant="outline"
-              className={`min-w-[7.5rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
-              disabled={isBatchPrinting || !isInvoiceSynced}
-            >
-              Back
-              <Kbd className={`hidden sm:inline-flex ${printToolbarKbdClass}`}>
-                Esc
-              </Kbd>
-            </Button>
-            <div className="flex items-center gap-1.5">
-              <Button
-                onClick={handlePrint}
-                variant="default"
-                className={`min-w-[10.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
-                disabled={isBatchPrinting || isOpeningPdf || !isInvoiceSynced}
-                title="No page numbers (1/N). Use Open PDF for stamped pages."
-              >
-                Print
-                <KbdGroup className="hidden sm:inline-flex">
-                  <Kbd className={printToolbarKbdOnPrimaryClass}>
-                    {getOsModifierLabel()}
-                  </Kbd>
-                  <Kbd className={printToolbarKbdOnPrimaryClass}>P</Kbd>
-                </KbdGroup>
-              </Button>
-              <ChevronRight
-                className="h-4 w-4 shrink-0 text-neutral-400"
-                aria-hidden
-              />
-              <Button
-                type="button"
-                onClick={handleOpenPdf}
-                variant="outline"
-                className={`min-w-[9rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
-                disabled={isBatchPrinting || isOpeningPdf || !isInvoiceSynced}
-                aria-label="Open page-stamped PDF"
-                title="Opens a page-stamped PDF (1/N) in Preview. Print from
-                      there."
-              >
-                <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                {isOpeningPdf ? 'Opening…' : 'Open PDF'}
-              </Button>
-            </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    onClick={handleBatchPrint}
-                    variant="default"
-                    className={`min-w-[9.5rem] gap-1.5 px-2 ${printToolbarPrimaryBtnClass}`}
-                    disabled={isBatchPrinting || !isInvoiceSynced}
-                    aria-label={batchSavePdfAriaLabel}
-                  >
-                    {isBatchPrinting ? 'Saving PDFs…' : 'Batch save PDFs'}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="bottom"
-                  className="max-w-[min(22rem,calc(100vw-2rem))] space-y-2 px-3 py-2.5 text-pretty"
-                >
-                  <p className="text-sm leading-snug text-popover-foreground">
-                    {invoice.isQuotation
-                      ? 'Saves PDFs for this quotation and every newer quotation.'
-                      : 'Saves PDFs for this invoice and every newer invoice.'}
-                  </p>
-                  <div className="border-t border-border pt-2">
-                    <p className="mb-1 text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
-                      Output folder
-                    </p>
-                    {pdfOutputDir ? (
-                      <code className="block w-full max-w-full break-all rounded-md border border-neutral-200 bg-neutral-100 px-2 py-1.5 font-mono text-[0.75rem] leading-relaxed text-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">
-                        {pdfOutputDir}
-                      </code>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Loading…</p>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {isBatchPrinting ? (
-              <p className="text-sm font-semibold text-red-600">
-                Please wait until saving finishes.
-              </p>
-            ) : null}
-            <div className="flex flex-wrap gap-2 ms-auto">
-              <Button
-                onClick={handlePrevious}
-                variant="outline"
-                disabled={
-                  !isInvoiceSynced ||
-                  adjacentInvoiceIds.previous <= 0 ||
-                  isBatchPrinting
-                }
-                className={`min-w-[7.5rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
-              >
-                Previous
-                <Kbd
-                  className={`hidden sm:inline-flex ${printToolbarKbdClass}`}
-                >
-                  ←
-                </Kbd>
-              </Button>
-              <Button
-                onClick={handleNext}
-                variant="outline"
-                disabled={
-                  !isInvoiceSynced ||
-                  adjacentInvoiceIds.next <= 0 ||
-                  isBatchPrinting
-                }
-                className={`min-w-[7.5rem] gap-1.5 px-2 ${printToolbarOutlineBtnClass}`}
-              >
-                Next
-                <Kbd
-                  className={`hidden sm:inline-flex ${printToolbarKbdClass}`}
-                >
-                  →
-                </Kbd>
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-neutral-200 pt-2">
-            <PrintSessionChoiceRow
-              label="Language"
-              value={effectiveLocale}
-              disabled={isBatchPrinting}
-              onValueChange={(v) => setSessionLocale(v as InvoicePrintLocale)}
-              options={[
-                {
-                  id: 'printSessionLocaleEn',
-                  value: 'en',
-                  caption: 'EN',
-                },
-                {
-                  id: 'printSessionLocaleUr',
-                  value: 'ur',
-                  caption: 'اردو',
-                },
-              ]}
-            />
-            <PrintSessionChoiceRow
-              label="Balances"
-              value={effectiveShowPartyBalances ? 'on' : 'off'}
-              disabled={isBatchPrinting}
-              onValueChange={(v) => setSessionShowPartyBalances(v === 'on')}
-              options={[
-                {
-                  id: 'printSessionBalancesOn',
-                  value: 'on',
-                  caption: 'Show',
-                },
-                {
-                  id: 'printSessionBalancesOff',
-                  value: 'off',
-                  caption: 'Hide',
-                },
-              ]}
-            />
-            <PrintSessionChoiceRow
-              label="Agent"
-              value={effectiveShowAgent ? 'on' : 'off'}
-              disabled={isBatchPrinting}
-              onValueChange={(v) => setSessionShowAgent(v === 'on')}
-              options={[
-                {
-                  id: 'printSessionAgentOn',
-                  value: 'on',
-                  caption: 'Show',
-                },
-                {
-                  id: 'printSessionAgentOff',
-                  value: 'off',
-                  caption: 'Hide',
-                },
-              ]}
-            />
-            <PrintSessionChoiceRow
-              label="Credit"
-              value={effectiveShowBillBalance ? 'on' : 'off'}
-              disabled={isBatchPrinting}
-              onValueChange={(v) => setSessionShowBillBalance(v === 'on')}
-              options={[
-                {
-                  id: 'printSessionBillBalanceOn',
-                  value: 'on',
-                  caption: 'Show',
-                },
-                {
-                  id: 'printSessionBillBalanceOff',
-                  value: 'off',
-                  caption: 'Hide',
-                },
-              ]}
-            />
-            <PrintSessionChoiceRow
-              label="Note"
-              value={effectiveShowPrintNote ? 'on' : 'off'}
-              disabled={isBatchPrinting}
-              onValueChange={(v) => setSessionShowPrintNote(v === 'on')}
-              options={[
-                {
-                  id: 'printSessionNoteOn',
-                  value: 'on',
-                  caption: 'Show',
-                },
-                {
-                  id: 'printSessionNoteOff',
-                  value: 'off',
-                  caption: 'Hide',
-                },
-              ]}
-            />
-            {isPrintSessionOverride ? (
-              <span className="text-[0.6875rem] text-muted-foreground whitespace-nowrap">
-                This print only
-              </span>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <PrintToolbar
+        isInvoiceSynced={isInvoiceSynced}
+        isBatchPrinting={isBatchPrinting}
+        isOpeningPdf={isOpeningPdf}
+        canPrintToFile={canPrintToFile}
+        isQuotation={Boolean(invoice.isQuotation)}
+        canGoPrevious={adjacentInvoiceIds.previous > 0}
+        canGoNext={adjacentInvoiceIds.next > 0}
+        pdfOutputDir={pdfOutputDir}
+        batchSavePdfAriaLabel={batchSavePdfAriaLabel}
+        options={printSessionOptions}
+        onPrint={handlePrint}
+        onOpenPdf={handleOpenPdf}
+        onBatchPrint={handleBatchPrint}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+        onClose={handleClose}
+        onLocaleChange={setSessionLocale}
+        onShowPartyBalancesChange={setSessionShowPartyBalances}
+        onShowAgentChange={setSessionShowAgent}
+        onShowBillBalanceChange={setSessionShowBillBalance}
+        onShowPrintNoteChange={setSessionShowPrintNote}
+        printHint={printHint}
+      />
       <div
-        className={`invoice-print-sheet max-w-4xl mx-auto relative transition-opacity duration-150 print:max-w-none print:w-full print:opacity-100 ${
-          isInvoiceSynced ? 'opacity-100' : 'opacity-50'
-        }`}
+        ref={previewScale.wrapperRef}
+        className="invoice-print-scale-wrap mx-auto"
+        style={previewScale.wrapperStyle}
       >
-        {!isInvoiceSynced ? (
-          <div className="print:hidden pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-white/50 pt-24 backdrop-blur-[1px]">
-            <span className="text-sm font-medium text-neutral-700">
-              Loading…
-            </span>
-          </div>
-        ) : null}
-        <table
-          className={`invoice-print-table w-full text-base border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${urduTableClass}`}
+        <div
+          ref={previewScale.sheetRef}
+          className={`invoice-print-sheet max-w-4xl mx-auto relative transition-opacity duration-150 print:max-w-none print:w-full print:opacity-100 ${
+            isInvoiceSynced ? 'opacity-100' : 'opacity-50'
+          }`}
+          style={previewScale.sheetStyle}
         >
-          <colgroup>
-            <col style={{ width: '6%' }} />
-            <col style={{ width: '16%' }} />
-            <col />
-            <col style={{ width: '12%' }} />
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '16%' }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <td colSpan={7} className="!border-0 !p-0 !pb-2 align-top">
-                {invoice.isReturned ? (
-                  <div
-                    className="mb-4 rounded-md border-2 border-red-600 bg-red-50 px-4 py-3 text-center print:border-gray-400 print:bg-white print:text-black"
-                    role="status"
-                  >
-                    <p className="text-lg font-bold uppercase tracking-wide text-red-800 print:text-black">
-                      {labels.returnedBanner}
-                    </p>
-                    {invoice.returnedAt ? (
-                      <p className="mt-1 text-sm text-red-900/80 print:text-neutral-800">
-                        {labels.returnedOn}{' '}
-                        {formatInvoicePrintDate(
-                          invoice.returnedAt,
-                          effectiveLocale,
-                        )}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {invoice.isQuotation ? (
-                  <div
-                    className="mb-4 rounded-md border-2 border-amber-600 bg-amber-50 px-4 py-3 text-center print:border-gray-400 print:bg-white print:text-black"
-                    role="status"
-                  >
-                    <p className="text-lg font-bold uppercase tracking-wide text-amber-950 print:text-black">
-                      {labels.quotationBanner}
-                    </p>
-                  </div>
-                ) : null}
-                <div className="grid grid-cols-[5.75rem_1fr_5.75rem] items-start">
-                  {showBillBalanceStamp ? (
-                    <div className="flex items-center justify-center border-2 border-neutral-800 py-1 text-center">
-                      <span
-                        className={`font-bold leading-tight ${chromeClass} ${
-                          isJameelUrdu ? 'text-lg' : 'text-xs'
-                        }`}
-                      >
-                        {labels.billBalance}
-                      </span>
-                    </div>
-                  ) : (
-                    <div />
-                  )}
-                  <div className="w-full min-w-0">
-                    <h1
-                      className={`font-bold text-center ${printCompanyHeadingClass}`}
-                    >
-                      {printCompanyHeading}
-                    </h1>
-                  </div>
-                  <div />
-                </div>
-                {renderCompanyContactLine()}
-
-                <div className={`flex flex-col text-base ${urduMetaBoxClass}`}>
-                  {/* customer + agent share one row */}
-                  <div
-                    className={`flex justify-between gap-3 ${urduFieldRowAlignClass} ${urduPartyRowClass}`}
-                  >
+          {!isInvoiceSynced ? (
+            <div className="print:hidden pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-white/50 pt-24 backdrop-blur-[1px]">
+              <span className="text-sm font-medium text-neutral-700">
+                Loading…
+              </span>
+            </div>
+          ) : null}
+          <table
+            className={`invoice-print-table w-full text-base border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${urduTableClass}`}
+          >
+            <colgroup>
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '16%' }} />
+              <col />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '16%' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <td colSpan={7} className="!border-0 !p-0 !pb-2 align-top">
+                  {invoice.isReturned ? (
                     <div
-                      className={`flex min-w-0 gap-1 ${urduFieldRowAlignClass}`}
+                      className="mb-4 rounded-md border-2 border-red-600 bg-red-50 px-4 py-3 text-center print:border-gray-400 print:bg-white print:text-black"
+                      role="status"
                     >
-                      <p className={`whitespace-nowrap ${chromeClass}`}>
-                        {partyLabel}
+                      <p className="text-lg font-bold uppercase tracking-wide text-red-800 print:text-black">
+                        {labels.returnedBanner}
                       </p>
-                      <p
-                        className={`whitespace-nowrap ${
-                          isUrdu ? chromeClass : ''
-                        }`}
-                      >
-                        {billToName}
-                      </p>
-                      <p className={`ps-2 ${isUrdu ? chromeClass : ''}`}>
-                        {billToAddress}
+                      {invoice.returnedAt ? (
+                        <p className="mt-1 text-sm text-red-900/80 print:text-neutral-800">
+                          {labels.returnedOn}{' '}
+                          {formatInvoicePrintDate(
+                            invoice.returnedAt,
+                            effectiveLocale,
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {invoice.isQuotation ? (
+                    <div
+                      className="mb-4 rounded-md border-2 border-amber-600 bg-amber-50 px-4 py-3 text-center print:border-gray-400 print:bg-white print:text-black"
+                      role="status"
+                    >
+                      <p className="text-lg font-bold uppercase tracking-wide text-amber-950 print:text-black">
+                        {labels.quotationBanner}
                       </p>
                     </div>
-                    {showAgentName ? (
+                  ) : null}
+                  <div className="grid grid-cols-[5.75rem_1fr_5.75rem] items-start">
+                    {showBillBalanceStamp ? (
+                      <div className="flex items-center justify-center border-2 border-neutral-800 py-1 text-center">
+                        <span
+                          className={`font-bold leading-tight ${chromeClass} ${
+                            isJameelUrdu ? 'text-lg' : 'text-xs'
+                          }`}
+                        >
+                          {labels.billBalance}
+                        </span>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                    <div className="w-full min-w-0">
+                      <h1
+                        className={`font-bold text-center ${printCompanyHeadingClass}`}
+                      >
+                        {printCompanyHeading}
+                      </h1>
+                    </div>
+                    <div />
+                  </div>
+                  {renderCompanyContactLine()}
+
+                  <div
+                    className={`flex flex-col text-base ${urduMetaBoxClass}`}
+                  >
+                    {/* customer + agent share one row */}
+                    <div
+                      className={`flex justify-between gap-3 ${urduFieldRowAlignClass} ${urduPartyRowClass}`}
+                    >
                       <div
-                        className={`flex shrink-0 gap-1 ${urduFieldRowAlignClass}`}
+                        className={`flex min-w-0 gap-1 ${urduFieldRowAlignClass}`}
                       >
                         <p className={`whitespace-nowrap ${chromeClass}`}>
-                          {labels.agent}
+                          {partyLabel}
                         </p>
                         <p
                           className={`whitespace-nowrap ${
-                            isUrdu &&
-                            String(invoice.accountHeadNameUrdu ?? '').trim()
-                              ? chromeClass
-                              : dataClass
+                            isUrdu ? chromeClass : ''
                           }`}
-                          dir={
-                            isUrdu &&
-                            String(invoice.accountHeadNameUrdu ?? '').trim()
-                              ? 'rtl'
-                              : 'ltr'
+                        >
+                          {billToName}
+                        </p>
+                        <p className={`ps-2 ${isUrdu ? chromeClass : ''}`}>
+                          {billToAddress}
+                        </p>
+                      </div>
+                      {showAgentName ? (
+                        <div
+                          className={`flex shrink-0 gap-1 ${urduFieldRowAlignClass}`}
+                        >
+                          <p className={`whitespace-nowrap ${chromeClass}`}>
+                            {labels.agent}
+                          </p>
+                          <p
+                            className={`whitespace-nowrap ${
+                              isUrdu &&
+                              String(invoice.accountHeadNameUrdu ?? '').trim()
+                                ? chromeClass
+                                : dataClass
+                            }`}
+                            dir={
+                              isUrdu &&
+                              String(invoice.accountHeadNameUrdu ?? '').trim()
+                                ? 'rtl'
+                                : 'ltr'
+                            }
+                          >
+                            {printAgentName}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div
+                      className={`${headerFieldsRowClass} ${urduFieldRowAlignClass}`}
+                    >
+                      <div
+                        className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+                      >
+                        <p className={chromeClass}>
+                          {invoice.isQuotation
+                            ? labels.quotationNumber
+                            : labels.invoiceNumber}
+                        </p>
+                        <p dir="ltr" className={dataClass}>
+                          {invoice.isQuotation
+                            ? getQuotationDisplayNumber(
+                                toNumber(invoice.invoiceNumber),
+                              )
+                            : invoice.invoiceNumber}
+                        </p>
+                      </div>
+                      <div
+                        className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+                      >
+                        <p className={chromeClass}>{labels.date}</p>
+                        {(() => {
+                          const dateParts = getInvoicePrintDateParts(
+                            invoice.date,
+                            effectiveLocale,
+                          );
+                          if (!dateParts) {
+                            return (
+                              <p
+                                className={`whitespace-nowrap ${dataClass}`}
+                                dir="ltr"
+                              >
+                                {invoice.date}
+                              </p>
+                            );
+                          }
+                          if (!isUrdu) {
+                            return (
+                              <p
+                                className={`whitespace-nowrap ${dataClass}`}
+                                dir="ltr"
+                              >
+                                {dateParts.formatted}
+                              </p>
+                            );
+                          }
+                          // isolate day/year so "3 ستمبر 2026" does not bidi-flip to "ستمبر 2026 3"
+                          return (
+                            <p className="whitespace-nowrap">
+                              <span dir="ltr" className={dataClass}>
+                                {dateParts.day}
+                              </span>{' '}
+                              <span className={chromeClass}>
+                                {dateParts.month}
+                              </span>{' '}
+                              <span dir="ltr" className={dataClass}>
+                                {dateParts.year}
+                              </span>
+                            </p>
+                          );
+                        })()}
+                      </div>
+                      {showBiltyField ? (
+                        <div
+                          className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+                        >
+                          <p className={chromeClass}>{labels.bilty}</p>
+                          <p>
+                            <span dir="ltr" className={dataClass}>
+                              {biltyGoods.bilty}
+                            </span>
+                            {biltyGoods.goodsShort ? (
+                              <>
+                                {' '}
+                                <span className={chromeClass}>
+                                  ({biltyGoods.goodsShort})
+                                </span>
+                              </>
+                            ) : null}
+                          </p>
+                        </div>
+                      ) : null}
+                      {showCartonsField ? (
+                        <div
+                          className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+                        >
+                          <p className={chromeClass}>{labels.cartons}</p>
+                          <p dir="ltr" className={dataClass}>
+                            {invoice.cartons ?? ''}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              <tr className="[&_th]:font-semibold">
+                <th className={`text-start ${chromeClass}`}>{labels.serial}</th>
+                <th className={`text-center ${chromeClass}`}>{labels.item}</th>
+                <th className={`text-start ${chromeClass}`}>
+                  {labels.itemDescription}
+                </th>
+                <th
+                  className={`${numHeadAlignClass} tabular-nums ${chromeClass}`}
+                >
+                  {labels.qty}
+                </th>
+                <th
+                  className={`${numHeadAlignClass} w-[4.75rem] tabular-nums ${chromeClass}`}
+                >
+                  {labels.price}
+                </th>
+                <th
+                  className={`${numHeadAlignClass} tabular-nums ${chromeClass}`}
+                >
+                  {labels.discount}
+                </th>
+                <th
+                  className={`${numHeadAlignClass} ${amountColClass} ${chromeClass}`}
+                >
+                  {labels.amount}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sectionedRows.map((row) => {
+                if (row.kind === 'header') {
+                  return (
+                    <tr key={row.key} className="bg-gray-100">
+                      <td className={`font-semibold ${dataClass}`} colSpan={7}>
+                        {row.sectionName}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                if (row.kind === 'subtotal') {
+                  return (
+                    <tr key={row.key} className="bg-gray-50">
+                      <td colSpan={3} />
+                      <td
+                        className={`${qtyColClass} ${dataClass} font-semibold`}
+                        dir="ltr"
+                      >
+                        {row.totalQuantity}
+                      </td>
+                      <td />
+                      <td />
+                      <td
+                        className={`text-end ${amountColClass} ${dataClass} font-semibold`}
+                        dir="ltr"
+                      >
+                        {toNumber(row.totalAmount).toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return (
+                  <tr key={row.key}>
+                    <td
+                      dir="ltr"
+                      className={`${dataClass}${isUrdu ? ' text-right' : ''}`}
+                    >
+                      {row.serialNumber}
+                    </td>
+                    <td className={`text-center ${dataClass}`} dir="ltr">
+                      {row.item.inventoryItemName}
+                    </td>
+                    {/* Urdu desc → Nastaliq + air; English fallback stays latin + pack to SKU */}
+                    {(() => {
+                      const descriptionText = pickPrintLocalizedText(
+                        row.item.inventoryItemDescription,
+                        row.item.inventoryItemDescriptionUrdu,
+                        effectiveLocale,
+                      );
+                      const descriptionIsUrdu =
+                        isUrdu &&
+                        String(
+                          row.item.inventoryItemDescriptionUrdu ?? '',
+                        ).trim().length > 0;
+                      return (
+                        <td
+                          dir={descriptionIsUrdu ? 'rtl' : 'ltr'}
+                          className={
+                            descriptionIsUrdu
+                              ? `${chromeClass} ${urduDescriptionPadClass}`
+                              : `${dataClass}${isUrdu ? ' text-right' : ''}`
                           }
                         >
-                          {printAgentName}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div
-                    className={`${headerFieldsRowClass} ${urduFieldRowAlignClass}`}
-                  >
-                    <div
-                      className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+                          {descriptionText}
+                        </td>
+                      );
+                    })()}
+                    <td className={`${qtyColClass} ${dataClass}`} dir="ltr">
+                      {row.item.quantity}
+                    </td>
+                    <td className={`${priceColClass} ${dataClass}`} dir="ltr">
+                      {chargedUnitPrice(row.item).toFixed(0)}
+                    </td>
+                    <td
+                      className={`${discountColClass} ${dataClass}`}
+                      dir="ltr"
                     >
-                      <p className={chromeClass}>
-                        {invoice.isQuotation
-                          ? labels.quotationNumber
-                          : labels.invoiceNumber}
-                      </p>
-                      <p dir="ltr" className={dataClass}>
-                        {invoice.isQuotation
-                          ? getQuotationDisplayNumber(
-                              toNumber(invoice.invoiceNumber),
-                            )
-                          : invoice.invoiceNumber}
-                      </p>
-                    </div>
-                    <div
-                      className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
+                      {lineHasNetPrice(row.item.netPrice)
+                        ? ''
+                        : row.item.discount.toFixed(2)}
+                    </td>
+                    <td
+                      className={`text-end ${amountColClass} ${dataClass}`}
+                      dir="ltr"
                     >
-                      <p className={chromeClass}>{labels.date}</p>
-                      {(() => {
-                        const dateParts = getInvoicePrintDateParts(
-                          invoice.date,
-                          effectiveLocale,
-                        );
-                        if (!dateParts) {
-                          return (
-                            <p
-                              className={`whitespace-nowrap ${dataClass}`}
-                              dir="ltr"
-                            >
-                              {invoice.date}
-                            </p>
-                          );
-                        }
-                        if (!isUrdu) {
-                          return (
-                            <p
-                              className={`whitespace-nowrap ${dataClass}`}
-                              dir="ltr"
-                            >
-                              {dateParts.formatted}
-                            </p>
-                          );
-                        }
-                        // isolate day/year so "3 ستمبر 2026" does not bidi-flip to "ستمبر 2026 3"
-                        return (
-                          <p className="whitespace-nowrap">
-                            <span dir="ltr" className={dataClass}>
-                              {dateParts.day}
-                            </span>{' '}
-                            <span className={chromeClass}>
-                              {dateParts.month}
-                            </span>{' '}
-                            <span dir="ltr" className={dataClass}>
-                              {dateParts.year}
-                            </span>
-                          </p>
-                        );
-                      })()}
-                    </div>
-                    {showBiltyField ? (
-                      <div
-                        className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
-                      >
-                        <p className={chromeClass}>{labels.bilty}</p>
-                        <p>
-                          <span dir="ltr" className={dataClass}>
-                            {biltyGoods.bilty}
-                          </span>
-                          {biltyGoods.goodsShort ? (
-                            <>
-                              {' '}
-                              <span className={chromeClass}>
-                                ({biltyGoods.goodsShort})
-                              </span>
-                            </>
-                          ) : null}
-                        </p>
-                      </div>
-                    ) : null}
-                    {showCartonsField ? (
-                      <div
-                        className={`flex gap-1 whitespace-nowrap ${urduFieldRowAlignClass}`}
-                      >
-                        <p className={chromeClass}>{labels.cartons}</p>
-                        <p dir="ltr" className={dataClass}>
-                          {invoice.cartons ?? ''}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </td>
-            </tr>
-            <tr className="[&_th]:font-semibold">
-              <th className={`text-start ${chromeClass}`}>{labels.serial}</th>
-              <th className={`text-center ${chromeClass}`}>{labels.item}</th>
-              <th className={`text-start ${chromeClass}`}>
-                {labels.itemDescription}
-              </th>
-              <th
-                className={`${numHeadAlignClass} tabular-nums ${chromeClass}`}
-              >
-                {labels.qty}
-              </th>
-              <th
-                className={`${numHeadAlignClass} w-[4.75rem] tabular-nums ${chromeClass}`}
-              >
-                {labels.price}
-              </th>
-              <th
-                className={`${numHeadAlignClass} tabular-nums ${chromeClass}`}
-              >
-                {labels.discount}
-              </th>
-              <th
-                className={`${numHeadAlignClass} ${amountColClass} ${chromeClass}`}
-              >
-                {labels.amount}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sectionedRows.map((row) => {
-              if (row.kind === 'header') {
-                return (
-                  <tr key={row.key} className="bg-gray-100">
-                    <td className={`font-semibold ${dataClass}`} colSpan={7}>
-                      {row.sectionName}
+                      {toNumber(row.item.discountedPrice).toFixed(2)}
                     </td>
                   </tr>
                 );
-              }
-
-              if (row.kind === 'subtotal') {
-                return (
-                  <tr key={row.key} className="bg-gray-50">
-                    <td colSpan={3} />
+              })}
+            </tbody>
+            <tbody data-print-footer>
+              {/* # empty; حوالہ = sabqa/naya label; تفصیل = amount at start, کل مقدار/کل رقم at end */}
+              <tr>
+                <td className={footerBoxClearClass} />
+                {showRunningBalances && runningBalances ? (
+                  <>
                     <td
-                      className={`${qtyColClass} ${dataClass} font-semibold`}
-                      dir="ltr"
+                      className={`${footerBoxLabelClass} text-end !border-s-0`}
                     >
-                      {row.totalQuantity}
+                      {labels.previousBalance}
                     </td>
-                    <td />
-                    <td />
                     <td
-                      className={`text-end ${amountColClass} ${dataClass} font-semibold`}
-                      dir="ltr"
+                      className={`${footerBoxClass}${urduFooterNumericPadClass}`}
                     >
-                      {toNumber(row.totalAmount).toFixed(2)}
+                      <div className="flex w-full items-baseline justify-between gap-2">
+                        {renderFooterAmount(
+                          Math.abs(runningBalances.previousBalance),
+                        )}
+                        <span
+                          className={`${chromeClass} shrink-0 leading-tight`}
+                        >
+                          {labels.totalQuantity}
+                        </span>
+                      </div>
                     </td>
-                  </tr>
-                );
-              }
-
-              return (
-                <tr key={row.key}>
+                  </>
+                ) : (
                   <td
-                    dir="ltr"
-                    className={`${dataClass}${isUrdu ? ' text-right' : ''}`}
+                    colSpan={2}
+                    className={`${footerBoxClass} !border-s-0${urduFooterNumericPadClass}`}
                   >
-                    {row.serialNumber}
-                  </td>
-                  <td className={`text-center ${dataClass}`} dir="ltr">
-                    {row.item.inventoryItemName}
-                  </td>
-                  {/* Urdu desc → Nastaliq + air; English fallback stays latin + pack to SKU */}
-                  {(() => {
-                    const descriptionText = pickPrintLocalizedText(
-                      row.item.inventoryItemDescription,
-                      row.item.inventoryItemDescriptionUrdu,
-                      effectiveLocale,
-                    );
-                    const descriptionIsUrdu =
-                      isUrdu &&
-                      String(row.item.inventoryItemDescriptionUrdu ?? '').trim()
-                        .length > 0;
-                    return (
-                      <td
-                        dir={descriptionIsUrdu ? 'rtl' : 'ltr'}
-                        className={
-                          descriptionIsUrdu
-                            ? `${chromeClass} ${urduDescriptionPadClass}`
-                            : `${dataClass}${isUrdu ? ' text-right' : ''}`
-                        }
-                      >
-                        {descriptionText}
-                      </td>
-                    );
-                  })()}
-                  <td className={`${qtyColClass} ${dataClass}`} dir="ltr">
-                    {row.item.quantity}
-                  </td>
-                  <td className={`${priceColClass} ${dataClass}`} dir="ltr">
-                    {chargedUnitPrice(row.item).toFixed(0)}
-                  </td>
-                  <td className={`${discountColClass} ${dataClass}`} dir="ltr">
-                    {lineHasNetPrice(row.item.netPrice)
-                      ? ''
-                      : row.item.discount.toFixed(2)}
-                  </td>
-                  <td
-                    className={`text-end ${amountColClass} ${dataClass}`}
-                    dir="ltr"
-                  >
-                    {toNumber(row.item.discountedPrice).toFixed(2)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tbody data-print-footer>
-            {/* # empty; حوالہ = sabqa/naya label; تفصیل = amount at start, کل مقدار/کل رقم at end */}
-            <tr>
-              <td className={footerBoxClearClass} />
-              {showRunningBalances && runningBalances ? (
-                <>
-                  <td className={`${footerBoxLabelClass} text-end !border-s-0`}>
-                    {labels.previousBalance}
-                  </td>
-                  <td
-                    className={`${footerBoxClass}${urduFooterNumericPadClass}`}
-                  >
-                    <div className="flex w-full items-baseline justify-between gap-2">
-                      {renderFooterAmount(
-                        Math.abs(runningBalances.previousBalance),
-                      )}
+                    <div className="flex justify-end">
                       <span className={`${chromeClass} shrink-0 leading-tight`}>
                         {labels.totalQuantity}
                       </span>
                     </div>
                   </td>
-                </>
-              ) : (
+                )}
                 <td
-                  colSpan={2}
-                  className={`${footerBoxClass} !border-s-0${urduFooterNumericPadClass}`}
+                  className={`${qtyColClass} ${dataClass} ${footerBoxClass}${urduFooterNumericPadClass}`}
+                  dir="ltr"
                 >
-                  <div className="flex justify-end">
-                    <span className={`${chromeClass} shrink-0 leading-tight`}>
-                      {labels.totalQuantity}
-                    </span>
-                  </div>
+                  {totalQuantity}
                 </td>
-              )}
-              <td
-                className={`${qtyColClass} ${dataClass} ${footerBoxClass}${urduFooterNumericPadClass}`}
-                dir="ltr"
-              >
-                {totalQuantity}
-              </td>
-              {quantityRowCharge ? (
-                <>
+                {quantityRowCharge ? (
+                  <>
+                    <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
+                    <td
+                      className={`${footerBoxLabelClass} text-end !border-e-0`}
+                    >
+                      {quantityRowCharge.label}
+                    </td>
+                    <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
+                      {renderFooterAmount(quantityRowCharge.amount)}
+                    </td>
+                  </>
+                ) : (
+                  <td
+                    colSpan={3}
+                    className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
+                  />
+                )}
+              </tr>
+              {hasShipping && hasExtraDiscount ? (
+                <tr>
+                  <td className={footerBoxClearClass} />
+                  {showRunningBalances && runningBalances ? (
+                    <>
+                      <td
+                        className={`${footerBoxLabelClass} text-end !border-s-0`}
+                      >
+                        {labels.newBalance}
+                      </td>
+                      <td
+                        className={`${footerBoxClass}${urduFooterNumericPadClass}`}
+                      >
+                        {renderFooterAmount(
+                          Math.abs(runningBalances.newBalance),
+                        )}
+                      </td>
+                    </>
+                  ) : (
+                    <td
+                      colSpan={2}
+                      className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
+                    />
+                  )}
+                  <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
                   <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
                   <td className={`${footerBoxLabelClass} text-end !border-e-0`}>
-                    {quantityRowCharge.label}
+                    {labels.shipping}
                   </td>
                   <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
-                    {renderFooterAmount(quantityRowCharge.amount)}
+                    {renderFooterAmount(shippingAmount)}
                   </td>
-                </>
-              ) : (
-                <td
-                  colSpan={3}
-                  className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
-                />
-              )}
-            </tr>
-            {hasShipping && hasExtraDiscount ? (
+                </tr>
+              ) : null}
               <tr>
                 <td className={footerBoxClearClass} />
-                {showRunningBalances && runningBalances ? (
+                {showRunningBalances &&
+                runningBalances &&
+                !(hasShipping && hasExtraDiscount) ? (
                   <>
                     <td
                       className={`${footerBoxLabelClass} text-end !border-s-0`}
@@ -1793,108 +1649,87 @@ const PrintableInvoiceScreen = () => {
                     <td
                       className={`${footerBoxClass}${urduFooterNumericPadClass}`}
                     >
-                      {renderFooterAmount(Math.abs(runningBalances.newBalance))}
+                      <div className="flex w-full items-baseline justify-between gap-2">
+                        {renderFooterAmount(
+                          Math.abs(runningBalances.newBalance),
+                        )}
+                        <span
+                          className={`${chromeClass} shrink-0 leading-tight`}
+                        >
+                          {labels.total}
+                        </span>
+                      </div>
                     </td>
                   </>
                 ) : (
                   <td
                     colSpan={2}
-                    className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
-                  />
-                )}
-                <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
-                <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
-                <td className={`${footerBoxLabelClass} text-end !border-e-0`}>
-                  {labels.shipping}
-                </td>
-                <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
-                  {renderFooterAmount(shippingAmount)}
-                </td>
-              </tr>
-            ) : null}
-            <tr>
-              <td className={footerBoxClearClass} />
-              {showRunningBalances &&
-              runningBalances &&
-              !(hasShipping && hasExtraDiscount) ? (
-                <>
-                  <td className={`${footerBoxLabelClass} text-end !border-s-0`}>
-                    {labels.newBalance}
-                  </td>
-                  <td
-                    className={`${footerBoxClass}${urduFooterNumericPadClass}`}
+                    className={`${footerBoxClass} !border-s-0${urduFooterNumericPadClass}`}
                   >
-                    <div className="flex w-full items-baseline justify-between gap-2">
-                      {renderFooterAmount(Math.abs(runningBalances.newBalance))}
+                    <div className="flex justify-end">
                       <span className={`${chromeClass} shrink-0 leading-tight`}>
                         {labels.total}
                       </span>
                     </div>
                   </td>
-                </>
-              ) : (
+                )}
                 <td
-                  colSpan={2}
-                  className={`${footerBoxClass} !border-s-0${urduFooterNumericPadClass}`}
+                  colSpan={3}
+                  className={`${footerBoxLabelClass} ${
+                    isUrdu ? '' : `${dataClass} text-xs`
+                  }`}
                 >
-                  <div className="flex justify-end">
-                    <span className={`${chromeClass} shrink-0 leading-tight`}>
-                      {labels.total}
-                    </span>
-                  </div>
+                  {totalAmountInWords}
                 </td>
+                <td className={footerTotalAmountClass}>
+                  {renderFooterAmount(toNumber(invoice.totalAmount))}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {showPrintNoteBlock ? (
+            <div
+              className={`invoice-print-note mt-3 flex justify-between gap-6 text-sm ${urduFieldRowAlignClass}`}
+            >
+              {showPrintNoteText ? (
+                <p className={`min-w-0 ${isUrdu ? chromeClass : ''}`}>
+                  <span className={chromeClass}>{labels.note}</span>{' '}
+                  {printNoteText}
+                </p>
+              ) : (
+                <div />
               )}
-              <td
-                colSpan={3}
-                className={`${footerBoxLabelClass} ${
-                  isUrdu ? '' : `${dataClass} text-xs`
+              <div
+                className={`shrink-0 whitespace-nowrap ${
+                  isUrdu ? 'flex items-baseline gap-6' : ''
                 }`}
               >
-                {totalAmountInWords}
-              </td>
-              <td className={footerTotalAmountClass}>
-                {renderFooterAmount(toNumber(invoice.totalAmount))}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        {showPrintNoteBlock ? (
-          <div
-            className={`invoice-print-note mt-3 flex justify-between gap-6 text-sm ${urduFieldRowAlignClass}`}
-          >
-            {showPrintNoteText ? (
-              <p className={`min-w-0 ${isUrdu ? chromeClass : ''}`}>
-                <span className={chromeClass}>{labels.note}</span>{' '}
-                {printNoteText}
-              </p>
-            ) : (
-              <div />
-            )}
-            <div
-              className={`shrink-0 whitespace-nowrap ${
-                isUrdu ? 'flex items-baseline gap-6' : ''
-              }`}
-            >
-              {companyProfile.whatsapp.trim() ? (
-                <p>
-                  <span className={chromeClass}>{labels.whatsapp}</span>{' '}
-                  <span dir="ltr" className={dataClass}>
-                    {companyProfile.whatsapp.trim()}
-                  </span>
-                </p>
-              ) : null}
-              {companyProfile.website.trim() ? (
-                <p>
-                  <span className={chromeClass}>{labels.website}</span>{' '}
-                  <span dir="ltr" className={dataClass}>
-                    {companyProfile.website.trim()}
-                  </span>
-                </p>
-              ) : null}
+                {companyProfile.whatsapp.trim() ? (
+                  <p>
+                    <span className={chromeClass}>{labels.whatsapp}</span>{' '}
+                    <span dir="ltr" className={dataClass}>
+                      {companyProfile.whatsapp.trim()}
+                    </span>
+                  </p>
+                ) : null}
+                {companyProfile.website.trim() ? (
+                  <p>
+                    <span className={chromeClass}>{labels.website}</span>{' '}
+                    <span dir="ltr" className={dataClass}>
+                      {companyProfile.website.trim()}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
+      <PrintHelpDialog
+        open={showPrintHelp && printHelp != null}
+        onOpenChange={setShowPrintHelp}
+        help={printHelp ?? getPrintHelp(printEnvironment)}
+      />
     </div>
   );
 };

@@ -85,6 +85,14 @@ declare global {
         anonKey: string;
       } | null>;
       renderJoinQr?: (text: string) => Promise<string>;
+      /**
+       * The host can write a PDF file to the local filesystem (Electron's
+       * print pipeline). A browser cannot: it can only open the system
+       * print screen, which is where "Save as PDF" lives. The printable
+       * invoice screen reads this to decide whether the file buttons are
+       * real or a lie — same capability-flag pattern as the flags above.
+       */
+      supportsPrintToFile?: true;
     };
   }
 }
