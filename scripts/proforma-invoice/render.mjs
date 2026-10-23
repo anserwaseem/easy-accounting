@@ -1,6 +1,8 @@
 // one-off proforma invoice for an export agent: node render.mjs data.json [out.pdf]
 // renders a clean A4 page and prints it to PDF through headless Chrome.
 // put real company/customer data in an untracked json (this repo is public).
+// run like this:
+// node scripts/proforma-invoice/render.mjs data.json [out.pdf]
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -13,7 +15,10 @@ if (!dataPath) {
 }
 const d = JSON.parse(readFileSync(dataPath, 'utf8'));
 const esc = (v) =>
-  String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  String(v).replace(
+    /[&<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+  );
 const money = (n) => `${d.currencySymbol}${Number(n).toFixed(2)}`;
 const totalQty = d.items.reduce((s, i) => s + i.qty, 0);
 const total = d.items.reduce((s, i) => s + i.amount, 0);
@@ -21,11 +26,19 @@ const total = d.items.reduce((s, i) => s + i.amount, 0);
 const rows = d.items
   .map(
     (i, n) =>
-      `<tr><td class="c">${n + 1}</td><td>${esc(i.description)}</td><td class="c">${esc(i.weight)}</td><td class="c">${esc(i.dimensions)}</td><td class="c">${i.qty}</td><td class="r">${money(i.amount)}</td></tr>`,
+      `<tr><td class="c">${n + 1}</td><td>${esc(
+        i.description,
+      )}</td><td class="c">${esc(i.weight)}</td><td class="c">${esc(
+        i.dimensions,
+      )}</td><td class="c">${i.qty}</td><td class="r">${money(
+        i.amount,
+      )}</td></tr>`,
   )
   .join('');
 
-const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proforma Invoice ${esc(d.invoiceNumber)}</title>
+const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proforma Invoice ${esc(
+  d.invoiceNumber,
+)}</title>
 <style>
 @page{size:A4;margin:14mm}
 *{box-sizing:border-box}
@@ -47,15 +60,25 @@ tfoot td{font-weight:700}
 .note{margin-top:30px;color:#444;font-size:12px}
 </style></head><body>
 <div class="head"><h1>${esc(d.company.name)}</h1>
-<p>${esc(d.company.address)}</p><p>${esc(d.company.contact)}</p><p><b>${esc(d.company.taxIds)}</b></p></div>
+<p>${esc(d.company.address)}</p><p>${esc(d.company.contact)}</p><p><b>${esc(
+  d.company.taxIds,
+)}</b></p></div>
 <div class="title">PROFORMA INVOICE</div>
 <div class="meta">
-<div class="box"><h4>Bill To</h4><div><b>${esc(d.billTo.name)}</b></div><div>${esc(d.billTo.location)}</div></div>
-<div class="box"><h4>Details</h4><div><b>Proforma Invoice #:</b> ${esc(d.invoiceNumber)}</div><div><b>Date:</b> ${esc(d.date)}</div><div><b>Currency:</b> ${esc(d.currency)}</div></div>
+<div class="box"><h4>Bill To</h4><div><b>${esc(
+  d.billTo.name,
+)}</b></div><div>${esc(d.billTo.location)}</div></div>
+<div class="box"><h4>Details</h4><div><b>Proforma Invoice #:</b> ${esc(
+  d.invoiceNumber,
+)}</div><div><b>Date:</b> ${esc(d.date)}</div><div><b>Currency:</b> ${esc(
+  d.currency,
+)}</div></div>
 </div>
 <table><thead><tr><th class="c" style="width:36px">#</th><th>Description</th><th class="c">Weight</th><th class="c">Dimensions (L x W x H)</th><th class="c">Qty</th><th class="r">Amount</th></tr></thead>
 <tbody>${rows}</tbody>
-<tfoot><tr><td colspan="4" class="r">Total</td><td class="c">${totalQty}</td><td class="r">${money(total)}</td></tr></tfoot></table>
+<tfoot><tr><td colspan="4" class="r">Total</td><td class="c">${totalQty}</td><td class="r">${money(
+  total,
+)}</td></tr></tfoot></table>
 <div class="words">Amount in words: ${esc(d.amountInWords)}</div>
 <div class="note">${esc(d.footerNote)}</div>
 </body></html>`;
@@ -64,6 +87,17 @@ const tmp = join(mkdtempSync(join(tmpdir(), 'proforma-')), 'proforma.html');
 writeFileSync(tmp, html);
 const out = resolve(outArg ?? `Proforma-Invoice-${d.invoiceNumber}.pdf`);
 const chrome =
-  process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-execFileSync(chrome, ['--headless', '--disable-gpu', '--no-pdf-header-footer', `--print-to-pdf=${out}`, tmp], { stdio: 'ignore' });
+  process.env.CHROME ??
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+execFileSync(
+  chrome,
+  [
+    '--headless',
+    '--disable-gpu',
+    '--no-pdf-header-footer',
+    `--print-to-pdf=${out}`,
+    tmp,
+  ],
+  { stdio: 'ignore' },
+);
 console.log(`wrote ${out}`);
