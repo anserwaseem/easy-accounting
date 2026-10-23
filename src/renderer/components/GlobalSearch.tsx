@@ -101,6 +101,12 @@ const EMPTY_DATA: GlobalSearchData = {
   invoices: [],
 };
 
+/**
+ * Fired to open the palette from outside this component — the mobile
+ * top bar's search button, which has no ⌘/Ctrl+K shortcut to ride on.
+ */
+export const GLOBAL_SEARCH_OPEN_EVENT = 'easyaccounting:global-search-open';
+
 const GlobalSearch: FC = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -114,6 +120,14 @@ const GlobalSearch: FC = () => {
     'k',
     useCallback(() => setOpen((prev) => !prev), []),
   );
+
+  // The mobile top bar's search button dispatches this event; there is
+  // no keyboard shortcut on a phone.
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(GLOBAL_SEARCH_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(GLOBAL_SEARCH_OPEN_EVENT, onOpen);
+  }, []);
 
   // lazy-load on first open; cached for the rest of the session
   useEffect(() => {

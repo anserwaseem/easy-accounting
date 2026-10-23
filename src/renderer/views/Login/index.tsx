@@ -56,10 +56,12 @@ const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="p-6 rounded-xl shadow-md border-white border-dashed border-[1px]">
-        <h1 className="title-new">Login</h1>
-        <form>
+    <div className="flex justify-center items-center min-h-screen p-4">
+      {/* The card sized to its content rather than the viewport, and the
+          submit button sat small under full-width inputs. */}
+      <div className="w-full max-w-sm p-6 rounded-xl shadow-md border border-border bg-card text-card-foreground">
+        <h1 className="title-new mb-4">Login</h1>
+        <form className="flex flex-col gap-3">
           <Input
             type="text"
             placeholder="Username"
@@ -72,20 +74,21 @@ const LoginPage: React.FC = () => {
           />
           <Button
             variant="outline"
+            className="w-full"
             onClick={(e) => login(e)}
             disabled={username.length < 4 || password.length < 4}
           >
             Login
           </Button>
         </form>
-        <p className="text-sm tracking-tight text-black">
+        <p className="mt-4 text-sm tracking-tight text-muted-foreground">
           Already have an account?
           <Button asChild variant="link">
             <Link to="/register">Sign Up</Link>
           </Button>
         </p>
         {window.electron.supportsDbImport && (
-          <p className="text-sm tracking-tight text-black">
+          <p className="text-sm tracking-tight text-muted-foreground">
             New here?
             <Button asChild variant="link">
               <Link to="/import">Import from desktop app</Link>
@@ -93,7 +96,7 @@ const LoginPage: React.FC = () => {
           </p>
         )}
         {canJoinSync && (
-          <p className="text-sm tracking-tight text-black">
+          <p className="text-sm tracking-tight text-muted-foreground">
             Setting up a second device?
             <Button asChild variant="link">
               <Link to="/join-sync">Join existing sync</Link>

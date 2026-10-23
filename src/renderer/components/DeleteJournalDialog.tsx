@@ -19,7 +19,17 @@ export interface DeleteJournalDialogProps {
   narration?: string;
   totalAmount?: number;
   onSuccess?: () => void;
-  trigger?: React.ReactNode;
+  /**
+   * What opens the dialog. `null` means "nothing opens it from here" —
+   * a menu item opens it instead.
+   */
+  trigger?: React.ReactNode | null;
+  /**
+   * Controlled open state, for a menu item that opens this dialog: the
+   * dialog lives outside the menu, so the item cannot use a trigger.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
@@ -28,8 +38,21 @@ export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
   totalAmount,
   onSuccess,
   trigger,
+  open: openProp,
+  onOpenChange,
 }: DeleteJournalDialogProps) => {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  // controlled when the caller passes `open`, so a menu item can
+  // open a dialog that is mounted outside the menu
+  const open = openProp ?? openState;
+  // a dialog that a menu opens has no trigger of its own: the menu item
+  // is the trigger, and a button left on the card would be a second,
+  // unexplained control next to the ⋮ that opened the menu
+  const showTrigger = trigger !== null && openProp === undefined;
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [isLoading, setIsLoading] = useState(false);
 
   const handleConfirm = async () => {
@@ -58,14 +81,16 @@ export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button type="button" variant="destructive" size="sm">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Journal
-          </Button>
-        )}
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button type="button" variant="destructive" size="sm">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Journal
+            </Button>
+          )}
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>Delete Manual Journal #{journalId}</DialogTitle>

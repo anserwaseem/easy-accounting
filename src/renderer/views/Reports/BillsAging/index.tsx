@@ -22,6 +22,13 @@ import {
   profilePercentFromJournalLabel,
 } from '@/lib/journalDiscountLabel';
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/renderer/shad/ui/sheet';
+import {
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -172,6 +179,9 @@ const BillsAgingPage = () => {
   const [hideNonPositiveOutstanding, setHideNonPositiveOutstanding] =
     useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // The phone's filter sheet: the same controls as the inline toolbar,
+  // in a sheet that can be dismissed with a swipe.
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // overdue follow-up filters
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
@@ -498,13 +508,13 @@ const BillsAgingPage = () => {
           : 'py-2'
       }
       header={
-        <div className="print-header flex flex-col gap-2.5 pb-2">
-          {/* Row 1: Title, Summary KPI & Action Buttons */}
-          <div className="flex flex-wrap justify-between items-center gap-3 pb-1 border-b border-border/40">
-            <div className="flex items-center gap-3">
-              <h1 className="title-new text-2xl font-bold tracking-tight">
-                Bills Aging
-              </h1>
+        <div className="flex flex-col gap-2.5 pb-2">
+          {/* Header row: title, the key figure, the action buttons and
+              the Filters button all on one row on a wide screen, so the
+              report gets more room below. On a phone they still wrap. */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="title-new truncate">Bills Aging</h1>
               {!isLoading && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border">
                   {visibleAccounts.length}{' '}
@@ -513,14 +523,17 @@ const BillsAgingPage = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {!isLoading && visibleAccounts.length > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card/80 shadow-xs text-sm">
-                  <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-                    Total Outstanding:
+                // The label sat beside the figure and took the room the
+                // figure needed, so the total was cut off. It is now
+                // its own line above it.
+                <div className="flex min-w-0 flex-col rounded-lg border bg-card/80 px-2.5 py-1.5">
+                  <span className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground">
+                    Total outstanding
                   </span>
                   <span
-                    className={`font-bold font-mono text-base ${totalColor}`}
+                    className={`mt-0.5 text-[15px] font-semibold leading-tight tabular-nums ${totalColor}`}
                   >
                     {getFormattedCurrencyInt(totalOutstanding, {
                       withoutCurrency: true,
@@ -529,108 +542,7 @@ const BillsAgingPage = () => {
                 </div>
               )}
 
-              <div className="flex items-center gap-1.5">
-                <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={hasActiveFilters ? 'secondary' : 'outline'}
-                      className="gap-2"
-                      aria-expanded={filtersOpen}
-                      title="Filters"
-                    >
-                      <SlidersHorizontal className="h-4 w-4" />
-                      Filters
-                      {activeFilterCount > 0 && (
-                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
-                          {activeFilterCount}
-                        </span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-60">
-                    <div className="flex flex-col gap-3 py-1">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Checkbox
-                          id="toggle-hide-all"
-                          checked={hideAllFilters}
-                          onCheckedChange={(v) => {
-                            const next = Boolean(v);
-                            setHideAllFilters(next);
-                            setHideStatus(next);
-                            setHideZeroRows(next);
-                            setHideNonPositiveOutstanding(next);
-                          }}
-                        />
-                        <Label
-                          htmlFor="toggle-hide-all"
-                          className="font-medium cursor-pointer"
-                        >
-                          Hide all
-                        </Label>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Checkbox
-                          id="toggle-hide-status"
-                          checked={hideStatus}
-                          onCheckedChange={(v) => {
-                            const next = Boolean(v);
-                            const nextHideAllFilters =
-                              next &&
-                              hideZeroRows &&
-                              hideNonPositiveOutstanding;
-                            setHideStatus(next);
-                            setHideAllFilters(nextHideAllFilters);
-                          }}
-                        />
-                        <Label
-                          htmlFor="toggle-hide-status"
-                          className="cursor-pointer"
-                        >
-                          Hide status
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Checkbox
-                          id="toggle-hide-zero"
-                          checked={hideZeroRows}
-                          onCheckedChange={(v) => {
-                            const next = Boolean(v);
-                            const nextHideAllFilters =
-                              hideStatus && next && hideNonPositiveOutstanding;
-                            setHideZeroRows(next);
-                            setHideAllFilters(nextHideAllFilters);
-                          }}
-                        />
-                        <Label
-                          htmlFor="toggle-hide-zero"
-                          className="cursor-pointer"
-                        >
-                          Hide settled bills
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Checkbox
-                          id="toggle-hide-negative"
-                          checked={hideNonPositiveOutstanding}
-                          onCheckedChange={(v) => {
-                            const next = Boolean(v);
-                            const nextHideAllFilters =
-                              hideStatus && hideZeroRows && next;
-                            setHideNonPositiveOutstanding(next);
-                            setHideAllFilters(nextHideAllFilters);
-                          }}
-                        />
-                        <Label
-                          htmlFor="toggle-hide-negative"
-                          className="cursor-pointer"
-                        >
-                          Hide settled accounts
-                        </Label>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+              <div className="flex shrink-0 items-center gap-1.5">
                 <Button
                   variant="outline"
                   size="icon"
@@ -660,11 +572,138 @@ const BillsAgingPage = () => {
                   <Printer className="h-4 w-4" />
                 </Button>
               </div>
+
+              {/* The Filters button travels with the title: both are about
+                  what the report shows. On a phone it opens the sheet
+                  below; on a wide screen it opens the popover. */}
+              <div className="sm:hidden">
+                <Sheet
+                  open={mobileFiltersOpen}
+                  onOpenChange={setMobileFiltersOpen}
+                >
+                  <SheetTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <SlidersHorizontal className="h-4 w-4" />
+                      Filters
+                      {activeFilterCount > 0 ? (
+                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+                          {activeFilterCount}
+                        </span>
+                      ) : null}
+                    </Button>
+                  </SheetTrigger>
+                </Sheet>
+              </div>
+              {/* On a phone the sheet below carries every control, so
+                    this button is hidden there — two "Filters" buttons
+                    on one screen is a trap. */}
+              <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={hasActiveFilters ? 'secondary' : 'outline'}
+                    className="hidden gap-2 sm:inline-flex"
+                    aria-expanded={filtersOpen}
+                    title="Filters"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Filters
+                    {activeFilterCount > 0 && (
+                      <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-60">
+                  <div className="flex flex-col gap-3 py-1">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Checkbox
+                        id="toggle-hide-all"
+                        checked={hideAllFilters}
+                        onCheckedChange={(v) => {
+                          const next = Boolean(v);
+                          setHideAllFilters(next);
+                          setHideStatus(next);
+                          setHideZeroRows(next);
+                          setHideNonPositiveOutstanding(next);
+                        }}
+                      />
+                      <Label
+                        htmlFor="toggle-hide-all"
+                        className="font-medium cursor-pointer"
+                      >
+                        Hide all
+                      </Label>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Checkbox
+                        id="toggle-hide-status"
+                        checked={hideStatus}
+                        onCheckedChange={(v) => {
+                          const next = Boolean(v);
+                          const nextHideAllFilters =
+                            next && hideZeroRows && hideNonPositiveOutstanding;
+                          setHideStatus(next);
+                          setHideAllFilters(nextHideAllFilters);
+                        }}
+                      />
+                      <Label
+                        htmlFor="toggle-hide-status"
+                        className="cursor-pointer"
+                      >
+                        Hide status
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Checkbox
+                        id="toggle-hide-zero"
+                        checked={hideZeroRows}
+                        onCheckedChange={(v) => {
+                          const next = Boolean(v);
+                          const nextHideAllFilters =
+                            hideStatus && next && hideNonPositiveOutstanding;
+                          setHideZeroRows(next);
+                          setHideAllFilters(nextHideAllFilters);
+                        }}
+                      />
+                      <Label
+                        htmlFor="toggle-hide-zero"
+                        className="cursor-pointer"
+                      >
+                        Hide settled bills
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Checkbox
+                        id="toggle-hide-negative"
+                        checked={hideNonPositiveOutstanding}
+                        onCheckedChange={(v) => {
+                          const next = Boolean(v);
+                          const nextHideAllFilters =
+                            hideStatus && hideZeroRows && next;
+                          setHideNonPositiveOutstanding(next);
+                          setHideAllFilters(nextHideAllFilters);
+                        }}
+                      />
+                      <Label
+                        htmlFor="toggle-hide-negative"
+                        className="cursor-pointer"
+                      >
+                        Hide settled accounts
+                      </Label>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
-          {/* Row 2: Filter Controls Toolbar */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+          {/* Row 3: the filter controls, inline on a wide screen. On a
+              phone they live in the Filters sheet instead — a row of
+              seven controls each took a full row and pushed the report's
+              own content below the fold. */}
+          <div className="hidden pt-1 sm:flex sm:flex-wrap sm:items-center sm:gap-1">
             <VirtualMultiSelect
               options={customerOptions}
               value={selectedCustomerIds}
@@ -680,7 +719,7 @@ const BillsAgingPage = () => {
               disabled={!customerOptions.length}
             />
             <Select value={selectedHead} onValueChange={handleHeadChange}>
-              <SelectTrigger className="w-[170px]">
+              <SelectTrigger className="w-full sm:w-[170px]">
                 <SelectValue placeholder="Select head" />
               </SelectTrigger>
               <SelectContent>
@@ -698,7 +737,7 @@ const BillsAgingPage = () => {
               value={accountTypeFilter}
               onValueChange={setAccountTypeFilter}
             >
-              <SelectTrigger className="w-[155px]">
+              <SelectTrigger className="w-full sm:w-[155px]">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -713,7 +752,7 @@ const BillsAgingPage = () => {
             </Select>
             <div className="flex items-center gap-1">
               <Select value={agePreset} onValueChange={setAgePreset}>
-                <SelectTrigger className="w-[135px]">
+                <SelectTrigger className="w-full sm:w-[135px]">
                   <SelectValue placeholder="Overdue Age" />
                 </SelectTrigger>
                 <SelectContent>
@@ -740,7 +779,7 @@ const BillsAgingPage = () => {
             </div>
             <div className="flex items-center gap-1">
               <Select value={discountPreset} onValueChange={setDiscountPreset}>
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-full sm:w-[130px]">
                   <SelectValue placeholder="Discount %" />
                 </SelectTrigger>
                 <SelectContent>
@@ -767,7 +806,7 @@ const BillsAgingPage = () => {
               )}
             </div>
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[155px]">
+              <SelectTrigger className="w-full sm:w-[155px]">
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>
@@ -790,6 +829,243 @@ const BillsAgingPage = () => {
                 if (range?.to) handleDateChange(range.to);
               }}
             />
+          </div>
+
+          {/* The same controls, in a sheet, for a phone. The trigger
+              lives in the title's row (see the Sheet below). */}
+          <div className="sm:hidden print:hidden">
+            <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+              <SheetContent
+                side="bottom"
+                className="max-h-[85dvh] overflow-y-auto"
+              >
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-3 pb-6">
+                  <div className="rounded-lg border p-3">
+                    <p className="mb-2 text-sm font-medium">Show</p>
+                    <div className="flex flex-col gap-2">
+                      {/* The same four switches as the desktop popover,
+                          with the same labels — an earlier version of
+                          this sheet had three of them under different
+                          names, so "Hide settled accounts" was simply
+                          missing. */}
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-all-mobile"
+                          checked={hideAllFilters}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            setHideAllFilters(next);
+                            setHideStatus(next);
+                            setHideZeroRows(next);
+                            setHideNonPositiveOutstanding(next);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-all-mobile"
+                          className="cursor-pointer"
+                        >
+                          Hide all
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-status-mobile"
+                          checked={hideStatus}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            const nextHideAllFilters =
+                              next &&
+                              hideZeroRows &&
+                              hideNonPositiveOutstanding;
+                            setHideStatus(next);
+                            setHideAllFilters(nextHideAllFilters);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-status-mobile"
+                          className="cursor-pointer"
+                        >
+                          Hide status
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-zero-mobile"
+                          checked={hideZeroRows}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            const nextHideAllFilters =
+                              hideStatus && next && hideNonPositiveOutstanding;
+                            setHideZeroRows(next);
+                            setHideAllFilters(nextHideAllFilters);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-zero-mobile"
+                          className="cursor-pointer"
+                        >
+                          Hide settled bills
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Checkbox
+                          id="toggle-hide-negative-mobile"
+                          checked={hideNonPositiveOutstanding}
+                          onCheckedChange={(v) => {
+                            const next = Boolean(v);
+                            const nextHideAllFilters =
+                              hideStatus && hideZeroRows && next;
+                            setHideNonPositiveOutstanding(next);
+                            setHideAllFilters(nextHideAllFilters);
+                          }}
+                        />
+                        <Label
+                          htmlFor="toggle-hide-negative-mobile"
+                          className="cursor-pointer"
+                        >
+                          Hide settled accounts
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                  <VirtualMultiSelect
+                    options={customerOptions}
+                    value={selectedCustomerIds}
+                    onChange={(ids) =>
+                      handleCustomerFilterChange(ids.map((id) => Number(id)))
+                    }
+                    placeholder="All customers"
+                    searchPlaceholder="Search customers..."
+                    searchFields={
+                      isAllParties ? ['name', 'code', 'headName'] : undefined
+                    }
+                    renderSelectItem={
+                      isAllParties ? renderPartyOption : undefined
+                    }
+                    disabled={!customerOptions.length}
+                  />
+                  <Select value={selectedHead} onValueChange={handleHeadChange}>
+                    <SelectTrigger className="w-full sm:w-[170px]">
+                      <SelectValue placeholder="Select head" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_PARTIES_HEAD}>
+                        {ALL_PARTIES_HEAD}
+                      </SelectItem>
+                      {charts.map((chart) => (
+                        <SelectItem key={chart.id} value={chart.name}>
+                          {chart.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={accountTypeFilter}
+                    onValueChange={setAccountTypeFilter}
+                  >
+                    <SelectTrigger className="w-full sm:w-[155px]">
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="main">Base</SelectItem>
+                      {itemTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.name}>
+                          Type {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center gap-1">
+                    <Select value={agePreset} onValueChange={setAgePreset}>
+                      <SelectTrigger className="w-full sm:w-[135px]">
+                        <SelectValue placeholder="Overdue Age" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Overdue</SelectItem>
+                        <SelectItem value="30">&gt; 30 Days</SelectItem>
+                        <SelectItem value="45">&gt; 45 Days</SelectItem>
+                        <SelectItem value="60">&gt; 60 Days (2M)</SelectItem>
+                        <SelectItem value="90">&gt; 90 Days (3M)</SelectItem>
+                        <SelectItem value="180">&gt; 180 Days (6M)</SelectItem>
+                        <SelectItem value="365">&gt; 1 Year</SelectItem>
+                        <SelectItem value="custom">Custom Days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {agePreset === 'custom' && (
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Days"
+                        value={customDays}
+                        onChange={(e) => setCustomDays(e.target.value)}
+                        className="w-16 h-9 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Select
+                      value={discountPreset}
+                      onValueChange={setDiscountPreset}
+                    >
+                      <SelectTrigger className="w-full sm:w-[130px]">
+                        <SelectValue placeholder="Discount %" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Discounts</SelectItem>
+                        <SelectItem value="15">≥ 15%</SelectItem>
+                        <SelectItem value="20">≥ 20%</SelectItem>
+                        <SelectItem value="22">≥ 22%</SelectItem>
+                        <SelectItem value="25">≥ 25%</SelectItem>
+                        <SelectItem value="28">≥ 28%</SelectItem>
+                        <SelectItem value="30">≥ 30%</SelectItem>
+                        <SelectItem value="custom">Custom %</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {discountPreset === 'custom' && (
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="Min %"
+                        value={customDiscount}
+                        onChange={(e) => setCustomDiscount(e.target.value)}
+                        className="w-16 h-9 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    )}
+                  </div>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-full sm:w-[155px]">
+                      <SelectValue placeholder="Sort By" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="code">Code (Default)</SelectItem>
+                      <SelectItem value="due_desc">
+                        Due: Highest First
+                      </SelectItem>
+                      <SelectItem value="due_asc">Due: Lowest First</SelectItem>
+                      <SelectItem value="overdue_desc">
+                        Overdue: Oldest First
+                      </SelectItem>
+                      <SelectItem value="discount_desc">
+                        Discount: Highest First
+                      </SelectItem>
+                      <SelectItem value="name_asc">Name (A–Z)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <DateRangePickerWithPresets
+                    initialRange={{ from: startDate, to: selectedDate }}
+                    $onSelect={(range?: DateRange) => {
+                      if (range?.from) handleStartDateChange(range.from);
+                      if (range?.to) handleDateChange(range.to);
+                    }}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
 
           {/* Row 3: Agent Subtotals Chips (under All Parties) */}

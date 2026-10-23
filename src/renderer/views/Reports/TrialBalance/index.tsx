@@ -18,6 +18,7 @@ import {
 import { Card } from 'renderer/shad/ui/card';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { ReportLayout } from 'renderer/components/ReportLayout';
+import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
 import { formatDisplayDate } from '@/lib/displayDate';
 import { ExportOrderDialog, printStyles } from '../components';
 import { TrialBalanceTable } from './TrialBalanceTable';
@@ -137,60 +138,65 @@ const TrialBalancePage = () => {
       printStyles={printStyles}
       bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden print:overflow-visible"
       header={
-        <div className="flex justify-between items-center pb-2 print-header">
-          <h1 className="title-new">Trial Balance</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">As of:</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'w-[200px] justify-start text-left font-normal',
-                      isLoading && 'opacity-70 cursor-not-allowed',
-                    )}
-                    disabled={isLoading}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formatDisplayDate(selectedDate)}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={handleDateChange}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setExportDialogOpen(true)}
-              title="Export to Excel"
-              disabled={!canExport}
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <ExportOrderDialog
-              open={exportDialogOpen}
-              onOpenChange={setExportDialogOpen}
-              onConfirm={handleExportExcel}
-              title="Export Trial Balance"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handlePrint}
-              title="Print Trial Balance"
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <>
+          <ReportHeader
+            title="Trial Balance"
+            filters={
+              <ReportFilter label="As of:">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal sm:w-[200px]',
+                        isLoading && 'opacity-70 cursor-not-allowed',
+                      )}
+                      disabled={isLoading}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formatDisplayDate(selectedDate)}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={handleDateChange}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </ReportFilter>
+            }
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setExportDialogOpen(true)}
+                  title="Export to Excel"
+                  disabled={!canExport}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrint}
+                  title="Print Trial Balance"
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </>
+            }
+          />
+          <ExportOrderDialog
+            open={exportDialogOpen}
+            onOpenChange={setExportDialogOpen}
+            onConfirm={handleExportExcel}
+            title="Export Trial Balance"
+          />
+        </>
       }
     >
       <Card className="flex min-h-0 flex-1 flex-col shadow-md print-card print:flex-none">

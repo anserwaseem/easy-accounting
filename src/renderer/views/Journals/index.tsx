@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
-import { Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import {
   type DateRange,
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
 import {
-  cn,
   defaultSortingFunctions,
   getFormattedCurrency,
 } from 'renderer/lib/utils';
@@ -29,8 +28,114 @@ import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
+import { RowMenu } from '@/renderer/components/RowMenu';
+import { DropdownMenuItem } from 'renderer/shad/ui/dropdown-menu';
 
 export type JournalView = Journal & { amount: number };
+
+interface JournalRowMenuProps {
+  row: { original: JournalView };
+  onSave: (journalId: number, fields: UpdateJournalFields) => Promise<void>;
+  onSuccess: () => void;
+}
+
+/**
+ * The card's row control: one ⋮ at the end of the name, with the
+ * row's actions behind it. The table keeps the three icon buttons.
+ *
+ * The dialogs are mounted next to the menu, not inside it: a menu
+ * item that opens a dialog unmounts the dialog with the menu when the
+ * dialog lives inside it.
+ */
+const JournalRowMenu: React.FC<JournalRowMenuProps> = ({
+  row,
+  onSave,
+  onSuccess,
+}: JournalRowMenuProps) => {
+  const [editOpen, setEditOpen] = useState(false);
+  // the edit dialog is remounted on every open, so its fields start
+  // from the journal's own values instead of the last edit
+  const [editKey, setEditKey] = useState(0);
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const canReverse =
+    row.original.invoiceId == null || row.original.invoiceId <= 0;
+
+  return (
+    <>
+      <RowMenu label="Journal actions">
+        <AdvancedControl capability={ADVANCED_CAPABILITIES.journalEditFields}>
+          <DropdownMenuItem
+            onSelect={() => {
+              setEditKey((key) => key + 1);
+              setEditOpen(true);
+            }}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit fields
+          </DropdownMenuItem>
+        </AdvancedControl>
+        {canReverse ? (
+          <>
+            <AdvancedControl capability={ADVANCED_CAPABILITIES.journalReverse}>
+              <DropdownMenuItem onSelect={() => setReverseOpen(true)}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reverse journal
+              </DropdownMenuItem>
+            </AdvancedControl>
+            <AdvancedControl capability={ADVANCED_CAPABILITIES.journalDelete}>
+              <DropdownMenuItem
+                onSelect={() => setDeleteOpen(true)}
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete journal
+              </DropdownMenuItem>
+            </AdvancedControl>
+          </>
+        ) : null}
+      </RowMenu>
+
+      <AdvancedControl capability={ADVANCED_CAPABILITIES.journalEditFields}>
+        <EditJournalFieldsDialog
+          key={editKey}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          journalId={row.original.id}
+          narration={row.original.narration || ''}
+          billNumber={row.original.billNumber}
+          discountPercentage={row.original.discountPercentage}
+          onSave={onSave}
+        />
+      </AdvancedControl>
+      {canReverse ? (
+        <>
+          <AdvancedControl capability={ADVANCED_CAPABILITIES.journalReverse}>
+            <ReverseJournalDialog
+              open={reverseOpen}
+              onOpenChange={setReverseOpen}
+              journalId={row.original.id}
+              originalNarration={row.original.narration || ''}
+              totalAmount={row.original.amount}
+              onSuccess={onSuccess}
+            />
+          </AdvancedControl>
+          <AdvancedControl capability={ADVANCED_CAPABILITIES.journalDelete}>
+            <DeleteJournalDialog
+              open={deleteOpen}
+              onOpenChange={setDeleteOpen}
+              journalId={row.original.id}
+              narration={row.original.narration || ''}
+              totalAmount={row.original.amount}
+              onSuccess={onSuccess}
+            />
+          </AdvancedControl>
+        </>
+      ) : null}
+    </>
+  );
+};
 
 const JournalsPage: React.FC<HasMiniView> = ({
   isMini = false,
@@ -121,6 +226,13 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               accessorKey: 'id',
               header: <span className="whitespace-nowrap">Journal #</span>,
+              // The card's label comes from the header, but this
+              // column's header is a node — name it explicitly.
+              cardLabel: 'Journal #',
+              // the number and the date identify the row, so they ride
+              // the muted line under the headline instead of taking a
+              // labelled cell each in the grid below it
+              cardMeta: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
@@ -128,28 +240,35 @@ const JournalsPage: React.FC<HasMiniView> = ({
                   {row.original.id}
                 </span>
               ),
-              size: 40,
+              size: 90,
             },
             {
               accessorKey: 'date',
               header: 'Date',
+              cardMeta: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
-              size: 40,
+              // Was 40px, which is narrower than the "03 Feb, 2026" the
+              // cell renders — the text overflowed into Narration.
+              size: 110,
             },
             {
               accessorKey: 'narration',
               header: 'Narration',
+              cardHeadline: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 360,
+              // 360px was wider than a phone on its own, which pushed the
+              // Amount (the number the list is scanned for) off-screen.
+              // 190px leaves room for the amount beside it.
+              size: 190,
             },
             {
               accessorKey: 'billNumber',
               header: 'Bill#',
               cell: ({ row }) => row.original.billNumber || '-',
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 80,
+              size: 90,
             },
             {
               accessorKey: 'discountPercentage',
@@ -157,15 +276,20 @@ const JournalsPage: React.FC<HasMiniView> = ({
               cell: ({ row }) =>
                 formatJournalDiscountLabel(row.original.discountPercentage),
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 70,
+              size: 80,
             },
             {
               accessorKey: 'amount',
               header: 'Amount',
-              cell: ({ getValue }) =>
-                getFormattedCurrency(toNumber(getValue())),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ getValue }) => (
+                <span className="tabular">
+                  {getFormattedCurrency(toNumber(getValue()))}
+                </span>
+              ),
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 150,
+              size: 130,
+              cardAside: true,
             },
             {
               accessorKey: 'createdAt',
@@ -173,11 +297,24 @@ const JournalsPage: React.FC<HasMiniView> = ({
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.createdAt} />,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              size: 100,
+              size: 120,
             },
             {
               id: 'actions',
               header: 'Actions',
+              // The row's buttons get their own row in the card layout,
+              // without a redundant "Actions" label.
+              cardActions: true,
+              // On a card there is room for one control, so the three
+              // actions sit behind a single ⋮ at the end of the name.
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cardMenu: ({ row }) => (
+                <JournalRowMenu
+                  row={row}
+                  onSave={handleUpdateJournal}
+                  onSuccess={handleReloadJournals}
+                />
+              ),
               enableSorting: false,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => (
@@ -209,7 +346,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                              className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground md:h-8 md:w-8"
                               title="Reverse Journal"
                             >
                               <RotateCcw className="h-4 w-4" />
@@ -230,7 +367,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                              className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive md:h-8 md:w-8"
                               title="Delete Journal"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -242,7 +379,9 @@ const JournalsPage: React.FC<HasMiniView> = ({
                   )}
                 </div>
               ),
-              size: 120,
+              // Three buttons: edit, reverse, delete. At the 44px mobile
+              // touch target that needs ~140px, not 120px.
+              size: 140,
             },
           ]) as ColumnDef<JournalView>[],
     [isMini, navigate, handleUpdateJournal, handleReloadJournals],
@@ -323,38 +462,29 @@ const JournalsPage: React.FC<HasMiniView> = ({
 
   return (
     <div>
-      <div
-        className={cn(
-          'grid py-4',
-          isMini ? 'grid-cols-2 grid-rows-2 gap-4' : 'grid-cols-3 items-center',
-        )}
-      >
-        <div
-          className={cn(
-            'flex gap-4 items-center',
-            isMini && 'col-span-2 row-span-1 order-1',
-          )}
-        >
-          <p className="text-muted-foreground font-bold text-sm">VIEW BY:</p>
-          <DateRangePickerWithPresets
-            $onSelect={handleFilterDateSelect}
-            presets={[{ label: 'All', value: 'all' }]}
-            initialRange={journalFilterDate}
-            initialSelectValue={journalFilterSelectValue}
-          />
-        </div>
-
-        <h1 className="title">Journals</h1>
-
-        <Button
-          variant="outline"
-          onClick={() => navigate('/journals/new')}
-          className="col-span-1 row-span-1 w-fit ml-auto"
-        >
-          <Plus size={16} className="mr-2" />
-          New Journal
-        </Button>
-      </div>
+      <PageHeader
+        title="Journals"
+        filters={
+          <FilterGroup label="VIEW BY:">
+            <DateRangePickerWithPresets
+              $onSelect={handleFilterDateSelect}
+              presets={[{ label: 'All', value: 'all' }]}
+              initialRange={journalFilterDate}
+              initialSelectValue={journalFilterSelectValue}
+            />
+          </FilterGroup>
+        }
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => navigate('/journals/new')}
+            className="shrink-0"
+          >
+            <Plus size={16} className="mr-2" />
+            New Journal
+          </Button>
+        }
+      />
 
       <div className="py-8 flex flex-col gap-6">
         <DataTable

@@ -28,6 +28,15 @@ const forcedPointerEvents: React.CSSProperties = { pointerEvents: 'auto' };
 interface PopoverContentProps
   extends React.ComponentPropsWithoutRef<typeof Content> {
   container?: HTMLElement | null;
+  /**
+   * Whether the focus is trapped inside the popover.
+   *
+   * Radix's public `Content` type omits it (it is on the impl), but
+   * the runtime honours it. A popover that holds a text field needs it
+   * off: with the trap on, the scope pulls the focus straight back to
+   * the trigger and the field cannot be typed into.
+   */
+  trapFocus?: boolean;
 }
 
 const PopoverContent = forwardRef<
@@ -35,7 +44,15 @@ const PopoverContent = forwardRef<
   PopoverContentProps
 >(
   (
-    { className, align = 'center', sideOffset = 4, style, container, ...props },
+    {
+      className,
+      align = 'center',
+      sideOffset = 4,
+      style,
+      container,
+      trapFocus,
+      ...props
+    },
     ref,
   ) => (
     <Portal container={container}>
@@ -43,10 +60,17 @@ const PopoverContent = forwardRef<
         ref={ref}
         align={align}
         sideOffset={sideOffset}
+        // `trapFocus` is on Radix's impl props, not its public `Content`
+        // type, so it needs the cast.
+        {...({ trapFocus } as { trapFocus?: boolean })}
         style={{ ...forcedPointerEvents, ...style }}
         className={cn(
           // above dialog (z-50) so VirtualSelect works inside modals
-          'z-[60] w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+          // max-w keeps the panel inside the viewport on a phone; max-h
+          // bounds it to the space actually available (Radix publishes
+          // --radix-popover-content-available-height) so a tall calendar
+          // scrolls instead of running off the bottom of the screen.
+          'z-[60] w-72 max-w-[calc(100vw-2rem)] max-h-[var(--radix-popover-content-available-height,calc(100dvh-2rem))] overflow-y-auto overscroll-contain rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
           className,
         )}
         {...props}

@@ -1,4 +1,4 @@
-import { Ban, Copy, Power, Trash2, MoreHorizontal } from 'lucide-react';
+import { Ban, Copy, Pencil, Power, Trash2, MoreHorizontal } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
 } from 'renderer/shad/ui/dropdown-menu';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
+import { RowMenu } from '@/renderer/components/RowMenu';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
@@ -38,6 +39,11 @@ interface EditAccountProps {
   refetchAccounts: () => void;
   charts: Chart[];
   onEditPolicy?: () => void;
+  /**
+   * 'buttons' is the table: a pencil and a more-menu. 'menu' is the
+   * card: one ⋮ that opens everything the row can do, edit included.
+   */
+  variant?: 'buttons' | 'menu';
 }
 
 export const EditAccount: React.FC<EditAccountProps> = ({
@@ -45,6 +51,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   refetchAccounts,
   charts,
   onEditPolicy,
+  variant = 'buttons',
 }: EditAccountProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -201,89 +208,122 @@ export const EditAccount: React.FC<EditAccountProps> = ({
   const isActive = !!row.original.isActive;
   const toggleLabel = isActive ? 'Deactivate account' : 'Activate account';
 
+  // the edit form, in a dialog of its own. It is mounted outside the
+  // menu in both variants: a menu item that opens a dialog unmounts
+  // the dialog with the menu when the dialog lives inside it.
+  const editForm = (
+    <DialogContent className="sm:max-w-2xl">
+      <DialogHeader className="flex flex-row items-center justify-between space-y-0 pr-7">
+        <DialogTitle>Edit Account</DialogTitle>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleCreateCopy}
+          className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          title="Create a copy of this account"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          Create a copy
+        </Button>
+      </DialogHeader>
+      <AccountForm
+        onSubmit={onSubmit}
+        onCancel={() => setIsOpen(false)}
+        onEditPolicy={
+          onEditPolicy
+            ? () => {
+                setIsOpen(false);
+                onEditPolicy();
+              }
+            : undefined
+        }
+        charts={charts}
+        initialValues={mapRowToFormData(row.original)}
+      />
+    </DialogContent>
+  );
+
+  // the row's other actions, as menu items
+  const moreItems = (
+    <>
+      <DropdownMenuItem onSelect={handleCreateCopy}>
+        <Copy className="mr-2 h-4 w-4" />
+        Create a copy
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <AdvancedControl capability={ADVANCED_CAPABILITIES.accountToggleActive}>
+        <DropdownMenuItem onSelect={handleToggleActive}>
+          {isActive ? (
+            <Ban className="mr-2 h-4 w-4" />
+          ) : (
+            <Power className="mr-2 h-4 w-4" />
+          )}
+          {toggleLabel}
+        </DropdownMenuItem>
+      </AdvancedControl>
+      <AdvancedControl capability={ADVANCED_CAPABILITIES.accountDelete}>
+        <DropdownMenuItem
+          onSelect={() => setIsDeleteDialogOpen(true)}
+          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete account
+        </DropdownMenuItem>
+      </AdvancedControl>
+    </>
+  );
+
   return (
     <>
-      {/* -ml-2 lines first glyph up with Actions header — same as inventory */}
-      <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <EditActionButton aria-label="Edit account" title="Edit account" />
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader className="flex flex-row items-center justify-between space-y-0 pr-7">
-              <DialogTitle>Edit Account</DialogTitle>
+      {variant === 'menu' ? (
+        // the card: one control, and everything the row can do is in it
+        <RowMenu label="Account actions">
+          <DropdownMenuItem onSelect={() => setIsOpen(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit account
+          </DropdownMenuItem>
+          {moreItems}
+        </RowMenu>
+      ) : (
+        /* -ml-2 lines first glyph up with Actions header — same as inventory */
+        <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+              <EditActionButton
+                aria-label="Edit account"
+                title="Edit account"
+              />
+            </DialogTrigger>
+            {editForm}
+          </Dialog>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCreateCopy}
-                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                title="Create a copy of this account"
+                variant="ghost"
+                size="icon"
+                className="h-11 w-11 shrink-0 md:h-8 md:w-8"
+                title="More actions"
+                aria-label="More actions"
               >
-                <Copy className="h-3.5 w-3.5" />
-                Create a copy
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
-            </DialogHeader>
-            <AccountForm
-              onSubmit={onSubmit}
-              onCancel={() => setIsOpen(false)}
-              onEditPolicy={
-                onEditPolicy
-                  ? () => {
-                      setIsOpen(false);
-                      onEditPolicy();
-                    }
-                  : undefined
-              }
-              charts={charts}
-              initialValues={mapRowToFormData(row.original)}
-            />
-          </DialogContent>
-        </Dialog>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {moreItems}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              title="More actions"
-              aria-label="More actions"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onSelect={handleCreateCopy}>
-              <Copy className="mr-2 h-4 w-4" />
-              Create a copy
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <AdvancedControl
-              capability={ADVANCED_CAPABILITIES.accountToggleActive}
-            >
-              <DropdownMenuItem onSelect={handleToggleActive}>
-                {isActive ? (
-                  <Ban className="mr-2 h-4 w-4" />
-                ) : (
-                  <Power className="mr-2 h-4 w-4" />
-                )}
-                {toggleLabel}
-              </DropdownMenuItem>
-            </AdvancedControl>
-            <AdvancedControl capability={ADVANCED_CAPABILITIES.accountDelete}>
-              <DropdownMenuItem
-                onSelect={() => setIsDeleteDialogOpen(true)}
-                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete account
-              </DropdownMenuItem>
-            </AdvancedControl>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {/* the edit dialog, mounted on its own so a menu item can open it */}
+      {variant === 'menu' ? (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          {editForm}
+        </Dialog>
+      ) : null}
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

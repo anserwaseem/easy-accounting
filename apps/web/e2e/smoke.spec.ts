@@ -33,7 +33,9 @@ async function registerAndLoginViaUi(
 async function createAccountViaUi(page: Page, accountName: string) {
   await page.getByRole('link', { name: 'Accounts', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
-  await page.getByRole('button', { name: 'New Account' }).click();
+  // account creation lives in the header's "New" dropdown now
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New Account' }).click();
 
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('combobox').click();
@@ -96,14 +98,21 @@ test('create an account and it survives a reload (OPFS persistence)', async ({
   // src/renderer/hooks/useInvoicePrintSettings.ts) rather than localStorage,
   // and must survive a reload the same way the account above does.
   await page.getByRole('link', { name: 'Settings' }).click();
-  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Settings', exact: true }),
+  ).toBeVisible();
+  // the print settings live in the Invoicing tab, and the label
+  // overrides in an accordion inside it
+  await page.getByRole('tab', { name: 'Invoicing' }).click();
+  await page.getByRole('button', { name: 'English print labels' }).click();
 
   const totalQuantityLabel = `E2E Qty Label ${Date.now()}`;
-  const totalQuantityInput = page.getByLabel('Total quantity label');
+  const totalQuantityInput = page.getByLabel('Total quantity row');
   await totalQuantityInput.fill(totalQuantityLabel);
-  // exact: true — "Save publish settings" (PublishSettings' own form)
-  // otherwise also matches this substring search.
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  // the Settings page's own save button; it only appears once something
+  // is dirty, and it is called "Save Changes" (a bare "Save" would also
+  // match "Save publish settings" in the Publish tab's own form)
+  await page.getByRole('button', { name: 'Save Changes', exact: true }).click();
   // .first(): the toast can render "Settings saved" in both its title and
   // description, so a bare getByText intermittently hits a strict-mode
   // two-element violation depending on toast timing.
@@ -113,7 +122,9 @@ test('create an account and it survives a reload (OPFS persistence)', async ({
 
   await page.reload();
   await page.getByRole('link', { name: 'Settings' }).click();
-  await expect(page.getByLabel('Total quantity label')).toHaveValue(
+  await page.getByRole('tab', { name: 'Invoicing' }).click();
+  await page.getByRole('button', { name: 'English print labels' }).click();
+  await expect(page.getByLabel('Total quantity row')).toHaveValue(
     totalQuantityLabel,
     { timeout: 10_000 },
   );

@@ -3,6 +3,7 @@ import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { Button } from 'renderer/shad/ui/button';
 import { Input } from 'renderer/shad/ui/input';
 import { Label } from 'renderer/shad/ui/label';
+import { Textarea } from 'renderer/shad/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,17 @@ interface EditJournalFieldsDialogProps {
   billNumber?: number;
   discountPercentage?: number | string;
   onSave: (journalId: number, fields: UpdateJournalFields) => Promise<void>;
+  /**
+   * What opens the dialog. `null` means "nothing opens it from here" —
+   * a menu item opens it instead.
+   */
+  trigger?: React.ReactNode | null;
+  /**
+   * Controlled open state, for a menu item that opens this dialog: the
+   * dialog lives outside the menu, so the item cannot use a trigger.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const EditJournalFieldsDialog: React.FC<
@@ -32,8 +44,22 @@ export const EditJournalFieldsDialog: React.FC<
   billNumber,
   discountPercentage,
   onSave,
+  trigger,
+  open: openProp,
+  onOpenChange,
 }: EditJournalFieldsDialogProps) => {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  // controlled when the caller passes `open`, so a menu item can open a
+  // dialog that is mounted outside the menu
+  const open = openProp ?? openState;
+  // a dialog that a menu opens has no trigger of its own: the menu item
+  // is the trigger, and a pencil left on the card would be a second,
+  // unexplained control next to the ⋮ that opened the menu
+  const showTrigger = trigger !== null && openProp === undefined;
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [editedNarration, setEditedNarration] = useState(narration);
   const [editedBillNumber, setEditedBillNumber] = useState<string>(
     billNumber?.toString() ?? '',
@@ -89,8 +115,10 @@ export const EditJournalFieldsDialog: React.FC<
     );
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // The narration is a textarea now, so Enter is a new line and the
+    // save shortcut is Cmd/Ctrl+Enter.
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (!isLoading && editedNarration !== narration) {
         handleSave();
@@ -100,9 +128,11 @@ export const EditJournalFieldsDialog: React.FC<
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <EditActionButton aria-label="Edit journal fields" />
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          {trigger ?? <EditActionButton aria-label="Edit journal fields" />}
+        </DialogTrigger>
+      ) : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Journal</DialogTitle>
@@ -112,16 +142,19 @@ export const EditJournalFieldsDialog: React.FC<
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
+          <div className="grid grid-cols-4 items-start gap-4">
             <Label htmlFor="narration" className="text-right">
               Narration
             </Label>
-            <Input
+            {/* a narration is a sentence or two, not a word: a single
+                line cut it off, and on a phone it hid the tail behind
+                the keyboard */}
+            <Textarea
               id="narration"
               value={editedNarration}
               onChange={(e) => setEditedNarration(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="col-span-3"
+              className="col-span-3 min-h-[72px]"
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">

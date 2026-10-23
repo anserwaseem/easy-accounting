@@ -143,7 +143,7 @@ export function useNewInvoiceTableInfo<T extends FieldValues>(
                           )
                         }
                         renderSelectItem={(item) => (
-                          <div className="flex min-w-[220px] items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center justify-between gap-2">
                             <span className="min-w-0 truncate text-sm">
                               {item.name}
                             </span>

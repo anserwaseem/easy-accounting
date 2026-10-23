@@ -1,9 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ChevronDown, Settings2 } from 'lucide-react';
+import { Settings2 } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
-import { Checkbox } from '@/renderer/shad/ui/checkbox';
-import { Label } from '@/renderer/shad/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/renderer/shad/ui/dropdown-menu';
+import {
+  HideItemsMenu,
+  type HideItemsOption,
+} from '@/renderer/components/HideItemsMenu';
 import { InventoryTable } from './inventoryTable';
 import { AddInventoryItem } from './addInventoryItem';
 import { ImportExportInventoryAttributes } from './ImportExportInventoryAttributes';
@@ -56,177 +58,134 @@ const InventoryPage: React.FC = () => {
     setFilteredIds(ids);
   }, []);
 
+  // the hide filters, as the header menu shows them
+  const hideOptions = useMemo<HideItemsOption[]>(
+    () => [
+      {
+        id: 'inactive',
+        label: 'Inactive',
+        checked: hideInactive,
+        onCheckedChange: setHideInactive,
+      },
+      {
+        id: 'negative-quantity',
+        label: 'Negative quantity',
+        checked: hideNegativeQuantity,
+        onCheckedChange: setHideNegativeQuantity,
+      },
+      {
+        id: 'zero-quantity',
+        label: 'Zero quantity',
+        checked: hideZeroQuantity,
+        onCheckedChange: setHideZeroQuantity,
+      },
+      {
+        id: 'zero-price',
+        label: 'Zero price',
+        checked: hideZeroPrice,
+        onCheckedChange: setHideZeroPrice,
+      },
+      {
+        id: 'no-type',
+        label: 'No type',
+        checked: hideNoType,
+        onCheckedChange: setHideNoType,
+      },
+    ],
+    [
+      hideInactive,
+      hideNegativeQuantity,
+      hideZeroQuantity,
+      hideZeroPrice,
+      hideNoType,
+    ],
+  );
+
+  const allHideOptionsChecked =
+    hideInactive &&
+    hideNegativeQuantity &&
+    hideZeroQuantity &&
+    hideZeroPrice &&
+    hideNoType;
+
+  // "All" turns every filter on or off at once
+  const handleAllHideOptionsChange = useCallback((checked: boolean) => {
+    setHideInactive(checked);
+    setHideNegativeQuantity(checked);
+    setHideZeroQuantity(checked);
+    setHideZeroPrice(checked);
+    setHideNoType(checked);
+  }, []);
+
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="title-new">Inventory</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* bulk-edit toolbar portals here — state stays in InventoryTable */}
-          <div
-            ref={toolbarHostRef}
-            className="flex flex-wrap items-center gap-2"
-          />
-          {!bulkEditActive ? (
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <Settings2 size={16} />
-                    Manage
-                    <ChevronDown size={14} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onSelect={() => setManageDialog('itemTypes')}
-                  >
-                    Item types
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => setManageDialog('priceLists')}
-                  >
-                    Price lists
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => setManageDialog('attributes')}
-                  >
-                    Attributes
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <ImportExportInventoryAttributes
-                    refetchInventory={refetchInventory}
-                  />
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <AddInventoryItem refetchInventory={refetchInventory} />
-            </>
-          ) : null}
+      {/* The three controls share the title's row: on a phone they used
+          to sit on a row of their own, and the row of their own was a
+          row the list did not have. The table's own toolbar (columns,
+          filters, bulk edit) keeps the row below it — it is three wide
+          buttons, and squeezing them onto the title's row crushed the
+          title to nothing. */}
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2 sm:contents">
+          <h1 className="title-new min-w-0 truncate sm:order-1">Inventory</h1>
+          <div className="flex shrink-0 items-center gap-2 sm:order-3">
+            {!bulkEditActive ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      title="Manage"
+                      aria-label="Manage"
+                    >
+                      <Settings2 size={16} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => setManageDialog('itemTypes')}
+                    >
+                      Item types
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => setManageDialog('priceLists')}
+                    >
+                      Price lists
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => setManageDialog('attributes')}
+                    >
+                      Attributes
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <ImportExportInventoryAttributes
+                      refetchInventory={refetchInventory}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <AddInventoryItem refetchInventory={refetchInventory} />
+              </>
+            ) : null}
+            {/* The hide filters live behind the ⋮ in the header: as a
+                strip of six checkboxes they were three ragged rows on a
+                phone, more screen than the list they were filtering. */}
+            <HideItemsMenu
+              options={hideOptions}
+              allChecked={allHideOptionsChecked}
+              onAllCheckedChange={handleAllHideOptionsChange}
+              disabled={bulkEditActive}
+              className={bulkEditActive ? 'opacity-60' : undefined}
+            />
+          </div>
         </div>
+        {/* bulk-edit toolbar portals here — state stays in InventoryTable */}
+        <div
+          ref={toolbarHostRef}
+          className="flex flex-wrap items-center gap-2 sm:order-2"
+        />
       </header>
-
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-4 py-3">
-        <span className="text-sm font-medium text-muted-foreground">
-          Hide items:
-        </span>
-        <Label
-          htmlFor="filter-hide-all"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-all"
-            disabled={bulkEditActive}
-            checked={
-              hideInactive &&
-              hideNegativeQuantity &&
-              hideZeroQuantity &&
-              hideZeroPrice &&
-              hideNoType
-            }
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              const value = checked === true;
-              setHideInactive(value);
-              setHideNegativeQuantity(value);
-              setHideZeroQuantity(value);
-              setHideZeroPrice(value);
-              setHideNoType(value);
-            }}
-          />
-          <span>All</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-inactive"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-inactive"
-            disabled={bulkEditActive}
-            checked={hideInactive}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideInactive(checked === true);
-            }}
-          />
-          <span>Inactive</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-negative-qty"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-negative-qty"
-            disabled={bulkEditActive}
-            checked={hideNegativeQuantity}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideNegativeQuantity(checked === true);
-            }}
-          />
-          <span>Negative quantity</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-zero-qty"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-zero-qty"
-            disabled={bulkEditActive}
-            checked={hideZeroQuantity}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideZeroQuantity(checked === true);
-            }}
-          />
-          <span>Zero quantity</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-zero-price"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-zero-price"
-            disabled={bulkEditActive}
-            checked={hideZeroPrice}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideZeroPrice(checked === true);
-            }}
-          />
-          <span>Zero price</span>
-        </Label>
-        <Label
-          htmlFor="filter-hide-no-type"
-          className={`flex items-center gap-2 text-sm font-normal ${
-            bulkEditActive ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-          }`}
-        >
-          <Checkbox
-            id="filter-hide-no-type"
-            disabled={bulkEditActive}
-            checked={hideNoType}
-            onCheckedChange={(checked) => {
-              if (bulkEditActive) return;
-              setHideNoType(checked === true);
-            }}
-          />
-          <span>No type</span>
-        </Label>
-        {bulkEditActive ? (
-          <span className="text-xs text-muted-foreground">
-            Filters locked while editing prices
-          </span>
-        ) : null}
-      </div>
 
       <ManageItemTypes
         onUpdated={refetchInventory}

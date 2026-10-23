@@ -54,7 +54,7 @@ export const CompactSearchBar: React.FC<CompactSearchBarProps> = ({
           autoFocus={autoFocus}
           spellCheck={false}
           disabled={disabled}
-          className={`h-8 border-0 bg-transparent pl-7 pr-1 text-sm shadow-none focus-visible:ring-0 ${
+          className={`h-11 border-0 bg-transparent pl-7 pr-1 text-sm shadow-none focus-visible:ring-0 md:h-8 ${
             inputClassName || ''
           }`}
         />

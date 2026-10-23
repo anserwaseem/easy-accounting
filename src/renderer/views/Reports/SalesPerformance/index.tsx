@@ -12,6 +12,7 @@ import {
 import { Button } from '@/renderer/shad/ui/button';
 import { Card } from '@/renderer/shad/ui/card';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
+import { ReportHeader } from '@/renderer/components/ReportHeader';
 import {
   DateRangePickerWithPresets,
   type DateRange,
@@ -828,10 +829,10 @@ const SalesPerformanceReportPage: React.FC = () => {
   return (
     <ReportLayout
       header={
-        <div className="flex flex-col gap-3 p-4">
-          <div className="flex items-center justify-between">
-            <h1 className="title-new">Sales Performance</h1>
-            <div className="flex items-center gap-3">
+        <ReportHeader
+          title="Sales Performance"
+          filters={
+            <div className="flex flex-wrap items-center gap-3">
               <DateRangePickerWithPresets
                 $onSelect={handleDateChange}
                 presets={[{ label: 'All', value: 'all' }]}
@@ -883,6 +884,18 @@ const SalesPerformanceReportPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="icon"
+                onClick={handlePrint}
+                title="Print"
+              >
+                <Printer className="h-4 w-4" />
+              </Button>
+            </div>
+          }
+          actions={
+            <>
+              <Button
+                variant="outline"
+                size="icon"
                 onClick={refreshData}
                 title="Refresh"
                 disabled={isLoading}
@@ -900,17 +913,9 @@ const SalesPerformanceReportPage: React.FC = () => {
               >
                 <Download className="h-4 w-4" />
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handlePrint}
-                title="Print"
-              >
-                <Printer className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
       }
     >
       <div className="p-4 space-y-4">

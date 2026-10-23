@@ -20,7 +20,10 @@ const ToastViewport = forwardRef<
   <Viewport
     ref={ref}
     className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px] print:hidden',
+      // On a phone the toast sat at the top, over the page heading and
+      // the first field. It now sits at the bottom, clear of the
+      // content, and clears the home indicator.
+      'fixed bottom-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col sm:pb-4 md:max-w-[420px] print:hidden',
       className,
     )}
     {...props}

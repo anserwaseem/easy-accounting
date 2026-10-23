@@ -5,16 +5,19 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 222.2 47.4% 11.2%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222.2 47.4% 11.2%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222.2 47.4% 11.2%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Brand blue — matches the PWA manifest's theme_color (#2f6fed) and
+       the app icon. Was near-black slate before, which made every
+       `bg-primary` surface read as another gray. */
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -25,44 +28,59 @@
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 40%;
+    --success-foreground: 0 0% 100%;
 
     --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --input: 214.3 31.8% 88%;
+    --ring: 221 83% 53%;
 
     --radius: 0.5rem;
+
+    /* Page gutter, shared by the app shell and every screen. */
+    --page-gutter: 0.75rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 222.2 47.4% 8%;
+    --foreground: 210 40% 96%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 222.2 45% 11%;
+    --card-foreground: 210 40% 96%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 222.2 45% 11%;
+    --popover-foreground: 210 40% 96%;
 
-    --primary: 210 40% 98%;
+    --primary: 217 91% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
 
     --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary-foreground: 210 40% 96%;
 
     --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted-foreground: 215 20.2% 70%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 217.2 32.6% 19%;
+    --accent-foreground: 210 40% 96%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --success: 142 65% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 217.2 32.6% 22%;
+    --input: 217.2 32.6% 26%;
+    --ring: 217 91% 60%;
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --page-gutter: 1rem;
+    }
   }
 }
 
@@ -70,8 +88,32 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    /* Prevent the rubber-band "white gap" on iOS when overscrolling a
+       dark surface. */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ── Mobile form ergonomics ──────────────────────────────────────────
+     iOS Safari zooms the viewport when a focused field's computed
+     font-size is under 16px, which reflows the whole page to a
+     non-breakpoint width and leaves it stuck zoomed. Raising the
+     computed size to 16px on touch-sized viewports prevents the zoom
+     without a user-scalable=0 meta (which would break accessibility).
+
+     Radix's SelectTrigger is a <button role="combobox">, not a
+     <select>, so it needs to be listed explicitly. */
+  @media (max-width: 767px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    textarea,
+    select,
+    [role='combobox'] {
+      font-size: 16px;
+    }
   }
 }
 
@@ -103,5 +145,62 @@
   .title-new {
     @apply text-2xl font-semibold tracking-tight;
     /* @apply text-xl tracking-tight; */
+  }
+
+  /* ── Page shell ───────────────────────────────────────────────────────
+     Safe-area helpers. `viewport-fit=cover` (apps/web/index.html) lets
+     the app paint under the notch and home indicator; these add the
+     matching padding so content never sits under the system UI. */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Content that sits at the very bottom of a scrolling region and must
+     clear both the home indicator and the browser's own bottom bar. */
+  .safe-bottom-gap {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+  }
+
+  /* Numeric columns: money and quantities must align digit-for-digit so
+     a column can be scanned vertically. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+@layer utilities {
+  /* Horizontal-scroll affordance for wide tables. The gradient panels
+     scroll with the content (background-attachment: local) while the
+     shadow stays pinned (scroll), so the shadow only shows on the side
+     that still has content off-screen. */
+  .scroll-shadow {
+    background-image: linear-gradient(
+        to right,
+        var(--background) 40%,
+        transparent 100%
+      ),
+      linear-gradient(to left, var(--background) 40%, transparent 100%),
+      linear-gradient(to right, rgba(15, 23, 42, 0.14), transparent),
+      linear-gradient(to left, rgba(15, 23, 42, 0.14), transparent);
+    background-position: left center, right center, left center, right center;
+    background-repeat: no-repeat;
+    background-size: 40px 100%, 40px 100%, 12px 100%, 12px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+
+  .dark .scroll-shadow {
+    background-image: linear-gradient(
+        to right,
+        var(--background) 40%,
+        transparent 100%
+      ),
+      linear-gradient(to left, var(--background) 40%, transparent 100%),
+      linear-gradient(to right, rgba(0, 0, 0, 0.5), transparent),
+      linear-gradient(to left, rgba(0, 0, 0, 0.5), transparent);
   }
 }

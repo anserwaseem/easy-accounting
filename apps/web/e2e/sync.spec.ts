@@ -91,7 +91,9 @@ async function registerAndLoginViaUi(
 async function createAccountViaUi(page: Page, accountName: string) {
   await page.getByRole('link', { name: 'Accounts', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
-  await page.getByRole('button', { name: 'New Account' }).click();
+  // account creation lives in the header's "New" dropdown now
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New Account' }).click();
 
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('combobox').click();
@@ -110,7 +112,12 @@ async function createAccountViaUi(page: Page, accountName: string) {
 
 async function goToSettings(page: Page) {
   await page.getByRole('link', { name: 'Settings' }).click();
-  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Settings', exact: true }),
+  ).toBeVisible();
+  // the whole sync UI (connect form, status card, "Add a device") lives in
+  // the Settings page's "Sync" tab, not on the default "Company" tab
+  await page.getByRole('tab', { name: 'Sync' }).click();
 }
 
 // ---------------------------------------------------------------------------
@@ -570,11 +577,18 @@ test.describe('Add a device — QR / copy-link dialog', () => {
     await expect(
       dialog.getByRole('heading', { name: 'Add a device' }),
     ).toBeVisible();
+    // the e2e app is served from 127.0.0.1, which a phone camera cannot
+    // open, so the dialog asks for the hosted app URL first — the QR (and
+    // the copyable invite link) only exist once that origin is set. The
+    // field applies its value on blur, hence the Tab.
+    const publicOrigin = 'https://app.example.com';
+    await dialog.getByLabel('URL phones should open').fill(publicOrigin);
+    await dialog.getByLabel('URL phones should open').press('Tab');
     await expect(
       dialog.getByRole('img', { name: /QR code to join/ }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10_000 });
     await expect(
       dialog.getByRole('button', { name: 'Copy invite link' }),
-    ).toBeVisible();
+    ).toBeEnabled();
   });
 });

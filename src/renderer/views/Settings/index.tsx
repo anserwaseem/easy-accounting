@@ -551,19 +551,19 @@ const SettingsPage: React.FC = () => {
           <TabsList className="grid grid-cols-4 w-full max-w-2xl">
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <Building2 className="w-4 h-4" />
-              <span>Company</span>
+              <span className="hidden sm:inline">Company</span>
             </TabsTrigger>
             <TabsTrigger value="invoicing" className="flex items-center gap-2">
               <Printer className="w-4 h-4" />
-              <span>Invoicing</span>
+              <span className="hidden sm:inline">Invoicing</span>
             </TabsTrigger>
             <TabsTrigger value="rules" className="flex items-center gap-2">
               <Sliders className="w-4 h-4" />
-              <span>Rules</span>
+              <span className="hidden sm:inline">Rules</span>
             </TabsTrigger>
             <TabsTrigger value="sync" className="flex items-center gap-2">
               <Cloud className="w-4 h-4" />
-              <span>Sync</span>
+              <span className="hidden sm:inline">Sync</span>
             </TabsTrigger>
           </TabsList>
 
@@ -695,7 +695,7 @@ const SettingsPage: React.FC = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-7 shrink-0 px-2 text-xs"
+                        className="h-10 shrink-0 px-3 text-xs md:h-7 md:px-2"
                         disabled={
                           draftCompanyPrintNote ===
                           EXAMPLE_INVOICE_PRINT_NOTE_EN
@@ -733,7 +733,7 @@ const SettingsPage: React.FC = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-7 shrink-0 px-2 text-xs"
+                        className="h-10 shrink-0 px-3 text-xs md:h-7 md:px-2"
                         disabled={
                           draftCompanyPrintNoteUrdu ===
                           EXAMPLE_INVOICE_PRINT_NOTE_UR
@@ -1075,9 +1075,9 @@ const SettingsPage: React.FC = () => {
 
       {/* Persistent Bottom Action Bar */}
       {isDirty && (
-        <div className="fixed bottom-0 left-0 right-0 border-t bg-background/40 backdrop-blur px-8 py-3.5 flex items-center justify-between z-20 shadow-lg">
+        <div className="sticky bottom-0 z-20 flex flex-col gap-2 border-t bg-background/95 px-3 py-3 backdrop-blur shadow-lg sm:flex-row sm:items-center sm:justify-between sm:px-8 safe-bottom">
           <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 font-medium">
-            <Info className="w-4 h-4" />
+            <Info className="w-4 h-4 shrink-0" />
             <span>You have unsaved changes.</span>
           </div>
           <div className="flex items-center gap-3">
@@ -1106,7 +1106,7 @@ const SettingsPage: React.FC = () => {
 
       {/* Confirmation feedback */}
       {isSavedRecently && !isDirty && (
-        <div className="fixed bottom-4 right-8 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-lg flex items-center gap-2 text-sm z-30">
+        <div className="fixed bottom-20 right-3 sm:right-8 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-lg flex items-center gap-2 text-sm z-30">
           <Check className="w-4 h-4" />
           Settings saved successfully
         </div>

@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { get, isNil, pick, toNumber, toString } from 'lodash';
-import { Plus, Printer, RefreshCw, Upload } from 'lucide-react';
+import { MoreHorizontal, Plus, Printer, RefreshCw, Upload } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -37,6 +37,15 @@ import {
 } from 'renderer/shad/ui/form';
 import { Input } from 'renderer/shad/ui/input';
 import { toast } from 'renderer/shad/ui/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from 'renderer/shad/ui/dropdown-menu';
+import { scrollToFirstInvalidField } from '@/renderer/lib/scrollToFirstError';
+import { useUnsavedChangesGuard } from '@/renderer/hooks/useUnsavedChangesGuard';
 import {
   type Account,
   type InventoryItem,
@@ -324,6 +333,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   const { isDirty, errors: formErrors } = useFormState({
     control: form.control,
   });
+  useUnsavedChangesGuard(isDirty);
 
   const accountMappingErrorMessage = useMemo(() => {
     const msg =
@@ -1629,6 +1639,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       if (typeof msg === 'string' && msg.length > 0) {
         toast({ variant: 'destructive', description: msg, duration: 8000 });
       }
+      // On a long invoice the field that failed is usually below the
+      // fold, so tapping Save looked like it did nothing. Bring it into
+      // view.
+      scrollToFirstInvalidField();
     },
     [isQuotationFlow],
   );
@@ -2154,54 +2168,76 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               </div>
             ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {invoiceType === InvoiceType.Sale && showInvoiceForm && (
-              <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                <div className="flex items-center gap-2 min-h-[44px]">
-                  <Checkbox
-                    id="useSingleAccount"
-                    checked={useSingleAccount}
-                    onCheckedChange={onUseSingleAccountCheckedChange}
-                  />
-                  <Label
-                    htmlFor="useSingleAccount"
-                    className="cursor-pointer select-none"
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The two posting options were a boxed row of checkboxes
+                under the title — a whole block of screen for settings
+                most invoices never change. They now live in a compact
+                overflow menu, with the count shown when one is on, so
+                the form starts with the customer field. */}
+            {invoiceType === InvoiceType.Sale && showInvoiceForm ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    aria-label="Posting options"
+                    title="Posting options"
                   >
-                    One customer for entire invoice
-                  </Label>
-                </div>
-                {useSingleAccount && (
-                  <div className="flex items-center gap-2 min-h-[44px]">
+                    <MoreHorizontal className="h-5 w-5" />
+                    {useSingleAccount ? (
+                      <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary" />
+                    ) : null}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Posting options
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    className="gap-2"
+                    onSelect={(e) => e.preventDefault()}
+                  >
                     <Checkbox
-                      id="splitByItemType"
-                      checked={splitByItemType}
-                      onCheckedChange={onSplitByItemTypeCheckedChange}
+                      id="useSingleAccount"
+                      checked={useSingleAccount}
+                      onCheckedChange={onUseSingleAccountCheckedChange}
                     />
                     <Label
-                      htmlFor="splitByItemType"
+                      htmlFor="useSingleAccount"
                       className="cursor-pointer select-none"
                     >
-                      Split ledger by item type
+                      One customer for entire invoice
                     </Label>
-                  </div>
-                )}
-                {accountMappingErrorMessage ? (
-                  <div className="w-full min-w-0">
-                    <p
-                      role="alert"
-                      className="text-sm font-medium text-destructive"
+                  </DropdownMenuItem>
+                  {useSingleAccount ? (
+                    <DropdownMenuItem
+                      className="gap-2"
+                      onSelect={(e) => e.preventDefault()}
                     >
-                      {accountMappingErrorMessage}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            )}
+                      <Checkbox
+                        id="splitByItemType"
+                        checked={splitByItemType}
+                        onCheckedChange={onSplitByItemTypeCheckedChange}
+                      />
+                      <Label
+                        htmlFor="splitByItemType"
+                        className="cursor-pointer select-none"
+                      >
+                        Split ledger by item type
+                      </Label>
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             <Button
               variant="outline"
               size="icon"
+              className="shrink-0"
               onClick={handleRefreshLookups}
               title="Refresh accounts, inventory, discounts, and balance"
+              aria-label="Refresh accounts, inventory, discounts, and balance"
               disabled={isRefreshingLookups}
             >
               <RefreshCw
@@ -2241,14 +2277,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   <div className="grid grid-cols-2 gap-x-8 gap-y-6">
                     {isSingleAccountSale && (
                       <>
-                        <div className="grid grid-cols-1 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
+                        <div className="grid grid-cols-2 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
                           <FormField
                             control={form.control}
                             name="accountMapping.singleAccountId"
                             render={({ field }) => (
                               <FormItem
                                 labelPosition="top"
-                                className="min-w-0 ml-[1px]"
+                                className="min-w-0 ml-[1px] col-span-2 md:col-span-1"
                               >
                                 <span className="flex items-center justify-between">
                                   <FormLabel className="text-base">
@@ -2261,6 +2297,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                     refreshKey={partyBalanceRefreshKey}
                                   />
                                 </span>
+                                {accountMappingErrorMessage ? (
+                                  <p
+                                    role="alert"
+                                    className="text-sm font-medium text-destructive"
+                                  >
+                                    {accountMappingErrorMessage}
+                                  </p>
+                                ) : null}
                                 <VirtualSelect
                                   options={customerVendorSelectOptions}
                                   value={field.value}
@@ -2286,7 +2330,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                               <FormDateSelector
                                 field={field}
                                 onDateSelection={onDateSelection}
-                                formItemClassName="min-w-0"
+                                formItemClassName="min-w-0 col-span-2 md:col-span-1"
                                 buttonClassName={cn(
                                   'w-full justify-start text-left font-normal min-w-0',
                                   !field.value && 'text-muted-foreground',
@@ -2357,7 +2401,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     )}
                     {isSingleAccountOrPurchase && !isSingleAccountSale && (
                       <>
-                        <div className="grid grid-cols-1 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
+                        <div className="grid grid-cols-2 gap-3 col-span-2 sm:grid-cols-2 md:grid-cols-[2fr_1.2fr_0.6fr_0.4fr]">
                           <FormField
                             control={form.control}
                             name="accountMapping.singleAccountId"
@@ -2395,7 +2439,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                               <FormDateSelector
                                 field={field}
                                 onDateSelection={onDateSelection}
-                                formItemClassName="min-w-0"
+                                formItemClassName="min-w-0 col-span-2 md:col-span-1"
                                 buttonClassName={cn(
                                   'w-full justify-start text-left font-normal min-w-0',
                                   !field.value && 'text-muted-foreground',
@@ -2643,15 +2687,18 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 )}
               </div>
 
-              {/* Invoice summary — always visible while scrolling line items */}
+              {/* Invoice summary. On a phone it sticks to the bottom of
+                  the page and covers the field above it (the Cartons
+                  input was half-hidden behind it), so it scrolls with
+                  the content there and only sticks on a wider screen. */}
               {isSale && (
                 <section
-                  className="sticky -bottom-5 z-10 border-t bg-background/95 backdrop-blur-sm px-3 py-2 space-y-1.5"
+                  className="z-10 border-t bg-background/95 px-3 py-2 space-y-1.5 backdrop-blur-sm sm:sticky sm:bottom-0 sm:z-10 safe-bottom"
                   aria-label="Invoice summary"
                 >
                   {isDiscountEditEnabled && (
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="w-44 shrink-0 text-xs font-medium text-muted-foreground">
+                      <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-44">
                         Cumulative Discount (%)
                       </span>
                       <div className="flex items-center gap-2">
@@ -2673,12 +2720,12 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                         onChange={(e) =>
                           onCumulativeDiscountChange(e.target.value)
                         }
-                        className="h-7 w-24 text-sm"
+                        className="h-11 w-28 text-sm md:h-7 md:w-24"
                       />
                     </div>
                   )}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="w-44 shrink-0 text-xs font-medium text-muted-foreground">
+                    <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-44">
                       Extra discount ({currencyFormatOptions.currency})
                     </span>
                     <FormField
@@ -2689,7 +2736,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           <FormControl>
                             <Input
                               {...field}
-                              className="h-7 text-sm"
+                              className="h-11 text-sm md:h-7"
                               type="number"
                               step="any"
                               min={0}
@@ -2708,14 +2755,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   </div>
                   {toNumber(watchedExtraDiscount) > 0 && splitByItemType && (
                     <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-                      <span className="w-44 shrink-0 pt-1.5 text-xs font-medium text-muted-foreground">
+                      <span className="w-full shrink-0 pt-1.5 text-xs font-medium text-muted-foreground sm:w-44">
                         Extra discount from account
                       </span>
                       <FormField
                         control={form.control}
                         name="extraDiscountAccountId"
                         render={({ field }) => (
-                          <FormItem className="min-w-[280px] flex-1 max-w-md space-y-0">
+                          <FormItem className="min-w-0 flex-1 max-w-md space-y-0">
                             <FormControl>
                               <VirtualSelect<{
                                 id: number;
@@ -2756,7 +2803,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   )
                                 }
                                 renderSelectItem={(item) => (
-                                  <div className="flex min-w-[220px] items-center justify-between gap-2">
+                                  <div className="flex min-w-0 items-center justify-between gap-2">
                                     <span className="min-w-0 truncate text-sm">
                                       {item.name}
                                     </span>
@@ -2776,7 +2823,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                     </div>
                   )}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="w-44 shrink-0 text-xs font-medium text-muted-foreground">
+                    <span className="w-full shrink-0 text-xs font-medium text-muted-foreground sm:w-44">
                       Shipping ({currencyFormatOptions.currency})
                     </span>
                     <FormField
@@ -2787,7 +2834,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           <FormControl>
                             <Input
                               {...field}
-                              className="h-7 text-sm"
+                              className="h-11 text-sm md:h-7"
                               type="number"
                               step="any"
                               min={0}
@@ -2807,14 +2854,14 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   </div>
                   {toNumber(watchedShippingCharges) > 0 && splitByItemType && (
                     <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-                      <span className="w-44 shrink-0 pt-1.5 text-xs font-medium text-muted-foreground">
+                      <span className="w-full shrink-0 pt-1.5 text-xs font-medium text-muted-foreground sm:w-44">
                         Shipping on account
                       </span>
                       <FormField
                         control={form.control}
                         name="shippingAccountId"
                         render={({ field }) => (
-                          <FormItem className="min-w-[280px] flex-1 max-w-md space-y-0">
+                          <FormItem className="min-w-0 flex-1 max-w-md space-y-0">
                             <FormControl>
                               <VirtualSelect<{
                                 id: number;
@@ -2855,7 +2902,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   )
                                 }
                                 renderSelectItem={(item) => (
-                                  <div className="flex min-w-[220px] items-center justify-between gap-2">
+                                  <div className="flex min-w-0 items-center justify-between gap-2">
                                     <span className="min-w-0 truncate text-sm">
                                       {item.name}
                                     </span>
@@ -2874,8 +2921,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                       />
                     </div>
                   )}
-                  <div className="flex items-center gap-x-3 pt-1 border-t border-border/60">
-                    <span className="w-44 shrink-0 text-sm font-semibold text-primary">
+                  {/* The label was `w-full` below sm, which pushed the
+                      amount off the right edge of the screen — the total
+                      of the invoice was invisible on a phone. */}
+                  <div className="flex items-center justify-between gap-x-3 pt-1 border-t border-border/60">
+                    <span className="shrink-0 text-sm font-semibold text-primary sm:w-44">
                       Total
                     </span>
                     <p
@@ -2893,13 +2943,16 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 </section>
               )}
 
-              <div className="flex justify-between gap-6 pb-6">
+              {/* `justify-between` with a 24px gap left the two actions
+                  touching the edges of a 366px column, and they could
+                  overlap when the labels were long. */}
+              <div className="flex flex-col gap-3 pb-6 sm:flex-row sm:justify-between sm:gap-6">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
                       variant="default"
-                      className="gap-2 px-6 py-3 min-h-[44px] rounded-lg"
+                      className="w-full gap-2 px-6 py-3 min-h-[44px] rounded-lg sm:w-auto"
                       aria-label={`Add new item, shortcut ${getOsModifierLabel()}+N or Enter in quantity`}
                       onClick={() => handleAddNewRow()}
                     >
@@ -2946,8 +2999,13 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 </div>
               </div>
 
-              <div className="flex justify-between items-center gap-4 pt-6 mt-2 border-t border-border min-h-[44px]">
-                <div className="flex gap-3 flex-wrap">
+              {/* `justify-between` with a wrapped group of up to four
+                  buttons put the primary Save far from the Cancel
+                  button on a phone, and the group wrapped to three or
+                  four rows. The actions now stack: the primary save is
+                  full-width on its own row, the rest wrap beneath it. */}
+              <div className="flex flex-col gap-3 pt-6 mt-2 border-t border-border min-h-[44px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                   <div>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -2960,7 +3018,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                               primarySaveKind === 'invoice' &&
                               postedNextNumberBlocked)
                           }
-                          className="min-h-[44px]"
+                          className="min-h-[44px] w-full sm:w-auto"
                           onClick={() => {
                             if (isSubmittingRef.current) return;
                             submitSaveKindRef.current = primarySaveKind;
@@ -3003,7 +3061,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                           type="button"
                           variant="outline"
                           disabled={isSubmitDisabled}
-                          className="min-h-[44px]"
+                          className="min-h-[44px] w-full sm:w-auto"
                           onClick={() => {
                             if (isSubmittingRef.current) return;
                             submitSaveKindRef.current = 'quotation';

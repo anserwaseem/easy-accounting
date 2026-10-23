@@ -31,7 +31,16 @@ import { Button } from 'renderer/shad/ui/button';
 import { Calendar } from 'renderer/shad/ui/calendar';
 import { toNumber, isNaN } from 'lodash';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
+import { useIsMobile } from '@/renderer/hooks/useIsMobile';
 import { formatDisplayDate } from '@/lib/displayDate';
+
+/**
+ * A range picker shows two months side by side on desktop. On a phone
+ * that is ~570px of calendar in a 390px viewport, so it must collapse to
+ * a single month there. `useIsMobile` matches Tailwind's `md` breakpoint
+ * (768px) — the same threshold the app shell uses.
+ */
+const useRangeMonthCount = (): 1 | 2 => (useIsMobile() ? 1 : 2);
 
 export const DatePicker: React.FC = () => {
   const [date, setDate] = useState<Date>();
@@ -42,7 +51,7 @@ export const DatePicker: React.FC = () => {
         <Button
           variant="outline"
           className={cn(
-            'w-[280px] justify-start text-left font-normal',
+            'w-full justify-start text-left font-normal sm:w-[280px]',
             !date && 'text-muted-foreground',
           )}
         >
@@ -71,7 +80,7 @@ export const DatePickerWithPresets: React.FC = () => {
         <Button
           variant="outline"
           className={cn(
-            'w-[280px] justify-start text-left font-normal',
+            'w-full justify-start text-left font-normal sm:w-[280px]',
             !date && 'text-muted-foreground',
           )}
         >
@@ -108,6 +117,13 @@ interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
   presets?: { label: string; value: string }[];
   initialRange?: DateRange;
   initialSelectValue?: string;
+  /**
+   * Classes for the trigger button. Used to squeeze the picker into
+   * the space left over on a header row: the button shrinks and its
+   * label truncates instead of pushing the rest of the header off the
+   * screen.
+   */
+  triggerClassName?: string;
 }
 
 export const DateRangePicker: React.FC<Partial<DateRangePickerProps>> = ({
@@ -134,7 +150,7 @@ export const DateRangePicker: React.FC<Partial<DateRangePickerProps>> = ({
             id="date"
             variant="outline"
             className={cn(
-              'w-[300px] justify-start text-left font-normal',
+              'w-full justify-start text-left font-normal sm:w-[300px]',
               !date && 'text-muted-foreground',
             )}
           >
@@ -149,7 +165,7 @@ export const DateRangePicker: React.FC<Partial<DateRangePickerProps>> = ({
             defaultMonth={date?.from}
             selected={date}
             onSelect={setDate}
-            numberOfMonths={2}
+            numberOfMonths={useRangeMonthCount()}
           />
         </PopoverContent>
       </Popover>
@@ -186,11 +202,13 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
   presets = [],
   initialRange,
   initialSelectValue,
+  triggerClassName,
 }: DateRangePickerProps) => {
   const [date, setDate] = useState<DateRange | undefined>(initialRange);
   const [selectValue, setSelectValue] = useState<string | undefined>(
     initialSelectValue,
   );
+  const rangeMonthCount = useRangeMonthCount();
   useMountEffect(() => {
     $onSelect?.(date, selectValue);
   });
@@ -299,10 +317,11 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
             className={cn(
               'w-auto justify-start text-left font-normal',
               !date && 'text-muted-foreground',
+              triggerClassName,
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            <span>{getSelectLabel()}</span>
+            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">{getSelectLabel()}</span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="flex w-auto flex-col space-y-2 p-2">
@@ -328,7 +347,7 @@ export const DateRangePickerWithPresets: React.FC<DateRangePickerProps> = ({
                 setSelectValue('');
                 $onSelect?.(selectedDate, '');
               }}
-              numberOfMonths={2}
+              numberOfMonths={rangeMonthCount}
             />
           </div>
         </PopoverContent>

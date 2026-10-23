@@ -1,4 +1,12 @@
-import { forwardRef } from 'react';
+import {
+  createContext,
+  forwardRef,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   TooltipProvider,
   Tooltip,
@@ -20,6 +28,9 @@ const TooltipContent = forwardRef<
       sideOffset={sideOffset}
       className={cn(
         'z-[60] overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+        // On a phone the tooltip must not be a full-width bar over the
+        // content it describes.
+        'max-w-[calc(100vw-2rem)]',
         className,
       )}
       {...props}
@@ -28,13 +39,130 @@ const TooltipContent = forwardRef<
 ));
 TooltipContent.displayName = Content.displayName;
 
+/**
+ * Whether the primary pointer is a touch one.
+ *
+ * A tooltip that only opens on hover is unreachable on a phone: there
+ * is no hover, and Radix deliberately refuses to open on focus while a
+ * pointer is down (its way of keeping tooltips off touch devices).
+ * So on a touch device the tooltip is driven explicitly.
+ *
+ * Read from `matchMedia` rather than a one-time check, so a
+ * touchscreen laptop (which reports a fine pointer but no hover) is
+ * handled too.
+ */
+const isTouchPrimary = (): boolean => {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(hover: none)').matches;
+};
+
+/** Lets the trigger ask the tooltip to open on a tap. */
+const TooltipTouchContext = createContext<{
+  touch: boolean;
+  openOnTap: () => void;
+}>({ touch: false, openOnTap: () => {} });
+
 const TooltipWrapper = ({
   delayDuration = 200,
+  children,
+  onOpenChange,
   ...props
-}: React.ComponentPropsWithoutRef<typeof Tooltip>) => (
-  <Tooltip delayDuration={delayDuration} {...props} />
-);
+}: React.ComponentPropsWithoutRef<typeof Tooltip>) => {
+  const touch = isTouchPrimary();
+  // On a touch device the tooltip's open state is ours, not Radix's:
+  // Radix opens on focus (which a tap triggers) and closes on click
+  // (which the same tap also triggers), so the tooltip would flash and
+  // vanish before it could be read.
+  const [open, setOpen] = useState(false);
+  // A tap that opened the tooltip also produces a click, and Radix
+  // closes on click. This flag lets that one close be ignored, while a
+  // later tap elsewhere still closes it.
+  const tapGuardRef = useRef(false);
+
+  const openOnTap = useCallback(() => {
+    tapGuardRef.current = true;
+    setOpen(true);
+  }, []);
+
+  const contextValue = useMemo(
+    () => ({ touch, openOnTap }),
+    [touch, openOnTap],
+  );
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next && tapGuardRef.current) {
+        tapGuardRef.current = false;
+        // Let the guard lapse so a later close (a tap elsewhere) works.
+        window.setTimeout(() => {
+          tapGuardRef.current = false;
+        }, 400);
+        return;
+      }
+      if (touch) {
+        setOpen(next);
+        return;
+      }
+      onOpenChange?.(next);
+    },
+    [onOpenChange, touch],
+  );
+
+  // The open state is only OURS on a touch device. Passing `open` (even
+  // as `undefined`) or `onOpenChange` makes Radix treat the state as
+  // controlled, and a controlled tooltip that is never told to open
+  // never opens — which is why the hover tooltip stopped working once
+  // this wrapper was introduced.
+  let controlledProps: {
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  } = {};
+  if (touch) {
+    controlledProps = { open, onOpenChange: handleOpenChange };
+  } else if (onOpenChange) {
+    controlledProps = { onOpenChange: handleOpenChange };
+  }
+
+  return (
+    <TooltipTouchContext.Provider value={contextValue}>
+      <Tooltip
+        {...props}
+        {...controlledProps}
+        delayDuration={touch ? 0 : delayDuration}
+      >
+        {children}
+      </Tooltip>
+    </TooltipTouchContext.Provider>
+  );
+};
 TooltipWrapper.displayName = 'Tooltip';
+
+const TooltipTriggerWrapper = forwardRef<
+  React.ElementRef<typeof TooltipTrigger>,
+  React.ComponentPropsWithoutRef<typeof TooltipTrigger>
+>(({ children, onPointerDown, ...props }, ref) => {
+  const { touch, openOnTap } = useContext(TooltipTouchContext);
+  return (
+    <TooltipTrigger
+      ref={ref}
+      // A tap opens the tooltip on a touch device. Without this the
+      // information is simply unreachable on a phone.
+      {...props}
+      onPointerDown={
+        touch
+          ? (event) => {
+              // Only a real tap, not the start of a scroll.
+              if (event.pointerType !== 'touch') return;
+              openOnTap();
+            }
+          : onPointerDown
+      }
+    >
+      {children}
+    </TooltipTrigger>
+  );
+});
+TooltipTriggerWrapper.displayName = TooltipTrigger.displayName;
 
 const TooltipProviderWrapper = ({
   delayDuration = 200,
@@ -46,7 +174,7 @@ TooltipProviderWrapper.displayName = 'TooltipProvider';
 
 export {
   TooltipWrapper as Tooltip,
-  TooltipTrigger,
+  TooltipTriggerWrapper as TooltipTrigger,
   TooltipContent,
   TooltipProviderWrapper as TooltipProvider,
   type TooltipContentProps,

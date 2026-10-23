@@ -21,6 +21,7 @@ import {
   Menu,
   Plus,
   Quote,
+  Search,
   Settings,
   Store,
   Table2,
@@ -31,11 +32,16 @@ import type { FC, PropsWithChildren, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { cn } from 'renderer/lib/utils';
 import { ModeToggle } from 'renderer/components/ModeToggle';
-import GlobalSearch from 'renderer/components/GlobalSearch';
+import GlobalSearch, {
+  GLOBAL_SEARCH_OPEN_EVENT,
+} from 'renderer/components/GlobalSearch';
 import BackupStatus from 'renderer/components/BackupStatus';
 import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth, useIsMobile } from '../hooks';
+import { useNavigationHistory } from '../hooks/useNavigationHistory';
+import { useBrowserNavigationShortcuts } from '../hooks/useBrowserNavigationShortcuts';
+import { ScrollToTopButton } from './ScrollToTopButton';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 
 const ITEM_BUTTON_CLASSNAME = 'px-3';
@@ -207,14 +213,24 @@ const SidebarListPlusNewRow: FC<SidebarListPlusNewRowProps> = ({
 
 interface SidebarHeaderProps {
   collapsed: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  goBack: () => void;
+  goForward: () => void;
 }
 
 const SidebarHeader: FC<SidebarHeaderProps> = ({
   collapsed,
+  canGoBack,
+  canGoForward,
+  goBack,
+  goForward,
 }: SidebarHeaderProps) => {
   if (collapsed) {
+    // The icon-only rail still needs a way back and forward, so the
+    // home button is joined by them.
     return (
-      <div className="flex items-center justify-center h-14">
+      <div className="flex flex-col items-center gap-1 py-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="ghost" size="icon">
@@ -225,12 +241,48 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
           </TooltipTrigger>
           <TooltipContent side="right">Home</TooltipContent>
         </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              onClick={goBack}
+              className="h-8 w-8"
+              aria-label="Go back"
+              type="button"
+            >
+              <ChevronLeft size={16} aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <KbdGroup>
+              Back <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>←</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              onClick={goForward}
+              className="h-8 w-8"
+              aria-label="Go forward"
+              type="button"
+            >
+              <ChevronRight size={16} aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <KbdGroup>
+              Forward <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>→</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-center h-14 px-4">
+    <div className="flex items-center justify-between gap-1 h-14 px-4">
       <Link
         to="/"
         className="text-lg font-semibold hover:opacity-80 transition-opacity truncate"
@@ -238,6 +290,52 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
       >
         Easy Accounting
       </Link>
+      {/* Back and forward, the way a browser and a desktop app both do
+          it. The app renders inside a MemoryRouter, which keeps its own
+          history but never touches the browser URL — so without these
+          the only way back was the sidebar. */}
+      <div className="flex shrink-0 items-center gap-0.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={goBack}
+              disabled={!canGoBack}
+              aria-label="Go back"
+              type="button"
+            >
+              <ChevronLeft size={18} aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <KbdGroup>
+              Back <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>←</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={goForward}
+              disabled={!canGoForward}
+              aria-label="Go forward"
+              type="button"
+            >
+              <ChevronRight size={18} aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <KbdGroup>
+              Forward <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>→</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 };
@@ -359,6 +457,8 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
   useAppNavigationShortcuts();
   const { logout } = useAuth();
   const isMobile = useIsMobile();
+  const { canGoBack, canGoForward, goBack, goForward } = useNavigationHistory();
+  useBrowserNavigationShortcuts(goBack, goForward);
 
   // persist collapsed state across restarts (desktop icon-only mode only —
   // on mobile the sidebar is an off-canvas overlay instead, see mobileOpen)
@@ -426,7 +526,15 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           />
         )}
         <ShadSidebar
-          title={<SidebarHeader collapsed={effectiveCollapsed} />}
+          title={
+            <SidebarHeader
+              collapsed={effectiveCollapsed}
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              goBack={goBack}
+              goForward={goForward}
+            />
+          }
           items={[
             <SidebarOutlineLink
               key="accounts"
@@ -525,6 +633,9 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           onClick={handleSidebarClick}
           className={cn(
             'print:hidden h-full fixed inset-y-0 left-0 z-50 shadow-xl transition-transform duration-200 md:static md:z-auto md:shadow-none md:translate-x-0',
+            // The off-canvas panel must clear the notch and the home
+            // indicator, and its own content must not scroll under them.
+            'safe-top safe-bottom',
             mobileOpen ? 'translate-x-0' : '-translate-x-full',
           )}
           collapsed={effectiveCollapsed}
@@ -533,17 +644,39 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           {/* Mobile top bar — hamburger opens the off-canvas nav. Hidden at
               md+, where the persistent sidebar (collapsed or not) is
               always visible instead. */}
-          <div className="flex items-center gap-1 h-14 px-2 border-b bg-background flex-shrink-0 md:hidden print:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open menu"
-              type="button"
-            >
-              <Menu size={20} aria-hidden />
-            </Button>
+          <div className="flex items-center gap-1 h-14 px-2 border-b bg-background flex-shrink-0 md:hidden print:hidden safe-top">
+            {/* Back is the primary way out of a detail screen on a
+                phone. Without it every move between two related
+                screens meant opening the menu and hunting for the
+                destination again. */}
+            {canGoBack ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 -ml-1"
+                    onClick={goBack}
+                    aria-label="Go back"
+                    type="button"
+                  >
+                    <ChevronLeft size={22} aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Back</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 -ml-1"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open menu"
+                type="button"
+              >
+                <Menu size={22} aria-hidden />
+              </Button>
+            )}
             <Link
               to="/"
               className="font-semibold text-base truncate"
@@ -551,14 +684,47 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             >
               Easy Accounting
             </Link>
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation menu"
+                type="button"
+              >
+                <Menu size={22} aria-hidden />
+              </Button>
+              {/* The global search palette has no keyboard shortcut on a
+                  phone, so the top bar gets a button for it. */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10"
+                aria-label="Search"
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(new Event(GLOBAL_SEARCH_OPEN_EVENT))
+                }
+              >
+                <Search size={19} aria-hidden />
+              </Button>
+              <ModeToggle />
+            </div>
           </div>
-          <div className="flex-grow overflow-y-auto overflow-x-hidden p-3 md:p-4">
+          {/* The app's scroll container. ScrollToTopButton finds it by
+              this attribute. */}
+          <div
+            data-app-scroll
+            className="flex-grow overflow-y-auto overflow-x-hidden p-3 md:p-4"
+          >
             {children}
             <Outlet />
           </div>
         </div>
         {/* ⌘/Ctrl+K palette; mounted here so it is available on every authenticated page */}
         <GlobalSearch />
+        <ScrollToTopButton />
       </div>
     </TooltipProvider>
   );

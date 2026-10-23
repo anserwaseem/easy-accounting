@@ -9,11 +9,21 @@ const JournalPage: React.FC = () => {
   console.log('JournalPage', id);
 
   return (
-    <div className="flex flex-row h-screen">
-      <div className="w-1/4 overflow-y-scroll scrollbar">
+    // Same split as Ledger/Invoice: the list rail is desktop-only, and
+    // the detail takes the full width on a phone. This view still had
+    // the bare `flex flex-row` / `w-1/4` layout, which left the journal
+    // list 97px wide on a 390px screen.
+    <div className="flex flex-col md:flex-row h-screen">
+      <div className="hidden md:block md:w-1/4 overflow-y-scroll scrollbar">
         <JournalsPage isMini />
       </div>
-      <div className="w-3/4 overflow-y-auto scrollbar justify-between items-center p-4 pl-8">
+      {/* `data-detail-scroll` is an attribute, not a class name: it is
+          how ScrollToTopButton finds this pane as the screen's real
+          scroller. */}
+      <div
+        data-detail-scroll
+        className="w-full md:w-3/4 overflow-y-auto scrollbar justify-between items-center px-3 py-4 md:px-4 md:py-5 md:pl-8"
+      >
         <JournalTable journalId={toNumber(id)} />
       </div>
     </div>

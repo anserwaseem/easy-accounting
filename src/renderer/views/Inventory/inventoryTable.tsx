@@ -170,7 +170,7 @@ const InventoryNameCell: React.FC<InventoryNameCellProps> = ({
     <div className={cn('flex items-center gap-1.5', !isActive && 'opacity-60')}>
       <span>{item.name}</span>
       {!isActive && (
-        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800">
+        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-800">
           Inactive
         </span>
       )}
@@ -762,6 +762,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         header: '',
         size: 28,
         enableSorting: false,
+        // the chevron is a control, not a value: it joins the row's
+        // buttons at the bottom of the card instead of taking a cell
+        // in the grid
+        cardActions: true,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
           const isOpen = expandedIds.has(row.original.id);
@@ -791,6 +795,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               accessorKey: 'listPosition',
               header: 'List #',
               headerTooltip: 'Catalog list order (nulls sort last).',
+              // the catalog number says which item this is, so it rides
+              // the muted line under the name
+              cardLabel: 'List #',
+              cardMeta: true,
               size: 72,
               sortingFn: listPositionSortingFn,
               enableSorting: !editMode,
@@ -826,7 +834,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         accessorKey: 'name',
         header: 'Name',
-        size: 110,
+        size: 180,
+        cardHeadline: true,
         enableSorting: !editMode,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }: { row: { original: InventoryItem } }) => (
@@ -1029,7 +1038,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         accessorKey: 'price',
         header: 'Price',
-        size: 88,
+        size: 100,
         enableSorting: !editMode,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
@@ -1109,7 +1118,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         accessorKey: 'quantity',
         header: 'Quantity',
-        size: 80,
+        size: 100,
         enableSorting: !editMode,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => {
@@ -1191,6 +1200,23 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {
         header: 'Actions',
         enableSorting: false,
+        // the row's buttons get their own row at the bottom of the
+        // card, without a redundant "Actions" label
+        cardActions: true,
+        // On a card there is room for one control, so the item's
+        // actions sit behind a single ⋮ at the end of the name.
+        // eslint-disable-next-line react/no-unstable-nested-components
+        cardMenu: ({ row }) => (
+          <EditInventoryItem
+            variant="menu"
+            row={row}
+            refetchInventory={refetchAll}
+            refreshPublishStatuses={refreshPublishStatuses}
+            showPublishControls={publishEnabled && showPublishColumn}
+            priceLists={priceLists}
+            inventoryItems={inventory ?? []}
+          />
+        ),
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => (
           // -ml-2 cancels the icon buttons' internal padding so the first
@@ -1211,8 +1237,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             )}
           </div>
         ),
-        // two 32px icon buttons + gaps: Edit, More Actions
-        size: 70,
+        // two icon buttons + gaps: Edit, More Actions
+        size: 100,
       },
     ];
     // updateItemType closes over itemTypes/editMode; columns rebuild when those

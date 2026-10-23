@@ -235,7 +235,7 @@ export const EditItemAttributes: React.FC<EditItemAttributesProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0"
+              className="h-11 w-11 shrink-0 md:h-8 md:w-8"
               title="Edit attributes"
               aria-label="Edit attributes"
             >

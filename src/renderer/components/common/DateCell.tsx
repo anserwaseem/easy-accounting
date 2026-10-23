@@ -17,7 +17,9 @@ interface DateCellProps {
  * from the same place (`src/lib/displayDate.ts`), so they cannot drift.
  */
 export const DateCell: FC<DateCellProps> = ({ value, fallback = '' }) => (
-  <span title={displayDateTitle(value)}>
+  // `whitespace-nowrap`: the date is a single value, and wrapping it
+  // across two lines doubled the height of every row in a narrow table.
+  <span className="whitespace-nowrap" title={displayDateTitle(value)}>
     {value ? formatDisplayDate(value) : fallback}
   </span>
 );

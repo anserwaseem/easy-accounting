@@ -205,7 +205,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ option }: ReportCardProps) => {
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="p-1 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors focus:outline-none"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors focus:outline-none md:h-6 md:w-6"
                 onClick={(e) => e.stopPropagation()}
                 title="About this report"
                 aria-label="About this report"
@@ -214,7 +214,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ option }: ReportCardProps) => {
               </button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-80 text-xs p-3 space-y-1.5"
+              className="w-[min(20rem,calc(100vw-2rem))] text-xs p-3 space-y-1.5"
               onClick={(e) => e.stopPropagation()}
             >
               <h4 className="font-semibold text-sm">{option.title}</h4>

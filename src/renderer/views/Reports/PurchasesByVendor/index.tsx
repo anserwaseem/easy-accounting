@@ -4,6 +4,7 @@ import { sumBy } from 'lodash';
 import { Download, Printer, RefreshCw } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
+import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
@@ -253,86 +254,90 @@ const PurchasesByVendorPage: React.FC = () => {
     <ReportLayout
       printStyles={printStyles}
       header={
-        <div className="print-header flex flex-col gap-2 pb-2">
-          <div className="flex items-center justify-between pb-2">
-            <h1 className="title-new">Purchases by Vendor</h1>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Vendor:</span>
-                <div className="w-[220px]">
-                  <VirtualSelect
-                    options={vendors}
-                    value={selectedVendorId?.toString()}
-                    onChange={handleVendorChange}
-                    placeholder="Select vendor"
-                    searchPlaceholder="Search vendors..."
-                    autoFocusTrigger={selectedVendorId == null}
-                    renderSelectItem={(account) => (
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2>{account.name}</h2>
-                          {account.tracksVendorStock ? (
-                            <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
-                              Stock
-                            </span>
+        <>
+          <ReportHeader
+            title="Purchases by Vendor"
+            filters={
+              <>
+                <ReportFilter label="Vendor:">
+                  <div className="min-w-0 flex-1 sm:w-[220px] sm:flex-none">
+                    <VirtualSelect
+                      options={vendors}
+                      value={selectedVendorId?.toString()}
+                      onChange={handleVendorChange}
+                      placeholder="Select vendor"
+                      searchPlaceholder="Search vendors..."
+                      autoFocusTrigger={selectedVendorId == null}
+                      renderSelectItem={(account) => (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2>{account.name}</h2>
+                            {account.tracksVendorStock ? (
+                              <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
+                                Stock
+                              </span>
+                            ) : null}
+                          </div>
+                          {account.code != null && account.code !== '' ? (
+                            <p className="text-xs text-slate-400">
+                              {account.code}
+                            </p>
                           ) : null}
                         </div>
-                        {account.code != null && account.code !== '' ? (
-                          <p className="text-xs text-slate-400">
-                            {account.code}
-                          </p>
-                        ) : null}
-                      </div>
-                    )}
+                      )}
+                    />
+                  </div>
+                </ReportFilter>
+                <ReportFilter label="Range:">
+                  <DateRangePickerWithPresets
+                    $onSelect={handleDateChange}
+                    presets={[{ label: 'All', value: 'all' }]}
+                    initialRange={dateRange ?? undefined}
+                    initialSelectValue={presetValue}
                   />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Range:</span>
-                <DateRangePickerWithPresets
-                  $onSelect={handleDateChange}
-                  presets={[{ label: 'All', value: 'all' }]}
-                  initialRange={dateRange ?? undefined}
-                  initialSelectValue={presetValue}
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={refreshData}
-                title="Refresh Data"
-                disabled={isLoading}
-              >
-                <RefreshCw
-                  className={cn('h-4 w-4', isLoading && 'animate-spin')}
-                />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleExport}
-                title="Export to Excel"
-                disabled={!canExport}
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handlePrint}
-                title="Print report"
-                disabled={!canExport}
-              >
-                <Printer className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+                </ReportFilter>
+              </>
+            }
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={refreshData}
+                  title="Refresh Data"
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={cn('h-4 w-4', isLoading && 'animate-spin')}
+                  />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleExport}
+                  title="Export to Excel"
+                  disabled={!canExport}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrint}
+                  title="Print report"
+                  disabled={!canExport}
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </>
+            }
+          />
           {selectedVendorId && !isLoading && sourceRows.length > 0 && (
             <div className="print:hidden text-right text-sm text-muted-foreground">
               {totalQty.toLocaleString()} items purchased
             </div>
           )}
-        </div>
+        </>
       }
     >
       <PurchasesByVendorInvoiceSheet

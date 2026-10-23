@@ -1,5 +1,5 @@
 import type { Row } from '@tanstack/react-table';
-import { Copy, FileText, Info, Plus } from 'lucide-react';
+import { Copy, FileText, Info, Pencil, Plus } from 'lucide-react';
 import { toNumber } from 'lodash';
 import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
@@ -14,6 +14,8 @@ import {
   showInvoiceEditedIndicator,
 } from '@/renderer/lib/invoiceUtils';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
+import { RowMenu } from '@/renderer/components/RowMenu';
+import { DropdownMenuItem } from 'renderer/shad/ui/dropdown-menu';
 import { Badge } from 'renderer/shad/ui/badge';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -27,6 +29,7 @@ import type { InvoicesView } from 'types';
 import { InvoiceType } from 'types';
 import { formatDisplayDateTime } from '@/lib/displayDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { PageHeader } from '@/renderer/components/PageHeader';
 
 interface QuotationsPageProps {
   invoiceType: InvoiceType;
@@ -82,13 +85,59 @@ const QuotationDuplicateActionCell: FC<QuotationEditActionCellProps> = ({
   </EditActionButton>
 );
 
+/**
+ * The card's row control: one ⋮ at the end of the name, with the
+ * row's actions behind it. The table keeps the two icon buttons.
+ */
+const QuotationRowMenu: FC<QuotationEditActionCellProps> = ({
+  row,
+  invoiceType,
+  navigate,
+}: QuotationEditActionCellProps) => (
+  <RowMenu label="Quotation actions">
+    {row.original.isReturned ? null : (
+      <DropdownMenuItem
+        onSelect={() =>
+          navigate(
+            `/${invoiceType.toLowerCase()}/invoices/${row.original.id}/edit`,
+          )
+        }
+      >
+        <Pencil className="mr-2 h-4 w-4" />
+        Edit quotation
+      </DropdownMenuItem>
+    )}
+    <DropdownMenuItem
+      onSelect={() =>
+        navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
+          state: { duplicateFromId: row.original.id },
+        })
+      }
+    >
+      <Copy className="mr-2 h-4 w-4" />
+      Duplicate quotation
+    </DropdownMenuItem>
+  </RowMenu>
+);
+
 const createQuotationActionsColumn = (
   invoiceType: InvoiceType,
   navigate: NavigateFunction,
 ): ColumnDef<InvoicesView> => ({
   id: 'actions',
   header: 'Actions',
-  size: 80,
+  // The row's buttons get their own row in the card layout, without a
+  // redundant "Actions" label.
+  cardActions: true,
+  // On a card there is room for one control, so both actions sit
+  // behind a single ⋮ at the end of the name.
+  // eslint-disable-next-line react/no-unstable-nested-components
+  cardMenu: ({ row }) => (
+    <QuotationRowMenu row={row} invoiceType={invoiceType} navigate={navigate} />
+  ),
+  // Two icon buttons. At the 44px mobile touch target that needs
+  // ~100px, not the 80px the 32px desktop buttons needed.
+  size: 100,
   onClick: () => undefined,
   cell({ row }) {
     return (
@@ -218,6 +267,10 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               header: () => (
                 <span className="whitespace-nowrap">Quotation #</span>
               ),
+              cardLabel: 'Quotation #',
+              // the number and the date identify the quotation, so they
+              // ride the muted line under the party's name
+              cardMeta: true,
               cell: ({ row }) => (
                 <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
                   {getQuotationDisplayNumber(
@@ -244,15 +297,18 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
             {
               accessorKey: 'date',
               header: 'Date',
+              cardMeta: true,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (r) => navigateToRow(r.original.id),
-              size: 108,
+              size: 110,
             },
             {
               accessorKey: 'accountName',
               header: partyLabel,
+              cardHeadline: true,
               onClick: (r) => navigateToRow(r.original.id),
+              size: 200,
             },
             {
               accessorKey: 'accountCode',
@@ -266,9 +322,13 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                     accessorKey: 'totalAmount',
                     header: 'Total Amount',
                     onClick: (r) => navigateToRow(r.original.id),
-                    cell: ({ getValue }) =>
-                      getFormattedCurrency(toNumber(getValue())),
-                    size: 128,
+                    cell: ({ getValue }) => (
+                      <span className="tabular">
+                        {getFormattedCurrency(toNumber(getValue()))}
+                      </span>
+                    ),
+                    size: 140,
+                    cardAside: true,
                   },
                 ] as ColumnDef<InvoicesView>[])
               : []),
@@ -280,7 +340,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                   ? formatDisplayDateTime(row.original.updatedAt)
                   : '—',
               onClick: (r) => navigateToRow(r.original.id),
-              size: 140,
+              size: 150,
             },
             createQuotationActionsColumn(invoiceType, navigate),
             /* eslint-enable react/no-unstable-nested-components */
@@ -374,41 +434,49 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
 
   return (
     <div className="flex flex-col px-1">
-      <div className="py-4 flex justify-between items-center gap-2">
-        <div className="flex items-center gap-2">
-          <h1 className="title">{listTitle}</h1>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 text-muted-foreground"
-                  aria-label="About quotations"
-                >
-                  <Info className="h-5 w-5" aria-hidden />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs text-left">
-                {QUOTATIONS_INFO_TOOLTIP}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        <Button
-          variant="outline"
-          onClick={() =>
-            navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
-              state: { isQuotation: true },
-            })
-          }
-        >
-          <Plus size={16} className="mr-2" />
-          New Quotation
-        </Button>
-      </div>
+      <PageHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            {listTitle}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-muted-foreground"
+                    aria-label="About quotations"
+                  >
+                    <Info className="h-5 w-5" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-left">
+                  {QUOTATIONS_INFO_TOOLTIP}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </span>
+        }
+        actions={
+          // Just a + on a phone: the word "New Quotation" was most of
+          // the row, and the row is what the list gets its height from.
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            title="New Quotation"
+            aria-label="New Quotation"
+            onClick={() =>
+              navigate(`/${invoiceType.toLowerCase()}/invoices/new`, {
+                state: { isQuotation: true },
+              })
+            }
+          >
+            <Plus size={16} />
+          </Button>
+        }
+      />
 
       <div className="py-6 flex flex-col gap-6">{quotationsBody}</div>
     </div>
