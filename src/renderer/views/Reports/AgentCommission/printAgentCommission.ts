@@ -9,6 +9,7 @@ interface PrintAgentCommissionOptions {
   title: string;
   subtitle: string;
   includeLineItems?: boolean;
+  visibleColumns?: ReadonlySet<string>;
 }
 
 const formatMoney = (val: number | null | undefined): string => {
@@ -19,7 +20,16 @@ const formatMoney = (val: number | null | undefined): string => {
 export const printAgentCommissionIframe = (
   options: PrintAgentCommissionOptions,
 ) => {
-  const { report, adjustments, title, subtitle, includeLineItems } = options;
+  const {
+    report,
+    adjustments,
+    title,
+    subtitle,
+    includeLineItems,
+    visibleColumns,
+  } = options;
+  const isVisible = (id: string) =>
+    visibleColumns ? visibleColumns.has(id) : true;
 
   const totalAdjustments = adjustments.reduce(
     (sum, adj) => sum + (adj.amount || 0),
@@ -61,20 +71,58 @@ export const printAgentCommissionIframe = (
       .map(
         (line, idx) => `<tr>
         <td class="fit num">${idx + 1}</td>
-        <td class="fit">${escape(formatDisplayDate(line.invoiceDate))}</td>
-        <td class="fit num">${line.invoiceNumber}</td>
-        <td>${escape(line.accountName)}${
-          line.accountCode ? ` (${escape(line.accountCode)})` : ''
-        }</td>
-        <td>${escape(line.itemName)}</td>
-        <td class="fit">${escape(line.itemTypeName)}</td>
-        <td class="num">${line.quantity}</td>
-        <td class="num">${
-          line.netPrice != null ? `${line.netPrice} (net)` : line.price
-        }</td>
-        <td class="num">${escape(formatMoney(line.chargedAmount))}</td>
-        <td class="fit">${escape(line.rateType)} (${line.rateValue})</td>
-        <td class="num">${escape(formatMoney(line.commissionAmount))}</td>
+        ${
+          isVisible('date')
+            ? `<td class="fit">${escape(
+                formatDisplayDate(line.invoiceDate),
+              )}</td>`
+            : ''
+        }
+        ${
+          isVisible('invoiceNumber')
+            ? `<td class="fit num">${line.invoiceNumber}</td>`
+            : ''
+        }
+        ${
+          isVisible('customer')
+            ? `<td>${escape(line.accountName)}${
+                line.accountCode ? ` (${escape(line.accountCode)})` : ''
+              }</td>`
+            : ''
+        }
+        ${isVisible('item') ? `<td>${escape(line.itemName)}</td>` : ''}
+        ${
+          isVisible('type')
+            ? `<td class="fit">${escape(line.itemTypeName)}</td>`
+            : ''
+        }
+        ${isVisible('quantity') ? `<td class="num">${line.quantity}</td>` : ''}
+        ${
+          isVisible('price')
+            ? `<td class="num">${
+                line.netPrice != null ? `${line.netPrice} (net)` : line.price
+              }</td>`
+            : ''
+        }
+        ${
+          isVisible('charged')
+            ? `<td class="num">${escape(formatMoney(line.chargedAmount))}</td>`
+            : ''
+        }
+        ${
+          isVisible('rate')
+            ? `<td class="fit">${escape(line.rateType)} (${
+                line.rateValue
+              })</td>`
+            : ''
+        }
+        ${
+          isVisible('commission')
+            ? `<td class="num">${escape(
+                formatMoney(line.commissionAmount),
+              )}</td>`
+            : ''
+        }
       </tr>`,
       )
       .join('');
@@ -86,16 +134,18 @@ export const printAgentCommissionIframe = (
           <thead>
             <tr>
               <th class="fit">#</th>
-              <th class="fit">Date</th>
-              <th class="fit">Inv #</th>
-              <th>Customer</th>
-              <th>Item / SKU</th>
-              <th class="fit">Type</th>
-              <th class="num">Qty</th>
-              <th class="num">Price</th>
-              <th class="num">Charged</th>
-              <th class="fit">Rate</th>
-              <th class="num">Commission</th>
+              ${isVisible('date') ? '<th class="fit">Date</th>' : ''}
+              ${isVisible('invoiceNumber') ? '<th class="fit">Inv #</th>' : ''}
+              ${isVisible('customer') ? '<th>Customer</th>' : ''}
+              ${isVisible('item') ? '<th>Item / SKU</th>' : ''}
+              ${isVisible('type') ? '<th class="fit">Type</th>' : ''}
+              ${isVisible('quantity') ? '<th class="num">Qty</th>' : ''}
+              ${isVisible('price') ? '<th class="num">Price</th>' : ''}
+              ${isVisible('charged') ? '<th class="num">Charged</th>' : ''}
+              ${isVisible('rate') ? '<th class="fit">Rate</th>' : ''}
+              ${
+                isVisible('commission') ? '<th class="num">Commission</th>' : ''
+              }
             </tr>
           </thead>
           <tbody>

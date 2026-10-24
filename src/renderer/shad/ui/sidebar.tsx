@@ -1,6 +1,7 @@
 import { cn } from 'renderer/lib/utils';
 
 interface SidebarProps {
+  [key: `data-${string}`]: string | undefined;
   /** rendered as-is (caller controls links/buttons inside) */
   title?: React.ReactNode;
   items?: React.ReactNode[];
@@ -31,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   itemClassName,
   collapsed = false,
   onClick,
+  ...rest
 }: SidebarProps) => (
   // Delegated click-bubbling only (used to detect a click landing on one of
   // the interactive nav links/buttons rendered inside — see `onClick`'s doc
@@ -38,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // handling, so this wrapper itself needs none.
   // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
   <aside
+    {...rest}
     onClick={onClick}
     className={cn(
       // Was bg-gray-200 in both themes: a light slab in a light app and a

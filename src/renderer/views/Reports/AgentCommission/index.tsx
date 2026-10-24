@@ -64,6 +64,8 @@ import {
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import { ReportHeader } from '@/renderer/components/ReportHeader';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { ConfirmDialog } from '@/renderer/components/ConfirmDialog';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
@@ -197,6 +199,27 @@ const AgentCommissionReportPage: React.FC = () => {
   const [showUnpostConfirm, setShowUnpostConfirm] = useState(false);
   const [isUnposting, setIsUnposting] = useState(false);
   const [lineSearch, setLineSearch] = useState('');
+
+  const agentCommissionLineColumnSpecs = [
+    { id: 'date', label: 'Date' },
+    { id: 'invoiceNumber', label: 'Inv #' },
+    { id: 'customer', label: 'Customer' },
+    { id: 'item', label: 'Item / SKU' },
+    { id: 'type', label: 'Type' },
+    { id: 'quantity', label: 'Qty' },
+    { id: 'price', label: 'Price' },
+    { id: 'charged', label: 'Charged' },
+    { id: 'rate', label: 'Rate' },
+    { id: 'commission', label: 'Commission' },
+  ];
+  const agentCommissionLineColumnIds = agentCommissionLineColumnSpecs.map(
+    (column) => column.id,
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'agent-commission',
+    agentCommissionLineColumnIds,
+  );
+  const visibleLineColumns = columnVisibility.included;
 
   const persistFilters = useCallback(
     (
@@ -498,6 +521,7 @@ const AgentCommissionReportPage: React.FC = () => {
       title,
       subtitle,
       includeLineItems: true,
+      visibleColumns: visibleLineColumns,
     });
   };
 
@@ -659,7 +683,23 @@ const AgentCommissionReportPage: React.FC = () => {
           format: 'currency' as const,
           width: 16,
         },
-      ],
+      ].filter((column) => {
+        const map: Record<string, string> = {
+          date: 'date',
+          invoiceNumber: 'invoiceNumber',
+          customer: 'customer',
+          item: 'item',
+          itemType: 'type',
+          quantity: 'quantity',
+          price: 'price',
+          charged: 'charged',
+          rateType: 'rate',
+          rateValue: 'rate',
+          commission: 'commission',
+        };
+        const pickerId = map[String(column.key)];
+        return pickerId ? visibleLineColumns.has(pickerId) : true;
+      }),
       rows: lineRows,
       footerRow: {
         customer: 'TOTAL',
@@ -839,94 +879,150 @@ const AgentCommissionReportPage: React.FC = () => {
   const renderLineHeader = useCallback(
     () => (
       <tr className="bg-muted/80 text-muted-foreground font-semibold border-b text-xs">
-        <th className="h-9 px-3 text-left w-24">Date</th>
-        <th className="h-9 px-3 text-left w-20">Inv #</th>
-        <th className="h-9 px-3 text-left w-48">Customer</th>
-        <th className="h-9 px-3 text-left">Item / SKU</th>
-        <th className="h-9 px-3 text-left w-20">Type</th>
-        <th className="h-9 px-3 text-right w-16">Qty</th>
-        <th className="h-9 px-3 text-right w-24">Price</th>
-        <th className="h-9 px-3 text-right w-28">Charged</th>
-        <th className="h-9 px-3 text-right w-24">Rate</th>
-        <th className="h-9 px-3 text-right w-28">Commission</th>
+        {visibleLineColumns.has('date') && (
+          <th className="h-9 px-3 text-left w-24">Date</th>
+        )}
+        {visibleLineColumns.has('invoiceNumber') && (
+          <th className="h-9 px-3 text-left w-20">Inv #</th>
+        )}
+        {visibleLineColumns.has('customer') && (
+          <th className="h-9 px-3 text-left w-48">Customer</th>
+        )}
+        {visibleLineColumns.has('item') && (
+          <th className="h-9 px-3 text-left">Item / SKU</th>
+        )}
+        {visibleLineColumns.has('type') && (
+          <th className="h-9 px-3 text-left w-20">Type</th>
+        )}
+        {visibleLineColumns.has('quantity') && (
+          <th className="h-9 px-3 text-right w-16">Qty</th>
+        )}
+        {visibleLineColumns.has('price') && (
+          <th className="h-9 px-3 text-right w-24">Price</th>
+        )}
+        {visibleLineColumns.has('charged') && (
+          <th className="h-9 px-3 text-right w-28">Charged</th>
+        )}
+        {visibleLineColumns.has('rate') && (
+          <th className="h-9 px-3 text-right w-24">Rate</th>
+        )}
+        {visibleLineColumns.has('commission') && (
+          <th className="h-9 px-3 text-right w-28">Commission</th>
+        )}
       </tr>
     ),
-    [],
+    [visibleLineColumns],
   );
 
   const renderLineItem = useCallback(
     (_idx: number, line: CommissionReportItemLine) => (
       <>
-        <td className="p-2.5 font-mono text-muted-foreground whitespace-nowrap">
-          {formatInvoiceDate(line.invoiceDate)}
-        </td>
-        <td className="p-2.5 font-mono font-medium">#{line.invoiceNumber}</td>
-        <td
-          className="p-2.5 font-medium truncate max-w-[250px]"
-          title={line.accountName}
-        >
-          {line.accountName}
-          {line.accountCode && (
-            <span className="text-muted-foreground font-mono text-[11px] ml-1">
-              ({line.accountCode})
-            </span>
-          )}
-        </td>
-        <td className="p-2.5 font-medium text-foreground">
-          <span className="whitespace-nowrap"> {line.itemName}</span>
-          {line.netPrice != null && (
-            <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">
-              net
-            </Badge>
-          )}
-        </td>
-        <td className="p-2.5 text-muted-foreground max-w-2">
-          {line.itemTypeName}
-        </td>
-        <td className="p-2.5 text-right font-mono">{line.quantity}</td>
-        <td className="p-2.5 text-right font-mono">
-          Rs. {line.netPrice != null ? line.netPrice : line.price}
-        </td>
-        <td className="p-2.5 text-right font-mono">
-          Rs. {formatMoney(line.chargedAmount)}
-        </td>
-        <td className="p-2.5 text-right font-mono text-muted-foreground">
-          {line.rateValue}
-          {line.rateType === 'sku_override' ? ' Rs' : '%'}
-        </td>
-        <td className="p-2.5 text-right font-mono font-bold text-primary">
-          Rs. {formatMoney(line.commissionAmount)}
-        </td>
+        {visibleLineColumns.has('date') && (
+          <td className="p-2.5 font-mono text-muted-foreground whitespace-nowrap">
+            {formatInvoiceDate(line.invoiceDate)}
+          </td>
+        )}
+        {visibleLineColumns.has('invoiceNumber') && (
+          <td className="p-2.5 font-mono font-medium">#{line.invoiceNumber}</td>
+        )}
+        {visibleLineColumns.has('customer') && (
+          <td
+            className="p-2.5 font-medium truncate max-w-[250px]"
+            title={line.accountName}
+          >
+            {line.accountName}
+            {line.accountCode && (
+              <span className="text-muted-foreground font-mono text-[11px] ml-1">
+                ({line.accountCode})
+              </span>
+            )}
+          </td>
+        )}
+        {visibleLineColumns.has('item') && (
+          <td className="p-2.5 font-medium text-foreground">
+            <span className="whitespace-nowrap"> {line.itemName}</span>
+            {line.netPrice != null && (
+              <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">
+                net
+              </Badge>
+            )}
+          </td>
+        )}
+        {visibleLineColumns.has('type') && (
+          <td className="p-2.5 text-muted-foreground max-w-2">
+            {line.itemTypeName}
+          </td>
+        )}
+        {visibleLineColumns.has('quantity') && (
+          <td className="p-2.5 text-right font-mono">{line.quantity}</td>
+        )}
+        {visibleLineColumns.has('price') && (
+          <td className="p-2.5 text-right font-mono">
+            Rs. {line.netPrice != null ? line.netPrice : line.price}
+          </td>
+        )}
+        {visibleLineColumns.has('charged') && (
+          <td className="p-2.5 text-right font-mono">
+            Rs. {formatMoney(line.chargedAmount)}
+          </td>
+        )}
+        {visibleLineColumns.has('rate') && (
+          <td className="p-2.5 text-right font-mono text-muted-foreground">
+            {line.rateValue}
+            {line.rateType === 'sku_override' ? ' Rs' : '%'}
+          </td>
+        )}
+        {visibleLineColumns.has('commission') && (
+          <td className="p-2.5 text-right font-mono font-bold text-primary">
+            Rs. {formatMoney(line.commissionAmount)}
+          </td>
+        )}
       </>
     ),
-    [],
+    [visibleLineColumns],
   );
 
   const renderLineFooter = useCallback(() => {
     if (!report) return null;
+    const labelSpan =
+      (visibleLineColumns.has('date') ? 1 : 0) +
+      (visibleLineColumns.has('invoiceNumber') ? 1 : 0) +
+      (visibleLineColumns.has('customer') ? 1 : 0) +
+      (visibleLineColumns.has('item') ? 1 : 0) +
+      (visibleLineColumns.has('type') ? 1 : 0);
     return (
       <tr className="bg-muted/90 font-semibold text-foreground border-t text-xs">
-        <td colSpan={5} className="p-2.5">
-          Total ({filteredLines.length} items)
-        </td>
-        <td className="p-2.5 text-right font-mono">
-          {filteredLines.reduce((s, l) => s + l.quantity, 0).toLocaleString()}
-        </td>
-        <td />
-        <td className="p-2.5 text-right font-mono">
-          Rs.{' '}
-          {formatMoney(filteredLines.reduce((s, l) => s + l.chargedAmount, 0))}
-        </td>
-        <td />
-        <td className="p-2.5 text-right font-mono text-primary font-bold">
-          Rs.{' '}
-          {formatMoney(
-            filteredLines.reduce((s, l) => s + l.commissionAmount, 0),
-          )}
-        </td>
+        {labelSpan > 0 ? (
+          <td colSpan={labelSpan} className="p-2.5">
+            Total ({filteredLines.length} items)
+          </td>
+        ) : null}
+        {visibleLineColumns.has('quantity') && (
+          <td className="p-2.5 text-right font-mono">
+            {filteredLines.reduce((s, l) => s + l.quantity, 0).toLocaleString()}
+          </td>
+        )}
+        {visibleLineColumns.has('price') && <td />}
+        {visibleLineColumns.has('charged') && (
+          <td className="p-2.5 text-right font-mono">
+            Rs.{' '}
+            {formatMoney(
+              filteredLines.reduce((s, l) => s + l.chargedAmount, 0),
+            )}
+          </td>
+        )}
+        {visibleLineColumns.has('rate') && <td />}
+        {visibleLineColumns.has('commission') && (
+          <td className="p-2.5 text-right font-mono text-primary font-bold">
+            Rs.{' '}
+            {formatMoney(
+              filteredLines.reduce((s, l) => s + l.commissionAmount, 0),
+            )}
+          </td>
+        )}
       </tr>
     );
-  }, [report, filteredLines]);
+  }, [report, filteredLines, visibleLineColumns]);
 
   return (
     <ReportLayout
@@ -1030,6 +1126,14 @@ const AgentCommissionReportPage: React.FC = () => {
                 <Download size={14} />
                 Excel
               </Button>
+
+              <ReportColumnsMenu
+                columns={agentCommissionLineColumnSpecs}
+                included={columnVisibility.included}
+                onToggle={columnVisibility.toggle}
+                onToggleAll={columnVisibility.toggleAll}
+                disabled={!report}
+              />
             </div>
           }
         />

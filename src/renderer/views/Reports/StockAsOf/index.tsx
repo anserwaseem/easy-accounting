@@ -34,6 +34,8 @@ import {
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import {
   HideItemsMenu,
   type HideItemsOption,
@@ -260,7 +262,23 @@ const StockAsOfReportPage: React.FC = () => {
     return `${asOf} — Type: ${filterItemType}`;
   }, [filterItemType, selectedDate]);
 
-  const columns = useMemo<ColumnDef<StockAsOfTableRow, unknown>[]>(
+  const stockAsOfColumnSpecs = [
+    { id: 'listPosition', label: 'List #' },
+    { id: 'item', label: 'Item' },
+    { id: 'itemType', label: 'Type' },
+    { id: 'unitPrice', label: 'Price' },
+    { id: 'currentQuantity', label: 'Current' },
+    { id: 'quantityAsOf', label: 'Qty (as of)' },
+    { id: 'quantityDiff', label: 'Δ vs as of' },
+  ];
+  const stockAsOfColumnIds = stockAsOfColumnSpecs.map((column) => column.id);
+  const columnVisibility = useReportColumnVisibility(
+    'stock-as-of',
+    stockAsOfColumnIds,
+  );
+  const visibleStockAsOfColumns = columnVisibility.included;
+
+  const baseColumns = useMemo<ColumnDef<StockAsOfTableRow, unknown>[]>(
     () => [
       {
         accessorKey: 'listPosition',
@@ -332,6 +350,13 @@ const StockAsOfReportPage: React.FC = () => {
     [],
   );
 
+  const columns = useMemo(() => {
+    return baseColumns.filter((column) => {
+      const typedColumn = column as { accessorKey?: string; id?: string };
+      const columnId = String(typedColumn.accessorKey ?? typedColumn.id ?? '');
+      return columnVisibility.isIncluded(columnId);
+    });
+  }, [baseColumns, columnVisibility]);
   const handleExport = useCallback(() => {
     if (!exportPrintRows.length) return;
     try {
@@ -371,7 +396,9 @@ const StockAsOfReportPage: React.FC = () => {
             format: 'number',
             width: 12,
           },
-        ],
+        ].filter((column) =>
+          visibleStockAsOfColumns.has(String(column.key)),
+        ) as ReportExportPayload['columns'],
         rows: exportRows,
         suggestedFileName: `Stock_As_Of_${format(
           selectedDate,
@@ -392,7 +419,7 @@ const StockAsOfReportPage: React.FC = () => {
         variant: 'destructive',
       });
     }
-  }, [exportPrintRows, reportSubtitle, selectedDate]);
+  }, [exportPrintRows, reportSubtitle, selectedDate, visibleStockAsOfColumns]);
 
   const handlePrint = useCallback(() => {
     if (!exportPrintRows.length) return;
@@ -407,8 +434,9 @@ const StockAsOfReportPage: React.FC = () => {
         quantityDiff: r.quantityDiff,
       })),
       subtitle: reportSubtitle,
+      visibleColumns: visibleStockAsOfColumns,
     });
-  }, [exportPrintRows, reportSubtitle]);
+  }, [exportPrintRows, reportSubtitle, visibleStockAsOfColumns]);
 
   return (
     <ReportLayout
@@ -466,6 +494,12 @@ const StockAsOfReportPage: React.FC = () => {
             }
             actions={
               <>
+                <ReportColumnsMenu
+                  columns={stockAsOfColumnSpecs}
+                  included={columnVisibility.included}
+                  onToggle={columnVisibility.toggle}
+                  onToggleAll={columnVisibility.toggleAll}
+                />
                 <Button
                   variant="outline"
                   size="icon"

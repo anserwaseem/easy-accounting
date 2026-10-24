@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Download, Printer, RefreshCw } from 'lucide-react';
@@ -21,6 +21,8 @@ import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
 import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { LedgerParticularsExportDialog, printStyles } from '../components';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
@@ -41,6 +43,7 @@ const buildLedgerReportPayload = (
   ledgerEntries: LedgerReportRow[],
   accountName: string,
   dateRange?: DateRange,
+  visibleColumns?: ReadonlySet<string>,
 ): ReportExportPayload<LedgerReportRow> => {
   const fromStr = dateRange?.from ? formatDisplayDate(dateRange.from) : '';
   const toStr = dateRange?.to ? formatDisplayDate(dateRange.to) : '';
@@ -72,7 +75,9 @@ const buildLedgerReportPayload = (
       { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
       { key: 'balance', header: 'Balance', format: 'currency', width: 14 },
       { key: 'balanceType', header: 'Type', format: 'string', width: 8 },
-    ],
+    ].filter((column) =>
+      visibleColumns ? visibleColumns.has(String(column.key)) : true,
+    ) as ReportExportPayload<LedgerReportRow>['columns'],
     rows: ledgerEntries,
   };
 };
@@ -117,6 +122,28 @@ const buildLedgerReportExportRows = (
   }));
 
 const LedgerReportPage = () => {
+  const ledgerColumnSpecs = useMemo(
+    () => [
+      { id: 'date', label: 'Date' },
+      { id: 'particulars', label: 'Particulars' },
+      { id: 'narration', label: 'Narration' },
+      { id: 'debit', label: 'Debit' },
+      { id: 'credit', label: 'Credit' },
+      { id: 'balance', label: 'Balance' },
+      { id: 'balanceType', label: 'Type' },
+    ],
+    [],
+  );
+  const ledgerColumnIds = useMemo(
+    () => ledgerColumnSpecs.map((column) => column.id),
+    [ledgerColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'ledger-report',
+    ledgerColumnIds,
+  );
+  const visibleLedgerColumns = columnVisibility.included;
+
   const {
     accounts,
     selectedAccount,
@@ -131,7 +158,7 @@ const LedgerReportPage = () => {
     presetValue,
     rangeResponse,
     totals,
-  } = useLedgerReport();
+  } = useLedgerReport(visibleLedgerColumns);
 
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
@@ -153,6 +180,7 @@ const LedgerReportPage = () => {
           exportRows,
           selectedAccountName,
           dateRange ?? undefined,
+          visibleLedgerColumns,
         );
         payload.footerRow = {
           date: '',
@@ -178,7 +206,13 @@ const LedgerReportPage = () => {
         });
       }
     },
-    [ledgerEntries, selectedAccountName, dateRange, totals],
+    [
+      ledgerEntries,
+      selectedAccountName,
+      dateRange,
+      totals,
+      visibleLedgerColumns,
+    ],
   );
 
   const canExport =
@@ -224,6 +258,12 @@ const LedgerReportPage = () => {
             }
             actions={
               <>
+                <ReportColumnsMenu
+                  columns={ledgerColumnSpecs}
+                  included={columnVisibility.included}
+                  onToggle={columnVisibility.toggle}
+                  onToggleAll={columnVisibility.toggleAll}
+                />
                 <Button
                   variant="outline"
                   size="icon"
@@ -277,6 +317,7 @@ const LedgerReportPage = () => {
           accountName={selectedAccountName}
           dateSubtitle={dateSubtitle}
           totals={totals}
+          visibleColumns={visibleLedgerColumns}
         />
       )}
       {!selectedAccount && !isLoading && (

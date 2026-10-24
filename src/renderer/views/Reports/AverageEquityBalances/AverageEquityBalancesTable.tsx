@@ -24,6 +24,7 @@ interface Props {
   sortField: AverageEquitySortField;
   sortDirection: SortDirection;
   onSort: (field: AverageEquitySortField) => void;
+  visibleColumns?: ReadonlySet<string>;
 }
 
 export const AverageEquityBalancesTable: FC<Props> = ({
@@ -33,7 +34,9 @@ export const AverageEquityBalancesTable: FC<Props> = ({
   sortField,
   sortDirection,
   onSort,
+  visibleColumns,
 }) => {
+  const visible = visibleColumns ?? new Set(['code', 'name', 'averageBalance']);
   if (isLoading) {
     return <LoadingState variant="skeleton" skeletonCount={6} />;
   }
@@ -48,58 +51,75 @@ export const AverageEquityBalancesTable: FC<Props> = ({
     <Table className="border-collapse w-full print-table">
       <TableHeader>
         <TableRow className="print-row">
-          <SortableHeader
-            currentSortField={sortField}
-            sortField="code"
-            sortDirection={sortDirection}
-            onSort={() => onSort('code')}
-            className="w-[150px]"
-          >
-            Account Code
-          </SortableHeader>
-          <SortableHeader
-            currentSortField={sortField}
-            sortField="name"
-            sortDirection={sortDirection}
-            onSort={() => onSort('name')}
-          >
-            Account Name
-          </SortableHeader>
-          <SortableHeader
-            currentSortField={sortField}
-            sortField="averageBalance"
-            sortDirection={sortDirection}
-            onSort={() => onSort('averageBalance')}
-            className="w-[320px] text-right"
-          >
-            Average Balance
-          </SortableHeader>
+          {visible.has('code') ? (
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="code"
+              sortDirection={sortDirection}
+              onSort={() => onSort('code')}
+              className="w-[150px]"
+            >
+              Account Code
+            </SortableHeader>
+          ) : null}
+          {visible.has('name') ? (
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="name"
+              sortDirection={sortDirection}
+              onSort={() => onSort('name')}
+            >
+              Account Name
+            </SortableHeader>
+          ) : null}
+          {visible.has('averageBalance') ? (
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="averageBalance"
+              sortDirection={sortDirection}
+              onSort={() => onSort('averageBalance')}
+              className="w-[320px] text-right"
+            >
+              Average Balance
+            </SortableHeader>
+          ) : null}
         </TableRow>
       </TableHeader>
       <TableBody>
         {items.map((item) => (
           <TableRow key={item.id} className="print-row">
-            <TableCell className="font-mono">{item.code ?? ''}</TableCell>
-            <TableCell>{item.name}</TableCell>
-            <TableCell className="text-right">
-              {getFormattedCurrency(Math.abs(item.averageBalance))
-                .replace(currency, '')
-                .trim()}{' '}
-              {item.averageBalance >= 0 ? 'Cr' : 'Dr'}
-            </TableCell>
+            {visible.has('code') ? (
+              <TableCell className="font-mono">{item.code ?? ''}</TableCell>
+            ) : null}
+            {visible.has('name') ? <TableCell>{item.name}</TableCell> : null}
+            {visible.has('averageBalance') ? (
+              <TableCell className="text-right">
+                {getFormattedCurrency(Math.abs(item.averageBalance))
+                  .replace(currency, '')
+                  .trim()}{' '}
+                {item.averageBalance >= 0 ? 'Cr' : 'Dr'}
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>
       {totalAverage != null ? (
         <TableFooter>
           <TableRow className="font-bold print-row">
-            <TableCell colSpan={2}>Net Average</TableCell>
-            <TableCell className="text-right">
-              {getFormattedCurrency(Math.abs(totalAverage))
-                .replace(currency, '')
-                .trim()}{' '}
-              {totalAverage >= 0 ? 'Cr' : 'Dr'}
-            </TableCell>
+            {(() => {
+              const labelSpan =
+                (visible.has('code') ? 1 : 0) + (visible.has('name') ? 1 : 0);
+              if (labelSpan === 0) return null;
+              return <TableCell colSpan={labelSpan}>Net Average</TableCell>;
+            })()}
+            {visible.has('averageBalance') ? (
+              <TableCell className="text-right">
+                {getFormattedCurrency(Math.abs(totalAverage))
+                  .replace(currency, '')
+                  .trim()}{' '}
+                {totalAverage >= 0 ? 'Cr' : 'Dr'}
+              </TableCell>
+            ) : null}
           </TableRow>
         </TableFooter>
       ) : null}

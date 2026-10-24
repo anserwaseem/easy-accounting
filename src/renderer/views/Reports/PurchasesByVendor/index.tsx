@@ -4,6 +4,8 @@ import { sumBy } from 'lodash';
 import { Download, Printer, RefreshCw } from 'lucide-react';
 import { Button } from '@/renderer/shad/ui/button';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
@@ -89,6 +91,24 @@ const PurchasesByVendorPage: React.FC = () => {
   const [selectedItem, setSelectedItem] =
     useState<PurchasesByVendorItem | null>(null);
 
+  const purchasesByVendorColumnSpecs = useMemo(
+    () => [
+      { id: 'itemName', label: 'Item' },
+      { id: 'quantity', label: 'Qty' },
+      { id: 'invoiceCount', label: 'Invoices' },
+    ],
+    [],
+  );
+  const purchasesByVendorColumnIds = useMemo(
+    () => purchasesByVendorColumnSpecs.map((column) => column.id),
+    [purchasesByVendorColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'purchases-by-vendor',
+    purchasesByVendorColumnIds,
+  );
+  const visiblePurchasesByVendorColumns = columnVisibility.included;
+
   const sourceRows = response?.items ?? [];
   const exportPrintRows = gridViewRows ?? sourceRows;
 
@@ -118,7 +138,7 @@ const PurchasesByVendorPage: React.FC = () => {
     [exportPrintRows],
   );
 
-  const columns = useMemo<ColumnDef<PurchasesByVendorItem>[]>(
+  const allColumns = useMemo<ColumnDef<PurchasesByVendorItem>[]>(
     () => [
       {
         accessorKey: 'itemName',
@@ -152,18 +172,38 @@ const PurchasesByVendorPage: React.FC = () => {
     [],
   );
 
+  const columns = useMemo(
+    () =>
+      allColumns.filter((column) => {
+        const id = String(
+          (column as { accessorKey?: string; id?: string }).accessorKey ??
+            (column as { id?: string }).id ??
+            '',
+        );
+        return visiblePurchasesByVendorColumns.has(id);
+      }),
+    [allColumns, visiblePurchasesByVendorColumns],
+  );
+
   const stickyFooterRow = useMemo(
-    () => [
-      null,
-      <span
-        key="qty-total"
-        className="block font-semibold tabular-nums whitespace-nowrap"
-      >
-        {totalQty.toLocaleString()}
-      </span>,
-      null,
-    ],
-    [totalQty],
+    () =>
+      columns.map((column) => {
+        const id = String(
+          (column as { accessorKey?: string }).accessorKey ?? '',
+        );
+        if (id === 'quantity') {
+          return (
+            <span
+              key="qty-total"
+              className="block font-semibold tabular-nums whitespace-nowrap"
+            >
+              {totalQty.toLocaleString()}
+            </span>
+          );
+        }
+        return null;
+      }),
+    [columns, totalQty],
   );
 
   const canExport = !isLoading && selectedVendorId != null && itemCount > 0;
@@ -192,8 +232,26 @@ const PurchasesByVendorPage: React.FC = () => {
             subtitle,
             sheetName: 'Items',
             columns: [
-              { key: 'itemName', header: 'Item', format: 'string', width: 28 },
-              { key: 'quantity', header: 'Qty', format: 'number', width: 10 },
+              ...(visiblePurchasesByVendorColumns.has('itemName')
+                ? ([
+                    {
+                      key: 'itemName',
+                      header: 'Item',
+                      format: 'string' as const,
+                      width: 28,
+                    },
+                  ] as const)
+                : []),
+              ...(visiblePurchasesByVendorColumns.has('quantity')
+                ? ([
+                    {
+                      key: 'quantity',
+                      header: 'Qty',
+                      format: 'number' as const,
+                      width: 10,
+                    },
+                  ] as const)
+                : []),
             ],
             rows: exportPrintRows as unknown as Array<Record<string, unknown>>,
             footerRow: { quantity: totalQty },
@@ -238,6 +296,7 @@ const PurchasesByVendorPage: React.FC = () => {
     exportPrintRows,
     selectedVendorName,
     totalQty,
+    visiblePurchasesByVendorColumns,
   ]);
 
   const handlePrint = useCallback(() => {
@@ -247,8 +306,16 @@ const PurchasesByVendorPage: React.FC = () => {
       vendorName: selectedVendorName,
       dateSubtitle,
       totalQty,
+      visibleColumns: visiblePurchasesByVendorColumns,
     });
-  }, [canExport, dateSubtitle, exportPrintRows, selectedVendorName, totalQty]);
+  }, [
+    canExport,
+    dateSubtitle,
+    exportPrintRows,
+    selectedVendorName,
+    totalQty,
+    visiblePurchasesByVendorColumns,
+  ]);
 
   return (
     <ReportLayout
@@ -300,6 +367,12 @@ const PurchasesByVendorPage: React.FC = () => {
             }
             actions={
               <>
+                <ReportColumnsMenu
+                  columns={purchasesByVendorColumnSpecs}
+                  included={columnVisibility.included}
+                  onToggle={columnVisibility.toggle}
+                  onToggleAll={columnVisibility.toggleAll}
+                />
                 <Button
                   variant="outline"
                   size="icon"

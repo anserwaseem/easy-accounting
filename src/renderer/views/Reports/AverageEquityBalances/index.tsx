@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Card } from 'renderer/shad/ui/card';
@@ -9,6 +9,8 @@ import {
 } from 'renderer/shad/ui/datePicker';
 import { ReportLayout } from 'renderer/components/ReportLayout';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import {
   exportReportToExcel,
   type ReportExportPayload,
@@ -35,41 +37,62 @@ const buildAverageEquityPayload = (
   state: AverageEquityBalancesState,
   startDate: Date,
   endDate: Date,
-): ReportExportPayload<AverageEquityRow> => ({
-  title: 'Average Equity Balances',
-  subtitle: `${formatDisplayDate(startDate)} to ${formatDisplayDate(endDate)}`,
-  sheetName: 'Average Equity Balances',
-  suggestedFileName: `Average_Equity_Balances_${format(
-    startDate,
-    'yyyy-MM-dd',
-  )}_${format(endDate, 'yyyy-MM-dd')}.xlsx`,
-  columns: [
-    { key: 'code', header: 'Account Code', format: 'string', width: 14 },
-    { key: 'name', header: 'Account Name', format: 'string', width: 32 },
+  visibleColumns?: ReadonlySet<string>,
+): ReportExportPayload<AverageEquityRow> => {
+  const visible =
+    visibleColumns ??
+    new Set(['code', 'name', 'averageBalance', 'balanceType']);
+  const columns = [
+    {
+      key: 'code',
+      header: 'Account Code',
+      format: 'string' as const,
+      width: 14,
+    },
+    {
+      key: 'name',
+      header: 'Account Name',
+      format: 'string' as const,
+      width: 32,
+    },
     {
       key: 'averageBalance',
       header: 'Average Balance',
-      format: 'currency',
+      format: 'currency' as const,
       width: 16,
     },
-    { key: 'balanceType', header: 'Type', format: 'string', width: 8 },
-  ],
-  rows: state.items.map((item: AverageEquityBalanceItem) => ({
-    code: item.code ?? '',
-    name: item.name,
-    averageBalance: Math.abs(item.averageBalance),
-    balanceType: item.averageBalance >= 0 ? 'Cr' : 'Dr',
-  })),
-  footerRow:
-    state.totalAverage != null
-      ? {
-          code: '',
-          name: 'Net Average',
-          averageBalance: Math.abs(state.totalAverage),
-          balanceType: state.totalAverage >= 0 ? 'Cr' : 'Dr',
-        }
-      : undefined,
-});
+    { key: 'balanceType', header: 'Type', format: 'string' as const, width: 8 },
+  ].filter((column) =>
+    visible.has(String(column.key)),
+  ) as ReportExportPayload<AverageEquityRow>['columns'];
+  return {
+    title: 'Average Equity Balances',
+    subtitle: `${formatDisplayDate(startDate)} to ${formatDisplayDate(
+      endDate,
+    )}`,
+    sheetName: 'Average Equity Balances',
+    suggestedFileName: `Average_Equity_Balances_${format(
+      startDate,
+      'yyyy-MM-dd',
+    )}_${format(endDate, 'yyyy-MM-dd')}.xlsx`,
+    columns,
+    rows: state.items.map((item: AverageEquityBalanceItem) => ({
+      code: item.code ?? '',
+      name: item.name,
+      averageBalance: Math.abs(item.averageBalance),
+      balanceType: item.averageBalance >= 0 ? 'Cr' : 'Dr',
+    })),
+    footerRow:
+      state.totalAverage != null
+        ? {
+            code: '',
+            name: 'Net Average',
+            averageBalance: Math.abs(state.totalAverage),
+            balanceType: state.totalAverage >= 0 ? 'Cr' : 'Dr',
+          }
+        : undefined,
+  };
+};
 
 const AverageEquityBalancesPage = () => {
   const {
@@ -92,6 +115,25 @@ const AverageEquityBalancesPage = () => {
 
   const sortedItems = sortItems(state.items);
 
+  const averageEquityColumnSpecs = useMemo(
+    () => [
+      { id: 'code', label: 'Account Code' },
+      { id: 'name', label: 'Account Name' },
+      { id: 'averageBalance', label: 'Average Balance' },
+      { id: 'balanceType', label: 'Type' },
+    ],
+    [],
+  );
+  const averageEquityColumnIds = useMemo(
+    () => averageEquityColumnSpecs.map((column) => column.id),
+    [averageEquityColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'average-equity-balances',
+    averageEquityColumnIds,
+  );
+  const visibleAverageEquityColumns = columnVisibility.included;
+
   const handlePrint = () => window.print();
 
   const handleExportExcel = useCallback(() => {
@@ -100,6 +142,7 @@ const AverageEquityBalancesPage = () => {
         { ...state, items: sortItems(state.items) },
         startDate,
         endDate,
+        visibleAverageEquityColumns,
       );
       exportReportToExcel(payload);
       toast({
@@ -115,7 +158,7 @@ const AverageEquityBalancesPage = () => {
         variant: 'destructive',
       });
     }
-  }, [state, startDate, endDate, sortItems]);
+  }, [state, startDate, endDate, sortItems, visibleAverageEquityColumns]);
 
   const canExport = !isLoading && state.items.length > 0;
 
@@ -149,6 +192,12 @@ const AverageEquityBalancesPage = () => {
                   className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
                 />
               </Button>
+              <ReportColumnsMenu
+                columns={averageEquityColumnSpecs}
+                included={columnVisibility.included}
+                onToggle={columnVisibility.toggle}
+                onToggleAll={columnVisibility.toggleAll}
+              />
               <Button
                 variant="outline"
                 size="icon"
@@ -187,6 +236,7 @@ const AverageEquityBalancesPage = () => {
           sortField={sortField}
           sortDirection={sortDirection}
           onSort={handleSort}
+          visibleColumns={visibleAverageEquityColumns}
         />
       </Card>
     </ReportLayout>

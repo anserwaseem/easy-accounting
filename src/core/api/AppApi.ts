@@ -518,7 +518,12 @@ export interface AppApi {
   ) => Promise<
     Record<
       number,
-      Array<{ invoiceNumber: number; date: string; amount: number }>
+      Array<{
+        invoiceNumber: number;
+        date: string;
+        amount: number;
+        discountPercentage?: number | string;
+      }>
     >
   >;
   getInvoiceIdsFromMinId: (

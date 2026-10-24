@@ -1,5 +1,6 @@
 import {
   buildCollectionSheetRows,
+  collectionSheetDiscountText,
   collectionSheetTotals,
   collectionSheetTourTotals,
   collectionSheetUntouredTotal,
@@ -210,6 +211,97 @@ describe('buildCollectionSheetRows', () => {
       'en',
     );
     expect(rows.map((r) => r.collected)).toEqual([0]);
+  });
+
+  it('keeps each bill’s journal discount and joins tier portions that differ', () => {
+    const rows = buildCollectionSheetRows(
+      [
+        { id: 1, name: 'NOOR', code: 'NOOR', address: 'X' },
+        { id: 2, name: 'NOOR-T', code: 'NOOR-T', address: 'X' },
+      ],
+      itemTypes,
+      { 1: owed(100), 2: owed(40) },
+      {
+        1: [
+          {
+            invoiceNumber: 1,
+            date: '2026-01-02',
+            amount: 60,
+            discountPercentage: 20,
+          },
+          {
+            invoiceNumber: 2,
+            date: '2026-02-02',
+            amount: 40,
+            discountPercentage: 'N',
+          },
+        ],
+        2: [
+          {
+            invoiceNumber: 2,
+            date: '2026-02-02',
+            amount: 40,
+            discountPercentage: 10,
+          },
+        ],
+      },
+      'en',
+    );
+    expect(
+      rows.map((entry) => collectionSheetDiscountText(entry.discountPortions)),
+    ).toEqual(['20%', 'N\nT: 10%']);
+  });
+
+  it('leaves opening balance without a discount', () => {
+    const rows = buildCollectionSheetRows(
+      [{ id: 1, name: 'A', code: 'A', address: 'Z' }],
+      itemTypes,
+      { 1: owed(80, 0) },
+      {
+        1: [
+          {
+            invoiceNumber: 1,
+            date: '2026-01-01',
+            amount: 50,
+            discountPercentage: 20,
+          },
+        ],
+      },
+      'en',
+    );
+    expect(collectionSheetDiscountText(rows[0]?.discountPortions)).toBe('-');
+    expect(collectionSheetDiscountText(rows[1]?.discountPortions)).toBe('20%');
+  });
+
+  it('uses one dash for a missing discount and one casing for the tier', () => {
+    expect(
+      collectionSheetDiscountText([
+        { suffix: '', discountPercentage: undefined },
+        { suffix: 't', discountPercentage: undefined },
+      ]),
+    ).toBe('-');
+    expect(
+      collectionSheetDiscountText([{ suffix: 't', discountPercentage: 25 }]),
+    ).toBe('T: 25%');
+    expect(
+      collectionSheetDiscountText([
+        { suffix: '', discountPercentage: undefined },
+        { suffix: 't', discountPercentage: 25 },
+      ]),
+    ).toBe('T: 25%');
+    expect(collectionSheetDiscountText(undefined)).toBe('-');
+    expect(
+      collectionSheetDiscountText([
+        { suffix: 'T', discountPercentage: 28 },
+        { suffix: '', discountPercentage: 20 },
+      ]),
+    ).toBe('20%\nT: 28%');
+    expect(
+      collectionSheetDiscountText([
+        { suffix: 'T', discountPercentage: 20 },
+        { suffix: '', discountPercentage: 20 },
+      ]),
+    ).toBe('20%\nT: 20%');
   });
 
   describe('tour columns', () => {

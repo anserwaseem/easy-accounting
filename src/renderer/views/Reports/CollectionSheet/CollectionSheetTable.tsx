@@ -9,6 +9,7 @@ import { Card } from '@/renderer/shad/ui/card';
 import { cn } from '@/renderer/lib/utils';
 import { EmptyState, LoadingState } from '../components';
 import {
+  collectionSheetDiscountLines,
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
@@ -27,6 +28,7 @@ interface CollectionSheetTableProps {
   rows: CollectionSheetRow[];
   tours: CollectionSheetTourColumn[];
   showUntoured: boolean;
+  visibleColumns?: ReadonlySet<string>;
   isLoading: boolean;
   hasAgent: boolean;
   language: CollectionSheetLanguage;
@@ -90,12 +92,33 @@ const codeRail =
 
 export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   rows,
-  tours,
+  tours: allTours,
   showUntoured,
+  visibleColumns,
   isLoading,
   hasAgent,
   language,
 }: CollectionSheetTableProps) => {
+  // default to all columns visible when no selection is supplied
+  const defaultVisible = new Set([
+    'shop',
+    'city',
+    'code',
+    'billNumber',
+    'billDate',
+    'balance',
+    ...allTours.map((tour) => `tour_${tour.id}`),
+    ...(showUntoured ? ['untoured'] : []),
+    'collection',
+    'difference',
+    'remaining',
+  ]);
+  const vc = visibleColumns ?? defaultVisible;
+  const isVisible = (id: string) => vc.has(id);
+  const visibleTours = allTours.filter((tour) => isVisible(`tour_${tour.id}`));
+  const tours = visibleTours;
+  const hasTours = visibleTours.length > 0;
+  const showUntouredVisible = showUntoured && isVisible('untoured');
   if (isLoading) return <LoadingState />;
   if (!hasAgent) {
     return <EmptyState message="Select an agent to build the sheet." />;
@@ -110,7 +133,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   const tourTotals = collectionSheetTourTotals(rows, tourIds);
   const untouredTotal = collectionSheetUntouredTotal(rows);
   const urdu = language === 'ur';
-  const hasTours = tours.length > 0;
+  // hasTours already defined above from visibleTours
   // fixed columns span both header rows when tour columns add a second one
   const span = hasTours ? 2 : undefined;
   // one row per bill; the sticky code is the only shop identity left, so the
@@ -128,46 +151,81 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden print:block print:overflow-visible">
-        <Card className="shadow-md print-card relative min-h-0 flex-1 w-full overflow-auto print:overflow-visible">
+      <div className="flex min-h-0 flex-col overflow-hidden print:block print:overflow-visible">
+        <Card className="shadow-md print-card relative w-full overflow-auto print:overflow-visible">
           <table
             className="w-full border-collapse text-sm print-table"
             dir={urdu ? 'rtl' : 'ltr'}
           >
             <thead className="sticky top-0 z-20 bg-background shadow-[0_1px_0_hsl(var(--border))]">
               <tr className="text-start">
-                <th
-                  rowSpan={span}
-                  dir="ltr"
-                  className={cn(headCell, codeRail, 'z-30 text-left')}
-                >
-                  {headers.code}
-                </th>
-                <th
-                  rowSpan={span}
-                  dir="ltr"
-                  className={cn(headCell, 'text-left whitespace-nowrap')}
-                >
-                  {headers.bill}
-                </th>
-                <th
-                  rowSpan={span}
-                  dir="ltr"
-                  className={cn(headCell, 'text-left whitespace-nowrap')}
-                >
-                  {headers.billDate}
-                </th>
-                <th rowSpan={span} className={cn(headCell, 'text-end')}>
-                  <HeaderWithTooltip
-                    label={headers.balance}
-                    align="end"
-                    tooltip={
-                      urdu
-                        ? 'اس بل کی واجب الادا رقم (پہلے واجب الادا بل پہلے ادا ہوتے ہیں)۔ ادا شدہ پرانے بل خارج ہیں۔'
-                        : 'Active unpaid balance on this bill (settled FIFO against customer balance). Fully paid older bills are omitted.'
-                    }
-                  />
-                </th>
+                {isVisible('shop') ? (
+                  <th rowSpan={span} className={cn(headCell, 'text-left')}>
+                    {headers.shop}
+                  </th>
+                ) : null}
+                {isVisible('city') ? (
+                  <th rowSpan={span} className={cn(headCell, 'text-left')}>
+                    {headers.city}
+                  </th>
+                ) : null}
+                {isVisible('code') ? (
+                  <th
+                    rowSpan={span}
+                    dir="ltr"
+                    className={cn(headCell, codeRail, 'z-30 text-left')}
+                  >
+                    {headers.code}
+                  </th>
+                ) : null}
+                {isVisible('billNumber') ? (
+                  <th
+                    rowSpan={span}
+                    dir="ltr"
+                    className={cn(headCell, 'text-left whitespace-nowrap')}
+                  >
+                    {headers.bill}
+                  </th>
+                ) : null}
+                {isVisible('billDate') ? (
+                  <th
+                    rowSpan={span}
+                    dir="ltr"
+                    className={cn(headCell, 'text-left whitespace-nowrap')}
+                  >
+                    {headers.billDate}
+                  </th>
+                ) : null}
+                {isVisible('billPercentage') ? (
+                  <th
+                    rowSpan={span}
+                    dir="ltr"
+                    className={cn(headCell, 'text-end whitespace-nowrap')}
+                  >
+                    <HeaderWithTooltip
+                      label={headers.billPercentage}
+                      align="end"
+                      tooltip={
+                        urdu
+                          ? 'ہر لائن ایک اکاؤنٹ کی رعایت ہے، وہی جو Bills Aging میں Bill % ہے۔ T: N · 28% کا مطلب ہے پورا یہ آفر صرف T اکاؤنٹ پر ہے۔ — کا مطلب ہے کہ کوئی رعایت درج نہیں۔'
+                          : 'Each line is one account’s discount, the same Bill % as Bills Aging. “T: N · 28%” is one offer on the T account, not a base offer plus a T offer. A dash means none was recorded.'
+                      }
+                    />
+                  </th>
+                ) : null}
+                {isVisible('balance') ? (
+                  <th rowSpan={span} className={cn(headCell, 'text-end')}>
+                    <HeaderWithTooltip
+                      label={headers.balance}
+                      align="end"
+                      tooltip={
+                        urdu
+                          ? 'اس بل کی واجب الادا رقم (پہلے واجب الادا بل پہلے ادا ہوتے ہیں)۔ ادا شدہ پرانے بل خارج ہیں۔'
+                          : 'Active unpaid balance on this bill (settled FIFO against customer balance). Fully paid older bills are omitted.'
+                      }
+                    />
+                  </th>
+                ) : null}
                 {hasTours ? (
                   <th
                     colSpan={tours.length}
@@ -184,7 +242,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     />
                   </th>
                 ) : null}
-                {showUntoured ? (
+                {showUntouredVisible ? (
                   <th
                     rowSpan={span}
                     className={cn(
@@ -203,38 +261,44 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     />
                   </th>
                 ) : null}
-                <th
-                  rowSpan={span}
-                  className={cn(headCell, 'text-start', writeCell)}
-                >
-                  <HeaderWithTooltip
-                    label={headers.collection}
-                    tooltip={
-                      urdu
-                        ? 'پرنٹ پر خالی کالم جہاں ایجنٹ دورے کے دوران نئی وصولی درج کرے گا۔'
-                        : 'Blank column on printouts for the agent to log receipts during their route visit.'
-                    }
-                  />
-                </th>
-                <th
-                  rowSpan={span}
-                  className={cn(headCell, 'text-start', writeCell)}
-                >
-                  {headers.difference}
-                </th>
-                <th
-                  rowSpan={span}
-                  className={cn(headCell, 'text-start', writeCell)}
-                >
-                  <HeaderWithTooltip
-                    label={headers.remaining}
-                    tooltip={
-                      urdu
-                        ? 'پرنٹ پر خالی کالم جہاں ایجنٹ نیا بقایا (واجب الادا منہا وصولی) درج کرے گا۔'
-                        : 'Blank column for the agent to calculate and note remaining balance (Due amount − Collection).'
-                    }
-                  />
-                </th>
+                {isVisible('collection') ? (
+                  <th
+                    rowSpan={span}
+                    className={cn(headCell, 'text-start', writeCell)}
+                  >
+                    <HeaderWithTooltip
+                      label={headers.collection}
+                      tooltip={
+                        urdu
+                          ? 'پرنٹ پر خالی کالم جہاں ایجنٹ دورے کے دوران نئی وصولی درج کرے گا۔'
+                          : 'Blank column on printouts for the agent to log receipts during their route visit.'
+                      }
+                    />
+                  </th>
+                ) : null}
+                {isVisible('difference') ? (
+                  <th
+                    rowSpan={span}
+                    className={cn(headCell, 'text-start', writeCell)}
+                  >
+                    {headers.difference}
+                  </th>
+                ) : null}
+                {isVisible('remaining') ? (
+                  <th
+                    rowSpan={span}
+                    className={cn(headCell, 'text-start', writeCell)}
+                  >
+                    <HeaderWithTooltip
+                      label={headers.remaining}
+                      tooltip={
+                        urdu
+                          ? 'پرنٹ پر خالی کالم جہاں ایجنٹ نیا بقایا (واجب الادا منہا وصولی) درج کرے گا۔'
+                          : 'Blank column for the agent to calculate and note remaining balance (Due amount − Collection).'
+                      }
+                    />
+                  </th>
+                ) : null}
               </tr>
               {hasTours ? (
                 <tr>
@@ -262,35 +326,89 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="align-top">
-                  <td
-                    dir="ltr"
-                    title={codeTitle(row)}
-                    className={cn(
-                      bodyCell,
-                      codeRail,
-                      'z-10 bg-background whitespace-nowrap text-left',
-                      row.billIndex === 1
-                        ? 'font-medium'
-                        : 'text-muted-foreground/45',
-                    )}
-                  >
-                    {row.billIndex === 1 ? row.code : '//'}
-                  </td>
-                  <td
-                    dir="ltr"
-                    className={cn(bodyCell, 'whitespace-nowrap text-left')}
-                  >
-                    {row.billNumber}
-                  </td>
-                  <td
-                    dir="ltr"
-                    className={cn(bodyCell, 'whitespace-nowrap text-left')}
-                  >
-                    {row.billDate}
-                  </td>
-                  <td className={cn(bodyCell, 'text-end')}>
-                    <Amount amount={row.balance} />
-                  </td>
+                  {isVisible('shop') ? (
+                    <td
+                      dir="ltr"
+                      className={cn(
+                        bodyCell,
+                        'whitespace-nowrap text-left',
+                        row.shopDisplay === '//' && 'text-muted-foreground/45',
+                      )}
+                    >
+                      {row.shopDisplay}
+                    </td>
+                  ) : null}
+                  {isVisible('city') ? (
+                    <td
+                      dir="ltr"
+                      className={cn(
+                        bodyCell,
+                        'whitespace-nowrap text-left',
+                        row.cityDisplay === '//' && 'text-muted-foreground/45',
+                      )}
+                    >
+                      {row.cityDisplay}
+                    </td>
+                  ) : null}
+                  {isVisible('code') ? (
+                    <td
+                      dir="ltr"
+                      title={codeTitle(row)}
+                      className={cn(
+                        bodyCell,
+                        codeRail,
+                        'z-10 bg-background whitespace-nowrap text-left',
+                        row.billIndex === 1
+                          ? 'font-medium'
+                          : 'text-muted-foreground/45',
+                      )}
+                    >
+                      {row.billIndex === 1 ? row.code : '//'}
+                    </td>
+                  ) : null}
+                  {isVisible('billNumber') ? (
+                    <td
+                      dir="ltr"
+                      className={cn(bodyCell, 'whitespace-nowrap text-left')}
+                    >
+                      {row.billNumber}
+                    </td>
+                  ) : null}
+                  {isVisible('billDate') ? (
+                    <td
+                      dir="ltr"
+                      className={cn(bodyCell, 'whitespace-nowrap text-left')}
+                    >
+                      {row.billDate}
+                    </td>
+                  ) : null}
+                  {isVisible('billPercentage') ? (
+                    <td
+                      dir="ltr"
+                      className={cn(bodyCell, 'whitespace-nowrap text-end')}
+                    >
+                      {collectionSheetDiscountLines(row.discountPortions).map(
+                        (line) => (
+                          <span
+                            key={`${line.suffix}:${line.label}`}
+                            className="block"
+                          >
+                            {line.suffix ? (
+                              <span className="text-muted-foreground/45">
+                                {line.suffix}:{' '}
+                              </span>
+                            ) : null}
+                            {line.label}
+                          </span>
+                        ),
+                      )}
+                    </td>
+                  ) : null}
+                  {isVisible('balance') ? (
+                    <td className={cn(bodyCell, 'text-end')}>
+                      <Amount amount={row.balance} />
+                    </td>
+                  ) : null}
                   {tours.map((tour) => {
                     const paid = row.tourPaid[tour.id];
                     const balance = row.tourBalance[tour.id];
@@ -342,7 +460,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       </td>
                     );
                   })}
-                  {showUntoured ? (
+                  {showUntouredVisible ? (
                     <td
                       className={cn(
                         bodyCell,
@@ -360,25 +478,44 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       {formatTourAmount(row.untoured)}
                     </td>
                   ) : null}
-                  <td className={cn(bodyCell, writeCell)} />
-                  <td className={cn(bodyCell, writeCell)} />
-                  <td className={cn(bodyCell, writeCell)} />
+                  {isVisible('collection') ? (
+                    <td className={cn(bodyCell, writeCell)} />
+                  ) : null}
+                  {isVisible('difference') ? (
+                    <td className={cn(bodyCell, writeCell)} />
+                  ) : null}
+                  {isVisible('remaining') ? (
+                    <td className={cn(bodyCell, writeCell)} />
+                  ) : null}
                 </tr>
               ))}
             </tbody>
             <tfoot className="sticky bottom-0 z-20 border-t border-border bg-muted/95 shadow-[0_-1px_0_hsl(var(--border))] backdrop-blur-sm print:static print:z-auto">
               <tr className="font-semibold bg-muted/95">
-                <td
-                  dir="ltr"
-                  className={cn(bodyCell, codeRail, 'z-30 bg-muted text-left')}
-                >
-                  {headers.total}
-                </td>
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'text-end bg-inherit')}>
-                  <Amount amount={totals.balance} />
-                </td>
+                {(['shop', 'city', 'code', 'billNumber', 'billDate'] as const)
+                  .filter((id) => isVisible(id))
+                  .map((id, index) => (
+                    <td
+                      key={id}
+                      dir="ltr"
+                      className={cn(
+                        bodyCell,
+                        'bg-inherit text-left',
+                        id === 'code' && codeRail,
+                        id === 'code' && 'z-30 bg-muted',
+                      )}
+                    >
+                      {index === 0 ? headers.total : null}
+                    </td>
+                  ))}
+                {isVisible('billPercentage') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
+                {isVisible('balance') ? (
+                  <td className={cn(bodyCell, 'text-end bg-inherit')}>
+                    <Amount amount={totals.balance} />
+                  </td>
+                ) : null}
                 {tours.map((tour) => (
                   <td
                     key={tour.id}
@@ -387,7 +524,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     {formatTourAmount(tourTotals[tour.id])}
                   </td>
                 ))}
-                {showUntoured ? (
+                {showUntouredVisible ? (
                   <td
                     className={cn(
                       bodyCell,
@@ -398,9 +535,15 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     {formatTourAmount(untouredTotal)}
                   </td>
                 ) : null}
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'bg-inherit')} />
+                {isVisible('collection') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
+                {isVisible('difference') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
+                {isVisible('remaining') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
               </tr>
             </tfoot>
           </table>

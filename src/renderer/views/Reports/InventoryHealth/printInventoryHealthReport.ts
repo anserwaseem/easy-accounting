@@ -25,53 +25,89 @@ interface PrintInventoryHealthOptions {
   rows: InventoryHealthPrintRow[];
   dateSubtitle: string;
   showAdjustedColumn: boolean;
+  /** visible column ids; defaults to every column when omitted */
+  visibleColumns?: ReadonlySet<string>;
 }
+
+const isVisible = (visible: ReadonlySet<string>, id: string): boolean =>
+  visible.has(id);
 
 const buildBodyHtml = (
   rows: InventoryHealthPrintRow[],
-  showAdjusted: boolean,
+  visibleColumns: ReadonlySet<string>,
 ): string => {
   return rows
     .map((row) => {
-      const adjCell = showAdjusted
-        ? `<td class="num">${escape(String(row.adjustmentQtyInDate ?? 0))}</td>`
-        : '';
-      const lastSale = escape(
-        formatInventoryHealthLastInvoiceCell(
-          row.lastSaleDate,
-          row.lastSaleInvoiceNumber ?? null,
-        ) || '—',
-      );
-      const lastPurch = escape(
-        formatInventoryHealthLastInvoiceCell(
-          row.lastPurchaseDate,
-          row.lastPurchaseInvoiceNumber ?? null,
-        ) || '—',
-      );
-      const daysM =
-        row.daysSinceMovement != null
-          ? escape(String(row.daysSinceMovement))
-          : '';
-      const daysC =
-        row.daysOfCover != null ? escape(String(row.daysOfCover)) : '';
-      const listCell =
-        row.listPosition != null
-          ? escape(String(row.listPosition))
-          : escape('—');
-      return `<tr>
-  <td class="num">${listCell}</td>
-  <td>${escape(row.item)}</td>
-  <td>${escape(row.itemType ?? '')}</td>
-  <td class="num">${escape(String(row.price ?? 0))}</td>
-  <td class="num">${escape(String(row.onHandQty ?? 0))}</td>
-  <td class="num">${escape(String(row.soldQtyInDate ?? 0))}</td>
-  <td class="num">${escape(String(row.purchasedQtyInDate ?? 0))}</td>
-  ${adjCell}
-  <td>${lastSale}</td>
-  <td>${lastPurch}</td>
-  <td class="num">${daysM}</td>
-  <td class="num">${daysC}</td>
-</tr>`;
+      const cells: string[] = [];
+      if (isVisible(visibleColumns, 'listPosition')) {
+        const listCell =
+          row.listPosition != null
+            ? escape(String(row.listPosition))
+            : escape('—');
+        cells.push(`<td class="num">${listCell}</td>`);
+      }
+      if (isVisible(visibleColumns, 'item')) {
+        cells.push(`<td>${escape(row.item)}</td>`);
+      }
+      if (isVisible(visibleColumns, 'itemType')) {
+        cells.push(`<td>${escape(row.itemType ?? '')}</td>`);
+      }
+      if (isVisible(visibleColumns, 'price')) {
+        cells.push(`<td class="num">${escape(String(row.price ?? 0))}</td>`);
+      }
+      if (isVisible(visibleColumns, 'onHandQty')) {
+        cells.push(
+          `<td class="num">${escape(String(row.onHandQty ?? 0))}</td>`,
+        );
+      }
+      if (isVisible(visibleColumns, 'soldQtyInDate')) {
+        cells.push(
+          `<td class="num">${escape(String(row.soldQtyInDate ?? 0))}</td>`,
+        );
+      }
+      if (isVisible(visibleColumns, 'purchasedQtyInDate')) {
+        cells.push(
+          `<td class="num">${escape(String(row.purchasedQtyInDate ?? 0))}</td>`,
+        );
+      }
+      if (isVisible(visibleColumns, 'adjustmentQtyInDate')) {
+        cells.push(
+          `<td class="num">${escape(
+            String(row.adjustmentQtyInDate ?? 0),
+          )}</td>`,
+        );
+      }
+      if (isVisible(visibleColumns, 'lastSaleDate')) {
+        const lastSale = escape(
+          formatInventoryHealthLastInvoiceCell(
+            row.lastSaleDate,
+            row.lastSaleInvoiceNumber ?? null,
+          ) || '—',
+        );
+        cells.push(`<td>${lastSale}</td>`);
+      }
+      if (isVisible(visibleColumns, 'lastPurchaseDate')) {
+        const lastPurch = escape(
+          formatInventoryHealthLastInvoiceCell(
+            row.lastPurchaseDate,
+            row.lastPurchaseInvoiceNumber ?? null,
+          ) || '—',
+        );
+        cells.push(`<td>${lastPurch}</td>`);
+      }
+      if (isVisible(visibleColumns, 'daysSinceMovement')) {
+        const daysM =
+          row.daysSinceMovement != null
+            ? escape(String(row.daysSinceMovement))
+            : '';
+        cells.push(`<td class="num">${daysM}</td>`);
+      }
+      if (isVisible(visibleColumns, 'daysOfCover')) {
+        const daysC =
+          row.daysOfCover != null ? escape(String(row.daysOfCover)) : '';
+        cells.push(`<td class="num">${daysC}</td>`);
+      }
+      return `<tr>${cells.join('')}</tr>`;
     })
     .join('');
 };
@@ -83,12 +119,63 @@ const buildBodyHtml = (
 export const printInventoryHealthReportIframe = (
   options: PrintInventoryHealthOptions,
 ) => {
-  const { rows, dateSubtitle, showAdjustedColumn } = options;
+  const {
+    rows,
+    dateSubtitle,
+    showAdjustedColumn,
+    visibleColumns: visibleColumnsOption,
+  } = options;
+  const visibleColumns =
+    visibleColumnsOption ??
+    new Set([
+      'listPosition',
+      'item',
+      'itemType',
+      'price',
+      'onHandQty',
+      'soldQtyInDate',
+      'purchasedQtyInDate',
+      'adjustmentQtyInDate',
+      'lastSaleDate',
+      'lastPurchaseDate',
+      'daysSinceMovement',
+      'daysOfCover',
+    ]);
+  const vc = (id: string) => visibleColumns.has(id);
+  const effectiveVisibleColumns = new Set(visibleColumns);
+  if (!showAdjustedColumn) {
+    effectiveVisibleColumns.delete('adjustmentQtyInDate');
+  }
+  const showAdjusted = Boolean(showAdjustedColumn && vc('adjustmentQtyInDate'));
+  const headerCells: string[] = [];
+  if (effectiveVisibleColumns.has('listPosition'))
+    headerCells.push('<th class="num">List #</th>');
+  if (effectiveVisibleColumns.has('item')) headerCells.push('<th>Item</th>');
+  if (effectiveVisibleColumns.has('itemType'))
+    headerCells.push('<th>Type</th>');
+  if (effectiveVisibleColumns.has('price'))
+    headerCells.push('<th class="num">Price</th>');
+  if (effectiveVisibleColumns.has('onHandQty'))
+    headerCells.push('<th class="num">On hand</th>');
+  if (effectiveVisibleColumns.has('soldQtyInDate'))
+    headerCells.push('<th class="num">Sold</th>');
+  if (effectiveVisibleColumns.has('purchasedQtyInDate'))
+    headerCells.push('<th class="num">Purchased</th>');
+  if (effectiveVisibleColumns.has('adjustmentQtyInDate') && showAdjusted)
+    headerCells.push('<th class="num">Adjusted</th>');
+  if (effectiveVisibleColumns.has('lastSaleDate'))
+    headerCells.push('<th>Last sale</th>');
+  if (effectiveVisibleColumns.has('lastPurchaseDate'))
+    headerCells.push('<th>Last purchase</th>');
+  if (effectiveVisibleColumns.has('daysSinceMovement'))
+    headerCells.push('<th class="num">Days movement</th>');
+  if (effectiveVisibleColumns.has('daysOfCover'))
+    headerCells.push('<th class="num">Days cover</th>');
+  const headerHtml = headerCells.join('');
   if (rows.length === 0) return;
 
   const title = escape(`Inventory Health: ${dateSubtitle}`);
-  const adjHeader = showAdjustedColumn ? '<th class="num">Adjusted</th>' : '';
-  const bodyHtml = buildBodyHtml(rows, showAdjustedColumn);
+  const bodyHtml = buildBodyHtml(rows, effectiveVisibleColumns);
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
@@ -128,18 +215,7 @@ export const printInventoryHealthReportIframe = (
   <table class="data-table-wrapper print-table" style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
-        <th class="num">List #</th>
-        <th>Item</th>
-        <th>Type</th>
-        <th class="num">Price</th>
-        <th class="num">On hand</th>
-        <th class="num">Sold</th>
-        <th class="num">Purchased</th>
-        ${adjHeader}
-        <th>Last sale</th>
-        <th>Last purchase</th>
-        <th class="num">Days movement</th>
-        <th class="num">Days cover</th>
+        ${headerHtml}
       </tr>
     </thead>
     <tbody>${bodyHtml}</tbody>

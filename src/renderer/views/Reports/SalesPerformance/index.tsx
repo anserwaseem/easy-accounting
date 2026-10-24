@@ -53,8 +53,11 @@ import { Badge } from '@/renderer/shad/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import type { Row } from '@tanstack/react-table';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { REPORT_FILTER_KEYS } from '@/types';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { printStyles } from '../components';
 
 interface SalesPerformanceResponse {
   kpis: Record<string, number>;
@@ -206,6 +209,52 @@ const SalesPerformanceReportPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('customers');
   const [seriesIndex, setSeriesIndex] = useState(0);
   const filterRef = useRef(0);
+
+  // column choices for export/print/table, persisted per report
+  const activeColumnSpecs = useMemo(() => {
+    if (activeTab === 'customers') {
+      const specs = [
+        { id: 'groupName', label: groupByPolicy ? 'Policy' : 'Customer' },
+        { id: 'totalAmount', label: 'Total Amount' },
+        { id: 'invoiceCount', label: 'Invoices' },
+      ];
+      if (!groupByPolicy)
+        specs.splice(1, 0, { id: 'groupCode', label: 'Code' });
+      if (groupByPolicy)
+        specs.push({ id: 'customerCount', label: 'Customers' });
+      return specs;
+    }
+    if (activeTab === 'items') {
+      return [
+        { id: 'itemName', label: 'Item' },
+        { id: 'totalQty', label: 'Qty Sold' },
+        { id: 'totalAmount', label: 'Total Amount' },
+      ];
+    }
+    if (activeTab === 'returns') {
+      return [
+        { id: 'invoiceNumber', label: 'Invoice #' },
+        { id: 'date', label: 'Return Date' },
+        { id: 'customerName', label: 'Customer' },
+        { id: 'amount', label: 'Return Amount' },
+      ];
+    }
+    return [
+      { id: 'invoiceNumber', label: 'Quotation #' },
+      { id: 'date', label: 'Date' },
+      { id: 'customerName', label: 'Customer' },
+      { id: 'amount', label: 'Amount' },
+    ];
+  }, [activeTab, groupByPolicy]);
+  const activeColumnIds = useMemo(
+    () => activeColumnSpecs.map((column) => column.id),
+    [activeColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'sales-performance',
+    activeColumnIds,
+  );
+  const visibleColumns = columnVisibility.included;
   /**
    * rows of the active tab as the grid shows them (search + column sort).
    *
@@ -530,6 +579,11 @@ const SalesPerformanceReportPage: React.FC = () => {
         columns = EXPORT_COLUMNS[activeTab];
       }
 
+      // honor the column picker: export only the columns the user kept visible
+      columns = columns.filter((column) =>
+        visibleColumns.has(String(column.key)),
+      );
+
       // export what the grid shows, not the raw rows: a search or a column
       // sort the user applied should carry into the spreadsheet
       const rows = gridViewRows ?? sourceRows;
@@ -563,7 +617,14 @@ const SalesPerformanceReportPage: React.FC = () => {
         variant: 'destructive',
       });
     }
-  }, [response, dateRange, activeTab, groupByPolicy, gridViewRows]);
+  }, [
+    response,
+    dateRange,
+    activeTab,
+    groupByPolicy,
+    gridViewRows,
+    visibleColumns,
+  ]);
 
   const handlePrint = useCallback(() => window.print(), []);
 
@@ -708,8 +769,13 @@ const SalesPerformanceReportPage: React.FC = () => {
       });
     }
 
-    return baseCols;
-  }, [groupByPolicy]);
+    // hide columns the user toggled off in the picker
+    return baseCols.filter((column) => {
+      const typedColumn = column as { accessorKey?: string; id?: string };
+      const columnId = String(typedColumn.accessorKey ?? typedColumn.id ?? '');
+      return visibleColumns.has(columnId);
+    });
+  }, [groupByPolicy, visibleColumns]);
 
   // Columns for top items
   // eslint-disable-next-line react/no-unstable-nested-components
@@ -742,6 +808,20 @@ const SalesPerformanceReportPage: React.FC = () => {
       },
     ],
     [navigate],
+  );
+
+  // filter item columns by picker visibility
+  // eslint-disable-next-line react/no-unstable-nested-components
+  const filteredItemColumns = useMemo(
+    () =>
+      itemColumns.filter((column) => {
+        const typedColumn = column as { accessorKey?: string; id?: string };
+        const columnId = String(
+          typedColumn.accessorKey ?? typedColumn.id ?? '',
+        );
+        return visibleColumns.has(columnId);
+      }),
+    [itemColumns, visibleColumns],
   );
 
   // Columns for returns
@@ -786,6 +866,18 @@ const SalesPerformanceReportPage: React.FC = () => {
     [handleDrillDown],
   );
 
+  const filteredReturnsColumns = useMemo(
+    () =>
+      returnsColumns.filter((column) => {
+        const typedColumn = column as { accessorKey?: string; id?: string };
+        const columnId = String(
+          typedColumn.accessorKey ?? typedColumn.id ?? '',
+        );
+        return visibleColumns.has(columnId);
+      }),
+    [returnsColumns, visibleColumns],
+  );
+
   // Columns for quotation backlog
   // eslint-disable-next-line react/no-unstable-nested-components
   const quotationColumns = useMemo<ColumnDef<Record<string, unknown>>[]>(
@@ -826,8 +918,21 @@ const SalesPerformanceReportPage: React.FC = () => {
     [handleDrillDown],
   );
 
+  const filteredQuotationColumns = useMemo(
+    () =>
+      quotationColumns.filter((column) => {
+        const typedColumn = column as { accessorKey?: string; id?: string };
+        const columnId = String(
+          typedColumn.accessorKey ?? typedColumn.id ?? '',
+        );
+        return visibleColumns.has(columnId);
+      }),
+    [quotationColumns, visibleColumns],
+  );
+
   return (
     <ReportLayout
+      printStyles={printStyles}
       header={
         <ReportHeader
           title="Sales Performance"
@@ -893,6 +998,12 @@ const SalesPerformanceReportPage: React.FC = () => {
           }
           actions={
             <>
+              <ReportColumnsMenu
+                columns={activeColumnSpecs}
+                included={visibleColumns}
+                onToggle={columnVisibility.toggle}
+                onToggleAll={columnVisibility.toggleAll}
+              />
               <Button
                 variant="outline"
                 size="icon"
@@ -1103,7 +1214,7 @@ const SalesPerformanceReportPage: React.FC = () => {
 
         {!isLoading && response && activeTab === 'items' && (
           <DataTable
-            columns={itemColumns}
+            columns={filteredItemColumns}
             data={response.topItems}
             defaultSortField="totalAmount"
             defaultSortDirection="desc"
@@ -1121,7 +1232,7 @@ const SalesPerformanceReportPage: React.FC = () => {
           activeTab === 'returns' &&
           response.returns.length > 0 && (
             <DataTable
-              columns={returnsColumns}
+              columns={filteredReturnsColumns}
               data={response.returns}
               defaultSortField="date"
               defaultSortDirection="desc"
@@ -1139,7 +1250,7 @@ const SalesPerformanceReportPage: React.FC = () => {
           activeTab === 'quotations' &&
           response.quotationBacklog.length > 0 && (
             <DataTable
-              columns={quotationColumns}
+              columns={filteredQuotationColumns}
               data={response.quotationBacklog}
               defaultSortField="date"
               defaultSortDirection="desc"

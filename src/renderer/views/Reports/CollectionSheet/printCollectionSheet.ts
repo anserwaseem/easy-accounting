@@ -1,6 +1,7 @@
 import { escape } from 'lodash';
 import { printStyles } from '../components/printStyles';
 import {
+  collectionSheetDiscountLines,
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
@@ -21,19 +22,62 @@ interface CollectionSheetPrintOptions {
   title: string;
   subtitle: string;
   language: CollectionSheetLanguage;
+  visibleColumns?: ReadonlySet<string>;
 }
 
 const cell = (value: string, extra = ''): string =>
   `<td${extra}>${escape(value)}</td>`;
 
-export const printCollectionSheetIframe = (
+/** table markup for the collection-sheet printout. null when there is nothing to print. */
+export const buildCollectionSheetPrintHtml = (
   options: CollectionSheetPrintOptions,
-) => {
-  const { rows, tours, title, subtitle, language } = options;
+): string | null => {
+  const { rows, tours: allTours, title, subtitle, language } = options;
   const showUntoured = options.showUntoured ?? false;
-  if (rows.length === 0) return;
+  const visibleColumns: ReadonlySet<string> =
+    options.visibleColumns ??
+    new Set<string>([
+      'shop',
+      'city',
+      'code',
+      'billNumber',
+      'billDate',
+      'billPercentage',
+      'balance',
+      ...allTours.map((tour) => `tour_${tour.id}`),
+      ...(showUntoured ? ['untoured'] : []),
+      'collection',
+      'difference',
+      'remaining',
+    ]);
+  const isVisible = (id: string): boolean => visibleColumns.has(id);
+  const visibleTours: CollectionSheetTourColumn[] = allTours.filter((tour) =>
+    isVisible(`tour_${tour.id}`),
+  );
+  const tours: CollectionSheetTourColumn[] = visibleTours;
+  if (rows.length === 0) return null;
 
   const headers = collectionSheetHeaders(language);
+  // same order as the body cells. header and totals must follow this list
+  // or a hidden column shifts every value under the wrong heading
+  const leadingIds = [
+    'shop',
+    'city',
+    'code',
+    'billNumber',
+    'billDate',
+  ] as const;
+  const footerLeading = leadingIds
+    .filter((id) => isVisible(id))
+    .map((id, index) => {
+      if (index !== 0) return '<td></td>';
+      const attrs =
+        id === 'code'
+          ? ' class="ltr code" dir="ltr"'
+          : ' class="ltr" dir="ltr"';
+      return `<td${attrs}><strong>${escape(headers.total)}</strong></td>`;
+    })
+    .join('');
   const totals = collectionSheetTotals(rows);
   const untouredTotal = collectionSheetUntouredTotal(rows);
   const tourTotals = collectionSheetTourTotals(
@@ -65,18 +109,20 @@ export const printCollectionSheetIframe = (
       })
       .join('');
   };
-  const untouredHead = showUntoured
-    ? `<th class="num tour"${span}>${escape(headers.untoured)}</th>`
-    : '';
+  const untouredHead =
+    showUntoured && isVisible('untoured')
+      ? `<th class="num tour"${span}>${escape(headers.untoured)}</th>`
+      : '';
   const untouredBody = (row: CollectionSheetRow): string =>
-    showUntoured
+    showUntoured && isVisible('untoured')
       ? `<td class="num tour">${escape(formatTourAmount(row.untoured))}</td>`
       : '';
-  const untouredFoot = showUntoured
-    ? `<td class="num tour"><strong>${escape(
-        formatTourAmount(untouredTotal),
-      )}</strong></td>`
-    : '';
+  const untouredFoot =
+    showUntoured && isVisible('untoured')
+      ? `<td class="num tour"><strong>${escape(
+          formatTourAmount(untouredTotal),
+        )}</strong></td>`
+      : '';
 
   const body = rows
     .map((row) => {
@@ -84,43 +130,61 @@ export const printCollectionSheetIframe = (
         row.billIndex === 1
           ? `<td class="ltr fit code" dir="ltr">${escape(row.code)}</td>`
           : '<td class="ltr fit ditto" dir="ltr">//</td>';
+      const shopCell =
+        row.shopDisplay === '//'
+          ? '<td class="ltr fit ditto" dir="ltr">//</td>'
+          : `<td class="ltr fit" dir="ltr">${escape(row.shop)}</td>`;
+      const cityCell =
+        row.cityDisplay === '//'
+          ? '<td class="ltr fit ditto" dir="ltr">//</td>'
+          : `<td class="ltr fit" dir="ltr">${escape(row.city)}</td>`;
       return `<tr>
-        ${codeCell}
-        <td class="ltr fit" dir="ltr">${escape(row.billNumber)}</td>
-        ${cell(row.billDate, ' class="ltr fit" dir="ltr"')}
-        <td class="num fit">${escape(formatSheetAmount(row.balance))}</td>
+        ${isVisible('shop') ? shopCell : ''}
+        ${isVisible('city') ? cityCell : ''}
+        ${isVisible('code') ? codeCell : ''}
+        ${
+          isVisible('billNumber')
+            ? `<td class="ltr fit" dir="ltr">${escape(row.billNumber)}</td>`
+            : ''
+        }
+        ${
+          isVisible('billDate')
+            ? cell(row.billDate, ' class="ltr fit" dir="ltr"')
+            : ''
+        }
+        ${
+          isVisible('billPercentage')
+            ? `<td class="ltr fit" dir="ltr">${collectionSheetDiscountLines(
+                row.discountPortions,
+              )
+                .map((line) =>
+                  line.suffix
+                    ? `<span class="tier">${escape(
+                        `${line.suffix}: `,
+                      )}</span>${escape(line.label)}`
+                    : escape(line.label),
+                )
+                .join('<br>')}</td>`
+            : ''
+        }
+        ${
+          isVisible('balance')
+            ? `<td class="num fit">${escape(
+                formatSheetAmount(row.balance),
+              )}</td>`
+            : ''
+        }
         ${tourCells(row)}
         ${untouredBody(row)}
-        <td class="write"></td>
-        <td class="write"></td>
-        <td class="write"></td>
+        ${isVisible('collection') ? '<td class="write"></td>' : ''}
+        ${isVisible('difference') ? '<td class="write"></td>' : ''}
+        ${isVisible('remaining') ? '<td class="write"></td>' : ''}
       </tr>`;
     })
     .join('');
 
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  Object.assign(iframe.style, {
-    position: 'fixed',
-    right: '0',
-    bottom: '0',
-    width: '0',
-    height: '0',
-    border: 'none',
-    visibility: 'hidden',
-  });
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    return;
-  }
-
   const safeTitle = escape(title);
-  doc.open();
-  doc.write(`<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="${language === 'ur' ? 'ur' : 'en'}" dir="${dir}">
 <head>
   <meta charset="utf-8"/>
@@ -142,6 +206,7 @@ export const printCollectionSheetIframe = (
     th.fit, td.fit { width: 1%; white-space: nowrap; padding-left: 3px; padding-right: 3px; }
     td.code, th.code { font-weight: 600; }
     td.ditto { color: #bdbdbd; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tier { color: #9e9e9e; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     th.write, td.write { min-width: 14mm; }
     th.tour, td.tour { white-space: nowrap; }
     th.tour .tour-name { display: block; font-weight: 700; }
@@ -169,19 +234,74 @@ export const printCollectionSheetIframe = (
   <table>
     <thead>
       <tr>
-        <th class="ltr fit code" dir="ltr"${span}>${escape(headers.code)}</th>
-        <th class="ltr fit" dir="ltr"${span}>${escape(headers.bill)}</th>
-        <th class="ltr fit" dir="ltr"${span}>${escape(headers.billDate)}</th>
-        <th class="num fit"${span}>${escape(headers.balance)}</th>
+        ${
+          isVisible('shop')
+            ? `<th class="ltr fit" dir="ltr"${span}>${escape(
+                headers.shop,
+              )}</th>`
+            : ''
+        }
+        ${
+          isVisible('city')
+            ? `<th class="ltr fit" dir="ltr"${span}>${escape(
+                headers.city,
+              )}</th>`
+            : ''
+        }
+        ${
+          isVisible('code')
+            ? `<th class="ltr fit code" dir="ltr"${span}>${escape(
+                headers.code,
+              )}</th>`
+            : ''
+        }
+        ${
+          isVisible('billNumber')
+            ? `<th class="ltr fit" dir="ltr"${span}>${escape(
+                headers.bill,
+              )}</th>`
+            : ''
+        }
+        ${
+          isVisible('billDate')
+            ? `<th class="ltr fit" dir="ltr"${span}>${escape(
+                headers.billDate,
+              )}</th>`
+            : ''
+        }
+        ${
+          isVisible('billPercentage')
+            ? `<th class="ltr fit" dir="ltr"${span}>${escape(
+                headers.billPercentage,
+              )}</th>`
+            : ''
+        }
+        ${
+          isVisible('balance')
+            ? `<th class="num fit"${span}>${escape(headers.balance)}</th>`
+            : ''
+        }
         ${
           tours.length > 0
             ? `<th colspan="${tours.length}">${escape(headers.tours)}</th>`
             : ''
         }
-        ${untouredHead}
-        <th class="write"${span}>${escape(headers.collection)}</th>
-        <th class="write"${span}>${escape(headers.difference)}</th>
-        <th class="write"${span}>${escape(headers.remaining)}</th>
+        ${showUntoured && isVisible('untoured') ? untouredHead : ''}
+        ${
+          isVisible('collection')
+            ? `<th class="write"${span}>${escape(headers.collection)}</th>`
+            : ''
+        }
+        ${
+          isVisible('difference')
+            ? `<th class="write"${span}>${escape(headers.difference)}</th>`
+            : ''
+        }
+        ${
+          isVisible('remaining')
+            ? `<th class="write"${span}>${escape(headers.remaining)}</th>`
+            : ''
+        }
       </tr>
       ${
         tours.length > 0
@@ -201,14 +321,15 @@ export const printCollectionSheetIframe = (
     <tbody>
       ${body}
       <tr>
-        <td class="ltr code" dir="ltr"><strong>${escape(
-          headers.total,
-        )}</strong></td>
-        <td></td>
-        <td></td>
-        <td class="num"><strong>${escape(
-          formatSheetAmount(totals.balance),
-        )}</strong></td>
+        ${footerLeading}
+        ${isVisible('billPercentage') ? '<td></td>' : ''}
+        ${
+          isVisible('balance')
+            ? `<td class="num"><strong>${escape(
+                formatSheetAmount(totals.balance),
+              )}</strong></td>`
+            : ''
+        }
         ${tours
           .map(
             (tour) =>
@@ -218,14 +339,44 @@ export const printCollectionSheetIframe = (
           )
           .join('')}
         ${untouredFoot}
-        <td class="write"></td>
-        <td class="write"></td>
-        <td class="write"></td>
+        ${isVisible('collection') ? '<td class="write"></td>' : ''}
+        ${isVisible('difference') ? '<td class="write"></td>' : ''}
+        ${isVisible('remaining') ? '<td class="write"></td>' : ''}
       </tr>
     </tbody>
   </table>
 </body>
-</html>`);
+</html>`;
+};
+
+export const printCollectionSheetIframe = (
+  options: CollectionSheetPrintOptions,
+): void => {
+  const html = buildCollectionSheetPrintHtml(options);
+  if (!html) return;
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  Object.assign(iframe.style, {
+    position: 'fixed',
+    right: '0',
+    bottom: '0',
+    width: '0',
+    height: '0',
+    border: 'none',
+    visibility: 'hidden',
+  });
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  const win = iframe.contentWindow;
+  if (!doc || !win) {
+    iframe.remove();
+    return;
+  }
+
+  doc.open();
+  doc.write(html);
   doc.close();
 
   let cleaned = false;

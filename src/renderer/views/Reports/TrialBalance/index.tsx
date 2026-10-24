@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Calendar as CalendarIcon, Download, Printer } from 'lucide-react';
@@ -19,6 +19,8 @@ import { Card } from 'renderer/shad/ui/card';
 import { toast } from 'renderer/shad/ui/use-toast';
 import { ReportLayout } from 'renderer/components/ReportLayout';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { formatDisplayDate } from '@/lib/displayDate';
 import { ExportOrderDialog, printStyles } from '../components';
 import { TrialBalanceTable } from './TrialBalanceTable';
@@ -101,6 +103,27 @@ const TrialBalancePage = () => {
     useTrialBalance();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
+  // column choices for export/print, persisted per report
+  const trialBalanceColumnSpecs = useMemo(
+    () => [
+      { id: 'code', label: 'Code' },
+      { id: 'name', label: 'Account Name' },
+      { id: 'type', label: 'Type' },
+      { id: 'debit', label: 'Debit' },
+      { id: 'credit', label: 'Credit' },
+    ],
+    [],
+  );
+  const trialBalanceColumnIds = useMemo(
+    () => trialBalanceColumnSpecs.map((column) => column.id),
+    [trialBalanceColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'trial-balance',
+    trialBalanceColumnIds,
+  );
+  const visibleTrialBalanceColumns = columnVisibility.included;
+
   const handlePrint = () => {
     window.print();
   };
@@ -112,6 +135,9 @@ const TrialBalancePage = () => {
           trialBalance,
           selectedDate,
           exportSortOrder,
+        );
+        payload.columns = payload.columns.filter((column) =>
+          visibleTrialBalanceColumns.has(String(column.key)),
         );
         exportReportToExcel(payload);
         toast({
@@ -128,7 +154,7 @@ const TrialBalancePage = () => {
         });
       }
     },
-    [trialBalance, selectedDate],
+    [trialBalance, selectedDate, visibleTrialBalanceColumns],
   );
 
   const canExport = !isLoading && trialBalance.accounts.length > 0;
@@ -170,6 +196,12 @@ const TrialBalancePage = () => {
             }
             actions={
               <>
+                <ReportColumnsMenu
+                  columns={trialBalanceColumnSpecs}
+                  included={columnVisibility.included}
+                  onToggle={columnVisibility.toggle}
+                  onToggleAll={columnVisibility.toggleAll}
+                />
                 <Button
                   variant="outline"
                   size="icon"
@@ -209,7 +241,11 @@ const TrialBalancePage = () => {
           </div>
         )}
 
-        <TrialBalanceTable trialBalance={trialBalance} isLoading={isLoading} />
+        <TrialBalanceTable
+          trialBalance={trialBalance}
+          isLoading={isLoading}
+          visibleColumns={visibleTrialBalanceColumns}
+        />
       </Card>
     </ReportLayout>
   );

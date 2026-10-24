@@ -12,6 +12,8 @@ import { Button } from '@/renderer/shad/ui/button';
 import { Card } from '@/renderer/shad/ui/card';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import {
   HideItemsMenu,
   type HideItemsOption,
@@ -365,6 +367,36 @@ const InventoryHealthPage: React.FC = () => {
     [tableData],
   );
 
+  // column choices for export/print, persisted per report
+  const inventoryHealthColumnSpecs = useMemo(
+    () => [
+      { id: 'listPosition', label: 'List #' },
+      { id: 'item', label: 'Item' },
+      { id: 'itemType', label: 'Type' },
+      { id: 'price', label: 'Price' },
+      { id: 'onHandQty', label: 'On Hand' },
+      { id: 'soldQtyInDate', label: 'Sold' },
+      { id: 'purchasedQtyInDate', label: 'Purchased' },
+      ...(showAdjustedColumn
+        ? [{ id: 'adjustmentQtyInDate', label: 'Adjusted' }]
+        : []),
+      { id: 'lastSaleDate', label: 'Last Sale' },
+      { id: 'lastPurchaseDate', label: 'Last Purchase' },
+      { id: 'daysSinceMovement', label: 'Days Movement' },
+      { id: 'daysOfCover', label: 'Days Cover' },
+      { id: 'flags', label: 'Issues' },
+    ],
+    [showAdjustedColumn],
+  );
+  const inventoryHealthColumnIds = useMemo(
+    () => inventoryHealthColumnSpecs.map((column) => column.id),
+    [inventoryHealthColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'inventory-health',
+    inventoryHealthColumnIds,
+  );
+  const visibleInventoryHealthColumns = columnVisibility.included;
   // sums match visible grid rows (search + sort + hide + chip), same basis as export
   const inventoryHealthStickyFooterRow = useMemo(() => {
     const rows = exportPrintRows;
@@ -400,8 +432,14 @@ const InventoryHealthPage: React.FC = () => {
         dateRange.to,
       )}`,
       showAdjustedColumn,
+      visibleColumns: visibleInventoryHealthColumns,
     });
-  }, [exportPrintRows, dateRange, showAdjustedColumn]);
+  }, [
+    exportPrintRows,
+    dateRange,
+    showAdjustedColumn,
+    visibleInventoryHealthColumns,
+  ]);
 
   const handleExport = useCallback(() => {
     if (!response || !exportPrintRows.length) return;
@@ -490,7 +528,9 @@ const InventoryHealthPage: React.FC = () => {
               )}`
             : '',
         sheetName: 'Inventory Health',
-        columns: exportCols,
+        columns: exportCols.filter((column) =>
+          visibleInventoryHealthColumns.has(String(column.key)),
+        ),
         rows: exportPrintRows.map((r) => ({
           ...(r as unknown as Record<string, unknown>),
           listPosition: r.listPosition == null ? '' : String(r.listPosition),
@@ -523,7 +563,13 @@ const InventoryHealthPage: React.FC = () => {
         variant: 'destructive',
       });
     }
-  }, [response, dateRange, exportPrintRows, showAdjustedColumn]);
+  }, [
+    response,
+    dateRange,
+    exportPrintRows,
+    showAdjustedColumn,
+    visibleInventoryHealthColumns,
+  ]);
 
   const columns = useMemo<ColumnDef<InventoryHealthRow, unknown>[]>(() => {
     const base: ColumnDef<InventoryHealthRow, unknown>[] = [
@@ -676,8 +722,12 @@ const InventoryHealthPage: React.FC = () => {
         },
       },
     );
-    return base;
-  }, [showAdjustedColumn]);
+    return base.filter((column) => {
+      const typedColumn = column as { accessorKey?: string; id?: string };
+      const columnId = String(typedColumn.accessorKey ?? typedColumn.id ?? '');
+      return columnVisibility.isIncluded(columnId);
+    });
+  }, [showAdjustedColumn, columnVisibility]);
 
   const visibleAnomalies = useMemo(
     () => response?.anomalies.filter((a) => a.count > 0) ?? [],
@@ -756,6 +806,12 @@ const InventoryHealthPage: React.FC = () => {
               >
                 <Printer className="h-4 w-4" />
               </Button>
+              <ReportColumnsMenu
+                columns={inventoryHealthColumnSpecs}
+                included={columnVisibility.included}
+                onToggle={columnVisibility.toggle}
+                onToggleAll={columnVisibility.toggleAll}
+              />
               <HideItemsMenu
                 options={hideOptions}
                 allChecked={allHideOptionsChecked}
