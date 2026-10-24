@@ -138,7 +138,7 @@ export default defineConfig({
       devOptions: { enabled: false },
       manifest: {
         name: 'Easy Accounting',
-        short_name: 'Easy Acct',
+        short_name: 'Easy Accounting',
         description:
           'Offline-capable accounting app shell running the real core services on SQLite-wasm/OPFS.',
         start_url: '/',
