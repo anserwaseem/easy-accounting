@@ -243,38 +243,44 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     />
                   </th>
                 ) : null}
-                <th
-                  rowSpan={span}
-                  className={cn(headCell, 'text-start', writeCell)}
-                >
-                  <HeaderWithTooltip
-                    label={headers.collection}
-                    tooltip={
-                      urdu
-                        ? 'پرنٹ پر خالی کالم جہاں ایجنٹ دورے کے دوران نئی وصولی درج کرے گا۔'
-                        : 'Blank column on printouts for the agent to log receipts during their route visit.'
-                    }
-                  />
-                </th>
-                <th
-                  rowSpan={span}
-                  className={cn(headCell, 'text-start', writeCell)}
-                >
-                  {headers.difference}
-                </th>
-                <th
-                  rowSpan={span}
-                  className={cn(headCell, 'text-start', writeCell)}
-                >
-                  <HeaderWithTooltip
-                    label={headers.remaining}
-                    tooltip={
-                      urdu
-                        ? 'پرنٹ پر خالی کالم جہاں ایجنٹ نیا بقایا (واجب الادا منہا وصولی) درج کرے گا۔'
-                        : 'Blank column for the agent to calculate and note remaining balance (Due amount − Collection).'
-                    }
-                  />
-                </th>
+                {isVisible('collection') ? (
+                  <th
+                    rowSpan={span}
+                    className={cn(headCell, 'text-start', writeCell)}
+                  >
+                    <HeaderWithTooltip
+                      label={headers.collection}
+                      tooltip={
+                        urdu
+                          ? 'پرنٹ پر خالی کالم جہاں ایجنٹ دورے کے دوران نئی وصولی درج کرے گا۔'
+                          : 'Blank column on printouts for the agent to log receipts during their route visit.'
+                      }
+                    />
+                  </th>
+                ) : null}
+                {isVisible('difference') ? (
+                  <th
+                    rowSpan={span}
+                    className={cn(headCell, 'text-start', writeCell)}
+                  >
+                    {headers.difference}
+                  </th>
+                ) : null}
+                {isVisible('remaining') ? (
+                  <th
+                    rowSpan={span}
+                    className={cn(headCell, 'text-start', writeCell)}
+                  >
+                    <HeaderWithTooltip
+                      label={headers.remaining}
+                      tooltip={
+                        urdu
+                          ? 'پرنٹ پر خالی کالم جہاں ایجنٹ نیا بقایا (واجب الادا منہا وصولی) درج کرے گا۔'
+                          : 'Blank column for the agent to calculate and note remaining balance (Due amount − Collection).'
+                      }
+                    />
+                  </th>
+                ) : null}
               </tr>
               {hasTours ? (
                 <tr>
@@ -410,9 +416,15 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       {formatTourAmount(row.untoured)}
                     </td>
                   ) : null}
-                  <td className={cn(bodyCell, writeCell)} />
-                  <td className={cn(bodyCell, writeCell)} />
-                  <td className={cn(bodyCell, writeCell)} />
+                  {isVisible('collection') ? (
+                    <td className={cn(bodyCell, writeCell)} />
+                  ) : null}
+                  {isVisible('difference') ? (
+                    <td className={cn(bodyCell, writeCell)} />
+                  ) : null}
+                  {isVisible('remaining') ? (
+                    <td className={cn(bodyCell, writeCell)} />
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -448,9 +460,15 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     {formatTourAmount(untouredTotal)}
                   </td>
                 ) : null}
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'bg-inherit')} />
+                {isVisible('collection') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
+                {isVisible('difference') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
+                {isVisible('remaining') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
               </tr>
             </tfoot>
           </table>
