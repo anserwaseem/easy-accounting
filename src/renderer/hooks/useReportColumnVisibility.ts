@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-const STORAGE_PREFIX = 'report-columns:';
+const STORAGE_PREFIX = 'report-columns-v2:';
 
 interface ReportColumnVisibility {
   readonly included: ReadonlySet<string>;
@@ -13,67 +13,39 @@ interface ReportColumnVisibility {
 }
 
 /**
- * persists which columns a user wants visible for a report's export/print.
+ * persists which columns a user wants hidden for a report's export/print.
+ * stores the hidden set (opt-out) so a column the user hid stays hidden across
+ * reloads while brand-new columns still default to visible.
  * keys are per-report so each report remembers its own selection.
- * defaults to every column included (opt-out model): new columns appear
- * automatically until the user explicitly hides them.
  */
 export const useReportColumnVisibility = (
   reportKey: string,
   allColumnIds: readonly string[],
 ): ReportColumnVisibility => {
   const storageKey = `${STORAGE_PREFIX}${reportKey}`;
-  const [included, setIncluded] = useState<ReadonlySet<string>>(() => {
+
+  const [excluded, setExcluded] = useState<ReadonlySet<string>>(() => {
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as string[];
-        const set = new Set(parsed);
-        // keep only ids that still apply; add brand-new ids so they default visible
-        const next = new Set<string>();
-        for (const id of allColumnIds) {
-          if (parsed.length === 0 || set.has(id)) next.add(id);
-        }
-        // migrate older saved sets by keeping unknown keys out
-        return next.size > 0 ? next : new Set(allColumnIds);
+        const idSet = new Set(allColumnIds);
+        // keep only ids that still apply for this report
+        return new Set(parsed.filter((id) => idSet.has(id)));
       }
     } catch {
       // storage can throw in private mode; fall back to default below
     }
-    return new Set(allColumnIds);
+    return new Set();
   });
 
   const allColumnSet = useMemo(() => new Set(allColumnIds), [allColumnIds]);
 
+  // drop stale excluded ids when a report's column list changes
   useEffect(() => {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify([...included]));
-    } catch {
-      // ignore persistence failures; in-memory state still works
-    }
-  }, [storageKey, included]);
-
-  // remember the last id set actually seen so an unstable parent array (e.g.
-  // headers rebuilt every render) does not re-add columns the user removed
-  const previousIdsRef = useRef<string>('');
-
-  // re-sync only when the actual set of column ids changes, e.g. a new
-  // "adjusted" column is added or a tour/date range changes the list. a new
-  // array with the same ids must not re-add columns the user hid.
-  useEffect(() => {
-    const sortedIds = [...allColumnIds].sort().join('\u0001');
-    if (sortedIds === previousIdsRef.current) return;
-    previousIdsRef.current = sortedIds;
-
-    setIncluded((prev) => {
+    setExcluded((prev) => {
       let changed = false;
       const next = new Set(prev);
-      for (const id of allColumnIds) {
-        if (!prev.has(id)) {
-          next.add(id);
-          changed = true;
-        }
-      }
       for (const id of prev) {
         if (!allColumnSet.has(id)) {
           next.delete(id);
@@ -82,23 +54,40 @@ export const useReportColumnVisibility = (
       }
       return changed ? next : prev;
     });
-  }, [allColumnIds, allColumnSet]);
+  }, [allColumnSet]);
 
-  const isIncluded = useCallback((id: string) => included.has(id), [included]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify([...excluded]));
+    } catch {
+      // ignore persistence failures; in-memory state still works
+    }
+  }, [storageKey, excluded]);
+
+  const included = useMemo(() => {
+    const next = new Set<string>();
+    for (const id of allColumnIds) {
+      if (!excluded.has(id)) next.add(id);
+    }
+    return next;
+  }, [allColumnIds, excluded]);
+
+  const isIncluded = useCallback((id: string) => !excluded.has(id), [excluded]);
 
   const toggle = useCallback((id: string, next?: boolean) => {
-    setIncluded((prev) => {
-      const on = next ?? !prev.has(id);
+    setExcluded((prev) => {
       const nextSet = new Set(prev);
-      if (on) nextSet.add(id);
-      else nextSet.delete(id);
+      const visible = next ?? prev.has(id); // next = visible? see ReportColumnsMenu passes checked
+      // ReportColumnsMenu.onToggle(id, checked) where checked=visible
+      if (visible) nextSet.delete(id);
+      else nextSet.add(id);
       return nextSet;
     });
   }, []);
 
   const toggleAll = useCallback(
     (next: boolean) => {
-      setIncluded(next ? new Set(allColumnIds) : new Set());
+      setExcluded(next ? new Set() : new Set(allColumnIds));
     },
     [allColumnIds],
   );
@@ -108,8 +97,8 @@ export const useReportColumnVisibility = (
     isIncluded,
     toggle,
     toggleAll,
-    allIncluded: included.size === allColumnIds.length,
-    includedCount: included.size,
+    allIncluded: excluded.size === 0,
+    includedCount: allColumnIds.length - excluded.size,
     totalCount: allColumnIds.length,
   };
 };
