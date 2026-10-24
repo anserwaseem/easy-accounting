@@ -7,6 +7,7 @@ import {
 } from '@/renderer/shad/ui/tooltip';
 import { Card } from '@/renderer/shad/ui/card';
 import { cn } from '@/renderer/lib/utils';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { EmptyState, LoadingState } from '../components';
 import {
   collectionSheetHeaders,
@@ -195,6 +196,23 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     {headers.billDate}
                   </th>
                 ) : null}
+                {isVisible('billPercentage') ? (
+                  <th
+                    rowSpan={span}
+                    dir="ltr"
+                    className={cn(headCell, 'text-end whitespace-nowrap')}
+                  >
+                    <HeaderWithTooltip
+                      label={headers.billPercentage}
+                      align="end"
+                      tooltip={
+                        urdu
+                          ? 'بل پر درج رعایت، وہی جو Bills Aging میں Bill % دکھاتا ہے۔ N خالص قیمت ہے۔ — کا مطلب ہے کہ کوئی رعایت درج نہیں۔ سابقہ بقایا پر رعایت نہیں ہوتی۔'
+                          : 'Discount stored on this bill’s journal, the same value as Bills Aging Bill %. N is a net price. A dash means none was recorded. Opening balance has none.'
+                      }
+                    />
+                  </th>
+                ) : null}
                 {isVisible('balance') ? (
                   <th rowSpan={span} className={cn(headCell, 'text-end')}>
                     <HeaderWithTooltip
@@ -364,6 +382,14 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       {row.billDate}
                     </td>
                   ) : null}
+                  {isVisible('billPercentage') ? (
+                    <td
+                      dir="ltr"
+                      className={cn(bodyCell, 'whitespace-nowrap text-end')}
+                    >
+                      {formatJournalDiscountLabel(row.discountPercentage)}
+                    </td>
+                  ) : null}
                   {isVisible('balance') ? (
                     <td className={cn(bodyCell, 'text-end')}>
                       <Amount amount={row.balance} />
@@ -468,6 +494,9 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       {index === 0 ? headers.total : null}
                     </td>
                   ))}
+                {isVisible('billPercentage') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
                 {isVisible('balance') ? (
                   <td className={cn(bodyCell, 'text-end bg-inherit')}>
                     <Amount amount={totals.balance} />

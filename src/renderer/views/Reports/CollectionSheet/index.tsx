@@ -30,6 +30,7 @@ import {
 import { cn } from '@/renderer/lib/utils';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { printStyles } from '../components/printStyles';
 import { CollectionSheetTable } from './CollectionSheetTable';
 import { CollectionSheetGuideDialog } from './CollectionSheetGuideDialog';
@@ -65,6 +66,7 @@ type CollectionSheetExportRow = {
   collection: string;
   billNumber: string;
   billDate: string;
+  billPercentage: string;
   difference: string;
   remaining: string;
   untoured: number | null;
@@ -166,6 +168,7 @@ const CollectionSheetPage: React.FC = () => {
       { id: 'code', label: headers.code },
       { id: 'billNumber', label: headers.bill },
       { id: 'billDate', label: headers.billDate },
+      { id: 'billPercentage', label: headers.billPercentage },
       { id: 'balance', label: headers.balance },
       ...tours.map((tour) => ({
         id: `tour_${tour.id}`,
@@ -271,6 +274,16 @@ const CollectionSheetPage: React.FC = () => {
               },
             ]
           : []),
+        ...(visibleColumns.has('billPercentage')
+          ? [
+              {
+                key: 'billPercentage',
+                header: headers.billPercentage,
+                format: 'string' as const,
+                width: 10,
+              },
+            ]
+          : []),
         ...(visibleColumns.has('balance')
           ? [
               {
@@ -348,6 +361,7 @@ const CollectionSheetPage: React.FC = () => {
         collection: '',
         billNumber: row.billNumber,
         billDate: row.billDate,
+        billPercentage: formatJournalDiscountLabel(row.discountPercentage),
         difference: '',
         remaining: '',
         untoured: showUntoured ? row.untoured : null,

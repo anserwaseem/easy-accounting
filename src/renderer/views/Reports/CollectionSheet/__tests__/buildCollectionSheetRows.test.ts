@@ -212,6 +212,73 @@ describe('buildCollectionSheetRows', () => {
     expect(rows.map((r) => r.collected)).toEqual([0]);
   });
 
+  it('keeps each bill’s journal discount and joins tier portions that differ', () => {
+    const rows = buildCollectionSheetRows(
+      [
+        { id: 1, name: 'NOOR', code: 'NOOR', address: 'X' },
+        { id: 2, name: 'NOOR-T', code: 'NOOR-T', address: 'X' },
+      ],
+      itemTypes,
+      { 1: owed(100), 2: owed(40) },
+      {
+        1: [
+          {
+            invoiceNumber: 1,
+            date: '2026-01-02',
+            amount: 60,
+            discountPercentage: 20,
+          },
+          {
+            invoiceNumber: 2,
+            date: '2026-02-02',
+            amount: 40,
+            discountPercentage: 'N',
+          },
+        ],
+        2: [
+          {
+            invoiceNumber: 2,
+            date: '2026-02-02',
+            amount: 40,
+            discountPercentage: 10,
+          },
+        ],
+      },
+      'en',
+    );
+    expect(
+      rows.map((entry) => [entry.billNumber, entry.discountPercentage]),
+    ).toEqual([
+      ['1', 20],
+      ['2', 'N · 10%'],
+    ]);
+  });
+
+  it('leaves opening balance without a discount', () => {
+    const rows = buildCollectionSheetRows(
+      [{ id: 1, name: 'A', code: 'A', address: 'Z' }],
+      itemTypes,
+      { 1: owed(80, 0) },
+      {
+        1: [
+          {
+            invoiceNumber: 1,
+            date: '2026-01-01',
+            amount: 50,
+            discountPercentage: 20,
+          },
+        ],
+      },
+      'en',
+    );
+    expect(
+      rows.map((entry) => [entry.billNumber, entry.discountPercentage]),
+    ).toEqual([
+      ['Opening Bal', undefined],
+      ['1', 20],
+    ]);
+  });
+
   describe('tour columns', () => {
     const accounts: CollectionSheetSource[] = [
       { id: 1, name: 'NOOR', code: 'NOOR', address: 'X' },

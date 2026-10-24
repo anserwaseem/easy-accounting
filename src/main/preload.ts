@@ -735,7 +735,12 @@ const electronHandler = {
     ) as Promise<
       Record<
         number,
-        Array<{ invoiceNumber: number; date: string; amount: number }>
+        Array<{
+          invoiceNumber: number;
+          date: string;
+          amount: number;
+          discountPercentage?: number | string;
+        }>
       >
     >,
   /** money received per account (receipt-account credits) in an inclusive local-date range */

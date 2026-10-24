@@ -681,7 +681,16 @@ const SQL = {
         COALESCE(ii.accountId, i.accountId) AS accountId,
         i.invoiceNumber AS invoiceNumber,
         i.date AS date,
-        SUM(ii.quantity * ii.price * (1 - ii.discount / 100.0)) AS amount
+        SUM(ii.quantity * ii.price * (1 - ii.discount / 100.0)) AS amount,
+        (
+          SELECT j.discountPercentage
+          FROM journal j
+          JOIN journal_entry je ON je.journalId = j.id
+          WHERE j.invoiceId = i.id
+            AND je.accountId = COALESCE(ii.accountId, i.accountId)
+            AND je.debitAmount > 0
+          LIMIT 1
+        ) AS discountPercentage
       FROM invoices i
       JOIN invoice_items ii ON ii.invoiceId = i.id
       WHERE i.invoiceType = 'Sale'
@@ -757,7 +766,13 @@ export class InvoiceService {
   ): Promise<
     Record<
       number,
-      Array<{ invoiceNumber: number; date: string; amount: number }>
+      Array<{
+        invoiceNumber: number;
+        date: string;
+        amount: number;
+        /** journal discount label, same value bills aging shows as Bill % */
+        discountPercentage?: number | string;
+      }>
     >
   > {
     const unique = [
@@ -769,6 +784,7 @@ export class InvoiceService {
       invoiceNumber: number;
       date: string;
       amount: number;
+      discountPercentage: number | string | null;
     }>(SQL.getSaleBillsForAccountIdsInRange, {
       accountIdsJson: JSON.stringify(unique),
       startDate: startDate ?? null,
@@ -776,7 +792,12 @@ export class InvoiceService {
     });
     const out: Record<
       number,
-      Array<{ invoiceNumber: number; date: string; amount: number }>
+      Array<{
+        invoiceNumber: number;
+        date: string;
+        amount: number;
+        discountPercentage?: number | string;
+      }>
     > = {};
     for (const row of rows) {
       const bucket = out[row.accountId] ?? [];
@@ -784,6 +805,9 @@ export class InvoiceService {
         invoiceNumber: row.invoiceNumber,
         date: row.date,
         amount: row.amount ?? 0,
+        ...(row.discountPercentage == null || row.discountPercentage === ''
+          ? {}
+          : { discountPercentage: row.discountPercentage }),
       });
       out[row.accountId] = bucket;
     }

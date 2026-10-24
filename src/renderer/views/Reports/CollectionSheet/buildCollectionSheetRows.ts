@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { sumBy, trim } from 'lodash';
 import { getFixedNumber } from '@/renderer/lib/utils';
 import { formatDisplayDate, formatDisplayDayMonth } from '@/lib/displayDate';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import {
   buildPartyTypingContext,
   splitPartyCode,
@@ -33,6 +34,11 @@ export interface CollectionSheetBill {
   date: string;
   /** this account's share of the bill. same invoice number is added across tiers */
   amount: number;
+  /**
+   * journal discount label, the same value bills aging shows as Bill %.
+   * a number, `N`, or `N·20`. absent when the journal recorded none.
+   */
+  discountPercentage?: number | string;
 }
 
 export interface CollectionSheetHeaders {
@@ -43,6 +49,8 @@ export interface CollectionSheetHeaders {
   collection: string;
   bill: string;
   billDate: string;
+  /** bills-aging "Bill %" */
+  billPercentage: string;
   difference: string;
   remaining: string;
   total: string;
@@ -70,6 +78,8 @@ export interface CollectionSheetRow {
   codeDisplay: string;
   billNumber: string;
   billDate: string;
+  /** formatted later. opening balance and a journal with no discount stay unset. */
+  discountPercentage?: number | string;
   /** this bill's amount, tier shares added. ledger balance only when the shop has no bill in the range */
   balance: number | null;
   collected: number | null;
@@ -160,6 +170,7 @@ export const collectionSheetHeaders = (
       collection: 'وصولی',
       bill: 'بل',
       billDate: 'تاریخ',
+      billPercentage: 'رعایت',
       difference: 'فرق',
       remaining: 'بقایا',
       total: 'کل',
@@ -177,6 +188,7 @@ export const collectionSheetHeaders = (
     collection: 'Collection',
     bill: 'Bill',
     billDate: 'Date',
+    billPercentage: 'Bill %',
     difference: 'Difference',
     remaining: 'Remaining',
     total: 'Total',
@@ -303,6 +315,27 @@ const baseDisplay = (
   };
 };
 
+/** tier portions of one invoice keep one label when they match, otherwise each label. */
+const mergeBillDiscount = (
+  current: number | string | undefined,
+  incoming: number | string | undefined,
+): number | string | undefined => {
+  if (current == null || current === '') return incoming;
+  if (incoming == null || incoming === '') return current;
+  if (String(current) === String(incoming)) return current;
+  const parts = new Set<string>();
+  for (const value of [current, incoming]) {
+    const label = formatJournalDiscountLabel(value);
+    if (label === '-') continue;
+    for (const part of label.split(' · ')) {
+      if (part) parts.add(part);
+    }
+  }
+  if (parts.size === 0) return undefined;
+  if (parts.size === 1) return [...parts][0];
+  return [...parts].join(' · ');
+};
+
 const mergedBills = (family: FamilyMember[]): CollectionSheetBill[] => {
   const byNumber = new Map<number | string, CollectionSheetBill>();
   for (const member of family) {
@@ -313,6 +346,10 @@ const mergedBills = (family: FamilyMember[]): CollectionSheetBill[] => {
         continue;
       }
       existing.amount += bill.amount || 0;
+      existing.discountPercentage = mergeBillDiscount(
+        existing.discountPercentage,
+        bill.discountPercentage,
+      );
     }
   }
   const bills = [...byNumber.values()];
@@ -574,6 +611,7 @@ export const buildCollectionSheetRows = (
         codeDisplay: sameCode ? '//' : shop.display.code,
         billNumber: String(bill.invoiceNumber),
         billDate: formatBillDate(bill.date),
+        discountPercentage: bill.discountPercentage,
         // same rounding as the invoice screen: nearest rupee on the bill total
         balance: Math.round(bill.amount || 0),
         collected: collectedCell,

@@ -1,4 +1,5 @@
 import { escape } from 'lodash';
+import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { printStyles } from '../components/printStyles';
 import {
   collectionSheetHeaders,
@@ -41,6 +42,7 @@ export const buildCollectionSheetPrintHtml = (
       'code',
       'billNumber',
       'billDate',
+      'billPercentage',
       'balance',
       ...allTours.map((tour) => `tour_${tour.id}`),
       ...(showUntoured ? ['untoured'] : []),
@@ -151,6 +153,14 @@ export const buildCollectionSheetPrintHtml = (
             : ''
         }
         ${
+          isVisible('billPercentage')
+            ? cell(
+                formatJournalDiscountLabel(row.discountPercentage),
+                ' class="ltr fit" dir="ltr"',
+              )
+            : ''
+        }
+        ${
           isVisible('balance')
             ? `<td class="num fit">${escape(
                 formatSheetAmount(row.balance),
@@ -252,6 +262,13 @@ export const buildCollectionSheetPrintHtml = (
             : ''
         }
         ${
+          isVisible('billPercentage')
+            ? `<th class="ltr fit" dir="ltr"${span}>${escape(
+                headers.billPercentage,
+              )}</th>`
+            : ''
+        }
+        ${
           isVisible('balance')
             ? `<th class="num fit"${span}>${escape(headers.balance)}</th>`
             : ''
@@ -297,6 +314,7 @@ export const buildCollectionSheetPrintHtml = (
       ${body}
       <tr>
         ${footerLeading}
+        ${isVisible('billPercentage') ? '<td></td>' : ''}
         ${
           isVisible('balance')
             ? `<td class="num"><strong>${escape(
