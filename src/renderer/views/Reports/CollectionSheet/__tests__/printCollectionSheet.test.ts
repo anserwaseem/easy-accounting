@@ -97,7 +97,7 @@ describe('collection sheet print columns', () => {
 
     expect(spanOf(header)).toBe(spanOf(body));
     expect(spanOf(totals)).toBe(spanOf(body));
-    expect(header.cells[0].textContent).toBe('Shop');
+    expect(header.cells[0].textContent).toBe('Customer');
     expect(header.cells[1].textContent).toBe('City');
     expect(body.cells[0].textContent).toBe('MAKTABA ISLAMIA');
     expect(body.cells[1].textContent).toBe('Abbottabad');
