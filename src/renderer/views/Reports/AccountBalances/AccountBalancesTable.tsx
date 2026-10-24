@@ -23,6 +23,7 @@ import type { AccountBalances, AccountBalanceItem } from './types';
 interface AccountBalancesTableProps {
   accountBalances: AccountBalances;
   isLoading: boolean;
+  visibleColumns?: ReadonlySet<string>;
 }
 
 type SortField = 'code' | 'name' | 'debit' | 'credit';
@@ -30,7 +31,10 @@ type SortField = 'code' | 'name' | 'debit' | 'credit';
 export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
   accountBalances,
   isLoading,
+  visibleColumns,
 }) => {
+  const visible =
+    visibleColumns ?? new Set(['code', 'name', 'debit', 'credit']);
   const {
     accounts: unsortedAccounts,
     totalDebit,
@@ -86,75 +90,103 @@ export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
     <Table className="border-collapse w-full print-table">
       <TableHeader>
         <TableRow className="print-row">
-          <SortableHeader
-            currentSortField={sortField}
-            sortField="code"
-            sortDirection={sortDirection}
-            onSort={() => handleSort('code')}
-            className="w-[150px]"
-          >
-            Account Code
-          </SortableHeader>
-          <SortableHeader
-            currentSortField={sortField}
-            sortField="name"
-            sortDirection={sortDirection}
-            onSort={() => handleSort('name')}
-            className="w-[250px]"
-          >
-            Account Name
-          </SortableHeader>
-          <SortableHeader
-            currentSortField={sortField}
-            sortField="debit"
-            sortDirection={sortDirection}
-            onSort={() => handleSort('debit')}
-            className="text-right print-spacing-right"
-          >
-            Debit
-          </SortableHeader>
-          <SortableHeader
-            currentSortField={sortField}
-            sortField="credit"
-            sortDirection={sortDirection}
-            onSort={() => handleSort('credit')}
-            className="text-right"
-          >
-            Credit
-          </SortableHeader>
+          {visible.has('code') ? (
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="code"
+              sortDirection={sortDirection}
+              onSort={() => handleSort('code')}
+              className="w-[150px]"
+            >
+              Account Code
+            </SortableHeader>
+          ) : null}
+          {visible.has('name') ? (
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="name"
+              sortDirection={sortDirection}
+              onSort={() => handleSort('name')}
+              className="w-[250px]"
+            >
+              Account Name
+            </SortableHeader>
+          ) : null}
+          {visible.has('debit') ? (
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="debit"
+              sortDirection={sortDirection}
+              onSort={() => handleSort('debit')}
+              className="text-right print-spacing-right"
+            >
+              Debit
+            </SortableHeader>
+          ) : null}
+          {visible.has('credit') ? (
+            <SortableHeader
+              currentSortField={sortField}
+              sortField="credit"
+              sortDirection={sortDirection}
+              onSort={() => handleSort('credit')}
+              className="text-right"
+            >
+              Credit
+            </SortableHeader>
+          ) : null}
         </TableRow>
       </TableHeader>
       <TableBody>
         {accounts.map((account) => (
           <TableRow key={account.id} className="print-row">
-            <TableCell className="font-medium">{account.code}</TableCell>
-            <TableCell>{account.name}</TableCell>
-            <TableCell className="text-right print-spacing-right">
-              {account.balanceType === 'Dr'
-                ? getFormattedCurrency(account.balance)
-                    .replace(currency, '')
-                    .trim()
-                : '-'}
-            </TableCell>
-            <TableCell className="text-right">
-              {account.balanceType === 'Cr'
-                ? getFormattedCurrency(account.balance)
-                    .replace(currency, '')
-                    .trim()
-                : '-'}
-            </TableCell>
+            {visible.has('code') ? (
+              <TableCell className="font-medium">{account.code}</TableCell>
+            ) : null}
+            {visible.has('name') ? <TableCell>{account.name}</TableCell> : null}
+            {visible.has('debit') ? (
+              <TableCell className="text-right print-spacing-right">
+                {account.balanceType === 'Dr'
+                  ? getFormattedCurrency(account.balance)
+                      .replace(currency, '')
+                      .trim()
+                  : '-'}
+              </TableCell>
+            ) : null}
+            {visible.has('credit') ? (
+              <TableCell className="text-right">
+                {account.balanceType === 'Cr'
+                  ? getFormattedCurrency(account.balance)
+                      .replace(currency, '')
+                      .trim()
+                  : '-'}
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>
       <TableFooter>
         <TableRow className="font-bold print-row">
-          <TableCell colSpan={2}>Total</TableCell>
-          <TableCell className="text-right print-spacing-right">
-            {getFormattedDebitCreditWithoutCurrency(totalDebit)}
-          </TableCell>
-          <TableCell className="text-right">
-            {getFormattedDebitCreditWithoutCurrency(totalCredit)}
-          </TableCell>
+          {visible.has('code') || visible.has('name') ? (
+            <TableCell
+              colSpan={
+                (visible.has('code') ? 1 : 0) + (visible.has('name') ? 1 : 0)
+              }
+            >
+              Total
+            </TableCell>
+          ) : (
+            <TableCell>Total</TableCell>
+          )}
+          {visible.has('debit') ? (
+            <TableCell className="text-right print-spacing-right">
+              {getFormattedDebitCreditWithoutCurrency(totalDebit)}
+            </TableCell>
+          ) : null}
+          {visible.has('credit') ? (
+            <TableCell className="text-right">
+              {getFormattedDebitCreditWithoutCurrency(totalCredit)}
+            </TableCell>
+          ) : null}
         </TableRow>
       </TableFooter>
     </Table>

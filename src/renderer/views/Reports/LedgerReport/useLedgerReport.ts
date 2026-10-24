@@ -20,7 +20,7 @@ type LedgerReportTotals = {
   totalType: BalanceType | '';
 };
 
-export const useLedgerReport = () => {
+export const useLedgerReport = (visibleColumns?: ReadonlySet<string>) => {
   const saved = useMemo(() => loadSavedFilters(REPORT_FILTER_KEYS.ledger), []);
 
   const defaultDateRange: DateRange = useMemo(() => {
@@ -237,8 +237,15 @@ export const useLedgerReport = () => {
       accountName: selectedAccountName,
       dateSubtitle: printDateSubtitle,
       totals,
+      visibleColumns,
     });
-  }, [displayedEntries, selectedAccountName, printDateSubtitle, totals]);
+  }, [
+    displayedEntries,
+    selectedAccountName,
+    printDateSubtitle,
+    totals,
+    visibleColumns,
+  ]);
 
   return {
     accounts,

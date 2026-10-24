@@ -23,6 +23,8 @@ interface BillsAgingPrintTableProps {
   hideStatus?: boolean;
   /** all-parties scope: tag each account row with its agent head */
   showHeadNames?: boolean;
+  /** visible column ids; defaults to every column when omitted */
+  visibleColumns?: ReadonlySet<string>;
 }
 
 export const buildBillsAgingRows = (
@@ -82,11 +84,25 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = React.memo(
     hideZeroRows = false,
     hideStatus = false,
     showHeadNames = false,
+    visibleColumns: visibleColumnsOption,
   }: BillsAgingPrintTableProps) => {
     const allRows = useMemo(
       () => buildBillsAgingRows(billsAging, hideZeroRows),
       [billsAging, hideZeroRows],
     );
+
+    const visibleColumns =
+      visibleColumnsOption ??
+      new Set([
+        'accountCode',
+        'billNumber',
+        'billDate',
+        'billPercentage',
+        'balance',
+        'daysStatus',
+      ]);
+    const vc = (id: string): boolean => visibleColumns.has(id);
+    const showDaysStatus = !hideStatus && vc('daysStatus');
 
     // calculate total balance (rounded)
     const totalBalance = useMemo(
@@ -106,41 +122,50 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = React.memo(
         >
           <TableHeader>
             <TableRow>
-              <TableCell>Account</TableCell>
-              <TableCell>Bill #</TableCell>
-              <TableCell>Bill Date</TableCell>
-              <TableCell>%</TableCell>
-              <TableCell
-                className="text-right"
-                style={{ padding: '0.5px 4px' }}
-              >
-                Balance
-              </TableCell>
-              {!hideStatus && <TableCell>Days Status</TableCell>}
-              <TableCell className="extra-col ">{/* Extra column */}</TableCell>
+              {vc('accountCode') && <TableCell>Account</TableCell>}
+              {vc('billNumber') && <TableCell>Bill #</TableCell>}
+              {vc('billDate') && <TableCell>Bill Date</TableCell>}
+              {vc('billPercentage') && <TableCell>%</TableCell>}
+              {vc('balance') && (
+                <TableCell
+                  className="text-right"
+                  style={{ padding: '0.5px 4px' }}
+                >
+                  Balance
+                </TableCell>
+              )}
+              {showDaysStatus && <TableCell>Days Status</TableCell>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {allRows.map((row) => (
               <TableRow key={`row-${row.sortKey}`}>
-                <TableCell>
-                  {row.accountCode}
-                  {showHeadNames && row.headName ? ` — ${row.headName}` : ''}
-                </TableCell>
-                <TableCell>{row.billNumber}</TableCell>
-                <TableCell>{formatDisplayDate(row.billDate)}</TableCell>
-                <TableCell>
-                  {formatJournalDiscountLabel(row.billPercentage)}
-                </TableCell>
-                <TableCell
-                  className="text-right"
-                  style={{ padding: '0.5px 4px' }}
-                >
-                  {getFormattedCurrencyInt(row.balance, {
-                    withoutCurrency: true,
-                  })}
-                </TableCell>
-                {!hideStatus && (
+                {vc('accountCode') && (
+                  <TableCell>
+                    {row.accountCode}
+                    {showHeadNames && row.headName ? ` — ${row.headName}` : ''}
+                  </TableCell>
+                )}
+                {vc('billNumber') && <TableCell>{row.billNumber}</TableCell>}
+                {vc('billDate') && (
+                  <TableCell>{formatDisplayDate(row.billDate)}</TableCell>
+                )}
+                {vc('billPercentage') && (
+                  <TableCell>
+                    {formatJournalDiscountLabel(row.billPercentage)}
+                  </TableCell>
+                )}
+                {vc('balance') && (
+                  <TableCell
+                    className="text-right"
+                    style={{ padding: '0.5px 4px' }}
+                  >
+                    {getFormattedCurrencyInt(row.balance, {
+                      withoutCurrency: true,
+                    })}
+                  </TableCell>
+                )}
+                {showDaysStatus && (
                   <TableCell>
                     {row.daysStatus ? (
                       <span>
@@ -159,24 +184,31 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = React.memo(
                     )}
                   </TableCell>
                 )}
-                <TableCell className="extra-col ">
-                  {/* Extra column */}
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>
           <TableFooter>
             <TableRow>
-              <TableCell colSpan={4} className="text-right">
+              <TableCell
+                colSpan={Math.max(
+                  1,
+                  (vc('accountCode') ? 1 : 0) +
+                    (vc('billNumber') ? 1 : 0) +
+                    (vc('billDate') ? 1 : 0) +
+                    (vc('billPercentage') ? 1 : 0),
+                )}
+                className="text-right"
+              >
                 Total Balance:
               </TableCell>
-              <TableCell className="text-right">
-                {getFormattedCurrencyInt(totalBalance, {
-                  withoutCurrency: true,
-                })}
-              </TableCell>
-              {!hideStatus && <TableCell />}
-              <TableCell className="extra-col" />
+              {vc('balance') && (
+                <TableCell className="text-right">
+                  {getFormattedCurrencyInt(totalBalance, {
+                    withoutCurrency: true,
+                  })}
+                </TableCell>
+              )}
+              {showDaysStatus && <TableCell />}
             </TableRow>
           </TableFooter>
         </Table>

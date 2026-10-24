@@ -22,6 +22,7 @@ interface LedgerReportPrintOptions {
     totalDifference: number;
     totalType: string;
   };
+  visibleColumns?: ReadonlySet<string>;
 }
 
 const narrationTextForRow = (row: LedgerView): string => {
@@ -56,28 +57,52 @@ const narrationLinesForRow = (row: LedgerView): string[] => {
 const buildLedgerTableBodyHtml = (
   rows: LedgerView[],
   debitCreditZeroLabel: string,
+  visibleColumns: ReadonlySet<string>,
 ): string => {
   return rows
     .map((row) => {
-      const particulars = escape(formatLedgerParticularsForExport(row, 'both'));
-      const narration = narrationLinesForRow(row)
-        .map((l) => escape(l))
-        .join(' | ');
-      const dateStr = row.date ? escape(formatDisplayDate(row.date)) : '';
-      const debit = escape(
-        getFormattedDebitCreditWithoutCurrency(row.debit, debitCreditZeroLabel),
-      );
-      const credit = escape(
-        getFormattedDebitCreditWithoutCurrency(
-          row.credit,
-          debitCreditZeroLabel,
-        ),
-      );
-      const balance = escape(
-        getFormattedCurrency(row.balance).replace(currency, '').trim(),
-      );
-      const bType = escape(toString(row.balanceType));
-      return `<tr><td>${dateStr}</td><td>${particulars}</td><td>${narration}</td><td style="text-align:right">${debit}</td><td style="text-align:right">${credit}</td><td style="text-align:right">${balance}</td><td>${bType}</td></tr>`;
+      const cells: string[] = [];
+      if (visibleColumns.has('date'))
+        cells.push(
+          `<td>${row.date ? escape(formatDisplayDate(row.date)) : ''}</td>`,
+        );
+      if (visibleColumns.has('particulars'))
+        cells.push(
+          `<td>${escape(formatLedgerParticularsForExport(row, 'both'))}</td>`,
+        );
+      if (visibleColumns.has('narration'))
+        cells.push(
+          `<td>${narrationLinesForRow(row)
+            .map((l) => escape(l))
+            .join(' | ')}</td>`,
+        );
+      if (visibleColumns.has('debit'))
+        cells.push(
+          `<td style="text-align:right">${escape(
+            getFormattedDebitCreditWithoutCurrency(
+              row.debit,
+              debitCreditZeroLabel,
+            ),
+          )}</td>`,
+        );
+      if (visibleColumns.has('credit'))
+        cells.push(
+          `<td style="text-align:right">${escape(
+            getFormattedDebitCreditWithoutCurrency(
+              row.credit,
+              debitCreditZeroLabel,
+            ),
+          )}</td>`,
+        );
+      if (visibleColumns.has('balance'))
+        cells.push(
+          `<td style="text-align:right">${escape(
+            getFormattedCurrency(row.balance).replace(currency, '').trim(),
+          )}</td>`,
+        );
+      if (visibleColumns.has('balanceType'))
+        cells.push(`<td>${escape(toString(row.balanceType))}</td>`);
+      return `<tr>${cells.join('')}</tr>`;
     })
     .join('');
 };
@@ -85,8 +110,25 @@ const buildLedgerTableBodyHtml = (
 /**
  * prints ledger in a hidden iframe so the main window keeps the virtual table (no flash, no multi‑second freeze).
  */
+const LEDGER_REPORT_COLUMN_IDS = new Set([
+  'date',
+  'particulars',
+  'narration',
+  'debit',
+  'credit',
+  'balance',
+  'balanceType',
+]);
+
 export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
-  const { rows, accountName, dateSubtitle, totals } = options;
+  const {
+    rows,
+    accountName,
+    dateSubtitle,
+    totals,
+    visibleColumns: visibleColumnsOption,
+  } = options;
+  const visibleColumns = visibleColumnsOption ?? LEDGER_REPORT_COLUMN_IDS;
   if (rows.length === 0) return;
 
   const debitCreditZeroLabel = toString(
@@ -94,7 +136,11 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   );
 
   const title = escape(`Ledger Report for ${accountName}: ${dateSubtitle}`);
-  const bodyHtml = buildLedgerTableBodyHtml(rows, debitCreditZeroLabel);
+  const bodyHtml = buildLedgerTableBodyHtml(
+    rows,
+    debitCreditZeroLabel,
+    visibleColumns,
+  );
   const footerDebit = escape(
     getFormattedCurrency(totals.totalDebit).replace(currency, '').trim(),
   );
@@ -148,24 +194,52 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   <table class="data-table-wrapper print-table" style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
-        <th>Date</th>
-        <th>Particulars</th>
-        <th>Narration</th>
-        <th style="text-align:right">Debit</th>
-        <th style="text-align:right">Credit</th>
-        <th style="text-align:right">Balance</th>
-        <th>Type</th>
+        ${visibleColumns.has('date') ? '<th>Date</th>' : ''}
+        ${visibleColumns.has('particulars') ? '<th>Particulars</th>' : ''}
+        ${visibleColumns.has('narration') ? '<th>Narration</th>' : ''}
+        ${
+          visibleColumns.has('debit')
+            ? '<th style="text-align:right">Debit</th>'
+            : ''
+        }
+        ${
+          visibleColumns.has('credit')
+            ? '<th style="text-align:right">Credit</th>'
+            : ''
+        }
+        ${
+          visibleColumns.has('balance')
+            ? '<th style="text-align:right">Balance</th>'
+            : ''
+        }
+        ${visibleColumns.has('balanceType') ? '<th>Type</th>' : ''}
       </tr>
     </thead>
     <tbody>${bodyHtml}
       <tr class="ledger-print-totals-row">
-        <td></td>
-        <td></td>
-        <td></td>
-        <td style="text-align:right"><strong>${footerDebit}</strong></td>
-        <td style="text-align:right"><strong>${footerCredit}</strong></td>
-        <td style="text-align:right"><strong>${footerDiff}</strong></td>
-        <td><strong>${footerType}</strong></td>
+        ${visibleColumns.has('date') ? '<td></td>' : ''}
+        ${visibleColumns.has('particulars') ? '<td></td>' : ''}
+        ${visibleColumns.has('narration') ? '<td></td>' : ''}
+        ${
+          visibleColumns.has('debit')
+            ? `<td style="text-align:right"><strong>${footerDebit}</strong></td>`
+            : ''
+        }
+        ${
+          visibleColumns.has('credit')
+            ? `<td style="text-align:right"><strong>${footerCredit}</strong></td>`
+            : ''
+        }
+        ${
+          visibleColumns.has('balance')
+            ? `<td style="text-align:right"><strong>${footerDiff}</strong></td>`
+            : ''
+        }
+        ${
+          visibleColumns.has('balanceType')
+            ? `<td><strong>${footerType}</strong></td>`
+            : ''
+        }
       </tr>
     </tbody>
   </table>

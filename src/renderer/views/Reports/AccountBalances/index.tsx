@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Card } from 'renderer/shad/ui/card';
@@ -27,6 +27,8 @@ import {
 import { toast } from 'renderer/shad/ui/use-toast';
 import { formatDisplayDate } from '@/lib/displayDate';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { ExportOrderDialog, printStyles } from '../components';
 import { useAccountBalances } from './useAccountBalances';
 import { AccountBalancesTable } from './AccountBalancesTable';
@@ -44,6 +46,7 @@ const buildAccountBalancesPayload = (
   selectedHead: string,
   selectedDate: Date,
   exportSortOrder: DebitCreditExportSortOrder,
+  visibleColumns?: ReadonlySet<string>,
 ): ReportExportPayload<AccountBalancesRow> => {
   const rows = sortDebitCreditRows(
     accountBalances.accounts.map((a) => ({
@@ -67,7 +70,11 @@ const buildAccountBalancesPayload = (
       { key: 'name', header: 'Account Name', format: 'string', width: 32 },
       { key: 'debit', header: 'Debit', format: 'currency', width: 14 },
       { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
-    ],
+    ].filter((column) =>
+      (visibleColumns ?? new Set(['code', 'name', 'debit', 'credit'])).has(
+        String(column.key),
+      ),
+    ) as ReportExportPayload<AccountBalancesRow>['columns'],
     rows,
     footerRow: {
       code: '',
@@ -90,6 +97,25 @@ const AccountBalancesPage = () => {
   } = useAccountBalances();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
+  const accountBalancesColumnSpecs = useMemo(
+    () => [
+      { id: 'code', label: 'Account Code' },
+      { id: 'name', label: 'Account Name' },
+      { id: 'debit', label: 'Debit' },
+      { id: 'credit', label: 'Credit' },
+    ],
+    [],
+  );
+  const accountBalancesColumnIds = useMemo(
+    () => accountBalancesColumnSpecs.map((column) => column.id),
+    [accountBalancesColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'account-balances',
+    accountBalancesColumnIds,
+  );
+  const visibleAccountBalancesColumns = columnVisibility.included;
+
   const handlePrint = () => {
     window.print();
   };
@@ -102,6 +128,7 @@ const AccountBalancesPage = () => {
           selectedHead,
           selectedDate,
           exportSortOrder,
+          visibleAccountBalancesColumns,
         );
         exportReportToExcel(payload);
         toast({
@@ -118,7 +145,12 @@ const AccountBalancesPage = () => {
         });
       }
     },
-    [accountBalances, selectedHead, selectedDate],
+    [
+      accountBalances,
+      selectedHead,
+      selectedDate,
+      visibleAccountBalancesColumns,
+    ],
   );
 
   const canExport = !isLoading && accountBalances.accounts.length > 0;
@@ -178,6 +210,12 @@ const AccountBalancesPage = () => {
           }
           actions={
             <>
+              <ReportColumnsMenu
+                columns={accountBalancesColumnSpecs}
+                included={columnVisibility.included}
+                onToggle={columnVisibility.toggle}
+                onToggleAll={columnVisibility.toggleAll}
+              />
               <Button
                 variant="outline"
                 size="icon"
@@ -219,6 +257,7 @@ const AccountBalancesPage = () => {
         <AccountBalancesTable
           accountBalances={accountBalances}
           isLoading={isLoading}
+          visibleColumns={visibleAccountBalancesColumns}
         />
       </Card>
     </ReportLayout>

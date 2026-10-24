@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { trim } from 'lodash';
 import {
@@ -21,6 +21,8 @@ import {
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import { ReportHeader } from '@/renderer/components/ReportHeader';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import {
   exportReportToExcel,
   type ReportExportPayload,
@@ -154,6 +156,34 @@ const CollectionSheetPage: React.FC = () => {
     : period;
   const title = headName ? `${headers.title} - ${headName}` : headers.title;
 
+  // column choices for export/print/screen, persisted per report
+  const collectionSheetColumnSpecs = useMemo(
+    () => [
+      { id: 'code', label: headers.code },
+      { id: 'billNumber', label: headers.bill },
+      { id: 'billDate', label: headers.billDate },
+      { id: 'balance', label: headers.balance },
+      ...tours.map((tour) => ({
+        id: `tour_${tour.id}`,
+        label: `${headers.tours}: ${tourColumnHeader(tour)}`,
+      })),
+      ...(showUntoured ? [{ id: 'untoured', label: headers.untoured }] : []),
+      { id: 'collection', label: headers.collection },
+      { id: 'difference', label: headers.difference },
+      { id: 'remaining', label: headers.remaining },
+    ],
+    [headers, tours, showUntoured],
+  );
+  const collectionSheetColumnIds = useMemo(
+    () => collectionSheetColumnSpecs.map((column) => column.id),
+    [collectionSheetColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'collection-sheet',
+    collectionSheetColumnIds,
+  );
+  const visibleColumns = columnVisibility.included;
+
   const canExport = !isLoading && rows.length > 0;
 
   const handleExport = useCallback(() => {
@@ -176,40 +206,65 @@ const CollectionSheetPage: React.FC = () => {
         'yyyy-MM-dd',
       )}${sortSuffix}.xlsx`,
       columns: [
-        { key: 'code', header: headers.code, format: 'string', width: 20 },
-        {
-          key: 'billNumber',
-          header: headers.bill,
-          format: 'string',
-          width: 12,
-        },
-        {
-          key: 'billDate',
-          header: headers.billDate,
-          format: 'string',
-          width: 12,
-        },
-        {
-          key: 'balance',
-          header: headers.balance,
-          format: 'currency',
-          width: 14,
-        },
-        ...tours.flatMap((tour) => [
-          {
-            key: tourExportKey(tour.id),
-            header: `${headers.tours}: ${tourColumnHeader(tour)}`,
-            format: 'currency' as const,
-            width: 16,
-          },
-          {
-            key: tourBalanceExportKey(tour.id),
-            header: `${headers.tourBalance}: ${tourColumnHeader(tour)}`,
-            format: 'currency' as const,
-            width: 14,
-          },
-        ]),
-        ...(showUntoured
+        ...(visibleColumns.has('code')
+          ? [
+              {
+                key: 'code',
+                header: headers.code,
+                format: 'string' as const,
+                width: 20,
+              },
+            ]
+          : []),
+        ...(visibleColumns.has('billNumber')
+          ? [
+              {
+                key: 'billNumber',
+                header: headers.bill,
+                format: 'string' as const,
+                width: 12,
+              },
+            ]
+          : []),
+        ...(visibleColumns.has('billDate')
+          ? [
+              {
+                key: 'billDate',
+                header: headers.billDate,
+                format: 'string' as const,
+                width: 12,
+              },
+            ]
+          : []),
+        ...(visibleColumns.has('balance')
+          ? [
+              {
+                key: 'balance',
+                header: headers.balance,
+                format: 'currency' as const,
+                width: 14,
+              },
+            ]
+          : []),
+        ...tours.flatMap((tour) =>
+          visibleColumns.has(`tour_${tour.id}`)
+            ? [
+                {
+                  key: tourExportKey(tour.id),
+                  header: `${headers.tours}: ${tourColumnHeader(tour)}`,
+                  format: 'currency' as const,
+                  width: 16,
+                },
+                {
+                  key: tourBalanceExportKey(tour.id),
+                  header: `${headers.tourBalance}: ${tourColumnHeader(tour)}`,
+                  format: 'currency' as const,
+                  width: 14,
+                },
+              ]
+            : [],
+        ),
+        ...(showUntoured && visibleColumns.has('untoured')
           ? [
               {
                 key: 'untoured' as const,
@@ -219,25 +274,37 @@ const CollectionSheetPage: React.FC = () => {
               },
             ]
           : []),
-        {
-          key: 'collection',
-          header: headers.collection,
-          format: 'string',
-          width: 14,
-        },
-        {
-          key: 'difference',
-          header: headers.difference,
-          format: 'string',
-          width: 14,
-        },
-        {
-          key: 'remaining',
-          header: headers.remaining,
-          format: 'string',
-          width: 14,
-        },
-      ],
+        ...(visibleColumns.has('collection')
+          ? [
+              {
+                key: 'collection',
+                header: headers.collection,
+                format: 'string' as const,
+                width: 14,
+              },
+            ]
+          : []),
+        ...(visibleColumns.has('difference')
+          ? [
+              {
+                key: 'difference',
+                header: headers.difference,
+                format: 'string' as const,
+                width: 14,
+              },
+            ]
+          : []),
+        ...(visibleColumns.has('remaining')
+          ? [
+              {
+                key: 'remaining',
+                header: headers.remaining,
+                format: 'string' as const,
+                width: 14,
+              },
+            ]
+          : []),
+      ] as ReportExportPayload<CollectionSheetExportRow>['columns'],
       rows: rows.map((row: CollectionSheetRow) => ({
         code: row.billIndex === 1 ? row.code : '//',
         balance: row.balance,
@@ -284,6 +351,7 @@ const CollectionSheetPage: React.FC = () => {
     subtitle,
     title,
     tours,
+    visibleColumns,
   ]);
 
   const handlePrint = useCallback(() => {
@@ -295,8 +363,18 @@ const CollectionSheetPage: React.FC = () => {
       title,
       subtitle,
       language,
+      visibleColumns,
     });
-  }, [canExport, language, rows, showUntoured, subtitle, title, tours]);
+  }, [
+    canExport,
+    language,
+    rows,
+    showUntoured,
+    subtitle,
+    title,
+    tours,
+    visibleColumns,
+  ]);
 
   return (
     <ReportLayout
@@ -425,6 +503,12 @@ const CollectionSheetPage: React.FC = () => {
               >
                 <Printer className="h-4 w-4" />
               </Button>
+              <ReportColumnsMenu
+                columns={collectionSheetColumnSpecs}
+                included={columnVisibility.included}
+                onToggle={columnVisibility.toggle}
+                onToggleAll={columnVisibility.toggleAll}
+              />
             </>
           }
           summary={
@@ -441,6 +525,7 @@ const CollectionSheetPage: React.FC = () => {
         rows={rows}
         tours={tours}
         showUntoured={showUntoured}
+        visibleColumns={visibleColumns}
         isLoading={isLoading}
         hasAgent={selectedChartId.length > 0}
         language={language}

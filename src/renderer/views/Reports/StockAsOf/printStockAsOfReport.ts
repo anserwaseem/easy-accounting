@@ -16,34 +16,80 @@ interface PrintStockAsOfOptions {
   rows: StockAsOfPrintRow[];
   /** e.g. as-of date line for title */
   subtitle: string;
+  /** visible column ids; defaults to every column when omitted */
+  visibleColumns?: ReadonlySet<string>;
 }
 
-const buildBodyHtml = (rows: StockAsOfPrintRow[]): string =>
+const ids = new Set([
+  'listPosition',
+  'item',
+  'itemType',
+  'unitPrice',
+  'currentQuantity',
+  'quantityAsOf',
+  'quantityDiff',
+]);
+
+const buildBodyHtml = (
+  rows: StockAsOfPrintRow[],
+  visibleColumns: ReadonlySet<string>,
+): string =>
   rows
-    .map(
-      (row) => `<tr>
-  <td class="num">${
-    row.listPosition != null ? escape(String(row.listPosition)) : escape('—')
-  }</td>
-  <td>${escape(row.item)}</td>
-  <td>${escape(row.itemType || '—')}</td>
-  <td class="num">${escape(String(row.unitPrice ?? 0))}</td>
-  <td class="num">${escape(String(row.currentQuantity))}</td>
-  <td class="num">${escape(String(row.quantityAsOf))}</td>
-  <td class="num">${escape(String(row.quantityDiff))}</td>
-</tr>`,
-    )
+    .map((row) => {
+      const cells: string[] = [];
+      if (visibleColumns.has('listPosition')) {
+        cells.push(
+          `<td class="num">${
+            row.listPosition != null
+              ? escape(String(row.listPosition))
+              : escape('—')
+          }</td>`,
+        );
+      }
+      if (visibleColumns.has('item'))
+        cells.push(`<td>${escape(row.item)}</td>`);
+      if (visibleColumns.has('itemType'))
+        cells.push(`<td>${escape(row.itemType || '—')}</td>`);
+      if (visibleColumns.has('unitPrice'))
+        cells.push(
+          `<td class="num">${escape(String(row.unitPrice ?? 0))}</td>`,
+        );
+      if (visibleColumns.has('currentQuantity'))
+        cells.push(
+          `<td class="num">${escape(String(row.currentQuantity))}</td>`,
+        );
+      if (visibleColumns.has('quantityAsOf'))
+        cells.push(`<td class="num">${escape(String(row.quantityAsOf))}</td>`);
+      if (visibleColumns.has('quantityDiff'))
+        cells.push(`<td class="num">${escape(String(row.quantityDiff))}</td>`);
+      return `<tr>${cells.join('')}</tr>`;
+    })
     .join('');
 
 /**
  * prints stock as-of in a hidden iframe so the virtual table in the main view does not affect output.
  */
 export const printStockAsOfReportIframe = (options: PrintStockAsOfOptions) => {
-  const { rows, subtitle } = options;
+  const { rows, subtitle, visibleColumns: visibleColumnsOption } = options;
+  const visibleColumns = visibleColumnsOption ?? ids;
   if (rows.length === 0) return;
 
   const title = escape(`Stock as of date: ${subtitle}`);
-  const bodyHtml = buildBodyHtml(rows);
+  const headerCells: string[] = [];
+  if (visibleColumns.has('listPosition'))
+    headerCells.push('<th class="num">List #</th>');
+  if (visibleColumns.has('item')) headerCells.push('<th>Item</th>');
+  if (visibleColumns.has('itemType')) headerCells.push('<th>Type</th>');
+  if (visibleColumns.has('unitPrice'))
+    headerCells.push('<th class="num">Price</th>');
+  if (visibleColumns.has('currentQuantity'))
+    headerCells.push('<th class="num">Current</th>');
+  if (visibleColumns.has('quantityAsOf'))
+    headerCells.push('<th class="num">Qty (as of)</th>');
+  if (visibleColumns.has('quantityDiff'))
+    headerCells.push('<th class="num">Δ vs as of</th>');
+  const headerHtml = headerCells.join('');
+  const bodyHtml = buildBodyHtml(rows, visibleColumns);
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
@@ -83,13 +129,7 @@ export const printStockAsOfReportIframe = (options: PrintStockAsOfOptions) => {
   <table class="data-table-wrapper print-table" style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
-        <th class="num">List #</th>
-        <th>Item</th>
-        <th>Type</th>
-        <th class="num">Price</th>
-        <th class="num">Current</th>
-        <th class="num">Qty (as of)</th>
-        <th class="num">Δ vs as of</th>
+        ${headerHtml}
       </tr>
     </thead>
     <tbody>${bodyHtml}</tbody>

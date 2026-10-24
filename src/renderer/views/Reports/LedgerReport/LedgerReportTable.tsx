@@ -17,6 +17,7 @@ interface LedgerReportTableProps {
     totalDifference: number;
     totalType: string;
   };
+  visibleColumns?: ReadonlySet<string>;
 }
 
 export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
@@ -25,29 +26,57 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
   dateSubtitle,
   accountName,
   totals,
+  visibleColumns,
 }: LedgerReportTableProps) => {
-  const stickyFooterRow = useMemo(
-    () => [
-      null,
-      null,
-      null,
-      <span className="block font-semibold whitespace-nowrap">
-        {getFormattedCurrency(totals.totalDebit).replace(currency, '').trim()}
-      </span>,
-      <span className="block font-semibold whitespace-nowrap">
-        {getFormattedCurrency(totals.totalCredit).replace(currency, '').trim()}
-      </span>,
-      <span className="block font-semibold whitespace-nowrap">
-        {getFormattedCurrency(totals.totalDifference)
-          .replace(currency, '')
-          .trim()}
-      </span>,
-      <span className="block font-semibold whitespace-nowrap">
-        {totals.totalType}
-      </span>,
-    ],
-    [totals],
+  const allColumns = useMemo(
+    () =>
+      [
+        'date',
+        'particulars',
+        'narration',
+        'debit',
+        'credit',
+        'balance',
+        'balanceType',
+      ] as const,
+    [],
   );
+  const stickyFooterRow = useMemo(() => {
+    const visible = visibleColumns ?? new Set(allColumns);
+    const cells: React.ReactNode[] = [];
+    if (visible.has('date')) cells.push(null);
+    if (visible.has('particulars')) cells.push(null);
+    if (visible.has('narration')) cells.push(null);
+    if (visible.has('debit'))
+      cells.push(
+        <span className="block font-semibold whitespace-nowrap">
+          {getFormattedCurrency(totals.totalDebit).replace(currency, '').trim()}
+        </span>,
+      );
+    if (visible.has('credit'))
+      cells.push(
+        <span className="block font-semibold whitespace-nowrap">
+          {getFormattedCurrency(totals.totalCredit)
+            .replace(currency, '')
+            .trim()}
+        </span>,
+      );
+    if (visible.has('balance'))
+      cells.push(
+        <span className="block font-semibold whitespace-nowrap">
+          {getFormattedCurrency(totals.totalDifference)
+            .replace(currency, '')
+            .trim()}
+        </span>,
+      );
+    if (visible.has('balanceType'))
+      cells.push(
+        <span className="block font-semibold whitespace-nowrap">
+          {totals.totalType}
+        </span>,
+      );
+    return cells;
+  }, [totals, visibleColumns, allColumns]);
 
   if (isLoading) {
     return <LoadingState message="Loading ledger entries..." />;
@@ -75,6 +104,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
         className="print-table"
         printMode
         stickyFooterRow={stickyFooterRow}
+        visibleColumns={visibleColumns}
       />
     </>
   );

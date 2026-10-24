@@ -27,6 +27,7 @@ interface CollectionSheetTableProps {
   rows: CollectionSheetRow[];
   tours: CollectionSheetTourColumn[];
   showUntoured: boolean;
+  visibleColumns?: ReadonlySet<string>;
   isLoading: boolean;
   hasAgent: boolean;
   language: CollectionSheetLanguage;
@@ -90,12 +91,31 @@ const codeRail =
 
 export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   rows,
-  tours,
+  tours: allTours,
   showUntoured,
+  visibleColumns,
   isLoading,
   hasAgent,
   language,
 }: CollectionSheetTableProps) => {
+  // default to all columns visible when no selection is supplied
+  const defaultVisible = new Set([
+    'code',
+    'billNumber',
+    'billDate',
+    'balance',
+    ...allTours.map((tour) => `tour_${tour.id}`),
+    ...(showUntoured ? ['untoured'] : []),
+    'collection',
+    'difference',
+    'remaining',
+  ]);
+  const vc = visibleColumns ?? defaultVisible;
+  const isVisible = (id: string) => vc.has(id);
+  const visibleTours = allTours.filter((tour) => isVisible(`tour_${tour.id}`));
+  const tours = visibleTours;
+  const hasTours = visibleTours.length > 0;
+  const showUntouredVisible = showUntoured && isVisible('untoured');
   if (isLoading) return <LoadingState />;
   if (!hasAgent) {
     return <EmptyState message="Select an agent to build the sheet." />;
@@ -110,7 +130,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
   const tourTotals = collectionSheetTourTotals(rows, tourIds);
   const untouredTotal = collectionSheetUntouredTotal(rows);
   const urdu = language === 'ur';
-  const hasTours = tours.length > 0;
+  // hasTours already defined above from visibleTours
   // fixed columns span both header rows when tour columns add a second one
   const span = hasTours ? 2 : undefined;
   // one row per bill; the sticky code is the only shop identity left, so the
@@ -136,38 +156,46 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
           >
             <thead className="sticky top-0 z-20 bg-background shadow-[0_1px_0_hsl(var(--border))]">
               <tr className="text-start">
-                <th
-                  rowSpan={span}
-                  dir="ltr"
-                  className={cn(headCell, codeRail, 'z-30 text-left')}
-                >
-                  {headers.code}
-                </th>
-                <th
-                  rowSpan={span}
-                  dir="ltr"
-                  className={cn(headCell, 'text-left whitespace-nowrap')}
-                >
-                  {headers.bill}
-                </th>
-                <th
-                  rowSpan={span}
-                  dir="ltr"
-                  className={cn(headCell, 'text-left whitespace-nowrap')}
-                >
-                  {headers.billDate}
-                </th>
-                <th rowSpan={span} className={cn(headCell, 'text-end')}>
-                  <HeaderWithTooltip
-                    label={headers.balance}
-                    align="end"
-                    tooltip={
-                      urdu
-                        ? 'اس بل کی واجب الادا رقم (پہلے واجب الادا بل پہلے ادا ہوتے ہیں)۔ ادا شدہ پرانے بل خارج ہیں۔'
-                        : 'Active unpaid balance on this bill (settled FIFO against customer balance). Fully paid older bills are omitted.'
-                    }
-                  />
-                </th>
+                {isVisible('code') ? (
+                  <th
+                    rowSpan={span}
+                    dir="ltr"
+                    className={cn(headCell, codeRail, 'z-30 text-left')}
+                  >
+                    {headers.code}
+                  </th>
+                ) : null}
+                {isVisible('billNumber') ? (
+                  <th
+                    rowSpan={span}
+                    dir="ltr"
+                    className={cn(headCell, 'text-left whitespace-nowrap')}
+                  >
+                    {headers.bill}
+                  </th>
+                ) : null}
+                {isVisible('billDate') ? (
+                  <th
+                    rowSpan={span}
+                    dir="ltr"
+                    className={cn(headCell, 'text-left whitespace-nowrap')}
+                  >
+                    {headers.billDate}
+                  </th>
+                ) : null}
+                {isVisible('balance') ? (
+                  <th rowSpan={span} className={cn(headCell, 'text-end')}>
+                    <HeaderWithTooltip
+                      label={headers.balance}
+                      align="end"
+                      tooltip={
+                        urdu
+                          ? 'اس بل کی واجب الادا رقم (پہلے واجب الادا بل پہلے ادا ہوتے ہیں)۔ ادا شدہ پرانے بل خارج ہیں۔'
+                          : 'Active unpaid balance on this bill (settled FIFO against customer balance). Fully paid older bills are omitted.'
+                      }
+                    />
+                  </th>
+                ) : null}
                 {hasTours ? (
                   <th
                     colSpan={tours.length}
@@ -184,7 +212,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     />
                   </th>
                 ) : null}
-                {showUntoured ? (
+                {showUntouredVisible ? (
                   <th
                     rowSpan={span}
                     className={cn(
@@ -342,7 +370,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       </td>
                     );
                   })}
-                  {showUntoured ? (
+                  {showUntouredVisible ? (
                     <td
                       className={cn(
                         bodyCell,
@@ -387,7 +415,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                     {formatTourAmount(tourTotals[tour.id])}
                   </td>
                 ))}
-                {showUntoured ? (
+                {showUntouredVisible ? (
                   <td
                     className={cn(
                       bodyCell,

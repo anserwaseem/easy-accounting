@@ -49,6 +49,8 @@ import {
   getHeaderTypedSuffixFromCode,
 } from 'renderer/views/NewInvoice/lib/partyAccountTyping';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import {
   useBillsAging,
   ALL_PARTIES_HEAD,
@@ -78,6 +80,7 @@ const buildBillsAgingExportPayload = (
   hideStatus: boolean,
   selectedHead: string,
   selectedDate: Date,
+  visibleColumns?: ReadonlySet<string>,
 ): ReportExportPayload<BillsAgingExportRow> => {
   const rowsBase: BillsAgingRow[] = buildBillsAgingRows(
     billsAgingData,
@@ -138,6 +141,21 @@ const buildBillsAgingExportPayload = (
     });
   }
 
+  const vc =
+    visibleColumns ??
+    new Set([
+      'accountCode',
+      'headName',
+      'billNumber',
+      'billDate',
+      'billPercentage',
+      'balance',
+      'daysStatus',
+    ]);
+  const visibleColumnsList = columns.filter((column) =>
+    vc.has(String(column.key)),
+  );
+
   const title = 'Bills Aging';
   const subtitle = `Report for ${selectedHead} on ${formatDisplayDate(
     selectedDate,
@@ -148,7 +166,8 @@ const buildBillsAgingExportPayload = (
     subtitle,
     sheetName: 'Bills Aging',
     suggestedFileName: `Bills_Aging_${format(selectedDate, 'yyyy-MM-dd')}.xlsx`,
-    columns,
+    columns:
+      visibleColumnsList as ReportExportPayload<BillsAgingExportRow>['columns'],
     rows,
   };
 };
@@ -406,6 +425,28 @@ const BillsAgingPage = () => {
     sortBy,
   ]);
 
+  const billsAgingColumnSpecs = useMemo(
+    () => [
+      { id: 'accountCode', label: 'Account' },
+      { id: 'headName', label: 'Head' },
+      { id: 'billNumber', label: 'Bill #' },
+      { id: 'billDate', label: 'Bill Date' },
+      { id: 'billPercentage', label: '%' },
+      { id: 'balance', label: 'Balance' },
+      { id: 'daysStatus', label: 'Days Status' },
+    ],
+    [],
+  );
+  const billsAgingColumnIds = useMemo(
+    () => billsAgingColumnSpecs.map((column) => column.id),
+    [billsAgingColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'bills-aging',
+    billsAgingColumnIds,
+  );
+  const visibleBillsAgingColumns = columnVisibility.included;
+
   const canExport = !isLoading && visibleAccounts.length > 0;
 
   const handleExportExcel = useCallback(() => {
@@ -419,6 +460,7 @@ const BillsAgingPage = () => {
         hideStatus,
         selectedHead,
         selectedDate,
+        visibleBillsAgingColumns,
       );
       exportReportToExcel(payload);
       toast({
@@ -441,6 +483,7 @@ const BillsAgingPage = () => {
     hideStatus,
     selectedHead,
     selectedDate,
+    visibleBillsAgingColumns,
   ]);
 
   // head tags (screen + print) only earn their place when the selection spans
@@ -571,6 +614,12 @@ const BillsAgingPage = () => {
                 >
                   <Printer className="h-4 w-4" />
                 </Button>
+                <ReportColumnsMenu
+                  columns={billsAgingColumnSpecs}
+                  included={columnVisibility.included}
+                  onToggle={columnVisibility.toggle}
+                  onToggleAll={columnVisibility.toggleAll}
+                />
               </div>
 
               {/* The Filters button travels with the title: both are about
@@ -1131,6 +1180,7 @@ const BillsAgingPage = () => {
                 ...tableProps,
                 hideStatus,
                 showHeadNames: selectionSpansHeads,
+                visibleColumns: visibleBillsAgingColumns,
               }}
             />
           </div>

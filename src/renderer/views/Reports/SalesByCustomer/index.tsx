@@ -6,6 +6,8 @@ import { Button } from '@/renderer/shad/ui/button';
 import { ReportLayout } from '@/renderer/components/ReportLayout';
 import VirtualMultiSelect from '@/renderer/components/VirtualMultiSelect';
 import { ReportFilter, ReportHeader } from '@/renderer/components/ReportHeader';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { DateRangePickerWithPresets } from '@/renderer/shad/ui/datePicker';
 import { DataTable, type ColumnDef } from '@/renderer/shad/ui/dataTable';
 import { cn } from '@/renderer/lib/utils';
@@ -98,6 +100,24 @@ const SalesByCustomerPage: React.FC = () => {
   const hasSelection = selectedCustomerIds.length > 0;
   const showCustomerOnLines = selectedCustomerIds.length > 1;
 
+  const salesByCustomerColumnSpecs = useMemo(
+    () => [
+      { id: 'itemName', label: 'Item' },
+      { id: 'quantity', label: 'Qty' },
+      { id: 'invoiceCount', label: 'Invoices' },
+    ],
+    [],
+  );
+  const salesByCustomerColumnIds = useMemo(
+    () => salesByCustomerColumnSpecs.map((column) => column.id),
+    [salesByCustomerColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'sales-by-customer',
+    salesByCustomerColumnIds,
+  );
+  const visibleSalesByCustomerColumns = columnVisibility.included;
+
   useEffect(() => {
     setGridViewRows(null);
   }, [response]);
@@ -124,7 +144,7 @@ const SalesByCustomerPage: React.FC = () => {
     [exportPrintRows],
   );
 
-  const columns = useMemo<ColumnDef<SalesByCustomerItem>[]>(
+  const allColumns = useMemo<ColumnDef<SalesByCustomerItem>[]>(
     () => [
       {
         accessorKey: 'itemName',
@@ -158,18 +178,38 @@ const SalesByCustomerPage: React.FC = () => {
     [],
   );
 
+  const columns = useMemo(
+    () =>
+      allColumns.filter((column) => {
+        const id = String(
+          (column as { accessorKey?: string; id?: string }).accessorKey ??
+            (column as { id?: string }).id ??
+            '',
+        );
+        return visibleSalesByCustomerColumns.has(id);
+      }),
+    [allColumns, visibleSalesByCustomerColumns],
+  );
+
   const stickyFooterRow = useMemo(
-    () => [
-      null,
-      <span
-        key="qty-total"
-        className="block font-semibold tabular-nums whitespace-nowrap"
-      >
-        {totalQty.toLocaleString()}
-      </span>,
-      null,
-    ],
-    [totalQty],
+    () =>
+      columns.map((column) => {
+        const id = String(
+          (column as { accessorKey?: string }).accessorKey ?? '',
+        );
+        if (id === 'quantity') {
+          return (
+            <span
+              key="qty-total"
+              className="block font-semibold tabular-nums whitespace-nowrap"
+            >
+              {totalQty.toLocaleString()}
+            </span>
+          );
+        }
+        return null;
+      }),
+    [columns, totalQty],
   );
 
   const canExport = !isLoading && hasSelection && itemCount > 0;
@@ -236,8 +276,26 @@ const SalesByCustomerPage: React.FC = () => {
             subtitle,
             sheetName: 'Items',
             columns: [
-              { key: 'itemName', header: 'Item', format: 'string', width: 28 },
-              { key: 'quantity', header: 'Qty', format: 'number', width: 10 },
+              ...(visibleSalesByCustomerColumns.has('itemName')
+                ? ([
+                    {
+                      key: 'itemName',
+                      header: 'Item',
+                      format: 'string' as const,
+                      width: 28,
+                    },
+                  ] as const)
+                : []),
+              ...(visibleSalesByCustomerColumns.has('quantity')
+                ? ([
+                    {
+                      key: 'quantity',
+                      header: 'Qty',
+                      format: 'number' as const,
+                      width: 10,
+                    },
+                  ] as const)
+                : []),
             ],
             rows: exportPrintRows as unknown as Array<Record<string, unknown>>,
             footerRow: { quantity: totalQty },
@@ -273,6 +331,7 @@ const SalesByCustomerPage: React.FC = () => {
     selectedCustomerLabel,
     showCustomerOnLines,
     totalQty,
+    visibleSalesByCustomerColumns,
   ]);
 
   const handlePrint = useCallback(() => {
@@ -282,6 +341,7 @@ const SalesByCustomerPage: React.FC = () => {
       customerLabel: selectedCustomerLabel,
       dateSubtitle,
       totalQty,
+      visibleColumns: visibleSalesByCustomerColumns,
     });
   }, [
     canExport,
@@ -289,6 +349,7 @@ const SalesByCustomerPage: React.FC = () => {
     exportPrintRows,
     selectedCustomerLabel,
     totalQty,
+    visibleSalesByCustomerColumns,
   ]);
 
   return (
@@ -321,6 +382,12 @@ const SalesByCustomerPage: React.FC = () => {
           }
           actions={
             <>
+              <ReportColumnsMenu
+                columns={salesByCustomerColumnSpecs}
+                included={columnVisibility.included}
+                onToggle={columnVisibility.toggle}
+                onToggleAll={columnVisibility.toggleAll}
+              />
               <Button
                 variant="outline"
                 size="icon"

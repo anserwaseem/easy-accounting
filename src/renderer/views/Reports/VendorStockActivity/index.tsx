@@ -20,6 +20,8 @@ import {
   readStoredVendorStockVendorId,
 } from '@/renderer/lib/vendorStockSelection';
 import { cn } from '@/renderer/lib/utils';
+import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
+import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
 import type {
@@ -294,6 +296,31 @@ const VendorStockActivityPage: React.FC = () => {
     [],
   );
 
+  const vendorStockActivityColumnSpecs = useMemo(
+    () => [
+      { id: 'inventoryName', label: ACTIVITY_COLUMN_HEADERS.inventoryName },
+      { id: 'opening', label: ACTIVITY_COLUMN_HEADERS.opening },
+      { id: 'issued', label: ACTIVITY_COLUMN_HEADERS.issued },
+      { id: 'purchased', label: ACTIVITY_COLUMN_HEADERS.purchased },
+      {
+        id: 'purchaseReturned',
+        label: ACTIVITY_COLUMN_HEADERS.purchaseReturned,
+      },
+      { id: 'adjusted', label: ACTIVITY_COLUMN_HEADERS.adjusted },
+      { id: 'closing', label: ACTIVITY_COLUMN_HEADERS.closing },
+    ],
+    [],
+  );
+  const vendorStockActivityColumnIds = useMemo(
+    () => vendorStockActivityColumnSpecs.map((column) => column.id),
+    [vendorStockActivityColumnSpecs],
+  );
+  const columnVisibility = useReportColumnVisibility(
+    'vendor-stock-activity',
+    vendorStockActivityColumnIds,
+  );
+  const visibleVendorStockActivityColumns = columnVisibility.included;
+
   const columns = useMemo<ColumnDef<VendorStockActivityItem>[]>(
     () => [
       {
@@ -406,6 +433,18 @@ const VendorStockActivityPage: React.FC = () => {
     [openItem],
   );
 
+  const visibleColumns = useMemo(
+    () =>
+      columns.filter((column) => {
+        const typedColumn = column as { accessorKey?: string; id?: string };
+        const columnId = String(
+          typedColumn.accessorKey ?? typedColumn.id ?? '',
+        );
+        return columnVisibility.isIncluded(columnId);
+      }),
+    [columns, columnVisibility],
+  );
+
   const dateSubtitle = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return '';
     return `${formatDisplayDate(dateRange.from)} – ${formatDisplayDate(
@@ -475,7 +514,14 @@ const VendorStockActivityPage: React.FC = () => {
               format: 'number',
               width: 10,
             },
-          ],
+          ].filter((column) =>
+            visibleVendorStockActivityColumns.has(String(column.key)),
+          ) as unknown as Array<{
+            key: string;
+            header: string;
+            format?: 'string' | 'number' | 'currency' | 'date';
+            width?: number;
+          }>,
           rows: exportRows as unknown as Array<Record<string, unknown>>,
         },
         {
@@ -511,6 +557,7 @@ const VendorStockActivityPage: React.FC = () => {
       rows: exportRows,
       vendorName: response.vendorAccountName,
       dateSubtitle,
+      visibleColumns: visibleVendorStockActivityColumns,
     });
   };
 
@@ -577,6 +624,12 @@ const VendorStockActivityPage: React.FC = () => {
               >
                 <Printer className="h-4 w-4" />
               </Button>
+              <ReportColumnsMenu
+                columns={vendorStockActivityColumnSpecs}
+                included={columnVisibility.included}
+                onToggle={columnVisibility.toggle}
+                onToggleAll={columnVisibility.toggleAll}
+              />
             </>
           }
         />
@@ -600,7 +653,7 @@ const VendorStockActivityPage: React.FC = () => {
       )}
       {!isLoading && response && response.items.length > 0 && (
         <DataTable
-          columns={columns}
+          columns={visibleColumns}
           data={response.items}
           virtual
           virtualHeightMode="fill"

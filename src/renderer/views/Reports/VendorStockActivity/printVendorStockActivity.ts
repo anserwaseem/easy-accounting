@@ -9,6 +9,7 @@ interface PrintVendorStockActivityOptions {
   rows: VendorStockActivityItem[];
   vendorName: string;
   dateSubtitle: string;
+  visibleColumns?: ReadonlySet<string>;
 }
 
 /** print full activity rows without opening an Electron browser window */
@@ -16,6 +17,17 @@ export const printVendorStockActivityIframe = (
   options: PrintVendorStockActivityOptions,
 ): void => {
   const { rows, vendorName, dateSubtitle } = options;
+  const visibleColumns =
+    options.visibleColumns ??
+    new Set([
+      'inventoryName',
+      'opening',
+      'issued',
+      'purchased',
+      'purchaseReturned',
+      'adjusted',
+      'closing',
+    ]);
   if (rows.length === 0) return;
 
   const iframe = document.createElement('iframe');
@@ -38,19 +50,27 @@ export const printVendorStockActivityIframe = (
     return;
   }
 
-  const rowsHtml = rows
-    .map(
-      (row) => `<tr>
-        <td>${escape(row.inventoryName)}</td>
-        <td class="num">${escape(String(row.opening))}</td>
-        <td class="num">${escape(String(row.issued))}</td>
-        <td class="num">${escape(String(row.purchased))}</td>
-        <td class="num">${escape(String(row.purchaseReturned))}</td>
-        <td class="num">${escape(String(row.adjusted))}</td>
-        <td class="num">${escape(String(row.closing))}</td>
-      </tr>`,
-    )
-    .join('');
+  const renderCells = (row: VendorStockActivityItem): string => {
+    const cells: string[] = [];
+    if (visibleColumns.has('inventoryName'))
+      cells.push(`<td>${escape(row.inventoryName)}</td>`);
+    if (visibleColumns.has('opening'))
+      cells.push(`<td class="num">${escape(String(row.opening))}</td>`);
+    if (visibleColumns.has('issued'))
+      cells.push(`<td class="num">${escape(String(row.issued))}</td>`);
+    if (visibleColumns.has('purchased'))
+      cells.push(`<td class="num">${escape(String(row.purchased))}</td>`);
+    if (visibleColumns.has('purchaseReturned'))
+      cells.push(
+        `<td class="num">${escape(String(row.purchaseReturned))}</td>`,
+      );
+    if (visibleColumns.has('adjusted'))
+      cells.push(`<td class="num">${escape(String(row.adjusted))}</td>`);
+    if (visibleColumns.has('closing'))
+      cells.push(`<td class="num">${escape(String(row.closing))}</td>`);
+    return cells.join('');
+  };
+  const rowsHtml = rows.map((row) => `<tr>${renderCells(row)}</tr>`).join('');
 
   doc.open();
   doc.write(`<!DOCTYPE html>
@@ -78,13 +98,41 @@ export const printVendorStockActivityIframe = (
   <table>
     <thead>
       <tr>
-        <th>${ACTIVITY_COLUMN_HEADERS.inventoryName}</th>
-        <th class="num">${ACTIVITY_COLUMN_HEADERS.opening}</th>
-        <th class="num">${ACTIVITY_COLUMN_HEADERS.issued}</th>
-        <th class="num">${ACTIVITY_COLUMN_HEADERS.purchased}</th>
-        <th class="num">${ACTIVITY_COLUMN_HEADERS.purchaseReturned}</th>
-        <th class="num">${ACTIVITY_COLUMN_HEADERS.adjusted}</th>
-        <th class="num">${ACTIVITY_COLUMN_HEADERS.closing}</th>
+        ${
+          visibleColumns.has('inventoryName')
+            ? `<th>${ACTIVITY_COLUMN_HEADERS.inventoryName}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('opening')
+            ? `<th class="num">${ACTIVITY_COLUMN_HEADERS.opening}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('issued')
+            ? `<th class="num">${ACTIVITY_COLUMN_HEADERS.issued}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('purchased')
+            ? `<th class="num">${ACTIVITY_COLUMN_HEADERS.purchased}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('purchaseReturned')
+            ? `<th class="num">${ACTIVITY_COLUMN_HEADERS.purchaseReturned}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('adjusted')
+            ? `<th class="num">${ACTIVITY_COLUMN_HEADERS.adjusted}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('closing')
+            ? `<th class="num">${ACTIVITY_COLUMN_HEADERS.closing}</th>`
+            : ''
+        }
       </tr>
     </thead>
     <tbody>${rowsHtml}</tbody>

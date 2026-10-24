@@ -52,6 +52,7 @@ interface LedgerTableBaseProps {
   className?: string;
   /** aligned footer row (see `DataTable` stickyFooterRow) */
   stickyFooterRow?: ReactNode[];
+  visibleColumns?: ReadonlySet<string>;
 }
 
 export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
@@ -59,6 +60,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
   printMode = false,
   className = '',
   stickyFooterRow,
+  visibleColumns,
 }: LedgerTableBaseProps) => {
   const debitCreditZeroLabel = useMemo(
     () => toString(window.electron.store.get('debitCreditDefaultLabel') ?? ' '),
@@ -71,7 +73,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
     [debitCreditZeroLabel],
   );
 
-  const columns: ColumnDef<LedgerView>[] = useMemo(
+  const allColumns: ColumnDef<LedgerView>[] = useMemo(
     () => [
       {
         accessorKey: 'date',
@@ -85,6 +87,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         cardMeta: true,
       },
       {
+        id: 'particulars',
         header: 'Particulars',
         cell: renderLedgerParticularsCell,
         size: 180,
@@ -141,6 +144,15 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
     ],
     [printMode, formatDebitCredit],
   );
+
+  const columns = useMemo(() => {
+    if (!visibleColumns) return allColumns;
+    return allColumns.filter((column) => {
+      const typedColumn = column as { accessorKey?: string; id?: string };
+      const columnId = String(typedColumn.accessorKey ?? typedColumn.id ?? '');
+      return visibleColumns.has(columnId);
+    });
+  }, [allColumns, visibleColumns]);
 
   return (
     <div className={className}>

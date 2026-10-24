@@ -7,40 +7,59 @@ interface PrintPurchasesByVendorOptions {
   vendorName: string;
   dateSubtitle: string;
   totalQty: number;
+  visibleColumns?: ReadonlySet<string>;
 }
 
-const buildGroupHtml = (rows: PurchasesByVendorItem[]): string => `
+const isVisible = (set: ReadonlySet<string>, id: string): boolean =>
+  set.has(id);
+
+const buildGroupHtml = (
+  rows: PurchasesByVendorItem[],
+  visibleColumns: ReadonlySet<string>,
+): string => {
+  const showItem = isVisible(visibleColumns, 'itemName');
+  const showQty = isVisible(visibleColumns, 'quantity');
+  const headerCells = [
+    showItem ? '<th>Item</th>' : '',
+    showQty ? '<th class="num">Qty</th>' : '',
+  ].join('');
+  const bodyRows = rows
+    .map((row) => {
+      const cells = [
+        showItem ? `<td>${escape(row.itemName)}</td>` : '',
+        showQty ? `<td class="num">${escape(String(row.quantity))}</td>` : '',
+      ].join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
+  return `
   <table class="item-group">
     <thead>
-      <tr>
-        <th>Item</th>
-        <th class="num">Qty</th>
-      </tr>
+      <tr>${headerCells}</tr>
     </thead>
     <tbody>
-      ${rows
-        .map(
-          (row) => `<tr>
-            <td>${escape(row.itemName)}</td>
-            <td class="num">${escape(String(row.quantity))}</td>
-          </tr>`,
-        )
-        .join('')}
+      ${bodyRows}
     </tbody>
   </table>
 `;
+};
 
 /** prints purchases-by-vendor item table in a hidden iframe (full row list). */
 export const printPurchasesByVendorIframe = (
   options: PrintPurchasesByVendorOptions,
 ) => {
   const { rows, vendorName, dateSubtitle, totalQty } = options;
+  const visibleColumns =
+    options.visibleColumns ?? new Set(['itemName', 'quantity', 'invoiceCount']);
   if (rows.length === 0) return;
 
   const title = escape(`Purchases by Vendor: ${vendorName} — ${dateSubtitle}`);
   const groupSize = Math.ceil(rows.length / 3);
   const groups = Array.from({ length: 3 }, (_, index) =>
-    buildGroupHtml(rows.slice(index * groupSize, (index + 1) * groupSize)),
+    buildGroupHtml(
+      rows.slice(index * groupSize, (index + 1) * groupSize),
+      visibleColumns,
+    ),
   ).join('');
 
   const iframe = document.createElement('iframe');
