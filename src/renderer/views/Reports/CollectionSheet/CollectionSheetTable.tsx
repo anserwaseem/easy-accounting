@@ -318,35 +318,43 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       {row.billIndex === 1 ? row.city : '//'}
                     </td>
                   ) : null}
-                  <td
-                    dir="ltr"
-                    title={codeTitle(row)}
-                    className={cn(
-                      bodyCell,
-                      codeRail,
-                      'z-10 bg-background whitespace-nowrap text-left',
-                      row.billIndex === 1
-                        ? 'font-medium'
-                        : 'text-muted-foreground/45',
-                    )}
-                  >
-                    {row.billIndex === 1 ? row.code : '//'}
-                  </td>
-                  <td
-                    dir="ltr"
-                    className={cn(bodyCell, 'whitespace-nowrap text-left')}
-                  >
-                    {row.billNumber}
-                  </td>
-                  <td
-                    dir="ltr"
-                    className={cn(bodyCell, 'whitespace-nowrap text-left')}
-                  >
-                    {row.billDate}
-                  </td>
-                  <td className={cn(bodyCell, 'text-end')}>
-                    <Amount amount={row.balance} />
-                  </td>
+                  {isVisible('code') ? (
+                    <td
+                      dir="ltr"
+                      title={codeTitle(row)}
+                      className={cn(
+                        bodyCell,
+                        codeRail,
+                        'z-10 bg-background whitespace-nowrap text-left',
+                        row.billIndex === 1
+                          ? 'font-medium'
+                          : 'text-muted-foreground/45',
+                      )}
+                    >
+                      {row.billIndex === 1 ? row.code : '//'}
+                    </td>
+                  ) : null}
+                  {isVisible('billNumber') ? (
+                    <td
+                      dir="ltr"
+                      className={cn(bodyCell, 'whitespace-nowrap text-left')}
+                    >
+                      {row.billNumber}
+                    </td>
+                  ) : null}
+                  {isVisible('billDate') ? (
+                    <td
+                      dir="ltr"
+                      className={cn(bodyCell, 'whitespace-nowrap text-left')}
+                    >
+                      {row.billDate}
+                    </td>
+                  ) : null}
+                  {isVisible('balance') ? (
+                    <td className={cn(bodyCell, 'text-end')}>
+                      <Amount amount={row.balance} />
+                    </td>
+                  ) : null}
                   {tours.map((tour) => {
                     const paid = row.tourPaid[tour.id];
                     const balance = row.tourBalance[tour.id];
@@ -430,17 +438,29 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             </tbody>
             <tfoot className="sticky bottom-0 z-20 border-t border-border bg-muted/95 shadow-[0_-1px_0_hsl(var(--border))] backdrop-blur-sm print:static print:z-auto">
               <tr className="font-semibold bg-muted/95">
-                <td
-                  dir="ltr"
-                  className={cn(bodyCell, codeRail, 'z-30 bg-muted text-left')}
-                >
-                  {headers.total}
-                </td>
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'bg-inherit')} />
-                <td className={cn(bodyCell, 'text-end bg-inherit')}>
-                  <Amount amount={totals.balance} />
-                </td>
+                {isVisible('code') ? (
+                  <td
+                    dir="ltr"
+                    className={cn(
+                      bodyCell,
+                      codeRail,
+                      'z-30 bg-muted text-left',
+                    )}
+                  >
+                    {headers.total}
+                  </td>
+                ) : null}
+                {isVisible('billNumber') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
+                {isVisible('billDate') ? (
+                  <td className={cn(bodyCell, 'bg-inherit')} />
+                ) : null}
+                {isVisible('balance') ? (
+                  <td className={cn(bodyCell, 'text-end bg-inherit')}>
+                    <Amount amount={totals.balance} />
+                  </td>
+                ) : null}
                 {tours.map((tour) => (
                   <td
                     key={tour.id}
