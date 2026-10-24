@@ -29,16 +29,22 @@ export interface CollectionSheetMoney {
   collected: number;
 }
 
+export interface CollectionSheetDiscountPortion {
+  /** empty on the base account. `T` means the Que-Gaba-T portion */
+  suffix: string;
+  /** journal label: a number, `N`, or `N·20`. absent when none was stored */
+  discountPercentage?: number | string;
+}
+
 export interface CollectionSheetBill {
   invoiceNumber: number | string;
   date: string;
   /** this account's share of the bill. same invoice number is added across tiers */
   amount: number;
-  /**
-   * journal discount label, the same value bills aging shows as Bill %.
-   * a number, `N`, or `N·20`. absent when the journal recorded none.
-   */
+  /** journal discount for this account's portion, before tiers are folded */
   discountPercentage?: number | string;
+  /** one entry per tier that shares this invoice number */
+  discountPortions?: CollectionSheetDiscountPortion[];
 }
 
 export interface CollectionSheetHeaders {
@@ -78,8 +84,8 @@ export interface CollectionSheetRow {
   codeDisplay: string;
   billNumber: string;
   billDate: string;
-  /** formatted later. opening balance and a journal with no discount stay unset. */
-  discountPercentage?: number | string;
+  /** one line per tier. a lone `N · 28%` stays one offer, not a base/T split */
+  discountPortions?: CollectionSheetDiscountPortion[];
   /** this bill's amount, tier shares added. ledger balance only when the shop has no bill in the range */
   balance: number | null;
   collected: number | null;
@@ -163,14 +169,14 @@ export const collectionSheetHeaders = (
 ): CollectionSheetHeaders => {
   if (language === 'ur') {
     return {
-      shop: 'دکان',
+      shop: 'نام دکاندار',
       city: 'شہر',
       code: 'کوڈ',
       balance: 'واجب الادا',
       collection: 'وصولی',
-      bill: 'بل',
-      billDate: 'تاریخ',
-      billPercentage: 'رعایت',
+      bill: 'بل نمبر',
+      billDate: 'بل تاریخ',
+      billPercentage: 'بل رعایت',
       difference: 'فرق',
       remaining: 'بقایا',
       total: 'کل',
@@ -181,13 +187,13 @@ export const collectionSheetHeaders = (
     };
   }
   return {
-    shop: 'Shop',
+    shop: 'Customer',
     city: 'City',
     code: 'Code',
     balance: 'Due amount',
     collection: 'Collection',
-    bill: 'Bill',
-    billDate: 'Date',
+    bill: 'Bill #',
+    billDate: 'Bill date',
     billPercentage: 'Bill %',
     difference: 'Difference',
     remaining: 'Remaining',
@@ -315,41 +321,81 @@ const baseDisplay = (
   };
 };
 
-/** tier portions of one invoice keep one label when they match, otherwise each label. */
-const mergeBillDiscount = (
-  current: number | string | undefined,
-  incoming: number | string | undefined,
-): number | string | undefined => {
-  if (current == null || current === '') return incoming;
-  if (incoming == null || incoming === '') return current;
-  if (String(current) === String(incoming)) return current;
-  const parts = new Set<string>();
-  for (const value of [current, incoming]) {
-    const label = formatJournalDiscountLabel(value);
-    if (label === '-') continue;
-    for (const part of label.split(' · ')) {
-      if (part) parts.add(part);
-    }
-  }
-  if (parts.size === 0) return undefined;
-  if (parts.size === 1) return [...parts][0];
-  return [...parts].join(' · ');
+export interface CollectionSheetDiscountLine {
+  /** empty on the base account. `T` is the item-type tier */
+  suffix: string;
+  label: string;
+}
+
+const MISSING_DISCOUNT = '-';
+
+/**
+ * one line per account that has an offer, even when the percents match.
+ * a missing discount is always `-`, never `T: -` and never a blank cell.
+ * `N · 28%` stays one offer. the tier prefix marks a T account so it is
+ * not read as the base offer.
+ */
+export const collectionSheetDiscountLines = (
+  portions: readonly CollectionSheetDiscountPortion[] | undefined,
+): CollectionSheetDiscountLine[] => {
+  const offered = (portions ?? [])
+    .map((portion) => ({
+      suffix: trim(portion.suffix).toUpperCase(),
+      label: formatJournalDiscountLabel(portion.discountPercentage),
+    }))
+    .filter((line) => line.label !== MISSING_DISCOUNT);
+  if (offered.length === 0) return [{ suffix: '', label: MISSING_DISCOUNT }];
+  // base account first, then T, TT, … even when the T account id is lower
+  offered.sort((a, b) => {
+    if (!a.suffix && b.suffix) return -1;
+    if (a.suffix && !b.suffix) return 1;
+    return a.suffix.localeCompare(b.suffix);
+  });
+  const seen = new Set<string>();
+  return offered.filter((line) => {
+    const key = `${line.suffix}\u0000${line.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 };
+
+/** plain text for print and Excel. the screen paints the suffix lighter. */
+export const collectionSheetDiscountText = (
+  portions: readonly CollectionSheetDiscountPortion[] | undefined,
+): string =>
+  collectionSheetDiscountLines(portions)
+    .map((line) => (line.suffix ? `${line.suffix}: ${line.label}` : line.label))
+    .join('\n');
+
+/** tier portions of one invoice. the label is not smashed into one string. */
+const discountPortion = (
+  member: FamilyMember,
+  bill: CollectionSheetBill,
+): CollectionSheetDiscountPortion => ({
+  suffix: member.isTier ? member.suffix : '',
+  discountPercentage: bill.discountPercentage,
+});
 
 const mergedBills = (family: FamilyMember[]): CollectionSheetBill[] => {
   const byNumber = new Map<number | string, CollectionSheetBill>();
   for (const member of family) {
     for (const bill of member.bills) {
+      const portion = discountPortion(member, bill);
       const existing = byNumber.get(bill.invoiceNumber);
       if (!existing) {
-        byNumber.set(bill.invoiceNumber, { ...bill, amount: bill.amount || 0 });
+        byNumber.set(bill.invoiceNumber, {
+          ...bill,
+          amount: bill.amount || 0,
+          discountPortions: [portion],
+        });
         continue;
       }
       existing.amount += bill.amount || 0;
-      existing.discountPercentage = mergeBillDiscount(
-        existing.discountPercentage,
-        bill.discountPercentage,
-      );
+      existing.discountPortions = [
+        ...(existing.discountPortions ?? []),
+        portion,
+      ];
     }
   }
   const bills = [...byNumber.values()];
@@ -611,7 +657,7 @@ export const buildCollectionSheetRows = (
         codeDisplay: sameCode ? '//' : shop.display.code,
         billNumber: String(bill.invoiceNumber),
         billDate: formatBillDate(bill.date),
-        discountPercentage: bill.discountPercentage,
+        discountPortions: bill.discountPortions,
         // same rounding as the invoice screen: nearest rupee on the bill total
         balance: Math.round(bill.amount || 0),
         collected: collectedCell,

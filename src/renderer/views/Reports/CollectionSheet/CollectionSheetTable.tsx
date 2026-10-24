@@ -7,9 +7,9 @@ import {
 } from '@/renderer/shad/ui/tooltip';
 import { Card } from '@/renderer/shad/ui/card';
 import { cn } from '@/renderer/lib/utils';
-import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { EmptyState, LoadingState } from '../components';
 import {
+  collectionSheetDiscountLines,
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
@@ -207,8 +207,8 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       align="end"
                       tooltip={
                         urdu
-                          ? 'بل پر درج رعایت، وہی جو Bills Aging میں Bill % دکھاتا ہے۔ N خالص قیمت ہے۔ — کا مطلب ہے کہ کوئی رعایت درج نہیں۔ سابقہ بقایا پر رعایت نہیں ہوتی۔'
-                          : 'Discount stored on this bill’s journal, the same value as Bills Aging Bill %. N is a net price. A dash means none was recorded. Opening balance has none.'
+                          ? 'ہر لائن ایک اکاؤنٹ کی رعایت ہے، وہی جو Bills Aging میں Bill % ہے۔ T: N · 28% کا مطلب ہے پورا یہ آفر صرف T اکاؤنٹ پر ہے۔ — کا مطلب ہے کہ کوئی رعایت درج نہیں۔'
+                          : 'Each line is one account’s discount, the same Bill % as Bills Aging. “T: N · 28%” is one offer on the T account, not a base offer plus a T offer. A dash means none was recorded.'
                       }
                     />
                   </th>
@@ -387,7 +387,21 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                       dir="ltr"
                       className={cn(bodyCell, 'whitespace-nowrap text-end')}
                     >
-                      {formatJournalDiscountLabel(row.discountPercentage)}
+                      {collectionSheetDiscountLines(row.discountPortions).map(
+                        (line) => (
+                          <span
+                            key={`${line.suffix}:${line.label}`}
+                            className="block"
+                          >
+                            {line.suffix ? (
+                              <span className="text-muted-foreground/45">
+                                {line.suffix}:{' '}
+                              </span>
+                            ) : null}
+                            {line.label}
+                          </span>
+                        ),
+                      )}
                     </td>
                   ) : null}
                   {isVisible('balance') ? (

@@ -681,18 +681,36 @@ const SQL = {
         COALESCE(ii.accountId, i.accountId) AS accountId,
         i.invoiceNumber AS invoiceNumber,
         i.date AS date,
-        SUM(ii.quantity * ii.price * (1 - ii.discount / 100.0)) AS amount,
-        (
-          SELECT j.discountPercentage
-          FROM journal j
-          JOIN journal_entry je ON je.journalId = j.id
-          WHERE j.invoiceId = i.id
-            AND je.accountId = COALESCE(ii.accountId, i.accountId)
-            AND je.debitAmount > 0
-          LIMIT 1
-        ) AS discountPercentage
+        -- posted debit is what the ledger holds. recomputing from the
+        -- discount percent drifts by a rupee on a net-price line, and the
+        -- sheet would call that gap an opening balance
+        COALESCE(
+          posted.amount,
+          ROUND(
+            SUM(
+              CASE
+                WHEN ii.netPrice IS NOT NULL THEN ii.quantity * ii.netPrice
+                ELSE ii.quantity * ii.price * (1 - ii.discount / 100.0)
+              END
+            ),
+            0
+          )
+        ) AS amount,
+        posted.discountPercentage AS discountPercentage
       FROM invoices i
       JOIN invoice_items ii ON ii.invoiceId = i.id
+      LEFT JOIN (
+        SELECT
+          j.invoiceId AS invoiceId,
+          je.accountId AS accountId,
+          SUM(je.debitAmount) AS amount,
+          MAX(j.discountPercentage) AS discountPercentage
+        FROM journal j
+        JOIN journal_entry je ON je.journalId = j.id AND je.debitAmount > 0
+        GROUP BY j.invoiceId, je.accountId
+      ) posted
+        ON posted.invoiceId = i.id
+       AND posted.accountId = COALESCE(ii.accountId, i.accountId)
       WHERE i.invoiceType = 'Sale'
         AND COALESCE(i.isQuotation, 0) = 0
         AND COALESCE(i.isReturned, 0) = 0
@@ -715,7 +733,12 @@ const SQL = {
             ELSE date(datetime(i.date, 'localtime'))
           END
         ) <= @endDate
-      GROUP BY COALESCE(ii.accountId, i.accountId), i.invoiceNumber, i.date
+      GROUP BY
+        COALESCE(ii.accountId, i.accountId),
+        i.invoiceNumber,
+        i.date,
+        posted.amount,
+        posted.discountPercentage
       ORDER BY (CASE WHEN length(i.date) = 10 THEN i.date ELSE date(datetime(i.date, 'localtime')) END) DESC, i.invoiceNumber DESC
     `,
 };

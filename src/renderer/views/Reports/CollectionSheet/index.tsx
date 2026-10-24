@@ -30,7 +30,6 @@ import {
 import { cn } from '@/renderer/lib/utils';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { formatDisplayDate } from '@/lib/displayDate';
-import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { printStyles } from '../components/printStyles';
 import { CollectionSheetTable } from './CollectionSheetTable';
 import { CollectionSheetGuideDialog } from './CollectionSheetGuideDialog';
@@ -38,6 +37,7 @@ import { printCollectionSheetIframe } from './printCollectionSheet';
 import { useCollectionSheet } from './useCollectionSheet';
 import { ToursSheet } from './tours/ToursSheet';
 import {
+  collectionSheetDiscountText,
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
@@ -361,7 +361,7 @@ const CollectionSheetPage: React.FC = () => {
         collection: '',
         billNumber: row.billNumber,
         billDate: row.billDate,
-        billPercentage: formatJournalDiscountLabel(row.discountPercentage),
+        billPercentage: collectionSheetDiscountText(row.discountPortions),
         difference: '',
         remaining: '',
         untoured: showUntoured ? row.untoured : null,

@@ -1,7 +1,7 @@
 import { escape } from 'lodash';
-import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { printStyles } from '../components/printStyles';
 import {
+  collectionSheetDiscountLines,
   collectionSheetHeaders,
   collectionSheetTotals,
   collectionSheetTourTotals,
@@ -154,10 +154,17 @@ export const buildCollectionSheetPrintHtml = (
         }
         ${
           isVisible('billPercentage')
-            ? cell(
-                formatJournalDiscountLabel(row.discountPercentage),
-                ' class="ltr fit" dir="ltr"',
+            ? `<td class="ltr fit" dir="ltr">${collectionSheetDiscountLines(
+                row.discountPortions,
               )
+                .map((line) =>
+                  line.suffix
+                    ? `<span class="tier">${escape(
+                        `${line.suffix}: `,
+                      )}</span>${escape(line.label)}`
+                    : escape(line.label),
+                )
+                .join('<br>')}</td>`
             : ''
         }
         ${
@@ -199,6 +206,7 @@ export const buildCollectionSheetPrintHtml = (
     th.fit, td.fit { width: 1%; white-space: nowrap; padding-left: 3px; padding-right: 3px; }
     td.code, th.code { font-weight: 600; }
     td.ditto { color: #bdbdbd; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tier { color: #9e9e9e; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     th.write, td.write { min-width: 14mm; }
     th.tour, td.tour { white-space: nowrap; }
     th.tour .tour-name { display: block; font-weight: 700; }
