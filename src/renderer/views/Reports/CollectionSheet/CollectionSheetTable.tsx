@@ -438,24 +438,22 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             </tbody>
             <tfoot className="sticky bottom-0 z-20 border-t border-border bg-muted/95 shadow-[0_-1px_0_hsl(var(--border))] backdrop-blur-sm print:static print:z-auto">
               <tr className="font-semibold bg-muted/95">
-                {isVisible('code') ? (
-                  <td
-                    dir="ltr"
-                    className={cn(
-                      bodyCell,
-                      codeRail,
-                      'z-30 bg-muted text-left',
-                    )}
-                  >
-                    {headers.total}
-                  </td>
-                ) : null}
-                {isVisible('billNumber') ? (
-                  <td className={cn(bodyCell, 'bg-inherit')} />
-                ) : null}
-                {isVisible('billDate') ? (
-                  <td className={cn(bodyCell, 'bg-inherit')} />
-                ) : null}
+                {(['shop', 'city', 'code', 'billNumber', 'billDate'] as const)
+                  .filter((id) => isVisible(id))
+                  .map((id, index) => (
+                    <td
+                      key={id}
+                      dir="ltr"
+                      className={cn(
+                        bodyCell,
+                        'bg-inherit text-left',
+                        id === 'code' && codeRail,
+                        id === 'code' && 'z-30 bg-muted',
+                      )}
+                    >
+                      {index === 0 ? headers.total : null}
+                    </td>
+                  ))}
                 {isVisible('balance') ? (
                   <td className={cn(bodyCell, 'text-end bg-inherit')}>
                     <Amount amount={totals.balance} />

@@ -174,9 +174,7 @@ export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
             >
               Total
             </TableCell>
-          ) : (
-            <TableCell>Total</TableCell>
-          )}
+          ) : null}
           {visible.has('debit') ? (
             <TableCell className="text-right print-spacing-right">
               {getFormattedDebitCreditWithoutCurrency(totalDebit)}

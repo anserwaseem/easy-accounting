@@ -984,21 +984,19 @@ const AgentCommissionReportPage: React.FC = () => {
 
   const renderLineFooter = useCallback(() => {
     if (!report) return null;
+    const labelSpan =
+      (visibleLineColumns.has('date') ? 1 : 0) +
+      (visibleLineColumns.has('invoiceNumber') ? 1 : 0) +
+      (visibleLineColumns.has('customer') ? 1 : 0) +
+      (visibleLineColumns.has('item') ? 1 : 0) +
+      (visibleLineColumns.has('type') ? 1 : 0);
     return (
       <tr className="bg-muted/90 font-semibold text-foreground border-t text-xs">
-        <td
-          colSpan={Math.max(
-            1,
-            (visibleLineColumns.has('date') ? 1 : 0) +
-              (visibleLineColumns.has('invoiceNumber') ? 1 : 0) +
-              (visibleLineColumns.has('customer') ? 1 : 0) +
-              (visibleLineColumns.has('item') ? 1 : 0) +
-              (visibleLineColumns.has('type') ? 1 : 0),
-          )}
-          className="p-2.5"
-        >
-          Total ({filteredLines.length} items)
-        </td>
+        {labelSpan > 0 ? (
+          <td colSpan={labelSpan} className="p-2.5">
+            Total ({filteredLines.length} items)
+          </td>
+        ) : null}
         {visibleLineColumns.has('quantity') && (
           <td className="p-2.5 text-right font-mono">
             {filteredLines.reduce((s, l) => s + l.quantity, 0).toLocaleString()}

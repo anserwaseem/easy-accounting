@@ -114,6 +114,12 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = React.memo(
       [allRows],
     );
 
+    const labelSpan =
+      (vc('accountCode') ? 1 : 0) +
+      (vc('billNumber') ? 1 : 0) +
+      (vc('billDate') ? 1 : 0) +
+      (vc('billPercentage') ? 1 : 0);
+
     return (
       <div className="overflow-x-auto">
         <Table
@@ -189,18 +195,11 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = React.memo(
           </TableBody>
           <TableFooter>
             <TableRow>
-              <TableCell
-                colSpan={Math.max(
-                  1,
-                  (vc('accountCode') ? 1 : 0) +
-                    (vc('billNumber') ? 1 : 0) +
-                    (vc('billDate') ? 1 : 0) +
-                    (vc('billPercentage') ? 1 : 0),
-                )}
-                className="text-right"
-              >
-                Total Balance:
-              </TableCell>
+              {labelSpan > 0 ? (
+                <TableCell colSpan={labelSpan} className="text-right">
+                  Total Balance:
+                </TableCell>
+              ) : null}
               {vc('balance') && (
                 <TableCell className="text-right">
                   {getFormattedCurrencyInt(totalBalance, {

@@ -27,9 +27,10 @@ interface CollectionSheetPrintOptions {
 const cell = (value: string, extra = ''): string =>
   `<td${extra}>${escape(value)}</td>`;
 
-export const printCollectionSheetIframe = (
+/** table markup for the collection-sheet printout. null when there is nothing to print. */
+export const buildCollectionSheetPrintHtml = (
   options: CollectionSheetPrintOptions,
-) => {
+): string | null => {
   const { rows, tours: allTours, title, subtitle, language } = options;
   const showUntoured = options.showUntoured ?? false;
   const visibleColumns: ReadonlySet<string> =
@@ -52,9 +53,29 @@ export const printCollectionSheetIframe = (
     isVisible(`tour_${tour.id}`),
   );
   const tours: CollectionSheetTourColumn[] = visibleTours;
-  if (rows.length === 0) return;
+  if (rows.length === 0) return null;
 
   const headers = collectionSheetHeaders(language);
+  // same order as the body cells. header and totals must follow this list
+  // or a hidden column shifts every value under the wrong heading
+  const leadingIds = [
+    'shop',
+    'city',
+    'code',
+    'billNumber',
+    'billDate',
+  ] as const;
+  const footerLeading = leadingIds
+    .filter((id) => isVisible(id))
+    .map((id, index) => {
+      if (index !== 0) return '<td></td>';
+      const attrs =
+        id === 'code'
+          ? ' class="ltr code" dir="ltr"'
+          : ' class="ltr" dir="ltr"';
+      return `<td${attrs}><strong>${escape(headers.total)}</strong></td>`;
+    })
+    .join('');
   const totals = collectionSheetTotals(rows);
   const untouredTotal = collectionSheetUntouredTotal(rows);
   const tourTotals = collectionSheetTourTotals(
@@ -145,29 +166,8 @@ export const printCollectionSheetIframe = (
     })
     .join('');
 
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  Object.assign(iframe.style, {
-    position: 'fixed',
-    right: '0',
-    bottom: '0',
-    width: '0',
-    height: '0',
-    border: 'none',
-    visibility: 'hidden',
-  });
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    return;
-  }
-
   const safeTitle = escape(title);
-  doc.open();
-  doc.write(`<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="${language === 'ur' ? 'ur' : 'en'}" dir="${dir}">
 <head>
   <meta charset="utf-8"/>
@@ -216,6 +216,20 @@ export const printCollectionSheetIframe = (
   <table>
     <thead>
       <tr>
+        ${
+          isVisible('shop')
+            ? `<th class="ltr fit" dir="ltr"${span}>${escape(
+                headers.shop,
+              )}</th>`
+            : ''
+        }
+        ${
+          isVisible('city')
+            ? `<th class="ltr fit" dir="ltr"${span}>${escape(
+                headers.city,
+              )}</th>`
+            : ''
+        }
         ${
           isVisible('code')
             ? `<th class="ltr fit code" dir="ltr"${span}>${escape(
@@ -282,15 +296,7 @@ export const printCollectionSheetIframe = (
     <tbody>
       ${body}
       <tr>
-        ${
-          isVisible('code')
-            ? `<td class="ltr code" dir="ltr"><strong>${escape(
-                headers.total,
-              )}</strong></td>`
-            : ''
-        }
-        ${isVisible('billNumber') ? '<td></td>' : ''}
-        ${isVisible('billDate') ? '<td></td>' : ''}
+        ${footerLeading}
         ${
           isVisible('balance')
             ? `<td class="num"><strong>${escape(
@@ -314,7 +320,37 @@ export const printCollectionSheetIframe = (
     </tbody>
   </table>
 </body>
-</html>`);
+</html>`;
+};
+
+export const printCollectionSheetIframe = (
+  options: CollectionSheetPrintOptions,
+): void => {
+  const html = buildCollectionSheetPrintHtml(options);
+  if (!html) return;
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  Object.assign(iframe.style, {
+    position: 'fixed',
+    right: '0',
+    bottom: '0',
+    width: '0',
+    height: '0',
+    border: 'none',
+    visibility: 'hidden',
+  });
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  const win = iframe.contentWindow;
+  if (!doc || !win) {
+    iframe.remove();
+    return;
+  }
+
+  doc.open();
+  doc.write(html);
   doc.close();
 
   let cleaned = false;

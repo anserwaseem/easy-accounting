@@ -107,23 +107,10 @@ export const AverageEquityBalancesTable: FC<Props> = ({
         <TableFooter>
           <TableRow className="font-bold print-row">
             {(() => {
-              const hasLabelColumn = visible.has('code') || visible.has('name');
-              if (hasLabelColumn) {
-                return (
-                  <TableCell
-                    colSpan={
-                      (visible.has('code') ? 1 : 0) +
-                      (visible.has('name') ? 1 : 0)
-                    }
-                  >
-                    Net Average
-                  </TableCell>
-                );
-              }
-              if (visible.has('averageBalance')) {
-                return <TableCell>Net Average</TableCell>;
-              }
-              return null;
+              const labelSpan =
+                (visible.has('code') ? 1 : 0) + (visible.has('name') ? 1 : 0);
+              if (labelSpan === 0) return null;
+              return <TableCell colSpan={labelSpan}>Net Average</TableCell>;
             })()}
             {visible.has('averageBalance') ? (
               <TableCell className="text-right">

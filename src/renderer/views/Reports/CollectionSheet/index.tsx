@@ -199,6 +199,17 @@ const CollectionSheetPage: React.FC = () => {
     );
     const untouredTotal = collectionSheetUntouredTotal(rows);
     const sortSuffix = SORT_FILENAME_SUFFIX[sortBy] ?? '';
+    const totalLabelColumn = (
+      ['shop', 'city', 'code', 'billNumber', 'billDate'] as const
+    ).find((id) => visibleColumns.has(id));
+    const footerRow: Partial<CollectionSheetExportRow> = {
+      balance: totals.balance,
+      ...Object.fromEntries(
+        tours.map((tour) => [tourExportKey(tour.id), tourTotals[tour.id]]),
+      ),
+      ...(showUntoured ? { untoured: untouredTotal } : {}),
+    };
+    if (totalLabelColumn) footerRow[totalLabelColumn] = headers.total;
     const payload: ReportExportPayload<CollectionSheetExportRow> = {
       title,
       subtitle,
@@ -347,14 +358,7 @@ const CollectionSheetPage: React.FC = () => {
           ]),
         ),
       })),
-      footerRow: {
-        code: headers.total,
-        balance: totals.balance,
-        ...Object.fromEntries(
-          tours.map((tour) => [tourExportKey(tour.id), tourTotals[tour.id]]),
-        ),
-        ...(showUntoured ? { untoured: untouredTotal } : {}),
-      },
+      footerRow,
     };
     try {
       exportReportToExcel(payload);

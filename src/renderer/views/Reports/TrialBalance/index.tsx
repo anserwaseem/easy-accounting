@@ -241,7 +241,11 @@ const TrialBalancePage = () => {
           </div>
         )}
 
-        <TrialBalanceTable trialBalance={trialBalance} isLoading={isLoading} />
+        <TrialBalanceTable
+          trialBalance={trialBalance}
+          isLoading={isLoading}
+          visibleColumns={visibleTrialBalanceColumns}
+        />
       </Card>
     </ReportLayout>
   );
