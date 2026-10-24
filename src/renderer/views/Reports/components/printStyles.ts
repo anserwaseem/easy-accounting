@@ -1,6 +1,11 @@
 /** compact print-specific styles for reports */
 export const printStyles = `
   @media print {
+    /* hide app chrome (sidebar, mobile top bar) during report print */
+    [data-app-chrome] {
+      display: none !important;
+    }
+
     /* remove all height constraints from root elements */
     html, body, #root {
       font-size: 10px !important;

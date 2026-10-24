@@ -100,6 +100,8 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
 }: CollectionSheetTableProps) => {
   // default to all columns visible when no selection is supplied
   const defaultVisible = new Set([
+    'shop',
+    'city',
     'code',
     'billNumber',
     'billDate',
@@ -156,6 +158,16 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
           >
             <thead className="sticky top-0 z-20 bg-background shadow-[0_1px_0_hsl(var(--border))]">
               <tr className="text-start">
+                {isVisible('shop') ? (
+                  <th rowSpan={span} className={cn(headCell, 'text-left')}>
+                    {headers.shop}
+                  </th>
+                ) : null}
+                {isVisible('city') ? (
+                  <th rowSpan={span} className={cn(headCell, 'text-left')}>
+                    {headers.city}
+                  </th>
+                ) : null}
                 {isVisible('code') ? (
                   <th
                     rowSpan={span}
@@ -290,6 +302,16 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="align-top">
+                  {isVisible('shop') ? (
+                    <td className={cn(bodyCell, 'whitespace-nowrap text-left')}>
+                      {row.billIndex === 1 ? row.shop : '//'}
+                    </td>
+                  ) : null}
+                  {isVisible('city') ? (
+                    <td className={cn(bodyCell, 'whitespace-nowrap text-left')}>
+                      {row.billIndex === 1 ? row.city : '//'}
+                    </td>
+                  ) : null}
                   <td
                     dir="ltr"
                     title={codeTitle(row)}

@@ -36,6 +36,8 @@ export interface CollectionSheetBill {
 }
 
 export interface CollectionSheetHeaders {
+  shop: string;
+  city: string;
   code: string;
   balance: string;
   collection: string;
@@ -56,6 +58,7 @@ export interface CollectionSheetRow {
   id: string;
   serial: number;
   shop: string;
+  city: string;
   /** "//" when this row's shop matches the previous row */
   shopDisplay: string;
   address: string;
@@ -98,6 +101,7 @@ interface FamilyMember {
   isTier: boolean;
   suffix: string;
   shop: string;
+  city: string;
   address: string;
   balance: number;
   collected: number;
@@ -148,6 +152,8 @@ export const collectionSheetHeaders = (
 ): CollectionSheetHeaders => {
   if (language === 'ur') {
     return {
+      shop: 'دکان',
+      city: 'شہر',
       code: 'کوڈ',
       balance: 'واجب الادا',
       collection: 'وصولی',
@@ -163,6 +169,8 @@ export const collectionSheetHeaders = (
     };
   }
   return {
+    shop: 'Shop',
+    city: 'City',
     code: 'Code',
     balance: 'Due amount',
     collection: 'Collection',
@@ -213,6 +221,7 @@ const familyMember = (
   const shared = {
     account,
     shop,
+    city,
     address,
     balance,
     collected: money?.collected ?? 0,
@@ -264,11 +273,18 @@ const compareCode = (a: string, b: string): number =>
 const baseDisplay = (
   family: FamilyMember[],
   language: CollectionSheetLanguage,
-): { shop: string; address: string; code: string; accountId: number } => {
+): {
+  shop: string;
+  city: string;
+  address: string;
+  code: string;
+  accountId: number;
+} => {
   const base = family.find((member) => !member.isTier);
   if (base) {
     return {
       shop: base.shop,
+      city: base.city,
       address: base.address,
       code: trim(String(base.account.code ?? '')),
       accountId: base.account.id,
@@ -279,6 +295,7 @@ const baseDisplay = (
   const { baseCode } = splitPartyCode(trim(String(tier.account.code ?? '')));
   return {
     shop: pickLabel(language, baseName, undefined),
+    city: tier.city,
     address: tier.address,
     code: baseCode || trim(String(tier.account.code ?? '')),
     accountId: tier.account.id,
@@ -542,6 +559,7 @@ export const buildCollectionSheetRows = (
         id: `${shop.display.accountId}:${bill.invoiceNumber}`,
         serial,
         shop: shop.display.shop,
+        city: shop.display.city,
         shopDisplay: sameShop ? '//' : shop.display.shop,
         address: shop.display.address,
         addressDisplay: sameAddress ? '//' : shop.display.address,

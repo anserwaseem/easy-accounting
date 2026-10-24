@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const STORAGE_PREFIX = 'report-columns:';
 
@@ -53,8 +53,18 @@ export const useReportColumnVisibility = (
     }
   }, [storageKey, included]);
 
-  // re-sync when a report's column list grows (e.g. new "adjusted" column)
+  // remember the last id set actually seen so an unstable parent array (e.g.
+  // headers rebuilt every render) does not re-add columns the user removed
+  const previousIdsRef = useRef<string>('');
+
+  // re-sync only when the actual set of column ids changes, e.g. a new
+  // "adjusted" column is added or a tour/date range changes the list. a new
+  // array with the same ids must not re-add columns the user hid.
   useEffect(() => {
+    const sortedIds = [...allColumnIds].sort().join('\u0001');
+    if (sortedIds === previousIdsRef.current) return;
+    previousIdsRef.current = sortedIds;
+
     setIncluded((prev) => {
       let changed = false;
       const next = new Set(prev);

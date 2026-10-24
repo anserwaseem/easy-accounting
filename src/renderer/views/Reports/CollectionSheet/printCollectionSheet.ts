@@ -35,6 +35,8 @@ export const printCollectionSheetIframe = (
   const visibleColumns: ReadonlySet<string> =
     options.visibleColumns ??
     new Set<string>([
+      'shop',
+      'city',
       'code',
       'billNumber',
       'billDate',
@@ -105,7 +107,17 @@ export const printCollectionSheetIframe = (
         row.billIndex === 1
           ? `<td class="ltr fit code" dir="ltr">${escape(row.code)}</td>`
           : '<td class="ltr fit ditto" dir="ltr">//</td>';
+      const shopCell =
+        row.billIndex === 1
+          ? `<td class="ltr fit" dir="ltr">${escape(row.shop)}</td>`
+          : '<td class="ltr fit ditto" dir="ltr">//</td>';
+      const cityCell =
+        row.billIndex === 1
+          ? `<td class="ltr fit" dir="ltr">${escape(row.city)}</td>`
+          : '<td class="ltr fit ditto" dir="ltr">//</td>';
       return `<tr>
+        ${isVisible('shop') ? shopCell : ''}
+        ${isVisible('city') ? cityCell : ''}
         ${isVisible('code') ? codeCell : ''}
         ${
           isVisible('billNumber')

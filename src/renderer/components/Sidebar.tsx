@@ -526,6 +526,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           />
         )}
         <ShadSidebar
+          data-app-chrome="sidebar"
           title={
             <SidebarHeader
               collapsed={effectiveCollapsed}
@@ -644,7 +645,10 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           {/* Mobile top bar — hamburger opens the off-canvas nav. Hidden at
               md+, where the persistent sidebar (collapsed or not) is
               always visible instead. */}
-          <div className="flex items-center gap-1 h-14 px-2 border-b bg-background flex-shrink-0 md:hidden print:hidden safe-top">
+          <div
+            data-app-chrome="topbar"
+            className="flex items-center gap-1 h-14 px-2 border-b bg-background flex-shrink-0 md:hidden print:hidden safe-top"
+          >
             {/* Back is the primary way out of a detail screen on a
                 phone. Without it every move between two related
                 screens meant opening the menu and hunting for the

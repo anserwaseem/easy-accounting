@@ -57,6 +57,7 @@ import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
 import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
 import { REPORT_FILTER_KEYS } from '@/types';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { printStyles } from '../components';
 
 interface SalesPerformanceResponse {
   kpis: Record<string, number>;
@@ -931,6 +932,7 @@ const SalesPerformanceReportPage: React.FC = () => {
 
   return (
     <ReportLayout
+      printStyles={printStyles}
       header={
         <ReportHeader
           title="Sales Performance"

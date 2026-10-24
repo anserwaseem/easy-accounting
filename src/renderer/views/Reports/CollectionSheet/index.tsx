@@ -58,6 +58,8 @@ const SORT_FILENAME_SUFFIX: Record<CollectionSheetSortBy, string> = {
 };
 
 type CollectionSheetExportRow = {
+  shop: string;
+  city: string;
   code: string;
   balance: number | null;
   collection: string;
@@ -159,6 +161,8 @@ const CollectionSheetPage: React.FC = () => {
   // column choices for export/print/screen, persisted per report
   const collectionSheetColumnSpecs = useMemo(
     () => [
+      { id: 'shop', label: headers.shop },
+      { id: 'city', label: headers.city },
       { id: 'code', label: headers.code },
       { id: 'billNumber', label: headers.bill },
       { id: 'billDate', label: headers.billDate },
@@ -206,6 +210,26 @@ const CollectionSheetPage: React.FC = () => {
         'yyyy-MM-dd',
       )}${sortSuffix}.xlsx`,
       columns: [
+        ...(visibleColumns.has('shop')
+          ? [
+              {
+                key: 'shop',
+                header: headers.shop,
+                format: 'string' as const,
+                width: 20,
+              },
+            ]
+          : []),
+        ...(visibleColumns.has('city')
+          ? [
+              {
+                key: 'city',
+                header: headers.city,
+                format: 'string' as const,
+                width: 14,
+              },
+            ]
+          : []),
         ...(visibleColumns.has('code')
           ? [
               {
@@ -306,6 +330,8 @@ const CollectionSheetPage: React.FC = () => {
           : []),
       ] as ReportExportPayload<CollectionSheetExportRow>['columns'],
       rows: rows.map((row: CollectionSheetRow) => ({
+        shop: row.billIndex === 1 ? row.shop : '//',
+        city: row.billIndex === 1 ? row.city : '//',
         code: row.billIndex === 1 ? row.code : '//',
         balance: row.balance,
         collection: '',
