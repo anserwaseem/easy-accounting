@@ -310,12 +310,12 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                 <tr key={row.id} className="align-top">
                   {isVisible('shop') ? (
                     <td className={cn(bodyCell, 'whitespace-nowrap text-left')}>
-                      {row.billIndex === 1 ? row.shop : '//'}
+                      {row.shopDisplay}
                     </td>
                   ) : null}
                   {isVisible('city') ? (
                     <td className={cn(bodyCell, 'whitespace-nowrap text-left')}>
-                      {row.billIndex === 1 ? row.city : '//'}
+                      {row.cityDisplay}
                     </td>
                   ) : null}
                   {isVisible('code') ? (

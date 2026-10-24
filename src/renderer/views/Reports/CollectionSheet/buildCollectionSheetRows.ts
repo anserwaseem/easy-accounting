@@ -61,6 +61,7 @@ export interface CollectionSheetRow {
   city: string;
   /** "//" when this row's shop matches the previous row */
   shopDisplay: string;
+  cityDisplay: string;
   address: string;
   /** "//" when this row's address matches the previous row */
   addressDisplay: string;
@@ -528,6 +529,7 @@ export const buildCollectionSheetRows = (
   const rows: CollectionSheetRow[] = [];
   let previousShop = '';
   let previousAddress = '';
+  let previousCity = '';
   let previousCode = '';
   let serial = 0;
   for (const shop of shops) {
@@ -546,6 +548,10 @@ export const buildCollectionSheetRows = (
         shop.display.shop.length > 0 && shop.display.shop === previousShop;
       previousShop = shop.display.shop;
 
+      const sameCity =
+        shop.display.city.length > 0 && shop.display.city === previousCity;
+      previousCity = shop.display.city;
+
       const sameAddress =
         shop.display.address.length > 0 &&
         shop.display.address === previousAddress;
@@ -561,6 +567,7 @@ export const buildCollectionSheetRows = (
         shop: shop.display.shop,
         city: shop.display.city,
         shopDisplay: sameShop ? '//' : shop.display.shop,
+        cityDisplay: sameCity ? '//' : shop.display.city,
         address: shop.display.address,
         addressDisplay: sameAddress ? '//' : shop.display.address,
         code: shop.display.code,

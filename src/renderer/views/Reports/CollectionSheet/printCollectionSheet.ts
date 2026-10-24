@@ -108,13 +108,13 @@ export const printCollectionSheetIframe = (
           ? `<td class="ltr fit code" dir="ltr">${escape(row.code)}</td>`
           : '<td class="ltr fit ditto" dir="ltr">//</td>';
       const shopCell =
-        row.billIndex === 1
-          ? `<td class="ltr fit" dir="ltr">${escape(row.shop)}</td>`
-          : '<td class="ltr fit ditto" dir="ltr">//</td>';
+        row.shopDisplay === '//'
+          ? '<td class="ltr fit ditto" dir="ltr">//</td>'
+          : `<td class="ltr fit" dir="ltr">${escape(row.shop)}</td>`;
       const cityCell =
-        row.billIndex === 1
-          ? `<td class="ltr fit" dir="ltr">${escape(row.city)}</td>`
-          : '<td class="ltr fit ditto" dir="ltr">//</td>';
+        row.cityDisplay === '//'
+          ? '<td class="ltr fit ditto" dir="ltr">//</td>'
+          : `<td class="ltr fit" dir="ltr">${escape(row.city)}</td>`;
       return `<tr>
         ${isVisible('shop') ? shopCell : ''}
         ${isVisible('city') ? cityCell : ''}
