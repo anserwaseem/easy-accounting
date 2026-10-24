@@ -309,12 +309,26 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
               {rows.map((row) => (
                 <tr key={row.id} className="align-top">
                   {isVisible('shop') ? (
-                    <td className={cn(bodyCell, 'whitespace-nowrap text-left')}>
+                    <td
+                      dir="ltr"
+                      className={cn(
+                        bodyCell,
+                        'whitespace-nowrap text-left',
+                        row.shopDisplay === '//' && 'text-muted-foreground/45',
+                      )}
+                    >
                       {row.shopDisplay}
                     </td>
                   ) : null}
                   {isVisible('city') ? (
-                    <td className={cn(bodyCell, 'whitespace-nowrap text-left')}>
+                    <td
+                      dir="ltr"
+                      className={cn(
+                        bodyCell,
+                        'whitespace-nowrap text-left',
+                        row.cityDisplay === '//' && 'text-muted-foreground/45',
+                      )}
+                    >
                       {row.cityDisplay}
                     </td>
                   ) : null}
