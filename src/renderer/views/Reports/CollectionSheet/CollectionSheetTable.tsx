@@ -153,7 +153,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden print:block print:overflow-visible">
         <Card className="shadow-md print-card relative min-h-0 flex-1 w-full overflow-auto print:overflow-visible">
           <table
-            className="w-full border-collapse text-sm print-table"
+            className="min-w-full border-collapse text-sm print-table"
             dir={urdu ? 'rtl' : 'ltr'}
           >
             <thead className="sticky top-0 z-20 bg-background shadow-[0_1px_0_hsl(var(--border))]">
