@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS "journal" (
   -- "billNumber" INTEGER, -- "013 migration"
   -- "discountPercentage" DECIMAL(5, 2), -- "013 migration"
   -- "invoiceId" INTEGER REFERENCES "invoices"("id"), -- "016 migration" nullable for manual journals
+  -- "reversesJournalUuid" TEXT, -- uuid of the journal this row reverses. null on a normal journal. "051_journal_reversal_link migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME
 );
@@ -214,8 +215,8 @@ CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
     -- "isQuotation" BOOLEAN NOT NULL DEFAULT 0, -- "018 migration"
     -- "shippingCharges" DECIMAL(10, 2) NOT NULL DEFAULT 0, -- "045 migration"
     -- "shippingAccountId" INTEGER REFERENCES "account"("id"), -- "045 migration"
-    -- "isSaleReturn" BOOLEAN NOT NULL DEFAULT 0, -- "051 migration"
-    -- "sourceInvoiceId" INTEGER REFERENCES "invoices"("id"), -- "051 migration"
+    -- "isSaleReturn" BOOLEAN NOT NULL DEFAULT 0, -- "052 migration"
+    -- "sourceInvoiceId" INTEGER REFERENCES "invoices"("id"), -- "052 migration"
 
     UNIQUE("invoiceNumber", "invoiceType"),
     FOREIGN KEY ("accountId") REFERENCES "account"("id")
@@ -229,7 +230,7 @@ CREATE TABLE IF NOT EXISTS "invoice_items" ( -- "002 migration"
     -- "discount" DECIMAL(10, 2) NOT NULL DEFAULT 0, -- "004 migration"
     -- "accountId" INTEGER DEFAULT NULL, -- "010 migration"
     -- "netPrice" DECIMAL(10, 2), -- "045 migration"
-    -- "sourceInvoiceItemId" INTEGER, -- "051 migration"
+    -- "sourceInvoiceItemId" INTEGER, -- "052 migration"
     "price" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

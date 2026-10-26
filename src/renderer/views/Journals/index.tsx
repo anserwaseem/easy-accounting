@@ -28,6 +28,8 @@ import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { JournalNarrationText } from '@/renderer/components/journal/JournalNarrationText';
+import { JournalUuidHint } from '@/renderer/components/journal/JournalUuidHint';
 import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
 import { RowMenu } from '@/renderer/components/RowMenu';
 import { DropdownMenuItem } from 'renderer/shad/ui/dropdown-menu';
@@ -209,12 +211,17 @@ const JournalsPage: React.FC<HasMiniView> = ({
                     <p>
                       <DateCell value={row.original.date} />
                     </p>
-                    <p className="text-xs text-muted-foreground mt-auto break-words">
-                      {row.original.narration}
-                    </p>
+                    <JournalUuidHint uuid={row.original.uuid}>
+                      <p className="text-xs mt-auto break-words">
+                        <JournalNarrationText
+                          narration={row.original.narration}
+                          reversesJournalUuid={row.original.reversesJournalUuid}
+                          hasReversal={row.original.hasReversal}
+                        />
+                      </p>
+                    </JournalUuidHint>
                   </div>
                   <div className="flex flex-col text-end tabular-nums">
-                    <p className="font-bold">{row.original.id}</p>
                     <p>{getFormattedCurrency(row.original.amount)}</p>
                   </div>
                 </div>
@@ -223,25 +230,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
             },
           ]
         : [
-            {
-              accessorKey: 'id',
-              header: <span className="whitespace-nowrap">Journal #</span>,
-              // The card's label comes from the header, but this
-              // column's header is a node — name it explicitly.
-              cardLabel: 'Journal #',
-              // the number and the date identify the row, so they ride
-              // the muted line under the headline instead of taking a
-              // labelled cell each in the grid below it
-              cardMeta: true,
-              onClick: (row) => navigate(`/journals/${row.original.id}`),
-              // eslint-disable-next-line react/no-unstable-nested-components
-              cell: ({ row }) => (
-                <span className="whitespace-nowrap tabular-nums">
-                  {row.original.id}
-                </span>
-              ),
-              size: 90,
-            },
             {
               accessorKey: 'date',
               header: 'Date',
@@ -258,6 +246,18 @@ const JournalsPage: React.FC<HasMiniView> = ({
               header: 'Narration',
               cardHeadline: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
+              // eslint-disable-next-line react/no-unstable-nested-components
+              cell: ({ row }) => (
+                <JournalUuidHint uuid={row.original.uuid}>
+                  <span>
+                    <JournalNarrationText
+                      narration={row.original.narration}
+                      reversesJournalUuid={row.original.reversesJournalUuid}
+                      hasReversal={row.original.hasReversal}
+                    />
+                  </span>
+                </JournalUuidHint>
+              ),
               // 360px was wider than a phone on its own, which pushed the
               // Amount (the number the list is scanned for) off-screen.
               // 190px leaves room for the amount beside it.

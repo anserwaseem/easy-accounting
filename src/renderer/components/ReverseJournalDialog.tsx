@@ -62,22 +62,13 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
     onOpenChange?.(next);
   };
   const [date, setDate] = useState(() => toLocalDateInputValue(new Date()));
-  const [narration, setNarration] = useState(
-    () =>
-      `Reversal of Journal #${journalId}${
-        originalNarration ? `: ${originalNarration}` : ''
-      }`,
-  );
+  const [narration, setNarration] = useState(() => originalNarration);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
       setDate(toLocalDateInputValue(new Date()));
-      setNarration(
-        `Reversal of Journal #${journalId}${
-          originalNarration ? `: ${originalNarration}` : ''
-        }`,
-      );
+      setNarration(originalNarration);
     }
     setOpen(newOpen);
   };
@@ -92,7 +83,7 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
       });
       toast({
         title: 'Journal Reversed',
-        description: `Reversal Journal #${result.id} created successfully.`,
+        description: 'Reversal journal created.',
       });
       setOpen(false);
       onSuccess?.(result);
@@ -124,7 +115,7 @@ export const ReverseJournalDialog: React.FC<ReverseJournalDialogProps> = ({
       ) : null}
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Reverse Journal #{journalId}</DialogTitle>
+          <DialogTitle>Reverse journal</DialogTitle>
           <DialogDescription>
             This will create a new journal that inverts all debits and credits,
             safely offsetting account balances while preserving the audit trail.

@@ -282,16 +282,33 @@ export interface JournalEntry extends Omit<BaseEntity, 'date'> {
   accountId: number;
 }
 
+/** a journal named from this device, for a link on the journal screen */
+export interface JournalReference {
+  id: number;
+  uuid: string;
+  narration?: string;
+}
+
 /** Journal */
 export interface Journal extends Omit<BaseEntity, 'date'> {
   date: string;
   narration?: string;
   isPosted: boolean;
+  /** stable across devices. the integer id is local to this database */
+  uuid?: string;
   billNumber?: number;
   /** profile percent, `N` (all typed), or `N·20` (typed lines beside one profile percent) */
   discountPercentage?: number | string;
   /** set when journal is created from an invoice; null/undefined for manual journals */
   invoiceId?: number | null;
+  /** uuid of the journal this row reverses. null on a normal journal */
+  reversesJournalUuid?: string | null;
+  /** the original journal, when it exists on this device */
+  reverses?: JournalReference | null;
+  /** reversals of this journal that exist on this device */
+  reversedBy?: JournalReference[];
+  /** list marker: another journal reverses this one. not a stored column */
+  hasReversal?: boolean;
   journalEntries: JournalEntry[];
 }
 

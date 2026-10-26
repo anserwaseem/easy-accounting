@@ -11,6 +11,11 @@ import { createCaptureTriggers } from './034_create_sync_tables';
  * reinserts its lines, then points any return lines at the new ids. a
  * foreign key would reject that delete.
  *
+ * numbered 052 because main already shipped `051_journal_reversal_link`.
+ * a database that applied this work under the old name
+ * `051_sale_return_documents` already has the columns, so each add is
+ * skipped when the column is there.
+ *
  * existing rows stay at the default, so nothing is re-emitted. the capture
  * triggers still have to be rebuilt or the new columns never enter the outbox.
  *
@@ -18,6 +23,29 @@ import { createCaptureTriggers } from './034_create_sync_tables';
  * EXISTS` would keep the old definition.
  */
 const TABLES = ['invoices', 'invoice_items'] as const;
+
+async function hasColumn(
+  driver: DatabaseDriver,
+  table: string,
+  column: string,
+): Promise<boolean> {
+  const columns = await driver.all<{ name: string }>(
+    `PRAGMA table_info("${table}")`,
+  );
+  return columns.some((info) => info.name === column);
+}
+
+async function addColumn(
+  driver: DatabaseDriver,
+  table: string,
+  column: string,
+  definition: string,
+): Promise<void> {
+  if (await hasColumn(driver, table, column)) return;
+  await driver.exec(
+    `ALTER TABLE "${table}" ADD COLUMN "${column}" ${definition}`,
+  );
+}
 
 async function rebuildCaptureTriggers(
   driver: DatabaseDriver,
@@ -35,18 +63,22 @@ async function rebuildCaptureTriggers(
   await createCaptureTriggers(driver, table);
 }
 
-export const migration051 = {
-  name: '051_sale_return_documents',
+export const migration052 = {
+  name: '052_sale_return_documents',
   async up(driver: DatabaseDriver): Promise<void> {
-    await driver.exec(
-      `ALTER TABLE invoices ADD COLUMN isSaleReturn BOOLEAN NOT NULL DEFAULT 0`,
+    await addColumn(
+      driver,
+      'invoices',
+      'isSaleReturn',
+      'BOOLEAN NOT NULL DEFAULT 0',
     );
-    await driver.exec(
-      `ALTER TABLE invoices ADD COLUMN sourceInvoiceId INTEGER REFERENCES invoices(id)`,
+    await addColumn(
+      driver,
+      'invoices',
+      'sourceInvoiceId',
+      'INTEGER REFERENCES invoices(id)',
     );
-    await driver.exec(
-      `ALTER TABLE invoice_items ADD COLUMN sourceInvoiceItemId INTEGER`,
-    );
+    await addColumn(driver, 'invoice_items', 'sourceInvoiceItemId', 'INTEGER');
 
     for (const table of TABLES) {
       // eslint-disable-next-line no-await-in-loop

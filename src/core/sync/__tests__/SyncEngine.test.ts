@@ -2410,4 +2410,92 @@ describe('SyncEngine convergence', () => {
     a.db.close();
     b.db.close();
   });
+
+  it('keeps a second journal on the same bill when it debits another account', async () => {
+    const server = new MockSyncServer();
+    const a = await makeDevice(
+      'split-origin',
+      server.createDeviceTransport('A'),
+    );
+    const b = await makeDevice(
+      'split-receiver',
+      server.createDeviceTransport('B'),
+    );
+
+    await a.driver.run(
+      `INSERT INTO chart (date, name, type, uuid) VALUES ('2020-01-01', 'Receivables', 'Asset', 'split-chart')`,
+    );
+    const chartId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM chart WHERE uuid = 'split-chart'`,
+    ))!.id;
+    await a.driver.run(
+      `INSERT INTO account (chartId, name, uuid) VALUES (?, 'Base', 'split-base')`,
+      [chartId],
+    );
+    await a.driver.run(
+      `INSERT INTO account (chartId, name, uuid) VALUES (?, 'Tier T', 'split-t')`,
+      [chartId],
+    );
+    const baseId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM account WHERE uuid = 'split-base'`,
+    ))!.id;
+    const tierId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM account WHERE uuid = 'split-t'`,
+    ))!.id;
+    await a.driver.run(
+      `INSERT INTO invoices (invoiceNumber, accountId, invoiceType, date, totalAmount, uuid)
+       VALUES (10296, ?, 'Sale', '2026-09-19', 96053, 'split-invoice')`,
+      [baseId],
+    );
+    const invoiceId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM invoices WHERE uuid = 'split-invoice'`,
+    ))!.id;
+    await a.driver.run(
+      `INSERT INTO journal (date, narration, billNumber, discountPercentage, invoiceId, uuid)
+       VALUES ('2026-09-19', 'Sale Invoice #10296', 10296, 10, ?, 'split-j-base')`,
+      [invoiceId],
+    );
+    await a.driver.run(
+      `INSERT INTO journal (date, narration, billNumber, discountPercentage, invoiceId, uuid)
+       VALUES ('2026-09-19', 'Sale Invoice #10296', 10296, 10, ?, 'split-j-t')`,
+      [invoiceId],
+    );
+    const baseJournalId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM journal WHERE uuid = 'split-j-base'`,
+    ))!.id;
+    const tierJournalId = (await a.driver.get<{ id: number }>(
+      `SELECT id FROM journal WHERE uuid = 'split-j-t'`,
+    ))!.id;
+    await a.driver.run(
+      `INSERT INTO journal_entry (journalId, debitAmount, creditAmount, accountId, uuid)
+       VALUES (?, 24642, 0, ?, 'split-je-base')`,
+      [baseJournalId, baseId],
+    );
+    await a.driver.run(
+      `INSERT INTO journal_entry (journalId, debitAmount, creditAmount, accountId, uuid)
+       VALUES (?, 71411, 0, ?, 'split-je-t')`,
+      [tierJournalId, tierId],
+    );
+
+    await a.engine.syncOnce();
+    await b.engine.syncOnce();
+
+    const journals = await b.driver.all<{ uuid: string }>(
+      `SELECT uuid FROM journal WHERE invoiceId = (SELECT id FROM invoices WHERE uuid = 'split-invoice') ORDER BY uuid`,
+    );
+    expect(journals.map((journal) => journal.uuid)).toEqual([
+      'split-j-base',
+      'split-j-t',
+    ]);
+    const debits = await b.driver.all<{ uuid: string; debitAmount: number }>(
+      `SELECT uuid, debitAmount FROM journal_entry WHERE debitAmount > 0 ORDER BY debitAmount`,
+    );
+    expect(debits).toEqual([
+      { uuid: 'split-je-base', debitAmount: 24642 },
+      { uuid: 'split-je-t', debitAmount: 71411 },
+    ]);
+
+    a.db.close();
+    b.db.close();
+  });
 });

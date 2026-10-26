@@ -485,8 +485,20 @@ describe('core JournalService', () => {
 
       const reversed = await journal.reverseJournal(originalId);
       expect(reversed.id).toBeGreaterThan(originalId);
-      expect(reversed.narration).toBe(
-        `Reversal of Journal #${originalId}: Initial Sale`,
+      expect(reversed.narration).toBe('Initial Sale');
+      expect(reversed.reversesJournalUuid).toBe(
+        (await journal.getJournal(originalId)).uuid,
+      );
+      expect(reversed.reverses?.id).toBe(originalId);
+      const listed = await journal.getJournals();
+      expect(listed.find((row) => row.id === originalId)?.hasReversal).toBe(
+        true,
+      );
+      expect(
+        listed.find((row) => row.id === reversed.id)?.reversesJournalUuid,
+      ).toBe(reversed.reversesJournalUuid);
+      expect(listed.find((row) => row.id === reversed.id)?.hasReversal).toBe(
+        false,
       );
       expect(reversed.journalEntries).toHaveLength(2);
 
@@ -743,7 +755,7 @@ describe('core JournalService', () => {
 
       // Second reversal attempt should be blocked
       await expect(journal.reverseJournal(originalId)).rejects.toThrow(
-        `Journal with Id ${originalId} has already been reversed by Journal #${rev.id}`,
+        'This journal has already been reversed.',
       );
       db.close();
     });
