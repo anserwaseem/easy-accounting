@@ -21,6 +21,8 @@ import { toast } from '@/renderer/shad/ui/use-toast';
 import { ipcErrorMessage } from '@/renderer/lib/ipcUserMessage';
 import { formatDisplayDateTime } from '@/lib/displayDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { JournalLinkRow } from '@/renderer/components/journal/JournalLinkRow';
+import { JournalUuidHint } from '@/renderer/components/journal/JournalUuidHint';
 
 interface JournalTableProps {
   journalId: number;
@@ -102,9 +104,11 @@ export const JournalTable: React.FC<JournalTableProps> = ({
               belongs. */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-              <h1 className="min-w-0 shrink text-3xl font-light sm:text-4xl">
-                JOURNAL
-              </h1>
+              <JournalUuidHint uuid={journal?.uuid}>
+                <h1 className="min-w-0 shrink cursor-default text-3xl font-light sm:text-4xl">
+                  JOURNAL
+                </h1>
+              </JournalUuidHint>
               {journal?.isPosted ? (
                 <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-semibold text-white">
                   Posted
@@ -183,12 +187,6 @@ export const JournalTable: React.FC<JournalTableProps> = ({
           ) : null}
 
           <div className="flex flex-col gap-2 mt-8">
-            <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8 sm:items-center">
-              <p className="font-extrabold text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
-                Journal #:
-              </p>
-              <p className="tabular-nums">{journal?.id ?? journalId}</p>
-            </div>
             {journal?.invoiceId != null && journal.invoiceId > 0 ? (
               <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8">
                 <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
@@ -212,6 +210,31 @@ export const JournalTable: React.FC<JournalTableProps> = ({
                 </Button>
               </div>
             ) : null}
+            {journal?.reverses ? (
+              <JournalLinkRow
+                label="Reverses"
+                journalId={journal.reverses.id}
+                narration={journal.reverses.narration}
+              />
+            ) : null}
+            {journal?.reversesJournalUuid && !journal.reverses ? (
+              <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8 sm:items-center">
+                <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
+                  Reverses
+                </p>
+                <p className="font-mono text-xs">
+                  {journal.reversesJournalUuid}
+                </p>
+              </div>
+            ) : null}
+            {journal?.reversedBy?.map((link) => (
+              <JournalLinkRow
+                key={link.uuid}
+                label="Reversed by"
+                journalId={link.id}
+                narration={link.narration}
+              />
+            ))}
             <div className="flex flex-col gap-0.5 items-start sm:flex-row sm:gap-8">
               <p className="font-medium text-sm text-muted-foreground w-full sm:w-[160px] sm:shrink-0">
                 Date:

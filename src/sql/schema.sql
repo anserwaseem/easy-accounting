@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS "journal" (
   -- "billNumber" INTEGER, -- "013 migration"
   -- "discountPercentage" DECIMAL(5, 2), -- "013 migration"
   -- "invoiceId" INTEGER REFERENCES "invoices"("id"), -- "016 migration" nullable for manual journals
+  -- "reversesJournalUuid" TEXT, -- uuid of the journal this row reverses. null on a normal journal. "051_journal_reversal_link migration"
   "createdAt"	DATETIME,
   "updatedAt"	DATETIME
 );

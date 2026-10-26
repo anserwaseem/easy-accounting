@@ -6,6 +6,7 @@ import {
   type Journal,
   type JournalEntry,
   type JournalNarrationSummary,
+  type JournalReference,
   type Ledger,
   type UpdateJournalFields,
 } from '../../types';
@@ -17,8 +18,8 @@ import { OPENING_BALANCE_PARTICULARS } from '../db/openingBalanceBackfill';
 import { LedgerService } from './LedgerService';
 
 const SQL = {
-  insertJournal: `INSERT INTO journal (date, narration, isPosted, billNumber, discountPercentage, invoiceId)
-       VALUES (@date, @narration, @isPosted, @billNumber, @discountPercentage, @invoiceId)`,
+  insertJournal: `INSERT INTO journal (date, narration, isPosted, billNumber, discountPercentage, invoiceId, reversesJournalUuid)
+       VALUES (@date, @narration, @isPosted, @billNumber, @discountPercentage, @invoiceId, @reversesJournalUuid)`,
   insertJournalEntry: `INSERT INTO journal_entry (journalId, debitAmount, accountId, creditAmount)
        VALUES (@journalId, @debitAmount, @accountId, @creditAmount)`,
   accountType:
@@ -31,7 +32,8 @@ const SQL = {
   // ledger effects still show on account ledgers, and math/statements never
   // read this query. The literal is quote-free (see its own doc comment) so
   // interpolating it directly into the SQL string is safe.
-  getJournals: `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.invoiceId, j.createdAt, j.updatedAt, je.debitAmount
+  getJournals: `SELECT j.id, j.uuid, j.reversesJournalUuid, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.invoiceId, j.createdAt, j.updatedAt, je.debitAmount,
+       EXISTS(SELECT 1 FROM journal rev WHERE rev.reversesJournalUuid = j.uuid) AS hasReversal
        FROM journal j
        JOIN journal_entry je ON j.id = je.journalId
        JOIN account a ON a.id = je.accountId
@@ -47,7 +49,7 @@ const SQL = {
        WHERE j.invoiceId = @invoiceId
        AND userId = (SELECT id FROM users WHERE username = @username)
        ORDER BY j.date DESC, j.id DESC`,
-  getJournal: `SELECT j.id, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.invoiceId, j.createdAt, j.updatedAt,
+  getJournal: `SELECT j.id, j.uuid, j.date, j.narration, j.isPosted, j.billNumber, j.discountPercentage, j.invoiceId, j.reversesJournalUuid, j.createdAt, j.updatedAt,
               je.debitAmount, je.creditAmount, je.accountId, a.name as accountName
        FROM journal j
        JOIN journal_entry je ON j.id = je.journalId
@@ -91,10 +93,28 @@ const SQL = {
     `,
   getReversalByOriginalJournalId: `
       SELECT id FROM journal
-      WHERE narration = @reversalExact
-         OR narration LIKE @reversalPrefix
+      WHERE reversesJournalUuid = @uuid
       LIMIT 1
     `,
+  getJournalReferenceByUuid: `
+      SELECT id, uuid, narration FROM journal WHERE uuid = @uuid
+    `,
+  getReversalsOfJournal: `
+      SELECT id, uuid, narration FROM journal WHERE reversesJournalUuid = @uuid
+    `,
+};
+
+/** drop `Reversal of Journal #<id>` so a synced narration does not name a local id */
+const withoutLocalReversalId = (
+  narration: string,
+  journalId: number,
+): string => {
+  const exact = `Reversal of Journal #${journalId}`;
+  if (narration === exact) return '';
+  const prefix = `${exact}: `;
+  if (narration.startsWith(prefix))
+    return narration.slice(prefix.length).trim();
+  return narration;
 };
 
 /** Journal CRUD. Async against DatabaseDriver, session injected. */
@@ -138,16 +158,19 @@ export class JournalService {
 
   async getJournals(): Promise<Journal[]> {
     const username = this.session.getUsername();
-    const res = await this.db.all<Journal & { debitAmount: number }>(
-      SQL.getJournals,
-      { username },
-    );
+    const res = await this.db.all<
+      Omit<Journal, 'hasReversal'> & {
+        debitAmount: number;
+        hasReversal: number;
+      }
+    >(SQL.getJournals, { username });
 
     const journals = compact(
       res.reduce((acc, journal) => {
         if (!acc[journal.id]) {
           acc[journal.id] = {
-            ...omit(journal, 'debitAmount'),
+            ...omit(journal, 'debitAmount', 'hasReversal'),
+            hasReversal: Boolean(journal.hasReversal),
             journalEntries: [],
           };
         }
@@ -224,7 +247,27 @@ export class JournalService {
       return acc;
     }, {} as Journal);
 
-    return journal;
+    if (!journal.id) return journal;
+    return this.attachReversalLinks(journal);
+  }
+
+  /** resolve the reversal link to journals that exist on this device */
+  private async attachReversalLinks(journal: Journal): Promise<Journal> {
+    const reverses = journal.reversesJournalUuid
+      ? await this.db.get<JournalReference>(SQL.getJournalReferenceByUuid, {
+          uuid: journal.reversesJournalUuid,
+        })
+      : undefined;
+    const reversedBy = journal.uuid
+      ? await this.db.all<JournalReference>(SQL.getReversalsOfJournal, {
+          uuid: journal.uuid,
+        })
+      : [];
+    return {
+      ...journal,
+      reverses: reverses ?? null,
+      reversedBy,
+    };
   }
 
   /**
@@ -313,6 +356,7 @@ export class JournalService {
           billNumber,
           discountPercentage,
           invoiceId: invoiceId ?? null,
+          reversesJournalUuid: journal.reversesJournalUuid ?? null,
         });
         const journalId = Number(result.lastInsertRowid);
 
@@ -650,17 +694,16 @@ export class JournalService {
         );
       }
 
+      if (!original.uuid) {
+        raise(`Journal with Id ${journalId} has no uuid`);
+      }
+
       const existingReversal = await this.db.get<{ id: number }>(
         SQL.getReversalByOriginalJournalId,
-        {
-          reversalExact: `Reversal of Journal #${journalId}`,
-          reversalPrefix: `Reversal of Journal #${journalId}:%`,
-        },
+        { uuid: original.uuid },
       );
       if (existingReversal && existingReversal.id) {
-        raise(
-          `Journal with Id ${journalId} has already been reversed by Journal #${existingReversal.id}`,
-        );
+        raise('This journal has already been reversed.');
       }
 
       const reversedEntries: JournalEntry[] = (
@@ -674,11 +717,11 @@ export class JournalService {
           }) as JournalEntry,
       );
 
-      const defaultNarration = original.narration
-        ? `Reversal of Journal #${journalId}: ${original.narration}`
-        : `Reversal of Journal #${journalId}`;
-
-      const narration = options?.narration?.trim() || defaultNarration;
+      const supplied = withoutLocalReversalId(
+        options?.narration?.trim() || '',
+        journalId,
+      );
+      const narration = supplied || original.narration?.trim() || 'Reversal';
       const date = options?.date || new Date().toISOString();
 
       const reversalJournal: Journal = {
@@ -689,6 +732,7 @@ export class JournalService {
         billNumber: original.billNumber,
         discountPercentage: original.discountPercentage,
         invoiceId: undefined,
+        reversesJournalUuid: original.uuid,
         journalEntries: reversedEntries,
       };
 
