@@ -12,6 +12,17 @@ describe('getInvoiceDocumentBaseName', () => {
     ).toBe('12');
   });
 
+  it('prefixes sale returns so they do not overwrite sale pdfs', () => {
+    expect(
+      getInvoiceDocumentBaseName({
+        invoiceType: InvoiceType.Sale,
+        invoiceNumber: 1,
+        isQuotation: false,
+        isSaleReturn: true,
+      }),
+    ).toBe('sale-return-1');
+  });
+
   it('prefixes purchase rows, which reuse the same invoice numbers as sales', () => {
     expect(
       getInvoiceDocumentBaseName({

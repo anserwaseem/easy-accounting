@@ -343,6 +343,8 @@ interface UseNewInvoiceColumnsParams<T extends FieldValues = FieldValues> {
   getSectionLabel: (section: CustomerSection, index: number) => string;
   /** sale edit: add back line qty already on invoice so displayed avail matches validation */
   saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
+  /** return document: quantity comes back into stock */
+  incomingStock?: boolean;
 }
 
 /**
@@ -355,6 +357,7 @@ interface InvoiceLineQuantityCellProps<T extends FieldValues> {
   inventoryById: Map<number, InventoryItem>;
   invoiceType: InvoiceType;
   saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
+  incomingStock?: boolean;
   onQuantityChange: (
     rowIndex: number,
     value: string,
@@ -369,6 +372,7 @@ const InvoiceLineQuantityCell = <T extends FieldValues>({
   inventoryById,
   invoiceType,
   saleStockValidationBonusRef,
+  incomingStock,
   onQuantityChange,
   onQuantityEnterAddRow,
 }: InvoiceLineQuantityCellProps<T>) => {
@@ -379,14 +383,14 @@ const InvoiceLineQuantityCell = <T extends FieldValues>({
   const invId = toNumber(inventoryIdWatched);
   const inv = inventoryById.get(invId);
   const bonus =
-    invoiceType === InvoiceType.Sale
+    invoiceType === InvoiceType.Sale && !incomingStock
       ? saleStockValidationBonusRef?.current[invId] ?? 0
       : 0;
   const availableQty = inv && invId > 0 ? inv.quantity + bonus : undefined;
   let stockTitle = 'No item selected; stock not shown.';
   if (availableQty !== undefined) {
     stockTitle =
-      invoiceType === InvoiceType.Sale
+      invoiceType === InvoiceType.Sale && !incomingStock
         ? `Available quantity: ${availableQty}.`
         : `On hand: ${availableQty}.`;
   }
@@ -479,6 +483,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     applyAutoDiscountForRow,
     getSectionLabel,
     saleStockValidationBonusRef,
+    incomingStock,
   } = params;
 
   return useMemo(() => {
@@ -596,6 +601,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
             inventoryById={inventoryById}
             invoiceType={invoiceType}
             saleStockValidationBonusRef={saleStockValidationBonusRef}
+            incomingStock={incomingStock}
             onQuantityChange={onQuantityChange}
             onQuantityEnterAddRow={onQuantityEnterAddRow}
           />
@@ -801,5 +807,6 @@ export function useNewInvoiceColumns<T extends FieldValues>(
     applyAutoDiscountForRow,
     getSectionLabel,
     saleStockValidationBonusRef,
+    incomingStock,
   ]);
 }

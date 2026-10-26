@@ -464,6 +464,9 @@ export interface AppApi {
   // ---------------------------------------------------------------------
 
   getNextInvoiceNumber: (invoiceType: InvoiceType) => Promise<any>;
+  getNextSaleReturnNumber: () => Promise<number>;
+  getSaleReturns: () => Promise<any>;
+  getSaleReturnSource: (invoiceId: number) => Promise<any>;
   insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) => Promise<any>;
   insertQuotation: (
     invoiceType: InvoiceType,

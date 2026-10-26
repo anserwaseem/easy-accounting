@@ -214,6 +214,8 @@ CREATE TABLE IF NOT EXISTS "invoices" ( -- "002 migration"
     -- "isQuotation" BOOLEAN NOT NULL DEFAULT 0, -- "018 migration"
     -- "shippingCharges" DECIMAL(10, 2) NOT NULL DEFAULT 0, -- "045 migration"
     -- "shippingAccountId" INTEGER REFERENCES "account"("id"), -- "045 migration"
+    -- "isSaleReturn" BOOLEAN NOT NULL DEFAULT 0, -- "051 migration"
+    -- "sourceInvoiceId" INTEGER REFERENCES "invoices"("id"), -- "051 migration"
 
     UNIQUE("invoiceNumber", "invoiceType"),
     FOREIGN KEY ("accountId") REFERENCES "account"("id")
@@ -227,6 +229,7 @@ CREATE TABLE IF NOT EXISTS "invoice_items" ( -- "002 migration"
     -- "discount" DECIMAL(10, 2) NOT NULL DEFAULT 0, -- "004 migration"
     -- "accountId" INTEGER DEFAULT NULL, -- "010 migration"
     -- "netPrice" DECIMAL(10, 2), -- "045 migration"
+    -- "sourceInvoiceItemId" INTEGER, -- "051 migration"
     "price" DECIMAL(10, 2) NOT NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

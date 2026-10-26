@@ -365,6 +365,14 @@ const electronHandler = {
   getNextInvoiceNumber: (invoiceType: InvoiceType) =>
     ipcRenderer.invoke('invoice:getId', invoiceType),
 
+  getNextSaleReturnNumber: () =>
+    ipcRenderer.invoke('invoice:getNextSaleReturnNumber') as Promise<number>,
+
+  getSaleReturns: () => ipcRenderer.invoke('invoice:getSaleReturns'),
+
+  getSaleReturnSource: (invoiceId: number) =>
+    ipcRenderer.invoke('invoice:getSaleReturnSource', invoiceId),
+
   insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) =>
     ipcRenderer.invoke('invoice:insert', invoiceType, invoice) as Promise<{
       invoiceId: number;

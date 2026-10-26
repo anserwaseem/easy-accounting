@@ -6,6 +6,7 @@ interface InvoiceDocumentNameInput {
   invoiceType: InvoiceType | string | null | undefined;
   invoiceNumber: number | string | null | undefined;
   isQuotation: boolean;
+  isSaleReturn?: boolean;
 }
 
 /**
@@ -21,7 +22,14 @@ export const getInvoiceDocumentBaseName = ({
   invoiceType,
   invoiceNumber,
   isQuotation,
+  isSaleReturn = false,
 }: InvoiceDocumentNameInput): string => {
+  if (isSaleReturn) {
+    if (isNil(invoiceNumber) || toString(invoiceNumber).trim() === '') {
+      return '';
+    }
+    return `sale-return-${toString(invoiceNumber)}`;
+  }
   const prefix = invoiceType === InvoiceType.Purchase ? 'purchase-' : '';
 
   if (isQuotation) {

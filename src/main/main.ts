@@ -1013,6 +1013,15 @@ app
     ipcMain.handle('invoice:getId', (_, invoiceType: InvoiceType) =>
       invoiceService.getNextInvoiceNumber(invoiceType),
     );
+    ipcMain.handle('invoice:getNextSaleReturnNumber', () =>
+      invoiceService.getNextSaleReturnNumber(),
+    );
+    ipcMain.handle('invoice:getSaleReturns', () =>
+      invoiceService.getSaleReturns(),
+    );
+    ipcMain.handle('invoice:getSaleReturnSource', (_, invoiceId: number) =>
+      invoiceService.getSaleReturnSource(invoiceId),
+    );
     ipcMain.handle(
       'invoice:insert',
       (_, invoiceType: InvoiceType, invoice: Invoice) =>

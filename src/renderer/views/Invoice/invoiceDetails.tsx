@@ -397,14 +397,22 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     navigate(`/invoices/${invoice!.id}/print`);
   };
 
+  let documentHeading = `${invoiceType.toUpperCase()} INVOICE`;
+  if (invoice?.isQuotation) {
+    documentHeading = `${invoiceType.toUpperCase()} QUOTATION`;
+  } else if (invoice?.isSaleReturn) {
+    documentHeading = 'SALE RETURN';
+  }
+  let numberLabel = 'Invoice #:';
+  if (invoice?.isQuotation) numberLabel = 'Quotation #:';
+  else if (invoice?.isSaleReturn) numberLabel = 'Return #:';
+
   return (
     <div>
       <div className="w-full">
         <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <h1 className="min-w-0 shrink text-4xl font-light">
-            {invoice?.isQuotation
-              ? `${invoiceType.toUpperCase()} QUOTATION`
-              : `${invoiceType.toUpperCase()} INVOICE`}
+            {documentHeading}
           </h1>
           <div className="flex w-full flex-wrap items-center justify-end gap-2 md:ml-auto md:w-auto md:shrink-0">
             {invoice &&
@@ -440,7 +448,22 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 Duplicate
               </Button>
             ) : null}
-            {canEditPostedInvoice ? (
+            {invoiceType === InvoiceType.Sale &&
+            invoice?.id != null &&
+            !invoice.isQuotation &&
+            !invoice.isReturned &&
+            !invoice.isSaleReturn ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 md:h-10"
+                onClick={() => navigate(`/sale/invoices/${invoice.id}/return`)}
+              >
+                Return items
+              </Button>
+            ) : null}
+            {canEditPostedInvoice && !invoice?.isSaleReturn ? (
               <AdvancedControl
                 capability={
                   invoiceType === InvoiceType.Sale
@@ -453,6 +476,12 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                   variant="outline"
                   size="sm"
                   className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
+                  disabled={Boolean(invoice?.hasSaleReturns)}
+                  title={
+                    invoice?.hasSaleReturns
+                      ? 'This invoice already has a sale return.'
+                      : undefined
+                  }
                   onClick={() => {
                     setReturnReasonDraft('');
                     setReturnDialogOpen(true);
@@ -501,7 +530,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-4 sm:gap-8 items-center">
               <p className="font-extrabold text-md w-[110px] sm:w-[160px]">
-                {invoice?.isQuotation ? 'Quotation #:' : 'Invoice #:'}
+                {numberLabel}
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {invoice?.isQuotation ? (
@@ -534,6 +563,22 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 ) : null}
               </div>
             </div>
+            {invoice?.isSaleReturn && invoice.sourceInvoiceId ? (
+              <div className="flex gap-4 sm:gap-8">
+                <p className="font-medium text-md min-w-[110px] sm:min-w-[160px]">
+                  Against invoice #:
+                </p>
+                <button
+                  type="button"
+                  className="text-left underline"
+                  onClick={() =>
+                    navigate(`/sale/invoices/${invoice.sourceInvoiceId}`)
+                  }
+                >
+                  {invoice.sourceInvoiceNumber}
+                </button>
+              </div>
+            ) : null}
             <div className="flex gap-4 sm:gap-8">
               <p className="font-medium text-md min-w-[110px] sm:min-w-[160px]">{`${
                 invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
@@ -568,7 +613,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 <p>{formatDisplayDateTime(invoice.returnedAt)}</p>
               </div>
             ) : null}
-            {invoice?.isReturned &&
+            {(invoice?.isReturned || invoice?.isSaleReturn) &&
             invoice.returnReason != null &&
             String(invoice.returnReason).trim() !== '' ? (
               <div className="flex gap-4 sm:gap-8">

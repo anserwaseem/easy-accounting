@@ -39,6 +39,7 @@ export const buildPrefillFromInvoiceView = (
     discount: it.discount,
     price: it.price,
     netPrice: it.netPrice ?? undefined,
+    sourceInvoiceItemId: it.sourceInvoiceItemId,
     discountedPrice:
       it.discountedPrice ??
       computeInvoiceItemTotal(it.quantity, it.discount, it.price),
@@ -112,6 +113,7 @@ interface UseEditInvoiceHydrationParams {
   setIsDateExplicitlySet: (v: boolean) => void;
   setEditHydrated: (v: boolean) => void;
   setIsEditingQuotation: (v: boolean) => void;
+  setEditingSaleReturn?: (v: boolean) => void;
   navigate: NavigateFunction;
   saleStockValidationBonusRef: React.MutableRefObject<Record<number, number>>;
 }
@@ -126,6 +128,7 @@ export const useEditInvoiceHydration = ({
   setIsDateExplicitlySet,
   setEditHydrated,
   setIsEditingQuotation,
+  setEditingSaleReturn,
   navigate,
   saleStockValidationBonusRef,
 }: UseEditInvoiceHydrationParams) => {
@@ -164,6 +167,7 @@ export const useEditInvoiceHydration = ({
 
       const isQuotation = Boolean(inv.isQuotation);
       setIsEditingQuotation(isQuotation);
+      setEditingSaleReturn?.(Boolean(inv.isSaleReturn));
 
       if (!isQuotation) {
         const linkedJournals = (await window.electron.getJournalsByInvoiceId(
@@ -228,6 +232,7 @@ export const useEditInvoiceHydration = ({
     saleStockValidationBonusRef,
     setEditHydrated,
     setIsEditingQuotation,
+    setEditingSaleReturn,
     setIsDateExplicitlySet,
     setNextInvoiceNumber,
     setSplitByItemType,

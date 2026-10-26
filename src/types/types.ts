@@ -590,6 +590,8 @@ export interface InvoiceItem extends Omit<BaseEntity, 'date'> {
   discount: number; // will be provided by UI
   /** null unless this line charges a typed unit. `price` stays the catalog price */
   netPrice?: number;
+  /** set on a sale return line copied from one sale line */
+  sourceInvoiceItemId?: number;
   invoiceId?: number; // will be assigned at service layer
   price?: number; // will be fetched at service layer
   discountedPrice?: number; // will be calculated at service layer
@@ -610,6 +612,13 @@ export type Invoice = Prettify<
     totalAmount?: number; // will be calculated at service layer
     invoiceNumber?: number; // only given from UI for the first time => user input
     invoiceType?: InvoiceType;
+    /** goods coming back. stock increases and the sale journal is reversed */
+    isSaleReturn?: boolean;
+    /** sale this return was copied from. empty for an agent carton */
+    sourceInvoiceId?: number | null;
+    /** display-only number of the source sale, filled when a return is read */
+    sourceInvoiceNumber?: number | null;
+    returnReason?: string | null;
     accountMapping: {
       singleAccountId?: number;
       /** same customer often has multiple accounts; multiple accounts = one invoice per customer, one journal per account */
@@ -639,6 +648,9 @@ export type InvoicesView = Prettify<
     isReturned?: boolean;
     returnedAt?: string | null;
     returnReason?: string | null;
+    isSaleReturn?: boolean;
+    sourceInvoiceId?: number | null;
+    sourceInvoiceNumber?: number | null;
   }
 >;
 export type InvoiceItemView = {
@@ -655,8 +667,10 @@ export type InvoiceItemView = {
   inventoryItemDescriptionUrdu?: string | null;
   discountedPrice?: number;
   accountName?: string;
-  /** persisted line account when invoice uses per-row accounts */
-  accountId?: number;
+    /** persisted line account when invoice uses per-row accounts */
+    accountId?: number;
+    /** database id of the source sale line, when this return line was copied */
+    sourceInvoiceItemId?: number;
   /** line party Urdu name when invoice uses per-row accounts */
   accountNameUrdu?: string;
 };
@@ -687,6 +701,11 @@ export type InvoiceView = Prettify<
     isReturned?: boolean;
     returnedAt?: string | null;
     returnReason?: string | null;
+    isSaleReturn?: boolean;
+    sourceInvoiceId?: number | null;
+    sourceInvoiceNumber?: number | null;
+    /** a partial sale return already points at this invoice */
+    hasSaleReturns?: boolean;
   }
 >;
 
@@ -694,6 +713,28 @@ export type InvoiceView = Prettify<
 export type ReturnSaleInvoicePayload = {
   returnReason?: string | null;
 };
+
+/** one sale line and how much of it has already come back */
+export interface SaleReturnSourceLine {
+  id: number;
+  inventoryId: number;
+  inventoryItemName: string;
+  quantity: number;
+  returnedQty: number;
+  price: number;
+  discount: number;
+  netPrice: number | null;
+  accountId: number;
+}
+
+/** sale a Return items screen copies from */
+export interface SaleReturnSource {
+  invoiceId: number;
+  invoiceNumber: number;
+  accountId: number;
+  accountName: string;
+  lines: SaleReturnSourceLine[];
+}
 export type InvoicesExport = Prettify<
   Pick<Invoice, 'invoiceNumber' | 'date' | 'totalAmount'> & {
     totalQuantity: number;

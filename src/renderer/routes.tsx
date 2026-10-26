@@ -20,6 +20,7 @@ import JournalsPage from './views/Journals';
 import LedgerPage from './views/Ledger';
 import Login from './views/Login';
 import NewInvoicePage from './views/NewInvoice';
+import ReturnItemsPage from './views/SaleReturn/ReturnItemsPage';
 import NewJournalPage from './views/NewJournal';
 import Register from './views/Register';
 import SettingsPage from './views/Settings';
@@ -206,9 +207,31 @@ const AppRoutes: React.FC = () => {
                         />
                       }
                     />
+                    <Route path=":id/return" element={<ReturnItemsPage />} />
                     <Route
                       path=":id"
                       element={<InvoicePage invoiceType={InvoiceType.Sale} />}
+                    />
+                  </Route>
+                  <Route path="sale/returns">
+                    <Route
+                      index
+                      element={
+                        <InvoicesPage
+                          invoiceType={InvoiceType.Sale}
+                          saleReturns
+                        />
+                      }
+                    />
+                    <Route
+                      path="new"
+                      element={
+                        <NewInvoicePage
+                          invoiceType={InvoiceType.Sale}
+                          saleReturn
+                          key="sale-return-new"
+                        />
+                      }
                     />
                   </Route>
                   <Route

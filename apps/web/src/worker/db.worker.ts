@@ -983,6 +983,10 @@ async function main(): Promise<void> {
         invoiceType as Parameters<InvoiceService['getInvoices']>[0],
       ),
     getInvoice: (invoiceId) => invoiceService.getInvoice(invoiceId as number),
+    getNextSaleReturnNumber: () => invoiceService.getNextSaleReturnNumber(),
+    getSaleReturns: () => invoiceService.getSaleReturns(),
+    getSaleReturnSource: (invoiceId) =>
+      invoiceService.getSaleReturnSource(invoiceId as number),
     returnSaleInvoice: (invoiceId, payload) => {
       requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
       return invoiceService.returnSaleInvoice(
