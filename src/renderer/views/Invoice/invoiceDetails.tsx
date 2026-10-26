@@ -485,21 +485,6 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 Duplicate
               </Button>
             ) : null}
-            {invoiceType === InvoiceType.Sale &&
-            invoice?.id != null &&
-            !invoice.isQuotation &&
-            !invoice.isReturned &&
-            !invoice.isSaleReturn ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 md:h-10"
-                onClick={() => navigate(`/sale/invoices/${invoice.id}/return`)}
-              >
-                Return items
-              </Button>
-            ) : null}
             {invoice?.isSaleReturn &&
             !invoice.isReturned &&
             canEditPostedInvoice ? (
@@ -545,8 +530,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                       <TooltipContent side="bottom" className="max-w-xs">
                         <p>
                           This sale already has return items, so the whole
-                          invoice cannot be voided. Use Return items for
-                          anything else that comes back.
+                          invoice cannot be voided.
                         </p>
                       </TooltipContent>
                     </Tooltip>

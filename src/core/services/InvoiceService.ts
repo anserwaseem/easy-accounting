@@ -1224,7 +1224,7 @@ export class InvoiceService {
       // prices, quantity caps, and the header total are taken from the
       // source sale when there is one. the number stays the display number;
       // the row stores the encoded one.
-      saleInvoice = await this.prepareSaleReturn(saleInvoice, null);
+      saleInvoice = await InvoiceService.prepareSaleReturn(saleInvoice);
     }
 
     const totalAmount = saleInvoice.totalAmount ?? 0;
@@ -1976,15 +1976,12 @@ export class InvoiceService {
     if (editingSaleReturn) {
       // prepared copy replaces the argument for the rest of this save
       // eslint-disable-next-line no-param-reassign
-      invoice = await this.prepareSaleReturn(
-        {
-          ...invoice,
-          isSaleReturn: true,
-          sourceInvoiceId: invoiceHeader.sourceInvoiceId ?? null,
-          invoiceNumber: displayNumber,
-        },
-        invoiceId,
-      );
+      invoice = await InvoiceService.prepareSaleReturn({
+        ...invoice,
+        isSaleReturn: true,
+        sourceInvoiceId: invoiceHeader.sourceInvoiceId ?? null,
+        invoiceNumber: displayNumber,
+      });
     } else {
       InvoiceService.assertReturnedLinesNotCut(oldRows, invoice);
     }
@@ -2110,13 +2107,10 @@ export class InvoiceService {
   }
 
   /**
-   * locks a linked return to the sale's price and remaining quantity.
-   * an unlinked return (agent carton) keeps the prices the form calculated.
+   * a new sale return keeps the prices the form calculated.
+   * opening one from an existing sale is refused: the line link does not sync.
    */
-  private async prepareSaleReturn(
-    invoice: Invoice,
-    excludeInvoiceId: number | null,
-  ): Promise<Invoice> {
+  private static prepareSaleReturn(invoice: Invoice): Invoice {
     if (!(toNumber(invoice.invoiceNumber) > 0)) {
       raise('Sale return number must be greater than 0');
     }
@@ -2125,160 +2119,25 @@ export class InvoiceService {
     }
 
     const sourceId = toNumber(invoice.sourceInvoiceId);
-    if (!(sourceId > 0)) {
-      if (
-        invoice.invoiceItems.some(
-          (item) => toNumber(item.sourceInvoiceItemId) > 0,
-        )
-      ) {
-        raise('An unlinked sale return cannot point at a sale line.');
-      }
-      const posted = InvoiceService.postedAccountAmounts(
-        InvoiceType.Sale,
-        invoice,
-      );
-      return {
-        ...invoice,
-        isSaleReturn: true,
-        sourceInvoiceId: null,
-        sourceInvoiceNumber: null,
-        totalAmount: posted.reduce((sum, group) => sum + group.amount, 0),
-      };
-    }
-
-    const source = await this.db.get<{
-      invoiceType: string;
-      isReturned: SqliteBoolColumn;
-      isQuotation: SqliteBoolColumn;
-      isSaleReturn: SqliteBoolColumn;
-      accountId: number;
-      invoiceNumber: number;
-      date: string;
-    }>(
-      `
-      SELECT invoiceType, accountId, invoiceNumber, date,
-        COALESCE(isReturned, 0) AS isReturned,
-        COALESCE(isQuotation, 0) AS isQuotation,
-        COALESCE(isSaleReturn, 0) AS isSaleReturn
-      FROM invoices WHERE id = ?
-    `,
-      [sourceId],
-    );
-    const saleSource =
-      source ?? raise('Sale returns can only be opened from a sale invoice.');
-    if (saleSource.invoiceType !== InvoiceType.Sale) {
-      raise('Sale returns can only be opened from a sale invoice.');
-    }
-    if (uncastBoolean(saleSource.isSaleReturn)) {
-      raise('A sale return cannot be opened from another sale return.');
-    }
-    if (uncastBoolean(saleSource.isQuotation)) {
-      raise('Cannot return a quotation. Convert it to an invoice first.');
-    }
-    if (uncastBoolean(saleSource.isReturned)) {
-      raise('This invoice has already been returned.');
-    }
     if (
-      InvoiceService.localDay(invoice.date) <
-      InvoiceService.localDay(saleSource.date)
+      sourceId > 0 ||
+      invoice.invoiceItems.some(
+        (item) => toNumber(item.sourceInvoiceItemId) > 0,
+      )
     ) {
-      raise('A sale return cannot be dated before the sale.');
+      raise(
+        'A sale return cannot be opened from an existing sale. Create a new sale return.',
+      );
     }
-
-    const sourceLines = await this.db.all<{
-      id: number;
-      inventoryId: number;
-      quantity: number;
-      price: number;
-      discount: number;
-      netPrice: number | null;
-      accountId: number;
-    }>(
-      `
-      SELECT ii.id, ii.inventoryId, ii.quantity, ii.price, ii.discount, ii.netPrice,
-        COALESCE(ii.accountId, i.accountId) AS accountId
-      FROM invoice_items ii
-      JOIN invoices i ON i.id = ii.invoiceId
-      WHERE ii.invoiceId = ?
-    `,
-      [sourceId],
-    );
-    const already = await this.db.all<{ id: number; qty: number }>(
-      `
-      SELECT ri.sourceInvoiceItemId AS id, SUM(ri.quantity) AS qty
-      FROM invoice_items ri
-      JOIN invoices r ON r.id = ri.invoiceId
-      WHERE r.sourceInvoiceId = ?
-        AND COALESCE(r.isSaleReturn, 0) = 1
-        AND COALESCE(r.isReturned, 0) = 0
-        AND r.id != ?
-      GROUP BY ri.sourceInvoiceItemId
-    `,
-      [sourceId, excludeInvoiceId ?? -1],
-    );
-    const sourceById = new Map(sourceLines.map((line) => [line.id, line]));
-    const returnedById = new Map(
-      already.map((row) => [row.id, toNumber(row.qty)]),
-    );
-    const claimed = new Map<number, number>();
-    const locked = invoice.invoiceItems.map((item) => {
-      const sourceLineId = toNumber(item.sourceInvoiceItemId);
-      const sourceLine =
-        sourceById.get(sourceLineId) ??
-        raise('Return line does not belong to this sale.');
-      const qty = toNumber(item.quantity);
-      if (!(qty > 0)) raise('Return quantity must be greater than 0');
-      const used =
-        (returnedById.get(sourceLineId) ?? 0) +
-        (claimed.get(sourceLineId) ?? 0);
-      const remaining = sourceLine.quantity - used;
-      if (qty > remaining) {
-        raise(`Only ${remaining} can still be returned on this sale line.`);
-      }
-      claimed.set(sourceLineId, (claimed.get(sourceLineId) ?? 0) + qty);
-      return {
-        ...item,
-        inventoryId: sourceLine.inventoryId,
-        quantity: qty,
-        price: sourceLine.price,
-        discount: sourceLine.discount,
-        netPrice: sourceLine.netPrice ?? undefined,
-        sourceInvoiceItemId: sourceLineId,
-      };
-    });
-
-    const accountIds = locked.map((item) => {
-      const line = sourceById.get(toNumber(item.sourceInvoiceItemId));
-      return line?.accountId ?? saleSource.accountId;
-    });
-    const distinct = uniq(accountIds);
-    const prepared: Invoice = {
-      ...invoice,
-      isSaleReturn: true,
-      sourceInvoiceId: sourceId,
-      sourceInvoiceNumber: saleSource.invoiceNumber,
-      extraDiscount: 0,
-      extraDiscountAccountId: undefined,
-      shippingCharges: 0,
-      shippingAccountId: undefined,
-      invoiceItems: locked,
-      accountMapping:
-        distinct.length <= 1
-          ? {
-              singleAccountId: distinct[0] ?? saleSource.accountId,
-              multipleAccountIds: [],
-            }
-          : {
-              singleAccountId: saleSource.accountId,
-              multipleAccountIds: accountIds,
-            },
-    };
     const posted = InvoiceService.postedAccountAmounts(
       InvoiceType.Sale,
-      prepared,
+      invoice,
     );
     return {
-      ...prepared,
+      ...invoice,
+      isSaleReturn: true,
+      sourceInvoiceId: null,
+      sourceInvoiceNumber: null,
       totalAmount: posted.reduce((sum, group) => sum + group.amount, 0),
     };
   }
