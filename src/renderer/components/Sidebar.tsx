@@ -16,6 +16,7 @@ import {
   FileCheck2,
   FileInput,
   FileOutput,
+  Undo2,
   Home,
   LogOut,
   Menu,
@@ -585,6 +586,14 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               label="Sale Invoices"
               onListButtonClick={clearGeneratedInvoicesFromStore}
               plusShortcut={{ digit: '3', noun: 'sale invoice' }}
+              collapsed={effectiveCollapsed}
+            />,
+            <SidebarListPlusNewRow
+              key="sale-returns"
+              listTo="/sale/returns"
+              newTo="/sale/returns/new"
+              icon={<Undo2 size={18} />}
+              label="Sale Returns"
               collapsed={effectiveCollapsed}
             />,
             <SidebarOutlineLink

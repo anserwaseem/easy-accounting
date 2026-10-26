@@ -776,6 +776,132 @@ describe('core InvoiceService', () => {
     expect(allBillsUpToDate[acc.primaryPartyId]).toHaveLength(1);
     expect(allBillsUpToDate[acc.primaryPartyId][0].invoiceNumber).toBe(5001);
   });
+
+  it('new sale return credits the customer and refuses a link to a sale', async () => {
+    const acc = await seedBaseAccounts();
+    const inv = await seedInventoryAndTypes();
+    const sale: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-03-01T12:00:00.000Z').toISOString(),
+      invoiceNumber: 45,
+      extraDiscount: 0,
+      totalAmount: 800,
+      biltyNumber: '',
+      cartons: 0,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity: 10,
+          discount: 20,
+          price: 100,
+          discountedPrice: 80,
+        },
+      ],
+    };
+    const { invoiceId: saleId } = await core.invoices.insertInvoice(
+      'Sale' as InvoiceType,
+      sale,
+    );
+    const source = await core.invoices.getSaleReturnSource(saleId);
+
+    await expect(
+      core.invoices.insertInvoice('Sale' as InvoiceType, {
+        id: -1,
+        invoiceType: 'Sale' as InvoiceType,
+        date: new Date('2026-10-26T12:00:00.000Z').toISOString(),
+        invoiceNumber: 1,
+        isSaleReturn: true,
+        sourceInvoiceId: saleId,
+        extraDiscount: 0,
+        totalAmount: 1,
+        biltyNumber: '',
+        cartons: 0,
+        accountMapping: {
+          singleAccountId: acc.primaryPartyId,
+          multipleAccountIds: [],
+        },
+        invoiceItems: [
+          {
+            id: 1,
+            inventoryId: inv.primaryItemId,
+            quantity: 1,
+            discount: 0,
+            price: 1,
+            discountedPrice: 1,
+            sourceInvoiceItemId: source.lines[0].id,
+          },
+        ],
+      }),
+    ).rejects.toThrow(/cannot be opened from an existing sale/);
+
+    const created: Invoice = {
+      id: -1,
+      invoiceType: 'Sale' as InvoiceType,
+      date: new Date('2026-10-26T12:00:00.000Z').toISOString(),
+      invoiceNumber: 1,
+      isSaleReturn: true,
+      extraDiscount: 0,
+      totalAmount: 70,
+      biltyNumber: '9',
+      cartons: 1,
+      accountMapping: {
+        singleAccountId: acc.primaryPartyId,
+        multipleAccountIds: [],
+      },
+      invoiceItems: [
+        {
+          id: 1,
+          inventoryId: inv.primaryItemId,
+          quantity: 1,
+          discount: 30,
+          price: 100,
+          discountedPrice: 70,
+        },
+      ],
+    };
+    const { invoiceId: returnId } = await core.invoices.insertInvoice(
+      'Sale' as InvoiceType,
+      created,
+    );
+    const view = await core.invoices.getInvoice(returnId);
+    expect(view.invoiceNumber).toBe(1);
+    expect(view.isSaleReturn).toBe(true);
+    expect(view.sourceInvoiceId == null).toBe(true);
+    expect(view.invoiceItems[0].discount).toBe(30);
+    expect(view.totalAmount).toBe(70);
+
+    const qty = db
+      .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+      .get([inv.primaryItemId]) as { quantity: number };
+    expect(qty.quantity).toBe(41);
+
+    const partyLedger = await core.ledger.getLedger(acc.primaryPartyId);
+    const saleLedger = await core.ledger.getLedger(acc.saleAccountId);
+    expect(partyLedger.at(-1)!.credit).toBe(70);
+    expect(saleLedger.at(-1)!.debit).toBe(70);
+
+    const sales = await core.invoices.getInvoices('Sale' as InvoiceType);
+    expect(sales.some((row) => row.id === returnId)).toBe(false);
+    expect(sales.some((row) => row.id === saleId)).toBe(true);
+    const returns = await core.invoices.getSaleReturns();
+    expect(returns.map((row) => row.invoiceNumber)).toEqual([1]);
+
+    await core.invoices.cancelSaleReturn(returnId, {
+      date: new Date('2026-11-01T12:00:00.000Z').toISOString(),
+    });
+    const afterCancel = db
+      .prepare(`SELECT quantity FROM inventory WHERE id = ?`)
+      .get([inv.primaryItemId]) as { quantity: number };
+    expect(afterCancel.quantity).toBe(40);
+    const cancelled = await core.invoices.getInvoice(returnId);
+    expect(cancelled.isReturned).toBe(true);
+  });
 });
 
 describe('core InvoiceService sale quotations', () => {

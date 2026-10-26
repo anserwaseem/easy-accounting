@@ -45,6 +45,8 @@ import { ExportInvoices } from './exportInvoices';
 interface InvoicesProps extends HasMiniView {
   invoiceType: InvoiceType;
   invoices?: InvoiceView[];
+  /** list sale-return documents instead of posted sales */
+  saleReturns?: boolean;
 }
 
 interface InvoiceEditActionCellProps {
@@ -198,6 +200,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
   invoiceType,
   isMini = false,
   invoices: propInvoices,
+  saleReturns = false,
 }: InvoicesProps) => {
   const [invoices, setInvoices] = useState<InvoicesView[]>();
   console.log('InvoicesPage', invoices);
@@ -225,7 +228,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
         ? [
             {
               accessorKey: 'invoiceNumber',
-              header: `${invoiceType} Invoices`,
+              header: saleReturns ? 'Sale returns' : `${invoiceType} Invoices`,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => {
                 const invoice = row.original;
@@ -249,7 +252,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                                 : undefined
                             }
                           >
-                            Returned
+                            {saleReturns ? 'Cancelled' : 'Returned'}
                           </Badge>
                         ) : null}
                         {showInvoiceEditedIndicator(invoice) ? (
@@ -319,7 +322,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                           : undefined
                       }
                     >
-                      Returned
+                      {saleReturns ? 'Cancelled' : 'Returned'}
                     </Badge>
                   ) : null}
                   {showInvoiceEditedIndicator(row.original) ? (
@@ -430,7 +433,14 @@ const InvoicesPage: FC<InvoicesProps> = ({
             /* eslint-enable react/no-unstable-nested-components */
           ]) as ColumnDef<InvoicesView>[]),
     ],
-    [invoiceType, navigate, navigateToInvoice, propInvoices, isMini],
+    [
+      invoiceType,
+      navigate,
+      navigateToInvoice,
+      propInvoices,
+      isMini,
+      saleReturns,
+    ],
   );
 
   const handleFilterDateSelect = useCallback(
@@ -467,14 +477,20 @@ const InvoicesPage: FC<InvoicesProps> = ({
   // fetch invoices
   useEffect(() => {
     const fetchInvoices = async () => {
-      const fetchedInvoices: InvoicesView[] = isNil(propInvoices)
-        ? await window.electron.getInvoices(invoiceType)
-        : propInvoices;
+      let fetchedInvoices: InvoicesView[];
+      if (!isNil(propInvoices)) {
+        // preview rows are invoice views; the list's journal count is absent
+        fetchedInvoices = propInvoices as unknown as InvoicesView[];
+      } else if (saleReturns) {
+        fetchedInvoices = await window.electron.getSaleReturns();
+      } else {
+        fetchedInvoices = await window.electron.getInvoices(invoiceType);
+      }
       setInvoices(fetchedInvoices);
       setIsLoading(false);
     };
     fetchInvoices();
-  }, [invoiceType, propInvoices]);
+  }, [invoiceType, propInvoices, saleReturns]);
 
   // handle filter invoices
   useEffect(
@@ -516,7 +532,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
   return (
     <div>
       <PageHeader
-        title={`${invoiceType} Invoices`}
+        title={saleReturns ? 'Sale Returns' : `${invoiceType} Invoices`}
         hideTitle={isMini}
         filtersInline
         filters={
@@ -539,11 +555,15 @@ const InvoicesPage: FC<InvoicesProps> = ({
               variant="outline"
               size="icon"
               onClick={() =>
-                navigate(`/${invoiceType.toLowerCase()}/invoices/new`)
+                navigate(
+                  saleReturns
+                    ? '/sale/returns/new'
+                    : `/${invoiceType.toLowerCase()}/invoices/new`,
+                )
               }
               className="shrink-0"
-              title="New Invoice"
-              aria-label="New Invoice"
+              title={saleReturns ? 'New sale return' : 'New Invoice'}
+              aria-label={saleReturns ? 'New sale return' : 'New Invoice'}
             >
               <Plus size={16} />
             </Button>

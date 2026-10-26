@@ -118,6 +118,7 @@ const getPrintDocumentTitleBase = (inv: InvoiceView): string =>
     invoiceType: inv.invoiceType,
     invoiceNumber: inv.invoiceNumber,
     isQuotation: Boolean(inv.isQuotation),
+    isSaleReturn: Boolean(inv.isSaleReturn),
   });
 
 const PrintableInvoiceScreen = () => {
@@ -1231,6 +1232,19 @@ const PrintableInvoiceScreen = () => {
                           )}
                         </p>
                       ) : null}
+                    </div>
+                  ) : null}
+                  {invoice.isSaleReturn ? (
+                    <div
+                      className="mb-4 rounded-md border-2 border-sky-700 bg-sky-50 px-4 py-3 text-center print:border-gray-400 print:bg-white print:text-black"
+                      role="status"
+                    >
+                      <p className="text-lg font-bold uppercase tracking-wide text-sky-950 print:text-black">
+                        Sale return
+                        {invoice.sourceInvoiceNumber
+                          ? ` against invoice #${invoice.sourceInvoiceNumber}`
+                          : ''}
+                      </p>
                     </div>
                   ) : null}
                   {invoice.isQuotation ? (

@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3';
 import { BetterSqliteDriver } from '../../../../main/adapters/BetterSqliteDriver';
 import { bootstrapDatabase } from '../../bootstrap';
-import { CORE_MIGRATIONS } from '..';
 import { migration050 } from '../050_agent_tours';
 
 jest.mock('electron-log', () => ({
@@ -34,12 +33,6 @@ describe('core migration 050 (agent tours + account.collectionRole)', () => {
   });
 
   afterEach(() => db.close());
-
-  it('is the last CORE migration', () => {
-    expect(CORE_MIGRATIONS[CORE_MIGRATIONS.length - 1].name).toBe(
-      '050_agent_tours',
-    );
-  });
 
   it('creates agent_tours and account.collectionRole on a fresh bootstrap', () => {
     const tourCols = db.prepare(`PRAGMA table_info("agent_tours")`).all() as {

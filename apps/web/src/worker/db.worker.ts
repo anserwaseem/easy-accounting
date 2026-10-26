@@ -983,11 +983,22 @@ async function main(): Promise<void> {
         invoiceType as Parameters<InvoiceService['getInvoices']>[0],
       ),
     getInvoice: (invoiceId) => invoiceService.getInvoice(invoiceId as number),
+    getNextSaleReturnNumber: () => invoiceService.getNextSaleReturnNumber(),
+    getSaleReturns: () => invoiceService.getSaleReturns(),
+    getSaleReturnSource: (invoiceId) =>
+      invoiceService.getSaleReturnSource(invoiceId as number),
     returnSaleInvoice: (invoiceId, payload) => {
       requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
       return invoiceService.returnSaleInvoice(
         invoiceId as number,
         payload as Parameters<InvoiceService['returnSaleInvoice']>[1],
+      );
+    },
+    cancelSaleReturn: (invoiceId, payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
+      return invoiceService.cancelSaleReturn(
+        invoiceId as number,
+        payload as Parameters<InvoiceService['cancelSaleReturn']>[1],
       );
     },
     returnPurchaseInvoice: (invoiceId, payload) => {

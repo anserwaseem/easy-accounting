@@ -360,7 +360,9 @@ const SQL = {
 
   // Sale quantity aggregate WITH lastDate (for inventory health)
   getSaleAggregateHealth: `
-      SELECT ii.inventoryId, SUM(ii.quantity) AS totalQty, MAX(i.date) AS lastDate
+      SELECT ii.inventoryId,
+        SUM(CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN -ii.quantity ELSE ii.quantity END) AS totalQty,
+        MAX(CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN NULL ELSE i.date END) AS lastDate
       FROM invoice_items ii
       JOIN invoices i ON i.id = ii.invoiceId
       WHERE i.invoiceType = 'Sale'
@@ -400,6 +402,7 @@ const SQL = {
         WHERE i.invoiceType = 'Sale'
           AND i.isQuotation = 0
           AND i.isReturned = 0
+          AND COALESCE(i.isSaleReturn, 0) = 0
           AND i.date >= ?
           AND i.date <= ?
       )
@@ -443,6 +446,7 @@ const SQL = {
       WHERE i.invoiceType = 'Sale'
         AND i.isQuotation = 0
         AND i.isReturned = 0
+        AND COALESCE(i.isSaleReturn, 0) = 0
       GROUP BY ii.inventoryId
     `,
 
@@ -473,14 +477,25 @@ const SQL = {
             WHEN COALESCE(i.isQuotation, 0) != 0 THEN 0
             WHEN i.invoiceType = 'Sale' THEN
               CASE WHEN COALESCE(i.isReturned, 0) = 0 THEN
-                CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END
+                CASE WHEN i.date > ? THEN
+                  CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN ii.quantity ELSE -ii.quantity END
+                ELSE 0 END
               ELSE
-                (CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END) +
-                (CASE
-                  WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
-                  THEN ii.quantity
-                  ELSE 0
-                END)
+                CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN
+                  (CASE WHEN i.date > ? THEN ii.quantity ELSE 0 END) +
+                  (CASE
+                    WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
+                    THEN -ii.quantity
+                    ELSE 0
+                  END)
+                ELSE
+                  (CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END) +
+                  (CASE
+                    WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
+                    THEN ii.quantity
+                    ELSE 0
+                  END)
+                END
               END
             WHEN i.invoiceType = 'Purchase' THEN
               CASE WHEN COALESCE(i.isReturned, 0) = 0 THEN
@@ -524,7 +539,11 @@ const SQL = {
             CASE
               WHEN COALESCE(inv.isQuotation, 0) != 0 THEN 0
               WHEN inv.invoiceType = 'Sale' THEN
-                CASE WHEN COALESCE(inv.isReturned, 0) = 0 THEN -ii.quantity ELSE 0 END
+                CASE
+                  WHEN COALESCE(inv.isReturned, 0) != 0 THEN 0
+                  WHEN COALESCE(inv.isSaleReturn, 0) = 1 THEN ii.quantity
+                  ELSE -ii.quantity
+                END
               WHEN inv.invoiceType = 'Purchase' THEN
                 CASE WHEN COALESCE(inv.isReturned, 0) = 0 THEN ii.quantity ELSE 0 END
               ELSE 0
@@ -1797,6 +1816,8 @@ export class InventoryService {
       inventoryId: number;
       deltaQty: number;
     }>(SQL.stockAsOfInvoiceDeltaAfter, [
+      sqlAsOfEnd,
+      sqlAsOfEnd,
       sqlAsOfEnd,
       sqlAsOfEnd,
       sqlAsOfEnd,

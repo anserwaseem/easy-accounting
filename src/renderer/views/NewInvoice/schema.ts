@@ -13,6 +13,8 @@ export interface NewInvoiceSchemaOptions {
   getSaleStockValidationBonus?: () => Readonly<Record<number, number>>;
   /** persisted quotations use negative placeholder invoice numbers */
   getIsQuotationFlow?: () => boolean;
+  /** sale return brings stock in, so the on-hand cap does not apply */
+  getIsSaleReturn?: () => boolean;
 }
 
 export const getDefaultFormValues = (invoiceType: InvoiceType): Invoice => ({
@@ -45,6 +47,7 @@ export const buildNewInvoiceFormSchema = (
     getSplitByItemType,
     getSaleStockValidationBonus,
     getIsQuotationFlow,
+    getIsSaleReturn,
   } = opts;
 
   return (
@@ -115,6 +118,7 @@ export const buildNewInvoiceFormSchema = (
                 .number()
                 .nonnegative('Discounted price must be greater than 0'),
               netPrice: z.number().optional(),
+              sourceInvoiceItemId: z.coerce.number().optional(),
             }),
           )
           .min(1, 'Add at-least one invoice item')
@@ -166,6 +170,7 @@ export const buildNewInvoiceFormSchema = (
           .superRefine((items, ctx) => {
             if (invoiceType !== InvoiceType.Sale) return;
             if (getIsQuotationFlow?.()) return;
+            if (getIsSaleReturn?.()) return;
             if (!inventory?.length) return;
             const bonus = getSaleStockValidationBonus?.() ?? {};
             items.forEach((item, idx) => {

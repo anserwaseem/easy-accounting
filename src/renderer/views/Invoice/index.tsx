@@ -17,7 +17,9 @@ const InvoicePage: React.FC<InvoiceProps> = ({
   previewId,
 }: InvoiceProps) => {
   const { id } = useParams();
-  const [leftRailIsQuotation, setLeftRailIsQuotation] = useState(false);
+  const [leftRailKind, setLeftRailKind] = useState<
+    'invoice' | 'quotation' | 'saleReturn'
+  >('invoice');
 
   const propInvoices = window.electron.store.get('generatedInvoices') as
     | InvoiceView[]
@@ -25,12 +27,12 @@ const InvoicePage: React.FC<InvoiceProps> = ({
 
   useEffect(() => {
     if (previewId != null || propInvoices) {
-      setLeftRailIsQuotation(false);
+      setLeftRailKind('invoice');
       return;
     }
     const rawId = toNumber(id);
     if (!Number.isFinite(rawId) || rawId <= 0) {
-      setLeftRailIsQuotation(false);
+      setLeftRailKind('invoice');
       return;
     }
     // do not clear leftRailIsQuotation before fetch — that swapped the mini rail
@@ -40,11 +42,14 @@ const InvoicePage: React.FC<InvoiceProps> = ({
       .getInvoice(rawId)
       .then((inv) => {
         if (!cancelled && inv && typeof inv === 'object') {
-          setLeftRailIsQuotation(Boolean((inv as InvoiceView).isQuotation));
+          const view = inv as InvoiceView;
+          if (view.isSaleReturn) setLeftRailKind('saleReturn');
+          else if (view.isQuotation) setLeftRailKind('quotation');
+          else setLeftRailKind('invoice');
         }
       })
       .catch(() => {
-        if (!cancelled) setLeftRailIsQuotation(false);
+        if (!cancelled) setLeftRailKind('invoice');
       });
     return () => {
       cancelled = true;
@@ -59,10 +64,14 @@ const InvoicePage: React.FC<InvoiceProps> = ({
         // index.tsx): the sidebar's own list link covers switching on
         // mobile, and the space is better spent on the invoice itself.
         <div className="hidden md:block md:w-1/4 overflow-y-scroll scrollbar">
-          {leftRailIsQuotation ? (
+          {leftRailKind === 'quotation' ? (
             <QuotationsPage invoiceType={invoiceType} isMini />
           ) : (
-            <InvoicesPage invoiceType={invoiceType} isMini />
+            <InvoicesPage
+              invoiceType={invoiceType}
+              isMini
+              saleReturns={leftRailKind === 'saleReturn'}
+            />
           )}
         </div>
       )}

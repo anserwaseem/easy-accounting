@@ -70,6 +70,7 @@ export const useDuplicateInvoiceHydration = ({
         const currentPrice = priceByInventoryId.get(item.inventoryId) ?? 0;
         return {
           ...item,
+          sourceInvoiceItemId: undefined,
           price: currentPrice,
           discountedPrice: computeInvoiceItemTotal(
             item.quantity,

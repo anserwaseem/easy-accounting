@@ -37,6 +37,7 @@ import type {
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
   ReturnSaleInvoicePayload,
+  CancelSaleReturnPayload,
   BulkPriceListPositionPatch,
   UpsertAttributeDefinition,
   PurchasesByVendorFilters,
@@ -1013,6 +1014,15 @@ app
     ipcMain.handle('invoice:getId', (_, invoiceType: InvoiceType) =>
       invoiceService.getNextInvoiceNumber(invoiceType),
     );
+    ipcMain.handle('invoice:getNextSaleReturnNumber', () =>
+      invoiceService.getNextSaleReturnNumber(),
+    );
+    ipcMain.handle('invoice:getSaleReturns', () =>
+      invoiceService.getSaleReturns(),
+    );
+    ipcMain.handle('invoice:getSaleReturnSource', (_, invoiceId: number) =>
+      invoiceService.getSaleReturnSource(invoiceId),
+    );
     ipcMain.handle(
       'invoice:insert',
       (_, invoiceType: InvoiceType, invoice: Invoice) =>
@@ -1050,6 +1060,13 @@ app
       (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) => {
         requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
         return invoiceService.returnSaleInvoice(invoiceId, payload);
+      },
+    );
+    ipcMain.handle(
+      'invoice:cancelSaleReturn',
+      (_, invoiceId: number, payload?: CancelSaleReturnPayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
+        return invoiceService.cancelSaleReturn(invoiceId, payload);
       },
     );
     ipcMain.handle(

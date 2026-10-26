@@ -13,6 +13,8 @@ interface UseInvoiceDateValidationParams {
   useSingleAccount: boolean;
   splitByItemType: boolean;
   formSchema: z.ZodType<Invoice>;
+  /** sale returns are not ordered among sale numbers, so the neighbor-date rule does not apply */
+  isSaleReturn?: boolean;
 }
 
 export const useInvoiceDateValidation = ({
@@ -21,6 +23,7 @@ export const useInvoiceDateValidation = ({
   useSingleAccount,
   splitByItemType,
   formSchema,
+  isSaleReturn = false,
 }: UseInvoiceDateValidationParams) => {
   const validateInvoiceDateAgainstParties = async (
     values: z.infer<typeof formSchema>,
@@ -42,7 +45,11 @@ export const useInvoiceDateValidation = ({
 
     // edit: keep date between this party's previous and next invoice of the same type.
     // last-ledger min-date is a create-time rule and would block saving older bills.
+    // a sale return's number is not in the sale sequence, so that neighbor is a
+    // different sale and would reject a later return date. the server still
+    // refuses a return dated before its own sale.
     if (editInvoiceId != null) {
+      if (isSaleReturn) return null;
       const headerAccountId = toNumber(values.accountMapping.singleAccountId);
       const accountId = headerAccountId > 0 ? headerAccountId : accountIds[0];
       const invoiceNumber = toNumber(values.invoiceNumber);

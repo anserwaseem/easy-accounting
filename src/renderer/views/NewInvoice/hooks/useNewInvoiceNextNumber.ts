@@ -5,6 +5,7 @@ import { InvoiceType } from 'types';
 export function useNewInvoiceNextNumber(
   invoiceType: InvoiceType,
   enabled = true,
+  saleReturn = false,
 ): {
   nextInvoiceNumber: number | undefined;
   setNextInvoiceNumber: React.Dispatch<
@@ -22,18 +23,22 @@ export function useNewInvoiceNextNumber(
     (async () => {
       if (nextInvoiceNumber === -1) {
         setNextInvoiceNumber(
-          await window.electron.getNextInvoiceNumber(invoiceType),
+          saleReturn
+            ? await window.electron.getNextSaleReturnNumber()
+            : await window.electron.getNextInvoiceNumber(invoiceType),
         );
       }
     })();
-  }, [enabled, invoiceType, nextInvoiceNumber]);
+  }, [enabled, invoiceType, nextInvoiceNumber, saleReturn]);
 
   const refreshNextInvoiceNumber = useCallback(async () => {
     if (!enabled) return undefined;
-    const next = await window.electron.getNextInvoiceNumber(invoiceType);
+    const next = saleReturn
+      ? await window.electron.getNextSaleReturnNumber()
+      : await window.electron.getNextInvoiceNumber(invoiceType);
     setNextInvoiceNumber(next);
     return next;
-  }, [enabled, invoiceType]);
+  }, [enabled, invoiceType, saleReturn]);
 
   return {
     nextInvoiceNumber,

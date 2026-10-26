@@ -11,6 +11,7 @@ import type {
 import type { DatabaseDriver } from '../db/driver';
 import { logErrors } from '../errorLogger';
 import type { JournalService } from './JournalService';
+import { SALE_RETURN_NUMBER_BASE } from '../../lib/saleReturnNumber';
 
 const SQL = {
   getAgentHead: `
@@ -37,7 +38,7 @@ const SQL = {
   getSaleLinesForAgent: `
     SELECT
       inv.id AS invoiceId,
-      inv.invoiceNumber,
+      CASE WHEN COALESCE(inv.isSaleReturn, 0) = 1 THEN (-inv.invoiceNumber - ${SALE_RETURN_NUMBER_BASE}) ELSE inv.invoiceNumber END AS invoiceNumber,
       inv.date AS invoiceDate,
       a.id AS accountId,
       a.name AS accountName,
@@ -47,7 +48,7 @@ const SQL = {
       i.description AS itemDescription,
       i.itemTypeId,
       COALESCE(it.name, '') AS itemTypeName,
-      ii.quantity,
+      CASE WHEN COALESCE(inv.isSaleReturn, 0) = 1 THEN -ii.quantity ELSE ii.quantity END AS quantity,
       ii.price,
       COALESCE(ii.discount, 0) AS discount,
       ii.netPrice

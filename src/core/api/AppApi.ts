@@ -47,6 +47,7 @@ import type {
   ApplyStockAdjustmentPayload,
   ApiResponse,
   ReturnSaleInvoicePayload,
+  CancelSaleReturnPayload,
   ItemType,
   DiscountProfile,
   ProfileTypeDiscount,
@@ -464,6 +465,9 @@ export interface AppApi {
   // ---------------------------------------------------------------------
 
   getNextInvoiceNumber: (invoiceType: InvoiceType) => Promise<any>;
+  getNextSaleReturnNumber: () => Promise<number>;
+  getSaleReturns: () => Promise<any>;
+  getSaleReturnSource: (invoiceId: number) => Promise<any>;
   insertInvoice: (invoiceType: InvoiceType, invoice: Invoice) => Promise<any>;
   insertQuotation: (
     invoiceType: InvoiceType,
@@ -483,6 +487,10 @@ export interface AppApi {
     invoiceId: number,
     payload?: ReturnSaleInvoicePayload,
   ) => Promise<any>;
+  cancelSaleReturn: (
+    invoiceId: number,
+    payload?: CancelSaleReturnPayload,
+  ) => Promise<void>;
   returnPurchaseInvoice: (
     invoiceId: number,
     payload?: ReturnSaleInvoicePayload,

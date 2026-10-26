@@ -119,10 +119,13 @@ import type { PartyAccount } from './hooks/useNewInvoiceParties';
 
 interface NewInvoiceProps {
   invoiceType: InvoiceType;
+  /** unlinked sale return: same sale form, stock comes in, discount policy applies */
+  saleReturn?: boolean;
 }
 
 const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
+  saleReturn = false,
 }: NewInvoiceProps) => {
   console.log('NewInvoicePage', invoiceType);
   const params = useParams<{ id: string }>();
@@ -169,6 +172,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   }, [location.state]);
 
   const [isEditingQuotation, setIsEditingQuotation] = useState(false);
+  const [editingSaleReturn, setEditingSaleReturn] = useState(saleReturn);
+  const isSaleReturnDocument = saleReturn || editingSaleReturn;
+  const isSaleReturnRef = useRef(isSaleReturnDocument);
+  isSaleReturnRef.current = isSaleReturnDocument;
   const isQuotationFlow =
     (editInvoiceId != null && isEditingQuotation) ||
     duplicateFromQuotation ||
@@ -184,7 +191,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         invoiceType === InvoiceType.Sale ? 'sale' : 'purchase'
       } quotation`;
     }
+    if (editInvoiceId != null && isSaleReturnDocument)
+      return 'Edit sale return';
     if (editInvoiceId != null) return `Edit ${invoiceType} Invoice`;
+    if (isSaleReturnDocument) return 'New sale return';
     if (duplicateFromQuotation || isQuotationMode) {
       return `New ${invoiceType} Quotation`;
     }
@@ -195,6 +205,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     invoiceType,
     isEditingQuotation,
     isQuotationMode,
+    isSaleReturnDocument,
   ]);
 
   // a form in quotation mode or duplicated from a quotation saves as a quotation
@@ -214,7 +225,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
 
   const [inventory, setInventory] = useState<InventoryItem[] | undefined>();
   const { nextInvoiceNumber, setNextInvoiceNumber, refreshNextInvoiceNumber } =
-    useNewInvoiceNextNumber(invoiceType, editInvoiceId == null);
+    useNewInvoiceNextNumber(invoiceType, editInvoiceId == null, saleReturn);
   const {
     parties,
     partiesIncludingTyped,
@@ -255,6 +266,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     splitByItemType,
     saleStockValidationBonusRef,
     isQuotationFlowRef,
+    isSaleReturnRef,
   });
   const {
     form,
@@ -793,6 +805,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     setIsDateExplicitlySet,
     setEditHydrated,
     setIsEditingQuotation,
+    setEditingSaleReturn,
     navigate,
     saleStockValidationBonusRef,
   });
@@ -1369,6 +1382,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       applyAutoDiscountForRow,
       getSectionLabel,
       saleStockValidationBonusRef,
+      incomingStock: isSaleReturnDocument,
     }),
     [
       form.control,
@@ -1399,6 +1413,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       applyAutoDiscountForRow,
       getSectionLabel,
       saleStockValidationBonusRef,
+      isSaleReturnDocument,
     ],
   );
   const columns = useNewInvoiceColumns(columnsParams);
@@ -1520,9 +1535,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       const showPostSaveToast = (vendorStockMessages?: string[]) => {
         toast({
           variant: 'success',
-          description: `${invoiceType} invoice ${
-            editInvoiceId != null ? 'updated' : 'saved successfully'
-          }`,
+          description: `${
+            isSaleReturnDocument ? 'Sale return' : `${invoiceType} invoice`
+          } ${editInvoiceId != null ? 'updated' : 'saved successfully'}`,
         });
         if (vendorStockMessages?.length) {
           const hasNegative = vendorStockMessages.some((m) =>
@@ -1584,6 +1599,8 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       const invoice = {
         ...values,
         invoiceNumber: nextInvoiceNumber,
+        isSaleReturn: isSaleReturnDocument,
+        sourceInvoiceId: null,
       };
       const result = await window.electron.insertInvoice(invoiceType, invoice);
 
@@ -1626,6 +1643,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
     splitByItemType,
     formSchema,
+    isSaleReturn: isSaleReturnDocument,
   });
 
   // shown when form.handleSubmit validation fails — prevents silent "nothing happens" on Save.
@@ -2139,7 +2157,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                 </span>
               ) : null}
             </h1>
-            {editInvoiceId == null && !duplicateFromQuotation ? (
+            {editInvoiceId == null && !duplicateFromQuotation && !saleReturn ? (
               <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1">
                 <button
                   type="button"

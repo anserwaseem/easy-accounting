@@ -17,6 +17,8 @@ export interface UseNewInvoiceFormCoreParams {
   saleStockValidationBonusRef?: React.MutableRefObject<Record<number, number>>;
   /** when true, invoiceNumber may be a negative quotation placeholder */
   isQuotationFlowRef?: React.MutableRefObject<boolean>;
+  /** sale return: skip the on-hand quantity cap */
+  isSaleReturnRef?: React.MutableRefObject<boolean>;
 }
 
 /** owns form instance, schema, default values, field array, and watched values */
@@ -28,12 +30,15 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
     splitByItemTypeRef,
     saleStockValidationBonusRef,
     isQuotationFlowRef,
+    isSaleReturnRef,
   } = params;
 
   const internalBonusRef = useRef<Record<number, number>>({});
   const bonusRef = saleStockValidationBonusRef ?? internalBonusRef;
   const internalQuotationRef = useRef(false);
   const quotationFlowRef = isQuotationFlowRef ?? internalQuotationRef;
+  const internalSaleReturnRef = useRef(false);
+  const saleReturnRef = isSaleReturnRef ?? internalSaleReturnRef;
 
   const defaultFormValues = useMemo(
     () => getDefaultFormValues(invoiceType),
@@ -52,6 +57,7 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
         getSplitByItemType: () => splitByItemTypeRef.current,
         getSaleStockValidationBonus: () => ({ ...bonusRef.current }),
         getIsQuotationFlow: () => quotationFlowRef.current,
+        getIsSaleReturn: () => saleReturnRef.current,
       }),
     [
       invoiceType,
@@ -60,6 +66,7 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
       splitByItemTypeRef,
       bonusRef,
       quotationFlowRef,
+      saleReturnRef,
     ],
   );
 

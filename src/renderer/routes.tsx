@@ -211,6 +211,27 @@ const AppRoutes: React.FC = () => {
                       element={<InvoicePage invoiceType={InvoiceType.Sale} />}
                     />
                   </Route>
+                  <Route path="sale/returns">
+                    <Route
+                      index
+                      element={
+                        <InvoicesPage
+                          invoiceType={InvoiceType.Sale}
+                          saleReturns
+                        />
+                      }
+                    />
+                    <Route
+                      path="new"
+                      element={
+                        <NewInvoicePage
+                          invoiceType={InvoiceType.Sale}
+                          saleReturn
+                          key="sale-return-new"
+                        />
+                      }
+                    />
+                  </Route>
                   <Route
                     path="sale/quotations"
                     element={<QuotationsPage invoiceType={InvoiceType.Sale} />}

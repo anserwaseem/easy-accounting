@@ -46,10 +46,17 @@ import {
   DialogTitle,
 } from '@/renderer/shad/ui/dialog';
 import { Label } from '@/renderer/shad/ui/label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/renderer/shad/ui/tooltip';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import { formatDisplayDateTime, formatDisplayDate } from '@/lib/displayDate';
+import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
 
 interface InvoiceDetailsProps {
@@ -72,6 +79,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     Record<number, { balance: number; balanceType: BalanceType }>
   >({});
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [returnReasonDraft, setReturnReasonDraft] = useState('');
   const [isReturning, setIsReturning] = useState(false);
   const [isConvertingQuotation, setIsConvertingQuotation] = useState(false);
@@ -286,6 +294,35 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     }
   }, [invoice?.id, invoiceType, returnReasonDraft, reloadInvoice]);
 
+  const handleConfirmCancelReturn = useCallback(async () => {
+    if (!invoice?.id) return;
+    setIsReturning(true);
+    try {
+      const trimmed = returnReasonDraft.trim();
+      await window.electron.cancelSaleReturn(invoice.id, {
+        returnReason: trimmed.length > 0 ? trimmed : null,
+        date: toLocalNoonIsoString(new Date()),
+      });
+      toast({ description: 'Sale return cancelled.' });
+      setCancelDialogOpen(false);
+      setReturnReasonDraft('');
+      await reloadInvoice();
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      const refusal = toastContentFromAdvancedCapabilityError(raw);
+      if (refusal) {
+        toast({ variant: 'destructive', ...refusal });
+      } else {
+        toast({
+          variant: 'destructive',
+          description: raw || 'Could not cancel this return.',
+        });
+      }
+    } finally {
+      setIsReturning(false);
+    }
+  }, [invoice?.id, returnReasonDraft, reloadInvoice]);
+
   const customerDisplayName = useMemo(
     () =>
       stripItemTypeSuffixFromAccountName(invoice?.accountName, itemTypeNames),
@@ -397,14 +434,22 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
     navigate(`/invoices/${invoice!.id}/print`);
   };
 
+  let documentHeading = `${invoiceType.toUpperCase()} INVOICE`;
+  if (invoice?.isQuotation) {
+    documentHeading = `${invoiceType.toUpperCase()} QUOTATION`;
+  } else if (invoice?.isSaleReturn) {
+    documentHeading = 'SALE RETURN';
+  }
+  let numberLabel = 'Invoice #:';
+  if (invoice?.isQuotation) numberLabel = 'Quotation #:';
+  else if (invoice?.isSaleReturn) numberLabel = 'Return #:';
+
   return (
     <div>
       <div className="w-full">
         <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <h1 className="min-w-0 shrink text-4xl font-light">
-            {invoice?.isQuotation
-              ? `${invoiceType.toUpperCase()} QUOTATION`
-              : `${invoiceType.toUpperCase()} INVOICE`}
+            {documentHeading}
           </h1>
           <div className="flex w-full flex-wrap items-center justify-end gap-2 md:ml-auto md:w-auto md:shrink-0">
             {invoice &&
@@ -440,7 +485,23 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 Duplicate
               </Button>
             ) : null}
-            {canEditPostedInvoice ? (
+            {invoice?.isSaleReturn &&
+            !invoice.isReturned &&
+            canEditPostedInvoice ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
+                onClick={() => {
+                  setReturnReasonDraft('');
+                  setCancelDialogOpen(true);
+                }}
+              >
+                Cancel return
+              </Button>
+            ) : null}
+            {canEditPostedInvoice && !invoice?.isSaleReturn ? (
               <AdvancedControl
                 capability={
                   invoiceType === InvoiceType.Sale
@@ -448,19 +509,47 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                     : ADVANCED_CAPABILITIES.invoiceReturnPurchase
                 }
               >
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
-                  onClick={() => {
-                    setReturnReasonDraft('');
-                    setReturnDialogOpen(true);
-                  }}
-                >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                  Return
-                </Button>
+                {invoice?.hasSaleReturns ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {/* disabled buttons do not receive hover, so the hint sits on the wrapper */}
+                        <span className="inline-flex">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 shrink-0 border-destructive/40 text-destructive md:h-10"
+                            disabled
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                            Return
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <p>
+                          This sale already has return items, so the whole
+                          invoice cannot be voided.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-10"
+                    onClick={() => {
+                      setReturnReasonDraft('');
+                      setReturnDialogOpen(true);
+                    }}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                    Return
+                  </Button>
+                )}
               </AdvancedControl>
             ) : null}
             {showQuotationActions ? (
@@ -501,7 +590,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-4 sm:gap-8 items-center">
               <p className="font-extrabold text-md w-[110px] sm:w-[160px]">
-                {invoice?.isQuotation ? 'Quotation #:' : 'Invoice #:'}
+                {numberLabel}
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {invoice?.isQuotation ? (
@@ -512,7 +601,9 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                   <p className="tabular-nums">{invoice?.invoiceNumber}</p>
                 )}
                 {invoice?.isReturned ? (
-                  <Badge variant="destructive">Returned</Badge>
+                  <Badge variant="destructive">
+                    {invoice.isSaleReturn ? 'Cancelled' : 'Returned'}
+                  </Badge>
                 ) : null}
                 {canEditPostedInvoice ? (
                   <Button
@@ -534,6 +625,22 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 ) : null}
               </div>
             </div>
+            {invoice?.isSaleReturn && invoice.sourceInvoiceId ? (
+              <div className="flex gap-4 sm:gap-8">
+                <p className="font-medium text-md min-w-[110px] sm:min-w-[160px]">
+                  Against invoice #:
+                </p>
+                <button
+                  type="button"
+                  className="text-left underline"
+                  onClick={() =>
+                    navigate(`/sale/invoices/${invoice.sourceInvoiceId}`)
+                  }
+                >
+                  {invoice.sourceInvoiceNumber}
+                </button>
+              </div>
+            ) : null}
             <div className="flex gap-4 sm:gap-8">
               <p className="font-medium text-md min-w-[110px] sm:min-w-[160px]">{`${
                 invoiceType === InvoiceType.Sale ? 'Customer' : 'Vendor'
@@ -563,12 +670,12 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             {invoice?.isReturned && invoice.returnedAt ? (
               <div className="flex gap-4 sm:gap-8">
                 <p className="font-medium text-md w-[110px] sm:w-[160px]">
-                  Returned:
+                  {invoice?.isSaleReturn ? 'Cancelled:' : 'Returned:'}
                 </p>
                 <p>{formatDisplayDateTime(invoice.returnedAt)}</p>
               </div>
             ) : null}
-            {invoice?.isReturned &&
+            {(invoice?.isReturned || invoice?.isSaleReturn) &&
             invoice.returnReason != null &&
             String(invoice.returnReason).trim() !== '' ? (
               <div className="flex gap-4 sm:gap-8">
@@ -644,6 +751,43 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           </div>
         </div>
       </div>
+
+      {invoiceType === InvoiceType.Sale &&
+      !invoice?.isSaleReturn &&
+      invoice?.saleReturns &&
+      invoice.saleReturns.length > 0 ? (
+        <div className="mt-6 rounded-md border border-border bg-card px-4 py-3">
+          <h2 className="text-sm font-medium">Sale returns</h2>
+          <ul className="mt-2 flex flex-col gap-2">
+            {invoice.saleReturns.map((saleReturn) => (
+              <li
+                key={saleReturn.id}
+                className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm"
+              >
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => navigate(`/sale/invoices/${saleReturn.id}`)}
+                >
+                  Return #{saleReturn.invoiceNumber}
+                </button>
+                {saleReturn.isReturned ? (
+                  <Badge variant="destructive">Cancelled</Badge>
+                ) : null}
+                <DateCell value={saleReturn.date} />
+                <span className="tabular-nums">
+                  {getFormattedCurrencySafe(saleReturn.totalAmount)}
+                </span>
+                {saleReturn.returnReason ? (
+                  <span className="text-muted-foreground">
+                    {saleReturn.returnReason}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="space-y-6 py-6">
         {groupedInvoiceItems.map((section) => (
@@ -899,6 +1043,50 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         </div>
       )}
 
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel this sale return?</DialogTitle>
+            <DialogDescription>
+              Posts the opposite entry and takes the stock back out. The return
+              stays on file, marked cancelled.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="sale-return-cancel-reason">Reason (optional)</Label>
+            <textarea
+              id="sale-return-cancel-reason"
+              rows={3}
+              value={returnReasonDraft}
+              onChange={(e) => setReturnReasonDraft(e.target.value)}
+              className={cn(
+                'flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+              )}
+              disabled={isReturning}
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCancelDialogOpen(false)}
+              disabled={isReturning}
+            >
+              Keep return
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                handleConfirmCancelReturn().catch(() => undefined);
+              }}
+              disabled={isReturning}
+            >
+              {isReturning ? 'Cancelling…' : 'Cancel return'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={returnDialogOpen} onOpenChange={setReturnDialogOpen}>
         <DialogContent>
           <DialogHeader>

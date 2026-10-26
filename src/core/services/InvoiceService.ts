@@ -14,6 +14,9 @@ import {
   type PurchasesByVendorItem,
   type PurchasesByVendorResponse,
   type ReturnSaleInvoicePayload,
+  type CancelSaleReturnPayload,
+  type SaleReturnSource,
+  type SaleReturnSourceLine,
   type SalesByCustomerFilters,
   type SalesByCustomerItem,
   type SalesByCustomerResponse,
@@ -23,6 +26,11 @@ import type { DatabaseDriver } from '../db/driver';
 import type { SessionContext } from '../ports';
 import { logErrors } from '../errorLogger';
 import { getQuotationDisplayNumber } from '../../lib/quotationDisplay';
+import {
+  SALE_RETURN_NUMBER_BASE,
+  toDisplaySaleReturnNumber,
+  toStoredSaleReturnNumber,
+} from '../../lib/saleReturnNumber';
 import { convertOrdinalDate } from '../utils/dateFormat';
 import { JournalService } from './JournalService';
 import { AccountService } from './AccountService';
@@ -45,7 +53,11 @@ type InvoiceListSqliteRow = Omit<InvoicesView, 'isReturned' | 'isQuotation'> & {
   isQuotation?: SqliteBoolColumn;
 };
 
-const INVOICE_LIST_SQLITE_BOOLEAN_KEYS = ['isReturned', 'isQuotation'] as const;
+const INVOICE_LIST_SQLITE_BOOLEAN_KEYS = [
+  'isReturned',
+  'isQuotation',
+  'isSaleReturn',
+] as const;
 
 type PartyItemLine = {
   inventoryId: number;
@@ -134,6 +146,11 @@ type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
   returnedAt?: string | null;
   returnReason?: string | null;
   isQuotation?: SqliteBoolColumn;
+  isSaleReturn?: SqliteBoolColumn;
+  sourceInvoiceId?: number | null;
+  sourceInvoiceNumber?: number | null;
+  invoiceItemId?: number;
+  sourceInvoiceItemId?: number | null;
 };
 
 const SQL = {
@@ -141,6 +158,14 @@ const SQL = {
       SELECT (COALESCE(MAX(invoiceNumber), 0) + 1) AS 'invoiceNumber'
       FROM invoices
       WHERE invoiceType = ? AND COALESCE(isQuotation, 0) = 0
+        AND COALESCE(isSaleReturn, 0) = 0
+    `,
+  getNextSaleReturnNumber: `
+      SELECT (
+        COALESCE(MAX(-invoiceNumber - ${SALE_RETURN_NUMBER_BASE}), 0) + 1
+      ) AS invoiceNumber
+      FROM invoices
+      WHERE COALESCE(isSaleReturn, 0) = 1
     `,
   getNextQuotationInvoiceNumber: `
       SELECT (COALESCE(MIN(invoiceNumber), 0) - 1) AS n
@@ -148,8 +173,8 @@ const SQL = {
       WHERE invoiceType = ? AND COALESCE(isQuotation, 0) = 1
     `,
   insertInvoice: `
-      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount, biltyNumber, cartons, extraDiscountAccountId, shippingCharges, shippingAccountId, isQuotation)
-      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount, @biltyNumber, @cartons, @extraDiscountAccountId, @shippingCharges, @shippingAccountId, @isQuotation)
+      INSERT INTO invoices (date, accountId, invoiceType, totalAmount, invoiceNumber, extraDiscount, biltyNumber, cartons, extraDiscountAccountId, shippingCharges, shippingAccountId, isQuotation, isSaleReturn, sourceInvoiceId, returnReason)
+      VALUES (@date, @accountId, @invoiceType, @totalAmount, @invoiceNumber, @extraDiscount, @biltyNumber, @cartons, @extraDiscountAccountId, @shippingCharges, @shippingAccountId, @isQuotation, @isSaleReturn, @sourceInvoiceId, @returnReason)
     `,
   finalizeQuotationConversion: `
       UPDATE invoices
@@ -174,7 +199,7 @@ const SQL = {
       GROUP BY ii.inventoryId
     `,
   insertInvoiceItems: `
-      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId, netPrice)
+      INSERT INTO invoice_items (invoiceId, inventoryId, quantity, price, discount, accountId, netPrice, sourceInvoiceItemId)
       VALUES (
         @invoiceId,
         @inventoryId,
@@ -182,7 +207,8 @@ const SQL = {
         COALESCE(@price, (SELECT price FROM inventory WHERE id = @inventoryId)),
         @discount,
         @accountId,
-        @netPrice
+        @netPrice,
+        @sourceInvoiceItemId
       )
     `,
   updateInventoryItem: `
@@ -219,13 +245,18 @@ const SQL = {
         i.returnedAt,
         i.returnReason,
         COALESCE(i.isQuotation, 0) AS isQuotation,
+        COALESCE(i.isSaleReturn, 0) AS isSaleReturn,
+        i.sourceInvoiceId AS sourceInvoiceId,
+        src.invoiceNumber AS sourceInvoiceNumber,
         (SELECT COUNT(*) FROM journal j WHERE j.invoiceId = i.id) AS linkedJournalCount
       FROM invoices i
       JOIN account a ON i.accountId = a.id
+      LEFT JOIN invoices src ON src.id = i.sourceInvoiceId
       LEFT JOIN invoice_items ii ON i.id = ii.invoiceId AND ii.accountId IS NOT NULL
       LEFT JOIN account a2 ON ii.accountId = a2.id
       WHERE i.invoiceType = ? AND COALESCE(i.isQuotation, 0) = 0
-      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, i.createdAt, i.updatedAt, a.code, a.name, i.biltyNumber, i.cartons, i.isReturned, i.returnedAt, i.returnReason, i.isQuotation
+        AND COALESCE(i.isSaleReturn, 0) = ?
+      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, i.createdAt, i.updatedAt, a.code, a.name, i.biltyNumber, i.cartons, i.isReturned, i.returnedAt, i.returnReason, i.isQuotation, i.isSaleReturn, i.sourceInvoiceId, src.invoiceNumber
     `,
   getQuotationInvoices: `
       SELECT
@@ -278,6 +309,9 @@ const SQL = {
         i.returnedAt,
         i.returnReason,
         COALESCE(i.isQuotation, 0) AS isQuotation,
+        COALESCE(i.isSaleReturn, 0) AS isSaleReturn,
+        i.sourceInvoiceId AS sourceInvoiceId,
+        src.invoiceNumber AS sourceInvoiceNumber,
         a.name AS 'invoiceAccountName',
         a.nameUrdu AS 'invoiceAccountNameUrdu',
         a.code AS 'invoiceAccountCode',
@@ -290,6 +324,8 @@ const SQL = {
         headerChart.name AS 'invoiceAccountHeadName',
         headerChart.nameUrdu AS 'invoiceAccountHeadNameUrdu',
         headerChart.parentId AS 'invoiceAccountHeadParentId',
+        ii.id AS invoiceItemId,
+        ii.sourceInvoiceItemId AS sourceInvoiceItemId,
         ii.inventoryId,
         ii.quantity,
         ii.price,
@@ -315,6 +351,7 @@ const SQL = {
       FROM invoices i
       JOIN account a ON i.accountId = a.id
       JOIN chart headerChart ON headerChart.id = a.chartId
+      LEFT JOIN invoices src ON src.id = i.sourceInvoiceId
       JOIN invoice_items ii ON i.id = ii.invoiceId
       JOIN inventory iii ON iii.id = ii.inventoryId
       LEFT JOIN item_types it ON it.id = iii.itemTypeId
@@ -322,7 +359,8 @@ const SQL = {
       WHERE i.id = @invoiceId
     `,
   doesInvoiceExist: `
-      SELECT invoiceNumber, COALESCE(isQuotation, 0) AS isQuotation
+      SELECT invoiceNumber, COALESCE(isQuotation, 0) AS isQuotation,
+        COALESCE(isSaleReturn, 0) AS isSaleReturn
       FROM invoices
       WHERE invoiceType = @invoiceType AND id = @invoiceId
       LIMIT 1
@@ -331,6 +369,7 @@ const SQL = {
       SELECT id
       FROM invoices
       WHERE invoiceType = @invoiceType AND id > @invoiceId AND COALESCE(isQuotation, 0) = 0
+        AND COALESCE(isSaleReturn, 0) = 0
       ORDER BY id ASC
       LIMIT 1
     `,
@@ -338,6 +377,21 @@ const SQL = {
       SELECT id
       FROM invoices
       WHERE invoiceType = @invoiceType AND id < @invoiceId AND COALESCE(isQuotation, 0) = 0
+        AND COALESCE(isSaleReturn, 0) = 0
+      ORDER BY id DESC
+      LIMIT 1
+    `,
+  adjacentSaleReturnIdNext: `
+      SELECT id
+      FROM invoices
+      WHERE invoiceType = @invoiceType AND id > @invoiceId AND COALESCE(isSaleReturn, 0) = 1
+      ORDER BY id ASC
+      LIMIT 1
+    `,
+  adjacentSaleReturnIdPrev: `
+      SELECT id
+      FROM invoices
+      WHERE invoiceType = @invoiceType AND id < @invoiceId AND COALESCE(isSaleReturn, 0) = 1
       ORDER BY id DESC
       LIMIT 1
     `,
@@ -359,11 +413,13 @@ const SQL = {
       SELECT MAX(invoiceNumber) as lastInvoiceNumber
       FROM invoices
       WHERE invoiceType = ? AND COALESCE(isQuotation, 0) = 0
+        AND COALESCE(isSaleReturn, 0) = 0
     `,
   getInvoiceIdsFromMinId: `
       SELECT id
       FROM invoices
       WHERE invoiceType = @invoiceType AND id >= @fromInvoiceId AND COALESCE(isQuotation, 0) = 0
+        AND COALESCE(isSaleReturn, 0) = 0
       ORDER BY id ASC
     `,
   getQuotationIdsFromMinId: `
@@ -387,15 +443,26 @@ const SQL = {
     `,
   getInvoiceItemsForUpdate: `
       SELECT
+        ii.id,
         ii.inventoryId,
         ii.quantity,
-        COALESCE(ii.accountId, i.accountId) AS accountId
+        COALESCE(ii.accountId, i.accountId) AS accountId,
+        COALESCE((
+          SELECT SUM(ri.quantity)
+          FROM invoice_items ri
+          JOIN invoices r ON r.id = ri.invoiceId
+          WHERE ri.sourceInvoiceItemId = ii.id
+            AND COALESCE(r.isSaleReturn, 0) = 1
+            AND COALESCE(r.isReturned, 0) = 0
+        ), 0) AS returnedQty
       FROM invoice_items ii
       JOIN invoices i ON i.id = ii.invoiceId
       WHERE ii.invoiceId = @invoiceId
+      ORDER BY ii.id
     `,
   getInvoiceHeader: `
-      SELECT invoiceNumber, invoiceType, COALESCE(isQuotation, 0) AS isQuotation
+      SELECT invoiceNumber, invoiceType, COALESCE(isQuotation, 0) AS isQuotation,
+        COALESCE(isSaleReturn, 0) AS isSaleReturn, sourceInvoiceId
       FROM invoices WHERE id = @invoiceId
     `,
   getPrevInvoiceDateForAccount: `
@@ -406,6 +473,7 @@ const SQL = {
         AND accountId = @accountId
         AND id != @invoiceId
         AND COALESCE(isQuotation, 0) = 0
+        AND COALESCE(isSaleReturn, 0) = 0
         AND invoiceNumber < @invoiceNumber
       ORDER BY invoiceNumber DESC
       LIMIT 1
@@ -418,6 +486,7 @@ const SQL = {
         AND accountId = @accountId
         AND id != @invoiceId
         AND COALESCE(isQuotation, 0) = 0
+        AND COALESCE(isSaleReturn, 0) = 0
         AND invoiceNumber > @invoiceNumber
       ORDER BY invoiceNumber ASC
       LIMIT 1
@@ -448,7 +517,8 @@ const SQL = {
       SELECT name, quantity FROM inventory WHERE id = ?
     `,
   getInvoiceForReturn: `
-      SELECT invoiceType, COALESCE(isReturned, 0) AS isReturned, COALESCE(isQuotation, 0) AS isQuotation
+      SELECT invoiceType, COALESCE(isReturned, 0) AS isReturned, COALESCE(isQuotation, 0) AS isQuotation,
+        COALESCE(isSaleReturn, 0) AS isSaleReturn
       FROM invoices WHERE id = @invoiceId
     `,
   markInvoiceReturned: `
@@ -468,6 +538,7 @@ const SQL = {
       JOIN account a ON i.accountId = a.id
       JOIN invoice_items ii ON i.id = ii.invoiceId
       WHERE i.invoiceType = 'Sale' AND COALESCE(i.isQuotation, 0) = 0
+        AND COALESCE(i.isSaleReturn, 0) = 0
         AND ( @startDate IS NULL OR @endDate IS NULL OR i.date BETWEEN @startDate AND @endDate )
       GROUP BY i.id
       ORDER BY i.invoiceNumber
@@ -482,6 +553,7 @@ const SQL = {
         WHERE invoiceType = 'Sale'
           AND isQuotation = 0
           AND isReturned = 0
+          AND COALESCE(isSaleReturn, 0) = 0
           AND date >= ? AND date <= ?
       `,
   salesPerfPostedQty: `
@@ -493,16 +565,27 @@ const SQL = {
         WHERE i.invoiceType = 'Sale'
           AND i.isQuotation = 0
           AND i.isReturned = 0
+          AND COALESCE(i.isSaleReturn, 0) = 0
           AND i.date >= ? AND i.date <= ?
       `,
   salesPerfReturns: `
       SELECT
         COUNT(*) AS returnCount,
-        COALESCE(SUM(i.totalAmount), 0) AS returnAmount
-      FROM invoices i
-      WHERE i.invoiceType = 'Sale'
-        AND i.isReturned = 1
-        AND i.returnedAt >= ? AND i.returnedAt <= ?
+        COALESCE(SUM(amount), 0) AS returnAmount
+      FROM (
+        SELECT i.totalAmount AS amount
+        FROM invoices i
+        WHERE i.invoiceType = 'Sale'
+          AND i.isReturned = 1
+          AND COALESCE(i.isSaleReturn, 0) = 0
+          AND i.returnedAt >= ? AND i.returnedAt <= ?
+        UNION ALL
+        SELECT i.totalAmount AS amount
+        FROM invoices i
+        WHERE COALESCE(i.isSaleReturn, 0) = 1
+          AND COALESCE(i.isReturned, 0) = 0
+          AND i.date >= ? AND i.date <= ?
+      )
     `,
   salesPerfQuotationBacklogMetrics: `
       SELECT
@@ -551,8 +634,8 @@ const SQL = {
   salesPerfTopItems: `
       SELECT
         inv.name AS itemName, inv.id AS itemId,
-        COALESCE(SUM(ii.quantity), 0) AS totalQty,
-        COALESCE(SUM(ii.quantity * ii.price * (1 - ii.discount / 100)), 0) AS totalAmount
+        COALESCE(SUM(CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN -ii.quantity ELSE ii.quantity END), 0) AS totalQty,
+        COALESCE(SUM(CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN -1 ELSE 1 END * ii.quantity * ii.price * (1 - ii.discount / 100)), 0) AS totalAmount
       FROM invoices i
       JOIN invoice_items ii ON ii.invoiceId = i.id
       JOIN inventory inv ON inv.id = ii.inventoryId
@@ -565,14 +648,36 @@ const SQL = {
 
     `,
   salesPerfReturnsDetail: `
-      SELECT
-        i.id, i.invoiceNumber, i.date, i.totalAmount, a.name AS customerName
-      FROM invoices i
-      JOIN account a ON a.id = i.accountId
-      WHERE i.invoiceType = 'Sale'
-        AND i.isReturned = 1
-        AND i.returnedAt >= ? AND i.returnedAt <= ?
-      ORDER BY i.returnedAt DESC
+      SELECT id, invoiceNumber, date, totalAmount, customerName
+      FROM (
+        SELECT
+          i.id AS id,
+          i.invoiceNumber AS invoiceNumber,
+          i.date AS date,
+          i.totalAmount AS totalAmount,
+          a.name AS customerName,
+          i.returnedAt AS sortAt
+        FROM invoices i
+        JOIN account a ON a.id = i.accountId
+        WHERE i.invoiceType = 'Sale'
+          AND i.isReturned = 1
+          AND COALESCE(i.isSaleReturn, 0) = 0
+          AND i.returnedAt >= ? AND i.returnedAt <= ?
+        UNION ALL
+        SELECT
+          i.id AS id,
+          (-i.invoiceNumber - ${SALE_RETURN_NUMBER_BASE}) AS invoiceNumber,
+          i.date AS date,
+          i.totalAmount AS totalAmount,
+          a.name AS customerName,
+          i.date AS sortAt
+        FROM invoices i
+        JOIN account a ON a.id = i.accountId
+        WHERE COALESCE(i.isSaleReturn, 0) = 1
+          AND COALESCE(i.isReturned, 0) = 0
+          AND i.date >= ? AND i.date <= ?
+      )
+      ORDER BY sortAt DESC
     `,
   salesPerfQuotationDetail: `
       SELECT
@@ -601,11 +706,21 @@ const SQL = {
   salesPerfReturnCompare: `
         SELECT
           COUNT(*) AS returnCount,
-          COALESCE(SUM(i.totalAmount), 0) AS returnAmount
-        FROM invoices i
-        WHERE i.invoiceType = 'Sale'
-          AND i.isReturned = 1
-          AND i.returnedAt >= ? AND i.returnedAt <= ?
+          COALESCE(SUM(amount), 0) AS returnAmount
+        FROM (
+          SELECT i.totalAmount AS amount
+          FROM invoices i
+          WHERE i.invoiceType = 'Sale'
+            AND i.isReturned = 1
+            AND COALESCE(i.isSaleReturn, 0) = 0
+            AND i.returnedAt >= ? AND i.returnedAt <= ?
+          UNION ALL
+          SELECT i.totalAmount AS amount
+          FROM invoices i
+          WHERE COALESCE(i.isSaleReturn, 0) = 1
+            AND COALESCE(i.isReturned, 0) = 0
+            AND i.date >= ? AND i.date <= ?
+        )
       `,
   salesPerfCompareTopGroupsByPolicy: `
           SELECT
@@ -714,6 +829,7 @@ const SQL = {
       WHERE i.invoiceType = 'Sale'
         AND COALESCE(i.isQuotation, 0) = 0
         AND COALESCE(i.isReturned, 0) = 0
+        AND COALESCE(i.isSaleReturn, 0) = 0
         AND COALESCE(ii.accountId, i.accountId) IN (
           SELECT CAST(j.value AS INTEGER)
           FROM json_each(@accountIdsJson) AS j
@@ -847,6 +963,13 @@ export class InvoiceService {
     return invoice?.invoiceNumber;
   }
 
+  async getNextSaleReturnNumber(): Promise<number> {
+    const invoice = await this.db.get<{ invoiceNumber: number }>(
+      SQL.getNextSaleReturnNumber,
+    );
+    return invoice?.invoiceNumber ?? 1;
+  }
+
   /**
    * persists a quotation: header + line items, negative placeholder invoiceNumber, no inventory or journals.
    */
@@ -894,13 +1017,35 @@ export class InvoiceService {
   }
 
   async getInvoices(invoiceType: InvoiceType): Promise<InvoicesView[]> {
+    return this.listInvoices(invoiceType, false);
+  }
+
+  async getSaleReturns(): Promise<InvoicesView[]> {
+    return this.listInvoices(InvoiceType.Sale, true);
+  }
+
+  private async listInvoices(
+    invoiceType: InvoiceType,
+    saleReturns: boolean,
+  ): Promise<InvoicesView[]> {
     const raw = await this.db.all<InvoiceListSqliteRow>(SQL.getInvoices, [
       invoiceType,
+      saleReturns ? 1 : 0,
     ]);
-    return normalizeSqliteBooleanRows(
+    const rows = normalizeSqliteBooleanRows(
       raw,
       INVOICE_LIST_SQLITE_BOOLEAN_KEYS,
     ) as InvoicesView[];
+    return rows.map((row) =>
+      row.isSaleReturn
+        ? {
+            ...row,
+            invoiceNumber: toDisplaySaleReturnNumber(
+              toNumber(row.invoiceNumber),
+            ),
+          }
+        : row,
+    );
   }
 
   async getInvoice(invoiceId: number): Promise<InvoiceView> {
@@ -943,6 +1088,12 @@ export class InvoiceService {
         prev.returnedAt = cur.returnedAt ?? null;
         prev.returnReason = cur.returnReason ?? null;
         prev.isQuotation = Boolean(uncastBoolean(cur.isQuotation));
+        prev.isSaleReturn = Boolean(uncastBoolean(cur.isSaleReturn));
+        prev.sourceInvoiceId = cur.sourceInvoiceId ?? null;
+        prev.sourceInvoiceNumber = cur.sourceInvoiceNumber ?? null;
+        if (prev.isSaleReturn) {
+          prev.invoiceNumber = toDisplaySaleReturnNumber(cur.invoiceNumber);
+        }
         // for multi-account invoices, show all customer/vendor names and codes (similar to list view)
         prev.accountName = cur.invoiceAccountName ?? cur.accountName;
         prev.accountNameUrdu =
@@ -990,6 +1141,7 @@ export class InvoiceService {
           cur.itemRowAccountId != null && cur.itemRowAccountId > 0
             ? cur.itemRowAccountId
             : undefined,
+        sourceInvoiceItemId: cur.sourceInvoiceItemId ?? undefined,
       });
       return prev;
     }, {} as InvoiceView);
@@ -1005,6 +1157,34 @@ export class InvoiceService {
     if (!isSingleCode) {
       res.accountCode = invoiceAccountCodes.join(', ');
     }
+
+    const linkedReturns = await this.db.all<{
+      id: number;
+      invoiceNumber: number;
+      date: string;
+      totalAmount: number;
+      returnReason: string | null;
+      isReturned: SqliteBoolColumn;
+    }>(
+      `
+      SELECT id, invoiceNumber, date, totalAmount, returnReason,
+        COALESCE(isReturned, 0) AS isReturned
+      FROM invoices
+      WHERE sourceInvoiceId = ?
+        AND COALESCE(isSaleReturn, 0) = 1
+      ORDER BY date, id
+    `,
+      [invoiceId],
+    );
+    res.saleReturns = linkedReturns.map((row) => ({
+      id: row.id,
+      date: row.date,
+      totalAmount: row.totalAmount,
+      invoiceNumber: toDisplaySaleReturnNumber(row.invoiceNumber),
+      returnReason: row.returnReason ?? null,
+      isReturned: Boolean(uncastBoolean(row.isReturned)),
+    }));
+    res.hasSaleReturns = res.saleReturns.some((row) => !row.isReturned);
 
     return res;
   }
@@ -1036,31 +1216,60 @@ export class InvoiceService {
       return invalid;
     }
 
-    const totalAmount = invoice.totalAmount ?? 0;
-    const charges = InvoiceService.bindInvoiceCharges(invoice);
+    let saleInvoice = invoice;
+    if (saleInvoice.isSaleReturn) {
+      if (invoiceType !== InvoiceType.Sale) {
+        raise('A sale return is a sale document.');
+      }
+      // prices, quantity caps, and the header total are taken from the
+      // source sale when there is one. the number stays the display number;
+      // the row stores the encoded one.
+      saleInvoice = await InvoiceService.prepareSaleReturn(saleInvoice);
+    }
 
-    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const totalAmount = saleInvoice.totalAmount ?? 0;
+    const storedInvoiceNumber = saleInvoice.isSaleReturn
+      ? toStoredSaleReturnNumber(toNumber(saleInvoice.invoiceNumber))
+      : saleInvoice.invoiceNumber;
+    const trimmedReturnReason = saleInvoice.returnReason?.trim();
+    const saleReturnColumns = {
+      isSaleReturn: saleInvoice.isSaleReturn ? 1 : 0,
+      sourceInvoiceId:
+        saleInvoice.isSaleReturn && toNumber(saleInvoice.sourceInvoiceId) > 0
+          ? cast(toNumber(saleInvoice.sourceInvoiceId))
+          : null,
+      returnReason:
+        saleInvoice.isSaleReturn &&
+        trimmedReturnReason != null &&
+        trimmedReturnReason.length > 0
+          ? trimmedReturnReason
+          : null,
+    };
+    const charges = InvoiceService.bindInvoiceCharges(saleInvoice);
+
+    const multipleIds = saleInvoice.accountMapping.multipleAccountIds;
     const hasMultiple =
       Array.isArray(multipleIds) &&
-      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.length === saleInvoice.invoiceItems.length &&
       multipleIds.every((id) => typeof id === 'number' && id > 0);
 
     if (hasMultiple) {
       const primaryAccountId =
-        toNumber(invoice.accountMapping.singleAccountId) || multipleIds[0];
+        toNumber(saleInvoice.accountMapping.singleAccountId) || multipleIds[0];
       const invoiceResult = await this.db.run(SQL.insertInvoice, {
-        date: invoice.date,
+        date: saleInvoice.date,
         accountId: primaryAccountId,
         invoiceType,
         totalAmount,
-        invoiceNumber: invoice.invoiceNumber,
+        invoiceNumber: storedInvoiceNumber,
         ...charges,
         isQuotation: 0,
+        ...saleReturnColumns,
       });
       const invoiceId = Number(invoiceResult.lastInsertRowid);
 
-      const itemsByAccount = groupBy(invoice.invoiceItems, (item) => {
-        return multipleIds[invoice.invoiceItems.indexOf(item)];
+      const itemsByAccount = groupBy(saleInvoice.invoiceItems, (item) => {
+        return multipleIds[saleInvoice.invoiceItems.indexOf(item)];
       });
 
       for (const [accountIdStr, groupItems] of Object.entries(itemsByAccount)) {
@@ -1073,18 +1282,20 @@ export class InvoiceService {
           );
 
           // eslint-disable-next-line no-await-in-loop
-          await this.db.run(
-            SQL.updateInventoryItem,
-            invoiceType === InvoiceType.Sale
-              ? [-item.quantity, item.inventoryId]
-              : [item.quantity, item.inventoryId],
-          );
+          await this.db.run(SQL.updateInventoryItem, [
+            InvoiceService.inventoryQuantityDelta(
+              invoiceType,
+              item.quantity,
+              Boolean(saleInvoice.isSaleReturn),
+            ),
+            item.inventoryId,
+          ]);
         }
       }
 
-      if (invoiceType === InvoiceType.Sale) {
+      if (invoiceType === InvoiceType.Sale && !saleInvoice.isSaleReturn) {
         await this.assertInventoryNonNegative(
-          uniq(invoice.invoiceItems.map((i) => i.inventoryId)),
+          uniq(saleInvoice.invoiceItems.map((i) => i.inventoryId)),
         );
       }
 
@@ -1092,7 +1303,7 @@ export class InvoiceService {
       if (invoiceType === InvoiceType.Purchase) {
         const messages = await this.applyVendorStockForPostedPurchase(
           invoiceId,
-          invoice,
+          saleInvoice,
           'purchase',
         );
         if (messages.length > 0) splitVendorStockMessages = messages;
@@ -1101,39 +1312,40 @@ export class InvoiceService {
       await this.postJournalsForPersistedInvoice(
         invoiceType,
         invoiceId,
-        invoice,
+        saleInvoice,
       );
 
       return {
         invoiceId,
-        nextInvoiceNumber: invoice.invoiceNumber + 1,
+        nextInvoiceNumber: toNumber(saleInvoice.invoiceNumber) + 1,
         vendorStockMessages: splitVendorStockMessages,
       };
     }
 
-    if (invoice.accountMapping.singleAccountId) {
-      const accountId = invoice.accountMapping.singleAccountId;
+    if (saleInvoice.accountMapping.singleAccountId) {
+      const accountId = saleInvoice.accountMapping.singleAccountId;
 
       const invoiceResult = await this.db.run(SQL.insertInvoice, {
-        date: invoice.date,
+        date: saleInvoice.date,
         accountId,
         invoiceType,
         totalAmount,
-        invoiceNumber: invoice.invoiceNumber,
+        invoiceNumber: storedInvoiceNumber,
         ...charges,
         isQuotation: 0,
+        ...saleReturnColumns,
       });
       const invoiceId = Number(invoiceResult.lastInsertRowid);
 
       await this.persistInvoiceItemsAndInventory(
         invoiceType,
         invoiceId,
-        invoice,
+        saleInvoice,
       );
 
-      if (invoiceType === InvoiceType.Sale) {
+      if (invoiceType === InvoiceType.Sale && !saleInvoice.isSaleReturn) {
         await this.assertInventoryNonNegative(
-          uniq(invoice.invoiceItems.map((i) => i.inventoryId)),
+          uniq(saleInvoice.invoiceItems.map((i) => i.inventoryId)),
         );
       }
 
@@ -1141,7 +1353,7 @@ export class InvoiceService {
       if (invoiceType === InvoiceType.Purchase) {
         const messages = await this.applyVendorStockForPostedPurchase(
           invoiceId,
-          invoice,
+          saleInvoice,
           'purchase',
         );
         if (messages.length > 0) vendorStockMessages = messages;
@@ -1150,12 +1362,12 @@ export class InvoiceService {
       await this.postJournalsForPersistedInvoice(
         invoiceType,
         invoiceId,
-        invoice,
+        saleInvoice,
       );
 
       return {
         invoiceId,
-        nextInvoiceNumber: invoice.invoiceNumber + 1,
+        nextInvoiceNumber: toNumber(saleInvoice.invoiceNumber) + 1,
         vendorStockMessages,
       };
     }
@@ -1242,6 +1454,9 @@ export class InvoiceService {
         invoiceNumber: placeholder,
         ...charges,
         isQuotation: 1,
+        isSaleReturn: 0,
+        sourceInvoiceId: null,
+        returnReason: null,
       });
       const invoiceId = Number(invoiceResult.lastInsertRowid);
       await this.persistInvoiceLineItemsWithoutInventory(invoiceId, invoice);
@@ -1258,6 +1473,9 @@ export class InvoiceService {
         invoiceNumber: placeholder,
         ...charges,
         isQuotation: 1,
+        isSaleReturn: 0,
+        sourceInvoiceId: null,
+        returnReason: null,
       });
       const invoiceId = Number(invoiceResult.lastInsertRowid);
       await this.persistInvoiceLineItemsWithoutInventory(invoiceId, invoice);
@@ -1595,6 +1813,7 @@ export class InvoiceService {
     const result = await this.db.get<{
       invoiceNumber: number;
       isQuotation?: number;
+      isSaleReturn?: number;
     }>(SQL.doesInvoiceExist, {
       invoiceId: cast(invoiceId),
       invoiceType,
@@ -1605,6 +1824,11 @@ export class InvoiceService {
     if (uncastBoolean(result.isQuotation)) {
       const display = getQuotationDisplayNumber(toNumber(result.invoiceNumber));
       return `quotation-${display}`;
+    }
+    if (uncastBoolean(result.isSaleReturn)) {
+      return `sale-return-${toDisplaySaleReturnNumber(
+        toNumber(result.invoiceNumber),
+      )}`;
     }
     return toString(toNumber(result.invoiceNumber));
   }
@@ -1627,10 +1851,22 @@ export class InvoiceService {
           ? SQL.adjacentQuotationIdNext
           : SQL.adjacentQuotationIdPrev;
     } else {
-      sql =
-        direction === 'next'
-          ? SQL.adjacentInvoiceIdNext
-          : SQL.adjacentInvoiceIdPrev;
+      const current = await this.db.get<{ isSaleReturn?: number }>(
+        `SELECT COALESCE(isSaleReturn, 0) AS isSaleReturn FROM invoices WHERE id = ?`,
+        [invoiceId],
+      );
+      const saleReturnRow = uncastBoolean(current?.isSaleReturn);
+      if (saleReturnRow) {
+        sql =
+          direction === 'next'
+            ? SQL.adjacentSaleReturnIdNext
+            : SQL.adjacentSaleReturnIdPrev;
+      } else {
+        sql =
+          direction === 'next'
+            ? SQL.adjacentInvoiceIdNext
+            : SQL.adjacentInvoiceIdPrev;
+      }
     }
     const row = await this.db.get<{ id: number }>(sql, {
       invoiceId: cast(invoiceId),
@@ -1709,6 +1945,8 @@ export class InvoiceService {
       invoiceNumber: number;
       invoiceType: string;
       isQuotation?: number;
+      isSaleReturn?: number;
+      sourceInvoiceId?: number | null;
     }>(SQL.getInvoiceHeader, { invoiceId: cast(invoiceId) });
     const invoiceHeader =
       header && header.invoiceType === invoiceType
@@ -1719,15 +1957,34 @@ export class InvoiceService {
         'Quotations cannot be edited as posted invoices. Use update quotation instead.',
       );
     }
-    if (invoice.invoiceNumber !== invoiceHeader.invoiceNumber) {
+    const editingSaleReturn = uncastBoolean(invoiceHeader.isSaleReturn);
+    const displayNumber = editingSaleReturn
+      ? toDisplaySaleReturnNumber(invoiceHeader.invoiceNumber)
+      : invoiceHeader.invoiceNumber;
+    if (invoice.invoiceNumber !== displayNumber) {
       raise('Invoice number cannot be changed');
     }
 
     const oldRows = await this.db.all<{
+      id: number;
       inventoryId: number;
       quantity: number;
       accountId: number;
+      returnedQty: number;
     }>(SQL.getInvoiceItemsForUpdate, { invoiceId: cast(invoiceId) });
+
+    if (editingSaleReturn) {
+      // prepared copy replaces the argument for the rest of this save
+      // eslint-disable-next-line no-param-reassign
+      invoice = await InvoiceService.prepareSaleReturn({
+        ...invoice,
+        isSaleReturn: true,
+        sourceInvoiceId: invoiceHeader.sourceInvoiceId ?? null,
+        invoiceNumber: displayNumber,
+      });
+    } else {
+      InvoiceService.assertReturnedLinesNotCut(oldRows, invoice);
+    }
 
     const journalIds = await this.journalService.getJournalIdsByInvoiceId(
       invoiceId,
@@ -1747,6 +2004,7 @@ export class InvoiceService {
       invoiceType,
       oldRows,
       'reverse',
+      Boolean(editingSaleReturn),
     );
 
     if (invoiceType === InvoiceType.Purchase) {
@@ -1772,13 +2030,15 @@ export class InvoiceService {
       : invoice.accountMapping.singleAccountId ??
         raise('Select a customer or vendor account');
 
-    await this.assertInvoiceDateWithinNeighborRangeForAccount(
-      invoiceId,
-      primaryAccountId,
-      invoiceHeader.invoiceNumber,
-      invoice.date,
-      invoiceType,
-    );
+    if (!editingSaleReturn) {
+      await this.assertInvoiceDateWithinNeighborRangeForAccount(
+        invoiceId,
+        primaryAccountId,
+        invoiceHeader.invoiceNumber,
+        invoice.date,
+        invoiceType,
+      );
+    }
 
     const charges = InvoiceService.bindInvoiceCharges(invoice);
 
@@ -1791,6 +2051,10 @@ export class InvoiceService {
     });
 
     await this.persistInvoiceItemsAndInventory(invoiceType, invoiceId, invoice);
+
+    if (!editingSaleReturn) {
+      await this.remapReturnedSourceLines(invoiceId, oldRows);
+    }
 
     let vendorStockMessages: string[] = [];
     if (invoiceType === InvoiceType.Purchase) {
@@ -1816,18 +2080,229 @@ export class InvoiceService {
     return vendorStockMessages;
   }
 
+  private static inventoryQuantityDelta(
+    invoiceType: InvoiceType,
+    quantity: number,
+    isSaleReturn: boolean,
+  ): number {
+    if (isSaleReturn || invoiceType === InvoiceType.Purchase) return quantity;
+    return -quantity;
+  }
+
+  private static localDay(iso: string): number {
+    const day = new Date(iso);
+    day.setHours(0, 0, 0, 0);
+    return day.getTime();
+  }
+
+  private static lineAccountIds(invoice: Invoice): number[] {
+    const multipleIds = invoice.accountMapping.multipleAccountIds;
+    const hasMultiple =
+      Array.isArray(multipleIds) &&
+      multipleIds.length === invoice.invoiceItems.length &&
+      multipleIds.every((id) => typeof id === 'number' && id > 0);
+    if (hasMultiple) return multipleIds.map((id) => toNumber(id));
+    const single = toNumber(invoice.accountMapping.singleAccountId);
+    return invoice.invoiceItems.map(() => single);
+  }
+
+  /**
+   * a new sale return keeps the prices the form calculated.
+   * opening one from an existing sale is refused: the line link does not sync.
+   */
+  private static prepareSaleReturn(invoice: Invoice): Invoice {
+    if (!(toNumber(invoice.invoiceNumber) > 0)) {
+      raise('Sale return number must be greater than 0');
+    }
+    if (invoice.invoiceItems.length === 0) {
+      raise('Add at least one item');
+    }
+
+    const sourceId = toNumber(invoice.sourceInvoiceId);
+    if (
+      sourceId > 0 ||
+      invoice.invoiceItems.some(
+        (item) => toNumber(item.sourceInvoiceItemId) > 0,
+      )
+    ) {
+      raise(
+        'A sale return cannot be opened from an existing sale. Create a new sale return.',
+      );
+    }
+    const posted = InvoiceService.postedAccountAmounts(
+      InvoiceType.Sale,
+      invoice,
+    );
+    return {
+      ...invoice,
+      isSaleReturn: true,
+      sourceInvoiceId: null,
+      sourceInvoiceNumber: null,
+      totalAmount: posted.reduce((sum, group) => sum + group.amount, 0),
+    };
+  }
+
+  private static assertReturnedLinesNotCut(
+    oldRows: Array<{
+      id: number;
+      inventoryId: number;
+      quantity: number;
+      accountId: number;
+      returnedQty: number;
+    }>,
+    invoice: Invoice,
+  ): void {
+    const accounts = InvoiceService.lineAccountIds(invoice);
+    const used = new Set<number>();
+    for (const old of oldRows) {
+      if (toNumber(old.returnedQty) <= 0) continue;
+      const match = invoice.invoiceItems.findIndex((item, index) => {
+        if (used.has(index)) return false;
+        return (
+          item.inventoryId === old.inventoryId &&
+          accounts[index] === old.accountId &&
+          toNumber(item.quantity) >= old.quantity
+        );
+      });
+      if (match < 0) {
+        raise(
+          'A line that already has a sale return cannot be removed or reduced.',
+        );
+      }
+      used.add(match);
+    }
+  }
+
+  /** editing a sale deletes its lines. point existing return lines at the new ids. */
+  private async remapReturnedSourceLines(
+    invoiceId: number,
+    oldRows: Array<{
+      id: number;
+      inventoryId: number;
+      accountId: number;
+      returnedQty: number;
+    }>,
+  ): Promise<void> {
+    const guarded = oldRows.filter((row) => toNumber(row.returnedQty) > 0);
+    if (guarded.length === 0) return;
+    const fresh = await this.db.all<{
+      id: number;
+      inventoryId: number;
+      accountId: number;
+    }>(
+      `
+      SELECT ii.id, ii.inventoryId, COALESCE(ii.accountId, i.accountId) AS accountId
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      WHERE ii.invoiceId = ?
+      ORDER BY ii.id
+    `,
+      [invoiceId],
+    );
+    const used = new Set<number>();
+    for (const old of guarded) {
+      const match = fresh.findIndex((row, index) => {
+        if (used.has(index)) return false;
+        return (
+          row.inventoryId === old.inventoryId && row.accountId === old.accountId
+        );
+      });
+      if (match < 0) {
+        raise('Could not keep the sale return attached to its sale line.');
+      }
+      used.add(match);
+      // eslint-disable-next-line no-await-in-loop
+      await this.db.run(
+        `UPDATE invoice_items SET sourceInvoiceItemId = ? WHERE sourceInvoiceItemId = ?`,
+        [fresh[match].id, old.id],
+      );
+    }
+  }
+
+  async getSaleReturnSource(invoiceId: number): Promise<SaleReturnSource> {
+    const header = await this.db.get<{
+      id: number;
+      invoiceNumber: number;
+      invoiceType: string;
+      accountId: number;
+      accountName: string;
+      isReturned: SqliteBoolColumn;
+      isQuotation: SqliteBoolColumn;
+      isSaleReturn: SqliteBoolColumn;
+    }>(
+      `
+      SELECT i.id, i.invoiceNumber, i.invoiceType, i.accountId, a.name AS accountName,
+        COALESCE(i.isReturned, 0) AS isReturned,
+        COALESCE(i.isQuotation, 0) AS isQuotation,
+        COALESCE(i.isSaleReturn, 0) AS isSaleReturn
+      FROM invoices i
+      JOIN account a ON a.id = i.accountId
+      WHERE i.id = ?
+    `,
+      [invoiceId],
+    );
+    const saleHeader = header ?? raise('Sale invoice not found.');
+    if (saleHeader.invoiceType !== InvoiceType.Sale) {
+      raise('Sale invoice not found.');
+    }
+    if (uncastBoolean(saleHeader.isSaleReturn)) {
+      raise('Open Return items from the original sale.');
+    }
+    if (uncastBoolean(saleHeader.isQuotation)) {
+      raise('Cannot return a quotation. Convert it to an invoice first.');
+    }
+    if (uncastBoolean(saleHeader.isReturned)) {
+      raise('This invoice has already been returned.');
+    }
+    const lines = await this.db.all<SaleReturnSourceLine>(
+      `
+      SELECT
+        ii.id AS id,
+        ii.inventoryId AS inventoryId,
+        iv.name AS inventoryItemName,
+        ii.quantity AS quantity,
+        COALESCE((
+          SELECT SUM(ri.quantity)
+          FROM invoice_items ri
+          JOIN invoices r ON r.id = ri.invoiceId
+          WHERE ri.sourceInvoiceItemId = ii.id
+            AND COALESCE(r.isSaleReturn, 0) = 1
+            AND COALESCE(r.isReturned, 0) = 0
+        ), 0) AS returnedQty,
+        ii.price AS price,
+        ii.discount AS discount,
+        ii.netPrice AS netPrice,
+        COALESCE(ii.accountId, i.accountId) AS accountId
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoiceId
+      JOIN inventory iv ON iv.id = ii.inventoryId
+      WHERE ii.invoiceId = ?
+      ORDER BY ii.id
+    `,
+      [invoiceId],
+    );
+    return {
+      invoiceId: saleHeader.id,
+      invoiceNumber: saleHeader.invoiceNumber,
+      accountId: saleHeader.accountId,
+      accountName: saleHeader.accountName,
+      lines,
+    };
+  }
+
   private async updateInventoryForInvoiceLineItems(
     invoiceType: InvoiceType,
     items: { inventoryId: number; quantity: number }[],
     direction: 'post' | 'reverse',
+    isSaleReturn = false,
   ): Promise<void> {
     for (const item of items) {
-      let delta: number;
-      if (invoiceType === InvoiceType.Sale) {
-        delta = direction === 'post' ? -item.quantity : item.quantity;
-      } else {
-        delta = direction === 'post' ? item.quantity : -item.quantity;
-      }
+      const posted = InvoiceService.inventoryQuantityDelta(
+        invoiceType,
+        item.quantity,
+        isSaleReturn,
+      );
+      const delta = direction === 'post' ? posted : -posted;
       // eslint-disable-next-line no-await-in-loop
       await this.db.run(SQL.updateInventoryItem, [delta, item.inventoryId]);
     }
@@ -1960,6 +2435,130 @@ export class InvoiceService {
   }
 
   /**
+   * undoes a sale return without deleting it. posts the opposite journal,
+   * takes the stock back out, and marks the return cancelled.
+   */
+  async cancelSaleReturn(
+    invoiceId: number,
+    options?: CancelSaleReturnPayload,
+  ): Promise<void> {
+    await this.db.transaction(async () => {
+      const row = await this.db.get<{
+        invoiceNumber: number;
+        date: string;
+        returnReason: string | null;
+        isSaleReturn: SqliteBoolColumn;
+        isReturned: SqliteBoolColumn;
+      }>(
+        `
+        SELECT invoiceNumber, date, returnReason,
+          COALESCE(isSaleReturn, 0) AS isSaleReturn,
+          COALESCE(isReturned, 0) AS isReturned
+        FROM invoices WHERE id = ?
+      `,
+        [invoiceId],
+      );
+      const header = row ?? raise('Sale return not found.');
+      if (!uncastBoolean(header.isSaleReturn)) {
+        raise('Only a sale return can be cancelled.');
+      }
+      if (uncastBoolean(header.isReturned)) {
+        raise('This sale return is already cancelled.');
+      }
+
+      const requested = options?.date?.trim();
+      const cancelDate =
+        requested && requested.length > 0
+          ? requested
+          : new Date().toISOString();
+      if (Number.isNaN(Date.parse(cancelDate))) {
+        raise('Select a valid date');
+      }
+      if (
+        InvoiceService.localDay(cancelDate) <
+        InvoiceService.localDay(header.date)
+      ) {
+        raise('A sale return cannot be cancelled before its own date.');
+      }
+
+      const journals = await this.db.all<{
+        id: number;
+        discountPercentage: number | string | null;
+      }>(`SELECT id, discountPercentage FROM journal WHERE invoiceId = ?`, [
+        invoiceId,
+      ]);
+      if (journals.length === 0) {
+        raise('Cannot cancel this return: no linked journals were found.');
+      }
+
+      const displayNumber = toDisplaySaleReturnNumber(header.invoiceNumber);
+      for (const journal of journals) {
+        // eslint-disable-next-line no-await-in-loop
+        const entries = await this.db.all<{
+          accountId: number;
+          debitAmount: number;
+          creditAmount: number;
+        }>(
+          `SELECT accountId, debitAmount, creditAmount FROM journal_entry WHERE journalId = ?`,
+          [journal.id],
+        );
+        // eslint-disable-next-line no-await-in-loop
+        await this.journalService.insertJournal({
+          id: -1,
+          date: cancelDate,
+          isPosted: true,
+          narration: `Cancel Sale Return #${displayNumber}`,
+          billNumber: displayNumber,
+          discountPercentage: journal.discountPercentage ?? undefined,
+          invoiceId,
+          journalEntries: entries.map((entry) => ({
+            id: -1,
+            journalId: 0,
+            accountId: entry.accountId,
+            debitAmount: entry.creditAmount,
+            creditAmount: entry.debitAmount,
+          })),
+        });
+      }
+
+      const lines = await this.db.all<{
+        inventoryId: number;
+        quantity: number;
+      }>(
+        `SELECT inventoryId, quantity FROM invoice_items WHERE invoiceId = ?`,
+        [invoiceId],
+      );
+      for (const line of lines) {
+        // eslint-disable-next-line no-await-in-loop
+        await this.db.run(SQL.updateInventoryItem, [
+          -line.quantity,
+          line.inventoryId,
+        ]);
+      }
+      await this.assertInventoryNonNegative(
+        uniq(lines.map((line) => line.inventoryId)),
+      );
+
+      const note = options?.returnReason?.trim();
+      const previous = header.returnReason?.trim();
+      const returnReason =
+        note && previous ? `${previous}\n${note}` : note || previous || null;
+      await this.db.run(
+        `
+        UPDATE invoices
+        SET isReturned = 1, returnedAt = @returnedAt, returnReason = @returnReason
+        WHERE id = @invoiceId
+      `,
+        {
+          invoiceId: cast(invoiceId),
+          returnedAt: cancelDate,
+          returnReason,
+        },
+      );
+    });
+  }
+
+  /**
    * voids a purchase invoice: removes linked journals and ledger lines, reverses inventory
    * (stock added on purchase is removed), and marks the invoice as returned.
    */
@@ -1991,6 +2590,7 @@ export class InvoiceService {
       invoiceType: InvoiceType;
       isReturned: SqliteBoolColumn;
       isQuotation?: SqliteBoolColumn;
+      isSaleReturn?: SqliteBoolColumn;
     };
     if (header.invoiceType !== expectedType) {
       raise(
@@ -1999,11 +2599,33 @@ export class InvoiceService {
           : 'Only purchase invoices can be returned.',
       );
     }
+    if (uncastBoolean(header.isSaleReturn)) {
+      raise(
+        'A sale return cannot be voided with Return invoice. Edit it instead.',
+      );
+    }
     if (uncastBoolean(header.isQuotation)) {
       raise('Cannot return a quotation. Convert it to an invoice first.');
     }
     if (uncastBoolean(header.isReturned)) {
       raise('This invoice has already been returned.');
+    }
+    if (expectedType === InvoiceType.Sale) {
+      const children = await this.db.get<{ c: number }>(
+        `
+        SELECT COUNT(*) AS c
+        FROM invoices
+        WHERE sourceInvoiceId = ?
+          AND COALESCE(isSaleReturn, 0) = 1
+          AND COALESCE(isReturned, 0) = 0
+      `,
+        [invoiceId],
+      );
+      if (toNumber(children?.c) > 0) {
+        raise(
+          'This invoice already has a sale return. The whole invoice cannot be voided.',
+        );
+      }
     }
 
     const journalIds = await this.journalService.getJournalIdsByInvoiceId(
@@ -2085,12 +2707,14 @@ export class InvoiceService {
           );
 
           // eslint-disable-next-line no-await-in-loop
-          await this.db.run(
-            SQL.updateInventoryItem,
-            invoiceType === InvoiceType.Sale
-              ? [-item.quantity, item.inventoryId]
-              : [item.quantity, item.inventoryId],
-          );
+          await this.db.run(SQL.updateInventoryItem, [
+            InvoiceService.inventoryQuantityDelta(
+              invoiceType,
+              item.quantity,
+              Boolean(invoice.isSaleReturn),
+            ),
+            item.inventoryId,
+          ]);
         }
       }
       return;
@@ -2106,12 +2730,14 @@ export class InvoiceService {
         );
 
         // eslint-disable-next-line no-await-in-loop
-        await this.db.run(
-          SQL.updateInventoryItem,
-          invoiceType === InvoiceType.Sale
-            ? [-item.quantity, item.inventoryId]
-            : [item.quantity, item.inventoryId],
-        );
+        await this.db.run(SQL.updateInventoryItem, [
+          InvoiceService.inventoryQuantityDelta(
+            invoiceType,
+            item.quantity,
+            Boolean(invoice.isSaleReturn),
+          ),
+          item.inventoryId,
+        ]);
       }
       return;
     }
@@ -2270,13 +2896,25 @@ export class InvoiceService {
     discountPercentage?: number | string,
   ): Promise<boolean> {
     const { debitAccountId, creditAccountId } =
-      await this.getTransactionAccounts(invoiceType, accountId);
+      await this.getTransactionAccounts(
+        invoiceType,
+        accountId,
+        Boolean(invoice.isSaleReturn),
+      );
+
+    const against =
+      invoice.isSaleReturn && toNumber(invoice.sourceInvoiceNumber) > 0
+        ? ` against Invoice #${invoice.sourceInvoiceNumber}`
+        : '';
+    const narration = invoice.isSaleReturn
+      ? `Sale Return #${invoice.invoiceNumber}${against}`
+      : `${invoiceType} Invoice #${invoice.invoiceNumber}`;
 
     return this.journalService.insertJournal({
       id: -1,
       date: invoice.date,
       isPosted: true,
-      narration: `${invoiceType} Invoice #${invoice.invoiceNumber}`,
+      narration,
       billNumber: invoice.invoiceNumber,
       discountPercentage,
       invoiceId,
@@ -2302,6 +2940,7 @@ export class InvoiceService {
   private async getTransactionAccounts(
     invoiceType: InvoiceType,
     accountId: number,
+    isSaleReturn = false,
   ): Promise<{
     debitAccountId: number;
     creditAccountId: number;
@@ -2327,6 +2966,12 @@ export class InvoiceService {
       return {
         debitAccountId: validPurchaseAccount.id, // Debit Purchase
         creditAccountId: accountId, // Credit Vendor
+      };
+    }
+    if (isSaleReturn) {
+      return {
+        debitAccountId: validSalesAccount.id, // Debit Sales
+        creditAccountId: accountId, // Credit customer
       };
     }
     return {
@@ -2365,6 +3010,7 @@ export class InvoiceService {
     discount: number;
     accountId: number;
     netPrice: number | null;
+    sourceInvoiceItemId: number | null;
   } {
     return {
       invoiceId,
@@ -2374,6 +3020,10 @@ export class InvoiceService {
       discount: item.discount,
       accountId,
       netPrice: item.netPrice ?? null,
+      sourceInvoiceItemId:
+        item.sourceInvoiceItemId != null && item.sourceInvoiceItemId > 0
+          ? item.sourceInvoiceItemId
+          : null,
     };
   }
 
@@ -2447,7 +3097,7 @@ export class InvoiceService {
     // returned sale invoices (isReturned=1)
     const returnMetrics = (await this.db.get<Record<string, number>>(
       SQL.salesPerfReturns,
-      [sqlStartDate, sqlEndDate],
+      [sqlStartDate, sqlEndDate, sqlStartDate, sqlEndDate],
     )) as Record<string, number>;
 
     // quotation backlog (isQuotation=1)
@@ -2477,6 +3127,7 @@ export class InvoiceService {
       WHERE i.invoiceType = 'Sale'
         AND i.isQuotation = 0
         AND i.isReturned = 0
+        AND COALESCE(i.isSaleReturn, 0) = 0
         AND i.date >= ? AND i.date <= ?
       GROUP BY ${groupExpr}
       ORDER BY period
@@ -2531,12 +3182,14 @@ export class InvoiceService {
         SELECT
           lg.invoiceId AS invoiceId,
           lg.accountId AS accountId,
-          lg.roundedGross - CASE
-            WHEN COALESCE(i.extraDiscount, 0) > 0
-              AND i.extraDiscountAccountId = lg.accountId
-            THEN i.extraDiscount
-            ELSE 0
-          END AS netAmount
+          (CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN -1 ELSE 1 END) * (
+            lg.roundedGross - CASE
+              WHEN COALESCE(i.extraDiscount, 0) > 0
+                AND i.extraDiscountAccountId = lg.accountId
+              THEN i.extraDiscount
+              ELSE 0
+            END
+          ) AS netAmount
         FROM line_groups lg
         JOIN invoices i ON i.id = lg.invoiceId
       )
@@ -2620,7 +3273,12 @@ export class InvoiceService {
       date: string;
       totalAmount: number;
       customerName: string;
-    }>(SQL.salesPerfReturnsDetail, [sqlStartDate, sqlEndDate]);
+    }>(SQL.salesPerfReturnsDetail, [
+      sqlStartDate,
+      sqlEndDate,
+      sqlStartDate,
+      sqlEndDate,
+    ]);
 
     // quotation backlog detail
     const quotationDetail = await this.db.all<{
@@ -2665,7 +3323,7 @@ export class InvoiceService {
 
       const returnCompare = (await this.db.get<Record<string, number>>(
         SQL.salesPerfReturnCompare,
-        [sqlCompareStart, sqlCompareEnd],
+        [sqlCompareStart, sqlCompareEnd, sqlCompareStart, sqlCompareEnd],
       )) as Record<string, number>;
 
       comparisonKpis = {
@@ -2696,6 +3354,7 @@ export class InvoiceService {
         WHERE i.invoiceType = 'Sale'
           AND i.isQuotation = 0
           AND i.isReturned = 0
+          AND COALESCE(i.isSaleReturn, 0) = 0
           AND i.date >= ? AND i.date <= ?
         GROUP BY ${groupExpr}
         ORDER BY period
@@ -2899,9 +3558,9 @@ export class InvoiceService {
       SELECT
         inv.id AS inventoryId,
         inv.name AS itemName,
-        ii.quantity AS quantity,
+        CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN -ii.quantity ELSE ii.quantity END AS quantity,
         i.id AS invoiceId,
-        i.invoiceNumber AS invoiceNumber,
+        CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN (-i.invoiceNumber - ${SALE_RETURN_NUMBER_BASE}) ELSE i.invoiceNumber END AS invoiceNumber,
         i.date AS date,
         COALESCE(ii.accountId, i.accountId) AS customerAccountId,
         a.name AS customerName,
