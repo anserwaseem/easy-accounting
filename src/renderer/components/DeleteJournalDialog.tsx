@@ -61,7 +61,7 @@ export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
       await window.electron.deleteManualJournal(journalId);
       toast({
         title: 'Journal Deleted',
-        description: `Manual Journal #${journalId} was permanently deleted.`,
+        description: 'Manual journal deleted.',
       });
       setOpen(false);
       onSuccess?.();
@@ -93,7 +93,7 @@ export const DeleteJournalDialog: React.FC<DeleteJournalDialogProps> = ({
       ) : null}
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle>Delete Manual Journal #{journalId}</DialogTitle>
+          <DialogTitle>Delete manual journal</DialogTitle>
           <DialogDescription>
             Are you sure you want to permanently delete this manual journal? All
             associated journal entries and ledger effects will be removed. This
