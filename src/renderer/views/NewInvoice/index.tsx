@@ -1643,6 +1643,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     useSingleAccount,
     splitByItemType,
     formSchema,
+    isSaleReturn: isSaleReturnDocument,
   });
 
   // shown when form.handleSubmit validation fails — prevents silent "nothing happens" on Save.

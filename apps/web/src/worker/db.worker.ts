@@ -994,6 +994,13 @@ async function main(): Promise<void> {
         payload as Parameters<InvoiceService['returnSaleInvoice']>[1],
       );
     },
+    cancelSaleReturn: (invoiceId, payload) => {
+      requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
+      return invoiceService.cancelSaleReturn(
+        invoiceId as number,
+        payload as Parameters<InvoiceService['cancelSaleReturn']>[1],
+      );
+    },
     returnPurchaseInvoice: (invoiceId, payload) => {
       requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnPurchase);
       return invoiceService.returnPurchaseInvoice(

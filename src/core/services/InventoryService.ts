@@ -481,12 +481,21 @@ const SQL = {
                   CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN ii.quantity ELSE -ii.quantity END
                 ELSE 0 END
               ELSE
-                (CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END) +
-                (CASE
-                  WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
-                  THEN ii.quantity
-                  ELSE 0
-                END)
+                CASE WHEN COALESCE(i.isSaleReturn, 0) = 1 THEN
+                  (CASE WHEN i.date > ? THEN ii.quantity ELSE 0 END) +
+                  (CASE
+                    WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
+                    THEN -ii.quantity
+                    ELSE 0
+                  END)
+                ELSE
+                  (CASE WHEN i.date > ? THEN -ii.quantity ELSE 0 END) +
+                  (CASE
+                    WHEN i.returnedAt IS NOT NULL AND i.returnedAt > ?
+                    THEN ii.quantity
+                    ELSE 0
+                  END)
+                END
               END
             WHEN i.invoiceType = 'Purchase' THEN
               CASE WHEN COALESCE(i.isReturned, 0) = 0 THEN
@@ -1807,6 +1816,8 @@ export class InventoryService {
       inventoryId: number;
       deltaQty: number;
     }>(SQL.stockAsOfInvoiceDeltaAfter, [
+      sqlAsOfEnd,
+      sqlAsOfEnd,
       sqlAsOfEnd,
       sqlAsOfEnd,
       sqlAsOfEnd,

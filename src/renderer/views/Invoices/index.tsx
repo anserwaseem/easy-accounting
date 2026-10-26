@@ -228,7 +228,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
         ? [
             {
               accessorKey: 'invoiceNumber',
-              header: `${invoiceType} Invoices`,
+              header: saleReturns ? 'Sale returns' : `${invoiceType} Invoices`,
               // eslint-disable-next-line react/no-unstable-nested-components
               cell: ({ row }) => {
                 const invoice = row.original;
@@ -252,7 +252,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                                 : undefined
                             }
                           >
-                            Returned
+                            {saleReturns ? 'Cancelled' : 'Returned'}
                           </Badge>
                         ) : null}
                         {showInvoiceEditedIndicator(invoice) ? (
@@ -322,7 +322,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                           : undefined
                       }
                     >
-                      Returned
+                      {saleReturns ? 'Cancelled' : 'Returned'}
                     </Badge>
                   ) : null}
                   {showInvoiceEditedIndicator(row.original) ? (
@@ -433,7 +433,14 @@ const InvoicesPage: FC<InvoicesProps> = ({
             /* eslint-enable react/no-unstable-nested-components */
           ]) as ColumnDef<InvoicesView>[]),
     ],
-    [invoiceType, navigate, navigateToInvoice, propInvoices, isMini],
+    [
+      invoiceType,
+      navigate,
+      navigateToInvoice,
+      propInvoices,
+      isMini,
+      saleReturns,
+    ],
   );
 
   const handleFilterDateSelect = useCallback(
@@ -472,7 +479,8 @@ const InvoicesPage: FC<InvoicesProps> = ({
     const fetchInvoices = async () => {
       let fetchedInvoices: InvoicesView[];
       if (!isNil(propInvoices)) {
-        fetchedInvoices = propInvoices;
+        // preview rows are invoice views; the list's journal count is absent
+        fetchedInvoices = propInvoices as unknown as InvoicesView[];
       } else if (saleReturns) {
         fetchedInvoices = await window.electron.getSaleReturns();
       } else {

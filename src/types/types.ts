@@ -667,10 +667,10 @@ export type InvoiceItemView = {
   inventoryItemDescriptionUrdu?: string | null;
   discountedPrice?: number;
   accountName?: string;
-    /** persisted line account when invoice uses per-row accounts */
-    accountId?: number;
-    /** database id of the source sale line, when this return line was copied */
-    sourceInvoiceItemId?: number;
+  /** persisted line account when invoice uses per-row accounts */
+  accountId?: number;
+  /** database id of the source sale line, when this return line was copied */
+  sourceInvoiceItemId?: number;
   /** line party Urdu name when invoice uses per-row accounts */
   accountNameUrdu?: string;
 };
@@ -706,12 +706,29 @@ export type InvoiceView = Prettify<
     sourceInvoiceNumber?: number | null;
     /** a partial sale return already points at this invoice */
     hasSaleReturns?: boolean;
+    /** sale returns opened from this invoice. numbers are the display numbers */
+    saleReturns?: Array<{
+      id: number;
+      invoiceNumber: number;
+      date: string;
+      totalAmount: number;
+      returnReason: string | null;
+      /** set when this return was cancelled. it no longer affects stock or the sale */
+      isReturned?: boolean;
+    }>;
   }
 >;
 
 /** optional note stored when voiding a sale or purchase invoice via return */
 export type ReturnSaleInvoicePayload = {
   returnReason?: string | null;
+};
+
+/** cancel keeps the return document and posts the opposite journal */
+export type CancelSaleReturnPayload = {
+  returnReason?: string | null;
+  /** local-noon iso. defaults to today on the server when omitted */
+  date?: string | null;
 };
 
 /** one sale line and how much of it has already come back */

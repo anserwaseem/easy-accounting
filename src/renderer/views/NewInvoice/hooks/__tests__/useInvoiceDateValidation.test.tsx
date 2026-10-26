@@ -269,4 +269,37 @@ describe('useInvoiceDateValidation', () => {
     } as never);
     expect(msg).toBeNull();
   });
+
+  it('sale return edit ignores sale-number neighbor dates', async () => {
+    electron().getInvoiceEditDateBounds.mockResolvedValue({
+      prevDate: null,
+      nextDate: '2026-10-24T12:00:00.000Z',
+    });
+
+    const formSchema = buildNewInvoiceFormSchema({
+      invoiceType: InvoiceType.Sale,
+      inventory: [{ id: 10, name: 'I', price: 1, quantity: 99 } as never],
+      getUseSingleAccount: () => true,
+      getSplitByItemType: () => false,
+    });
+
+    const { result } = renderHook(() =>
+      useInvoiceDateValidation({
+        invoiceType: InvoiceType.Sale,
+        editInvoiceId: 4,
+        useSingleAccount: true,
+        splitByItemType: false,
+        formSchema,
+        isSaleReturn: true,
+      }),
+    );
+
+    const msg = await result.current.validateInvoiceDateAgainstParties({
+      ...baseValues,
+      date: '2026-10-26T12:00:00.000Z',
+      invoiceNumber: 4,
+    } as never);
+    expect(msg).toBeNull();
+    expect(electron().getInvoiceEditDateBounds).not.toHaveBeenCalled();
+  });
 });

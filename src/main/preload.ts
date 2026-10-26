@@ -31,6 +31,7 @@ import type {
   ApplyStockAdjustmentPayload,
   ApiResponse,
   ReturnSaleInvoicePayload,
+  CancelSaleReturnPayload,
   ItemType,
   DiscountProfile,
   ProfileTypeDiscount,
@@ -425,6 +426,9 @@ const electronHandler = {
 
   returnSaleInvoice: (invoiceId: number, payload?: ReturnSaleInvoicePayload) =>
     ipcRenderer.invoke('invoice:returnSale', invoiceId, payload),
+
+  cancelSaleReturn: (invoiceId: number, payload?: CancelSaleReturnPayload) =>
+    ipcRenderer.invoke('invoice:cancelSaleReturn', invoiceId, payload),
 
   returnPurchaseInvoice: (
     invoiceId: number,

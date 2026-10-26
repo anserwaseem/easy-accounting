@@ -37,6 +37,7 @@ import type {
   SetOpeningStockItem,
   ApplyStockAdjustmentPayload,
   ReturnSaleInvoicePayload,
+  CancelSaleReturnPayload,
   BulkPriceListPositionPatch,
   UpsertAttributeDefinition,
   PurchasesByVendorFilters,
@@ -1059,6 +1060,13 @@ app
       (_, invoiceId: number, payload?: ReturnSaleInvoicePayload) => {
         requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
         return invoiceService.returnSaleInvoice(invoiceId, payload);
+      },
+    );
+    ipcMain.handle(
+      'invoice:cancelSaleReturn',
+      (_, invoiceId: number, payload?: CancelSaleReturnPayload) => {
+        requireAdvancedCapability(ADVANCED_CAPABILITIES.invoiceReturnSale);
+        return invoiceService.cancelSaleReturn(invoiceId, payload);
       },
     );
     ipcMain.handle(

@@ -14,6 +14,7 @@ import {
   type PurchasesByVendorItem,
   type PurchasesByVendorResponse,
   type ReturnSaleInvoicePayload,
+  type CancelSaleReturnPayload,
   type SaleReturnSource,
   type SaleReturnSourceLine,
   type SalesByCustomerFilters,
@@ -576,6 +577,7 @@ const SQL = {
         FROM invoices i
         WHERE i.invoiceType = 'Sale'
           AND i.isReturned = 1
+          AND COALESCE(i.isSaleReturn, 0) = 0
           AND i.returnedAt >= ? AND i.returnedAt <= ?
         UNION ALL
         SELECT i.totalAmount AS amount
@@ -710,6 +712,7 @@ const SQL = {
           FROM invoices i
           WHERE i.invoiceType = 'Sale'
             AND i.isReturned = 1
+            AND COALESCE(i.isSaleReturn, 0) = 0
             AND i.returnedAt >= ? AND i.returnedAt <= ?
           UNION ALL
           SELECT i.totalAmount AS amount
@@ -1155,17 +1158,33 @@ export class InvoiceService {
       res.accountCode = invoiceAccountCodes.join(', ');
     }
 
-    const returnCount = await this.db.get<{ c: number }>(
+    const linkedReturns = await this.db.all<{
+      id: number;
+      invoiceNumber: number;
+      date: string;
+      totalAmount: number;
+      returnReason: string | null;
+      isReturned: SqliteBoolColumn;
+    }>(
       `
-      SELECT COUNT(*) AS c
+      SELECT id, invoiceNumber, date, totalAmount, returnReason,
+        COALESCE(isReturned, 0) AS isReturned
       FROM invoices
       WHERE sourceInvoiceId = ?
         AND COALESCE(isSaleReturn, 0) = 1
-        AND COALESCE(isReturned, 0) = 0
+      ORDER BY date, id
     `,
       [invoiceId],
     );
-    res.hasSaleReturns = toNumber(returnCount?.c) > 0;
+    res.saleReturns = linkedReturns.map((row) => ({
+      id: row.id,
+      date: row.date,
+      totalAmount: row.totalAmount,
+      invoiceNumber: toDisplaySaleReturnNumber(row.invoiceNumber),
+      returnReason: row.returnReason ?? null,
+      isReturned: Boolean(uncastBoolean(row.isReturned)),
+    }));
+    res.hasSaleReturns = res.saleReturns.some((row) => !row.isReturned);
 
     return res;
   }
@@ -1967,7 +1986,7 @@ export class InvoiceService {
         invoiceId,
       );
     } else {
-      this.assertReturnedLinesNotCut(oldRows, invoice);
+      InvoiceService.assertReturnedLinesNotCut(oldRows, invoice);
     }
 
     const journalIds = await this.journalService.getJournalIdsByInvoiceId(
@@ -2073,6 +2092,12 @@ export class InvoiceService {
     return -quantity;
   }
 
+  private static localDay(iso: string): number {
+    const day = new Date(iso);
+    day.setHours(0, 0, 0, 0);
+    return day.getTime();
+  }
+
   private static lineAccountIds(invoice: Invoice): number[] {
     const multipleIds = invoice.accountMapping.multipleAccountIds;
     const hasMultiple =
@@ -2128,9 +2153,10 @@ export class InvoiceService {
       isSaleReturn: SqliteBoolColumn;
       accountId: number;
       invoiceNumber: number;
+      date: string;
     }>(
       `
-      SELECT invoiceType, accountId, invoiceNumber,
+      SELECT invoiceType, accountId, invoiceNumber, date,
         COALESCE(isReturned, 0) AS isReturned,
         COALESCE(isQuotation, 0) AS isQuotation,
         COALESCE(isSaleReturn, 0) AS isSaleReturn
@@ -2151,6 +2177,12 @@ export class InvoiceService {
     }
     if (uncastBoolean(saleSource.isReturned)) {
       raise('This invoice has already been returned.');
+    }
+    if (
+      InvoiceService.localDay(invoice.date) <
+      InvoiceService.localDay(saleSource.date)
+    ) {
+      raise('A sale return cannot be dated before the sale.');
     }
 
     const sourceLines = await this.db.all<{
@@ -2251,7 +2283,7 @@ export class InvoiceService {
     };
   }
 
-  private assertReturnedLinesNotCut(
+  private static assertReturnedLinesNotCut(
     oldRows: Array<{
       id: number;
       inventoryId: number;
@@ -2539,6 +2571,130 @@ export class InvoiceService {
         invoiceId,
         InvoiceType.Sale,
         options,
+      );
+    });
+  }
+
+  /**
+   * undoes a sale return without deleting it. posts the opposite journal,
+   * takes the stock back out, and marks the return cancelled.
+   */
+  async cancelSaleReturn(
+    invoiceId: number,
+    options?: CancelSaleReturnPayload,
+  ): Promise<void> {
+    await this.db.transaction(async () => {
+      const row = await this.db.get<{
+        invoiceNumber: number;
+        date: string;
+        returnReason: string | null;
+        isSaleReturn: SqliteBoolColumn;
+        isReturned: SqliteBoolColumn;
+      }>(
+        `
+        SELECT invoiceNumber, date, returnReason,
+          COALESCE(isSaleReturn, 0) AS isSaleReturn,
+          COALESCE(isReturned, 0) AS isReturned
+        FROM invoices WHERE id = ?
+      `,
+        [invoiceId],
+      );
+      const header = row ?? raise('Sale return not found.');
+      if (!uncastBoolean(header.isSaleReturn)) {
+        raise('Only a sale return can be cancelled.');
+      }
+      if (uncastBoolean(header.isReturned)) {
+        raise('This sale return is already cancelled.');
+      }
+
+      const requested = options?.date?.trim();
+      const cancelDate =
+        requested && requested.length > 0
+          ? requested
+          : new Date().toISOString();
+      if (Number.isNaN(Date.parse(cancelDate))) {
+        raise('Select a valid date');
+      }
+      if (
+        InvoiceService.localDay(cancelDate) <
+        InvoiceService.localDay(header.date)
+      ) {
+        raise('A sale return cannot be cancelled before its own date.');
+      }
+
+      const journals = await this.db.all<{
+        id: number;
+        discountPercentage: number | string | null;
+      }>(`SELECT id, discountPercentage FROM journal WHERE invoiceId = ?`, [
+        invoiceId,
+      ]);
+      if (journals.length === 0) {
+        raise('Cannot cancel this return: no linked journals were found.');
+      }
+
+      const displayNumber = toDisplaySaleReturnNumber(header.invoiceNumber);
+      for (const journal of journals) {
+        // eslint-disable-next-line no-await-in-loop
+        const entries = await this.db.all<{
+          accountId: number;
+          debitAmount: number;
+          creditAmount: number;
+        }>(
+          `SELECT accountId, debitAmount, creditAmount FROM journal_entry WHERE journalId = ?`,
+          [journal.id],
+        );
+        // eslint-disable-next-line no-await-in-loop
+        await this.journalService.insertJournal({
+          id: -1,
+          date: cancelDate,
+          isPosted: true,
+          narration: `Cancel Sale Return #${displayNumber}`,
+          billNumber: displayNumber,
+          discountPercentage: journal.discountPercentage ?? undefined,
+          invoiceId,
+          journalEntries: entries.map((entry) => ({
+            id: -1,
+            journalId: 0,
+            accountId: entry.accountId,
+            debitAmount: entry.creditAmount,
+            creditAmount: entry.debitAmount,
+          })),
+        });
+      }
+
+      const lines = await this.db.all<{
+        inventoryId: number;
+        quantity: number;
+      }>(
+        `SELECT inventoryId, quantity FROM invoice_items WHERE invoiceId = ?`,
+        [invoiceId],
+      );
+      for (const line of lines) {
+        // eslint-disable-next-line no-await-in-loop
+        await this.db.run(SQL.updateInventoryItem, [
+          -line.quantity,
+          line.inventoryId,
+        ]);
+      }
+      await this.assertInventoryNonNegative(
+        uniq(lines.map((line) => line.inventoryId)),
+      );
+
+      const note = options?.returnReason?.trim();
+      const previous = header.returnReason?.trim();
+      const returnReason =
+        note && previous ? `${previous}\n${note}` : note || previous || null;
+      await this.db.run(
+        `
+        UPDATE invoices
+        SET isReturned = 1, returnedAt = @returnedAt, returnReason = @returnReason
+        WHERE id = @invoiceId
+      `,
+        {
+          invoiceId: cast(invoiceId),
+          returnedAt: cancelDate,
+          returnReason,
+        },
       );
     });
   }
