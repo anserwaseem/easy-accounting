@@ -2026,32 +2026,51 @@ export class SyncEngine {
     if (!columns.includes('uuid')) columns.push('uuid');
     params.uuid = row.rowUuid;
 
-    // Invariant guard: discard duplicate journal on the same invoice
+    // a split sale posts one journal per account. those share a bill number
+    // and often the same discount, so they must not be dropped here. a ghost
+    // copy is the same account debited again for the same amount; that is
+    // decided when the debit line arrives, below.
+
+    // same account already debited this amount on another journal of this
+    // invoice: the arriving journal is a ghost copy. drop it and its lines.
     if (
-      row.tableName === 'journal' &&
-      params.invoiceId != null &&
-      params.billNumber != null
+      row.tableName === 'journal_entry' &&
+      Number(params.debitAmount) > 0 &&
+      params.journalId != null &&
+      params.accountId != null
     ) {
-      const existingJournal = await this.db.get<{ uuid: string }>(
-        `SELECT j.uuid
-         FROM journal j
-         WHERE j.invoiceId = @invoiceId
-           AND j.billNumber = @billNumber
-           AND COALESCE(j.discountPercentage, -1) = COALESCE(@discountPercentage, -1)
-           AND j.uuid != @uuid
+      const duplicateDebit = await this.db.get<{ uuid: string }>(
+        `SELECT je.uuid
+         FROM journal_entry je
+         JOIN journal j ON j.id = je.journalId
+         JOIN journal incoming ON incoming.id = @journalId
+         WHERE je.accountId = @accountId
+           AND je.debitAmount = @debitAmount
+           AND j.invoiceId IS NOT NULL
+           AND j.invoiceId = incoming.invoiceId
+           AND j.id != incoming.id
          LIMIT 1`,
         {
-          invoiceId: params.invoiceId,
-          billNumber: params.billNumber,
-          discountPercentage: params.discountPercentage ?? -1,
-          uuid: row.rowUuid,
+          journalId: params.journalId,
+          accountId: params.accountId,
+          debitAmount: params.debitAmount,
         },
       );
-      if (existingJournal) {
-        this.logger.info(
-          `SyncEngine.applyRow: discarding duplicate journal row ${row.rowUuid} for invoice ${params.invoiceId} (billNumber ${params.billNumber})`,
+      if (duplicateDebit) {
+        const parent = await this.db.get<{ uuid: string }>(
+          `SELECT uuid FROM journal WHERE id = @id`,
+          { id: params.journalId },
         );
-        this.discardedDuplicateJournalUuids.add(row.rowUuid);
+        if (parent) this.discardedDuplicateJournalUuids.add(parent.uuid);
+        await this.db.run(`DELETE FROM journal_entry WHERE journalId = @id`, {
+          id: params.journalId,
+        });
+        await this.db.run(`DELETE FROM journal WHERE id = @id`, {
+          id: params.journalId,
+        });
+        this.logger.info(
+          `SyncEngine.applyRow: discarding duplicate journal debit for account ${params.accountId} on journal ${params.journalId}`,
+        );
         return { discardedPlaceholder: false };
       }
     }
