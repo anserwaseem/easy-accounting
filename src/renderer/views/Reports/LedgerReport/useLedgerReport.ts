@@ -62,7 +62,9 @@ export const useLedgerReport = (
   const [presetValue, setPresetValue] = useState<string>(
     saved.presetValue ?? 'current-year',
   );
-  const [selectedAccount, setSelectedAccount] = useState<number | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<number | null>(
+    saved.accountId ?? null,
+  );
   const [selectedAccountName, setSelectedAccountName] = useState<string>('');
   const [itemTypes, setItemTypes] = useState<Array<{ name: string }>>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -110,6 +112,18 @@ export const useLedgerReport = (
       itemTypeNames,
     );
   }, [familyMode, selectedAccount, accounts, itemTypeNames]);
+
+  // persist customer + range + mode selections for easier repeat use
+  useEffect(() => {
+    saveSavedFilters(
+      REPORT_FILTER_KEYS.ledger,
+      makeSavedState(dateRange, undefined, {
+        presetValue,
+        familyMode,
+        accountId: selectedAccount ?? undefined,
+      }),
+    );
+  }, [selectedAccount, dateRange, presetValue, familyMode]);
 
   const filterRef = useRef(0);
 

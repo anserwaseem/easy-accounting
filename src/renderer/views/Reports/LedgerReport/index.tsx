@@ -22,6 +22,8 @@ import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
 import { formatDisplayDate } from '@/lib/displayDate';
 import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
 import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
+import { loadSavedFilters } from '@/renderer/lib/reportFilters';
+import { REPORT_FILTER_KEYS } from 'types';
 import { LedgerParticularsExportDialog, printStyles } from '../components';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
@@ -115,7 +117,13 @@ const buildLedgerReportExportRows = (
   }));
 
 const LedgerReportPage = () => {
-  const [familyMode, setFamilyMode] = useState(false);
+  const ledgerSaved = useMemo(
+    () => loadSavedFilters(REPORT_FILTER_KEYS.ledger),
+    [],
+  );
+  const [familyMode, setFamilyMode] = useState<boolean>(
+    ledgerSaved.familyMode ?? false,
+  );
 
   const ledgerColumnSpecs = useMemo(
     () => [

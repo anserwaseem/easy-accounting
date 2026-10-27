@@ -66,6 +66,8 @@ export function makeSavedState(
     inventoryIds?: number[];
     chartId?: number;
     presetValue?: string;
+    accountId?: number;
+    familyMode?: boolean;
   },
 ): SavedFilterState {
   const state: SavedFilterState = {};
@@ -104,6 +106,12 @@ export function makeSavedState(
   }
   if (extra?.presetValue) {
     state.presetValue = extra.presetValue;
+  }
+  if (extra?.accountId != null && extra.accountId > 0) {
+    state.accountId = extra.accountId;
+  }
+  if (extra?.familyMode !== undefined) {
+    state.familyMode = extra.familyMode;
   }
   return state;
 }

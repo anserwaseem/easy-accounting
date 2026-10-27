@@ -61,6 +61,8 @@ export interface LedgerRangeResponse {
 
 /** persisted filter state per report */
 export interface SavedFilterState {
+  accountId?: number;
+  familyMode?: boolean;
   dateRange?: { from: string; to: string }; // ISO strings
   groupBy?: 'day' | 'week' | 'month';
   groupByPolicy?: boolean;
