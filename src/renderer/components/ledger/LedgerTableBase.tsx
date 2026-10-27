@@ -46,6 +46,16 @@ const renderLedgerParticularsCell = ({
   <LedgerParticularsCell row={row.original} />
 );
 
+const renderTierBreakdownCell = ({ row }: CellContext<LedgerView, unknown>) => {
+  const breakdown = row.original.tierBreakdown;
+  if (!breakdown) return null;
+  return (
+    <div className="whitespace-pre-line text-xs text-muted-foreground">
+      {breakdown}
+    </div>
+  );
+};
+
 interface LedgerTableBaseProps {
   ledger: LedgerView[];
   printMode?: boolean;
@@ -94,6 +104,13 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         // The account/particulars is what a ledger row is read for, so
         // it heads the card; the debit and credit follow underneath.
         cardHeadline: true,
+      },
+      {
+        id: 'tierBreakdown',
+        header: 'Tier breakdown',
+        accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
+        cell: renderTierBreakdownCell,
+        size: 180,
       },
       {
         header: 'Narration',

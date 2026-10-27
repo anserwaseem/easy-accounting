@@ -19,7 +19,6 @@ import {
 } from '@/renderer/shad/ui/datePicker';
 import type { LedgerView } from '@/types';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
-import { formatJournalDiscountLabel } from '@/lib/journalDiscountLabel';
 import { formatDisplayDate } from '@/lib/displayDate';
 import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
 import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
@@ -32,6 +31,7 @@ import { useLedgerReport } from './useLedgerReport';
 type LedgerReportRow = {
   date: string | Date;
   particulars: string;
+  tierBreakdown: string;
   narration: string;
   debit: number;
   credit: number;
@@ -44,6 +44,7 @@ const buildLedgerReportPayload = (
   accountName: string,
   dateRange?: DateRange,
   visibleColumns?: ReadonlySet<string>,
+  includeTierBreakdown: boolean = false,
 ): ReportExportPayload<LedgerReportRow> => {
   const fromStr = dateRange?.from ? formatDisplayDate(dateRange.from) : '';
   const toStr = dateRange?.to ? formatDisplayDate(dateRange.to) : '';
@@ -66,6 +67,12 @@ const buildLedgerReportPayload = (
         width: 36,
       },
       {
+        key: 'tierBreakdown',
+        header: 'Tier breakdown',
+        format: 'string',
+        width: 40,
+      },
+      {
         key: 'narration',
         header: 'Narration',
         format: 'string',
@@ -75,9 +82,10 @@ const buildLedgerReportPayload = (
       { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
       { key: 'balance', header: 'Balance', format: 'currency', width: 14 },
       { key: 'balanceType', header: 'Type', format: 'string', width: 8 },
-    ].filter((column) =>
-      visibleColumns ? visibleColumns.has(String(column.key)) : true,
-    ) as ReportExportPayload<LedgerReportRow>['columns'],
+    ].filter((column) => {
+      if (!includeTierBreakdown && column.key === 'tierBreakdown') return false;
+      return visibleColumns ? visibleColumns.has(String(column.key)) : true;
+    }) as ReportExportPayload<LedgerReportRow>['columns'],
     rows: ledgerEntries,
   };
 };
@@ -87,24 +95,8 @@ const buildNarrationForExport = (row: LedgerView): string => {
   const narrationBase =
     row.journalSummary?.narration ||
     (jid != null ? `View Journal #${jid}` : '');
-  if (!row.journalSummary) return narrationBase;
-
-  const isSaleInvoice =
-    typeof row.journalSummary.narration === 'string' &&
-    /^sale invoice\b/i.test(row.journalSummary.narration);
-
-  const parts: string[] = [narrationBase];
-  if (!isSaleInvoice && row.journalSummary.billNumber != null) {
-    parts.push(`Bill#: ${row.journalSummary.billNumber}`);
-  }
-  const discountLabel = formatJournalDiscountLabel(
-    row.journalSummary.discountPercentage,
-  );
-  if (discountLabel !== '-') {
-    parts.push(`Discount: ${discountLabel}`);
-  }
   // keep it one-line so it shows well in excel without special cell wrapping
-  return parts.filter(Boolean).join(' | ');
+  return narrationBase;
 };
 
 const buildLedgerReportExportRows = (
@@ -114,6 +106,7 @@ const buildLedgerReportExportRows = (
   rows.map((row) => ({
     date: row.date,
     particulars: formatLedgerParticularsForExport(row, particularsMode),
+    tierBreakdown: row.tierBreakdown ?? '',
     narration: buildNarrationForExport(row),
     debit: row.debit,
     credit: row.credit,
@@ -122,17 +115,20 @@ const buildLedgerReportExportRows = (
   }));
 
 const LedgerReportPage = () => {
+  const [familyMode, setFamilyMode] = useState(false);
+
   const ledgerColumnSpecs = useMemo(
     () => [
       { id: 'date', label: 'Date' },
       { id: 'particulars', label: 'Particulars' },
+      ...(familyMode ? [{ id: 'tierBreakdown', label: 'Tier breakdown' }] : []),
       { id: 'narration', label: 'Narration' },
       { id: 'debit', label: 'Debit' },
       { id: 'credit', label: 'Credit' },
       { id: 'balance', label: 'Balance' },
       { id: 'balanceType', label: 'Type' },
     ],
-    [],
+    [familyMode],
   );
   const ledgerColumnIds = useMemo(
     () => ledgerColumnSpecs.map((column) => column.id),
@@ -153,12 +149,14 @@ const LedgerReportPage = () => {
     ledgerEntries,
     isLoading,
     selectedAccountName,
+    accountDisplayName,
     refreshData,
     handlePrint,
     presetValue,
     rangeResponse,
     totals,
-  } = useLedgerReport(visibleLedgerColumns);
+    familyAccountIds,
+  } = useLedgerReport(visibleLedgerColumns, familyMode, setFamilyMode);
 
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
@@ -178,15 +176,16 @@ const LedgerReportPage = () => {
         );
         const payload = buildLedgerReportPayload(
           exportRows,
-          selectedAccountName,
+          accountDisplayName,
           dateRange ?? undefined,
           visibleLedgerColumns,
+          familyMode,
         );
         payload.footerRow = {
           date: '',
           particulars: '',
+          tierBreakdown: '',
           narration: '',
-          debit: totals.totalDebit,
           credit: totals.totalCredit,
           balance: totals.totalDifference,
           balanceType: totals.totalType,
@@ -208,10 +207,11 @@ const LedgerReportPage = () => {
     },
     [
       ledgerEntries,
-      selectedAccountName,
+      accountDisplayName,
       dateRange,
       totals,
       visibleLedgerColumns,
+      familyMode,
     ],
   );
 
@@ -231,9 +231,18 @@ const LedgerReportPage = () => {
       header={
         <>
           <ReportHeader
-            title="Ledger Report"
+            title={familyMode ? 'Customer Family Ledger' : 'Ledger Report'}
             filters={
               <>
+                <ReportFilter label="Mode:">
+                  <Button
+                    variant={familyMode ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setFamilyMode((v) => !v)}
+                  >
+                    {familyMode ? 'Customer family' : 'Single account'}
+                  </Button>
+                </ReportFilter>
                 <ReportFilter label="Account:">
                   <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
                     <VirtualSelect
@@ -299,6 +308,15 @@ const LedgerReportPage = () => {
             <div className="print:hidden text-right text-sm text-muted-foreground">
               Closing Balance:{' '}
               <span className="font-semibold">{latestBalance}</span>
+            </div>
+          )}
+          {familyMode && selectedAccount && !isLoading && (
+            <div className="print:hidden text-xs text-muted-foreground">
+              Included accounts:{' '}
+              {(accounts ?? [])
+                .filter((a: any) => familyAccountIds.includes(a.id))
+                .map((a: any) => String(a.code ?? a.id))
+                .join(', ')}
             </div>
           )}
         </>

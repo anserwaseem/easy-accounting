@@ -10,25 +10,37 @@ interface NarrationCellProps {
   printMode?: boolean;
   /** batch-loaded on main for ledger / reports — avoids per-row getJournal IPC */
   journalSummary?: JournalNarrationSummary | null;
+  /** show Bill#/Discount lines (kept for single-account mode) */
+  showBillAndDiscount?: boolean;
 }
 
 interface NarrationPrefetchedProps {
   particulars: string;
   printMode?: boolean;
   journalSummary: JournalNarrationSummary | null;
+  showBillAndDiscount?: boolean;
 }
 
 /** no hooks — cheap to mount inside virtualized ledger rows */
 const NarrationPrefetchedInner: React.FC<NarrationPrefetchedProps> = (
   props,
 ) => {
-  const { particulars, printMode = false, journalSummary } = props;
+  const {
+    particulars,
+    printMode = false,
+    journalSummary,
+    showBillAndDiscount = true,
+  } = props;
   const journalId = extractJournalIdFromParticulars(particulars);
   if (!journalId) return null;
 
   const linkLabel = journalSummary?.narration || `View Journal #${journalId}`;
-  const billNumber = journalSummary?.billNumber;
-  const discountPercentage = journalSummary?.discountPercentage;
+  const billNumber = showBillAndDiscount
+    ? journalSummary?.billNumber
+    : undefined;
+  const discountPercentage = showBillAndDiscount
+    ? journalSummary?.discountPercentage
+    : undefined;
 
   return (
     <div className="space-y-1">
@@ -125,13 +137,19 @@ NarrationFetched.displayName = 'NarrationFetched';
  * Displays a journal narration with a link to the journal
  */
 export const NarrationCell: React.FC<NarrationCellProps> = (props) => {
-  const { particulars, printMode = false, journalSummary } = props;
+  const {
+    particulars,
+    printMode = false,
+    journalSummary,
+    showBillAndDiscount,
+  } = props;
   if (journalSummary !== undefined) {
     return (
       <NarrationPrefetched
         particulars={particulars}
         printMode={printMode}
         journalSummary={journalSummary}
+        showBillAndDiscount={showBillAndDiscount}
       />
     );
   }
@@ -149,5 +167,6 @@ export const renderJournalCell = (
     particulars={info.row.original.particulars}
     printMode={printMode}
     journalSummary={info.row.original.journalSummary}
+    showBillAndDiscount={!info.row.original.tierBreakdown}
   />
 );

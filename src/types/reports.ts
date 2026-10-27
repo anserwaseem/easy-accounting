@@ -51,6 +51,7 @@ export interface LedgerRangeResponse {
     linkedAccountName: string | null;
     linkedAccountCode?: number | string | null;
     journalSummary?: JournalNarrationSummary | null;
+    tierBreakdown?: string;
   }>;
   closingBalance: {
     balance: number;

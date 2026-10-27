@@ -33,6 +33,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
       [
         'date',
         'particulars',
+        'tierBreakdown',
         'narration',
         'debit',
         'credit',
@@ -46,6 +47,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
     const cells: React.ReactNode[] = [];
     if (visible.has('date')) cells.push(null);
     if (visible.has('particulars')) cells.push(null);
+    if (visible.has('tierBreakdown')) cells.push(null);
     if (visible.has('narration')) cells.push(null);
     if (visible.has('debit'))
       cells.push(

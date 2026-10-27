@@ -650,6 +650,8 @@ export type LedgerView = Prettify<
     linkedAccountName?: string;
     linkedAccountCode?: number | string | null;
     journalSummary?: JournalNarrationSummary | null;
+    /** consolidated customer-family tier breakdown for a grouped sale invoice */
+    tierBreakdown?: string;
   }
 >;
 export type JournalView = Prettify<Journal & { amount: number }>;
