@@ -157,7 +157,7 @@ const LedgerReportPage = () => {
     ledgerEntries,
     isLoading,
     selectedAccountName,
-    accountDisplayName,
+    printAccountName,
     refreshData,
     handlePrint,
     presetValue,
@@ -184,7 +184,7 @@ const LedgerReportPage = () => {
         );
         const payload = buildLedgerReportPayload(
           exportRows,
-          accountDisplayName,
+          printAccountName,
           dateRange ?? undefined,
           visibleLedgerColumns,
           familyMode,
@@ -215,7 +215,7 @@ const LedgerReportPage = () => {
     },
     [
       ledgerEntries,
-      accountDisplayName,
+      printAccountName,
       dateRange,
       totals,
       visibleLedgerColumns,
