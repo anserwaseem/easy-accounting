@@ -42,14 +42,17 @@ const narrationLinesForRow = (row: LedgerView): string[] => {
 
   const lines: string[] = [];
   if (base) lines.push(base);
-  if (!isSaleInvoice && row.journalSummary.billNumber != null) {
-    lines.push(`Bill#: ${row.journalSummary.billNumber}`);
-  }
-  const discountLabel = formatJournalDiscountLabel(
-    row.journalSummary.discountPercentage,
-  );
-  if (discountLabel !== '-') {
-    lines.push(`Discount: ${discountLabel}`);
+  // for grouped sale-invoice rows the bill#/discount live in the tier breakdown
+  if (!row.tierBreakdown) {
+    if (!isSaleInvoice && row.journalSummary.billNumber != null) {
+      lines.push(`Bill#: ${row.journalSummary.billNumber}`);
+    }
+    const discountLabel = formatJournalDiscountLabel(
+      row.journalSummary.discountPercentage,
+    );
+    if (discountLabel !== '-') {
+      lines.push(`Discount: ${discountLabel}`);
+    }
   }
   return lines;
 };
@@ -69,6 +72,13 @@ const buildLedgerTableBodyHtml = (
       if (visibleColumns.has('particulars'))
         cells.push(
           `<td>${escape(formatLedgerParticularsForExport(row, 'both'))}</td>`,
+        );
+      if (visibleColumns.has('tierBreakdown'))
+        cells.push(
+          `<td>${(row.tierBreakdown ?? '')
+            .split('\n')
+            .map((l) => escape(l))
+            .join('<br/>')}</td>`,
         );
       if (visibleColumns.has('narration'))
         cells.push(
@@ -113,6 +123,7 @@ const buildLedgerTableBodyHtml = (
 const LEDGER_REPORT_COLUMN_IDS = new Set([
   'date',
   'particulars',
+  'tierBreakdown',
   'narration',
   'debit',
   'credit',
@@ -196,6 +207,7 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
       <tr>
         ${visibleColumns.has('date') ? '<th>Date</th>' : ''}
         ${visibleColumns.has('particulars') ? '<th>Particulars</th>' : ''}
+        ${visibleColumns.has('tierBreakdown') ? '<th>Tier breakdown</th>' : ''}
         ${visibleColumns.has('narration') ? '<th>Narration</th>' : ''}
         ${
           visibleColumns.has('debit')
@@ -219,6 +231,7 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
       <tr class="ledger-print-totals-row">
         ${visibleColumns.has('date') ? '<td></td>' : ''}
         ${visibleColumns.has('particulars') ? '<td></td>' : ''}
+        ${visibleColumns.has('tierBreakdown') ? '<td></td>' : ''}
         ${visibleColumns.has('narration') ? '<td></td>' : ''}
         ${
           visibleColumns.has('debit')
