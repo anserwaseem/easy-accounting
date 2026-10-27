@@ -7,6 +7,18 @@ import {
   makeSavedState,
 } from '@/renderer/lib/reportFilters';
 import { addDays, format } from 'date-fns';
+import { currency } from '@/renderer/lib/constants';
+import { getFormattedCurrency } from '@/renderer/lib/utils';
+import {
+  buildPartyTypingContext,
+  isTypedPartyAccount,
+  splitPartyCode,
+  splitPartyName,
+} from '@/renderer/views/NewInvoice/lib/partyAccountTyping';
+import {
+  getPartyFamilyAccountIds,
+  ledgerBalanceToSignedDrPositive,
+} from '@/renderer/views/NewInvoice/lib/partyFamilyBalance';
 import { BalanceType, REPORT_FILTER_KEYS } from 'types';
 import { formatDisplayDate } from '@/lib/displayDate';
 import { printLedgerReportIframe } from './printLedgerReport';
@@ -20,7 +32,17 @@ type LedgerReportTotals = {
   totalType: BalanceType | '';
 };
 
-export const useLedgerReport = (visibleColumns?: ReadonlySet<string>) => {
+export const useLedgerReport = (
+  visibleColumns?: ReadonlySet<string>,
+  externalFamilyMode?: boolean,
+  externalSetFamilyMode?: (
+    value: boolean | ((prev: boolean) => boolean),
+  ) => void,
+) => {
+  const [internalFamilyMode, setInternalFamilyMode] = useState(false);
+  const familyMode = externalFamilyMode ?? internalFamilyMode;
+  const setFamilyMode = externalSetFamilyMode ?? setInternalFamilyMode;
+
   const saved = useMemo(() => loadSavedFilters(REPORT_FILTER_KEYS.ledger), []);
 
   const defaultDateRange: DateRange = useMemo(() => {
@@ -42,6 +64,7 @@ export const useLedgerReport = (visibleColumns?: ReadonlySet<string>) => {
   );
   const [selectedAccount, setSelectedAccount] = useState<number | null>(null);
   const [selectedAccountName, setSelectedAccountName] = useState<string>('');
+  const [itemTypes, setItemTypes] = useState<Array<{ name: string }>>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [rangeResponse, setRangeResponse] =
@@ -59,6 +82,34 @@ export const useLedgerReport = (visibleColumns?: ReadonlySet<string>) => {
   useEffect(() => {
     fetchAccounts();
   }, [fetchAccounts]);
+
+  useEffect(() => {
+    if (!familyMode) return;
+    if (itemTypes.length > 0) return;
+    (async () => {
+      try {
+        const types = await window.electron.getItemTypes?.();
+        setItemTypes(types ?? []);
+      } catch {
+        setItemTypes([]);
+      }
+    })();
+  }, [familyMode, itemTypes.length]);
+
+  const itemTypeNames = useMemo(
+    () => itemTypes.map((t) => t.name).filter(Boolean),
+    [itemTypes],
+  );
+
+  const familyAccountIds = useMemo<number[]>(() => {
+    if (!selectedAccount) return [];
+    if (!familyMode) return [selectedAccount];
+    return getPartyFamilyAccountIds(
+      selectedAccount,
+      accounts as any,
+      itemTypeNames,
+    );
+  }, [familyMode, selectedAccount, accounts, itemTypeNames]);
 
   const filterRef = useRef(0);
 
@@ -88,15 +139,222 @@ export const useLedgerReport = (visibleColumns?: ReadonlySet<string>) => {
     const endDate = format(dateRange.to, 'yyyy-MM-dd');
 
     try {
-      const resp = await window.electron.reportGetLedgerRange({
-        accountId: selectedAccount,
-        startDate,
-        endDate,
+      if (!familyMode) {
+        const resp = await window.electron.reportGetLedgerRange({
+          accountId: selectedAccount,
+          startDate,
+          endDate,
+        });
+
+        // only apply if filter hasn't changed
+        if (thisFilter === filterRef.current) {
+          setRangeResponse(resp);
+        }
+        return;
+      }
+
+      // consolidated customer family ledger: combine the base + item-type tier accounts
+      const ids =
+        familyAccountIds.length > 0 ? familyAccountIds : [selectedAccount];
+      const dayBefore = format(addDays(dateRange.from, -1), 'yyyy-MM-dd');
+
+      const [openBalances, entriesMap] = await Promise.all([
+        window.electron.getLedgerBalancesForAccountIdsAsOfDate(ids, dayBefore),
+        window.electron.getLedgerRangeForAccountIds(ids, startDate, endDate),
+      ]);
+
+      // tier label derived from the typed suffix (code authoritative, name fallback)
+      const ctx = buildPartyTypingContext(accounts as any, itemTypeNames);
+      const typedLabelFor = (acc: any): string => {
+        if (!acc || !isTypedPartyAccount(acc, ctx)) return '';
+        const codeSuffix = splitPartyCode(String(acc?.code ?? '')).suffix;
+        if (
+          codeSuffix &&
+          ctx.itemTypeSuffixesLower.has(codeSuffix.toLowerCase())
+        ) {
+          return codeSuffix;
+        }
+        const nameSuffix = splitPartyName(String(acc?.name ?? '')).suffix;
+        return nameSuffix;
+      };
+      const accountById = new Map((accounts as any[]).map((a) => [a.id, a]));
+
+      let openingSigned = 0;
+      for (const id of ids) {
+        const b = (openBalances as any)?.[id];
+        openingSigned += ledgerBalanceToSignedDrPositive(
+          b ?? { balance: 0, balanceType: BalanceType.Dr },
+        );
+      }
+
+      const flat: any[] = [];
+      for (const id of ids) {
+        const rows = (entriesMap as any)?.[id] ?? [];
+        for (const r of rows) {
+          flat.push({
+            ...r,
+            _label: typedLabelFor(
+              accountById.get(r.accountId) ?? accountById.get(id),
+            ),
+          });
+        }
+      }
+      flat.sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        if (a.accountId !== b.accountId) return a.accountId - b.accountId;
+        return (a.id ?? 0) - (b.id ?? 0);
       });
 
-      // only apply if filter hasn't changed
+      let signed = openingSigned;
+      const outEntries = flat.map((e) => {
+        signed += (Number(e.debit) || 0) - (Number(e.credit) || 0);
+        const prefix = e._label ? `[${e._label}] ` : '';
+        return {
+          id: e.id,
+          date: e.date,
+          accountId: e.accountId,
+          particulars: `${prefix}${e.particulars ?? ''}`,
+          debit: e.debit,
+          credit: e.credit,
+          balance: Math.abs(signed),
+          balanceType: signed >= 0 ? BalanceType.Dr : BalanceType.Cr,
+          linkedAccountId: e.linkedAccountId,
+          linkedAccountName: e.linkedAccountName ?? undefined,
+          linkedAccountCode: e.linkedAccountCode ?? undefined,
+          journalSummary: e.journalSummary,
+        };
+      });
+
+      // group split sale-invoice entries sharing the same invoice number + date
+      // into a single invoice-level row, keeping the tier breakdown inline.
+      const isSaleInvoiceEntry = (e: any) =>
+        typeof e.journalSummary?.narration === 'string' &&
+        /^sale invoice/i.test(e.journalSummary.narration);
+
+      const invoiceKeyOf = (e: any) =>
+        `${e.date}|${
+          e.journalSummary?.billNumber ?? e.journalSummary?.invoiceId ?? ''
+        }`;
+
+      const groupMap = new Map<string, any[]>();
+      for (const e of outEntries) {
+        if (!isSaleInvoiceEntry(e)) continue;
+        const key = invoiceKeyOf(e);
+        if (!groupMap.has(key)) groupMap.set(key, []);
+        groupMap.get(key)!.push(e);
+      }
+      // only keys with more than one member qualify as a split invoice
+      for (const [key, members] of groupMap) {
+        if (members.length <= 1) groupMap.delete(key);
+      }
+
+      const tierLineFor = (m: any): string => {
+        const tier = /^\[([^\]]+)\]\s*/.exec(m.particulars ?? '')?.[1] ?? '';
+        const amt = Number(m.debit || m.credit || 0);
+        const disc = m.journalSummary?.discountPercentage;
+        const discText =
+          disc != null && disc !== '' && !Number.isNaN(Number(disc))
+            ? `${Number(disc)}% — `
+            : '';
+        const amtText = getFormattedCurrency(amt).replace(currency, '').trim();
+        return tier
+          ? `${tier} · ${discText}${amtText}`
+          : `${discText}${amtText}`.trim();
+      };
+
+      const seenKeys = new Set<string>();
+      const groupedEntries: any[] = [];
+      for (const e of outEntries) {
+        if (!isSaleInvoiceEntry(e)) {
+          groupedEntries.push(e);
+          continue;
+        }
+        const key = invoiceKeyOf(e);
+        const members = groupMap.get(key);
+        if (!members) {
+          groupedEntries.push({ ...e, tierBreakdown: tierLineFor(e) });
+          continue;
+        }
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+
+        const tierLines = members
+          .map((m: any) => {
+            const tier =
+              /^\[([^\]]+)\]\s*/.exec(m.particulars ?? '')?.[1] ?? '';
+            const amt = Number(m.debit || m.credit || 0);
+            const disc = m.journalSummary?.discountPercentage;
+            const discText =
+              disc != null && disc !== '' && !Number.isNaN(Number(disc))
+                ? `${Number(disc)}% — `
+                : '';
+            const amtText = getFormattedCurrency(amt)
+              .replace(currency, '')
+              .trim();
+            const label = tier
+              ? `${tier} · ${discText}${amtText}`
+              : `${discText}${amtText}`.trim();
+            return label;
+          })
+          .join('\n');
+
+        const totalDebit = members.reduce(
+          (a: number, m: any) => a + (Number(m.debit) || 0),
+          0,
+        );
+        const totalCredit = members.reduce(
+          (a: number, m: any) => a + (Number(m.credit) || 0),
+          0,
+        );
+        const cleanParticulars = String(members[0].particulars ?? '').replace(
+          /^\[[^\]]*\]\s*/,
+          '',
+        );
+
+        groupedEntries.push({
+          id: members[0].id,
+          date: members[0].date,
+          accountId: members[0].accountId,
+          particulars: cleanParticulars,
+          debit: totalDebit,
+          credit: totalCredit,
+          balance: 0,
+          balanceType: BalanceType.Dr,
+          linkedAccountId: members[0].linkedAccountId,
+          linkedAccountName: members[0].linkedAccountName ?? undefined,
+          linkedAccountCode: members[0].linkedAccountCode ?? undefined,
+          journalSummary: members[0].journalSummary,
+          tierBreakdown: tierLines,
+        });
+      }
+
+      // recompute running balances cleanly for all rows in order
+      let r2 = openingSigned;
+      const normalized = groupedEntries.map((e: any) => {
+        r2 += (Number(e.debit) || 0) - (Number(e.credit) || 0);
+        return {
+          ...e,
+          balance: Math.abs(r2),
+          balanceType: r2 >= 0 ? BalanceType.Dr : BalanceType.Cr,
+        };
+      });
+      const finalSigned = r2;
+
+      const consolidated: any = {
+        openingBalance: {
+          balance: Math.abs(openingSigned),
+          balanceType: openingSigned >= 0 ? BalanceType.Dr : BalanceType.Cr,
+          date: dayBefore,
+        },
+        entries: normalized,
+        closingBalance: {
+          balance: Math.abs(finalSigned),
+          balanceType: finalSigned >= 0 ? BalanceType.Dr : BalanceType.Cr,
+        },
+      };
+
       if (thisFilter === filterRef.current) {
-        setRangeResponse(resp);
+        setRangeResponse(consolidated);
       }
     } catch (error) {
       console.error('Error fetching ledger range:', error);
@@ -108,7 +366,14 @@ export const useLedgerReport = (visibleColumns?: ReadonlySet<string>) => {
         setIsLoading(false);
       }
     }
-  }, [selectedAccount, dateRange]);
+  }, [
+    selectedAccount,
+    dateRange,
+    familyMode,
+    familyAccountIds,
+    accounts,
+    itemTypeNames,
+  ]);
 
   useEffect(() => {
     fetchLedgerRange();
@@ -224,24 +489,33 @@ export const useLedgerReport = (visibleColumns?: ReadonlySet<string>) => {
         linkedAccountName: entry.linkedAccountName ?? undefined,
         linkedAccountCode: entry.linkedAccountCode ?? undefined,
         journalSummary: entry.journalSummary,
+        tierBreakdown: entry.tierBreakdown ?? undefined,
       });
     }
 
     return rows;
   }, [rangeResponse, dateRange, selectedAccount]);
 
+  const ledgerAccountName = useMemo(() => {
+    if (!familyMode) return selectedAccountName;
+    const names = (accounts as any[])
+      .filter((a) => familyAccountIds.includes(a.id))
+      .map((a) => a.name);
+    return names.length ? names.join(', ') : selectedAccountName;
+  }, [familyMode, accounts, familyAccountIds, selectedAccountName]);
+
   const handlePrint = useCallback(() => {
     if (!displayedEntries.length) return;
     printLedgerReportIframe({
       rows: displayedEntries,
-      accountName: selectedAccountName,
+      accountName: ledgerAccountName,
       dateSubtitle: printDateSubtitle,
       totals,
       visibleColumns,
     });
   }, [
     displayedEntries,
-    selectedAccountName,
+    ledgerAccountName,
     printDateSubtitle,
     totals,
     visibleColumns,
@@ -258,9 +532,13 @@ export const useLedgerReport = (visibleColumns?: ReadonlySet<string>) => {
     ledgerEntries: displayedEntries,
     isLoading,
     selectedAccountName,
+    accountDisplayName: ledgerAccountName,
     refreshData,
     handlePrint,
     rangeResponse,
     totals,
+    familyMode,
+    setFamilyMode,
+    familyAccountIds,
   };
 };
