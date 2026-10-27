@@ -315,7 +315,7 @@ const LedgerReportPage = () => {
               Included accounts:{' '}
               {(accounts ?? [])
                 .filter((a: any) => familyAccountIds.includes(a.id))
-                .map((a: any) => a.name)
+                .map((a: any) => String(a.code ?? a.id))
                 .join(', ')}
             </div>
           )}
