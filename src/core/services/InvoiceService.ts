@@ -33,6 +33,7 @@ import {
 } from '../../lib/saleReturnNumber';
 import { convertOrdinalDate } from '../utils/dateFormat';
 import { JournalService } from './JournalService';
+import { assertActiveAccounts } from './accountGuards';
 import { AccountService } from './AccountService';
 import { PricingService } from './PricingService';
 import { VendorStockService } from './VendorStockService';
@@ -110,6 +111,22 @@ const rollupPartyItemLines = (lines: PartyItemLine[]) =>
     [(item) => item.itemName.toLowerCase()],
     ['asc'],
   );
+
+/** every account an invoice payload will post to */
+const collectInvoiceAccountIds = (invoice: Invoice): number[] => {
+  const ids = [
+    invoice.accountMapping?.singleAccountId,
+    ...(invoice.accountMapping?.multipleAccountIds ?? []),
+    invoice.extraDiscountAccountId,
+    invoice.shippingAccountId,
+  ];
+  return uniq(
+    ids.filter(
+      (id): id is number =>
+        typeof id === 'number' && Number.isFinite(id) && id > 0,
+    ),
+  );
+};
 
 /** one joined row per line from SQL.getInvoice before aggregating to InvoiceView */
 type InvoiceDetailJoinedRowSqlite = InvoiceItemView & {
@@ -464,6 +481,13 @@ const SQL = {
       SELECT invoiceNumber, invoiceType, COALESCE(isQuotation, 0) AS isQuotation,
         COALESCE(isSaleReturn, 0) AS isSaleReturn, sourceInvoiceId
       FROM invoices WHERE id = @invoiceId
+    `,
+  /** accounts already saved on an invoice (header + per-line split accounts) */
+  getInvoiceAccountIds: `
+      SELECT accountId FROM invoices WHERE id = @invoiceId
+      UNION
+      SELECT accountId FROM invoice_items
+      WHERE invoiceId = @invoiceId AND accountId IS NOT NULL
     `,
   getPrevInvoiceDateForAccount: `
       SELECT date
@@ -1189,6 +1213,21 @@ export class InvoiceService {
     return res;
   }
 
+  /** account ids already stored on an invoice, header and split lines alike */
+  private async getPersistedInvoiceAccountIds(
+    invoiceId: number,
+  ): Promise<Set<number>> {
+    const rows = await this.db.all<{ accountId: number | null }>(
+      SQL.getInvoiceAccountIds,
+      { invoiceId: cast(invoiceId) },
+    );
+    return new Set(
+      rows
+        .map((row) => row.accountId)
+        .filter((id): id is number => typeof id === 'number' && id > 0),
+    );
+  }
+
   async insertInvoice(
     invoiceType: InvoiceType,
     invoice: Invoice,
@@ -1226,6 +1265,12 @@ export class InvoiceService {
       // the row stores the encoded one.
       saleInvoice = await InvoiceService.prepareSaleReturn(saleInvoice);
     }
+
+    await assertActiveAccounts(
+      this.db,
+      collectInvoiceAccountIds(saleInvoice),
+      'Invoice',
+    );
 
     const totalAmount = saleInvoice.totalAmount ?? 0;
     const storedInvoiceNumber = saleInvoice.isSaleReturn
@@ -1431,6 +1476,11 @@ export class InvoiceService {
     invoice: Invoice,
     invoiceType: InvoiceType,
   ): Promise<{ invoiceId: number }> {
+    await assertActiveAccounts(
+      this.db,
+      collectInvoiceAccountIds(invoice),
+      'Quotation',
+    );
     const placeholder = await this.getNextQuotationPlaceholderNumber(
       invoiceType,
     );
@@ -1517,6 +1567,18 @@ export class InvoiceService {
         raise('Select a customer or vendor account');
 
     const charges = InvoiceService.bindInvoiceCharges(invoice);
+
+    // a quotation may keep a party it was already saved with, but it may not
+    // switch to a newly introduced inactive account
+    const previousAccountIds = await this.getPersistedInvoiceAccountIds(
+      invoiceId,
+    );
+    await assertActiveAccounts(
+      this.db,
+      collectInvoiceAccountIds(invoice),
+      'Quotation',
+      { allowInactive: previousAccountIds },
+    );
 
     await this.db.run(SQL.deleteInvoiceItems, { invoiceId: cast(invoiceId) });
 
@@ -1711,6 +1773,11 @@ export class InvoiceService {
     const invoicePayload = InvoiceService.invoiceViewToInvoiceForPosting(
       view,
       nextNum,
+    );
+    await assertActiveAccounts(
+      this.db,
+      collectInvoiceAccountIds(invoicePayload),
+      'Quotation conversion',
     );
     if (invType === InvoiceType.Purchase) {
       const vendorStockMessages = await this.applyVendorStockForPostedPurchase(
@@ -1985,6 +2052,18 @@ export class InvoiceService {
     } else {
       InvoiceService.assertReturnedLinesNotCut(oldRows, invoice);
     }
+
+    // an existing invoice may keep a party it was already saved with, but it
+    // may not switch to a newly introduced inactive account
+    const previousAccountIds = await this.getPersistedInvoiceAccountIds(
+      invoiceId,
+    );
+    await assertActiveAccounts(
+      this.db,
+      collectInvoiceAccountIds(invoice),
+      'Invoice',
+      { allowInactive: previousAccountIds },
+    );
 
     const journalIds = await this.journalService.getJournalIdsByInvoiceId(
       invoiceId,

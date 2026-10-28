@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { Account, InventoryItem } from 'types';
 import { InvoiceType } from 'types';
+import { isAccountActive } from '@/renderer/lib/accountActive';
 import {
   buildPartyTypingContext,
   getHeaderTypedSuffixFromCode,
@@ -23,6 +24,7 @@ const PARTY_PICK = [
   'type',
   'code',
   'chartId',
+  'isActive',
   'discountProfileId',
   'discountProfileIsActive',
 ] as const;
@@ -237,18 +239,25 @@ export function useNewInvoiceResolution(
         headerSuffix,
       );
 
+      const activeAccounts = allAccountsRaw.filter(isAccountActive);
       const accountByNameAndCode = new Map<string, Account>();
       const accountByChartAndName = new Map<string, Account>();
-      allAccountsRaw.forEach((account: Account) => {
+      activeAccounts.forEach((account: Account) => {
         const normalizedName = normalizeLookupValue(account.name);
         const normalizedCode = normalizeLookupValue(account.code);
+        const normalizedChartId = toNumber(account.chartId);
         if (normalizedName.length > 0 && normalizedCode.length > 0) {
+          if (normalizedChartId > 0) {
+            accountByNameAndCode.set(
+              `${normalizedChartId}::${normalizedName}::${normalizedCode}`,
+              account,
+            );
+          }
           accountByNameAndCode.set(
             `${normalizedName}::${normalizedCode}`,
             account,
           );
         }
-        const normalizedChartId = toNumber(account.chartId);
         if (normalizedChartId > 0 && normalizedName.length > 0) {
           accountByChartAndName.set(
             `${normalizedChartId}::${normalizedName}`,
@@ -284,6 +293,7 @@ export function useNewInvoiceResolution(
           };
         }
 
+        const chartId = toNumber(party.chartId);
         const expectedTypeSuffix = plan.suffixedName.replace(
           `${partyName}-`,
           '',
@@ -291,15 +301,25 @@ export function useNewInvoiceResolution(
         const expectedCode =
           partyCode.length > 0 ? `${partyCode}-${expectedTypeSuffix}` : '';
 
+        // Match the suffixed account by suffixed name + code first, then fall
+        // back to chart + suffixed name. Requiring the suffixed name prevents a
+        // shadow account with the base name and copied suffixed code from
+        // winning over the real suffixed account (the EDARA bug).
         const suffixedAccount =
           expectedCode.length > 0
-            ? accountByNameAndCode.get(
-                `${normalizeLookupValue(partyName)}::${normalizeLookupValue(
-                  expectedCode,
-                )}`,
+            ? (chartId > 0
+                ? accountByNameAndCode.get(
+                    `${chartId}::${normalizeLookupValue(
+                      plan.suffixedName,
+                    )}::${normalizeLookupValue(expectedCode)}`,
+                  )
+                : undefined) ??
+              accountByNameAndCode.get(
+                `${normalizeLookupValue(
+                  plan.suffixedName,
+                )}::${normalizeLookupValue(expectedCode)}`,
               )
             : undefined;
-        const chartId = toNumber(party.chartId);
         const fallbackSuffixedAccount =
           suffixedAccount?.id == null && chartId > 0
             ? accountByChartAndName.get(

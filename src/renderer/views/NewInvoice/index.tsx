@@ -80,6 +80,7 @@ import {
 } from '@/renderer/components/ConfirmDialog';
 import VirtualSelect from '@/renderer/components/VirtualSelect';
 import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
+import { isAccountActive } from '@/renderer/lib/accountActive';
 import {
   restoreSingleAccountIdFromSections,
   shouldWarnWhenTurningSplitLedgerOff,
@@ -856,8 +857,10 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
             'type',
             'code',
             'chartId',
+            'isActive',
             'discountProfileId',
             'discountProfileIsActive',
+            'tracksVendorStock',
           ]) as PartyAccount,
         );
       } catch {
@@ -896,6 +899,11 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       <div>
         <div className="flex items-center gap-2">
           <h2>{account.name}</h2>
+          {!isAccountActive(account) ? (
+            <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-900 rounded">
+              Inactive
+            </span>
+          ) : null}
           {account.tracksVendorStock ? (
             <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-900 rounded">
               Stock
@@ -907,6 +915,38 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         ) : null}
       </div>
     ),
+    [],
+  );
+
+  const renderPartyTriggerValue = useCallback(
+    ({
+      selected,
+      placeholder,
+    }: {
+      selected: PartyAccount | undefined;
+      placeholder: string;
+    }) =>
+      selected ? (
+        <span className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-2 text-sm">
+          <span className="min-w-0 truncate">{selected.name}</span>
+          <span className="flex items-center gap-1.5 shrink-0">
+            {!isAccountActive(selected) ? (
+              <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-900 rounded">
+                Inactive
+              </span>
+            ) : null}
+            {selected.code ? (
+              <span className="text-xs font-mono text-muted-foreground">
+                {selected.code}
+              </span>
+            ) : null}
+          </span>
+        </span>
+      ) : (
+        <span className="block w-full truncate px-3 py-2 text-left text-muted-foreground">
+          {placeholder}
+        </span>
+      ),
     [],
   );
 
@@ -2336,6 +2376,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   searchPlaceholder="Search parties..."
                                   autoFocusTrigger={editInvoiceId == null}
                                   renderSelectItem={renderPartySelectItem}
+                                  renderTriggerValue={renderPartyTriggerValue}
                                 />
                                 <FormMessage />
                               </FormItem>
@@ -2445,6 +2486,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                                   searchPlaceholder="Search parties..."
                                   autoFocusTrigger={editInvoiceId == null}
                                   renderSelectItem={renderPartySelectItem}
+                                  renderTriggerValue={renderPartyTriggerValue}
                                 />
                                 <FormMessage />
                               </FormItem>

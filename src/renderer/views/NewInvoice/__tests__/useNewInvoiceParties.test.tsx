@@ -79,6 +79,44 @@ describe('useNewInvoiceParties', () => {
     ]);
   });
 
+  it('excludes inactive parties from the invoice picker', async () => {
+    const getAccounts = jest.fn().mockResolvedValue([
+      baseAccount({
+        id: 10,
+        name: 'Retail customer',
+        type: AccountType.Asset,
+        code: 'RET',
+      }),
+      baseAccount({
+        id: 11,
+        name: 'Retired customer',
+        type: AccountType.Asset,
+        code: 'OLD',
+        isActive: false,
+      }),
+    ]);
+
+    (
+      window as unknown as {
+        electron: { getAccounts: jest.Mock; getItemTypes: jest.Mock };
+      }
+    ).electron = {
+      getAccounts,
+      getItemTypes: jest.fn().mockResolvedValue([]),
+    };
+
+    const { result } = renderHook(() => useNewInvoiceParties(InvoiceType.Sale));
+
+    await waitFor(() => {
+      expect(result.current.requiredAccountsExist.loading).toBe(false);
+    });
+
+    expect(result.current.parties?.map((p) => p.id)).toEqual([10]);
+    expect(result.current.partiesIncludingTyped?.map((p) => p.id)).toEqual([
+      10,
+    ]);
+  });
+
   it('refreshParties refetches accounts', async () => {
     const getAccounts = jest.fn().mockResolvedValue([
       baseAccount({

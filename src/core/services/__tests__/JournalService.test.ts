@@ -158,6 +158,27 @@ describe('core JournalService', () => {
     db.close();
   });
 
+  it('rejects a manual journal that posts to an inactive account', async () => {
+    const db = new Database(':memory:');
+    await seedBasicSchema(db);
+    const { accounts, journal } = createCore(db);
+    const cash = await insertAccount(db, accounts, 'Cash', 'Current Asset');
+    const sale = await insertAccount(db, accounts, 'Sale', 'Revenue');
+    await accounts.toggleAccountActive(sale, false);
+
+    await expect(
+      journal.insertJournal(
+        aJournal({
+          journalEntries: [
+            { accountId: cash, debitAmount: 100, creditAmount: 0 },
+            { accountId: sale, debitAmount: 0, creditAmount: 100 },
+          ] as JournalEntry[],
+        }),
+      ),
+    ).rejects.toThrow(/inactive/i);
+    db.close();
+  });
+
   it('splits proportionally across multiple debits against a single credit', async () => {
     const db = new Database(':memory:');
     await seedBasicSchema(db);

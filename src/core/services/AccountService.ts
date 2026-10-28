@@ -120,6 +120,7 @@ const SQL = {
         WHERE username = @username
       )
         AND (@code IS NULL OR LOWER(a.code) LIKE LOWER(@code))
+      ORDER BY a.isActive DESC, a.id ASC
     `,
   getAccountByNameAndChart: `
       SELECT a.id, a.name, c.name as headName, a.chartId, c.type, a.code, a.createdAt, a.updatedAt, a.isActive, COALESCE(a.tracksVendorStock, 0) AS tracksVendorStock, a.discountProfileId
@@ -132,6 +133,7 @@ const SQL = {
           FROM users
           WHERE username = @username
         )
+      ORDER BY a.isActive DESC, a.id ASC
       LIMIT 1
     `,
   getAccountByNameAnyChart: `
@@ -144,6 +146,7 @@ const SQL = {
           FROM users
           WHERE username = @username
         )
+      ORDER BY a.isActive DESC, a.id ASC
       LIMIT 1
     `,
   hasJournals: `

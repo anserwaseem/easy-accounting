@@ -47,6 +47,7 @@ import { FILE_UPLOAD_HINT_JOURNAL_ENTRIES } from '@/renderer/lib/fileUploadToolt
 import { convertFileToJson } from 'renderer/lib/lib';
 import { parseJournalImportSheet } from 'renderer/lib/parser';
 import { toLocalNoonIsoString } from '@/renderer/lib/localDate';
+import { isAccountActive } from '@/renderer/lib/accountActive';
 import {
   Dialog,
   DialogContent,
@@ -159,7 +160,7 @@ const NewJournalPage: React.FC = () => {
     (async () => {
       setNextId(await window.electron.getNextJournalId());
       const allAccounts = await window.electron.getAccounts();
-      setAccounts(allAccounts.filter((account: Account) => account.isActive));
+      setAccounts(allAccounts.filter(isAccountActive));
     })();
   }, []);
 
@@ -184,7 +185,7 @@ const NewJournalPage: React.FC = () => {
     setIsRefreshing(true);
     try {
       const freshAccounts = await window.electron.getAccounts();
-      setAccounts(freshAccounts);
+      setAccounts(freshAccounts.filter(isAccountActive));
       toast({
         description: 'Accounts refreshed successfully',
         variant: 'success',

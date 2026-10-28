@@ -1,6 +1,7 @@
 import { isNil, pick, trim } from 'lodash';
 import { useCallback, useEffect, useState } from 'react';
 import { toLowerTrim } from 'renderer/lib/utils';
+import { isAccountActive } from 'renderer/lib/accountActive';
 import {
   buildPartyTypingContext,
   isTypedPartyAccount,
@@ -14,12 +15,19 @@ const PARTY_PICK = [
   'type',
   'code',
   'chartId',
+  'isActive',
   'discountProfileId',
   'discountProfileIsActive',
   'tracksVendorStock',
 ] as const;
 
-export type PartyAccount = Pick<Account, (typeof PARTY_PICK)[number]>;
+export type PartyAccount = Pick<
+  Account,
+  Exclude<(typeof PARTY_PICK)[number], 'isActive'>
+> & {
+  /** optional so older fixtures/payloads that predate the flag stay assignable; absent means active */
+  isActive?: boolean;
+};
 
 export interface RequiredAccountsExist {
   sale: boolean;
@@ -59,9 +67,10 @@ export function useNewInvoiceParties(invoiceType: InvoiceType): {
   const fetchPartiesAndRequiredAccounts = useCallback(async () => {
     const allAccounts: Account[] = await window.electron.getAccounts();
     const itemTypes = await window.electron.getItemTypes?.();
-    const accounts = allAccounts.map((account) =>
-      pick(account, [...PARTY_PICK]),
-    );
+    // reports keep inactive rows; the invoice party picker must not offer them
+    const accounts = allAccounts
+      .filter(isAccountActive)
+      .map((account) => pick(account, [...PARTY_PICK]));
 
     const itemTypeNameList = (itemTypes ?? [])
       .map((it) => trim(it.name ?? ''))

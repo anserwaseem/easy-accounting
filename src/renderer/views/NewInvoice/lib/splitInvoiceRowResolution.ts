@@ -1,6 +1,7 @@
 import { toNumber, trim } from 'lodash';
 import type { InventoryItem } from 'types';
 import { toLowerTrim } from '@/renderer/lib/utils';
+import { isAccountActive } from '@/renderer/lib/accountActive';
 import type { PartyAccount } from '../hooks/useNewInvoiceParties';
 
 /** how a single invoice line maps to an account when split-by-item-type is on */
@@ -58,11 +59,13 @@ export function findBasePartyRowInPicked(
   partyName: string,
   partyCode: string,
 ): PartyAccount | undefined {
-  return picked.find(
+  const matches = picked.filter(
     (a) =>
       toLowerTrim(a.name ?? '') === toLowerTrim(partyName) &&
       toLowerTrim(String(a.code ?? '')) === toLowerTrim(partyCode),
   );
+  // prefer active row when duplicates exist (e.g. historical retired duplicate)
+  return matches.find(isAccountActive) ?? matches[0];
 }
 
 export interface ClassifySplitRowInput {

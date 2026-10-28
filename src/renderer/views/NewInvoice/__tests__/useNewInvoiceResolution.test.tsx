@@ -61,6 +61,7 @@ describe('useNewInvoiceResolution', () => {
         type: number;
         code: string;
         chartId: number;
+        isActive?: boolean | number;
         discountProfileId: null;
         discountProfileIsActive: null;
       }>
@@ -478,5 +479,118 @@ describe('useNewInvoiceResolution', () => {
     });
 
     expect(getAccounts).toHaveBeenCalledTimes(2);
+  });
+
+  it('prefers the suffixed-name account over a shadow account with base name and copied suffixed code (EDARA fix)', async () => {
+    const party = makeParty({
+      id: 1769,
+      name: 'EDARA SADA E ISLAM',
+      code: 'LHR-S Isl G',
+      chartId: 111,
+    });
+    const primaryTypeId = 1;
+    const inventory: InventoryItem[] = [
+      makeInv({ id: 100, itemTypeId: 2, itemTypeName: 'T' }),
+    ];
+
+    const shadowAccount = {
+      id: 2560,
+      name: 'EDARA SADA E ISLAM',
+      type: 1,
+      code: 'LHR-S Isl G-T',
+      chartId: 111,
+      isActive: true,
+      discountProfileId: null,
+      discountProfileIsActive: null,
+    };
+    const realSuffixedAccount = {
+      id: 1419,
+      name: 'EDARA SADA E ISLAM-T',
+      type: 1,
+      code: 'LHR-S Isl G-T',
+      chartId: 111,
+      isActive: true,
+      discountProfileId: null,
+      discountProfileIsActive: null,
+    };
+
+    const { hookResult, form } = setup({
+      party,
+      parties: [party],
+      inventory,
+      primaryItemTypeId: primaryTypeId,
+      getAccounts: async () => [
+        {
+          id: party.id,
+          name: party.name ?? '',
+          type: Number(party.type ?? 1),
+          code: String(party.code ?? ''),
+          chartId: party.chartId ?? 0,
+          isActive: true,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+        shadowAccount,
+        realSuffixedAccount,
+      ],
+      invoiceItems: [{ id: 1, inventoryId: 100 }],
+    });
+
+    await act(async () => {});
+
+    const ids = form.getValues('accountMapping.multipleAccountIds');
+    expect(ids).toEqual([1419]);
+    expect(hookResult.current.resolvedRowLabels[0]).toBe(
+      'EDARA SADA E ISLAM-T',
+    );
+    expect(hookResult.current.resolutionFallbacks).toEqual([]);
+  });
+
+  it('ignores inactive suffixed accounts during split resolution', async () => {
+    const party = makeParty({ id: 10, name: 'Acme', code: 'AC', chartId: 111 });
+    const primaryTypeId = 1;
+    const inventory: InventoryItem[] = [
+      makeInv({ id: 200, itemTypeId: 2, itemTypeName: 'TT' }),
+    ];
+
+    const { hookResult, form } = setup({
+      party,
+      parties: [party],
+      inventory,
+      primaryItemTypeId: primaryTypeId,
+      getAccounts: async () => [
+        {
+          id: party.id,
+          name: party.name ?? '',
+          type: Number(party.type ?? 1),
+          code: String(party.code ?? ''),
+          chartId: party.chartId ?? 0,
+          isActive: true,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+        {
+          id: 999,
+          name: 'Acme-TT',
+          type: 1,
+          code: 'AC-TT',
+          chartId: party.chartId ?? 0,
+          isActive: false, // inactive account must be ignored
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+      ],
+      invoiceItems: [{ id: 1, inventoryId: 200 }],
+    });
+
+    await act(async () => {});
+
+    const ids = form.getValues('accountMapping.multipleAccountIds');
+    // falls back to base party because Acme-TT is inactive
+    expect(ids).toEqual([party.id]);
+    expect(hookResult.current.resolutionFallbacks.length).toBe(1);
+    expect(hookResult.current.resolutionFallbacks[0].expectedSuffixedName).toBe(
+      'AC-TT',
+    );
   });
 });

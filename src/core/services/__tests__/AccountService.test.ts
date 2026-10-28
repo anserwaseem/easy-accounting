@@ -258,6 +258,55 @@ describe('core AccountService', () => {
     expect(found?.id).toBe(acc.id);
     db.close();
   });
+
+  it('getAccountByNameAndChart and getAccountByNameAndCode prefer active accounts over inactive duplicates', async () => {
+    const db = new Database(':memory:');
+    await seedBasicSchema(db);
+    const { accounts, charts } = createCore(db);
+
+    await charts.findOrCreateChart('Asset 1', 'Asset', USERNAME, '2025-01-01');
+    await charts.findOrCreateChart('Asset 2', 'Asset', USERNAME, '2025-01-01');
+
+    // Inactive account in Asset 1
+    await accounts.insertAccount(
+      anAccount({
+        name: 'Target Account',
+        code: 'DUP-1',
+        headName: 'Asset 1',
+      }),
+    );
+    const all1 = await accounts.getAccounts();
+    const first = all1.find((a) => a.name === 'Target Account')!;
+    await accounts.toggleAccountActive(first.id, false);
+
+    // Active account in Asset 2 with the same name and code
+    await accounts.insertAccount(
+      anAccount({
+        name: 'Target Account',
+        code: 'DUP-1',
+        headName: 'Asset 2',
+      }),
+    );
+    const all2 = await accounts.getAccounts();
+    const second = all2.find((a) => a.id !== first.id)!;
+    expect(second.isActive).toBe(true);
+
+    // getAccountByNameAndChart across charts should prefer the active row
+    const foundByChart = await accounts.getAccountByNameAndChart(
+      99999, // non-existent chart triggers anyChart fallback
+      'Target Account',
+    );
+    expect(foundByChart?.id).toBe(second.id);
+
+    // getAccountByNameAndCode should prefer the active row
+    const foundByCode = await accounts.getAccountByNameAndCode(
+      'Target Account',
+      'DUP-1',
+    );
+    expect(foundByCode?.id).toBe(second.id);
+
+    db.close();
+  });
 });
 
 describe('BetterSqliteDriver transactions', () => {
