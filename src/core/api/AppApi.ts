@@ -46,6 +46,7 @@ import type {
   InventoryOpeningStock,
   ApplyStockAdjustmentPayload,
   ApiResponse,
+  BackupInfo,
   ReturnSaleInvoicePayload,
   CancelSaleReturnPayload,
   ItemType,
