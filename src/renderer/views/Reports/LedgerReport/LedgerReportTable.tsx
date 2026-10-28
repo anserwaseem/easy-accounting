@@ -42,8 +42,21 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
       ] as const,
     [],
   );
+  const hasTierBreakdown = useMemo(
+    () => ledger.some((row) => !!row.tierBreakdown),
+    [ledger],
+  );
+
+  const effectiveVisibleColumns = useMemo(() => {
+    if (!visibleColumns) return undefined;
+    if (hasTierBreakdown) return visibleColumns;
+    const next = new Set(visibleColumns);
+    next.delete('tierBreakdown');
+    return next;
+  }, [visibleColumns, hasTierBreakdown]);
+
   const stickyFooterRow = useMemo(() => {
-    const visible = visibleColumns ?? new Set(allColumns);
+    const visible = effectiveVisibleColumns ?? new Set(allColumns);
     const cells: React.ReactNode[] = [];
     if (visible.has('date')) cells.push(null);
     if (visible.has('particulars')) cells.push(null);
@@ -78,7 +91,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
         </span>,
       );
     return cells;
-  }, [totals, visibleColumns, allColumns]);
+  }, [totals, effectiveVisibleColumns, allColumns]);
 
   if (isLoading) {
     return <LoadingState message="Loading ledger entries..." />;
@@ -106,7 +119,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
         className="print-table"
         printMode
         stickyFooterRow={stickyFooterRow}
-        visibleColumns={visibleColumns}
+        visibleColumns={effectiveVisibleColumns}
       />
     </>
   );

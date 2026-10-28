@@ -139,7 +139,13 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
     totals,
     visibleColumns: visibleColumnsOption,
   } = options;
-  const visibleColumns = visibleColumnsOption ?? LEDGER_REPORT_COLUMN_IDS;
+  const visibleColumns = new Set(
+    visibleColumnsOption ?? LEDGER_REPORT_COLUMN_IDS,
+  );
+  // do not print an empty tier column for non-grouped/single-account ledgers
+  if (!rows.some((r) => r.tierBreakdown)) {
+    visibleColumns.delete('tierBreakdown');
+  }
   if (rows.length === 0) return;
 
   const debitCreditZeroLabel = toString(
