@@ -170,7 +170,7 @@ const SidebarListPlusNewRow: FC<SidebarListPlusNewRowProps> = ({
   );
 
   if (collapsed) {
-    // icon-only: stacked list icon above plus icon
+    // icon-only: list icon only (plus action hidden while collapsed)
     return (
       <div className="flex flex-col items-center gap-1">
         <Tooltip>
@@ -186,7 +186,6 @@ const SidebarListPlusNewRow: FC<SidebarListPlusNewRowProps> = ({
           </TooltipTrigger>
           <TooltipContent side="right">{label}</TooltipContent>
         </Tooltip>
-        {wrappedPlusButton}
       </div>
     );
   }
