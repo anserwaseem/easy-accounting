@@ -105,13 +105,17 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         // it heads the card; the debit and credit follow underneath.
         cardHeadline: true,
       },
-      {
-        id: 'tierBreakdown',
-        header: 'Tier breakdown',
-        accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
-        cell: renderTierBreakdownCell,
-        size: 180,
-      },
+      ...(ledger.some((row) => !!row.tierBreakdown)
+        ? [
+            {
+              id: 'tierBreakdown',
+              header: 'Tier breakdown',
+              accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
+              cell: renderTierBreakdownCell,
+              size: 180,
+            },
+          ]
+        : []),
       {
         header: 'Narration',
         id: 'narration',
@@ -159,7 +163,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         size: 90,
       },
     ],
-    [printMode, formatDebitCredit],
+    [printMode, formatDebitCredit, ledger],
   );
 
   const columns = useMemo(() => {
