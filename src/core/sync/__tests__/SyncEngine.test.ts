@@ -2498,4 +2498,52 @@ describe('SyncEngine convergence', () => {
     a.db.close();
     b.db.close();
   });
+
+  it('falls back to non-null createdAt and updatedAt when incoming rowJson has null timestamps', async () => {
+    const server = new MockSyncServer();
+    const a = await makeDevice(
+      'null-ts-origin',
+      server.createDeviceTransport('A'),
+    );
+    const b = await makeDevice(
+      'null-ts-receiver',
+      server.createDeviceTransport('B'),
+    );
+
+    // Queue an outbox row directly with null createdAt and updatedAt (simulating unpatched origin)
+    const journalUuid = 'null-ts-journal-uuid';
+    const rowJson = JSON.stringify({
+      date: '2026-10-27',
+      narration: 'Legacy Synced Journal',
+      isPosted: 1,
+      billNumber: 10375,
+      createdAt: null,
+      updatedAt: null,
+      uuid: journalUuid,
+    });
+
+    await a.driver.run(
+      `INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
+       VALUES ('null-ts-outbox-1', 'journal', ?, 'put', ?, '2026-10-27 12:00:00')`,
+      [journalUuid, rowJson],
+    );
+
+    await a.engine.syncOnce();
+    await b.engine.syncOnce();
+
+    const applied = await b.driver.get<{
+      createdAt: string | null;
+      updatedAt: string | null;
+    }>(`SELECT createdAt, updatedAt FROM journal WHERE uuid = ?`, [
+      journalUuid,
+    ]);
+
+    expect(applied).toBeDefined();
+    expect(applied!.createdAt).toBeTruthy();
+    expect(applied!.updatedAt).toBeTruthy();
+    expect(applied!.createdAt).toContain('2026-10-27');
+
+    a.db.close();
+    b.db.close();
+  });
 });

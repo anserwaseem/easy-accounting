@@ -357,6 +357,25 @@ export async function createCaptureTriggers(
   const selfJson = jsonObjectExpr(columns, fks, selfRef);
   const oldJson = jsonObjectExpr(columns, fks, oldRef);
 
+  const colNames = new Set(columns.map((c) => c.name));
+  const hasCreatedAt = colNames.has('createdAt');
+  const hasUpdatedAt = colNames.has('updatedAt');
+
+  const updateParts = [`"uuid" = COALESCE("uuid", ${UUID_V4_SQL_EXPR})`];
+  const whereParts = ['"uuid" IS NULL'];
+  if (hasCreatedAt) {
+    updateParts.push(
+      `"createdAt" = COALESCE("createdAt", datetime(CURRENT_TIMESTAMP, 'localtime'))`,
+    );
+    whereParts.push('"createdAt" IS NULL');
+  }
+  if (hasUpdatedAt) {
+    updateParts.push(
+      `"updatedAt" = COALESCE("updatedAt", datetime(CURRENT_TIMESTAMP, 'localtime'))`,
+    );
+    whereParts.push('"updatedAt" IS NULL');
+  }
+
   // Migration 029 created "trg_<table>_uuid" for every business table
   // except `users` (excluded there) and `ledger` stays untouched (not
   // replicated). Drop it and fold its exact logic into the front of the
@@ -369,8 +388,8 @@ export async function createCaptureTriggers(
     AFTER INSERT ON "${table}"
     WHEN ${APPLYING_GUARD}
     BEGIN
-      UPDATE "${table}" SET "uuid" = ${UUID_V4_SQL_EXPR}
-        WHERE "id" = NEW."id" AND "uuid" IS NULL;
+      UPDATE "${table}" SET ${updateParts.join(', ')}
+        WHERE "id" = NEW."id" AND (${whereParts.join(' OR ')});
 
       INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
       SELECT ${UUID_V4_SQL_EXPR}, '${table}', t."uuid", 'put', ${selfJson}, datetime('now')

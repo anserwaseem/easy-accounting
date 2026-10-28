@@ -70,6 +70,7 @@ export const CORE_MIGRATION_NAMES: readonly string[] = [
   '050_agent_tours',
   '051_journal_reversal_link',
   '052_sale_return_documents',
+  '053_heal_journal_timestamps',
 ];
 
 export function knownMigrationNames(): Set<string> {

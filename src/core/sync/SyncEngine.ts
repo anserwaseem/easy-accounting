@@ -1965,6 +1965,22 @@ export class SyncEngine {
         if (!Object.prototype.hasOwnProperty.call(json, column)) continue; // source predates this column
         columns.push(column);
         params[column] = json[column];
+        if (
+          column === 'createdAt' &&
+          (params.createdAt === null || params.createdAt === undefined)
+        ) {
+          const fallback =
+            typeof json.date === 'string' && json.date.length > 0
+              ? json.date.replace('T', ' ').substring(0, 19)
+              : new Date().toISOString().replace('T', ' ').substring(0, 19);
+          params.createdAt = fallback;
+        }
+        if (
+          column === 'updatedAt' &&
+          (params.updatedAt === null || params.updatedAt === undefined)
+        ) {
+          params.updatedAt = params.createdAt;
+        }
         continue;
       }
 

@@ -23,6 +23,7 @@ import { migration049 } from './049_account_city';
 import { migration050 } from './050_agent_tours';
 import { migration051 } from './051_journal_reversal_link';
 import { migration052 } from './052_sale_return_documents';
+import { migration053 } from './053_heal_journal_timestamps';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -75,4 +76,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration050,
   migration051,
   migration052,
+  migration053,
 ];
