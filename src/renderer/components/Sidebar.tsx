@@ -420,29 +420,27 @@ const SidebarFooter: FC<SidebarFooterProps> = ({
           </TooltipTrigger>
           <TooltipContent side="top">Log Out</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="secondary"
-              onClick={onToggle}
-              className="gap-2 min-h-10"
-              aria-label={isMobile ? 'Close menu' : 'Collapse sidebar border-0'}
-              type="button"
-            >
-              <ChevronLeft size={16} aria-hidden />
-              <span>{isMobile ? 'Close' : 'Collapse'}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            {isMobile ? (
-              'Close menu'
-            ) : (
+        {!isMobile && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="secondary"
+                onClick={onToggle}
+                className="gap-2 min-h-10"
+                aria-label="Collapse sidebar"
+                type="button"
+              >
+                <ChevronLeft size={16} aria-hidden />
+                <span>Collapse</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
               <KbdGroup>
                 Collapse <Kbd>{mod}</Kbd> + <Kbd>[</Kbd>
               </KbdGroup>
-            )}
-          </TooltipContent>
-        </Tooltip>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </div>
   );
@@ -712,7 +710,6 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               >
                 <Search size={19} aria-hidden />
               </Button>
-              <ModeToggle />
             </div>
           </div>
           {/* The app's scroll container. ScrollToTopButton finds it by
