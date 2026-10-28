@@ -16,6 +16,7 @@ import { cast, raise } from '../utils/sqlite';
 import { logErrors } from '../errorLogger';
 import { OPENING_BALANCE_PARTICULARS } from '../db/openingBalanceBackfill';
 import { LedgerService } from './LedgerService';
+import { assertActiveAccounts } from './accountGuards';
 
 const SQL = {
   insertJournal: `INSERT INTO journal (date, narration, isPosted, billNumber, discountPercentage, invoiceId, reversesJournalUuid)
@@ -313,6 +314,19 @@ export class JournalService {
   }
 
   async insertJournal(journalToBeInserted: Journal): Promise<boolean> {
+    // invoice-linked journals are validated by InvoiceService (which also lets
+    // an existing document keep a since-deactivated account), and a reversal
+    // must be able to undo a journal that sits on a now-inactive account.
+    const skipsActiveGuard =
+      (journalToBeInserted.invoiceId ?? 0) > 0 ||
+      Boolean(journalToBeInserted.reversesJournalUuid);
+    if (!skipsActiveGuard) {
+      await assertActiveAccounts(
+        this.db,
+        journalToBeInserted.journalEntries.map((entry) => entry.accountId),
+        'Journal',
+      );
+    }
     try {
       return await this.db.transaction(async () => {
         const journal = journalToBeInserted;
