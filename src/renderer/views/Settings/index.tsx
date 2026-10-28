@@ -64,6 +64,7 @@ import {
   useCompanyProfile,
   useInvoicePrintSettings,
 } from '@/renderer/hooks';
+import { useAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabilities';
 import PublishSettings from './PublishSettings';
 import BackupSettings from './BackupSettings';
 import SyncSettings from './SyncSettings';
@@ -174,6 +175,9 @@ const SettingsPage: React.FC = () => {
   );
   const [isSavedRecently, setIsSavedRecently] = useState(false);
   const appVersion = useAppVersion();
+  const hasBackupCapability = useAdvancedCapability(
+    ADVANCED_CAPABILITIES.backupManage,
+  );
 
   // company profile
   const { profile: companyProfile, saveCompanyProfile } = useCompanyProfile();
@@ -569,7 +573,7 @@ const SettingsPage: React.FC = () => {
               <Sliders className="w-4 h-4" />
               <span className="hidden sm:inline">Rules</span>
             </TabsTrigger>
-            {window.electron.supportsBackup && (
+            {window.electron.supportsBackup && hasBackupCapability && (
               <TabsTrigger value="backup" className="flex items-center gap-2">
                 <DatabaseBackup className="w-4 h-4" />
                 <span className="hidden sm:inline">Backup</span>
@@ -1034,7 +1038,7 @@ const SettingsPage: React.FC = () => {
           </TabsContent>
 
           {/* Tab 4: Backup */}
-          {window.electron.supportsBackup && (
+          {window.electron.supportsBackup && hasBackupCapability && (
             <TabsContent value="backup" className="space-y-6 max-w-4xl">
               <BackupSettings />
             </TabsContent>

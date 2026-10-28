@@ -19,6 +19,16 @@ jest.mock('../BackupSettings', () => ({
   default: () => <div data-testid="backup-settings">Backup Settings Mock</div>,
 }));
 
+jest.mock('@/renderer/hooks/useAdvancedCapabilities', () => ({
+  useAdvancedCapability: () => true,
+  useAdvancedCapabilities: () => ({
+    enabled: new Set(),
+    loaded: true,
+    setEnabled: async () => {},
+  }),
+  useAnyAdvancedCapability: () => true,
+}));
+
 describe('SettingsPage', () => {
   let store: Record<string, unknown> = {};
 
