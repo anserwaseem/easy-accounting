@@ -240,42 +240,46 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
           </TooltipTrigger>
           <TooltipContent side="right">Home</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              onClick={goBack}
-              className="h-8 w-8"
-              aria-label="Go back"
-              type="button"
-            >
-              <ChevronLeft size={16} aria-hidden />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <KbdGroup>
-              Back <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>←</Kbd>
-            </KbdGroup>
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              onClick={goForward}
-              className="h-8 w-8"
-              aria-label="Go forward"
-              type="button"
-            >
-              <ChevronRight size={16} aria-hidden />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <KbdGroup>
-              Forward <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>→</Kbd>
-            </KbdGroup>
-          </TooltipContent>
-        </Tooltip>
+        {canGoBack && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                onClick={goBack}
+                className="h-8 w-8"
+                aria-label="Go back"
+                type="button"
+              >
+                <ChevronLeft size={16} aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <KbdGroup>
+                Back <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>←</Kbd>
+              </KbdGroup>
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {canGoForward && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                onClick={goForward}
+                className="h-8 w-8"
+                aria-label="Go forward"
+                type="button"
+              >
+                <ChevronRight size={16} aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <KbdGroup>
+                Forward <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>→</Kbd>
+              </KbdGroup>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     );
   }
