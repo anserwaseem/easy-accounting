@@ -242,6 +242,7 @@ export function useNewInvoiceResolution(
       const activeAccounts = allAccountsRaw.filter(isAccountActive);
       const accountByNameAndCode = new Map<string, Account>();
       const accountByChartAndName = new Map<string, Account>();
+      const accountByCode = new Map<string, Account>();
       activeAccounts.forEach((account: Account) => {
         const normalizedName = normalizeLookupValue(account.name);
         const normalizedCode = normalizeLookupValue(account.code);
@@ -257,6 +258,22 @@ export function useNewInvoiceResolution(
             `${normalizedName}::${normalizedCode}`,
             account,
           );
+        }
+        if (normalizedCode.length > 0) {
+          if (normalizedChartId > 0) {
+            const key = `${normalizedChartId}::${normalizedCode}`;
+            const existing = accountByCode.get(key);
+            // prefer the account with the suffixed name if multiple accounts share the same code
+            if (
+              !existing ||
+              (!existing.name?.endsWith('-T') && account.name?.endsWith('-T'))
+            ) {
+              accountByCode.set(key, account);
+            }
+          }
+          if (!accountByCode.has(normalizedCode)) {
+            accountByCode.set(normalizedCode, account);
+          }
         }
         if (normalizedChartId > 0 && normalizedName.length > 0) {
           accountByChartAndName.set(
@@ -301,30 +318,43 @@ export function useNewInvoiceResolution(
         const expectedCode =
           partyCode.length > 0 ? `${partyCode}-${expectedTypeSuffix}` : '';
 
-        // Match the suffixed account by suffixed name + code first, then fall
-        // back to chart + suffixed name. Requiring the suffixed name prevents a
-        // shadow account with the base name and copied suffixed code from
-        // winning over the real suffixed account (the EDARA bug).
-        const suffixedAccount =
-          expectedCode.length > 0
-            ? (chartId > 0
-                ? accountByNameAndCode.get(
-                    `${chartId}::${normalizeLookupValue(
-                      plan.suffixedName,
-                    )}::${normalizeLookupValue(expectedCode)}`,
-                  )
-                : undefined) ??
-              accountByNameAndCode.get(
-                `${normalizeLookupValue(
-                  plan.suffixedName,
-                )}::${normalizeLookupValue(expectedCode)}`,
-              )
-            : undefined;
+        // Resolving suffixed tier accounts:
+        // 1. Prefer an active account in the chart matching expectedCode AND suffixedName (e.g. "EDARA SADA E ISLAM-T" with code "LHR-S Isl G-T").
+        // 2. Next prefer an active account in the chart matching expectedCode AND base partyName (e.g. "Yumna Book Center" with code "Pshw-Yumna-T").
+        // 3. Fallback to any active account in chart matching expectedCode.
+        // 4. Fallback to active account in chart matching suffixedName by chart+name.
+        const normSuffixedName = normalizeLookupValue(plan.suffixedName);
+        const normBasePartyName = normalizeLookupValue(partyName);
+        const normExpectedCode = normalizeLookupValue(expectedCode);
+
+        let suffixedAccount: Account | undefined;
+        if (expectedCode.length > 0) {
+          suffixedAccount =
+            (chartId > 0
+              ? accountByNameAndCode.get(
+                  `${chartId}::${normSuffixedName}::${normExpectedCode}`,
+                )
+              : undefined) ??
+            accountByNameAndCode.get(
+              `${normSuffixedName}::${normExpectedCode}`,
+            ) ??
+            (chartId > 0
+              ? accountByNameAndCode.get(
+                  `${chartId}::${normBasePartyName}::${normExpectedCode}`,
+                )
+              : undefined) ??
+            accountByNameAndCode.get(
+              `${normBasePartyName}::${normExpectedCode}`,
+            ) ??
+            (chartId > 0
+              ? accountByCode.get(`${chartId}::${normExpectedCode}`)
+              : undefined) ??
+            accountByCode.get(normExpectedCode);
+        }
+
         const fallbackSuffixedAccount =
           suffixedAccount?.id == null && chartId > 0
-            ? accountByChartAndName.get(
-                `${chartId}::${normalizeLookupValue(plan.suffixedName)}`,
-              )
+            ? accountByChartAndName.get(`${chartId}::${normSuffixedName}`)
             : undefined;
         const resolved = suffixedAccount ?? fallbackSuffixedAccount;
 

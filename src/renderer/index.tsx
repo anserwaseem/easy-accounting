@@ -22,6 +22,28 @@ setUrduPrintFontUrl(
 );
 ensureUrduInvoiceFonts('print').catch(() => {});
 
+// suppress benign ResizeObserver loop limit notifications that webpack dev server
+// treats as fatal runtime crashes with a full-screen overlay
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'error',
+    (event) => {
+      const msg = event?.message;
+      if (
+        typeof msg === 'string' &&
+        (msg.includes('ResizeObserver loop limit exceeded') ||
+          msg.includes(
+            'ResizeObserver loop completed with undelivered notifications',
+          ))
+      ) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    },
+    true,
+  );
+}
+
 const container = document.getElementById('root') as HTMLElement;
 const root = createRoot(container);
 root.render(<Routes />);

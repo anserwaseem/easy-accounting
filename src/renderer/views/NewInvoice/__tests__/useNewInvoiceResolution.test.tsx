@@ -593,4 +593,57 @@ describe('useNewInvoiceResolution', () => {
       'AC-TT',
     );
   });
+
+  it('resolves suffixed account when its name is identical to base party name (e.g. Yumna Book Center with Pshw-Yumna-T)', async () => {
+    const party = makeParty({
+      id: 2704,
+      name: 'Yumna Book Center',
+      code: 'Pshw-Yumna',
+      chartId: 27,
+    });
+    const primaryTypeId = 1;
+    const inventory: InventoryItem[] = [
+      makeInv({ id: 100, itemTypeId: 2, itemTypeName: 'T' }),
+    ];
+
+    const suffixedAccountWithBaseName = {
+      id: 2705,
+      name: 'Yumna Book Center',
+      type: 1,
+      code: 'Pshw-Yumna-T',
+      chartId: 27,
+      isActive: true,
+      discountProfileId: null,
+      discountProfileIsActive: null,
+    };
+
+    const { hookResult, form } = setup({
+      party,
+      parties: [party],
+      inventory,
+      primaryItemTypeId: primaryTypeId,
+      getAccounts: async () => [
+        {
+          id: party.id,
+          name: party.name ?? '',
+          type: Number(party.type ?? 1),
+          code: String(party.code ?? ''),
+          chartId: party.chartId ?? 0,
+          isActive: true,
+          discountProfileId: null,
+          discountProfileIsActive: null,
+        },
+        suffixedAccountWithBaseName,
+      ],
+      invoiceItems: [{ id: 1, inventoryId: 100 }],
+    });
+
+    await act(async () => {});
+
+    const ids = form.getValues('accountMapping.multipleAccountIds');
+    expect(ids).toEqual([2705]);
+    expect(hookResult.current.resolvedRowLabels[0]).toBe('Yumna Book Center');
+    expect(hookResult.current.resolvedRowCodes[0]).toBe('Pshw-Yumna-T');
+    expect(hookResult.current.resolutionFallbacks).toEqual([]);
+  });
 });
