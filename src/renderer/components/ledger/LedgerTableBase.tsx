@@ -83,6 +83,11 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
     [debitCreditZeroLabel],
   );
 
+  const hasTierBreakdown = useMemo(
+    () => ledger.some((row) => !!row.tierBreakdown),
+    [ledger],
+  );
+
   const allColumns: ColumnDef<LedgerView>[] = useMemo(
     () => [
       {
@@ -105,13 +110,17 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         // it heads the card; the debit and credit follow underneath.
         cardHeadline: true,
       },
-      {
-        id: 'tierBreakdown',
-        header: 'Tier breakdown',
-        accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
-        cell: renderTierBreakdownCell,
-        size: 180,
-      },
+      ...(hasTierBreakdown
+        ? [
+            {
+              id: 'tierBreakdown',
+              header: 'Tier breakdown',
+              accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
+              cell: renderTierBreakdownCell,
+              size: 180,
+            },
+          ]
+        : []),
       {
         header: 'Narration',
         id: 'narration',
@@ -159,7 +168,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         size: 90,
       },
     ],
-    [printMode, formatDebitCredit],
+    [printMode, formatDebitCredit, hasTierBreakdown],
   );
 
   const columns = useMemo(() => {

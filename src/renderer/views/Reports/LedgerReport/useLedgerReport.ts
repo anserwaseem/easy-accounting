@@ -518,18 +518,34 @@ export const useLedgerReport = (
     return names.length ? names.join(', ') : selectedAccountName;
   }, [familyMode, accounts, familyAccountIds, selectedAccountName]);
 
+  // print/export should name the base customer only, not every tier
+  const printAccountName = useMemo(() => {
+    if (!familyMode) return selectedAccountName;
+    const ctx = buildPartyTypingContext(accounts as any, itemTypeNames);
+    const baseMember = (accounts as any[]).find(
+      (a) => familyAccountIds.includes(a.id) && !isTypedPartyAccount(a, ctx),
+    );
+    return baseMember?.name ?? selectedAccountName;
+  }, [
+    familyMode,
+    accounts,
+    familyAccountIds,
+    itemTypeNames,
+    selectedAccountName,
+  ]);
+
   const handlePrint = useCallback(() => {
     if (!displayedEntries.length) return;
     printLedgerReportIframe({
       rows: displayedEntries,
-      accountName: ledgerAccountName,
+      accountName: printAccountName,
       dateSubtitle: printDateSubtitle,
       totals,
       visibleColumns,
     });
   }, [
     displayedEntries,
-    ledgerAccountName,
+    printAccountName,
     printDateSubtitle,
     totals,
     visibleColumns,
@@ -547,6 +563,7 @@ export const useLedgerReport = (
     isLoading,
     selectedAccountName,
     accountDisplayName: ledgerAccountName,
+    printAccountName,
     refreshData,
     handlePrint,
     rangeResponse,

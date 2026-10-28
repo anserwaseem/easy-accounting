@@ -85,7 +85,12 @@ const buildLedgerReportPayload = (
       { key: 'balance', header: 'Balance', format: 'currency', width: 14 },
       { key: 'balanceType', header: 'Type', format: 'string', width: 8 },
     ].filter((column) => {
-      if (!includeTierBreakdown && column.key === 'tierBreakdown') return false;
+      const hasTierBreakdown = ledgerEntries.some(
+        (r: any) => !!r.tierBreakdown,
+      );
+      if (column.key === 'tierBreakdown') {
+        if (!includeTierBreakdown || !hasTierBreakdown) return false;
+      }
       return visibleColumns ? visibleColumns.has(String(column.key)) : true;
     }) as ReportExportPayload<LedgerReportRow>['columns'],
     rows: ledgerEntries,
@@ -157,7 +162,7 @@ const LedgerReportPage = () => {
     ledgerEntries,
     isLoading,
     selectedAccountName,
-    accountDisplayName,
+    printAccountName,
     refreshData,
     handlePrint,
     presetValue,
@@ -184,7 +189,7 @@ const LedgerReportPage = () => {
         );
         const payload = buildLedgerReportPayload(
           exportRows,
-          accountDisplayName,
+          printAccountName,
           dateRange ?? undefined,
           visibleLedgerColumns,
           familyMode,
@@ -215,7 +220,7 @@ const LedgerReportPage = () => {
     },
     [
       ledgerEntries,
-      accountDisplayName,
+      printAccountName,
       dateRange,
       totals,
       visibleLedgerColumns,
