@@ -556,7 +556,7 @@ const SettingsPage: React.FC = () => {
         >
           <TabsList
             className={
-              window.electron.supportsBackup
+              window.electron.supportsBackup && hasBackupCapability
                 ? 'grid grid-cols-5 w-full max-w-2xl'
                 : 'grid grid-cols-4 w-full max-w-2xl'
             }
