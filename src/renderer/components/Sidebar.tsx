@@ -36,7 +36,6 @@ import { ModeToggle } from 'renderer/components/ModeToggle';
 import GlobalSearch, {
   GLOBAL_SEARCH_OPEN_EVENT,
 } from 'renderer/components/GlobalSearch';
-import BackupStatus from 'renderer/components/BackupStatus';
 import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth, useIsMobile } from '../hooks';
@@ -621,24 +620,12 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             />,
           ]}
           footer={
-            <>
-              {/* always-visible backup staleness indicator on platforms with local backup */}
-              {window.electron.supportsBackup && (
-                <div
-                  className={cn(
-                    effectiveCollapsed ? 'flex justify-center' : 'px-1',
-                  )}
-                >
-                  <BackupStatus collapsed={effectiveCollapsed} />
-                </div>
-              )}
-              <SidebarFooter
-                collapsed={effectiveCollapsed}
-                onToggle={handleFooterToggle}
-                onLogout={logout}
-                isMobile={isMobile}
-              />
-            </>
+            <SidebarFooter
+              collapsed={effectiveCollapsed}
+              onToggle={handleFooterToggle}
+              onLogout={logout}
+              isMobile={isMobile}
+            />
           }
           onClick={handleSidebarClick}
           className={cn(
