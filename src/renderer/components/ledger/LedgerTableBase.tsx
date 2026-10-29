@@ -11,6 +11,7 @@ import {
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
 import { Badge } from 'renderer/shad/ui/badge';
 import type { LedgerView } from '@/types';
+import { ledgerReportLabels } from '@/renderer/views/Reports/LedgerReport/ledgerLabels';
 import { renderJournalCell } from '@/renderer/components/journal/NarrationCell';
 import { DateCell } from '@/renderer/components/common/DateCell';
 import { extractJournalIdFromParticulars } from '@/shared/journalParticulars';
@@ -94,7 +95,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
     () => [
       {
         accessorKey: 'date',
-        header: language === 'ur' ? 'تاریخ' : 'Date',
+        header: ledgerReportLabels(language).date,
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => <DateCell value={row.original.date} />,
         size: 110,
@@ -105,7 +106,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         id: 'particulars',
-        header: language === 'ur' ? 'تفصیل' : 'Particulars',
+        header: ledgerReportLabels(language).particulars,
         cell: renderLedgerParticularsCell,
         size: 180,
         // The account/particulars is what a ledger row is read for, so
@@ -116,7 +117,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         ? [
             {
               id: 'tierBreakdown',
-              header: language === 'ur' ? 'تْقسیم' : 'Tier breakdown',
+              header: ledgerReportLabels(language).tierBreakdown,
               accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
               cell: renderTierBreakdownCell,
               size: 180,
@@ -124,7 +125,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
           ]
         : []),
       {
-        header: language === 'ur' ? 'تشریح' : 'Narration',
+        header: ledgerReportLabels(language).narration,
         id: 'narration',
         // The narration is drawn from the row, not from a column
         // value, so the card layout has no value to read and would
@@ -138,7 +139,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         accessorKey: 'debit',
-        header: language === 'ur' ? 'نام' : 'Debit',
+        header: ledgerReportLabels(language).debit,
         cell: ({ row }) => formatDebitCredit(row.original.debit),
         size: 110,
         // a row is a debit or a credit, never both: the empty side is
@@ -147,14 +148,14 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         accessorKey: 'credit',
-        header: language === 'ur' ? 'جمع' : 'Credit',
+        header: ledgerReportLabels(language).credit,
         cell: ({ row }) => formatDebitCredit(row.original.credit),
         size: 110,
         cardHideWhenZero: true,
       },
       {
         accessorKey: 'balance',
-        header: language === 'ur' ? 'بقایا' : 'Balance',
+        header: ledgerReportLabels(language).balance,
         cell: ({ row }) =>
           getFormattedCurrency(row.original.balance)
             .replace(currency, '')
@@ -166,7 +167,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         accessorKey: 'balanceType',
-        header: language === 'ur' ? 'قسم' : 'Type',
+        header: ledgerReportLabels(language).balanceType,
         size: 90,
       },
     ],

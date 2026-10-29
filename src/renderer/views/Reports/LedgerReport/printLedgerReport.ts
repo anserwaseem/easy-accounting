@@ -11,6 +11,7 @@ import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
+import { ledgerReportLabels } from './ledgerLabels';
 
 interface LedgerReportPrintOptions {
   rows: LedgerView[];
@@ -154,28 +155,6 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
     window.electron.store.get('debitCreditDefaultLabel') ?? ' ',
   );
 
-  const labels =
-    language === 'ur'
-      ? {
-          date: 'تاریخ',
-          particulars: 'تفصیل',
-          tierBreakdown: 'تْقسیم',
-          narration: 'تشریح',
-          debit: 'نام',
-          credit: 'جمع',
-          balance: 'بقایا',
-          balanceType: 'قسم',
-        }
-      : {
-          date: 'Date',
-          particulars: 'Particulars',
-          tierBreakdown: 'Tier breakdown',
-          narration: 'Narration',
-          debit: 'Debit',
-          credit: 'Credit',
-          balance: 'Balance',
-          balanceType: 'Type',
-        };
   const title = escape(
     language === 'ur'
       ? `لیجر رپورٹ: ${accountName} — ${dateSubtitle}`
@@ -253,40 +232,50 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   <table class="data-table-wrapper print-table" style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
-        ${visibleColumns.has('date') ? `<th>${escape(labels.date)}</th>` : ''}
+        ${
+          visibleColumns.has('date')
+            ? `<th>${escape(ledgerReportLabels(language).date)}</th>`
+            : ''
+        }
         ${
           visibleColumns.has('particulars')
-            ? `<th>${escape(labels.particulars)}</th>`
+            ? `<th>${escape(ledgerReportLabels(language).particulars)}</th>`
             : ''
         }
         ${
           visibleColumns.has('tierBreakdown')
-            ? `<th>${escape(labels.tierBreakdown)}</th>`
+            ? `<th>${escape(ledgerReportLabels(language).tierBreakdown)}</th>`
             : ''
         }
         ${
           visibleColumns.has('narration')
-            ? `<th>${escape(labels.narration)}</th>`
+            ? `<th>${escape(ledgerReportLabels(language).narration)}</th>`
             : ''
         }
         ${
           visibleColumns.has('debit')
-            ? `<th style="text-align:right">${escape(labels.debit)}</th>`
+            ? `<th style="text-align:right">${escape(
+                ledgerReportLabels(language).debit,
+              )}</th>`
             : ''
         }
         ${
           visibleColumns.has('credit')
-            ? `<th style="text-align:right">${escape(labels.credit)}</th>`
+            ? `<th style="text-align:right">${escape(
+                ledgerReportLabels(language).credit,
+              )}</th>`
             : ''
         }
         ${
           visibleColumns.has('balance')
-            ? `<th style="text-align:right">${escape(labels.balance)}</th>`
+            ? `<th style="text-align:right">${escape(
+                ledgerReportLabels(language).balance,
+              )}</th>`
             : ''
         }
         ${
           visibleColumns.has('balanceType')
-            ? `<th>${escape(labels.balanceType)}</th>`
+            ? `<th>${escape(ledgerReportLabels(language).balanceType)}</th>`
             : ''
         }
       </tr>

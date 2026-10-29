@@ -29,6 +29,7 @@ import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
 import { LedgerReportTable } from './LedgerReportTable';
 import { useLedgerReport } from './useLedgerReport';
+import { ledgerReportLabels } from './ledgerLabels';
 
 type LedgerReportRow = {
   date: string | Date;
@@ -49,28 +50,6 @@ const buildLedgerReportPayload = (
   includeTierBreakdown: boolean = false,
   language: 'en' | 'ur' = 'en',
 ): ReportExportPayload<LedgerReportRow> => {
-  const labels =
-    language === 'ur'
-      ? {
-          date: 'تاریخ',
-          particulars: 'تفصیل',
-          tierBreakdown: 'تْقسیم',
-          narration: 'تشریح',
-          debit: 'نام',
-          credit: 'جمع',
-          balance: 'بقایا',
-          balanceType: 'قسم',
-        }
-      : {
-          date: 'Date',
-          particulars: 'Particulars',
-          tierBreakdown: 'Tier breakdown',
-          narration: 'Narration',
-          debit: 'Debit',
-          credit: 'Credit',
-          balance: 'Balance',
-          balanceType: 'Type',
-        };
   const fromStr = dateRange?.from ? formatDisplayDate(dateRange.from) : '';
   const toStr = dateRange?.to ? formatDisplayDate(dateRange.to) : '';
   const subtitle = `${accountName} — ${fromStr} to ${toStr}`;
@@ -84,31 +63,51 @@ const buildLedgerReportPayload = (
       'yyyy-MM-dd',
     )}.xlsx`,
     columns: [
-      { key: 'date', header: labels.date, format: 'date', width: 14 },
+      {
+        key: 'date',
+        header: ledgerReportLabels(language).date,
+        format: 'date',
+        width: 14,
+      },
       {
         key: 'particulars',
-        header: labels.particulars,
+        header: ledgerReportLabels(language).particulars,
         format: 'string',
         width: 36,
       },
       {
         key: 'tierBreakdown',
-        header: labels.tierBreakdown,
+        header: ledgerReportLabels(language).tierBreakdown,
         format: 'string',
         width: 40,
       },
       {
         key: 'narration',
-        header: labels.narration,
+        header: ledgerReportLabels(language).narration,
         format: 'string',
         width: 44,
       },
-      { key: 'debit', header: labels.debit, format: 'currency', width: 14 },
-      { key: 'credit', header: labels.credit, format: 'currency', width: 14 },
-      { key: 'balance', header: labels.balance, format: 'currency', width: 14 },
+      {
+        key: 'debit',
+        header: ledgerReportLabels(language).debit,
+        format: 'currency',
+        width: 14,
+      },
+      {
+        key: 'credit',
+        header: ledgerReportLabels(language).credit,
+        format: 'currency',
+        width: 14,
+      },
+      {
+        key: 'balance',
+        header: ledgerReportLabels(language).balance,
+        format: 'currency',
+        width: 14,
+      },
       {
         key: 'balanceType',
-        header: labels.balanceType,
+        header: ledgerReportLabels(language).balanceType,
         format: 'string',
         width: 8,
       },
@@ -158,39 +157,18 @@ const LedgerReportPage = () => {
     ledgerSaved.language === 'ur' ? 'ur' : 'en',
   );
 
-  const labels =
-    language === 'ur'
-      ? {
-          date: 'تاریخ',
-          particulars: 'تفصیل',
-          tierBreakdown: 'تْقسیم',
-          narration: 'تشریح',
-          debit: 'نام',
-          credit: 'جمع',
-          balance: 'بقایا',
-          balanceType: 'قسم',
-        }
-      : {
-          date: 'Date',
-          particulars: 'Particulars',
-          tierBreakdown: 'Tier breakdown',
-          narration: 'Narration',
-          debit: 'Debit',
-          credit: 'Credit',
-          balance: 'Balance',
-          balanceType: 'Type',
-        };
+  const _reportLabels = ledgerReportLabels(language);
   const ledgerColumnSpecs = [
-    { id: 'date', label: labels.date },
-    { id: 'particulars', label: labels.particulars },
+    { id: 'date', label: _reportLabels.date },
+    { id: 'particulars', label: _reportLabels.particulars },
     ...(familyMode
-      ? [{ id: 'tierBreakdown', label: labels.tierBreakdown }]
+      ? [{ id: 'tierBreakdown', label: _reportLabels.tierBreakdown }]
       : []),
-    { id: 'narration', label: labels.narration },
-    { id: 'debit', label: labels.debit },
-    { id: 'credit', label: labels.credit },
-    { id: 'balance', label: labels.balance },
-    { id: 'balanceType', label: labels.balanceType },
+    { id: 'narration', label: _reportLabels.narration },
+    { id: 'debit', label: _reportLabels.debit },
+    { id: 'credit', label: _reportLabels.credit },
+    { id: 'balance', label: _reportLabels.balance },
+    { id: 'balanceType', label: _reportLabels.balanceType },
   ];
   const ledgerColumnIds = ledgerColumnSpecs.map((column) => column.id);
   const columnVisibility = useReportColumnVisibility(
