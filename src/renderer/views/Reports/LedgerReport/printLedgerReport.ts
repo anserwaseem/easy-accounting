@@ -233,6 +233,14 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
     .data-table-wrapper td {
       border: 1px solid #d9d9d9;
     }
+    .data-table-wrapper {
+      direction: ${language === 'ur' ? 'rtl' : 'ltr'};
+    }
+    ${
+      language === 'ur'
+        ? '.data-table-wrapper th { text-align: right !important; }'
+        : ''
+    }
     .ledger-print-title { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 8px; page-break-after: avoid; }
     /* totals as last tbody row — not tfoot — so print engines do not repeat it on every page */
     @media print {
