@@ -43,7 +43,7 @@ export const localizedBalanceType = (
   value: LedgerBalanceTypeLabel,
 ): LedgerBalanceTypeLabel => {
   if (language !== 'ur') return value;
-  if (value === 'Dr') return 'ڈیبٹ';
-  if (value === 'Cr') return 'کریڈٹ';
+  if (value === 'Dr') return 'نام';
+  if (value === 'Cr') return 'جمع';
   return value;
 };
