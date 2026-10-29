@@ -1,6 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from 'renderer/shad/ui/select';
 import { Download, Printer, RefreshCw } from 'lucide-react';
 import { cn, getFormattedCurrency } from 'renderer/lib/utils';
 import { Card } from 'renderer/shad/ui/card';
@@ -248,13 +255,18 @@ const LedgerReportPage = () => {
             filters={
               <>
                 <ReportFilter label="Mode:">
-                  <Button
-                    variant={familyMode ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setFamilyMode((v) => !v)}
+                  <Select
+                    value={familyMode ? 'family' : 'single'}
+                    onValueChange={(value) => setFamilyMode(value === 'family')}
                   >
-                    {familyMode ? 'Customer family' : 'Single account'}
-                  </Button>
+                    <SelectTrigger className="h-9 w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single">Single account</SelectItem>
+                      <SelectItem value="family">Customer family</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </ReportFilter>
                 <ReportFilter label="Account:">
                   <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
