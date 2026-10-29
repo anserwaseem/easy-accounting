@@ -1072,6 +1072,8 @@ const PrintableInvoiceScreen = () => {
     effectiveLocale,
   );
   const showAgentName = Boolean(printAgentName) && effectiveShowAgent;
+  const combinedHeaderRow =
+    isPurchase && !showAgentName && !showBiltyField && !showCartonsField;
   const isNamedParty =
     partyNameEnglishForReadiness !== '—' &&
     billToName !== labels.walkInCustomer;
@@ -1285,7 +1287,11 @@ const PrintableInvoiceScreen = () => {
                   {renderCompanyContactLine()}
 
                   <div
-                    className={`flex flex-col text-base ${urduMetaBoxClass}`}
+                    className={`${
+                      combinedHeaderRow
+                        ? 'flex flex-row flex-wrap items-start gap-3'
+                        : 'flex flex-col'
+                    } text-base ${urduMetaBoxClass}`}
                   >
                     {/* customer + agent share one row */}
                     <div
