@@ -19,6 +19,16 @@ jest.mock('../BackupSettings', () => ({
   default: () => <div data-testid="backup-settings">Backup Settings Mock</div>,
 }));
 
+jest.mock('@/renderer/hooks/useAdvancedCapabilities', () => ({
+  useAdvancedCapability: () => true,
+  useAdvancedCapabilities: () => ({
+    enabled: new Set(),
+    loaded: true,
+    setEnabled: async () => {},
+  }),
+  useAnyAdvancedCapability: () => true,
+}));
+
 describe('SettingsPage', () => {
   let store: Record<string, unknown> = {};
 
@@ -190,7 +200,7 @@ describe('SettingsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('switches to Sync tab and renders PublishSettings and BackupSettings', async () => {
+  it('switches to Sync tab and renders PublishSettings', async () => {
     await renderSettings();
     const syncTab = screen.getByRole('tab', { name: /sync/i });
     act(() => {
@@ -199,6 +209,16 @@ describe('SettingsPage', () => {
     });
 
     expect(screen.getByTestId('publish-settings')).toBeInTheDocument();
+  });
+
+  it('switches to Backup tab and renders BackupSettings', async () => {
+    await renderSettings();
+    const backupTab = screen.getByRole('tab', { name: /backup/i });
+    act(() => {
+      backupTab.focus();
+      fireEvent.keyDown(backupTab, { key: 'Enter' });
+    });
+
     expect(screen.getByTestId('backup-settings')).toBeInTheDocument();
   });
 

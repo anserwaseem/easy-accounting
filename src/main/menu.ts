@@ -21,6 +21,8 @@ import { AppUpdater } from './appUpdater';
 import { store } from './store';
 import { DatabaseService } from './services';
 import { formatDateTime } from '../core/utils/dateFormat';
+import { ADVANCED_CAPABILITIES } from '../core/advancedCapabilities';
+import { isAdvancedCapabilityEnabled } from './utils/advancedCapabilities';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -56,7 +58,9 @@ export default class MenuBuilder {
       this.getViewMenu(),
       MenuBuilder.getWindowMenu(),
       MenuBuilder.getHelpMenu(),
-      await this.getBackupMenu(),
+      ...(isAdvancedCapabilityEnabled(ADVANCED_CAPABILITIES.backupManage)
+        ? [await this.getBackupMenu()]
+        : []),
       this.getPublishMenu(),
     ];
   }
@@ -66,7 +70,9 @@ export default class MenuBuilder {
       this.getFileMenu(),
       this.getViewMenu(),
       MenuBuilder.getHelpMenu(),
-      await this.getBackupMenu(),
+      ...(isAdvancedCapabilityEnabled(ADVANCED_CAPABILITIES.backupManage)
+        ? [await this.getBackupMenu()]
+        : []),
       this.getPublishMenu(),
     ];
   }

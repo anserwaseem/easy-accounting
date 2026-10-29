@@ -98,6 +98,8 @@ export const ADVANCED_CAPABILITIES = {
   syncRebuild: 'sync.rebuild',
   /** Replace this device's books from a database file. */
   dataImport: 'data.import',
+  /** Manage and run database backups. */
+  backupManage: 'backup.manage',
 } as const;
 
 export type AdvancedCapability =
@@ -137,6 +139,7 @@ export const ADVANCED_CAPABILITY_LABELS: Record<AdvancedCapability, string> = {
   [ADVANCED_CAPABILITIES.pricingDeletePolicy]: 'Delete a pricing policy',
   [ADVANCED_CAPABILITIES.syncRebuild]: 'Re-download everything from sync',
   [ADVANCED_CAPABILITIES.dataImport]: 'Import a database from the desktop app',
+  [ADVANCED_CAPABILITIES.backupManage]: 'Manage and run database backups',
 };
 
 /** Every capability id, in a stable order. */
@@ -250,6 +253,7 @@ export const ADVANCED_CAPABILITY_GROUPS: readonly AdvancedCapabilityGroup[] = [
     description: 'Actions that replace what is on this device.',
     capabilities: [
       ADVANCED_CAPABILITIES.syncRebuild,
+      ADVANCED_CAPABILITIES.backupManage,
       ADVANCED_CAPABILITIES.dataImport,
     ],
   },

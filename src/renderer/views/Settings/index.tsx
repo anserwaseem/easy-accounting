@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Cloud,
+  DatabaseBackup,
   Info,
   Languages,
   Printer,
@@ -63,6 +64,7 @@ import {
   useCompanyProfile,
   useInvoicePrintSettings,
 } from '@/renderer/hooks';
+import { useAdvancedCapability } from '@/renderer/hooks/useAdvancedCapabilities';
 import PublishSettings from './PublishSettings';
 import BackupSettings from './BackupSettings';
 import SyncSettings from './SyncSettings';
@@ -156,6 +158,7 @@ const SETTINGS_TABS = [
   { id: 'profile', label: 'Company' },
   { id: 'invoicing', label: 'Invoicing' },
   { id: 'rules', label: 'Rules' },
+  { id: 'backup', label: 'Backup' },
   { id: 'sync', label: 'Sync' },
 ] as const;
 
@@ -172,6 +175,9 @@ const SettingsPage: React.FC = () => {
   );
   const [isSavedRecently, setIsSavedRecently] = useState(false);
   const appVersion = useAppVersion();
+  const hasBackupCapability = useAdvancedCapability(
+    ADVANCED_CAPABILITIES.backupManage,
+  );
 
   // company profile
   const { profile: companyProfile, saveCompanyProfile } = useCompanyProfile();
@@ -548,7 +554,13 @@ const SettingsPage: React.FC = () => {
           }}
           className="space-y-6"
         >
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+          <TabsList
+            className={
+              window.electron.supportsBackup && hasBackupCapability
+                ? 'grid grid-cols-5 w-full max-w-2xl'
+                : 'grid grid-cols-4 w-full max-w-2xl'
+            }
+          >
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <Building2 className="w-4 h-4" />
               <span className="hidden sm:inline">Company</span>
@@ -561,6 +573,12 @@ const SettingsPage: React.FC = () => {
               <Sliders className="w-4 h-4" />
               <span className="hidden sm:inline">Rules</span>
             </TabsTrigger>
+            {window.electron.supportsBackup && hasBackupCapability && (
+              <TabsTrigger value="backup" className="flex items-center gap-2">
+                <DatabaseBackup className="w-4 h-4" />
+                <span className="hidden sm:inline">Backup</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="sync" className="flex items-center gap-2">
               <Cloud className="w-4 h-4" />
               <span className="hidden sm:inline">Sync</span>
@@ -1019,10 +1037,16 @@ const SettingsPage: React.FC = () => {
             </Card>
           </TabsContent>
 
-          {/* Tab 4: Cloud Sync / Publish */}
+          {/* Tab 4: Backup */}
+          {window.electron.supportsBackup && hasBackupCapability && (
+            <TabsContent value="backup" className="space-y-6 max-w-4xl">
+              <BackupSettings />
+            </TabsContent>
+          )}
+
+          {/* Tab 5: Cloud Sync / Publish */}
           <TabsContent value="sync" className="space-y-6 max-w-4xl">
             <PublishSettings />
-            {window.electron.supportsBackup && <BackupSettings />}
             {window.electron.supportsSync && <SyncSettings />}
             {window.electron.supportsDbExport && (
               <Card>

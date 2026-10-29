@@ -30,6 +30,7 @@ import type {
   InventoryOpeningStock,
   ApplyStockAdjustmentPayload,
   ApiResponse,
+  BackupInfo,
   ReturnSaleInvoicePayload,
   CancelSaleReturnPayload,
   ItemType,
@@ -994,6 +995,15 @@ const electronHandler = {
   /** Create a backup now — same operation as the Backup menu. */
   createBackup: () =>
     ipcRenderer.invoke('backup:create') as Promise<ApiResponse>,
+
+  listBackups: () =>
+    ipcRenderer.invoke('backup:listBackups') as Promise<BackupInfo[]>,
+
+  restoreBackup: (dateString: string) =>
+    ipcRenderer.invoke(
+      'backup:restoreFromDate',
+      dateString,
+    ) as Promise<ApiResponse>,
 
   getVendorStockOnHand: (vendorAccountId?: number) =>
     ipcRenderer.invoke('vendorStock:getOnHand', vendorAccountId) as Promise<

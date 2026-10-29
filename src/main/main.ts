@@ -552,6 +552,21 @@ app
       const { success, error } = await backupService.createBackup();
       return { success, error };
     });
+    ipcMain.handle('backup:listBackups', async () => {
+      return new BackupService().listBackups();
+    });
+    ipcMain.handle('backup:restoreFromDate', async (_, dateString: string) => {
+      const backupService = new BackupService();
+      const result = await backupService.restoreFromDate(dateString);
+      if (result.success) {
+        if (process.platform === 'darwin') {
+          app.hide();
+        }
+        app.relaunch();
+        app.exit();
+      }
+      return result;
+    });
     ipcMain.handle(
       'balanceSheet:save',
       async (_, balanceSheet: BalanceSheet) => {

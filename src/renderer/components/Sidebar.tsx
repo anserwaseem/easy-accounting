@@ -36,7 +36,6 @@ import { ModeToggle } from 'renderer/components/ModeToggle';
 import GlobalSearch, {
   GLOBAL_SEARCH_OPEN_EVENT,
 } from 'renderer/components/GlobalSearch';
-import BackupStatus from 'renderer/components/BackupStatus';
 import SyncIndicator from 'renderer/components/SyncIndicator';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth, useIsMobile } from '../hooks';
@@ -171,7 +170,7 @@ const SidebarListPlusNewRow: FC<SidebarListPlusNewRowProps> = ({
   );
 
   if (collapsed) {
-    // icon-only: stacked list icon above plus icon
+    // icon-only: list icon only (plus action hidden while collapsed)
     return (
       <div className="flex flex-col items-center gap-1">
         <Tooltip>
@@ -187,7 +186,6 @@ const SidebarListPlusNewRow: FC<SidebarListPlusNewRowProps> = ({
           </TooltipTrigger>
           <TooltipContent side="right">{label}</TooltipContent>
         </Tooltip>
-        {wrappedPlusButton}
       </div>
     );
   }
@@ -242,42 +240,46 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
           </TooltipTrigger>
           <TooltipContent side="right">Home</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              onClick={goBack}
-              className="h-8 w-8"
-              aria-label="Go back"
-              type="button"
-            >
-              <ChevronLeft size={16} aria-hidden />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <KbdGroup>
-              Back <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>←</Kbd>
-            </KbdGroup>
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              onClick={goForward}
-              className="h-8 w-8"
-              aria-label="Go forward"
-              type="button"
-            >
-              <ChevronRight size={16} aria-hidden />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <KbdGroup>
-              Forward <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>→</Kbd>
-            </KbdGroup>
-          </TooltipContent>
-        </Tooltip>
+        {canGoBack && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                onClick={goBack}
+                className="h-8 w-8"
+                aria-label="Go back"
+                type="button"
+              >
+                <ChevronLeft size={16} aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <KbdGroup>
+                Back <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>←</Kbd>
+              </KbdGroup>
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {canGoForward && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                onClick={goForward}
+                className="h-8 w-8"
+                aria-label="Go forward"
+                type="button"
+              >
+                <ChevronRight size={16} aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <KbdGroup>
+                Forward <Kbd>{getOsModifierLabel()}</Kbd> + <Kbd>→</Kbd>
+              </KbdGroup>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     );
   }
@@ -418,29 +420,27 @@ const SidebarFooter: FC<SidebarFooterProps> = ({
           </TooltipTrigger>
           <TooltipContent side="top">Log Out</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="secondary"
-              onClick={onToggle}
-              className="gap-2 min-h-10"
-              aria-label={isMobile ? 'Close menu' : 'Collapse sidebar border-0'}
-              type="button"
-            >
-              <ChevronLeft size={16} aria-hidden />
-              <span>{isMobile ? 'Close' : 'Collapse'}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            {isMobile ? (
-              'Close menu'
-            ) : (
+        {!isMobile && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="secondary"
+                onClick={onToggle}
+                className="gap-2 min-h-10"
+                aria-label="Collapse sidebar"
+                type="button"
+              >
+                <ChevronLeft size={16} aria-hidden />
+                <span>Collapse</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
               <KbdGroup>
                 Collapse <Kbd>{mod}</Kbd> + <Kbd>[</Kbd>
               </KbdGroup>
-            )}
-          </TooltipContent>
-        </Tooltip>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </div>
   );
@@ -621,24 +621,12 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             />,
           ]}
           footer={
-            <>
-              {/* always-visible backup staleness indicator on platforms with local backup */}
-              {window.electron.supportsBackup && (
-                <div
-                  className={cn(
-                    effectiveCollapsed ? 'flex justify-center' : 'px-1',
-                  )}
-                >
-                  <BackupStatus collapsed={effectiveCollapsed} />
-                </div>
-              )}
-              <SidebarFooter
-                collapsed={effectiveCollapsed}
-                onToggle={handleFooterToggle}
-                onLogout={logout}
-                isMobile={isMobile}
-              />
-            </>
+            <SidebarFooter
+              collapsed={effectiveCollapsed}
+              onToggle={handleFooterToggle}
+              onLogout={logout}
+              isMobile={isMobile}
+            />
           }
           onClick={handleSidebarClick}
           className={cn(
@@ -722,7 +710,6 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               >
                 <Search size={19} aria-hidden />
               </Button>
-              <ModeToggle />
             </div>
           </div>
           {/* The app's scroll container. ScrollToTopButton finds it by

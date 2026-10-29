@@ -19,6 +19,7 @@
  */
 import { store } from '../store';
 import {
+  ADVANCED_CAPABILITIES,
   ADVANCED_CAPABILITIES_STORE_KEY,
   advancedCapabilityError,
   parseAdvancedCapabilities,
@@ -34,8 +35,18 @@ import {
  * tolerates a JSON string and a bare id, so a hand-edited store file
  * cannot crash the app.
  */
-export const getEnabledAdvancedCapabilities = (): Set<AdvancedCapability> =>
-  parseAdvancedCapabilities(store.get(ADVANCED_CAPABILITIES_STORE_KEY));
+export const getEnabledAdvancedCapabilities = (): Set<AdvancedCapability> => {
+  // backups are on by default for every device (existing behavior), even
+  // though the toggle lives with the other advanced controls. A device
+  // that has never saved the enabled set therefore shows backup support
+  // out of the box, while a device that saved an explicit set (including an
+  // empty one) keeps the owner's choice.
+  const stored = store.get(ADVANCED_CAPABILITIES_STORE_KEY);
+  if (stored === undefined || stored === null) {
+    return new Set<AdvancedCapability>([ADVANCED_CAPABILITIES.backupManage]);
+  }
+  return parseAdvancedCapabilities(stored);
+};
 
 /**
  * Replaces the enabled set. Unknown ids are dropped, and the stored value

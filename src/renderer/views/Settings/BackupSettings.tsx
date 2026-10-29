@@ -3,6 +3,9 @@ import { Input } from 'renderer/shad/ui/input';
 import { Label } from 'renderer/shad/ui/label';
 import { Button } from 'renderer/shad/ui/button';
 import { toast } from 'renderer/shad/ui/use-toast';
+import BackupStatus from 'renderer/components/BackupStatus';
+import type { BackupInfo } from 'types';
+import { formatDisplayDateTime } from '@/lib/displayDate';
 import {
   Card,
   CardContent,
@@ -67,6 +70,63 @@ const BackupSettings: React.FC = () => {
   const [anonKey, setAnonKey] = useState('');
   const [anonKeyTouched, setAnonKeyTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [backups, setBackups] = useState<BackupInfo[]>([]);
+  const [backupsLoading, setBackupsLoading] = useState(true);
+  const [restoring, setRestoring] = useState<string | null>(null);
+
+  const loadBackups = useCallback(async () => {
+    if (!window.electron?.listBackups) {
+      setBackupsLoading(false);
+      return;
+    }
+    try {
+      setBackups(await window.electron.listBackups());
+    } catch {
+      setBackups([]);
+    } finally {
+      setBackupsLoading(false);
+    }
+  }, []);
+
+  const handleRestoreBackup = useCallback(async (backup: BackupInfo) => {
+    // eslint-disable-next-line no-alert
+    if (
+      !window.confirm(
+        `Restore backup from ${formatDisplayDateTime(
+          backup.timestamp,
+        )}? This replaces the current database and restarts the app.`,
+      )
+    ) {
+      return;
+    }
+    setRestoring(backup.filename);
+    try {
+      const result = await window.electron.restoreBackup?.(
+        backup.filename.replace('database-backup-', '').replace('.db', ''),
+      );
+      if (result && !result.success) {
+        toast({
+          description: `Could not restore backup: ${
+            result.error ?? 'unknown error'
+          }`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        description: `Could not restore backup: ${
+          (error as Error)?.message ?? 'unknown error'
+        }`,
+        variant: 'destructive',
+      });
+    } finally {
+      setRestoring(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBackups();
+  }, [loadBackups]);
 
   const refresh = useCallback(async () => {
     const next = await window.electron.getBackupConfig();
@@ -116,61 +176,119 @@ const BackupSettings: React.FC = () => {
 
   if (loading) return <p className="text-sm">Loading backup settings…</p>;
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Cloud backup</CardTitle>
-        <CardDescription>
-          Optional supabase project for cloud copies of this machine&apos;s
-          database. Local backups stay in the same folder across upgrades. New
-          cloud uploads prefer the `easy-accounting-backups` bucket (created by
-          `supabase/setup.sql`); older per-machine cloud backups from previous
-          desktop versions are still listed and restorable. The anon key is
-          stored in the system keychain and never synced.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {!config.encryptionAvailable && (
-          <p className="text-sm text-destructive">
-            Secure storage is unavailable on this system, so the anon key cannot
-            be saved.
-          </p>
-        )}
-        <Field
-          id="backup-supabase-url"
-          label="Project URL"
-          placeholder="https://xxxx.supabase.co"
-          value={supabaseUrl}
-          onChange={setSupabaseUrl}
-          hint="Same shape as the sync project URL. Can be a different project."
-        />
-        <Field
-          id="backup-anon-key"
-          label="Anon public API key"
-          type="password"
-          placeholder={config.hasAnonKey ? '••••••••' : ''}
-          value={anonKey}
-          onChange={(value) => {
-            setAnonKey(value);
-            setAnonKeyTouched(true);
-          }}
-          hint={
-            config.hasAnonKey
-              ? 'A key is saved in the system keychain. Type a new one to replace it.'
-              : 'Stored in the system keychain, never in the app files.'
-          }
-        />
-        <div>
-          <Button
-            type="button"
-            disabled={!isDirty || saving}
-            onClick={handleSave}
+  let backupsContent: React.ReactNode;
+  if (backupsLoading) {
+    backupsContent = (
+      <p className="text-sm text-muted-foreground">Loading backups…</p>
+    );
+  } else if (backups.length === 0) {
+    backupsContent = (
+      <p className="text-sm text-muted-foreground">No backups found.</p>
+    );
+  } else {
+    backupsContent = (
+      <div className="flex flex-col gap-2">
+        {backups.map((backup) => (
+          <div
+            key={backup.filename}
+            className="flex items-center justify-between gap-3 text-sm"
           >
-            {saving ? 'Saving…' : 'Save backup settings'}
-          </Button>
+            <div className="flex flex-col">
+              <span>{formatDisplayDateTime(backup.timestamp)}</span>
+              <span className="text-xs text-muted-foreground">
+                {(backup.size / 1024).toFixed(0)} KB · {backup.type}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={restoring === backup.filename}
+              onClick={() => handleRestoreBackup(backup)}
+            >
+              {restoring === backup.filename ? 'Restoring…' : 'Restore'}
+            </Button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {window.electron.supportsBackup && (
+        <div>
+          <p className="text-sm font-medium mb-2">Local database backup</p>
+          <BackupStatus collapsed={false} />
         </div>
-      </CardContent>
-    </Card>
+      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Cloud backup</CardTitle>
+          <CardDescription>
+            Optional supabase project for cloud copies of this machine&apos;s
+            database. Local backups stay in the same folder across upgrades. New
+            cloud uploads prefer the `easy-accounting-backups` bucket (created
+            by `supabase/setup.sql`); older per-machine cloud backups from
+            previous desktop versions are still listed and restorable. The anon
+            key is stored in the system keychain and never synced.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {!config.encryptionAvailable && (
+            <p className="text-sm text-destructive">
+              Secure storage is unavailable on this system, so the anon key
+              cannot be saved.
+            </p>
+          )}
+          <Field
+            id="backup-supabase-url"
+            label="Project URL"
+            placeholder="https://xxxx.supabase.co"
+            value={supabaseUrl}
+            onChange={setSupabaseUrl}
+            hint="Same shape as the sync project URL. Can be a different project."
+          />
+          <Field
+            id="backup-anon-key"
+            label="Anon public API key"
+            type="password"
+            placeholder={config.hasAnonKey ? '••••••••' : ''}
+            value={anonKey}
+            onChange={(value) => {
+              setAnonKey(value);
+              setAnonKeyTouched(true);
+            }}
+            hint={
+              config.hasAnonKey
+                ? 'A key is saved in the system keychain. Type a new one to replace it.'
+                : 'Stored in the system keychain, never in the app files.'
+            }
+          />
+          <div>
+            <Button
+              type="button"
+              disabled={!isDirty || saving}
+              onClick={handleSave}
+            >
+              {saving ? 'Saving…' : 'Save backup settings'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Available backups</CardTitle>
+          <CardDescription>
+            Backups created on this device (and uploaded cloud copies). A
+            restore replaces the current database and restarts the app.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {backupsContent}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
