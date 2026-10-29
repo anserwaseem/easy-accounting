@@ -116,7 +116,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         ? [
             {
               id: 'tierBreakdown',
-              header: language === 'ur' ? 'بٹوارا' : 'Tier breakdown',
+              header: language === 'ur' ? 'بٹوارہ' : 'Tier breakdown',
               accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
               cell: renderTierBreakdownCell,
               size: 180,
@@ -138,7 +138,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         accessorKey: 'debit',
-        header: language === 'ur' ? 'ڈیبٹ' : 'Debit',
+        header: language === 'ur' ? 'نام' : 'Debit',
         cell: ({ row }) => formatDebitCredit(row.original.debit),
         size: 110,
         // a row is a debit or a credit, never both: the empty side is
@@ -147,7 +147,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         accessorKey: 'credit',
-        header: language === 'ur' ? 'کریڈٹ' : 'Credit',
+        header: language === 'ur' ? 'جمع' : 'Credit',
         cell: ({ row }) => formatDebitCredit(row.original.credit),
         size: 110,
         cardHideWhenZero: true,

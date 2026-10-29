@@ -525,8 +525,8 @@ export const useLedgerReport = (
             ? {
                 ...entry.journalSummary,
                 narration: (entry.journalSummary.narration ?? '')
-                  .replace(/^sale invoice\b/i, 'سیل انوائس')
-                  .replace(/^purchase invoice\b/i, 'خرید انوائس'),
+                  .replace(/^sale invoice\b/i, 'بل')
+                  .replace(/^purchase invoice\b/i, 'خرید بل'),
               }
             : entry.journalSummary,
         tierBreakdown: entry.tierBreakdown ?? undefined,
@@ -551,13 +551,18 @@ export const useLedgerReport = (
     const baseMember = (accounts as any[]).find(
       (a) => familyAccountIds.includes(a.id) && !isTypedPartyAccount(a, ctx),
     );
-    return baseMember?.name ?? selectedAccountName;
+    const baseName =
+      language === 'ur' && baseMember?.nameUrdu
+        ? baseMember.nameUrdu
+        : baseMember?.name ?? selectedAccountName;
+    return baseName;
   }, [
     familyMode,
     accounts,
     familyAccountIds,
     itemTypeNames,
     selectedAccountName,
+    language,
   ]);
 
   const handlePrint = useCallback(() => {
