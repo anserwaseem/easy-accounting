@@ -139,12 +139,16 @@ export const useLedgerReport = (
     if (selectedAccount && accounts.length > 0) {
       const account = accounts.find((a) => a.id === selectedAccount);
       if (account) {
-        setSelectedAccountName(account.name || '');
+        setSelectedAccountName(
+          language === 'ur' && account.nameUrdu
+            ? account.nameUrdu
+            : account.name || '',
+        );
       }
     } else {
       setSelectedAccountName('');
     }
-  }, [selectedAccount, accounts]);
+  }, [selectedAccount, accounts, language]);
 
   const fetchLedgerRange = useCallback(async () => {
     if (!selectedAccount || !dateRange?.from || !dateRange?.to) {
@@ -487,7 +491,7 @@ export const useLedgerReport = (
           ? format(addDays(dateRange.from, -1), 'yyyy-MM-dd')
           : '',
         accountId: selectedAccount ?? 0,
-        particulars: 'Opening Balance',
+        particulars: language === 'ur' ? 'ابتدائی بقایا' : 'Opening Balance',
         debit: 0,
         credit: 0,
         balance: rangeResponse.openingBalance.balance,
@@ -508,7 +512,13 @@ export const useLedgerReport = (
         balance: entry.balance,
         balanceType: entry.balanceType,
         linkedAccountId: entry.linkedAccountId,
-        linkedAccountName: entry.linkedAccountName ?? undefined,
+        linkedAccountName:
+          language === 'ur'
+            ? (accounts as any[]).find((a) => a.id === entry.linkedAccountId)
+                ?.nameUrdu ??
+              entry.linkedAccountName ??
+              undefined
+            : entry.linkedAccountName ?? undefined,
         linkedAccountCode: entry.linkedAccountCode ?? undefined,
         journalSummary: entry.journalSummary,
         tierBreakdown: entry.tierBreakdown ?? undefined,
@@ -516,7 +526,7 @@ export const useLedgerReport = (
     }
 
     return rows;
-  }, [rangeResponse, dateRange, selectedAccount]);
+  }, [rangeResponse, dateRange, selectedAccount, language, accounts]);
 
   const ledgerAccountName = useMemo(() => {
     if (!familyMode) return selectedAccountName;

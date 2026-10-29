@@ -302,7 +302,7 @@ const LedgerReportPage = () => {
               title={familyMode ? 'Combined Ledger Report' : 'Ledger Report'}
               filters={
                 <>
-                  <ReportFilter label="Mode:">
+                  <ReportFilter label={language === 'ur' ? 'وضع:' : 'Mode:'}>
                     <Button
                       variant={familyMode ? 'default' : 'outline'}
                       size="sm"
@@ -313,27 +313,39 @@ const LedgerReportPage = () => {
                       {familyMode ? 'Combined' : 'Single'}
                     </Button>
                   </ReportFilter>
-                  <ReportFilter label="Language:">
-                    <div className="flex gap-1">
+                  <ReportFilter
+                    label={language === 'ur' ? 'زبان:' : 'Language:'}
+                  >
+                    <div className="flex rounded-md border">
                       <Button
+                        type="button"
                         size="sm"
-                        variant={language === 'en' ? 'default' : 'outline'}
-                        className="h-9"
+                        variant={language === 'en' ? 'default' : 'ghost'}
+                        className={cn(
+                          'rounded-r-none',
+                          language === 'en' && 'pointer-events-none',
+                        )}
                         onClick={() => setLanguage('en')}
                       >
-                        EN
+                        Eng
                       </Button>
                       <Button
+                        type="button"
                         size="sm"
-                        variant={language === 'ur' ? 'default' : 'outline'}
-                        className="h-9"
+                        variant={language === 'ur' ? 'default' : 'ghost'}
+                        className={cn(
+                          'rounded-l-none',
+                          language === 'ur' && 'pointer-events-none',
+                        )}
                         onClick={() => setLanguage('ur')}
                       >
-                        UR
+                        اردو
                       </Button>
                     </div>
                   </ReportFilter>
-                  <ReportFilter label="Account:">
+                  <ReportFilter
+                    label={language === 'ur' ? 'کھاتہ:' : 'Account:'}
+                  >
                     <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
                       <VirtualSelect
                         options={accounts || []}

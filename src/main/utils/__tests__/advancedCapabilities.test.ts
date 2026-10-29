@@ -37,8 +37,10 @@ describe('advanced capabilities store', () => {
     (store.set as jest.Mock).mockClear();
   });
 
-  it('starts with nothing enabled', () => {
-    expect(getEnabledAdvancedCapabilities().size).toBe(0);
+  it('starts with backups enabled by default', () => {
+    const enabled = getEnabledAdvancedCapabilities();
+    expect(enabled.size).toBe(1);
+    expect(enabled.has(ADVANCED_CAPABILITIES.backupManage)).toBe(true);
   });
 
   it('round-trips the enabled set', () => {
