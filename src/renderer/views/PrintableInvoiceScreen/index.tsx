@@ -1442,6 +1442,7 @@ const PrintableInvoiceScreen = () => {
                   {labels.qty}
                 </th>
                 <th
+                  hidden={isPurchase}
                   className={`${numHeadAlignClass} w-[4.75rem] tabular-nums ${chromeClass}`}
                 >
                   {labels.price}
@@ -1453,6 +1454,7 @@ const PrintableInvoiceScreen = () => {
                   {labels.discount}
                 </th>
                 <th
+                  hidden={isPurchase}
                   className={`${numHeadAlignClass} ${amountColClass} ${chromeClass}`}
                 >
                   {labels.amount}
@@ -1469,6 +1471,10 @@ const PrintableInvoiceScreen = () => {
                       </td>
                     </tr>
                   );
+                }
+
+                if (row.kind === 'subtotal' && isPurchase) {
+                  return null;
                 }
 
                 if (row.kind === 'subtotal') {
@@ -1532,7 +1538,11 @@ const PrintableInvoiceScreen = () => {
                     <td className={`${qtyColClass} ${dataClass}`} dir="ltr">
                       {row.item.quantity}
                     </td>
-                    <td className={`${priceColClass} ${dataClass}`} dir="ltr">
+                    <td
+                      hidden={isPurchase}
+                      className={`${priceColClass} ${dataClass}`}
+                      dir="ltr"
+                    >
                       {chargedUnitPrice(row.item).toFixed(0)}
                     </td>
                     <td
@@ -1545,6 +1555,7 @@ const PrintableInvoiceScreen = () => {
                         : row.item.discount.toFixed(2)}
                     </td>
                     <td
+                      hidden={isPurchase}
                       className={`text-end ${amountColClass} ${dataClass}`}
                       dir="ltr"
                     >
@@ -1554,24 +1565,39 @@ const PrintableInvoiceScreen = () => {
                 );
               })}
             </tbody>
-            <tbody data-print-footer>
-              {/* # empty; حوالہ = sabqa/naya label; تفصیل = amount at start, کل مقدار/کل رقم at end */}
-              <tr>
-                <td className={footerBoxClearClass} />
-                {showRunningBalances && runningBalances ? (
-                  <>
+            {!isPurchase && (
+              <tbody data-print-footer>
+                {/* # empty; حوالہ = sabqa/naya label; تفصیل = amount at start, کل مقدار/کل رقم at end */}
+                <tr>
+                  <td className={footerBoxClearClass} />
+                  {showRunningBalances && runningBalances ? (
+                    <>
+                      <td
+                        className={`${footerBoxLabelClass} text-end !border-s-0`}
+                      >
+                        {labels.previousBalance}
+                      </td>
+                      <td
+                        className={`${footerBoxClass}${urduFooterNumericPadClass}`}
+                      >
+                        <div className="flex w-full items-baseline justify-between gap-2">
+                          {renderFooterAmount(
+                            Math.abs(runningBalances.previousBalance),
+                          )}
+                          <span
+                            className={`${chromeClass} shrink-0 leading-tight`}
+                          >
+                            {labels.totalQuantity}
+                          </span>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
                     <td
-                      className={`${footerBoxLabelClass} text-end !border-s-0`}
+                      colSpan={2}
+                      className={`${footerBoxClass} !border-s-0${urduFooterNumericPadClass}`}
                     >
-                      {labels.previousBalance}
-                    </td>
-                    <td
-                      className={`${footerBoxClass}${urduFooterNumericPadClass}`}
-                    >
-                      <div className="flex w-full items-baseline justify-between gap-2">
-                        {renderFooterAmount(
-                          Math.abs(runningBalances.previousBalance),
-                        )}
+                      <div className="flex justify-end">
                         <span
                           className={`${chromeClass} shrink-0 leading-tight`}
                         >
@@ -1579,48 +1605,73 @@ const PrintableInvoiceScreen = () => {
                         </span>
                       </div>
                     </td>
-                  </>
-                ) : (
+                  )}
                   <td
-                    colSpan={2}
-                    className={`${footerBoxClass} !border-s-0${urduFooterNumericPadClass}`}
+                    className={`${qtyColClass} ${dataClass} ${footerBoxClass}${urduFooterNumericPadClass}`}
+                    dir="ltr"
                   >
-                    <div className="flex justify-end">
-                      <span className={`${chromeClass} shrink-0 leading-tight`}>
-                        {labels.totalQuantity}
-                      </span>
-                    </div>
+                    {totalQuantity}
                   </td>
-                )}
-                <td
-                  className={`${qtyColClass} ${dataClass} ${footerBoxClass}${urduFooterNumericPadClass}`}
-                  dir="ltr"
-                >
-                  {totalQuantity}
-                </td>
-                {quantityRowCharge ? (
-                  <>
+                  {quantityRowCharge ? (
+                    <>
+                      <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
+                      <td
+                        className={`${footerBoxLabelClass} text-end !border-e-0`}
+                      >
+                        {quantityRowCharge.label}
+                      </td>
+                      <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
+                        {renderFooterAmount(quantityRowCharge.amount)}
+                      </td>
+                    </>
+                  ) : (
+                    <td
+                      colSpan={3}
+                      className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
+                    />
+                  )}
+                </tr>
+                {hasShipping && hasExtraDiscount ? (
+                  <tr>
+                    <td className={footerBoxClearClass} />
+                    {showRunningBalances && runningBalances ? (
+                      <>
+                        <td
+                          className={`${footerBoxLabelClass} text-end !border-s-0`}
+                        >
+                          {labels.newBalance}
+                        </td>
+                        <td
+                          className={`${footerBoxClass}${urduFooterNumericPadClass}`}
+                        >
+                          {renderFooterAmount(
+                            Math.abs(runningBalances.newBalance),
+                          )}
+                        </td>
+                      </>
+                    ) : (
+                      <td
+                        colSpan={2}
+                        className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
+                      />
+                    )}
+                    <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
                     <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
                     <td
                       className={`${footerBoxLabelClass} text-end !border-e-0`}
                     >
-                      {quantityRowCharge.label}
+                      {labels.shipping}
                     </td>
                     <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
-                      {renderFooterAmount(quantityRowCharge.amount)}
+                      {renderFooterAmount(shippingAmount)}
                     </td>
-                  </>
-                ) : (
-                  <td
-                    colSpan={3}
-                    className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
-                  />
-                )}
-              </tr>
-              {hasShipping && hasExtraDiscount ? (
+                  </tr>
+                ) : null}
                 <tr>
                   <td className={footerBoxClearClass} />
-                  {showRunningBalances && runningBalances ? (
+                  {showRunningBalances &&
+                  runningBalances &&
+                  !(hasShipping && hasExtraDiscount) ? (
                     <>
                       <td
                         className={`${footerBoxLabelClass} text-end !border-s-0`}
@@ -1630,45 +1681,24 @@ const PrintableInvoiceScreen = () => {
                       <td
                         className={`${footerBoxClass}${urduFooterNumericPadClass}`}
                       >
-                        {renderFooterAmount(
-                          Math.abs(runningBalances.newBalance),
-                        )}
+                        <div className="flex w-full items-baseline justify-between gap-2">
+                          {renderFooterAmount(
+                            Math.abs(runningBalances.newBalance),
+                          )}
+                          <span
+                            className={`${chromeClass} shrink-0 leading-tight`}
+                          >
+                            {labels.total}
+                          </span>
+                        </div>
                       </td>
                     </>
                   ) : (
                     <td
                       colSpan={2}
-                      className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400"
-                    />
-                  )}
-                  <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
-                  <td className="align-middle !border-x-0 !border-y-[0.5px] !border-gray-400" />
-                  <td className={`${footerBoxLabelClass} text-end !border-e-0`}>
-                    {labels.shipping}
-                  </td>
-                  <td className={`${footerBoxAmountClass} pe-2`} dir="ltr">
-                    {renderFooterAmount(shippingAmount)}
-                  </td>
-                </tr>
-              ) : null}
-              <tr>
-                <td className={footerBoxClearClass} />
-                {showRunningBalances &&
-                runningBalances &&
-                !(hasShipping && hasExtraDiscount) ? (
-                  <>
-                    <td
-                      className={`${footerBoxLabelClass} text-end !border-s-0`}
+                      className={`${footerBoxClass} !border-s-0${urduFooterNumericPadClass}`}
                     >
-                      {labels.newBalance}
-                    </td>
-                    <td
-                      className={`${footerBoxClass}${urduFooterNumericPadClass}`}
-                    >
-                      <div className="flex w-full items-baseline justify-between gap-2">
-                        {renderFooterAmount(
-                          Math.abs(runningBalances.newBalance),
-                        )}
+                      <div className="flex justify-end">
                         <span
                           className={`${chromeClass} shrink-0 leading-tight`}
                         >
@@ -1676,32 +1706,21 @@ const PrintableInvoiceScreen = () => {
                         </span>
                       </div>
                     </td>
-                  </>
-                ) : (
+                  )}
                   <td
-                    colSpan={2}
-                    className={`${footerBoxClass} !border-s-0${urduFooterNumericPadClass}`}
+                    colSpan={3}
+                    className={`${footerBoxLabelClass} ${
+                      isUrdu ? '' : `${dataClass} text-xs`
+                    }`}
                   >
-                    <div className="flex justify-end">
-                      <span className={`${chromeClass} shrink-0 leading-tight`}>
-                        {labels.total}
-                      </span>
-                    </div>
+                    {totalAmountInWords}
                   </td>
-                )}
-                <td
-                  colSpan={3}
-                  className={`${footerBoxLabelClass} ${
-                    isUrdu ? '' : `${dataClass} text-xs`
-                  }`}
-                >
-                  {totalAmountInWords}
-                </td>
-                <td className={footerTotalAmountClass}>
-                  {renderFooterAmount(toNumber(invoice.totalAmount))}
-                </td>
-              </tr>
-            </tbody>
+                  <td className={footerTotalAmountClass}>
+                    {renderFooterAmount(toNumber(invoice.totalAmount))}
+                  </td>
+                </tr>
+              </tbody>
+            )}
           </table>
           {showPrintNoteBlock ? (
             <div
