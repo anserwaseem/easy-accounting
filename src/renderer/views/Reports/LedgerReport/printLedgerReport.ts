@@ -159,7 +159,7 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
       ? {
           date: 'تاریخ',
           particulars: 'تفصیل',
-          tierBreakdown: 'طبقہ وار بٹوارہ',
+          tierBreakdown: 'تْقسیم',
           narration: 'تشریح',
           debit: 'نام',
           credit: 'جمع',

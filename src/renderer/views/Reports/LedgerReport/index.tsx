@@ -54,7 +54,7 @@ const buildLedgerReportPayload = (
       ? {
           date: 'تاریخ',
           particulars: 'تفصیل',
-          tierBreakdown: 'طبقہ وار بٹوارہ',
+          tierBreakdown: 'تْقسیم',
           narration: 'تشریح',
           debit: 'نام',
           credit: 'جمع',
@@ -163,7 +163,7 @@ const LedgerReportPage = () => {
       ? {
           date: 'تاریخ',
           particulars: 'تفصیل',
-          tierBreakdown: 'طبقہ وار بٹوارہ',
+          tierBreakdown: 'تْقسیم',
           narration: 'تشریح',
           debit: 'نام',
           credit: 'جمع',

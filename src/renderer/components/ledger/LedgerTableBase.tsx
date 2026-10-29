@@ -116,7 +116,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         ? [
             {
               id: 'tierBreakdown',
-              header: language === 'ur' ? 'طبقہ وار بٹوارہ' : 'Tier breakdown',
+              header: language === 'ur' ? 'تْقسیم' : 'Tier breakdown',
               accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
               cell: renderTierBreakdownCell,
               size: 180,
