@@ -21,6 +21,7 @@ import {
 } from '@/renderer/views/NewInvoice/lib/partyFamilyBalance';
 import { BalanceType, REPORT_FILTER_KEYS } from 'types';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { localizedBalanceType } from './ledgerLabels';
 import { printLedgerReportIframe } from './printLedgerReport';
 
 type LedgerReportTotals = {
@@ -495,7 +496,10 @@ export const useLedgerReport = (
         debit: 0,
         credit: 0,
         balance: rangeResponse.openingBalance.balance,
-        balanceType: rangeResponse.openingBalance.balanceType,
+        balanceType: localizedBalanceType(
+          language,
+          rangeResponse.openingBalance.balanceType,
+        ) as BalanceType,
         linkedAccountId: undefined,
         linkedAccountName: undefined,
       });
@@ -510,7 +514,10 @@ export const useLedgerReport = (
         debit: entry.debit,
         credit: entry.credit,
         balance: entry.balance,
-        balanceType: entry.balanceType,
+        balanceType: localizedBalanceType(
+          language,
+          entry.balanceType,
+        ) as BalanceType,
         linkedAccountId: entry.linkedAccountId,
         linkedAccountName:
           language === 'ur'

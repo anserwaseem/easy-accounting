@@ -35,3 +35,15 @@ export const ledgerReportLabels = (
     balanceType: 'Type',
   };
 };
+
+export type LedgerBalanceTypeLabel = 'Dr' | 'Cr' | string;
+
+export const localizedBalanceType = (
+  language: LedgerReportLanguage,
+  value: LedgerBalanceTypeLabel,
+): LedgerBalanceTypeLabel => {
+  if (language !== 'ur') return value;
+  if (value === 'Dr') return 'ڈیبٹ';
+  if (value === 'Cr') return 'کریڈٹ';
+  return value;
+};

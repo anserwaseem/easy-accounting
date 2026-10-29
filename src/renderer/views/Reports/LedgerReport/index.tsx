@@ -29,7 +29,7 @@ import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
 import { LedgerReportTable } from './LedgerReportTable';
 import { useLedgerReport } from './useLedgerReport';
-import { ledgerReportLabels } from './ledgerLabels';
+import { ledgerReportLabels, localizedBalanceType } from './ledgerLabels';
 
 type LedgerReportRow = {
   date: string | Date;
@@ -232,7 +232,7 @@ const LedgerReportPage = () => {
           narration: '',
           credit: totals.totalCredit,
           balance: totals.totalDifference,
-          balanceType: totals.totalType,
+          balanceType: localizedBalanceType(language, totals.totalType) as any,
         };
         exportReportToExcel(payload);
         toast({

@@ -4,6 +4,7 @@ import { Card } from '@/renderer/shad/ui/card';
 import { LedgerTableBase } from '@/renderer/components/ledger/LedgerTableBase';
 import { currency } from '@/renderer/lib/constants';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
+import { localizedBalanceType } from './ledgerLabels';
 import { EmptyState, LoadingState } from '../components';
 
 interface LedgerReportTableProps {
@@ -89,11 +90,11 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
     if (visible.has('balanceType'))
       cells.push(
         <span className="block font-semibold whitespace-nowrap">
-          {totals.totalType}
+          {localizedBalanceType(language ?? 'en', totals.totalType)}
         </span>,
       );
     return cells;
-  }, [totals, effectiveVisibleColumns, allColumns]);
+  }, [totals, effectiveVisibleColumns, allColumns, language]);
 
   if (isLoading) {
     return <LoadingState message="Loading ledger entries..." />;

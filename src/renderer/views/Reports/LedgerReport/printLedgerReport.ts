@@ -11,7 +11,7 @@ import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
-import { ledgerReportLabels } from './ledgerLabels';
+import { ledgerReportLabels, localizedBalanceType } from './ledgerLabels';
 
 interface LedgerReportPrintOptions {
   rows: LedgerView[];
@@ -174,7 +174,8 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   const footerDiff = escape(
     getFormattedCurrency(totals.totalDifference).replace(currency, '').trim(),
   );
-  const footerType = escape(toString(totals.totalType));
+  const localizedTotalType = localizedBalanceType(language, totals.totalType);
+  const footerType = escape(toString(localizedTotalType));
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
