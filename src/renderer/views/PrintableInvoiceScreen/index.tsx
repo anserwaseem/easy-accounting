@@ -1447,6 +1447,7 @@ const PrintableInvoiceScreen = () => {
                   {labels.price}
                 </th>
                 <th
+                  hidden={isPurchase}
                   className={`${numHeadAlignClass} tabular-nums ${chromeClass}`}
                 >
                   {labels.discount}
@@ -1481,7 +1482,7 @@ const PrintableInvoiceScreen = () => {
                         {row.totalQuantity}
                       </td>
                       <td />
-                      <td />
+                      <td hidden={isPurchase} />
                       <td
                         className={`text-end ${amountColClass} ${dataClass} font-semibold`}
                         dir="ltr"
@@ -1535,6 +1536,7 @@ const PrintableInvoiceScreen = () => {
                       {chargedUnitPrice(row.item).toFixed(0)}
                     </td>
                     <td
+                      hidden={isPurchase}
                       className={`${discountColClass} ${dataClass}`}
                       dir="ltr"
                     >
