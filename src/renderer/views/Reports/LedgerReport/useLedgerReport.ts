@@ -520,7 +520,15 @@ export const useLedgerReport = (
               undefined
             : entry.linkedAccountName ?? undefined,
         linkedAccountCode: entry.linkedAccountCode ?? undefined,
-        journalSummary: entry.journalSummary,
+        journalSummary:
+          language === 'ur' && entry.journalSummary
+            ? {
+                ...entry.journalSummary,
+                narration: (entry.journalSummary.narration ?? '')
+                  .replace(/^sale invoice\b/i, 'سیل انوائس')
+                  .replace(/^purchase invoice\b/i, 'خرید انوائس'),
+              }
+            : entry.journalSummary,
         tierBreakdown: entry.tierBreakdown ?? undefined,
       });
     }

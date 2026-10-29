@@ -229,6 +229,10 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   <style>${ledgerPrintStyles}</style>
   <style>
     body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; font-size: 10px; color: #000; }
+    .data-table-wrapper th,
+    .data-table-wrapper td {
+      border: 1px solid #d9d9d9;
+    }
     .ledger-print-title { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 8px; page-break-after: avoid; }
     /* totals as last tbody row — not tfoot — so print engines do not repeat it on every page */
     @media print {
