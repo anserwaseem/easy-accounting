@@ -293,7 +293,10 @@ const LedgerReportPage = () => {
       : '';
 
   return (
-    <div dir={language === 'ur' ? 'rtl' : 'ltr'}>
+    <div
+      dir={language === 'ur' ? 'rtl' : 'ltr'}
+      lang={language === 'ur' ? 'ur' : 'en'}
+    >
       <ReportLayout
         printStyles={`${printStyles}${ledgerPrintStyles}`}
         header={

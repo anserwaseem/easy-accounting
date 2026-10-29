@@ -219,7 +219,9 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
 
   doc.open();
   doc.write(`<!DOCTYPE html>
-<html lang="en">
+<html lang="${language === 'ur' ? 'ur' : 'en'}" dir="${
+    language === 'ur' ? 'rtl' : 'ltr'
+  }">
 <head>
   <meta charset="utf-8"/>
   <title>${title}</title>

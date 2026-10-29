@@ -183,7 +183,11 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
   }, [allColumns, visibleColumns]);
 
   return (
-    <div className={className}>
+    <div
+      className={className}
+      dir={language === 'ur' ? 'rtl' : 'ltr'}
+      lang={language === 'ur' ? 'ur' : 'en'}
+    >
       <DataTable
         virtual
         columns={columns}
