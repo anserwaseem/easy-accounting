@@ -54,7 +54,7 @@ const buildLedgerReportPayload = (
       ? {
           date: 'تاریخ',
           particulars: 'تفصیل',
-          tierBreakdown: 'بٹوارہ',
+          tierBreakdown: 'طبقہ وار بٹوارہ',
           narration: 'تشریح',
           debit: 'نام',
           credit: 'جمع',
@@ -163,7 +163,7 @@ const LedgerReportPage = () => {
       ? {
           date: 'تاریخ',
           particulars: 'تفصیل',
-          tierBreakdown: 'بٹوارہ',
+          tierBreakdown: 'طبقہ وار بٹوارہ',
           narration: 'تشریح',
           debit: 'نام',
           credit: 'جمع',
@@ -301,7 +301,7 @@ const LedgerReportPage = () => {
             title={familyMode ? 'Combined Ledger Report' : 'Ledger Report'}
             filters={
               <>
-                <ReportFilter label={language === 'ur' ? 'وضع:' : 'Mode:'}>
+                <ReportFilter label="Mode:">
                   <Button
                     variant={familyMode ? 'default' : 'outline'}
                     size="sm"
@@ -312,7 +312,7 @@ const LedgerReportPage = () => {
                     {familyMode ? 'Combined' : 'Single'}
                   </Button>
                 </ReportFilter>
-                <ReportFilter label={language === 'ur' ? 'زبان:' : 'Language:'}>
+                <ReportFilter label="Language:">
                   <div className="flex rounded-md border">
                     <Button
                       type="button"
@@ -340,7 +340,7 @@ const LedgerReportPage = () => {
                     </Button>
                   </div>
                 </ReportFilter>
-                <ReportFilter label={language === 'ur' ? 'کھاتہ:' : 'Account:'}>
+                <ReportFilter label="Account:">
                   <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
                     <VirtualSelect
                       options={accounts || []}
