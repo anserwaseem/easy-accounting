@@ -252,9 +252,10 @@ const LedgerReportPage = () => {
                     variant={familyMode ? 'default' : 'outline'}
                     size="sm"
                     className="h-9"
+                    title="Combine base and tier accounts"
                     onClick={() => setFamilyMode((value) => !value)}
                   >
-                    {familyMode ? 'Family' : 'Single'}
+                    {familyMode ? 'Combined' : 'Single'}
                   </Button>
                 </ReportFilter>
                 <ReportFilter label="Account:">
