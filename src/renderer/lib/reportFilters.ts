@@ -68,6 +68,7 @@ export function makeSavedState(
     presetValue?: string;
     accountId?: number;
     familyMode?: boolean;
+    language?: 'en' | 'ur';
   },
 ): SavedFilterState {
   const state: SavedFilterState = {};
@@ -112,6 +113,9 @@ export function makeSavedState(
   }
   if (extra?.familyMode !== undefined) {
     state.familyMode = extra.familyMode;
+  }
+  if (extra?.language) {
+    state.language = extra.language;
   }
   return state;
 }

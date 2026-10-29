@@ -21,6 +21,7 @@ import {
 } from '@/renderer/views/NewInvoice/lib/partyFamilyBalance';
 import { BalanceType, REPORT_FILTER_KEYS } from 'types';
 import { formatDisplayDate } from '@/lib/displayDate';
+import { localizedBalanceType } from './ledgerLabels';
 import { printLedgerReportIframe } from './printLedgerReport';
 
 type LedgerReportTotals = {
@@ -38,6 +39,8 @@ export const useLedgerReport = (
   externalSetFamilyMode?: (
     value: boolean | ((prev: boolean) => boolean),
   ) => void,
+  externalLanguage?: 'en' | 'ur',
+  externalSetLanguage?: (value: 'en' | 'ur') => void,
 ) => {
   const [internalFamilyMode, setInternalFamilyMode] = useState(false);
   const familyMode = externalFamilyMode ?? internalFamilyMode;
@@ -65,6 +68,11 @@ export const useLedgerReport = (
   const [selectedAccount, setSelectedAccount] = useState<number | null>(
     saved.accountId ?? null,
   );
+  const [internalLanguage, setInternalLanguage] = useState<'en' | 'ur'>(
+    saved.language === 'ur' ? 'ur' : 'en',
+  );
+  const language = externalLanguage ?? internalLanguage;
+  const setLanguage = externalSetLanguage ?? setInternalLanguage;
   const [selectedAccountName, setSelectedAccountName] = useState<string>('');
   const [itemTypes, setItemTypes] = useState<Array<{ name: string }>>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -121,9 +129,10 @@ export const useLedgerReport = (
         presetValue,
         familyMode,
         accountId: selectedAccount ?? undefined,
+        language,
       }),
     );
-  }, [selectedAccount, dateRange, presetValue, familyMode]);
+  }, [selectedAccount, dateRange, presetValue, familyMode, language]);
 
   const filterRef = useRef(0);
 
@@ -131,12 +140,16 @@ export const useLedgerReport = (
     if (selectedAccount && accounts.length > 0) {
       const account = accounts.find((a) => a.id === selectedAccount);
       if (account) {
-        setSelectedAccountName(account.name || '');
+        setSelectedAccountName(
+          language === 'ur' && account.nameUrdu
+            ? account.nameUrdu
+            : account.name || '',
+        );
       }
     } else {
       setSelectedAccountName('');
     }
-  }, [selectedAccount, accounts]);
+  }, [selectedAccount, accounts, language]);
 
   const fetchLedgerRange = useCallback(async () => {
     if (!selectedAccount || !dateRange?.from || !dateRange?.to) {
@@ -479,11 +492,14 @@ export const useLedgerReport = (
           ? format(addDays(dateRange.from, -1), 'yyyy-MM-dd')
           : '',
         accountId: selectedAccount ?? 0,
-        particulars: 'Opening Balance',
+        particulars: language === 'ur' ? 'ابتدائی بقایا' : 'Opening Balance',
         debit: 0,
         credit: 0,
         balance: rangeResponse.openingBalance.balance,
-        balanceType: rangeResponse.openingBalance.balanceType,
+        balanceType: localizedBalanceType(
+          language,
+          rangeResponse.openingBalance.balanceType,
+        ) as BalanceType,
         linkedAccountId: undefined,
         linkedAccountName: undefined,
       });
@@ -498,17 +514,34 @@ export const useLedgerReport = (
         debit: entry.debit,
         credit: entry.credit,
         balance: entry.balance,
-        balanceType: entry.balanceType,
+        balanceType: localizedBalanceType(
+          language,
+          entry.balanceType,
+        ) as BalanceType,
         linkedAccountId: entry.linkedAccountId,
-        linkedAccountName: entry.linkedAccountName ?? undefined,
+        linkedAccountName:
+          language === 'ur'
+            ? (accounts as any[]).find((a) => a.id === entry.linkedAccountId)
+                ?.nameUrdu ??
+              entry.linkedAccountName ??
+              undefined
+            : entry.linkedAccountName ?? undefined,
         linkedAccountCode: entry.linkedAccountCode ?? undefined,
-        journalSummary: entry.journalSummary,
+        journalSummary:
+          language === 'ur' && entry.journalSummary
+            ? {
+                ...entry.journalSummary,
+                narration: (entry.journalSummary.narration ?? '')
+                  .replace(/^sale invoice\b/i, 'بل')
+                  .replace(/^purchase invoice\b/i, 'خرید بل'),
+              }
+            : entry.journalSummary,
         tierBreakdown: entry.tierBreakdown ?? undefined,
       });
     }
 
     return rows;
-  }, [rangeResponse, dateRange, selectedAccount]);
+  }, [rangeResponse, dateRange, selectedAccount, language, accounts]);
 
   const ledgerAccountName = useMemo(() => {
     if (!familyMode) return selectedAccountName;
@@ -525,13 +558,18 @@ export const useLedgerReport = (
     const baseMember = (accounts as any[]).find(
       (a) => familyAccountIds.includes(a.id) && !isTypedPartyAccount(a, ctx),
     );
-    return baseMember?.name ?? selectedAccountName;
+    const baseName =
+      language === 'ur' && baseMember?.nameUrdu
+        ? baseMember.nameUrdu
+        : baseMember?.name ?? selectedAccountName;
+    return baseName;
   }, [
     familyMode,
     accounts,
     familyAccountIds,
     itemTypeNames,
     selectedAccountName,
+    language,
   ]);
 
   const handlePrint = useCallback(() => {
@@ -542,6 +580,7 @@ export const useLedgerReport = (
       dateSubtitle: printDateSubtitle,
       totals,
       visibleColumns,
+      language,
     });
   }, [
     displayedEntries,
@@ -549,6 +588,7 @@ export const useLedgerReport = (
     printDateSubtitle,
     totals,
     visibleColumns,
+    language,
   ]);
 
   return {
@@ -571,5 +611,7 @@ export const useLedgerReport = (
     familyMode,
     setFamilyMode,
     familyAccountIds,
+    language,
+    setLanguage,
   };
 };

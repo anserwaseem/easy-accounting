@@ -4,6 +4,7 @@ import { Card } from '@/renderer/shad/ui/card';
 import { LedgerTableBase } from '@/renderer/components/ledger/LedgerTableBase';
 import { currency } from '@/renderer/lib/constants';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
+import { localizedBalanceType } from './ledgerLabels';
 import { EmptyState, LoadingState } from '../components';
 
 interface LedgerReportTableProps {
@@ -11,6 +12,7 @@ interface LedgerReportTableProps {
   isLoading: boolean;
   dateSubtitle: string;
   accountName: string;
+  language?: 'en' | 'ur';
   totals: {
     totalDebit: number;
     totalCredit: number;
@@ -25,6 +27,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
   isLoading,
   dateSubtitle,
   accountName,
+  language = 'en',
   totals,
   visibleColumns,
 }: LedgerReportTableProps) => {
@@ -87,11 +90,11 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
     if (visible.has('balanceType'))
       cells.push(
         <span className="block font-semibold whitespace-nowrap">
-          {totals.totalType}
+          {localizedBalanceType(language ?? 'en', totals.totalType)}
         </span>,
       );
     return cells;
-  }, [totals, effectiveVisibleColumns, allColumns]);
+  }, [totals, effectiveVisibleColumns, allColumns, language]);
 
   if (isLoading) {
     return <LoadingState message="Loading ledger entries..." />;
@@ -118,6 +121,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
         ledger={ledger}
         className="print-table"
         printMode
+        language={language}
         stickyFooterRow={stickyFooterRow}
         visibleColumns={effectiveVisibleColumns}
       />

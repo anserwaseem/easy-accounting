@@ -89,7 +89,7 @@ const BackupSettings: React.FC = () => {
   }, []);
 
   const handleRestoreBackup = useCallback(async (backup: BackupInfo) => {
-    // eslint-disable-next-line no-alert
+    /* eslint-disable no-alert */
     if (
       !window.confirm(
         `Restore backup from ${formatDisplayDateTime(

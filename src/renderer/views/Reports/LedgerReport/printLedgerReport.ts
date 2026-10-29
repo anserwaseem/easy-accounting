@@ -11,6 +11,7 @@ import { formatDisplayDate } from '@/lib/displayDate';
 import { printStyles } from '../components/printStyles';
 import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
+import { ledgerReportLabels, localizedBalanceType } from './ledgerLabels';
 
 interface LedgerReportPrintOptions {
   rows: LedgerView[];
@@ -23,6 +24,7 @@ interface LedgerReportPrintOptions {
     totalType: string;
   };
   visibleColumns?: ReadonlySet<string>;
+  language?: 'en' | 'ur';
 }
 
 const narrationTextForRow = (row: LedgerView): string => {
@@ -138,6 +140,7 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
     dateSubtitle,
     totals,
     visibleColumns: visibleColumnsOption,
+    language = 'en',
   } = options;
   const visibleColumns = new Set(
     visibleColumnsOption ?? LEDGER_REPORT_COLUMN_IDS,
@@ -152,7 +155,11 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
     window.electron.store.get('debitCreditDefaultLabel') ?? ' ',
   );
 
-  const title = escape(`Ledger Report for ${accountName}: ${dateSubtitle}`);
+  const title = escape(
+    language === 'ur'
+      ? `لیجر رپورٹ: ${accountName} — ${dateSubtitle}`
+      : `Ledger Report for ${accountName}: ${dateSubtitle}`,
+  );
   const bodyHtml = buildLedgerTableBodyHtml(
     rows,
     debitCreditZeroLabel,
@@ -167,7 +174,8 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   const footerDiff = escape(
     getFormattedCurrency(totals.totalDifference).replace(currency, '').trim(),
   );
-  const footerType = escape(toString(totals.totalType));
+  const localizedTotalType = localizedBalanceType(language, totals.totalType);
+  const footerType = escape(toString(localizedTotalType));
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
@@ -191,7 +199,9 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
 
   doc.open();
   doc.write(`<!DOCTYPE html>
-<html lang="en">
+<html lang="${language === 'ur' ? 'ur' : 'en'}" dir="${
+    language === 'ur' ? 'rtl' : 'ltr'
+  }">
 <head>
   <meta charset="utf-8"/>
   <title>${title}</title>
@@ -199,6 +209,18 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   <style>${ledgerPrintStyles}</style>
   <style>
     body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; font-size: 10px; color: #000; }
+    .data-table-wrapper th,
+    .data-table-wrapper td {
+      border: 1px solid #d9d9d9;
+    }
+    .data-table-wrapper {
+      direction: ${language === 'ur' ? 'rtl' : 'ltr'};
+    }
+    ${
+      language === 'ur'
+        ? '.data-table-wrapper th { text-align: right !important; }'
+        : ''
+    }
     .ledger-print-title { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 8px; page-break-after: avoid; }
     /* totals as last tbody row — not tfoot — so print engines do not repeat it on every page */
     @media print {
@@ -211,26 +233,52 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   <table class="data-table-wrapper print-table" style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
-        ${visibleColumns.has('date') ? '<th>Date</th>' : ''}
-        ${visibleColumns.has('particulars') ? '<th>Particulars</th>' : ''}
-        ${visibleColumns.has('tierBreakdown') ? '<th>Tier breakdown</th>' : ''}
-        ${visibleColumns.has('narration') ? '<th>Narration</th>' : ''}
+        ${
+          visibleColumns.has('date')
+            ? `<th>${escape(ledgerReportLabels(language).date)}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('particulars')
+            ? `<th>${escape(ledgerReportLabels(language).particulars)}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('tierBreakdown')
+            ? `<th>${escape(ledgerReportLabels(language).tierBreakdown)}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('narration')
+            ? `<th>${escape(ledgerReportLabels(language).narration)}</th>`
+            : ''
+        }
         ${
           visibleColumns.has('debit')
-            ? '<th style="text-align:right">Debit</th>'
+            ? `<th style="text-align:right">${escape(
+                ledgerReportLabels(language).debit,
+              )}</th>`
             : ''
         }
         ${
           visibleColumns.has('credit')
-            ? '<th style="text-align:right">Credit</th>'
+            ? `<th style="text-align:right">${escape(
+                ledgerReportLabels(language).credit,
+              )}</th>`
             : ''
         }
         ${
           visibleColumns.has('balance')
-            ? '<th style="text-align:right">Balance</th>'
+            ? `<th style="text-align:right">${escape(
+                ledgerReportLabels(language).balance,
+              )}</th>`
             : ''
         }
-        ${visibleColumns.has('balanceType') ? '<th>Type</th>' : ''}
+        ${
+          visibleColumns.has('balanceType')
+            ? `<th>${escape(ledgerReportLabels(language).balanceType)}</th>`
+            : ''
+        }
       </tr>
     </thead>
     <tbody>${bodyHtml}

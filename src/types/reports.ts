@@ -63,6 +63,7 @@ export interface LedgerRangeResponse {
 export interface SavedFilterState {
   accountId?: number;
   familyMode?: boolean;
+  language?: 'en' | 'ur';
   dateRange?: { from: string; to: string }; // ISO strings
   groupBy?: 'day' | 'week' | 'month';
   groupByPolicy?: boolean;

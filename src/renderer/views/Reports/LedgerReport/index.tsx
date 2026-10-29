@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Download, Printer, RefreshCw } from 'lucide-react';
@@ -29,6 +29,7 @@ import { formatLedgerParticularsForExport } from './formatLedgerParticulars';
 import { ledgerPrintStyles } from './ledgerPrintStyles';
 import { LedgerReportTable } from './LedgerReportTable';
 import { useLedgerReport } from './useLedgerReport';
+import { ledgerReportLabels, localizedBalanceType } from './ledgerLabels';
 
 type LedgerReportRow = {
   date: string | Date;
@@ -47,6 +48,7 @@ const buildLedgerReportPayload = (
   dateRange?: DateRange,
   visibleColumns?: ReadonlySet<string>,
   includeTierBreakdown: boolean = false,
+  language: 'en' | 'ur' = 'en',
 ): ReportExportPayload<LedgerReportRow> => {
   const fromStr = dateRange?.from ? formatDisplayDate(dateRange.from) : '';
   const toStr = dateRange?.to ? formatDisplayDate(dateRange.to) : '';
@@ -61,29 +63,54 @@ const buildLedgerReportPayload = (
       'yyyy-MM-dd',
     )}.xlsx`,
     columns: [
-      { key: 'date', header: 'Date', format: 'date', width: 14 },
+      {
+        key: 'date',
+        header: ledgerReportLabels(language).date,
+        format: 'date',
+        width: 14,
+      },
       {
         key: 'particulars',
-        header: 'Particulars',
+        header: ledgerReportLabels(language).particulars,
         format: 'string',
         width: 36,
       },
       {
         key: 'tierBreakdown',
-        header: 'Tier breakdown',
+        header: ledgerReportLabels(language).tierBreakdown,
         format: 'string',
         width: 40,
       },
       {
         key: 'narration',
-        header: 'Narration',
+        header: ledgerReportLabels(language).narration,
         format: 'string',
         width: 44,
       },
-      { key: 'debit', header: 'Debit', format: 'currency', width: 14 },
-      { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
-      { key: 'balance', header: 'Balance', format: 'currency', width: 14 },
-      { key: 'balanceType', header: 'Type', format: 'string', width: 8 },
+      {
+        key: 'debit',
+        header: ledgerReportLabels(language).debit,
+        format: 'currency',
+        width: 14,
+      },
+      {
+        key: 'credit',
+        header: ledgerReportLabels(language).credit,
+        format: 'currency',
+        width: 14,
+      },
+      {
+        key: 'balance',
+        header: ledgerReportLabels(language).balance,
+        format: 'currency',
+        width: 14,
+      },
+      {
+        key: 'balanceType',
+        header: ledgerReportLabels(language).balanceType,
+        format: 'string',
+        width: 8,
+      },
     ].filter((column) => {
       const hasTierBreakdown = ledgerEntries.some(
         (r: any) => !!r.tierBreakdown,
@@ -122,31 +149,28 @@ const buildLedgerReportExportRows = (
   }));
 
 const LedgerReportPage = () => {
-  const ledgerSaved = useMemo(
-    () => loadSavedFilters(REPORT_FILTER_KEYS.ledger),
-    [],
-  );
+  const ledgerSaved = loadSavedFilters(REPORT_FILTER_KEYS.ledger);
   const [familyMode, setFamilyMode] = useState<boolean>(
     ledgerSaved.familyMode ?? false,
   );
+  const [language, setLanguage] = useState<'en' | 'ur'>(
+    ledgerSaved.language === 'ur' ? 'ur' : 'en',
+  );
 
-  const ledgerColumnSpecs = useMemo(
-    () => [
-      { id: 'date', label: 'Date' },
-      { id: 'particulars', label: 'Particulars' },
-      ...(familyMode ? [{ id: 'tierBreakdown', label: 'Tier breakdown' }] : []),
-      { id: 'narration', label: 'Narration' },
-      { id: 'debit', label: 'Debit' },
-      { id: 'credit', label: 'Credit' },
-      { id: 'balance', label: 'Balance' },
-      { id: 'balanceType', label: 'Type' },
-    ],
-    [familyMode],
-  );
-  const ledgerColumnIds = useMemo(
-    () => ledgerColumnSpecs.map((column) => column.id),
-    [ledgerColumnSpecs],
-  );
+  const _reportLabels = ledgerReportLabels(language);
+  const ledgerColumnSpecs = [
+    { id: 'date', label: _reportLabels.date },
+    { id: 'particulars', label: _reportLabels.particulars },
+    ...(familyMode
+      ? [{ id: 'tierBreakdown', label: _reportLabels.tierBreakdown }]
+      : []),
+    { id: 'narration', label: _reportLabels.narration },
+    { id: 'debit', label: _reportLabels.debit },
+    { id: 'credit', label: _reportLabels.credit },
+    { id: 'balance', label: _reportLabels.balance },
+    { id: 'balanceType', label: _reportLabels.balanceType },
+  ];
+  const ledgerColumnIds = ledgerColumnSpecs.map((column) => column.id);
   const columnVisibility = useReportColumnVisibility(
     'ledger-report',
     ledgerColumnIds,
@@ -169,7 +193,13 @@ const LedgerReportPage = () => {
     rangeResponse,
     totals,
     familyAccountIds,
-  } = useLedgerReport(visibleLedgerColumns, familyMode, setFamilyMode);
+  } = useLedgerReport(
+    visibleLedgerColumns,
+    familyMode,
+    setFamilyMode,
+    language,
+    setLanguage,
+  );
 
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
@@ -193,6 +223,7 @@ const LedgerReportPage = () => {
           dateRange ?? undefined,
           visibleLedgerColumns,
           familyMode,
+          language,
         );
         payload.footerRow = {
           date: '',
@@ -201,7 +232,7 @@ const LedgerReportPage = () => {
           narration: '',
           credit: totals.totalCredit,
           balance: totals.totalDifference,
-          balanceType: totals.totalType,
+          balanceType: localizedBalanceType(language, totals.totalType) as any,
         };
         exportReportToExcel(payload);
         toast({
@@ -225,6 +256,7 @@ const LedgerReportPage = () => {
       totals,
       visibleLedgerColumns,
       familyMode,
+      language,
     ],
   );
 
@@ -244,17 +276,47 @@ const LedgerReportPage = () => {
       header={
         <>
           <ReportHeader
-            title={familyMode ? 'Customer Family Ledger' : 'Ledger Report'}
+            title={familyMode ? 'Combined Ledger Report' : 'Ledger Report'}
             filters={
               <>
                 <ReportFilter label="Mode:">
                   <Button
                     variant={familyMode ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setFamilyMode((v) => !v)}
+                    className="h-9"
+                    title="Combine base and tier accounts"
+                    onClick={() => setFamilyMode((value) => !value)}
                   >
-                    {familyMode ? 'Customer family' : 'Single account'}
+                    {familyMode ? 'Combined' : 'Single'}
                   </Button>
+                </ReportFilter>
+                <ReportFilter label="Language:">
+                  <div className="flex rounded-md border">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={language === 'en' ? 'default' : 'ghost'}
+                      className={cn(
+                        'rounded-r-none',
+                        language === 'en' && 'pointer-events-none',
+                      )}
+                      onClick={() => setLanguage('en')}
+                    >
+                      Eng
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={language === 'ur' ? 'default' : 'ghost'}
+                      className={cn(
+                        'rounded-l-none',
+                        language === 'ur' && 'pointer-events-none',
+                      )}
+                      onClick={() => setLanguage('ur')}
+                    >
+                      اردو
+                    </Button>
+                  </div>
                 </ReportFilter>
                 <ReportFilter label="Account:">
                   <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
@@ -347,6 +409,7 @@ const LedgerReportPage = () => {
           isLoading={isLoading}
           accountName={selectedAccountName}
           dateSubtitle={dateSubtitle}
+          language={language}
           totals={totals}
           visibleColumns={visibleLedgerColumns}
         />
