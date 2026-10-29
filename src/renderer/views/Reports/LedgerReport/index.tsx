@@ -293,169 +293,160 @@ const LedgerReportPage = () => {
       : '';
 
   return (
-    <div
-      dir={language === 'ur' ? 'rtl' : 'ltr'}
-      lang={language === 'ur' ? 'ur' : 'en'}
-    >
-      <ReportLayout
-        printStyles={`${printStyles}${ledgerPrintStyles}`}
-        header={
-          <>
-            <ReportHeader
-              title={familyMode ? 'Combined Ledger Report' : 'Ledger Report'}
-              filters={
-                <>
-                  <ReportFilter label={language === 'ur' ? 'وضع:' : 'Mode:'}>
+    <ReportLayout
+      printStyles={`${printStyles}${ledgerPrintStyles}`}
+      header={
+        <>
+          <ReportHeader
+            title={familyMode ? 'Combined Ledger Report' : 'Ledger Report'}
+            filters={
+              <>
+                <ReportFilter label={language === 'ur' ? 'وضع:' : 'Mode:'}>
+                  <Button
+                    variant={familyMode ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-9"
+                    title="Combine base and tier accounts"
+                    onClick={() => setFamilyMode((value) => !value)}
+                  >
+                    {familyMode ? 'Combined' : 'Single'}
+                  </Button>
+                </ReportFilter>
+                <ReportFilter label={language === 'ur' ? 'زبان:' : 'Language:'}>
+                  <div className="flex rounded-md border">
                     <Button
-                      variant={familyMode ? 'default' : 'outline'}
+                      type="button"
                       size="sm"
-                      className="h-9"
-                      title="Combine base and tier accounts"
-                      onClick={() => setFamilyMode((value) => !value)}
+                      variant={language === 'en' ? 'default' : 'ghost'}
+                      className={cn(
+                        'rounded-r-none',
+                        language === 'en' && 'pointer-events-none',
+                      )}
+                      onClick={() => setLanguage('en')}
                     >
-                      {familyMode ? 'Combined' : 'Single'}
+                      Eng
                     </Button>
-                  </ReportFilter>
-                  <ReportFilter
-                    label={language === 'ur' ? 'زبان:' : 'Language:'}
-                  >
-                    <div className="flex rounded-md border">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={language === 'en' ? 'default' : 'ghost'}
-                        className={cn(
-                          'rounded-r-none',
-                          language === 'en' && 'pointer-events-none',
-                        )}
-                        onClick={() => setLanguage('en')}
-                      >
-                        Eng
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={language === 'ur' ? 'default' : 'ghost'}
-                        className={cn(
-                          'rounded-l-none',
-                          language === 'ur' && 'pointer-events-none',
-                        )}
-                        onClick={() => setLanguage('ur')}
-                      >
-                        اردو
-                      </Button>
-                    </div>
-                  </ReportFilter>
-                  <ReportFilter
-                    label={language === 'ur' ? 'کھاتہ:' : 'Account:'}
-                  >
-                    <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
-                      <VirtualSelect
-                        options={accounts || []}
-                        value={selectedAccount?.toString()}
-                        onChange={(value) => setSelectedAccount(Number(value))}
-                        placeholder="Select account"
-                        searchPlaceholder="Search accounts..."
-                        autoFocusTrigger={selectedAccount == null}
-                      />
-                    </div>
-                  </ReportFilter>
-                  <ReportFilter label="Range:">
-                    <DateRangePickerWithPresets
-                      $onSelect={handleDateChange}
-                      presets={[{ label: 'All', value: 'all' }]}
-                      initialRange={dateRange ?? undefined}
-                      initialSelectValue={presetValue}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={language === 'ur' ? 'default' : 'ghost'}
+                      className={cn(
+                        'rounded-l-none',
+                        language === 'ur' && 'pointer-events-none',
+                      )}
+                      onClick={() => setLanguage('ur')}
+                    >
+                      اردو
+                    </Button>
+                  </div>
+                </ReportFilter>
+                <ReportFilter label={language === 'ur' ? 'کھاتہ:' : 'Account:'}>
+                  <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
+                    <VirtualSelect
+                      options={accounts || []}
+                      value={selectedAccount?.toString()}
+                      onChange={(value) => setSelectedAccount(Number(value))}
+                      placeholder="Select account"
+                      searchPlaceholder="Search accounts..."
+                      autoFocusTrigger={selectedAccount == null}
                     />
-                  </ReportFilter>
-                </>
-              }
-              actions={
-                <>
-                  <ReportColumnsMenu
-                    columns={ledgerColumnSpecs}
-                    included={columnVisibility.included}
-                    onToggle={columnVisibility.toggle}
-                    onToggleAll={columnVisibility.toggleAll}
+                  </div>
+                </ReportFilter>
+                <ReportFilter label="Range:">
+                  <DateRangePickerWithPresets
+                    $onSelect={handleDateChange}
+                    presets={[{ label: 'All', value: 'all' }]}
+                    initialRange={dateRange ?? undefined}
+                    initialSelectValue={presetValue}
                   />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={refreshData}
-                    title="Refresh Data"
-                    disabled={isLoading}
-                  >
-                    <RefreshCw
-                      className={cn('h-4 w-4', isLoading && 'animate-spin')}
-                    />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setExportDialogOpen(true)}
-                    title="Export to Excel"
-                    disabled={!canExport}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handlePrint}
-                    title="Print Ledger Report"
-                  >
-                    <Printer className="h-4 w-4" />
-                  </Button>
-                </>
-              }
-            />
-            {selectedAccount && !isLoading && latestBalance && (
-              <div className="print:hidden text-right text-sm text-muted-foreground">
-                Closing Balance:{' '}
-                <span className="font-semibold">{latestBalance}</span>
-              </div>
-            )}
-            {familyMode && selectedAccount && !isLoading && (
-              <div className="print:hidden text-xs text-muted-foreground">
-                Included accounts:{' '}
-                {(accounts ?? [])
-                  .filter((a: any) => familyAccountIds.includes(a.id))
-                  .map((a: any) => String(a.code ?? a.id))
-                  .join(', ')}
-              </div>
-            )}
-          </>
-        }
-      >
-        <LedgerParticularsExportDialog
-          open={exportDialogOpen}
-          onOpenChange={setExportDialogOpen}
-          onConfirm={runLedgerExcelExport}
-          title="Export ledger to Excel"
-        />
-        {selectedAccount && !isLoading && (
-          <LedgerReportTable
-            ledger={ledgerEntries}
-            isLoading={isLoading}
-            accountName={selectedAccountName}
-            dateSubtitle={dateSubtitle}
-            language={language}
-            totals={totals}
-            visibleColumns={visibleLedgerColumns}
+                </ReportFilter>
+              </>
+            }
+            actions={
+              <>
+                <ReportColumnsMenu
+                  columns={ledgerColumnSpecs}
+                  included={columnVisibility.included}
+                  onToggle={columnVisibility.toggle}
+                  onToggleAll={columnVisibility.toggleAll}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={refreshData}
+                  title="Refresh Data"
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={cn('h-4 w-4', isLoading && 'animate-spin')}
+                  />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setExportDialogOpen(true)}
+                  title="Export to Excel"
+                  disabled={!canExport}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrint}
+                  title="Print Ledger Report"
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </>
+            }
           />
-        )}
-        {!selectedAccount && !isLoading && (
-          <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
-            Please select an account to view its ledger
-          </Card>
-        )}
-        {isLoading && (
-          <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
-            Loading...
-          </Card>
-        )}
-      </ReportLayout>
-    </div>
+          {selectedAccount && !isLoading && latestBalance && (
+            <div className="print:hidden text-right text-sm text-muted-foreground">
+              Closing Balance:{' '}
+              <span className="font-semibold">{latestBalance}</span>
+            </div>
+          )}
+          {familyMode && selectedAccount && !isLoading && (
+            <div className="print:hidden text-xs text-muted-foreground">
+              Included accounts:{' '}
+              {(accounts ?? [])
+                .filter((a: any) => familyAccountIds.includes(a.id))
+                .map((a: any) => String(a.code ?? a.id))
+                .join(', ')}
+            </div>
+          )}
+        </>
+      }
+    >
+      <LedgerParticularsExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        onConfirm={runLedgerExcelExport}
+        title="Export ledger to Excel"
+      />
+      {selectedAccount && !isLoading && (
+        <LedgerReportTable
+          ledger={ledgerEntries}
+          isLoading={isLoading}
+          accountName={selectedAccountName}
+          dateSubtitle={dateSubtitle}
+          language={language}
+          totals={totals}
+          visibleColumns={visibleLedgerColumns}
+        />
+      )}
+      {!selectedAccount && !isLoading && (
+        <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
+          Please select an account to view its ledger
+        </Card>
+      )}
+      {isLoading && (
+        <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
+          Loading...
+        </Card>
+      )}
+    </ReportLayout>
   );
 };
 
