@@ -254,7 +254,7 @@ const LedgerReportPage = () => {
                     className="h-9"
                     onClick={() => setFamilyMode((value) => !value)}
                   >
-                    {familyMode ? 'Customer family' : 'Single account'}
+                    {familyMode ? 'Family' : 'Single'}
                   </Button>
                 </ReportFilter>
                 <ReportFilter label="Account:">
