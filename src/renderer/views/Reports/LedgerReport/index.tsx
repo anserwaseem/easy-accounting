@@ -244,7 +244,7 @@ const LedgerReportPage = () => {
       header={
         <>
           <ReportHeader
-            title={familyMode ? 'Customer Family Ledger' : 'Ledger Report'}
+            title={familyMode ? 'Consolidated Ledger Report' : 'Ledger Report'}
             filters={
               <>
                 <ReportFilter label="Mode:">
