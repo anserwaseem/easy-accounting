@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from 'renderer/shad/ui/button';
 import { Download, Printer, RefreshCw } from 'lucide-react';
@@ -47,7 +47,30 @@ const buildLedgerReportPayload = (
   dateRange?: DateRange,
   visibleColumns?: ReadonlySet<string>,
   includeTierBreakdown: boolean = false,
+  language: 'en' | 'ur' = 'en',
 ): ReportExportPayload<LedgerReportRow> => {
+  const labels =
+    language === 'ur'
+      ? {
+          date: 'تاریخ',
+          particulars: 'تفصیل',
+          tierBreakdown: 'بٹوارا',
+          narration: 'تشریح',
+          debit: 'ڈیبٹ',
+          credit: 'کریڈٹ',
+          balance: 'بقایا',
+          balanceType: 'قسم',
+        }
+      : {
+          date: 'Date',
+          particulars: 'Particulars',
+          tierBreakdown: 'Tier breakdown',
+          narration: 'Narration',
+          debit: 'Debit',
+          credit: 'Credit',
+          balance: 'Balance',
+          balanceType: 'Type',
+        };
   const fromStr = dateRange?.from ? formatDisplayDate(dateRange.from) : '';
   const toStr = dateRange?.to ? formatDisplayDate(dateRange.to) : '';
   const subtitle = `${accountName} — ${fromStr} to ${toStr}`;
@@ -61,29 +84,34 @@ const buildLedgerReportPayload = (
       'yyyy-MM-dd',
     )}.xlsx`,
     columns: [
-      { key: 'date', header: 'Date', format: 'date', width: 14 },
+      { key: 'date', header: labels.date, format: 'date', width: 14 },
       {
         key: 'particulars',
-        header: 'Particulars',
+        header: labels.particulars,
         format: 'string',
         width: 36,
       },
       {
         key: 'tierBreakdown',
-        header: 'Tier breakdown',
+        header: labels.tierBreakdown,
         format: 'string',
         width: 40,
       },
       {
         key: 'narration',
-        header: 'Narration',
+        header: labels.narration,
         format: 'string',
         width: 44,
       },
-      { key: 'debit', header: 'Debit', format: 'currency', width: 14 },
-      { key: 'credit', header: 'Credit', format: 'currency', width: 14 },
-      { key: 'balance', header: 'Balance', format: 'currency', width: 14 },
-      { key: 'balanceType', header: 'Type', format: 'string', width: 8 },
+      { key: 'debit', header: labels.debit, format: 'currency', width: 14 },
+      { key: 'credit', header: labels.credit, format: 'currency', width: 14 },
+      { key: 'balance', header: labels.balance, format: 'currency', width: 14 },
+      {
+        key: 'balanceType',
+        header: labels.balanceType,
+        format: 'string',
+        width: 8,
+      },
     ].filter((column) => {
       const hasTierBreakdown = ledgerEntries.some(
         (r: any) => !!r.tierBreakdown,
@@ -122,31 +150,49 @@ const buildLedgerReportExportRows = (
   }));
 
 const LedgerReportPage = () => {
-  const ledgerSaved = useMemo(
-    () => loadSavedFilters(REPORT_FILTER_KEYS.ledger),
-    [],
-  );
+  const ledgerSaved = loadSavedFilters(REPORT_FILTER_KEYS.ledger);
   const [familyMode, setFamilyMode] = useState<boolean>(
     ledgerSaved.familyMode ?? false,
   );
+  const [language, setLanguage] = useState<'en' | 'ur'>(
+    ledgerSaved.language === 'ur' ? 'ur' : 'en',
+  );
 
-  const ledgerColumnSpecs = useMemo(
-    () => [
-      { id: 'date', label: 'Date' },
-      { id: 'particulars', label: 'Particulars' },
-      ...(familyMode ? [{ id: 'tierBreakdown', label: 'Tier breakdown' }] : []),
-      { id: 'narration', label: 'Narration' },
-      { id: 'debit', label: 'Debit' },
-      { id: 'credit', label: 'Credit' },
-      { id: 'balance', label: 'Balance' },
-      { id: 'balanceType', label: 'Type' },
-    ],
-    [familyMode],
-  );
-  const ledgerColumnIds = useMemo(
-    () => ledgerColumnSpecs.map((column) => column.id),
-    [ledgerColumnSpecs],
-  );
+  const labels =
+    language === 'ur'
+      ? {
+          date: 'تاریخ',
+          particulars: 'تفصیل',
+          tierBreakdown: 'بٹوارا',
+          narration: 'تشریح',
+          debit: 'ڈیبٹ',
+          credit: 'کریڈٹ',
+          balance: 'بقایا',
+          balanceType: 'قسم',
+        }
+      : {
+          date: 'Date',
+          particulars: 'Particulars',
+          tierBreakdown: 'Tier breakdown',
+          narration: 'Narration',
+          debit: 'Debit',
+          credit: 'Credit',
+          balance: 'Balance',
+          balanceType: 'Type',
+        };
+  const ledgerColumnSpecs = [
+    { id: 'date', label: labels.date },
+    { id: 'particulars', label: labels.particulars },
+    ...(familyMode
+      ? [{ id: 'tierBreakdown', label: labels.tierBreakdown }]
+      : []),
+    { id: 'narration', label: labels.narration },
+    { id: 'debit', label: labels.debit },
+    { id: 'credit', label: labels.credit },
+    { id: 'balance', label: labels.balance },
+    { id: 'balanceType', label: labels.balanceType },
+  ];
+  const ledgerColumnIds = ledgerColumnSpecs.map((column) => column.id);
   const columnVisibility = useReportColumnVisibility(
     'ledger-report',
     ledgerColumnIds,
@@ -169,7 +215,13 @@ const LedgerReportPage = () => {
     rangeResponse,
     totals,
     familyAccountIds,
-  } = useLedgerReport(visibleLedgerColumns, familyMode, setFamilyMode);
+  } = useLedgerReport(
+    visibleLedgerColumns,
+    familyMode,
+    setFamilyMode,
+    language,
+    setLanguage,
+  );
 
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
@@ -193,6 +245,7 @@ const LedgerReportPage = () => {
           dateRange ?? undefined,
           visibleLedgerColumns,
           familyMode,
+          language,
         );
         payload.footerRow = {
           date: '',
@@ -225,6 +278,7 @@ const LedgerReportPage = () => {
       totals,
       visibleLedgerColumns,
       familyMode,
+      language,
     ],
   );
 
@@ -239,129 +293,154 @@ const LedgerReportPage = () => {
       : '';
 
   return (
-    <ReportLayout
-      printStyles={`${printStyles}${ledgerPrintStyles}`}
-      header={
-        <>
-          <ReportHeader
-            title={familyMode ? 'Customer Family Ledger' : 'Ledger Report'}
-            filters={
-              <>
-                <ReportFilter label="Mode:">
-                  <Button
-                    variant={familyMode ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setFamilyMode((v) => !v)}
-                  >
-                    {familyMode ? 'Customer family' : 'Single account'}
-                  </Button>
-                </ReportFilter>
-                <ReportFilter label="Account:">
-                  <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
-                    <VirtualSelect
-                      options={accounts || []}
-                      value={selectedAccount?.toString()}
-                      onChange={(value) => setSelectedAccount(Number(value))}
-                      placeholder="Select account"
-                      searchPlaceholder="Search accounts..."
-                      autoFocusTrigger={selectedAccount == null}
+    <div dir={language === 'ur' ? 'rtl' : 'ltr'}>
+      <ReportLayout
+        printStyles={`${printStyles}${ledgerPrintStyles}`}
+        header={
+          <>
+            <ReportHeader
+              title={familyMode ? 'Combined Ledger Report' : 'Ledger Report'}
+              filters={
+                <>
+                  <ReportFilter label="Mode:">
+                    <Button
+                      variant={familyMode ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-9"
+                      title="Combine base and tier accounts"
+                      onClick={() => setFamilyMode((value) => !value)}
+                    >
+                      {familyMode ? 'Combined' : 'Single'}
+                    </Button>
+                  </ReportFilter>
+                  <ReportFilter label="Language:">
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant={language === 'en' ? 'default' : 'outline'}
+                        className="h-9"
+                        onClick={() => setLanguage('en')}
+                      >
+                        EN
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={language === 'ur' ? 'default' : 'outline'}
+                        className="h-9"
+                        onClick={() => setLanguage('ur')}
+                      >
+                        UR
+                      </Button>
+                    </div>
+                  </ReportFilter>
+                  <ReportFilter label="Account:">
+                    <div className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
+                      <VirtualSelect
+                        options={accounts || []}
+                        value={selectedAccount?.toString()}
+                        onChange={(value) => setSelectedAccount(Number(value))}
+                        placeholder="Select account"
+                        searchPlaceholder="Search accounts..."
+                        autoFocusTrigger={selectedAccount == null}
+                      />
+                    </div>
+                  </ReportFilter>
+                  <ReportFilter label="Range:">
+                    <DateRangePickerWithPresets
+                      $onSelect={handleDateChange}
+                      presets={[{ label: 'All', value: 'all' }]}
+                      initialRange={dateRange ?? undefined}
+                      initialSelectValue={presetValue}
                     />
-                  </div>
-                </ReportFilter>
-                <ReportFilter label="Range:">
-                  <DateRangePickerWithPresets
-                    $onSelect={handleDateChange}
-                    presets={[{ label: 'All', value: 'all' }]}
-                    initialRange={dateRange ?? undefined}
-                    initialSelectValue={presetValue}
+                  </ReportFilter>
+                </>
+              }
+              actions={
+                <>
+                  <ReportColumnsMenu
+                    columns={ledgerColumnSpecs}
+                    included={columnVisibility.included}
+                    onToggle={columnVisibility.toggle}
+                    onToggleAll={columnVisibility.toggleAll}
                   />
-                </ReportFilter>
-              </>
-            }
-            actions={
-              <>
-                <ReportColumnsMenu
-                  columns={ledgerColumnSpecs}
-                  included={columnVisibility.included}
-                  onToggle={columnVisibility.toggle}
-                  onToggleAll={columnVisibility.toggleAll}
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={refreshData}
-                  title="Refresh Data"
-                  disabled={isLoading}
-                >
-                  <RefreshCw
-                    className={cn('h-4 w-4', isLoading && 'animate-spin')}
-                  />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setExportDialogOpen(true)}
-                  title="Export to Excel"
-                  disabled={!canExport}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handlePrint}
-                  title="Print Ledger Report"
-                >
-                  <Printer className="h-4 w-4" />
-                </Button>
-              </>
-            }
-          />
-          {selectedAccount && !isLoading && latestBalance && (
-            <div className="print:hidden text-right text-sm text-muted-foreground">
-              Closing Balance:{' '}
-              <span className="font-semibold">{latestBalance}</span>
-            </div>
-          )}
-          {familyMode && selectedAccount && !isLoading && (
-            <div className="print:hidden text-xs text-muted-foreground">
-              Included accounts:{' '}
-              {(accounts ?? [])
-                .filter((a: any) => familyAccountIds.includes(a.id))
-                .map((a: any) => String(a.code ?? a.id))
-                .join(', ')}
-            </div>
-          )}
-        </>
-      }
-    >
-      <LedgerParticularsExportDialog
-        open={exportDialogOpen}
-        onOpenChange={setExportDialogOpen}
-        onConfirm={runLedgerExcelExport}
-        title="Export ledger to Excel"
-      />
-      {selectedAccount && !isLoading && (
-        <LedgerReportTable
-          ledger={ledgerEntries}
-          isLoading={isLoading}
-          accountName={selectedAccountName}
-          dateSubtitle={dateSubtitle}
-          totals={totals}
-          visibleColumns={visibleLedgerColumns}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={refreshData}
+                    title="Refresh Data"
+                    disabled={isLoading}
+                  >
+                    <RefreshCw
+                      className={cn('h-4 w-4', isLoading && 'animate-spin')}
+                    />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setExportDialogOpen(true)}
+                    title="Export to Excel"
+                    disabled={!canExport}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handlePrint}
+                    title="Print Ledger Report"
+                  >
+                    <Printer className="h-4 w-4" />
+                  </Button>
+                </>
+              }
+            />
+            {selectedAccount && !isLoading && latestBalance && (
+              <div className="print:hidden text-right text-sm text-muted-foreground">
+                Closing Balance:{' '}
+                <span className="font-semibold">{latestBalance}</span>
+              </div>
+            )}
+            {familyMode && selectedAccount && !isLoading && (
+              <div className="print:hidden text-xs text-muted-foreground">
+                Included accounts:{' '}
+                {(accounts ?? [])
+                  .filter((a: any) => familyAccountIds.includes(a.id))
+                  .map((a: any) => String(a.code ?? a.id))
+                  .join(', ')}
+              </div>
+            )}
+          </>
+        }
+      >
+        <LedgerParticularsExportDialog
+          open={exportDialogOpen}
+          onOpenChange={setExportDialogOpen}
+          onConfirm={runLedgerExcelExport}
+          title="Export ledger to Excel"
         />
-      )}
-      {!selectedAccount && !isLoading && (
-        <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
-          Please select an account to view its ledger
-        </Card>
-      )}
-      {isLoading && (
-        <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
-          Loading...
-        </Card>
-      )}
-    </ReportLayout>
+        {selectedAccount && !isLoading && (
+          <LedgerReportTable
+            ledger={ledgerEntries}
+            isLoading={isLoading}
+            accountName={selectedAccountName}
+            dateSubtitle={dateSubtitle}
+            language={language}
+            totals={totals}
+            visibleColumns={visibleLedgerColumns}
+          />
+        )}
+        {!selectedAccount && !isLoading && (
+          <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
+            Please select an account to view its ledger
+          </Card>
+        )}
+        {isLoading && (
+          <Card className="p-6 flex items-center justify-center text-muted-foreground h-64">
+            Loading...
+          </Card>
+        )}
+      </ReportLayout>
+    </div>
   );
 };
 

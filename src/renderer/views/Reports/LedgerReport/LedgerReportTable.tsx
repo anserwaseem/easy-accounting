@@ -11,6 +11,7 @@ interface LedgerReportTableProps {
   isLoading: boolean;
   dateSubtitle: string;
   accountName: string;
+  language?: 'en' | 'ur';
   totals: {
     totalDebit: number;
     totalCredit: number;
@@ -25,6 +26,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
   isLoading,
   dateSubtitle,
   accountName,
+  language = 'en',
   totals,
   visibleColumns,
 }: LedgerReportTableProps) => {
@@ -118,6 +120,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
         ledger={ledger}
         className="print-table"
         printMode
+        language={language}
         stickyFooterRow={stickyFooterRow}
         visibleColumns={effectiveVisibleColumns}
       />

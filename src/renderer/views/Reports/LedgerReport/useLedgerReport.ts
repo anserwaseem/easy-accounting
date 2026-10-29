@@ -38,6 +38,8 @@ export const useLedgerReport = (
   externalSetFamilyMode?: (
     value: boolean | ((prev: boolean) => boolean),
   ) => void,
+  externalLanguage?: 'en' | 'ur',
+  externalSetLanguage?: (value: 'en' | 'ur') => void,
 ) => {
   const [internalFamilyMode, setInternalFamilyMode] = useState(false);
   const familyMode = externalFamilyMode ?? internalFamilyMode;
@@ -65,6 +67,11 @@ export const useLedgerReport = (
   const [selectedAccount, setSelectedAccount] = useState<number | null>(
     saved.accountId ?? null,
   );
+  const [internalLanguage, setInternalLanguage] = useState<'en' | 'ur'>(
+    saved.language === 'ur' ? 'ur' : 'en',
+  );
+  const language = externalLanguage ?? internalLanguage;
+  const setLanguage = externalSetLanguage ?? setInternalLanguage;
   const [selectedAccountName, setSelectedAccountName] = useState<string>('');
   const [itemTypes, setItemTypes] = useState<Array<{ name: string }>>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -121,9 +128,10 @@ export const useLedgerReport = (
         presetValue,
         familyMode,
         accountId: selectedAccount ?? undefined,
+        language,
       }),
     );
-  }, [selectedAccount, dateRange, presetValue, familyMode]);
+  }, [selectedAccount, dateRange, presetValue, familyMode, language]);
 
   const filterRef = useRef(0);
 
@@ -542,6 +550,7 @@ export const useLedgerReport = (
       dateSubtitle: printDateSubtitle,
       totals,
       visibleColumns,
+      language,
     });
   }, [
     displayedEntries,
@@ -549,6 +558,7 @@ export const useLedgerReport = (
     printDateSubtitle,
     totals,
     visibleColumns,
+    language,
   ]);
 
   return {
@@ -571,5 +581,7 @@ export const useLedgerReport = (
     familyMode,
     setFamilyMode,
     familyAccountIds,
+    language,
+    setLanguage,
   };
 };

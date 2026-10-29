@@ -60,6 +60,7 @@ interface LedgerTableBaseProps {
   ledger: LedgerView[];
   printMode?: boolean;
   className?: string;
+  language?: 'en' | 'ur';
   /** aligned footer row (see `DataTable` stickyFooterRow) */
   stickyFooterRow?: ReactNode[];
   visibleColumns?: ReadonlySet<string>;
@@ -69,6 +70,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
   ledger,
   printMode = false,
   className = '',
+  language = 'en',
   stickyFooterRow,
   visibleColumns,
 }: LedgerTableBaseProps) => {
@@ -92,7 +94,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
     () => [
       {
         accessorKey: 'date',
-        header: 'Date',
+        header: language === 'ur' ? 'تاریخ' : 'Date',
         // eslint-disable-next-line react/no-unstable-nested-components
         cell: ({ row }) => <DateCell value={row.original.date} />,
         size: 110,
@@ -103,7 +105,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         id: 'particulars',
-        header: 'Particulars',
+        header: language === 'ur' ? 'تفصیل' : 'Particulars',
         cell: renderLedgerParticularsCell,
         size: 180,
         // The account/particulars is what a ledger row is read for, so
@@ -114,7 +116,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
         ? [
             {
               id: 'tierBreakdown',
-              header: 'Tier breakdown',
+              header: language === 'ur' ? 'بٹوارا' : 'Tier breakdown',
               accessorFn: (row: LedgerView) => row.tierBreakdown ?? '',
               cell: renderTierBreakdownCell,
               size: 180,
@@ -122,7 +124,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
           ]
         : []),
       {
-        header: 'Narration',
+        header: language === 'ur' ? 'تشریح' : 'Narration',
         id: 'narration',
         // The narration is drawn from the row, not from a column
         // value, so the card layout has no value to read and would
@@ -136,7 +138,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         accessorKey: 'debit',
-        header: 'Debit',
+        header: language === 'ur' ? 'ڈیبٹ' : 'Debit',
         cell: ({ row }) => formatDebitCredit(row.original.debit),
         size: 110,
         // a row is a debit or a credit, never both: the empty side is
@@ -145,14 +147,14 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         accessorKey: 'credit',
-        header: 'Credit',
+        header: language === 'ur' ? 'کریڈٹ' : 'Credit',
         cell: ({ row }) => formatDebitCredit(row.original.credit),
         size: 110,
         cardHideWhenZero: true,
       },
       {
         accessorKey: 'balance',
-        header: 'Balance',
+        header: language === 'ur' ? 'بقایا' : 'Balance',
         cell: ({ row }) =>
           getFormattedCurrency(row.original.balance)
             .replace(currency, '')
@@ -164,11 +166,11 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       },
       {
         accessorKey: 'balanceType',
-        header: 'Type',
+        header: language === 'ur' ? 'قسم' : 'Type',
         size: 90,
       },
     ],
-    [printMode, formatDebitCredit, hasTierBreakdown],
+    [printMode, formatDebitCredit, hasTierBreakdown, language],
   );
 
   const columns = useMemo(() => {

@@ -23,6 +23,7 @@ interface LedgerReportPrintOptions {
     totalType: string;
   };
   visibleColumns?: ReadonlySet<string>;
+  language?: 'en' | 'ur';
 }
 
 const narrationTextForRow = (row: LedgerView): string => {
@@ -138,6 +139,7 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
     dateSubtitle,
     totals,
     visibleColumns: visibleColumnsOption,
+    language = 'en',
   } = options;
   const visibleColumns = new Set(
     visibleColumnsOption ?? LEDGER_REPORT_COLUMN_IDS,
@@ -152,7 +154,33 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
     window.electron.store.get('debitCreditDefaultLabel') ?? ' ',
   );
 
-  const title = escape(`Ledger Report for ${accountName}: ${dateSubtitle}`);
+  const labels =
+    language === 'ur'
+      ? {
+          date: 'تاریخ',
+          particulars: 'تفصیل',
+          tierBreakdown: 'بٹوارا',
+          narration: 'تشریح',
+          debit: 'ڈیبٹ',
+          credit: 'کریڈٹ',
+          balance: 'بقایا',
+          balanceType: 'قسم',
+        }
+      : {
+          date: 'Date',
+          particulars: 'Particulars',
+          tierBreakdown: 'Tier breakdown',
+          narration: 'Narration',
+          debit: 'Debit',
+          credit: 'Credit',
+          balance: 'Balance',
+          balanceType: 'Type',
+        };
+  const title = escape(
+    language === 'ur'
+      ? `لیجر رپورٹ: ${accountName} — ${dateSubtitle}`
+      : `Ledger Report for ${accountName}: ${dateSubtitle}`,
+  );
   const bodyHtml = buildLedgerTableBodyHtml(
     rows,
     debitCreditZeroLabel,
@@ -211,26 +239,42 @@ export const printLedgerReportIframe = (options: LedgerReportPrintOptions) => {
   <table class="data-table-wrapper print-table" style="width:100%;border-collapse:collapse;">
     <thead>
       <tr>
-        ${visibleColumns.has('date') ? '<th>Date</th>' : ''}
-        ${visibleColumns.has('particulars') ? '<th>Particulars</th>' : ''}
-        ${visibleColumns.has('tierBreakdown') ? '<th>Tier breakdown</th>' : ''}
-        ${visibleColumns.has('narration') ? '<th>Narration</th>' : ''}
+        ${visibleColumns.has('date') ? `<th>${escape(labels.date)}</th>` : ''}
+        ${
+          visibleColumns.has('particulars')
+            ? `<th>${escape(labels.particulars)}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('tierBreakdown')
+            ? `<th>${escape(labels.tierBreakdown)}</th>`
+            : ''
+        }
+        ${
+          visibleColumns.has('narration')
+            ? `<th>${escape(labels.narration)}</th>`
+            : ''
+        }
         ${
           visibleColumns.has('debit')
-            ? '<th style="text-align:right">Debit</th>'
+            ? `<th style="text-align:right">${escape(labels.debit)}</th>`
             : ''
         }
         ${
           visibleColumns.has('credit')
-            ? '<th style="text-align:right">Credit</th>'
+            ? `<th style="text-align:right">${escape(labels.credit)}</th>`
             : ''
         }
         ${
           visibleColumns.has('balance')
-            ? '<th style="text-align:right">Balance</th>'
+            ? `<th style="text-align:right">${escape(labels.balance)}</th>`
             : ''
         }
-        ${visibleColumns.has('balanceType') ? '<th>Type</th>' : ''}
+        ${
+          visibleColumns.has('balanceType')
+            ? `<th>${escape(labels.balanceType)}</th>`
+            : ''
+        }
       </tr>
     </thead>
     <tbody>${bodyHtml}

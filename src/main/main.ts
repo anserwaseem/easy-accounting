@@ -556,8 +556,8 @@ app
       return new BackupService().listBackups();
     });
     ipcMain.handle('backup:restoreFromDate', async (_, dateString: string) => {
-      const backupService = new BackupService();
-      const result = await backupService.restoreFromDate(dateString);
+      const restoreService = new BackupService();
+      const result = await restoreService.restoreFromDate(dateString);
       if (result.success) {
         if (process.platform === 'darwin') {
           app.hide();
