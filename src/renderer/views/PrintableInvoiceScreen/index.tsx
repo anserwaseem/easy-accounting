@@ -1201,7 +1201,9 @@ const PrintableInvoiceScreen = () => {
             </div>
           ) : null}
           <table
-            className={`invoice-print-table w-full text-base border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${urduTableClass}`}
+            className={`invoice-print-table ${
+              isPurchase ? 'w-auto mx-auto' : 'w-full'
+            } text-base border-collapse [&_th]:px-1 [&_td]:px-1 [&_th]:border-[0.5px] [&_th]:border-gray-400 [&_td]:border-[0.5px] [&_td]:border-gray-400 ${urduTableClass}`}
           >
             <colgroup>
               <col style={{ width: '6%' }} />
@@ -1717,6 +1719,15 @@ const PrintableInvoiceScreen = () => {
                   </td>
                   <td className={footerTotalAmountClass}>
                     {renderFooterAmount(toNumber(invoice.totalAmount))}
+                  </td>
+                </tr>
+              </tbody>
+            )}
+            {isPurchase && (
+              <tbody data-print-footer>
+                <tr>
+                  <td colSpan={4} className="text-end font-semibold" dir="ltr">
+                    {labels.totalQuantity}: {totalQuantity}
                   </td>
                 </tr>
               </tbody>
