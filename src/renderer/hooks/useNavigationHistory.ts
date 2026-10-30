@@ -86,6 +86,11 @@ export const useNavigationHistory = (): NavigationHistory => {
   // Mirror the location into the browser's history so the browser's own
   // back button steps through the app instead of leaving it.
   useEffect(() => {
+    // Only mirror on HTTP/HTTPS (web PWA); avoid corrupting file:// URLs in Electron
+    if (typeof window === 'undefined' || window.location.protocol === 'file:') {
+      return;
+    }
+
     const entry: MirroredEntry = {
       __appHistoryMarker: true,
       path: currentPath,
