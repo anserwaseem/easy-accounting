@@ -2711,7 +2711,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
                   the content there and only sticks on a wider screen. */}
               {isSale && (
                 <section
-                  className="z-10 border-t bg-background/95 px-3 py-2 space-y-1.5 backdrop-blur-sm sm:sticky sm:bottom-0 sm:z-10 safe-bottom"
+                  className="z-10 border-t bg-background/95 px-3 py-2 space-y-1.5 sm:sticky sm:bottom-0 sm:z-10 safe-bottom"
                   aria-label="Invoice summary"
                 >
                   {isDiscountEditEnabled && (

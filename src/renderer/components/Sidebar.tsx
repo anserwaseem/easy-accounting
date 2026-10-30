@@ -47,7 +47,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey';
 const ITEM_BUTTON_CLASSNAME = 'px-3';
 
 const sidebarPlusIconButtonClassName = cn(
-  'shrink-0 bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-150 hover:scale-105 active:scale-95',
+  'shrink-0 bg-primary/10 text-primary hover:bg-primary/20 transition-transform duration-150 hover:scale-105 active:scale-95',
   ITEM_BUTTON_CLASSNAME,
 );
 

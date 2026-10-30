@@ -1099,7 +1099,7 @@ const SettingsPage: React.FC = () => {
 
       {/* Persistent Bottom Action Bar */}
       {isDirty && (
-        <div className="sticky bottom-0 z-20 flex flex-col gap-2 border-t bg-background/95 px-3 py-3 backdrop-blur shadow-lg sm:flex-row sm:items-center sm:justify-between sm:px-8 safe-bottom">
+        <div className="sticky bottom-0 z-20 flex flex-col gap-2 border-t bg-background/95 px-3 py-3 shadow-lg sm:flex-row sm:items-center sm:justify-between sm:px-8 safe-bottom">
           <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 font-medium">
             <Info className="w-4 h-4 shrink-0" />
             <span>You have unsaved changes.</span>

@@ -220,7 +220,7 @@ export const ManageAttributes: React.FC<ManageAttributesProps> = ({
         {definitions.length > 0 && (
           <div className="max-h-[45vh] overflow-auto rounded-md border">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted/95 text-left text-xs font-medium text-muted-foreground backdrop-blur">
+              <thead className="sticky top-0 bg-muted/95 text-left text-xs font-medium text-muted-foreground">
                 <tr>
                   <th className="w-16 px-3 py-2 font-medium">Order</th>
                   <th className="px-3 py-2 font-medium">Name</th>

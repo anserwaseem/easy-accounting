@@ -48,7 +48,7 @@ export const InventoryBulkEditSaveSummary: FC<
       </p>
       <div className="min-h-0 flex-1 overflow-auto rounded-md border">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-muted/95 text-left text-xs font-medium text-muted-foreground backdrop-blur">
+          <thead className="sticky top-0 bg-muted/95 text-left text-xs font-medium text-muted-foreground">
             <tr>
               <th className="w-10 px-3 py-2 font-medium tabular-nums">#</th>
               <th className="px-3 py-2 font-medium">Item</th>
