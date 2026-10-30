@@ -96,15 +96,44 @@ export const parseStoredDate = (
  * A value that cannot be parsed is returned as-is, so a bad value stays
  * visible instead of vanishing.
  */
+/** maximum number of cached formatted dates; LRU eviction past this. */
+const FORMAT_CACHE_MAX = 1024;
+const formatCache = new Map<string, string>();
+
 const formatWith = (
   raw: string | Date | null | undefined,
   pattern: string,
 ): string => {
+  // `Map` remembers insertion order, so deleting and re-inserting on a
+  // hit gives us LRU eviction without an extra bookkeeping structure.
+  const key =
+    raw == null
+      ? `null:${pattern}`
+      : `${
+          typeof raw === 'string' ? raw : (raw as Date).toISOString()
+        }:${pattern}`;
+  const cached = formatCache.get(key);
+  if (cached !== undefined) {
+    // refresh recency
+    formatCache.delete(key);
+    formatCache.set(key, cached);
+    return cached;
+  }
+
   const parsed = parseStoredDate(raw);
   if (!parsed) {
-    return raw == null ? '' : String(raw).trim();
+    const fallback = raw == null ? '' : String(raw).trim();
+    return fallback;
   }
-  return format(parsed, pattern);
+  const value = format(parsed, pattern);
+
+  if (formatCache.size >= FORMAT_CACHE_MAX) {
+    // drop the oldest entry
+    const oldestKey = formatCache.keys().next().value;
+    if (oldestKey !== undefined) formatCache.delete(oldestKey);
+  }
+  formatCache.set(key, value);
+  return value;
 };
 
 /**
