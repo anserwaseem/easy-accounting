@@ -182,7 +182,7 @@ export const CopyAttributesPanel: React.FC<CopyAttributesPanelProps> = ({
                 <>
                   {groups.family.length > 0 && (
                     <>
-                      <p className="sticky top-0 bg-muted/95 px-2 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
+                      <p className="sticky top-0 bg-muted/95 px-2 py-1 text-xs font-medium text-muted-foreground">
                         Same family
                       </p>
                       <ul className="p-1">
@@ -201,7 +201,7 @@ export const CopyAttributesPanel: React.FC<CopyAttributesPanelProps> = ({
                   )}
                   {groups.others.length > 0 && (
                     <>
-                      <p className="sticky top-0 bg-muted/95 px-2 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
+                      <p className="sticky top-0 bg-muted/95 px-2 py-1 text-xs font-medium text-muted-foreground">
                         Other items
                       </p>
                       <ul className="p-1">
@@ -250,7 +250,7 @@ export const CopyAttributesPanel: React.FC<CopyAttributesPanelProps> = ({
 
       <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-muted/95 text-left text-xs font-medium text-muted-foreground backdrop-blur">
+          <thead className="sticky top-0 bg-muted/95 text-left text-xs font-medium text-muted-foreground">
             <tr>
               <th className="w-10 px-2 py-1.5">
                 <Checkbox

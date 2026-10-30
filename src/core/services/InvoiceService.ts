@@ -1,4 +1,3 @@
-import { write, utils } from 'xlsx';
 import { groupBy, orderBy, sumBy, toNumber, toString, uniq } from 'lodash';
 import { journalDiscountLabel } from '../../lib/journalDiscountLabel';
 import { invoiceLineAmount } from '../../lib/invoiceLineAmount';
@@ -1760,6 +1759,7 @@ export class InvoiceService {
     endDate?: string,
   ): Promise<Buffer> {
     const invoices = await this.getInvoicesInDateRange();
+    const { utils, write } = await import('xlsx');
     const worksheet = utils.json_to_sheet(
       invoices.map((invoice) => ({
         'Invoice Number': invoice.invoiceNumber,

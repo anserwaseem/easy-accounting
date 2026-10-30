@@ -505,6 +505,8 @@ export const useLedgerReport = (
       });
     }
 
+    const accountById = new Map((accounts as any[]).map((a) => [a.id, a]));
+
     for (const entry of rangeResponse.entries) {
       rows.push({
         id: entry.id,
@@ -521,8 +523,7 @@ export const useLedgerReport = (
         linkedAccountId: entry.linkedAccountId,
         linkedAccountName:
           language === 'ur'
-            ? (accounts as any[]).find((a) => a.id === entry.linkedAccountId)
-                ?.nameUrdu ??
+            ? (accountById.get(entry.linkedAccountId) as any)?.nameUrdu ??
               entry.linkedAccountName ??
               undefined
             : entry.linkedAccountName ?? undefined,

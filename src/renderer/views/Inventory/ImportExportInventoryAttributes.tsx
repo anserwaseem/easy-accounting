@@ -11,7 +11,6 @@ import { format } from 'date-fns';
 import { toString } from 'lodash';
 import { useCallback, useRef } from 'react';
 import type { AttributeDefinition, InventoryItem } from 'types';
-import { write, utils } from 'xlsx';
 
 const EXCEL_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -33,6 +32,7 @@ export const ImportExportInventoryAttributes: React.FC<
         window.electron.getAttributeDefinitions(),
       ])) as [InventoryItem[], AttributeDefinition[]];
       const aoa = buildInventoryAttributesAoa(items, definitions);
+      const { write, utils } = await import('xlsx');
       const wb = utils.book_new();
       utils.book_append_sheet(
         wb,

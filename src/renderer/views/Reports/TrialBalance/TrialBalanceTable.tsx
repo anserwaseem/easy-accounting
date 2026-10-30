@@ -230,7 +230,7 @@ export const TrialBalanceTable = ({
             })}
           </TableBody>
           <TableFooter className="border-t-0 print:static [&>tr]:border-t [&>tr]:border-primary">
-            <TableRow className="sticky bottom-0 z-10 border-t border-primary bg-muted/95 font-bold backdrop-blur-sm hover:bg-muted/95 supports-[backdrop-filter]:bg-muted/80 print:static print:z-auto print:backdrop-blur-none">
+            <TableRow className="sticky bottom-0 z-10 border-t border-primary bg-muted/95 font-bold hover:bg-muted/95 print:static print:z-auto">
               {labelSpan > 0 ? (
                 <TableCell
                   className="bg-inherit py-1.5 print:py-1"

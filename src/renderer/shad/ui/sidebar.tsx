@@ -47,7 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       // hard grey slab in a dark one. The nav is now a real surface
       // (card-colored) with a hairline border, so it reads as a panel
       // rather than a different app.
-      'flex flex-col bg-card text-card-foreground border-r transition-all duration-200',
+      'flex flex-col bg-card text-card-foreground border-r transition-[width,opacity] duration-200',
       position === 'right' ? 'order-1' : '',
       collapsed ? 'w-14' : 'w-[260px]',
       className,
