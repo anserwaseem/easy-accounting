@@ -1,4 +1,3 @@
-import { read, utils } from 'xlsx';
 import { raise } from './utils';
 
 interface ConvertFileToJsonOptions {
@@ -20,6 +19,7 @@ export const convertFileToJson = async (
 
   const data = await validFile.arrayBuffer();
   const isCsv = validFile.name.toLowerCase().endsWith('.csv');
+  const { read, utils } = await import('xlsx');
   const wb = read(data, isCsv ? { raw: true } : undefined);
   const ws = wb.Sheets[wb.SheetNames[0]];
   const useRaw = options?.preferDisplayText !== true;

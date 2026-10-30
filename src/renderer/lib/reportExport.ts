@@ -1,5 +1,18 @@
-import { write, utils } from 'xlsx';
 import { formatDisplayDate } from '@/lib/displayDate';
+
+type XlsxModule = typeof import('xlsx');
+
+let xlsxPromise: Promise<XlsxModule> | null = null;
+
+const loadXlsx = (): Promise<XlsxModule> => {
+  if (xlsxPromise === null) {
+    xlsxPromise = import('xlsx');
+  }
+  return xlsxPromise;
+};
+
+type XlsxUtils = XlsxModule['utils'];
+type XlsxWrite = XlsxModule['write'];
 
 type ReportColumnFormat = 'string' | 'number' | 'currency' | 'date';
 
@@ -107,6 +120,7 @@ const CURRENCY_NUMBER_FORMAT = '#,##0.00';
 
 function buildWorksheet<T extends Record<string, unknown>>(
   payload: ReportExportPayload<T>,
+  utils: XlsxUtils,
 ) {
   const aoa = buildSheetRows(payload);
   const ws = utils.aoa_to_sheet(aoa);
@@ -136,8 +150,9 @@ function buildWorksheet<T extends Record<string, unknown>>(
 }
 
 const downloadWorkbook = (
-  wb: ReturnType<typeof utils.book_new>,
+  wb: ReturnType<XlsxUtils['book_new']>,
   fileName: string,
+  write: XlsxWrite,
 ) => {
   const buffer = write(wb, { type: 'array', bookType: 'xlsx' });
   const blob = new Blob([buffer], { type: EXCEL_MIME });
@@ -149,16 +164,17 @@ const downloadWorkbook = (
   URL.revokeObjectURL(url);
 };
 
-export function exportReportToExcel<T extends Record<string, unknown>>(
+export async function exportReportToExcel<T extends Record<string, unknown>>(
   payload: ReportExportPayload<T>,
-): void {
+): Promise<void> {
+  const { utils, write } = await loadXlsx();
   const wb = utils.book_new();
   utils.book_append_sheet(
     wb,
-    buildWorksheet(payload),
+    buildWorksheet(payload, utils),
     payload.sheetName.slice(0, 31),
   );
-  downloadWorkbook(wb, payload.suggestedFileName);
+  downloadWorkbook(wb, payload.suggestedFileName, write);
 }
 
 /** extra sheets use string column keys so item + invoice-line grains can share one workbook */
@@ -176,17 +192,21 @@ export interface ExtraReportSheet {
   footerRow?: Record<string, unknown>;
 }
 
-export function exportReportWorkbook(
+export async function exportReportWorkbook(
   sheets: ExtraReportSheet[],
   suggestedFileName: string,
-): void {
+): Promise<void> {
+  const { utils, write } = await loadXlsx();
   const wb = utils.book_new();
   sheets.forEach((sheet) => {
     utils.book_append_sheet(
       wb,
-      buildWorksheet(sheet as ReportExportPayload<Record<string, unknown>>),
+      buildWorksheet(
+        sheet as ReportExportPayload<Record<string, unknown>>,
+        utils,
+      ),
       sheet.sheetName.slice(0, 31),
     );
   });
-  downloadWorkbook(wb, suggestedFileName);
+  downloadWorkbook(wb, suggestedFileName, write);
 }

@@ -12,7 +12,6 @@ import { format } from 'date-fns';
 import { toString } from 'lodash';
 import { useCallback, useRef } from 'react';
 import type { Account } from 'types';
-import { write, utils } from 'xlsx';
 
 const EXCEL_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -28,9 +27,10 @@ export const ImportExportAccountUrdu: React.FC<
 > = ({ accounts, refetchAccounts }: ImportExportAccountUrduProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     try {
       const rows = buildAccountUrduExportRows(accounts);
+      const { write, utils } = await import('xlsx');
       const aoa: (string | number)[][] = [
         [...ACCOUNT_URDU_EXPORT_HEADERS],
         ...rows.map((row) => [
