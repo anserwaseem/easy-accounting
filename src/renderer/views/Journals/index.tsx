@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -142,12 +142,8 @@ const JournalRowMenu: React.FC<JournalRowMenuProps> = ({
 const JournalsPage: React.FC<HasMiniView> = ({
   isMini = false,
 }: HasMiniView) => {
-  // eslint-disable-next-line no-console
-  console.log('JournalsPage', isMini);
   const [journals, setJounrals] = useState<JournalView[]>([]);
-  const [filteredJournals, setFilteredJournals] = useState<JournalView[]>(
-    window.electron.store.get('filteredJournals') || [],
-  );
+  const [filteredJournals, setFilteredJournals] = useState<JournalView[]>([]);
   const [journalFilterDate, setJournalFilterDate] = useState<
     DateRange | undefined
   >(window.electron.store.get('journalFilterDate') || undefined);
@@ -441,24 +437,26 @@ const JournalsPage: React.FC<HasMiniView> = ({
     ],
   );
 
-  useEffect(
-    () => window.electron.store.set('filteredJournals', filteredJournals),
-    [filteredJournals],
-  );
+  const isJournalFilterDateMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isJournalFilterDateMountedRef.current) {
+      isJournalFilterDateMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set('journalFilterDate', journalFilterDate);
+  }, [journalFilterDate]);
 
-  useEffect(
-    () => window.electron.store.set('journalFilterDate', journalFilterDate),
-    [journalFilterDate],
-  );
-
-  useEffect(
-    () =>
-      window.electron.store.set(
-        'journalFilterSelectValue',
-        journalFilterSelectValue,
-      ),
-    [journalFilterSelectValue],
-  );
+  const isJournalFilterSelectMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isJournalFilterSelectMountedRef.current) {
+      isJournalFilterSelectMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set(
+      'journalFilterSelectValue',
+      journalFilterSelectValue,
+    );
+  }, [journalFilterSelectValue]);
 
   return (
     <div>

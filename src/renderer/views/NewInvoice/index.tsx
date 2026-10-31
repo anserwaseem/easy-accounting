@@ -127,7 +127,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
   invoiceType,
   saleReturn = false,
 }: NewInvoiceProps) => {
-  console.log('NewInvoicePage', invoiceType);
   const params = useParams<{ id: string }>();
   const location = useLocation();
   const isPostedInvoiceEditPath = useMemo(

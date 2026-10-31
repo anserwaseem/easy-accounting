@@ -86,7 +86,6 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   className,
 }: FinancialOverviewProps) => {
   const { overview, isLoading, refetch } = useFinancialOverview();
-  console.log('FinancialOverview overview', overview);
 
   if (isLoading) {
     return (

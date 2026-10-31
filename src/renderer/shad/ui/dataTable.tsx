@@ -25,6 +25,7 @@ import {
   forwardRef,
   Fragment,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useMemo,
@@ -519,16 +520,19 @@ const DataTable = <TData, TValue>({
   // debounced search handler
   const debounceSearch = useMemo(
     () =>
-      debounce((value: string) => {
+      debounce((value: string, persistenceKey?: string) => {
         setSearchValue(value);
+        if (persistenceKey && isSearchHydratedRef.current) {
+          window.electron.store.set(persistenceKey, value);
+        }
       }, 300),
     [],
   );
-  useLayoutEffect(() => () => debounceSearch.cancel(), [debounceSearch]);
+  useEffect(() => () => debounceSearch.cancel(), [debounceSearch]);
 
   const handleSearchInputChange = (value: string) => {
     setSearchInputValue(value);
-    debounceSearch(value);
+    debounceSearch(value, searchPersistenceKey);
   };
 
   useLayoutEffect(() => {
@@ -546,12 +550,6 @@ const DataTable = <TData, TValue>({
     setSearchValue(normalizedSearchValue);
     isSearchHydratedRef.current = true;
   }, [searchPersistenceKey]);
-
-  useLayoutEffect(() => {
-    if (!searchPersistenceKey) return;
-    if (!isSearchHydratedRef.current) return;
-    window.electron.store.set(searchPersistenceKey, searchInputValue);
-  }, [searchPersistenceKey, searchInputValue]);
 
   const resolveRowKey = useCallback(
     (row: TData, index: number) => getRowKey?.(row, index) ?? index,
@@ -661,8 +659,20 @@ const DataTable = <TData, TValue>({
     measureFill();
     const raf = requestAnimationFrame(measureFill);
 
-    // keep the measurement fresh as the table moves (scrolling) or resizes (layout shifts)
-    window.addEventListener('scroll', measureFill, true);
+    // throttle scroll measurements to next animation frame with passive listener so
+    // scrolling inside or outside the table never blocks on forced synchronous layout reflows
+    let scrollRaf = 0;
+    const onScroll = () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = 0;
+        measureFill();
+      });
+    };
+    window.addEventListener('scroll', onScroll, {
+      capture: true,
+      passive: true,
+    });
 
     let ro: ResizeObserver | null = null;
     // measuring on the next frame rather than inside the callback: measureFill resizes the
@@ -686,7 +696,8 @@ const DataTable = <TData, TValue>({
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(measureRaf);
-      window.removeEventListener('scroll', measureFill, true);
+      cancelAnimationFrame(scrollRaf);
+      window.removeEventListener('scroll', onScroll, true);
       ro?.disconnect();
     };
   }, [measureFill, virtual, virtualHeightMode, windowInnerHeight]);

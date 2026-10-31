@@ -413,6 +413,8 @@ async function main(): Promise<void> {
   const sqlite3 = await sqlite3InitModule();
 
   const sqliteDb = await openOpfsDatabase(sqlite3);
+  sqliteDb.exec('PRAGMA cache_size = -32000');
+  sqliteDb.exec('PRAGMA temp_store = MEMORY');
 
   const driver = new SqliteWasmDriver(sqlite3, sqliteDb);
   await bootstrapDatabase(driver);
@@ -874,6 +876,8 @@ async function main(): Promise<void> {
         accountIds as number[],
         asOfDate as string,
       ),
+    getLatestLedgerDatesForAccountIds: (accountIds) =>
+      ledgerService.getLatestLedgerDatesForAccountIds(accountIds as number[]),
     getLedgerRangeForAccountIds: async (accountIds, startDate, endDate) => {
       const ids = accountIds as number[];
       const map = await ledgerService.getLedgerRangeForAccountIds(

@@ -734,6 +734,11 @@ const electronHandler = {
       accountIds,
       asOfDate,
     ) as Promise<Record<number, { balance: number; balanceType: BalanceType }>>,
+  getLatestLedgerDatesForAccountIds: (accountIds: number[]) =>
+    ipcRenderer.invoke(
+      'ledger:getLatestLedgerDatesForAccountIds',
+      accountIds,
+    ) as Promise<Record<number, string>>,
   /** sale invoice number + date per account for an inclusive local-date range */
   getSaleBillsForAccountIdsInRange: (
     accountIds: number[],

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
@@ -233,8 +233,6 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   isMini = false,
   onRowClick,
 }: AccountPageProps) => {
-  // eslint-disable-next-line no-console
-  console.log('AccountsPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] =
     useState<AccountTypeFilter>(getStoredAccountType);
@@ -335,8 +333,11 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               header: 'Accounts',
               cell: AccountCell,
               onClick: (row: Row<Account>) => {
-                onRowClick?.(row.original.id);
-                openAccount(row);
+                if (onRowClick) {
+                  onRowClick(row.original.id);
+                } else {
+                  openAccount(row);
+                }
               },
             },
           ]
@@ -642,30 +643,47 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     onRowClick?.();
   }, [onRowClick, refetchAccounts]);
 
-  useEffect(
-    () => window.electron.store.set('accountTypeSelected', typeSelected),
-    [typeSelected],
-  );
+  const isAccountTypeMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isAccountTypeMountedRef.current) {
+      isAccountTypeMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set('accountTypeSelected', typeSelected);
+  }, [typeSelected]);
 
-  useEffect(
-    () => window.electron.store.set('accountHeadSelected', headSelected),
-    [headSelected],
-  );
+  const isAccountHeadMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isAccountHeadMountedRef.current) {
+      isAccountHeadMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set('accountHeadSelected', headSelected);
+  }, [headSelected]);
 
   // persist visible columns for the currently selected account view.
+  const isAccountColsMountedRef = useRef(false);
   useEffect(() => {
+    if (!isAccountColsMountedRef.current) {
+      isAccountColsMountedRef.current = true;
+      return;
+    }
     window.electron.store.set(
       getColumnStorageKey(typeSelected),
       sanitizeVisibleColumns(typeSelected, visibleColumnIds),
     );
   }, [typeSelected, visibleColumnIds]);
 
-  useEffect(
-    () => window.electron.store.set('showInactiveAccounts', showInactive),
-    [showInactive],
-  );
+  const isShowInactiveMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isShowInactiveMountedRef.current) {
+      isShowInactiveMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set('showInactiveAccounts', showInactive);
+  }, [showInactive]);
 
-  const getAccounts = useCallback(() => {
+  const displayedAccounts = useMemo(() => {
     let filteredAccounts = accounts;
 
     if (!showInactive) {
@@ -843,7 +861,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
       <div className="py-8">
         <DataTable
           columns={columns}
-          data={getAccounts()}
+          data={displayedAccounts}
           state={{ columnVisibility: { id: false } }}
           defaultSortField="id"
           sortingFns={defaultSortingFunctions}

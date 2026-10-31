@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { toNumber } from 'lodash';
 import type { Account, LedgerView } from '@/types';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
@@ -9,25 +9,51 @@ import AccountsPage from '../Accounts';
 
 const LedgerPage: React.FC = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [accountName, setAccountName] = useState('');
   const [accountCode, setAccountCode] = useState<number | string>('');
   const [headName, setHeadName] = useState('');
   const [ledger, setLedger] = useState<LedgerView[]>([]);
-  // eslint-disable-next-line no-console
-  console.log('LedgerPage', id);
 
-  const onRowClick = async (accountId?: number) => {
-    const accounts = (await window.electron.getAccounts()) as Account[];
-    const selectedAccount = accounts.find(
-      (account) => account.id === toNumber(accountId ?? id),
-    );
-    setAccountName(selectedAccount?.name || '');
-    setHeadName(selectedAccount?.headName || '');
-    setAccountCode(selectedAccount?.code ?? '');
-  };
+  const onRowClick = useCallback(
+    (accountId?: number) => {
+      if (accountId) {
+        navigate(`/ledger/${accountId}`);
+      }
+    },
+    [navigate],
+  );
 
   useEffect(() => {
-    (async () => setLedger(await window.electron.getLedger(toNumber(id))))();
+    const accountId = toNumber(id);
+    if (!accountId) return;
+    let isCurrent = true;
+
+    const fetchLedgerData = async () => {
+      try {
+        const [fetchedLedger, accounts] = await Promise.all([
+          window.electron.getLedger(accountId),
+          window.electron.getAccountsByIds([accountId]),
+        ]);
+        if (!isCurrent) return;
+
+        setLedger(fetchedLedger ?? []);
+        const selectedAccount = (accounts as Account[] | undefined)?.[0];
+        if (selectedAccount) {
+          setAccountName(selectedAccount.name || '');
+          setHeadName(selectedAccount.headName || '');
+          setAccountCode(selectedAccount.code ?? '');
+        }
+      } catch (error) {
+        console.error('Error fetching ledger details:', error);
+      }
+    };
+
+    fetchLedgerData();
+
+    return () => {
+      isCurrent = false;
+    };
   }, [id]);
 
   return (

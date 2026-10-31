@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * Registers the browser's own back/forward keyboard shortcuts.
@@ -15,6 +15,11 @@ export const useBrowserNavigationShortcuts = (
   goBack: () => void,
   goForward: () => void,
 ): void => {
+  const goBackRef = useRef(goBack);
+  goBackRef.current = goBack;
+  const goForwardRef = useRef(goForward);
+  goForwardRef.current = goForward;
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
@@ -24,12 +29,12 @@ export const useBrowserNavigationShortcuts = (
         case 'ArrowLeft':
         case 'Left':
           e.preventDefault();
-          goBack();
+          goBackRef.current();
           break;
         case 'ArrowRight':
         case 'Right':
           e.preventDefault();
-          goForward();
+          goForwardRef.current();
           break;
         default:
           break;
@@ -37,5 +42,5 @@ export const useBrowserNavigationShortcuts = (
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [goBack, goForward]);
+  }, []);
 };

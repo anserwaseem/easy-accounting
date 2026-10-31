@@ -492,15 +492,35 @@ export function useNewInvoiceColumns<T extends FieldValues>(
       inventoryById.set(item.id, item);
     });
 
+    const availableItemsUnselected =
+      !selectedInventoryCounts || selectedInventoryCounts.size === 0
+        ? inventory ?? []
+        : (inventory ?? []).filter(
+            (item) => (selectedInventoryCounts.get(item.id) ?? 0) === 0,
+          );
+
+    const itemOptionsCache = new Map<number, InventoryItem[]>();
+
     const getItemOptionsForRow = (rowIndex: number) => {
       const currentRow = form.getValues(`invoiceItems.${rowIndex}`) as
         | InvoiceItem
         | undefined;
       const currentInventoryId = toNumber(currentRow?.inventoryId);
-      return (inventory ?? []).filter((item) => {
-        const selectedCount = selectedInventoryCounts.get(item.id) ?? 0;
-        return selectedCount === 0 || item.id === currentInventoryId;
-      });
+      if (
+        currentInventoryId <= 0 ||
+        (selectedInventoryCounts.get(currentInventoryId) ?? 0) === 0
+      ) {
+        return availableItemsUnselected;
+      }
+      let cached = itemOptionsCache.get(currentInventoryId);
+      if (!cached) {
+        cached = (inventory ?? []).filter((item) => {
+          const selectedCount = selectedInventoryCounts.get(item.id) ?? 0;
+          return selectedCount === 0 || item.id === currentInventoryId;
+        });
+        itemOptionsCache.set(currentInventoryId, cached);
+      }
+      return cached;
     };
 
     const baseColumns: ColumnDef<InvoiceItem>[] = [
