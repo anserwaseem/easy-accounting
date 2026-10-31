@@ -5,8 +5,6 @@ import JournalsPage from '../Journals';
 
 const JournalPage: React.FC = () => {
   const { id } = useParams();
-  // eslint-disable-next-line no-console
-  console.log('JournalPage', id);
 
   return (
     // Same split as Ledger/Invoice: the list rail is desktop-only, and

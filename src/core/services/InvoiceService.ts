@@ -255,7 +255,7 @@ const SQL = {
       LEFT JOIN account a2 ON ii.accountId = a2.id
       WHERE i.invoiceType = ? AND COALESCE(i.isQuotation, 0) = 0
         AND COALESCE(i.isSaleReturn, 0) = ?
-      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, i.createdAt, i.updatedAt, a.code, a.name, i.biltyNumber, i.cartons, i.isReturned, i.returnedAt, i.returnReason, i.isQuotation, i.isSaleReturn, i.sourceInvoiceId, src.invoiceNumber
+      GROUP BY i.id
     `,
   getQuotationInvoices: `
       SELECT
@@ -286,7 +286,7 @@ const SQL = {
       LEFT JOIN invoice_items ii ON i.id = ii.invoiceId AND ii.accountId IS NOT NULL
       LEFT JOIN account a2 ON ii.accountId = a2.id
       WHERE i.invoiceType = ? AND COALESCE(i.isQuotation, 0) = 1
-      GROUP BY i.id, i.invoiceNumber, i.invoiceType, i.date, i.totalAmount, i.createdAt, i.updatedAt, a.code, a.name, i.biltyNumber, i.cartons, i.isReturned, i.returnedAt, i.returnReason, i.isQuotation
+      GROUP BY i.id
     `,
   getInvoice: `
       SELECT
@@ -2949,7 +2949,6 @@ export class InvoiceService {
       SQL.getSalePurchaseAccounts,
       [InvoiceType.Purchase.toLowerCase(), InvoiceType.Sale.toLowerCase()],
     );
-    console.log('getTransactionAccounts', accounts);
     const purchaseAccount = accounts.find(
       (acc) => acc.name.toLowerCase() === InvoiceType.Purchase.toLowerCase(),
     );

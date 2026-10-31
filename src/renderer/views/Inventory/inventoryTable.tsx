@@ -308,27 +308,46 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     applyPatchesLocally,
   } = bulkEdit;
 
-  console.log('InventoryTable', inventory);
-
   useEffect(() => {
     // lock filters for whole edit session (not only after first dirty flush)
     onBulkEditActiveChange?.(editMode);
   }, [editMode, onBulkEditActiveChange]);
 
   useEffect(() => {
-    const fetchInventory = async () => {
-      const [fetchedInventory, idsWithHistory, fetchedItemTypes] =
-        await Promise.all([
+    let cancelled = false;
+    const fetchInventoryData = async () => {
+      try {
+        const [
+          fetchedInventory,
+          idsWithHistory,
+          fetchedItemTypes,
+          lists,
+          defs,
+        ] = await Promise.all([
           window.electron.getInventory(),
           window.electron.getInventoryIdsWithHistory(),
           window.electron.getItemTypes(),
+          window.electron.getPriceLists().catch(() => [] as PriceListSummary[]),
+          window.electron
+            .getAttributeDefinitions()
+            .catch(() => [] as AttributeDefinition[]),
         ]);
 
-      setInventory(fetchedInventory);
-      setItemsWithHistory(idsWithHistory);
-      setItemTypes(fetchedItemTypes);
+        if (cancelled) return;
+        setInventory(fetchedInventory);
+        setItemsWithHistory(idsWithHistory);
+        setItemTypes(fetchedItemTypes);
+        setPriceLists((lists ?? []).filter((l) => l.isActive));
+        setAttributeDefs((defs ?? []).filter((d) => d.isActive));
+      } catch (error) {
+        console.error('Failed to load inventory data:', error);
+      }
     };
-    fetchInventory();
+
+    fetchInventoryData();
+    return () => {
+      cancelled = true;
+    };
   }, [options?.refresh]);
 
   const updateItemType = async (
@@ -415,56 +434,36 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     publishStatuses,
   ]);
 
-  // active price lists drive the optional price columns
+  const isVisiblePriceListColsMountedRef = useRef(false);
   useEffect(() => {
-    let cancelled = false;
-    window.electron
-      .getPriceLists()
-      .then((lists) => {
-        if (!cancelled) setPriceLists(lists.filter((l) => l.isActive));
-        return lists;
-      })
-      .catch(() => {
-        // price columns are optional; a failure here must not break the table
-        if (!cancelled) setPriceLists([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [options?.refresh]);
-
-  useEffect(() => {
+    if (!isVisiblePriceListColsMountedRef.current) {
+      isVisiblePriceListColsMountedRef.current = true;
+      return;
+    }
     window.electron.store.set(
       VISIBLE_PRICE_LIST_COLUMNS_KEY,
       visiblePriceListIds,
     );
   }, [visiblePriceListIds]);
 
-  // active attribute definitions drive the optional attribute columns
+  const isVisibleAttributeColsMountedRef = useRef(false);
   useEffect(() => {
-    let cancelled = false;
-    window.electron
-      .getAttributeDefinitions()
-      .then((defs) => {
-        if (!cancelled) setAttributeDefs(defs.filter((d) => d.isActive));
-        return defs;
-      })
-      .catch(() => {
-        if (!cancelled) setAttributeDefs([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [options?.refresh]);
-
-  useEffect(() => {
+    if (!isVisibleAttributeColsMountedRef.current) {
+      isVisibleAttributeColsMountedRef.current = true;
+      return;
+    }
     window.electron.store.set(
       VISIBLE_ATTRIBUTE_COLUMNS_KEY,
       visibleAttributeKeys,
     );
   }, [visibleAttributeKeys]);
 
+  const isShowPublishColMountedRef = useRef(false);
   useEffect(() => {
+    if (!isShowPublishColMountedRef.current) {
+      isShowPublishColMountedRef.current = true;
+      return;
+    }
     window.electron.store.set(SHOW_PUBLISH_COLUMN_KEY, showPublishColumn);
   }, [showPublishColumn]);
 

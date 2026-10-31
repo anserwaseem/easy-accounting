@@ -86,15 +86,22 @@ export const useInvoiceDateValidation = ({
       return null;
     }
 
-    const lastDatesResults = await Promise.all(
-      accountIds.map((accountId) =>
-        window.electron.getLedger(accountId).then((ledger) => {
-          const latest = ledger.at(-1)?.date;
-          return latest ? new Date(latest) : null;
-        }),
-      ),
-    );
-    const lastDates = lastDatesResults.filter((d): d is Date => d != null);
+    const lastDates: Date[] = window.electron.getLatestLedgerDatesForAccountIds
+      ? Object.values(
+          await window.electron.getLatestLedgerDatesForAccountIds(accountIds),
+        )
+          .filter(Boolean)
+          .map((d) => new Date(d))
+      : (
+          await Promise.all(
+            accountIds.map((accountId) =>
+              window.electron.getLedger(accountId).then((ledger) => {
+                const latest = ledger.at(-1)?.date;
+                return latest ? new Date(latest) : null;
+              }),
+            ),
+          )
+        ).filter((d): d is Date => d != null);
     if (lastDates.length === 0) return null;
 
     const minRequired = new Date(

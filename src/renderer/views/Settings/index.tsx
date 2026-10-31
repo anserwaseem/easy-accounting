@@ -43,6 +43,7 @@ import {
 } from '@/renderer/shad/ui/tabs';
 import { toast } from '@/renderer/shad/ui/use-toast';
 import { BLOCK_SAVE_WHEN_SPLIT_TYPED_ACCOUNT_MISSING_KEY } from '@/renderer/lib/invoiceBehaviorStore';
+import { invalidateDebitCreditDefaultLabelCache } from '@/renderer/lib/utils';
 import { downloadDatabaseExport } from '@/renderer/lib/exportDatabase';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
@@ -445,6 +446,7 @@ const SettingsPage: React.FC = () => {
       'debitCreditDefaultLabel',
       draftDebitCreditDefaultLabel,
     );
+    invalidateDebitCreditDefaultLabelCache();
     setSavedDebitCreditDefaultLabel(draftDebitCreditDefaultLabel);
 
     try {

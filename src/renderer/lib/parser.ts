@@ -792,7 +792,6 @@ export const parseInvoiceItems = (
         return;
       }
 
-      console.log('parsed invoice item', index, row);
       if (typeof name !== 'string' || name.trim() === '') {
         raise(
           `Invalid name at row ${

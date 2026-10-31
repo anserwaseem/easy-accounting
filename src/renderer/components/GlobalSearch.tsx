@@ -17,12 +17,28 @@ import { Dialog, DialogContent, DialogTitle } from '@/renderer/shad/ui/dialog';
 import { getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 
+interface SearchAccount {
+  id: number;
+  name: string;
+  code?: string | number;
+}
+
+interface SearchInventoryItem {
+  id: number;
+  name: string;
+}
+
 /** invoice list row tagged with the list it came from, so the route is unambiguous */
-type SearchInvoice = InvoicesView & { invoiceType: InvoiceType };
+interface SearchInvoice {
+  id: number;
+  invoiceNumber?: number;
+  accountName?: string;
+  invoiceType: InvoiceType;
+}
 
 interface GlobalSearchData {
-  accounts: Account[];
-  inventory: InventoryItem[];
+  accounts: SearchAccount[];
+  inventory: SearchInventoryItem[];
   invoices: SearchInvoice[];
 }
 
@@ -31,9 +47,16 @@ interface GlobalSearchData {
  * app session, on the first palette open — never at app start
  */
 let cachedDataPromise: Promise<GlobalSearchData> | null = null;
+let cacheLoadedAt = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const loadGlobalSearchData = (): Promise<GlobalSearchData> => {
-  cachedDataPromise ??= Promise.all([
+  const now = Date.now();
+  if (cachedDataPromise && now - cacheLoadedAt < CACHE_TTL_MS) {
+    return cachedDataPromise;
+  }
+  cacheLoadedAt = now;
+  cachedDataPromise = Promise.all([
     window.electron.getAccounts(),
     window.electron.getInventory(),
     window.electron.getInvoices(InvoiceType.Sale),
@@ -46,15 +69,26 @@ const loadGlobalSearchData = (): Promise<GlobalSearchData> => {
         saleInvoices,
         purchaseInvoices,
       ]): GlobalSearchData => ({
-        accounts: (accounts as Account[]) ?? [],
-        inventory: (inventory as InventoryItem[]) ?? [],
+        accounts: ((accounts as Account[]) ?? []).map((account) => ({
+          id: account.id,
+          name: account.name,
+          code: account.code,
+        })),
+        inventory: ((inventory as InventoryItem[]) ?? []).map((item) => ({
+          id: item.id,
+          name: item.name,
+        })),
         invoices: [
           ...((saleInvoices as InvoicesView[]) ?? []).map((row) => ({
-            ...row,
+            id: row.id,
+            invoiceNumber: row.invoiceNumber,
+            accountName: row.accountName,
             invoiceType: InvoiceType.Sale,
           })),
           ...((purchaseInvoices as InvoicesView[]) ?? []).map((row) => ({
-            ...row,
+            id: row.id,
+            invoiceNumber: row.invoiceNumber,
+            accountName: row.accountName,
             invoiceType: InvoiceType.Purchase,
           })),
         ],
@@ -63,14 +97,16 @@ const loadGlobalSearchData = (): Promise<GlobalSearchData> => {
     .catch((error) => {
       // don't cache a failure — the next open retries
       cachedDataPromise = null;
+      cacheLoadedAt = 0;
       throw error;
     });
   return cachedDataPromise;
 };
 
-/** test-only: forget the session cache so each test starts cold */
+/** forget the cache so future searches fetch fresh data (e.g. after TTL or testing) */
 export const resetGlobalSearchDataCache = (): void => {
   cachedDataPromise = null;
+  cacheLoadedAt = 0;
 };
 
 /** keeps long lists cheap: at most this many rows are rendered per group */
@@ -148,8 +184,11 @@ const GlobalSearch: FC = () => {
 
   const handleOpenChange = useCallback((nextOpen: boolean) => {
     setOpen(nextOpen);
-    // start fresh next time instead of showing a stale query
-    if (!nextOpen) setQuery('');
+    // start fresh next time instead of showing a stale query and free search state
+    if (!nextOpen) {
+      setQuery('');
+      setData(null);
+    }
   }, []);
 
   const handleSelect = useCallback(

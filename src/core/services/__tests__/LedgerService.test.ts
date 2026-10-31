@@ -413,6 +413,43 @@ describe('core LedgerService — canonical reads (ledger_view, CORE 032)', () =>
     db.close();
   });
 
+  it('getLatestLedgerDatesForAccountIds returns latest journal date per account', async () => {
+    const db = new Database(':memory:');
+    await seedBasicSchema(db);
+    const { accounts, ledger } = createCore(db);
+    const accountA = await insertAccount(db, accounts, 'Customer A', 101);
+    const accountB = await insertAccount(db, accounts, 'Customer B', 102);
+    const counterparty = await insertAccount(db, accounts, 'Cash', 201);
+
+    await insertJournalPair(db, {
+      date: '2025-01-01',
+      debitAccountId: accountA,
+      creditAccountId: counterparty,
+      amount: 100,
+    });
+    await insertJournalPair(db, {
+      date: '2025-01-15',
+      debitAccountId: accountA,
+      creditAccountId: counterparty,
+      amount: 200,
+    });
+    await insertJournalPair(db, {
+      date: '2025-01-10',
+      debitAccountId: accountB,
+      creditAccountId: counterparty,
+      amount: 300,
+    });
+
+    expect(await ledger.getLatestLedgerDatesForAccountIds([])).toEqual({});
+    expect(
+      await ledger.getLatestLedgerDatesForAccountIds([accountA, accountB, 999]),
+    ).toEqual({
+      [accountA]: '2025-01-15',
+      [accountB]: '2025-01-10',
+    });
+    db.close();
+  });
+
   it('getLedgerRangeForAccountIds and getLedgersUpToDateForAccountIds bucket rows per account', async () => {
     const db = new Database(':memory:');
     await seedBasicSchema(db);

@@ -1377,6 +1377,13 @@ export class SyncEngine {
           applied,
           total: serverMaxSeq,
         });
+
+        // Yield execution to the JS event loop between pages so long multi-page
+        // pulls do not lock up the worker/main thread or block postMessage events.
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 0);
+        });
       }
 
       if (page.length < this.pullPageSize) {

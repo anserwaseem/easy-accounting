@@ -148,6 +148,16 @@ const SQL = {
       ) t
       WHERE t.rn = 1
     `,
+  getLatestLedgerDatesForAccountIds: `
+      SELECT je.accountId, MAX(j.date) AS latestDate
+      FROM journal_entry je
+      JOIN journal j ON j.id = je.journalId
+      WHERE je.accountId IN (
+        SELECT CAST(jval.value AS INTEGER)
+        FROM json_each(@accountIdsJson) AS jval
+      )
+      GROUP BY je.accountId
+    `,
   getBalancesForAccountIdsAsOfDate: `
       SELECT t.accountId, t.balance, t.balanceType
       FROM (
@@ -453,6 +463,30 @@ export class LedgerService {
       asOfDate,
     });
     return LedgerService.balanceRowsToMap(rows);
+  }
+
+  /**
+   * latest ledger transaction date per account id in a single round-trip.
+   * queries journal facts directly instead of scanning ledger_view running totals.
+   */
+  async getLatestLedgerDatesForAccountIds(
+    accountIds: number[],
+  ): Promise<Record<number, string>> {
+    const unique = [...new Set(accountIds.filter((id) => id > 0))];
+    if (unique.length === 0) return {};
+    const rows = await this.db.all<{ accountId: number; latestDate: string }>(
+      SQL.getLatestLedgerDatesForAccountIds,
+      {
+        accountIdsJson: JSON.stringify(unique),
+      },
+    );
+    const result: Record<number, string> = {};
+    for (const row of rows) {
+      if (row.latestDate) {
+        result[row.accountId] = row.latestDate;
+      }
+    }
+    return result;
   }
 
   /**

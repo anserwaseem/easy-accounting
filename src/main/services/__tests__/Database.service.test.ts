@@ -14,6 +14,7 @@ describe('Database Service', () => {
     jest.clearAllMocks();
     mockDatabase = {
       verbose: jest.fn(),
+      pragma: jest.fn(),
     } as unknown as jest.Mocked<Database.Database>;
     (Database as unknown as jest.Mock).mockReturnValue(mockDatabase);
 
@@ -76,5 +77,13 @@ describe('Database Service', () => {
     const instance2 = DatabaseService.getInstance();
 
     expect(instance1).toBe(instance2);
+  });
+
+  it('should configure performance pragmas on connect', () => {
+    DatabaseService.getInstance();
+
+    expect(mockDatabase.pragma).toHaveBeenCalledWith('cache_size = -64000');
+    expect(mockDatabase.pragma).toHaveBeenCalledWith('temp_store = MEMORY');
+    expect(mockDatabase.pragma).toHaveBeenCalledWith('mmap_size = 268435456');
   });
 });

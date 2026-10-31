@@ -9,7 +9,14 @@ import {
   Plus,
 } from 'lucide-react';
 import type { Row } from '@tanstack/react-table';
-import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type FC,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -203,7 +210,6 @@ const InvoicesPage: FC<InvoicesProps> = ({
   saleReturns = false,
 }: InvoicesProps) => {
   const [invoices, setInvoices] = useState<InvoicesView[]>();
-  console.log('InvoicesPage', invoices);
   const [isLoading, setIsLoading] = useState(true);
   const [filteredInvoices, setFilteredInvoices] = useState<InvoicesView[]>();
   const [invoiceFilterDate, setInvoiceFilterDate] = useState<
@@ -506,27 +512,28 @@ const InvoicesPage: FC<InvoicesProps> = ({
     ],
   );
 
-  // save filtered invoices to store
-  useEffect(
-    () => window.electron.store.set('filteredInvoices', filteredInvoices),
-    [filteredInvoices],
-  );
+  // save invoice filter date to store (skip mount write)
+  const isInvoiceFilterDateMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isInvoiceFilterDateMountedRef.current) {
+      isInvoiceFilterDateMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set('invoiceFilterDate', invoiceFilterDate);
+  }, [invoiceFilterDate]);
 
-  // save invoice filter date to store
-  useEffect(
-    () => window.electron.store.set('invoiceFilterDate', invoiceFilterDate),
-    [invoiceFilterDate],
-  );
-
-  // save invoice filter selected value to store
-  useEffect(
-    () =>
-      window.electron.store.set(
-        'invoiceFilterSelectValue',
-        invoiceFilterSelectValue,
-      ),
-    [invoiceFilterSelectValue],
-  );
+  // save invoice filter selected value to store (skip mount write)
+  const isInvoiceFilterSelectMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isInvoiceFilterSelectMountedRef.current) {
+      isInvoiceFilterSelectMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set(
+      'invoiceFilterSelectValue',
+      invoiceFilterSelectValue,
+    );
+  }, [invoiceFilterSelectValue]);
 
   // TODO: fix scrollbar when isMini is true
   return (

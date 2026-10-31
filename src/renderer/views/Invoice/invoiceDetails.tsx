@@ -85,8 +85,6 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   const [isConvertingQuotation, setIsConvertingQuotation] = useState(false);
   const { primaryItemTypeName, itemTypeNames } = usePrimaryItemType();
   const navigate = useNavigate();
-  // eslint-disable-next-line no-console
-  console.log('InvoiceDetails', invoiceId, propInvoice, invoice);
 
   useEffect(() => {
     let cancelled = false;

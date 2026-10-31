@@ -411,6 +411,10 @@ export interface AppApi {
     accountIds: number[],
     asOfDate: string,
   ) => Promise<Record<number, { balance: number; balanceType: BalanceType }>>;
+  /** latest ledger transaction date per account id (accountId -> ISO/local date) */
+  getLatestLedgerDatesForAccountIds: (
+    accountIds: number[],
+  ) => Promise<Record<number, string>>;
   /** inclusive calendar range per account; rows enriched like getLedger */
   getLedgerRangeForAccountIds: (
     accountIds: number[],

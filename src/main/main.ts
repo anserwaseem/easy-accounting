@@ -705,6 +705,11 @@ app
         ledgerService.getBalancesForAccountIdsAsOfDate(accountIds, asOfDate),
     );
     ipcMain.handle(
+      'ledger:getLatestLedgerDatesForAccountIds',
+      async (_, accountIds: number[]) =>
+        ledgerService.getLatestLedgerDatesForAccountIds(accountIds),
+    );
+    ipcMain.handle(
       'ledger:getReceiptSumsForAccountIdsInRange',
       async (_, accountIds: number[], startDate: string, endDate: string) =>
         ledgerService.getReceiptSumsForAccountIdsInRange(
