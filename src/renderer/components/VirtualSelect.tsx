@@ -284,20 +284,28 @@ const VirtualSelect = <T extends BaseOption = Account>({
     [autoContainer],
   );
 
-  const groupCountsByLabel = useMemo(() => {
+  const totalGroupCounts = useMemo(() => {
     if (!groupBy) return null;
     const totalByLabel: Record<string, number> = {};
     for (const opt of options) {
       const label = groupBy(opt);
       totalByLabel[label] = (totalByLabel[label] ?? 0) + 1;
     }
+    return totalByLabel;
+  }, [groupBy, options]);
+
+  const groupCountsByLabel = useMemo(() => {
+    if (!groupBy || !totalGroupCounts) return null;
+    if (!filteredSearchValue.trim()) {
+      return { totalByLabel: totalGroupCounts, matchByLabel: totalGroupCounts };
+    }
     const matchByLabel: Record<string, number> = {};
     for (const opt of filteredOptions) {
       const label = groupBy(opt);
       matchByLabel[label] = (matchByLabel[label] ?? 0) + 1;
     }
-    return { totalByLabel, matchByLabel };
-  }, [filteredOptions, groupBy, options]);
+    return { totalByLabel: totalGroupCounts, matchByLabel };
+  }, [filteredOptions, filteredSearchValue, groupBy, totalGroupCounts]);
 
   useEffect(() => {
     if (!groupBy || !isSearching || !groupCountsByLabel) return;

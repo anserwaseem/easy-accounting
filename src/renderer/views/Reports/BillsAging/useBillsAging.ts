@@ -65,21 +65,6 @@ export const useBillsAging = () => {
 
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
 
-  // fetch available charts (heads)
-  const fetchCharts = useCallback(async () => {
-    try {
-      const fetchedCharts = await window.electron.getCharts();
-      const filteredCharts = fetchedCharts.filter(
-        (chart: Chart) => !!chart.parentId,
-      );
-      setCharts(filteredCharts);
-      setChartsLoaded(true);
-    } catch (error) {
-      console.error('Error fetching charts:', error);
-      setChartsLoaded(true);
-    }
-  }, []);
-
   // fetch item types dynamically from database
   const fetchItemTypes = useCallback(async () => {
     try {
@@ -90,14 +75,29 @@ export const useBillsAging = () => {
     }
   }, []);
 
-  // fetch every account once so the customer selector can search the whole
-  // scope before any report is computed (all-parties mode needs the full pool)
-  const fetchAllAccounts = useCallback(async () => {
+  // fetch initial charts and accounts in parallel
+  const loadInitialData = useCallback(async () => {
     try {
-      const fetchedAccounts: Account[] = await window.electron.getAccounts();
-      setAllAccounts(fetchedAccounts);
+      const [fetchedCharts, fetchedAccounts] = await Promise.all([
+        window.electron.getCharts().catch((err: unknown) => {
+          console.error('Error fetching charts:', err);
+          return [] as Chart[];
+        }),
+        window.electron.getAccounts().catch((err: unknown) => {
+          console.error('Error fetching accounts:', err);
+          return [] as Account[];
+        }),
+      ]);
+
+      const filteredCharts = (fetchedCharts ?? []).filter(
+        (chart: Chart) => !!chart.parentId,
+      );
+      setCharts(filteredCharts);
+      setChartsLoaded(true);
+      setAllAccounts(fetchedAccounts ?? []);
     } catch (error) {
-      console.error('Error fetching accounts:', error);
+      console.error('Error loading initial bills aging data:', error);
+      setChartsLoaded(true);
     }
   }, []);
 
@@ -465,10 +465,9 @@ export const useBillsAging = () => {
   );
 
   useEffect(() => {
-    fetchCharts();
-    fetchAllAccounts();
     fetchItemTypes();
-  }, [fetchCharts, fetchAllAccounts, fetchItemTypes]);
+    loadInitialData();
+  }, [fetchItemTypes, loadInitialData]);
 
   const isAllParties = selectedHead === ALL_PARTIES_HEAD;
 
@@ -550,11 +549,9 @@ export const useBillsAging = () => {
   };
 
   const refreshData = useCallback(() => {
-    fetchCharts();
-    fetchAllAccounts();
-    fetchItemTypes();
+    loadInitialData();
     runReport();
-  }, [fetchCharts, fetchAllAccounts, fetchItemTypes, runReport]);
+  }, [loadInitialData, runReport]);
 
   return {
     selectedHead,
