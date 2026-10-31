@@ -221,17 +221,32 @@ export const getFormattedCurrencySafe = (value: unknown): string => {
   return getFormattedCurrency(n);
 };
 
+let cachedDebitCreditDefaultLabel: string | undefined;
+
+export const getCachedDebitCreditDefaultLabel = (): string => {
+  if (cachedDebitCreditDefaultLabel === undefined) {
+    try {
+      cachedDebitCreditDefaultLabel = toString(
+        window.electron?.store?.get?.('debitCreditDefaultLabel') ?? ' ',
+      );
+    } catch {
+      cachedDebitCreditDefaultLabel = ' ';
+    }
+  }
+  return cachedDebitCreditDefaultLabel;
+};
+
+export const invalidateDebitCreditDefaultLabelCache = (): void => {
+  cachedDebitCreditDefaultLabel = undefined;
+};
+
 /** formats a debit/credit table cell without currency symbol; uses debitCreditDefaultLabel when amount is zero */
 export const getFormattedDebitCreditWithoutCurrency = (
   value: number,
   /** when provided, avoids reading from store (e.g. on every cell in large tables) */
   zeroLabel?: string,
 ): string => {
-  if (value === 0)
-    return (
-      zeroLabel ??
-      toString(window.electron.store.get('debitCreditDefaultLabel') ?? ' ')
-    );
+  if (value === 0) return zeroLabel ?? getCachedDebitCreditDefaultLabel();
 
   return getFormattedCurrency(value).replace(currency, '').trim();
 };

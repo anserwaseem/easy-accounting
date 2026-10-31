@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'renderer/shad/ui/button';
 import { DataTable, type ColumnDef } from 'renderer/shad/ui/dataTable';
@@ -437,19 +437,26 @@ const JournalsPage: React.FC<HasMiniView> = ({
     ],
   );
 
-  useEffect(
-    () => window.electron.store.set('journalFilterDate', journalFilterDate),
-    [journalFilterDate],
-  );
+  const isJournalFilterDateMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isJournalFilterDateMountedRef.current) {
+      isJournalFilterDateMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set('journalFilterDate', journalFilterDate);
+  }, [journalFilterDate]);
 
-  useEffect(
-    () =>
-      window.electron.store.set(
-        'journalFilterSelectValue',
-        journalFilterSelectValue,
-      ),
-    [journalFilterSelectValue],
-  );
+  const isJournalFilterSelectMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isJournalFilterSelectMountedRef.current) {
+      isJournalFilterSelectMountedRef.current = true;
+      return;
+    }
+    window.electron.store.set(
+      'journalFilterSelectValue',
+      journalFilterSelectValue,
+    );
+  }, [journalFilterSelectValue]);
 
   return (
     <div>

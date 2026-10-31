@@ -434,21 +434,36 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     publishStatuses,
   ]);
 
+  const isVisiblePriceListColsMountedRef = useRef(false);
   useEffect(() => {
+    if (!isVisiblePriceListColsMountedRef.current) {
+      isVisiblePriceListColsMountedRef.current = true;
+      return;
+    }
     window.electron.store.set(
       VISIBLE_PRICE_LIST_COLUMNS_KEY,
       visiblePriceListIds,
     );
   }, [visiblePriceListIds]);
 
+  const isVisibleAttributeColsMountedRef = useRef(false);
   useEffect(() => {
+    if (!isVisibleAttributeColsMountedRef.current) {
+      isVisibleAttributeColsMountedRef.current = true;
+      return;
+    }
     window.electron.store.set(
       VISIBLE_ATTRIBUTE_COLUMNS_KEY,
       visibleAttributeKeys,
     );
   }, [visibleAttributeKeys]);
 
+  const isShowPublishColMountedRef = useRef(false);
   useEffect(() => {
+    if (!isShowPublishColMountedRef.current) {
+      isShowPublishColMountedRef.current = true;
+      return;
+    }
     window.electron.store.set(SHOW_PUBLISH_COLUMN_KEY, showPublishColumn);
   }, [showPublishColumn]);
 

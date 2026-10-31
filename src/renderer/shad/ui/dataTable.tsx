@@ -25,6 +25,7 @@ import {
   forwardRef,
   Fragment,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useMemo,
@@ -519,16 +520,19 @@ const DataTable = <TData, TValue>({
   // debounced search handler
   const debounceSearch = useMemo(
     () =>
-      debounce((value: string) => {
+      debounce((value: string, persistenceKey?: string) => {
         setSearchValue(value);
+        if (persistenceKey && isSearchHydratedRef.current) {
+          window.electron.store.set(persistenceKey, value);
+        }
       }, 300),
     [],
   );
-  useLayoutEffect(() => () => debounceSearch.cancel(), [debounceSearch]);
+  useEffect(() => () => debounceSearch.cancel(), [debounceSearch]);
 
   const handleSearchInputChange = (value: string) => {
     setSearchInputValue(value);
-    debounceSearch(value);
+    debounceSearch(value, searchPersistenceKey);
   };
 
   useLayoutEffect(() => {
@@ -546,12 +550,6 @@ const DataTable = <TData, TValue>({
     setSearchValue(normalizedSearchValue);
     isSearchHydratedRef.current = true;
   }, [searchPersistenceKey]);
-
-  useLayoutEffect(() => {
-    if (!searchPersistenceKey) return;
-    if (!isSearchHydratedRef.current) return;
-    window.electron.store.set(searchPersistenceKey, searchInputValue);
-  }, [searchPersistenceKey, searchInputValue]);
 
   const resolveRowKey = useCallback(
     (row: TData, index: number) => getRowKey?.(row, index) ?? index,
