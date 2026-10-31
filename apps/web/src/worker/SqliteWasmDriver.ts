@@ -197,7 +197,13 @@ export class SqliteWasmDriver implements DatabaseDriver {
         SqliteWasmDriver.bindParams(stmt, params);
         const hasRow = stmt.step();
         if (!hasRow) return undefined;
-        return stmt.get({}) as T;
+        const colNames = stmt.getColumnNames();
+        const numCols = colNames.length;
+        const row: Record<string, unknown> = {};
+        for (let i = 0; i < numCols; i++) {
+          row[colNames[i]] = stmt.get(i);
+        }
+        return row as T;
       } finally {
         stmt.reset();
       }
@@ -211,8 +217,14 @@ export class SqliteWasmDriver implements DatabaseDriver {
       try {
         stmt.clearBindings();
         SqliteWasmDriver.bindParams(stmt, params);
+        const colNames = stmt.getColumnNames();
+        const numCols = colNames.length;
         while (stmt.step()) {
-          rows.push(stmt.get({}) as T);
+          const row: Record<string, unknown> = {};
+          for (let i = 0; i < numCols; i++) {
+            row[colNames[i]] = stmt.get(i);
+          }
+          rows.push(row as T);
         }
         return rows;
       } finally {
