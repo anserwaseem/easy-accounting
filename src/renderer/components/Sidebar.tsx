@@ -30,13 +30,14 @@ import {
   Warehouse,
 } from 'lucide-react';
 import type { FC, PropsWithChildren, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { cn } from 'renderer/lib/utils';
 import { ModeToggle } from 'renderer/components/ModeToggle';
 import GlobalSearch, {
   GLOBAL_SEARCH_OPEN_EVENT,
 } from 'renderer/components/GlobalSearch';
 import SyncIndicator from 'renderer/components/SyncIndicator';
+import { RouteLoadingFallback } from './RouteLoadingFallback';
 import { useCmdOrCtrlShortcut } from '../hooks/useCmdOrCtrlShortcut';
 import { useAuth, useIsMobile } from '../hooks';
 import { useNavigationHistory } from '../hooks/useNavigationHistory';
@@ -718,8 +719,10 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             data-app-scroll
             className="flex-grow overflow-y-auto overflow-x-hidden p-3 md:p-4"
           >
-            {children}
-            <Outlet />
+            <Suspense fallback={<RouteLoadingFallback />}>
+              {children}
+              <Outlet />
+            </Suspense>
           </div>
         </div>
         {/* ⌘/Ctrl+K palette; mounted here so it is available on every authenticated page */}

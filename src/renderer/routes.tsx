@@ -11,38 +11,38 @@ import { consumeJoinHashFromWindow } from './lib/joinLink';
 import { AuthCheck } from './components/AuthCheck';
 import { InvalidRoute } from './views/InvalidRoute';
 
+import { RouteLoadingFallback } from './components/RouteLoadingFallback';
+import Sidebar from './components/Sidebar';
+import Home from './views/Home';
+import AccountsPage from './views/Accounts';
+import InventoryPage from './views/Inventory';
+import JournalPage from './views/Journal';
+import JournalsPage from './views/Journals';
+import LedgerPage from './views/Ledger';
+import Login from './views/Login';
+import NewInvoicePage from './views/NewInvoice';
+import NewJournalPage from './views/NewJournal';
+import Register from './views/Register';
+import SettingsPage from './views/Settings';
+import InvoicesPage from './views/Invoices';
+import InvoicePage from './views/Invoice';
+import QuotationsPage from './views/Quotations';
+import ReportsPage from './views/Reports';
+import TrialBalancePage from './views/Reports/TrialBalance';
+import AccountBalancesPage from './views/Reports/AccountBalances';
+import LedgerReportPage from './views/Reports/LedgerReport';
+import BillsAgingPage from './views/Reports/BillsAging';
+
 const BackupToastListener = lazy(
   () => import('./components/BackupToastListener'),
 );
 
-const Sidebar = lazy(() => import('./components/Sidebar'));
-const Home = lazy(() => import('./views/Home'));
-const AccountsPage = lazy(() => import('./views/Accounts'));
-const InventoryPage = lazy(() => import('./views/Inventory'));
-const JournalPage = lazy(() => import('./views/Journal'));
-const JournalsPage = lazy(() => import('./views/Journals'));
-const LedgerPage = lazy(() => import('./views/Ledger'));
-const Login = lazy(() => import('./views/Login'));
-const NewInvoicePage = lazy(() => import('./views/NewInvoice'));
-const NewJournalPage = lazy(() => import('./views/NewJournal'));
-const Register = lazy(() => import('./views/Register'));
-const SettingsPage = lazy(() => import('./views/Settings'));
-const InvoicesPage = lazy(() => import('./views/Invoices'));
-const InvoicePage = lazy(() => import('./views/Invoice'));
 const PrintableInvoiceScreen = lazy(
   () => import('./views/PrintableInvoiceScreen'),
 );
-const ReportsPage = lazy(() => import('./views/Reports'));
-const TrialBalancePage = lazy(() => import('./views/Reports/TrialBalance'));
-const AccountBalancesPage = lazy(
-  () => import('./views/Reports/AccountBalances'),
-);
-const LedgerReportPage = lazy(() => import('./views/Reports/LedgerReport'));
 const AverageEquityBalancesPage = lazy(
   () => import('./views/Reports/AverageEquityBalances'),
 );
-const BillsAgingPage = lazy(() => import('./views/Reports/BillsAging'));
-const QuotationsPage = lazy(() => import('./views/Quotations'));
 const InventoryHealthReportPage = lazy(
   () => import('./views/Reports/InventoryHealth'),
 );
@@ -86,7 +86,7 @@ const AppRoutes: React.FC = () => {
                 : ['/']
             }
           >
-            <Suspense fallback={<div>Loading…</div>}>
+            <Suspense fallback={<RouteLoadingFallback />}>
               <Routes>
                 <Route path="login" element={<Login />} />
                 <Route path="register" element={<Register />} />

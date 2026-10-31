@@ -43,6 +43,7 @@ import {
 } from 'types';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
+import { appDataCache } from '@/renderer/lib/dataCache';
 import { FILE_UPLOAD_HINT_JOURNAL_ENTRIES } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from 'renderer/lib/lib';
 import { parseJournalImportSheet } from 'renderer/lib/parser';
@@ -64,7 +65,10 @@ import { formSchema } from './schema';
 import { AccountCell, CreditCell, DebitCell } from './cells';
 
 const NewJournalPage: React.FC = () => {
-  const [accounts, setAccounts] = useState<Account[] | undefined>(undefined);
+  const cachedAccounts = appDataCache.getAccountsData();
+  const [accounts, setAccounts] = useState<Account[] | undefined>(
+    () => cachedAccounts?.accounts.filter((a) => a.isActive),
+  );
   const [nextId, setNextId] = useState<number>(-1);
   const [totalCredits, setTotalCredits] = useState<number>(0);
   const [totalDebits, setTotalDebits] = useState<number>(0);
@@ -158,8 +162,8 @@ const NewJournalPage: React.FC = () => {
   useEffect(() => {
     (async () => {
       setNextId(await window.electron.getNextJournalId());
-      const allAccounts = await window.electron.getAccounts();
-      setAccounts(allAccounts.filter((account: Account) => account.isActive));
+      const data = await appDataCache.fetchAccounts();
+      setAccounts(data.accounts.filter((account: Account) => account.isActive));
     })();
   }, []);
 
@@ -183,8 +187,8 @@ const NewJournalPage: React.FC = () => {
   const refreshAccounts = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const freshAccounts = await window.electron.getAccounts();
-      setAccounts(freshAccounts);
+      const data = await appDataCache.fetchAccounts({ forceRefresh: true });
+      setAccounts(data.accounts.filter((account: Account) => account.isActive));
       toast({
         description: 'Accounts refreshed successfully',
         variant: 'success',
@@ -599,6 +603,7 @@ const NewJournalPage: React.FC = () => {
       const isInserted = await window.electron.insertJournal(values);
 
       if (!!isInserted) {
+        appDataCache.invalidateJournals();
         form.reset(defaultFormValues);
         setNextId((prev) => prev + 1);
         setIsDateExplicitlySet(false);
