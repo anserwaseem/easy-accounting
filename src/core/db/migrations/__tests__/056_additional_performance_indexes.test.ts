@@ -51,6 +51,7 @@ describe('migration 056 — additional performance indexes', () => {
       'idx_journal_date_id',
       'idx_journal_entry_covering',
       'idx_journal_entry_account_credit',
+      'idx_journal_entry_account_debit',
       'idx_stock_adjustments_inventory_date',
       'idx_vendor_issue_items_issueId',
       'idx_vendor_issue_items_inventoryId',

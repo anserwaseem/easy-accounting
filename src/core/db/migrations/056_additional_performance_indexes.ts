@@ -95,6 +95,10 @@ export const migration056 = {
       `CREATE INDEX IF NOT EXISTS idx_journal_entry_account_credit
          ON journal_entry (accountId, creditAmount, journalId)`,
     );
+    await driver.exec(
+      `CREATE INDEX IF NOT EXISTS idx_journal_entry_account_debit
+         ON journal_entry (accountId, debitAmount, journalId)`,
+    );
 
     // 4. Stock adjustments history
     await driver.exec(
