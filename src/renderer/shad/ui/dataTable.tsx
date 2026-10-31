@@ -20,7 +20,7 @@ import {
   TableRow,
 } from 'renderer/shad/ui/table';
 import { clamp, debounce, get, toString } from 'lodash';
-import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
+import { cn, getSearchTerms, normalizeSearchText } from '@/renderer/lib/utils';
 import {
   forwardRef,
   Fragment,
@@ -501,21 +501,36 @@ const DataTable = <TData, TValue>({
     () => 900,
   );
 
+  // Pre-index normalized search haystacks once per row when data or searchFields change
+  // so typing in the search box doesn't re-run tens of thousands of lodash gets, regexes, and toLower calls
+  const searchIndex = useMemo(() => {
+    if (!searchFields?.length || !data.length) return [];
+    return data.map((item) => {
+      const fieldValues = searchFields.map((field) => get(item, field));
+      const haystack = fieldValues
+        .map(normalizeSearchText)
+        .filter(Boolean)
+        .join(' ');
+      return { item, haystack };
+    });
+  }, [data, searchFields]);
+
   const filteredData = useMemo(() => {
-    if (!searchValue || !searchFields?.length) {
+    if (!searchValue || !searchIndex.length) {
       return data;
     }
 
     // each word must hit some field (not necessarily the same one), so 'AYESHA SADIQA' finds
     // 'MAKTABA AYESHA SADIQA' and word order/extra spacing don't matter
     const searchTerms = getSearchTerms(searchValue);
-    return data.filter((item) =>
-      matchesSearchTerms(
-        searchFields.map((field) => get(item, field)),
-        searchTerms,
-      ),
-    );
-  }, [searchValue, data, searchFields]);
+    if (!searchTerms.length) return data;
+
+    return searchIndex
+      .filter(({ haystack }) =>
+        searchTerms.every((term) => haystack.includes(term)),
+      )
+      .map(({ item }) => item);
+  }, [searchValue, data, searchIndex]);
 
   // debounced search handler
   const debounceSearch = useMemo(
