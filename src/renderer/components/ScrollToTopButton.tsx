@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types -- props fully typed via ScrollToTopButtonProps interface */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 
 import { cn } from 'renderer/lib/utils';
@@ -85,27 +85,39 @@ export const ScrollToTopButton: React.FC<ScrollToTopButtonProps> = ({
 }) => {
   const [atBottom, setAtBottom] = useState(true);
   const [visible, setVisible] = useState(false);
+  const rafIdRef = useRef<number | null>(null);
 
   const measure = useCallback(() => {
-    const scroller = findScrollableElement();
-    if (!scroller) {
-      setVisible(false);
-      return;
-    }
-    const { scrollTop, scrollHeight, clientHeight } = scroller;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    setVisible(scrollTop > 40 || distanceFromBottom > 40);
-    setAtBottom(distanceFromBottom <= 40);
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = window.requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      const scroller = findScrollableElement();
+      if (!scroller) {
+        setVisible(false);
+        return;
+      }
+      const { scrollTop, scrollHeight, clientHeight } = scroller;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      setVisible(scrollTop > 40 || distanceFromBottom > 40);
+      setAtBottom(distanceFromBottom <= 40);
+    });
   }, []);
 
   useEffect(() => {
     measure();
 
     // Scroll events do not bubble, so they are captured on the
-    // document to catch every scroller on the page.
-    document.addEventListener('scroll', measure, true);
-    window.addEventListener('resize', measure);
+    // document to catch every scroller on the page. Throttled via rAF
+    // with passive capture to eliminate synchronous layout thrashing.
+    document.addEventListener('scroll', measure, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener('resize', measure, { passive: true });
     return () => {
+      if (rafIdRef.current !== null) {
+        window.cancelAnimationFrame(rafIdRef.current);
+      }
       document.removeEventListener('scroll', measure, true);
       window.removeEventListener('resize', measure);
     };
