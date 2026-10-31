@@ -233,8 +233,6 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   isMini = false,
   onRowClick,
 }: AccountPageProps) => {
-  // eslint-disable-next-line no-console
-  console.log('AccountsPage');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] =
     useState<AccountTypeFilter>(getStoredAccountType);

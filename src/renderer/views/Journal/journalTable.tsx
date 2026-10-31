@@ -31,8 +31,6 @@ interface JournalTableProps {
 export const JournalTable: React.FC<JournalTableProps> = ({
   journalId,
 }: JournalTableProps) => {
-  // eslint-disable-next-line no-console
-  console.log('JournalTable', journalId);
   const [journal, setJournal] = useState<Journal>();
   // the dialogs the ⋮ menu opens live outside the menu: a menu item
   // that opens a dialog unmounts the dialog with the menu when the
