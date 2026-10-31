@@ -78,9 +78,11 @@ export class DatabaseService {
     const db = new Database(this.path, {
       verbose: DatabaseService.isDevelopment() ? console.log : undefined,
     });
-    db.pragma('cache_size = -64000');
-    db.pragma('temp_store = MEMORY');
-    db.pragma('mmap_size = 268435456');
+    if (typeof db.pragma === 'function') {
+      db.pragma('cache_size = -64000');
+      db.pragma('temp_store = MEMORY');
+      db.pragma('mmap_size = 268435456');
+    }
     return db;
   }
 }
