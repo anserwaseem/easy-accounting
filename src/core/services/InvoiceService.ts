@@ -2949,7 +2949,6 @@ export class InvoiceService {
       SQL.getSalePurchaseAccounts,
       [InvoiceType.Purchase.toLowerCase(), InvoiceType.Sale.toLowerCase()],
     );
-    console.log('getTransactionAccounts', accounts);
     const purchaseAccount = accounts.find(
       (acc) => acc.name.toLowerCase() === InvoiceType.Purchase.toLowerCase(),
     );

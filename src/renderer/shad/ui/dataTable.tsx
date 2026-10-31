@@ -661,8 +661,20 @@ const DataTable = <TData, TValue>({
     measureFill();
     const raf = requestAnimationFrame(measureFill);
 
-    // keep the measurement fresh as the table moves (scrolling) or resizes (layout shifts)
-    window.addEventListener('scroll', measureFill, true);
+    // throttle scroll measurements to next animation frame with passive listener so
+    // scrolling inside or outside the table never blocks on forced synchronous layout reflows
+    let scrollRaf = 0;
+    const onScroll = () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = 0;
+        measureFill();
+      });
+    };
+    window.addEventListener('scroll', onScroll, {
+      capture: true,
+      passive: true,
+    });
 
     let ro: ResizeObserver | null = null;
     // measuring on the next frame rather than inside the callback: measureFill resizes the
@@ -686,7 +698,8 @@ const DataTable = <TData, TValue>({
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(measureRaf);
-      window.removeEventListener('scroll', measureFill, true);
+      cancelAnimationFrame(scrollRaf);
+      window.removeEventListener('scroll', onScroll, true);
       ro?.disconnect();
     };
   }, [measureFill, virtual, virtualHeightMode, windowInnerHeight]);

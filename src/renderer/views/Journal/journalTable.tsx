@@ -314,6 +314,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({
           columns={columns}
           data={journal?.journalEntries || []}
           sortingFns={defaultSortingFunctions}
+          virtual
         />
       </div>
     </div>

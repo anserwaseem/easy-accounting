@@ -308,8 +308,6 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     applyPatchesLocally,
   } = bulkEdit;
 
-  console.log('InventoryTable', inventory);
-
   useEffect(() => {
     // lock filters for whole edit session (not only after first dirty flush)
     onBulkEditActiveChange?.(editMode);

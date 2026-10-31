@@ -520,12 +520,13 @@ const VendorStockPage: React.FC = () => {
           getRowKey={(row) => `${row.vendorAccountId}-${row.inventoryId}`}
           stickyFooterRow={itemCount > 0 ? stickyFooterRow : undefined}
           onViewModelChange={handleGridViewModelChange}
+          virtual
         />
       </section>
 
       <section className="space-y-2">
         <h2 className="text-lg font-medium">Sends</h2>
-        <DataTable columns={issueColumns} data={issues} />
+        <DataTable columns={issueColumns} data={issues} virtual />
       </section>
 
       <Dialog

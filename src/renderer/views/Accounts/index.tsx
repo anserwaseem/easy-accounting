@@ -665,7 +665,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     [showInactive],
   );
 
-  const getAccounts = useCallback(() => {
+  const displayedAccounts = useMemo(() => {
     let filteredAccounts = accounts;
 
     if (!showInactive) {
@@ -843,7 +843,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
       <div className="py-8">
         <DataTable
           columns={columns}
-          data={getAccounts()}
+          data={displayedAccounts}
           state={{ columnVisibility: { id: false } }}
           defaultSortField="id"
           sortingFns={defaultSortingFunctions}

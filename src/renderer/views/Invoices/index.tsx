@@ -203,7 +203,6 @@ const InvoicesPage: FC<InvoicesProps> = ({
   saleReturns = false,
 }: InvoicesProps) => {
   const [invoices, setInvoices] = useState<InvoicesView[]>();
-  console.log('InvoicesPage', invoices);
   const [isLoading, setIsLoading] = useState(true);
   const [filteredInvoices, setFilteredInvoices] = useState<InvoicesView[]>();
   const [invoiceFilterDate, setInvoiceFilterDate] = useState<
@@ -504,12 +503,6 @@ const InvoicesPage: FC<InvoicesProps> = ({
       invoiceFilterSelectValue,
       invoices,
     ],
-  );
-
-  // save filtered invoices to store
-  useEffect(
-    () => window.electron.store.set('filteredInvoices', filteredInvoices),
-    [filteredInvoices],
   );
 
   // save invoice filter date to store

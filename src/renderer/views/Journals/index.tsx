@@ -142,12 +142,8 @@ const JournalRowMenu: React.FC<JournalRowMenuProps> = ({
 const JournalsPage: React.FC<HasMiniView> = ({
   isMini = false,
 }: HasMiniView) => {
-  // eslint-disable-next-line no-console
-  console.log('JournalsPage', isMini);
   const [journals, setJounrals] = useState<JournalView[]>([]);
-  const [filteredJournals, setFilteredJournals] = useState<JournalView[]>(
-    window.electron.store.get('filteredJournals') || [],
-  );
+  const [filteredJournals, setFilteredJournals] = useState<JournalView[]>([]);
   const [journalFilterDate, setJournalFilterDate] = useState<
     DateRange | undefined
   >(window.electron.store.get('journalFilterDate') || undefined);
@@ -439,11 +435,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
       journalFilterSelectValue,
       journals,
     ],
-  );
-
-  useEffect(
-    () => window.electron.store.set('filteredJournals', filteredJournals),
-    [filteredJournals],
   );
 
   useEffect(

@@ -17,12 +17,28 @@ import { Dialog, DialogContent, DialogTitle } from '@/renderer/shad/ui/dialog';
 import { getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 
+interface SearchAccount {
+  id: number;
+  name: string;
+  code?: string | number;
+}
+
+interface SearchInventoryItem {
+  id: number;
+  name: string;
+}
+
 /** invoice list row tagged with the list it came from, so the route is unambiguous */
-type SearchInvoice = InvoicesView & { invoiceType: InvoiceType };
+interface SearchInvoice {
+  id: number;
+  invoiceNumber?: number;
+  accountName?: string;
+  invoiceType: InvoiceType;
+}
 
 interface GlobalSearchData {
-  accounts: Account[];
-  inventory: InventoryItem[];
+  accounts: SearchAccount[];
+  inventory: SearchInventoryItem[];
   invoices: SearchInvoice[];
 }
 
@@ -46,15 +62,26 @@ const loadGlobalSearchData = (): Promise<GlobalSearchData> => {
         saleInvoices,
         purchaseInvoices,
       ]): GlobalSearchData => ({
-        accounts: (accounts as Account[]) ?? [],
-        inventory: (inventory as InventoryItem[]) ?? [],
+        accounts: ((accounts as Account[]) ?? []).map((account) => ({
+          id: account.id,
+          name: account.name,
+          code: account.code,
+        })),
+        inventory: ((inventory as InventoryItem[]) ?? []).map((item) => ({
+          id: item.id,
+          name: item.name,
+        })),
         invoices: [
           ...((saleInvoices as InvoicesView[]) ?? []).map((row) => ({
-            ...row,
+            id: row.id,
+            invoiceNumber: row.invoiceNumber,
+            accountName: row.accountName,
             invoiceType: InvoiceType.Sale,
           })),
           ...((purchaseInvoices as InvoicesView[]) ?? []).map((row) => ({
-            ...row,
+            id: row.id,
+            invoiceNumber: row.invoiceNumber,
+            accountName: row.accountName,
             invoiceType: InvoiceType.Purchase,
           })),
         ],
