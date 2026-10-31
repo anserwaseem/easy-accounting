@@ -314,19 +314,40 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   }, [editMode, onBulkEditActiveChange]);
 
   useEffect(() => {
-    const fetchInventory = async () => {
-      const [fetchedInventory, idsWithHistory, fetchedItemTypes] =
-        await Promise.all([
+    let cancelled = false;
+    const fetchInventoryData = async () => {
+      try {
+        const [
+          fetchedInventory,
+          idsWithHistory,
+          fetchedItemTypes,
+          lists,
+          defs,
+        ] = await Promise.all([
           window.electron.getInventory(),
           window.electron.getInventoryIdsWithHistory(),
           window.electron.getItemTypes(),
+          window.electron.getPriceLists().catch(() => [] as PriceListSummary[]),
+          window.electron
+            .getAttributeDefinitions()
+            .catch(() => [] as AttributeDefinition[]),
         ]);
 
-      setInventory(fetchedInventory);
-      setItemsWithHistory(idsWithHistory);
-      setItemTypes(fetchedItemTypes);
+        if (cancelled) return;
+        setInventory(fetchedInventory);
+        setItemsWithHistory(idsWithHistory);
+        setItemTypes(fetchedItemTypes);
+        setPriceLists((lists ?? []).filter((l) => l.isActive));
+        setAttributeDefs((defs ?? []).filter((d) => d.isActive));
+      } catch (error) {
+        console.error('Failed to load inventory data:', error);
+      }
     };
-    fetchInventory();
+
+    fetchInventoryData();
+    return () => {
+      cancelled = true;
+    };
   }, [options?.refresh]);
 
   const updateItemType = async (
@@ -413,47 +434,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     publishStatuses,
   ]);
 
-  // active price lists drive the optional price columns
-  useEffect(() => {
-    let cancelled = false;
-    window.electron
-      .getPriceLists()
-      .then((lists) => {
-        if (!cancelled) setPriceLists(lists.filter((l) => l.isActive));
-        return lists;
-      })
-      .catch(() => {
-        // price columns are optional; a failure here must not break the table
-        if (!cancelled) setPriceLists([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [options?.refresh]);
-
   useEffect(() => {
     window.electron.store.set(
       VISIBLE_PRICE_LIST_COLUMNS_KEY,
       visiblePriceListIds,
     );
   }, [visiblePriceListIds]);
-
-  // active attribute definitions drive the optional attribute columns
-  useEffect(() => {
-    let cancelled = false;
-    window.electron
-      .getAttributeDefinitions()
-      .then((defs) => {
-        if (!cancelled) setAttributeDefs(defs.filter((d) => d.isActive));
-        return defs;
-      })
-      .catch(() => {
-        if (!cancelled) setAttributeDefs([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [options?.refresh]);
 
   useEffect(() => {
     window.electron.store.set(
