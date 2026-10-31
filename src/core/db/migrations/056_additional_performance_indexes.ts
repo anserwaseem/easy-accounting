@@ -62,6 +62,11 @@ export const migration056 = {
       `CREATE INDEX IF NOT EXISTS idx_invoice_items_accountId
          ON invoice_items (accountId)`,
     );
+    await driver.exec(
+      `CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_account
+         ON invoice_items (invoiceId, accountId)
+         WHERE accountId IS NOT NULL`,
+    );
 
     // 2. Account and chart indexing
     await driver.exec(

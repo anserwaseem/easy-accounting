@@ -876,6 +876,8 @@ async function main(): Promise<void> {
         accountIds as number[],
         asOfDate as string,
       ),
+    getLatestLedgerDatesForAccountIds: (accountIds) =>
+      ledgerService.getLatestLedgerDatesForAccountIds(accountIds as number[]),
     getLedgerRangeForAccountIds: async (accountIds, startDate, endDate) => {
       const ids = accountIds as number[];
       const map = await ledgerService.getLedgerRangeForAccountIds(

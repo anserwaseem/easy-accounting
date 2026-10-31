@@ -44,6 +44,7 @@ describe('migration 056 — additional performance indexes', () => {
       'idx_invoices_type_number',
       'idx_invoices_returnedAt',
       'idx_invoice_items_accountId',
+      'idx_invoice_items_invoice_account',
       'idx_account_chartId',
       'idx_chart_userId',
       'idx_chart_parentId',
