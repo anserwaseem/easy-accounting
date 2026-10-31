@@ -335,8 +335,11 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               header: 'Accounts',
               cell: AccountCell,
               onClick: (row: Row<Account>) => {
-                onRowClick?.(row.original.id);
-                openAccount(row);
+                if (onRowClick) {
+                  onRowClick(row.original.id);
+                } else {
+                  openAccount(row);
+                }
               },
             },
           ]
