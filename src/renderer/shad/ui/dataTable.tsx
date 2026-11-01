@@ -1605,7 +1605,7 @@ const DataTable = <TData, TValue>({
               )}
             </TableBody>
             {hasStickyFooter ? (
-              <TableFooter className="sticky bottom-0 z-10 border-t bg-background print:hidden [&>tr]:bg-background">
+              <TableFooter className="sticky bottom-0 z-10 border-t bg-background print:hidden safe-bottom [&>tr]:bg-background">
                 <TableRow className="border-t bg-background hover:bg-background font-semibold [&>td]:bg-background">
                   {leafHeaders.map((header, i) => {
                     const w = header.column.getSize();
