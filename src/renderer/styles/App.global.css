@@ -207,3 +207,17 @@
       linear-gradient(to left, rgba(0, 0, 0, 0.5), transparent);
   }
 }
+
+
+/* ── Reduced motion (minimalist-ui borrow) ──────────────────────────────
+   Gate animation/transition work behind the user's preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
