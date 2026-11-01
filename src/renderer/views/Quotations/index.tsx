@@ -445,7 +445,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 shrink-0 text-muted-foreground"
+                    className="h-11 w-11 shrink-0 text-muted-foreground md:h-5 md:w-5"
                     aria-label="About quotations"
                   >
                     <Info className="h-5 w-5" aria-hidden />

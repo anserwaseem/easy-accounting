@@ -858,7 +858,7 @@ const SettingsPage: React.FC = () => {
                         onChange={(e) =>
                           setDraftDebitCreditDefaultLabel(e.target.value)
                         }
-                        className="w-32 h-8 text-sm"
+                        className="w-32 h-11 text-sm md:h-8"
                         disabled={DEFAULT_LABELS.includes(
                           draftDebitCreditDefaultLabel,
                         )}
