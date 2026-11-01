@@ -888,7 +888,7 @@ const NewJournalPage: React.FC = () => {
                 </Tooltip>
                 <FileUploadTooltip
                   content={FILE_UPLOAD_HINT_JOURNAL_ENTRIES}
-                  side="bottom"
+                  side="top"
                 >
                   <Button
                     type="button"
@@ -972,7 +972,7 @@ const NewJournalPage: React.FC = () => {
               }}
             />
 
-            <div className="sticky bottom-0 z-10 -mx-3 mt-4 flex flex-wrap items-center justify-between gap-3 border-t bg-background/95 px-3 py-3 safe-bottom md:-mx-0 md:px-0">
+            <div className="sticky bottom-0 z-10 -mx-3 mt-4 flex flex-wrap items-center justify-between gap-2 border-t bg-background/95 px-2 py-2 safe-bottom md:-mx-0 md:px-0">
               <div className="flex gap-2 md:gap-4">
                 <Tooltip>
                   <TooltipTrigger asChild>
