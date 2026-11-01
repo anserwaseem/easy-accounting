@@ -239,3 +239,17 @@
     scroll-behavior: auto !important;
   }
 }
+
+
+/* ── Mobile scroll containers (mobile-native) ───────────────────────────
+   Native-feeling overscroll, momentum, and both-axis panning for wide
+   tables and sheet content. */
+.overflow-auto,
+.overflow-x-auto,
+.overflow-y-auto,
+.overflow-scroll,
+.scrollbar {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+}
