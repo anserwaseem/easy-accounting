@@ -139,11 +139,14 @@
   }
 
   .title {
-    @apply text-2xl text-center tracking-tight col-span-1 row-span-1;
+    /* Same tracking rule as .title-new: no negative tracking under 40px. */
+    @apply text-2xl text-center tracking-normal col-span-1 row-span-1;
   }
 
   .title-new {
-    @apply text-2xl font-semibold tracking-tight;
+    /* 24px is below the 40px threshold for negative tracking; keep it
+       at normal width so small headings stay readable. */
+    @apply text-2xl font-semibold tracking-normal;
     /* @apply text-xl tracking-tight; */
   }
 

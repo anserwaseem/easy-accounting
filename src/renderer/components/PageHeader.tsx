@@ -113,7 +113,7 @@ export const FilterGroup: React.FC<FilterGroupProps> = ({
     {label ? (
       <p
         className={cn(
-          'shrink-0 text-muted-foreground font-bold text-sm',
+          'shrink-0 text-muted-foreground font-medium text-sm',
           hideLabelOnMobile && 'hidden sm:block',
         )}
       >
