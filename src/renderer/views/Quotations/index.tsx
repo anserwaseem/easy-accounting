@@ -212,7 +212,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
                         <DateCell value={inv.date} />
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-extrabold">
+                        <p className="font-semibold">
                           {getQuotationDisplayNumber(
                             toNumber(inv.invoiceNumber),
                           )}

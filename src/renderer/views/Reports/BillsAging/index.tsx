@@ -1145,7 +1145,7 @@ const BillsAgingPage = () => {
     >
       {/* Title that shows when printing */}
       <div className="hidden print:block mb-4 print-header">
-        <h1 className="text-left font-black text-2xl mb-1">
+        <h1 className="text-left font-semibold text-2xl mb-1">
           Report for {selectedHead} on {formatDisplayDate(selectedDate)}
         </h1>
       </div>

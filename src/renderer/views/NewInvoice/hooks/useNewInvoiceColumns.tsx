@@ -590,7 +590,7 @@ export function useNewInvoiceColumns<T extends FieldValues>(
                       </span>
                       <div className="text-xs text-muted-foreground text-end">
                         <div className="flex gap-2">
-                          <p className="font-bold">{item.quantity}</p>
+                          <p className="font-semibold">{item.quantity}</p>
                           <span className="font-extralight">
                             item{item.quantity < 2 ? '' : 's'} left
                           </span>

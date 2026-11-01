@@ -91,7 +91,7 @@ export const TrialBalanceTable = ({
                   sortField="code"
                   sortDirection={sortDirection}
                   onSort={() => handleSort('code')}
-                  className="text-left py-2 font-bold text-sm"
+                  className="text-left py-2 font-semibold text-sm"
                 >
                   Code
                 </SortableHeader>
@@ -102,7 +102,7 @@ export const TrialBalanceTable = ({
                   sortField="name"
                   sortDirection={sortDirection}
                   onSort={() => handleSort('name')}
-                  className="text-left py-2 font-bold text-sm"
+                  className="text-left py-2 font-semibold text-sm"
                 >
                   Debit Account
                 </SortableHeader>
@@ -113,14 +113,17 @@ export const TrialBalanceTable = ({
                   sortField="debit"
                   sortDirection={sortDirection}
                   onSort={() => handleSort('debit')}
-                  className="w-24 text-right py-2 font-bold pr-6 print-spacing-right text-sm"
+                  className="w-24 text-right py-2 font-semibold pr-6 print-spacing-right text-sm"
                 >
                   Amount
                 </SortableHeader>
               ) : null}
               {showCode ? (
                 <TableHead
-                  className={cn('text-left py-2 font-bold text-sm', creditEdge)}
+                  className={cn(
+                    'text-left py-2 font-semibold text-sm',
+                    creditEdge,
+                  )}
                 >
                   Code
                 </TableHead>
@@ -128,7 +131,7 @@ export const TrialBalanceTable = ({
               {showName ? (
                 <TableHead
                   className={cn(
-                    'text-left py-2 font-bold text-sm',
+                    'text-left py-2 font-semibold text-sm',
                     !showCode && creditEdge,
                   )}
                 >
@@ -142,7 +145,7 @@ export const TrialBalanceTable = ({
                   sortDirection={sortDirection}
                   onSort={() => handleSort('credit')}
                   className={cn(
-                    'w-24 text-right py-2 font-bold text-sm',
+                    'w-24 text-right py-2 font-semibold text-sm',
                     labelSpan === 0 && creditEdge,
                   )}
                 >
@@ -230,7 +233,7 @@ export const TrialBalanceTable = ({
             })}
           </TableBody>
           <TableFooter className="border-t-0 print:static [&>tr]:border-t [&>tr]:border-primary">
-            <TableRow className="sticky bottom-0 z-10 border-t border-primary bg-muted/95 font-bold hover:bg-muted/95 print:static print:z-auto">
+            <TableRow className="sticky bottom-0 z-10 border-t border-primary bg-muted/95 font-semibold hover:bg-muted/95 print:static print:z-auto">
               {labelSpan > 0 ? (
                 <TableCell
                   className="bg-inherit py-1.5 print:py-1"
