@@ -116,7 +116,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card className="md:col-span-2">
           <CardHeader>
             <MetricTitle
               title="Total Assets"
@@ -199,7 +199,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="md:col-span-2">
           <CardHeader>
             <MetricTitle
               title="Cash & Bank"
