@@ -230,17 +230,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ option }: ReportCardProps) => {
 };
 
 const ReportsPage: React.FC = () => (
-  <div className="w-full">
+  <div className="w-full pb-20">
     <h1 className="title-new mb-6">Reports</h1>
 
-    <h2 className="text-xl font-semibold mb-3">Accounting</h2>
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-b pb-4">
+    <h2 className="text-xl font-semibold mb-4 mt-2">Accounting</h2>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-b pb-6">
       {accountingReports.map((option) => (
         <ReportCard key={option.path} option={option} />
       ))}
     </div>
 
-    <h2 className="text-xl font-semibold my-3">Operations</h2>
+    <h2 className="text-xl font-semibold mt-6 mb-4">Operations</h2>
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {operationsReports.map((option) => (
         <ReportCard key={option.path} option={option} />
