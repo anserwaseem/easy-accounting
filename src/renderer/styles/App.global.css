@@ -116,8 +116,8 @@
     -webkit-touch-callout: none;
   }
 
-  /* mobile-native baseline: 44px minimum tap targets on touch input. */
-  @media (pointer: coarse) {
+  /* mobile-native baseline: 44px minimum tap targets on phone-width views. */
+  @media (max-width: 767px) {
     button,
     [role='button'] {
       min-height: 44px;
