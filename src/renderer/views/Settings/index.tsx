@@ -730,7 +730,7 @@ const SettingsPage: React.FC = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-10 shrink-0 px-3 text-xs md:h-7 md:px-2"
+                        className="h-11 shrink-0 px-3 text-xs md:h-7 md:px-2"
                         disabled={
                           draftCompanyPrintNote ===
                           EXAMPLE_INVOICE_PRINT_NOTE_EN
@@ -768,7 +768,7 @@ const SettingsPage: React.FC = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-10 shrink-0 px-3 text-xs md:h-7 md:px-2"
+                        className="h-11 shrink-0 px-3 text-xs md:h-7 md:px-2"
                         disabled={
                           draftCompanyPrintNoteUrdu ===
                           EXAMPLE_INVOICE_PRINT_NOTE_UR
