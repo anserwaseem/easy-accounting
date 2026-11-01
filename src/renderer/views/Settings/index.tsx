@@ -563,25 +563,40 @@ const SettingsPage: React.FC = () => {
                 : 'grid grid-cols-4 w-full max-w-2xl'
             }
           >
-            <TabsTrigger value="profile" className="flex items-center gap-2">
+            <TabsTrigger
+              value="profile"
+              className="flex items-center gap-2 min-h-[44px]"
+            >
               <Building2 className="w-4 h-4" />
               <span className="hidden sm:inline">Company</span>
             </TabsTrigger>
-            <TabsTrigger value="invoicing" className="flex items-center gap-2">
+            <TabsTrigger
+              value="invoicing"
+              className="flex items-center gap-2 min-h-[44px]"
+            >
               <Printer className="w-4 h-4" />
               <span className="hidden sm:inline">Invoicing</span>
             </TabsTrigger>
-            <TabsTrigger value="rules" className="flex items-center gap-2">
+            <TabsTrigger
+              value="rules"
+              className="flex items-center gap-2 min-h-[44px]"
+            >
               <Sliders className="w-4 h-4" />
               <span className="hidden sm:inline">Rules</span>
             </TabsTrigger>
             {window.electron.supportsBackup && hasBackupCapability && (
-              <TabsTrigger value="backup" className="flex items-center gap-2">
+              <TabsTrigger
+                value="backup"
+                className="flex items-center gap-2 min-h-[44px]"
+              >
                 <DatabaseBackup className="w-4 h-4" />
                 <span className="hidden sm:inline">Backup</span>
               </TabsTrigger>
             )}
-            <TabsTrigger value="sync" className="flex items-center gap-2">
+            <TabsTrigger
+              value="sync"
+              className="flex items-center gap-2 min-h-[44px]"
+            >
               <Cloud className="w-4 h-4" />
               <span className="hidden sm:inline">Sync</span>
             </TabsTrigger>

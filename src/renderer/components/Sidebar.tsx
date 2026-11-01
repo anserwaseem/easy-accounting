@@ -246,7 +246,7 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
               <Button
                 variant="ghost"
                 onClick={goBack}
-                className="h-8 w-8"
+                className="h-11 w-11"
                 aria-label="Go back"
                 type="button"
               >
@@ -266,7 +266,7 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
               <Button
                 variant="ghost"
                 onClick={goForward}
-                className="h-8 w-8"
+                className="h-11 w-11"
                 aria-label="Go forward"
                 type="button"
               >
@@ -288,7 +288,7 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
     <div className="flex items-center justify-between gap-1 h-14 px-4">
       <Link
         to="/"
-        className="text-lg font-semibold hover:opacity-80 transition-opacity truncate"
+        className="text-lg font-semibold hover:opacity-80 transition-opacity truncate min-h-[44px] flex items-center"
         aria-label="Go to home"
       >
         Easy Accounting
@@ -303,7 +303,7 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-11 w-11"
               onClick={goBack}
               disabled={!canGoBack}
               aria-label="Go back"
@@ -323,7 +323,7 @@ const SidebarHeader: FC<SidebarHeaderProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-11 w-11"
               onClick={goForward}
               disabled={!canGoForward}
               aria-label="Go forward"
@@ -680,7 +680,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
             )}
             <Link
               to="/"
-              className="font-semibold text-base truncate"
+              className="font-semibold text-base truncate min-h-[44px] flex items-center"
               aria-label="Go to home"
             >
               Easy Accounting
@@ -689,7 +689,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10"
+                className="h-11 w-11"
                 onClick={() => setMobileOpen(true)}
                 aria-label="Open navigation menu"
                 type="button"
@@ -701,7 +701,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10"
+                className="h-11 w-11"
                 aria-label="Search"
                 type="button"
                 onClick={() =>

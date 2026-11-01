@@ -9,9 +9,13 @@ import { Dashboard } from './Dashboard';
 
 const Home: React.FC = () => (
   <Tabs defaultValue="getting-started">
-    <TabsList>
-      <TabsTrigger value="getting-started">Getting Started</TabsTrigger>
-      <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+    <TabsList className="grid h-auto grid-cols-2">
+      <TabsTrigger value="getting-started" className="min-h-[44px]">
+        Getting Started
+      </TabsTrigger>
+      <TabsTrigger value="dashboard" className="min-h-[44px]">
+        Dashboard
+      </TabsTrigger>
     </TabsList>
     <TabsContent value="getting-started">
       <div className="flex flex-col gap-4">
