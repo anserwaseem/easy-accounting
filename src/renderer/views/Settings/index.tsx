@@ -523,7 +523,7 @@ const SettingsPage: React.FC = () => {
       {/* Header */}
       <div className="border-b py-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+          <h1 className="text-2xl font-semibold tracking-normal">Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage company metadata, invoice templates, validation rules, and
             sync options.

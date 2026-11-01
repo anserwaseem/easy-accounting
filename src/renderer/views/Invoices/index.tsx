@@ -245,9 +245,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                         <DateCell value={invoice.date} />
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-extrabold">
-                          {invoice.invoiceNumber}
-                        </p>
+                        <p className="font-semibold">{invoice.invoiceNumber}</p>
                         {invoice.isReturned ? (
                           <Badge
                             variant="destructive"
