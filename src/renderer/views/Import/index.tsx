@@ -207,7 +207,7 @@ const ImportPage: React.FC = () => {
   }, [file]);
 
   return (
-    <div className="flex justify-center items-start min-h-screen py-16">
+    <div className="flex justify-center items-start min-h-[100dvh] py-16">
       <div className="w-full max-w-2xl p-6 rounded-xl shadow-md border-white border-dashed border-[1px] flex flex-col gap-4">
         <h1 className="title-new">Import from desktop app</h1>
 

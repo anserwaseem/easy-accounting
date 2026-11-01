@@ -23,6 +23,7 @@ export const printStyles = `
     #root > div,
     div[class*="flex"],
     div[class*="h-screen"],
+    div[class*="dvh"],
     div[class*="h-full"] {
       height: auto !important;
       min-height: auto !important;
@@ -248,6 +249,7 @@ export const printStyles = `
     div[class*="overflow-y"],
     div[class*="overflow-hidden"],
     div[class*="h-screen"],
+    div[class*="dvh"],
     div[class*="h-full"] {
       height: auto !important;
       min-height: auto !important;

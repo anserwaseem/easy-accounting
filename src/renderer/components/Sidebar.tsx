@@ -517,7 +517,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-[100dvh] overflow-hidden">
         {/* Backdrop — mobile overlay only */}
         {mobileOpen && (
           <div

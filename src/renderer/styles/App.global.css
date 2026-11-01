@@ -89,6 +89,12 @@
     @apply border-border;
   }
 
+  html {
+    /* mobile-native baseline: no font inflation on rotate, no pull-to-refresh */
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     /* Prevent the rubber-band "white gap" on iOS when overscrolling a
@@ -96,6 +102,18 @@
     overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
+  }
+
+  /* mobile-native baseline: cheap tap feedback, no selection/callout on
+     tap targets. */
+  button,
+  a,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
 
   /* ── Mobile form ergonomics ──────────────────────────────────────────
