@@ -523,7 +523,7 @@ const SettingsPage: React.FC = () => {
       {/* Header */}
       <div className="border-b py-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+          <h1 className="text-3xl font-semibold tracking-normal">Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage company metadata, invoice templates, validation rules, and
             sync options.
@@ -563,25 +563,40 @@ const SettingsPage: React.FC = () => {
                 : 'grid grid-cols-4 w-full max-w-2xl'
             }
           >
-            <TabsTrigger value="profile" className="flex items-center gap-2">
+            <TabsTrigger
+              value="profile"
+              className="flex items-center gap-2 min-h-[44px]"
+            >
               <Building2 className="w-4 h-4" />
               <span className="hidden sm:inline">Company</span>
             </TabsTrigger>
-            <TabsTrigger value="invoicing" className="flex items-center gap-2">
+            <TabsTrigger
+              value="invoicing"
+              className="flex items-center gap-2 min-h-[44px]"
+            >
               <Printer className="w-4 h-4" />
               <span className="hidden sm:inline">Invoicing</span>
             </TabsTrigger>
-            <TabsTrigger value="rules" className="flex items-center gap-2">
+            <TabsTrigger
+              value="rules"
+              className="flex items-center gap-2 min-h-[44px]"
+            >
               <Sliders className="w-4 h-4" />
               <span className="hidden sm:inline">Rules</span>
             </TabsTrigger>
             {window.electron.supportsBackup && hasBackupCapability && (
-              <TabsTrigger value="backup" className="flex items-center gap-2">
+              <TabsTrigger
+                value="backup"
+                className="flex items-center gap-2 min-h-[44px]"
+              >
                 <DatabaseBackup className="w-4 h-4" />
                 <span className="hidden sm:inline">Backup</span>
               </TabsTrigger>
             )}
-            <TabsTrigger value="sync" className="flex items-center gap-2">
+            <TabsTrigger
+              value="sync"
+              className="flex items-center gap-2 min-h-[44px]"
+            >
               <Cloud className="w-4 h-4" />
               <span className="hidden sm:inline">Sync</span>
             </TabsTrigger>
@@ -715,7 +730,7 @@ const SettingsPage: React.FC = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-10 shrink-0 px-3 text-xs md:h-7 md:px-2"
+                        className="h-11 shrink-0 px-3 text-xs md:h-7 md:px-2"
                         disabled={
                           draftCompanyPrintNote ===
                           EXAMPLE_INVOICE_PRINT_NOTE_EN
@@ -753,7 +768,7 @@ const SettingsPage: React.FC = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-10 shrink-0 px-3 text-xs md:h-7 md:px-2"
+                        className="h-11 shrink-0 px-3 text-xs md:h-7 md:px-2"
                         disabled={
                           draftCompanyPrintNoteUrdu ===
                           EXAMPLE_INVOICE_PRINT_NOTE_UR
@@ -843,7 +858,7 @@ const SettingsPage: React.FC = () => {
                         onChange={(e) =>
                           setDraftDebitCreditDefaultLabel(e.target.value)
                         }
-                        className="w-32 h-8 text-sm"
+                        className="w-32 h-11 text-sm md:h-8"
                         disabled={DEFAULT_LABELS.includes(
                           draftDebitCreditDefaultLabel,
                         )}

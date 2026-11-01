@@ -14,6 +14,11 @@ const fromRoot = (glob) => path.join(__dirname, glob);
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  future: {
+    // Gate :hover variants behind @media (hover: hover) so touch taps
+    // never leave a sticky hover state (mobile-native skill).
+    hoverOnlyWhenSupported: true,
+  },
   darkMode: ['class'],
   content: [
     fromRoot('components/**/*.{ts,tsx}'),

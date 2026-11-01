@@ -89,6 +89,12 @@
     @apply border-border;
   }
 
+  html {
+    /* mobile-native baseline: no font inflation on rotate, no pull-to-refresh */
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     /* Prevent the rubber-band "white gap" on iOS when overscrolling a
@@ -96,6 +102,27 @@
     overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
+  }
+
+  /* mobile-native baseline: cheap tap feedback, no selection/callout on
+     tap targets. */
+  button,
+  a,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* mobile-native baseline: 44px minimum tap targets on phone-width views. */
+  @media (max-width: 767px) {
+    button,
+    [role='button'] {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
 
   /* ── Mobile form ergonomics ──────────────────────────────────────────
@@ -139,11 +166,14 @@
   }
 
   .title {
-    @apply text-2xl text-center tracking-tight col-span-1 row-span-1;
+    /* Same tracking rule as .title-new: no negative tracking under 40px. */
+    @apply text-2xl text-center tracking-normal col-span-1 row-span-1;
   }
 
   .title-new {
-    @apply text-2xl font-semibold tracking-tight;
+    /* 24px is below the 40px threshold for negative tracking; keep it
+       at normal width so small headings stay readable. */
+    @apply text-2xl font-semibold tracking-normal;
     /* @apply text-xl tracking-tight; */
   }
 
@@ -203,4 +233,32 @@
       linear-gradient(to right, rgba(0, 0, 0, 0.5), transparent),
       linear-gradient(to left, rgba(0, 0, 0, 0.5), transparent);
   }
+}
+
+
+/* ── Reduced motion (minimalist-ui borrow) ──────────────────────────────
+   Gate animation/transition work behind the user's preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ── Mobile scroll containers (mobile-native) ───────────────────────────
+   Native-feeling overscroll, momentum, and both-axis panning for wide
+   tables and sheet content. */
+.overflow-auto,
+.overflow-x-auto,
+.overflow-y-auto,
+.overflow-scroll,
+.scrollbar {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
 }

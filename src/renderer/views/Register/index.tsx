@@ -44,7 +44,7 @@ const RegisterPage: React.FC = () => {
   }
 
   return (
-    <div className="flex justify-center items-center min-h-screen p-4">
+    <div className="flex justify-center items-center min-h-[100dvh] p-4">
       {/* The card had no width of its own, so it sized to its content
           and the submit button sat small under full-width inputs. */}
       <div className="w-full max-w-sm p-6 rounded-xl shadow-md border border-border bg-card text-card-foreground">

@@ -57,7 +57,7 @@ const LedgerPage: React.FC = () => {
   }, [id]);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen">
+    <div className="flex flex-col md:flex-row h-[100dvh]">
       {/* Account-switcher mini rail — desktop only. On mobile the sidebar's
           own Accounts link already covers switching accounts, and the
           space is better spent on the ledger itself. */}

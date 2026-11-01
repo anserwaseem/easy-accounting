@@ -587,7 +587,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-8">
           <div className="flex flex-col gap-2 mt-8">
             <div className="flex gap-4 sm:gap-8 items-center">
-              <p className="font-extrabold text-md w-[110px] sm:w-[160px]">
+              <p className="font-semibold text-md w-[110px] sm:w-[160px]">
                 {numberLabel}
               </p>
               <div className="flex flex-wrap items-center gap-2">
