@@ -656,7 +656,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10 -ml-1"
+                    className="h-11 w-11 -ml-1"
                     onClick={goBack}
                     aria-label="Go back"
                     type="button"
@@ -670,7 +670,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 -ml-1"
+                className="h-11 w-11 -ml-1"
                 onClick={() => setMobileOpen(true)}
                 aria-label="Open menu"
                 type="button"
