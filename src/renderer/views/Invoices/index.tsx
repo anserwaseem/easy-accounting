@@ -539,7 +539,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
       <PageHeader
         title={saleReturns ? 'Sale Returns' : `${invoiceType} Invoices`}
         hideTitle={isMini}
-        filtersInline
+        filtersInline={false}
         filters={
           <FilterGroup label="VIEW BY:" hideLabelOnMobile>
             <DateRangePickerWithPresets
