@@ -33,7 +33,6 @@ import { JournalUuidHint } from '@/renderer/components/journal/JournalUuidHint';
 import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
 import { RowMenu } from '@/renderer/components/RowMenu';
 import { DropdownMenuItem } from 'renderer/shad/ui/dropdown-menu';
-import { appDataCache } from '@/renderer/lib/dataCache';
 
 export type JournalView = Journal & { amount: number };
 
@@ -143,13 +142,8 @@ const JournalRowMenu: React.FC<JournalRowMenuProps> = ({
 const JournalsPage: React.FC<HasMiniView> = ({
   isMini = false,
 }: HasMiniView) => {
-  const initialCachedJournals = appDataCache.getJournals();
-  const [journals, setJounrals] = useState<JournalView[]>(
-    () => initialCachedJournals ?? [],
-  );
-  const [filteredJournals, setFilteredJournals] = useState<JournalView[]>(
-    () => initialCachedJournals ?? [],
-  );
+  const [journals, setJounrals] = useState<JournalView[]>([]);
+  const [filteredJournals, setFilteredJournals] = useState<JournalView[]>([]);
   const [journalFilterDate, setJournalFilterDate] = useState<
     DateRange | undefined
   >(window.electron.store.get('journalFilterDate') || undefined);
@@ -159,10 +153,8 @@ const JournalsPage: React.FC<HasMiniView> = ({
   const navigate = useNavigate();
 
   const handleReloadJournals = useCallback(async () => {
-    const journalsWithAmounts = await appDataCache.fetchJournals(
-      mapToJournalView,
-      { forceRefresh: true },
-    );
+    const updatedJournals = (await window.electron.getJournals()) as Journal[];
+    const journalsWithAmounts = mapToJournalView(updatedJournals);
     setJounrals(journalsWithAmounts);
     setFilteredJournals(journalsWithAmounts);
   }, []);
@@ -423,20 +415,13 @@ const JournalsPage: React.FC<HasMiniView> = ({
   );
 
   useEffect(() => {
-    let cancelled = false;
     const fetchJournals = async () => {
-      const journalsWithAmounts = await appDataCache.fetchJournals(
-        mapToJournalView,
-      );
-      if (!cancelled) {
-        setJounrals(journalsWithAmounts);
-      }
+      const rawJournals = (await window.electron.getJournals()) as Journal[];
+      const updatedJournals = mapToJournalView(rawJournals);
+      setJounrals(updatedJournals);
     };
 
     fetchJournals();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(

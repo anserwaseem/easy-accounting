@@ -37,7 +37,6 @@ import { useEscapeKey } from '@/renderer/hooks/useEscapeKey';
 import type { PriceListSummary } from '@/renderer/hooks/usePublishSettings';
 import { usePublishEnabled } from '@/renderer/hooks/usePublishEnabled';
 import { SHOW_PUBLISH_COLUMN_KEY } from '@/renderer/hooks/usePublishColumnVisible';
-import { appDataCache } from '@/renderer/lib/dataCache';
 import { ItemDetailPanel } from './ItemDetailPanel';
 import {
   byListPosition,
@@ -204,19 +203,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   onBulkEditActiveChange,
   onFilteredIdsChange,
 }: InventoryTableProps) => {
-  const initialCache = appDataCache.getInventoryData();
-  const [inventory, setInventory] = useState<InventoryItem[] | undefined>(
-    () => initialCache?.inventory,
-  );
-  const [itemTypes, setItemTypes] = useState<ItemType[]>(
-    () => initialCache?.itemTypes ?? [],
-  );
-  const [priceLists, setPriceLists] = useState<PriceListSummary[]>(
-    () => initialCache?.priceLists ?? [],
-  );
-  const [attributeDefs, setAttributeDefs] = useState<AttributeDefinition[]>(
-    () => initialCache?.attributeDefs ?? [],
-  );
+  // eslint-disable-next-line no-console
+  const [inventory, setInventory] = useState<InventoryItem[]>();
+  const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
+  const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
+  const [attributeDefs, setAttributeDefs] = useState<AttributeDefinition[]>([]);
   const [showPublishColumn, setShowPublishColumn] = useState<boolean>(() =>
     Boolean(window.electron.store.get(SHOW_PUBLISH_COLUMN_KEY)),
   );
@@ -277,9 +268,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
-  const [itemsWithHistory, setItemsWithHistory] = useState<number[]>(
-    () => initialCache?.idsWithHistory ?? [],
-  );
+  const [itemsWithHistory, setItemsWithHistory] = useState<number[]>([]);
   const [virtualScrollToIndex, setVirtualScrollToIndex] = useState<
     number | null
   >(null);
@@ -328,16 +317,28 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     let cancelled = false;
     const fetchInventoryData = async () => {
       try {
-        const data = await appDataCache.fetchInventory({
-          forceRefresh: Boolean(options?.refresh),
-        });
+        const [
+          fetchedInventory,
+          idsWithHistory,
+          fetchedItemTypes,
+          lists,
+          defs,
+        ] = await Promise.all([
+          window.electron.getInventory(),
+          window.electron.getInventoryIdsWithHistory(),
+          window.electron.getItemTypes(),
+          window.electron.getPriceLists().catch(() => [] as PriceListSummary[]),
+          window.electron
+            .getAttributeDefinitions()
+            .catch(() => [] as AttributeDefinition[]),
+        ]);
 
         if (cancelled) return;
-        setInventory(data.inventory);
-        setItemsWithHistory(data.idsWithHistory);
-        setItemTypes(data.itemTypes);
-        setPriceLists(data.priceLists);
-        setAttributeDefs(data.attributeDefs);
+        setInventory(fetchedInventory);
+        setItemsWithHistory(idsWithHistory);
+        setItemTypes(fetchedItemTypes);
+        setPriceLists((lists ?? []).filter((l) => l.isActive));
+        setAttributeDefs((defs ?? []).filter((d) => d.isActive));
       } catch (error) {
         console.error('Failed to load inventory data:', error);
       }
@@ -375,8 +376,6 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       });
       return;
     }
-
-    appDataCache.invalidateInventory();
 
     setInventory((prev) => {
       return prev?.map((item) => {

@@ -43,7 +43,6 @@ import {
 } from 'types';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
-import { appDataCache } from '@/renderer/lib/dataCache';
 import { FILE_UPLOAD_HINT_JOURNAL_ENTRIES } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from 'renderer/lib/lib';
 import { parseJournalImportSheet } from 'renderer/lib/parser';
@@ -65,10 +64,7 @@ import { formSchema } from './schema';
 import { AccountCell, CreditCell, DebitCell } from './cells';
 
 const NewJournalPage: React.FC = () => {
-  const cachedAccounts = appDataCache.getAccountsData();
-  const [accounts, setAccounts] = useState<Account[] | undefined>(
-    () => cachedAccounts?.accounts.filter((a) => a.isActive),
-  );
+  const [accounts, setAccounts] = useState<Account[] | undefined>(undefined);
   const [nextId, setNextId] = useState<number>(-1);
   const [totalCredits, setTotalCredits] = useState<number>(0);
   const [totalDebits, setTotalDebits] = useState<number>(0);
@@ -162,8 +158,8 @@ const NewJournalPage: React.FC = () => {
   useEffect(() => {
     (async () => {
       setNextId(await window.electron.getNextJournalId());
-      const data = await appDataCache.fetchAccounts();
-      setAccounts(data.accounts.filter((account: Account) => account.isActive));
+      const allAccounts = await window.electron.getAccounts();
+      setAccounts(allAccounts.filter((account: Account) => account.isActive));
     })();
   }, []);
 
@@ -187,8 +183,8 @@ const NewJournalPage: React.FC = () => {
   const refreshAccounts = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const data = await appDataCache.fetchAccounts({ forceRefresh: true });
-      setAccounts(data.accounts.filter((account: Account) => account.isActive));
+      const freshAccounts = await window.electron.getAccounts();
+      setAccounts(freshAccounts);
       toast({
         description: 'Accounts refreshed successfully',
         variant: 'success',
@@ -603,7 +599,6 @@ const NewJournalPage: React.FC = () => {
       const isInserted = await window.electron.insertJournal(values);
 
       if (!!isInserted) {
-        appDataCache.invalidateJournals();
         form.reset(defaultFormValues);
         setNextId((prev) => prev + 1);
         setIsDateExplicitlySet(false);
@@ -893,7 +888,7 @@ const NewJournalPage: React.FC = () => {
                 </Tooltip>
                 <FileUploadTooltip
                   content={FILE_UPLOAD_HINT_JOURNAL_ENTRIES}
-                  side="top"
+                  side="bottom"
                 >
                   <Button
                     type="button"
@@ -977,7 +972,7 @@ const NewJournalPage: React.FC = () => {
               }}
             />
 
-            <div className="sticky bottom-0 z-10 -mx-3 mt-4 flex flex-wrap items-center justify-between gap-2 border-t bg-background/95 px-2 py-2 safe-bottom md:-mx-0 md:px-0">
+            <div className="sticky bottom-0 z-10 -mx-3 mt-4 flex flex-wrap items-center justify-between gap-3 border-t bg-background/95 px-3 py-3 safe-bottom md:-mx-0 md:px-0">
               <div className="flex gap-2 md:gap-4">
                 <Tooltip>
                   <TooltipTrigger asChild>

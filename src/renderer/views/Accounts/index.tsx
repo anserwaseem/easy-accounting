@@ -33,7 +33,6 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 import { DateCell } from '@/renderer/components/common/DateCell';
-import { appDataCache } from '@/renderer/lib/dataCache';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
@@ -234,10 +233,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   isMini = false,
   onRowClick,
 }: AccountPageProps) => {
-  const initialCache = appDataCache.getAccountsData();
-  const [accounts, setAccounts] = useState<Account[]>(
-    () => initialCache?.accounts ?? [],
-  );
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [typeSelected, setTypeSelected] =
     useState<AccountTypeFilter>(getStoredAccountType);
   const [headSelected, setHeadSelected] =
@@ -252,22 +248,25 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   const [showInactive, setShowInactive] = useState<boolean>(
     window.electron.store.get('showInactiveAccounts') || false,
   );
-  const [charts, setCharts] = useState<Chart[]>(
-    () => initialCache?.charts ?? [],
-  );
+  const [charts, setCharts] = useState<Chart[]>([]);
   const [discountProfiles, setDiscountProfiles] = useState<DiscountProfile[]>(
-    () => initialCache?.discountProfiles ?? [],
+    [],
   );
   const [pricingAccountId, setPricingAccountId] = useState<number | null>(null);
   const [showCommissionSheet, setShowCommissionSheet] = useState(false);
   const [newDialog, setNewDialog] = useState<'account' | 'head' | null>(null);
   const navigate = useNavigate();
 
-  const refetchAccounts = useCallback(async (forceRefresh = false) => {
-    const data = await appDataCache.fetchAccounts({ forceRefresh });
-    setAccounts(data.accounts);
-    setCharts(data.charts);
-    setDiscountProfiles(data.discountProfiles);
+  const refetchAccounts = useCallback(async () => {
+    const [fetchedAccounts, fetchedCharts, fetchedDiscountProfiles] =
+      await Promise.all([
+        window.electron.getAccounts(),
+        window.electron.getCharts(),
+        window.electron.getDiscountProfiles(),
+      ]);
+    setAccounts(fetchedAccounts);
+    setCharts(fetchedCharts);
+    setDiscountProfiles(fetchedDiscountProfiles);
   }, []);
 
   const pricingAccount = useMemo(
@@ -710,7 +709,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
 
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {isMini ? null : (
               <Popover>
                 <PopoverTrigger asChild>
@@ -779,13 +778,13 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               <>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant={showUrdu ? 'secondary' : 'outline'}
                   size="sm"
                   onClick={handleToggleUrdu}
                   className={cn(
-                    'gap-1 text-xs',
+                    'gap-1.5 px-3 text-xs font-medium',
                     showUrdu &&
-                      'rounded-md bg-primary/10 text-primary hover:bg-primary/15',
+                      'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15',
                   )}
                   title={
                     showUrdu
@@ -859,7 +858,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           </div>
         </div>
       </div>
-      <div className="py-5">
+      <div className="py-8">
         <DataTable
           columns={columns}
           data={displayedAccounts}

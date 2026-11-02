@@ -38,7 +38,6 @@ import { InvoiceType } from 'types';
 import { formatDisplayDateTime } from '@/lib/displayDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
 import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
-import { appDataCache } from '@/renderer/lib/dataCache';
 // eslint-disable-next-line import/no-cycle
 import {
   DropdownMenu,
@@ -210,19 +209,8 @@ const InvoicesPage: FC<InvoicesProps> = ({
   invoices: propInvoices,
   saleReturns = false,
 }: InvoicesProps) => {
-  const initialCachedInvoices = useMemo(
-    () =>
-      propInvoices
-        ? (propInvoices as unknown as InvoicesView[])
-        : appDataCache.getInvoices(invoiceType, saleReturns),
-    [propInvoices, invoiceType, saleReturns],
-  );
-  const [invoices, setInvoices] = useState<InvoicesView[] | undefined>(
-    () => initialCachedInvoices ?? undefined,
-  );
-  const [isLoading, setIsLoading] = useState<boolean>(
-    () => !initialCachedInvoices,
-  );
+  const [invoices, setInvoices] = useState<InvoicesView[]>();
+  const [isLoading, setIsLoading] = useState(true);
   const [filteredInvoices, setFilteredInvoices] = useState<InvoicesView[]>();
   const [invoiceFilterDate, setInvoiceFilterDate] = useState<
     DateRange | undefined
@@ -257,7 +245,9 @@ const InvoicesPage: FC<InvoicesProps> = ({
                         <DateCell value={invoice.date} />
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">{invoice.invoiceNumber}</p>
+                        <p className="font-extrabold">
+                          {invoice.invoiceNumber}
+                        </p>
                         {invoice.isReturned ? (
                           <Badge
                             variant="destructive"
@@ -472,19 +462,18 @@ const InvoicesPage: FC<InvoicesProps> = ({
       setInvoiceFilterDate(dateRange);
       setFilteredInvoices(
         invoices?.filter((invoice) => {
-          // invoice.date is an ISO string straight from the DB; parse it
-          // directly instead of assuming a DD/MM/YYYY text format (that
-          // split never matched ISO dates, so the View-by range silently
-          // filtered everything out).
-          const invoiceDate = new Date(invoice.date);
-          if (Number.isNaN(invoiceDate.getTime())) return false;
-          invoiceDate.setHours(0, 0, 0, 0);
+          // parse the DD/MM/YYYY format to a Date object
+          const [month, day, year] = invoice.date.split('/');
+          const invoiceDate = new Date(+year, +month - 1, +day).setHours(
+            0,
+            0,
+            0,
+            0,
+          );
           const fromDate = new Date(from).setHours(0, 0, 0, 0);
           const toDate = new Date(to).setHours(0, 0, 0, 0);
 
-          return (
-            invoiceDate.getTime() >= fromDate && invoiceDate.getTime() <= toDate
-          );
+          return invoiceDate >= fromDate && invoiceDate <= toDate;
         }),
       );
     },
@@ -493,27 +482,20 @@ const InvoicesPage: FC<InvoicesProps> = ({
 
   // fetch invoices
   useEffect(() => {
-    let cancelled = false;
     const fetchInvoices = async () => {
       let fetchedInvoices: InvoicesView[];
       if (!isNil(propInvoices)) {
         // preview rows are invoice views; the list's journal count is absent
         fetchedInvoices = propInvoices as unknown as InvoicesView[];
+      } else if (saleReturns) {
+        fetchedInvoices = await window.electron.getSaleReturns();
       } else {
-        fetchedInvoices = await appDataCache.fetchInvoices(
-          invoiceType,
-          saleReturns,
-        );
+        fetchedInvoices = await window.electron.getInvoices(invoiceType);
       }
-      if (!cancelled) {
-        setInvoices(fetchedInvoices);
-        setIsLoading(false);
-      }
+      setInvoices(fetchedInvoices);
+      setIsLoading(false);
     };
     fetchInvoices();
-    return () => {
-      cancelled = true;
-    };
   }, [invoiceType, propInvoices, saleReturns]);
 
   // handle filter invoices
@@ -559,7 +541,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
       <PageHeader
         title={saleReturns ? 'Sale Returns' : `${invoiceType} Invoices`}
         hideTitle={isMini}
-        filtersInline={false}
+        filtersInline
         filters={
           <FilterGroup label="VIEW BY:" hideLabelOnMobile>
             <DateRangePickerWithPresets
