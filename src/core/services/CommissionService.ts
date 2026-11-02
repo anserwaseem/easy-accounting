@@ -212,6 +212,7 @@ export class CommissionService {
       expenseAccountId: row.expenseAccountId,
       rates,
       overrides,
+      tourCollectionRate: row.tourCollectionRatePercent ?? 0,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
