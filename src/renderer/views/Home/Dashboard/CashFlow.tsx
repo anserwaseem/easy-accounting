@@ -102,7 +102,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Cash Flow</h2>
+        <h2 className="text-2xl font-semibold">Cash Flow</h2>
         <Button variant="outline" size="icon" onClick={refetch}>
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -119,7 +119,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${
+              className={`text-2xl font-semibold ${
                 cashFlow.operatingCashFlow >= 0
                   ? 'text-green-600'
                   : 'text-red-600'
@@ -140,7 +140,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${
+              className={`text-2xl font-semibold ${
                 cashFlow.investingCashFlow >= 0
                   ? 'text-green-600'
                   : 'text-red-600'
@@ -161,7 +161,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${
+              className={`text-2xl font-semibold ${
                 cashFlow.financingCashFlow >= 0
                   ? 'text-green-600'
                   : 'text-red-600'
@@ -182,7 +182,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${
+              className={`text-2xl font-semibold ${
                 cashFlow.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'
               }`}
             >
@@ -202,7 +202,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-semibold text-green-600">
               {getFormattedCurrency(cashFlow.cashFlowFromSales)}
             </div>
           </CardContent>
@@ -217,7 +217,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-semibold text-red-600">
               {getFormattedCurrency(cashFlow.cashFlowFromPurchases)}
             </div>
           </CardContent>
@@ -232,7 +232,7 @@ export const CashFlow: React.FC<CashFlowProps> = ({ className }) => {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-semibold text-red-600">
               {getFormattedCurrency(cashFlow.cashFlowFromExpenses)}
             </div>
           </CardContent>

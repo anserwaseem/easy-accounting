@@ -257,9 +257,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
                         <DateCell value={invoice.date} />
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-extrabold">
-                          {invoice.invoiceNumber}
-                        </p>
+                        <p className="font-semibold">{invoice.invoiceNumber}</p>
                         {invoice.isReturned ? (
                           <Badge
                             variant="destructive"
@@ -474,18 +472,19 @@ const InvoicesPage: FC<InvoicesProps> = ({
       setInvoiceFilterDate(dateRange);
       setFilteredInvoices(
         invoices?.filter((invoice) => {
-          // parse the DD/MM/YYYY format to a Date object
-          const [month, day, year] = invoice.date.split('/');
-          const invoiceDate = new Date(+year, +month - 1, +day).setHours(
-            0,
-            0,
-            0,
-            0,
-          );
+          // invoice.date is an ISO string straight from the DB; parse it
+          // directly instead of assuming a DD/MM/YYYY text format (that
+          // split never matched ISO dates, so the View-by range silently
+          // filtered everything out).
+          const invoiceDate = new Date(invoice.date);
+          if (Number.isNaN(invoiceDate.getTime())) return false;
+          invoiceDate.setHours(0, 0, 0, 0);
           const fromDate = new Date(from).setHours(0, 0, 0, 0);
           const toDate = new Date(to).setHours(0, 0, 0, 0);
 
-          return invoiceDate >= fromDate && invoiceDate <= toDate;
+          return (
+            invoiceDate.getTime() >= fromDate && invoiceDate.getTime() <= toDate
+          );
         }),
       );
     },
@@ -560,7 +559,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
       <PageHeader
         title={saleReturns ? 'Sale Returns' : `${invoiceType} Invoices`}
         hideTitle={isMini}
-        filtersInline
+        filtersInline={false}
         filters={
           <FilterGroup label="VIEW BY:" hideLabelOnMobile>
             <DateRangePickerWithPresets

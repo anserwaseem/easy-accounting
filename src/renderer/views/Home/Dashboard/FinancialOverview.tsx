@@ -109,7 +109,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Financial Overview</h2>
+        <h2 className="text-2xl font-semibold">Financial Overview</h2>
         <Button variant="outline" size="icon" onClick={refetch}>
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -125,7 +125,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {getFormattedCurrency(overview.totalAssets)}
             </div>
           </CardContent>
@@ -140,7 +140,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {getFormattedCurrency(overview.totalLiabilities)}
             </div>
           </CardContent>
@@ -155,7 +155,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {getFormattedCurrency(overview.netWorth)}
             </div>
           </CardContent>
@@ -170,7 +170,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {overview.currentRatio.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -190,7 +190,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {overview.quickRatio.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -208,7 +208,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {getFormattedCurrency(overview.cashAndBank)}
             </div>
           </CardContent>
@@ -223,7 +223,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {getFormattedCurrency(overview.accountsReceivable)}
             </div>
           </CardContent>
@@ -238,7 +238,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold">
               {getFormattedCurrency(overview.accountsPayable)}
             </div>
           </CardContent>

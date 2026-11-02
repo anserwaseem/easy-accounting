@@ -347,7 +347,7 @@ const VirtualSelect = <T extends BaseOption = Account>({
   const sectionHeaderClassName = useMemo(
     () =>
       cn(
-        'flex w-full items-center justify-between gap-2 border-b bg-muted/90 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm',
+        'flex w-full items-center justify-between gap-2 border-b bg-muted/90 px-3 py-2 text-left text-xs font-semibold tracking-normal text-muted-foreground backdrop-blur-sm',
         'transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
       ),
     [],

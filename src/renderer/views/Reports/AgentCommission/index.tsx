@@ -783,7 +783,7 @@ const AgentCommissionReportPage: React.FC = () => {
             <td className="p-2.5 text-right font-mono">
               Rs. {formatMoney(inv.totalCharged)}
             </td>
-            <td className="p-2.5 text-right font-mono font-bold text-primary">
+            <td className="p-2.5 text-right font-mono font-semibold text-primary">
               Rs. {formatMoney(inv.totalCommission)}
             </td>
           </>
@@ -869,7 +869,7 @@ const AgentCommissionReportPage: React.FC = () => {
         <td className="p-2.5 text-right font-mono">
           Rs. {formatMoney(report.totalCharged)}
         </td>
-        <td className="p-2.5 text-right font-mono font-bold text-primary">
+        <td className="p-2.5 text-right font-mono font-semibold text-primary">
           Rs. {formatMoney(report.grossCommission)}
         </td>
       </tr>
@@ -973,7 +973,7 @@ const AgentCommissionReportPage: React.FC = () => {
           </td>
         )}
         {visibleLineColumns.has('commission') && (
-          <td className="p-2.5 text-right font-mono font-bold text-primary">
+          <td className="p-2.5 text-right font-mono font-semibold text-primary">
             Rs. {formatMoney(line.commissionAmount)}
           </td>
         )}
@@ -1013,7 +1013,7 @@ const AgentCommissionReportPage: React.FC = () => {
         )}
         {visibleLineColumns.has('rate') && <td />}
         {visibleLineColumns.has('commission') && (
-          <td className="p-2.5 text-right font-mono text-primary font-bold">
+          <td className="p-2.5 text-right font-mono text-primary font-semibold">
             Rs.{' '}
             {formatMoney(
               filteredLines.reduce((s, l) => s + l.commissionAmount, 0),
@@ -1220,7 +1220,7 @@ const AgentCommissionReportPage: React.FC = () => {
             <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-muted/20">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-foreground">
+                  <h2 className="text-lg font-semibold text-foreground">
                     {report.agentName}
                   </h2>
                   <Badge variant={report.settlement ? 'default' : 'outline'}>
@@ -1259,10 +1259,10 @@ const AgentCommissionReportPage: React.FC = () => {
 
               <div className="flex items-center gap-6">
                 <div className="text-right">
-                  <div className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+                  <div className="text-xs font-semibold text-muted-foreground">
                     Net Commission Payable
                   </div>
-                  <div className="text-2xl font-black font-mono text-primary mt-0.5">
+                  <div className="text-2xl font-semibold font-mono text-primary mt-0.5">
                     Rs. {formatMoney(netCommission)}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
@@ -1397,7 +1397,7 @@ const AgentCommissionReportPage: React.FC = () => {
                           <TableCell className="text-right font-mono">
                             Rs. {formatMoney(report.totalCharged)}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-primary font-bold">
+                          <TableCell className="text-right font-mono text-primary font-semibold">
                             Rs. {formatMoney(report.grossCommission)}
                           </TableCell>
                         </TableRow>

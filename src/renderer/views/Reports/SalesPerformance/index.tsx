@@ -1038,7 +1038,7 @@ const SalesPerformanceReportPage: React.FC = () => {
                 <DollarSign className="h-3 w-3" />
                 Posted Sales
               </p>
-              <p className="text-xl font-bold">
+              <p className="text-xl font-semibold">
                 {getFormattedCurrency(response.kpis.postedSalesAmount)}
               </p>
               <DeltaBadge
@@ -1049,7 +1049,7 @@ const SalesPerformanceReportPage: React.FC = () => {
             </Card>
             <Card className="p-3">
               <p className="text-xs text-muted-foreground">Qty Sold</p>
-              <p className="text-xl font-bold">{response.kpis.qtySold}</p>
+              <p className="text-xl font-semibold">{response.kpis.qtySold}</p>
               <DeltaBadge
                 current={response.kpis.qtySold}
                 previous={response.comparisonKpis?.qtySold ?? 0}
@@ -1061,7 +1061,9 @@ const SalesPerformanceReportPage: React.FC = () => {
                 <FileText className="h-3 w-3" />
                 Invoices
               </p>
-              <p className="text-xl font-bold">{response.kpis.invoiceCount}</p>
+              <p className="text-xl font-semibold">
+                {response.kpis.invoiceCount}
+              </p>
               <DeltaBadge
                 current={response.kpis.invoiceCount}
                 previous={response.comparisonKpis?.invoiceCount ?? 0}
@@ -1073,7 +1075,7 @@ const SalesPerformanceReportPage: React.FC = () => {
                 <TrendingUp className="h-3 w-3" />
                 Avg Amount
               </p>
-              <p className="text-xl font-bold">
+              <p className="text-xl font-semibold">
                 {getFormattedCurrency(response.kpis.avgInvoiceAmount)}
               </p>
               <DeltaBadge
@@ -1087,7 +1089,7 @@ const SalesPerformanceReportPage: React.FC = () => {
                 <Clock className="h-3 w-3" />
                 Returns
               </p>
-              <p className="text-xl font-bold">
+              <p className="text-xl font-semibold">
                 {response.kpis.returnedInvoiceCount}
               </p>
               <DeltaBadge

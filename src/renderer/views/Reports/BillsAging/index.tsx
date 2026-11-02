@@ -572,7 +572,7 @@ const BillsAgingPage = () => {
                 // figure needed, so the total was cut off. It is now
                 // its own line above it.
                 <div className="flex min-w-0 flex-col rounded-lg border bg-card/80 px-2.5 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground">
+                  <span className="text-[10px] font-semibold leading-tight tracking-normal text-muted-foreground">
                     Total outstanding
                   </span>
                   <span
@@ -1120,7 +1120,7 @@ const BillsAgingPage = () => {
           {/* Row 3: Agent Subtotals Chips (under All Parties) */}
           {!isLoading && isAllParties && headSubtotals.length > 1 && (
             <div className="print:hidden flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider mr-1">
+              <span className="text-muted-foreground text-xs font-semibold tracking-normal mr-1">
                 By Head:
               </span>
               {headSubtotals.map(([head, amount]) => (
@@ -1145,7 +1145,7 @@ const BillsAgingPage = () => {
     >
       {/* Title that shows when printing */}
       <div className="hidden print:block mb-4 print-header">
-        <h1 className="text-left font-black text-2xl mb-1">
+        <h1 className="text-left font-semibold text-2xl mb-1">
           Report for {selectedHead} on {formatDisplayDate(selectedDate)}
         </h1>
       </div>

@@ -124,7 +124,7 @@ export const GettingStarted: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="text-xl font-semibold tracking-normal">
           Getting started
         </h2>
         <p className="text-sm text-muted-foreground">

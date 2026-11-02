@@ -165,7 +165,7 @@ export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
         ))}
       </TableBody>
       <TableFooter>
-        <TableRow className="font-bold print-row">
+        <TableRow className="font-semibold print-row">
           {visible.has('code') || visible.has('name') ? (
             <TableCell
               colSpan={

@@ -24,7 +24,7 @@ const buttonVariants = cva(
         // 44px is the minimum comfortable touch target; desktop keeps the
         // denser 40px so data-entry grids don't sprawl.
         default: 'h-11 px-4 py-2 md:h-10',
-        sm: 'h-10 rounded-md px-3 md:h-9',
+        sm: 'h-11 min-w-11 rounded-md px-3 md:h-9 md:min-w-0',
         lg: 'h-12 rounded-md px-8 md:h-11',
         icon: 'h-11 w-11 md:h-10 md:w-10',
       },
