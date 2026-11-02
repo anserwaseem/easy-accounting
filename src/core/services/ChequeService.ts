@@ -525,6 +525,17 @@ export class ChequeService {
     });
   }
 
+  async getUnresolvedCheques(filters?: {
+    chartId?: number;
+    tourId?: number;
+  }): Promise<Cheque[]> {
+    const all = await this.listCheques({
+      chartId: filters?.chartId,
+      tourId: filters?.tourId,
+    });
+    return all.filter((c) => c.status !== 'cleared');
+  }
+
   async applyToCommission(
     chequeId: number,
     settlementId: number,

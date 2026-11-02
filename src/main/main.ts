@@ -1523,6 +1523,12 @@ app
         ),
     );
 
+    ipcMain.handle(
+      'cheque:unresolved',
+      async (_, filters?: { chartId?: number; tourId?: number }) =>
+        chequeService.getUnresolvedCheques(filters),
+    );
+
     ipcMain.handle('dev:setCpuThrottle', async (_, rate: number) => {
       if (!mainWindow) return false;
       const targetRate = Math.max(1, Number(rate) || 1);

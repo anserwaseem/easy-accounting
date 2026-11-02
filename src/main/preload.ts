@@ -655,6 +655,8 @@ const electronHandler = {
     ) as Promise<number>,
   transferChequeCustody: (input: TransferCustodyInput) =>
     ipcRenderer.invoke('cheque:transfer', input) as Promise<void>,
+  listUnresolvedCheques: (filters?: { chartId?: number; tourId?: number }) =>
+    ipcRenderer.invoke('cheque:unresolved', filters) as Promise<Cheque[]>,
   applyChequeToCommission: (
     chequeId: number,
     settlementId: number,
