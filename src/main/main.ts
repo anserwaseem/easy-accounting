@@ -49,6 +49,10 @@ import type {
   InvoiceType,
   AgentCommissionConfig,
   PostCommissionSettlementPayload,
+  RecordChequeInput,
+  AddPresentmentInput,
+  ClearChequeInput,
+  TransferCustodyInput,
 } from '../types';
 import { parseAttributeKeyList } from './utils/catalog';
 import MenuBuilder from './menu';
@@ -334,6 +338,7 @@ app
       vendorStockService,
       commissionService,
       settingsService,
+      chequeService,
     } = createCoreServices();
     const printService = new PrintService();
     const publishService = new PublishService();
@@ -1226,6 +1231,44 @@ app
     );
     ipcMain.handle('agentTour:suggest', (_, chartId: number) =>
       agentTourService.suggestAgentTours(chartId),
+    );
+
+    ipcMain.handle('cheque:get', (_, id: number) =>
+      chequeService.getCheque(id),
+    );
+    ipcMain.handle(
+      'cheque:list',
+      (
+        _,
+        filters?: {
+          chartId?: number;
+          tourId?: number;
+          status?: string;
+          holder?: string;
+        },
+      ) => chequeService.listCheques(filters as any),
+    );
+    ipcMain.handle('cheque:record', (_, input: RecordChequeInput) =>
+      chequeService.recordReceivedCheque(input),
+    );
+    ipcMain.handle('cheque:present', (_, input: AddPresentmentInput) =>
+      chequeService.addPresentment(input),
+    );
+    ipcMain.handle('cheque:clear', (_, input: ClearChequeInput) =>
+      chequeService.clearCheque(input),
+    );
+    ipcMain.handle(
+      'cheque:bounce',
+      (_, chequeId: number, presentmentDate: string, notes?: string | null) =>
+        chequeService.markBounced(chequeId, presentmentDate, notes),
+    );
+    ipcMain.handle('cheque:transfer', (_, input: TransferCustodyInput) =>
+      chequeService.transferCustody(input),
+    );
+    ipcMain.handle(
+      'cheque:applyToCommission',
+      (_, chequeId: number, settlementId: number, amount: number) =>
+        chequeService.applyToCommission(chequeId, settlementId, amount),
     );
 
     ipcMain.handle(

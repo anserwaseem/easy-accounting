@@ -63,6 +63,12 @@ import type {
   AgentCommissionConfig,
   AgentCommissionReport,
   PostCommissionSettlementPayload,
+  Cheque,
+  ChequeStatus,
+  RecordChequeInput,
+  AddPresentmentInput,
+  ClearChequeInput,
+  TransferCustodyInput,
 } from '../types';
 import type { AdvancedCapability } from '../core/advancedCapabilities';
 import type { PublishConfig, PublishConfigInput } from './utils/publishConfig';
@@ -618,6 +624,45 @@ const electronHandler = {
     ipcRenderer.invoke('agentTour:suggest', chartId) as Promise<
       SuggestedAgentTour[]
     >,
+
+  getCheque: (id: number) =>
+    ipcRenderer.invoke('cheque:get', id) as Promise<Cheque>,
+  listCheques: (filters?: {
+    chartId?: number;
+    tourId?: number;
+    status?: ChequeStatus;
+    holder?: string;
+  }) => ipcRenderer.invoke('cheque:list', filters) as Promise<Cheque[]>,
+  recordCheque: (input: RecordChequeInput) =>
+    ipcRenderer.invoke('cheque:record', input) as Promise<number>,
+  addChequePresentment: (input: AddPresentmentInput) =>
+    ipcRenderer.invoke('cheque:present', input) as Promise<number>,
+  clearCheque: (input: ClearChequeInput) =>
+    ipcRenderer.invoke('cheque:clear', input) as Promise<Cheque>,
+  markChequeBounced: (
+    chequeId: number,
+    presentmentDate: string,
+    notes?: string | null,
+  ) =>
+    ipcRenderer.invoke(
+      'cheque:bounce',
+      chequeId,
+      presentmentDate,
+      notes,
+    ) as Promise<number>,
+  transferChequeCustody: (input: TransferCustodyInput) =>
+    ipcRenderer.invoke('cheque:transfer', input) as Promise<void>,
+  applyChequeToCommission: (
+    chequeId: number,
+    settlementId: number,
+    amount: number,
+  ) =>
+    ipcRenderer.invoke(
+      'cheque:applyToCommission',
+      chequeId,
+      settlementId,
+      amount,
+    ) as Promise<void>,
   /**
    * Insert an account
    * @param account The account to insert
