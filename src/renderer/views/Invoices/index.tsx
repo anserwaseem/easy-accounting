@@ -215,15 +215,34 @@ const InvoicesPage: FC<InvoicesProps> = ({
   const invoiceFilterSelectKey = `invoiceFilterSelectValue:${invoiceType}${
     saleReturns ? ':return' : ''
   }`;
+  const normalizeFilterDate = (raw: unknown): DateRange | undefined => {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const r = raw as { from?: unknown; to?: unknown };
+    const from = r.from ? new Date(r.from as string | number) : undefined;
+    const to = r.to ? new Date(r.to as string | number) : undefined;
+    if (
+      (from && Number.isNaN(from.getTime())) ||
+      (to && Number.isNaN(to.getTime()))
+    ) {
+      return undefined;
+    }
+    return from || to ? { from, to } : undefined;
+  };
   const [invoices, setInvoices] = useState<InvoicesView[]>();
   const [isLoading, setIsLoading] = useState(true);
   const [filteredInvoices, setFilteredInvoices] = useState<InvoicesView[]>();
   const [invoiceFilterDate, setInvoiceFilterDate] = useState<
     DateRange | undefined
-  >(window.electron.store.get(invoiceFilterDateKey) || undefined);
+  >(
+    normalizeFilterDate(window.electron.store.get(invoiceFilterDateKey)) ||
+      undefined,
+  );
   const [invoiceFilterSelectValue, setInvoiceFilterSelectValue] = useState<
     string | undefined
-  >(window.electron.store.get(invoiceFilterSelectKey) || undefined);
+  >(
+    (window.electron.store.get(invoiceFilterSelectKey) as string | undefined) ||
+      undefined,
+  );
   const [previewInvoiceId, setPreviewInvoiceId] = useState<number>();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
