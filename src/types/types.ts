@@ -1085,3 +1085,14 @@ export interface TourCollectionCommissionSettlement {
   createdAt?: string;
   updatedAt?: string;
 }
+
+// ==========================================
+// Tour collection commission report (migration 058)
+// ==========================================
+export interface TourCollectionCommissionReport extends TourCollectionBase {
+  ratePercent: number;
+  grossCommission: number;
+  adjustments?: CommissionAdjustment[];
+  netCommission: number;
+  settlement?: TourCollectionCommissionSettlement | null;
+}

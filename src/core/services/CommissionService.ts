@@ -9,6 +9,7 @@ import type {
   PostCommissionSettlementPayload,
   TourCollectionBase,
   TourCollectionCommissionSettlement,
+  TourCollectionCommissionReport,
 } from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import { logErrors } from '../errorLogger';
@@ -242,6 +243,76 @@ export class CommissionService {
     });
 
     return this.getCommissionConfig(config.chartId);
+  }
+
+  async getTourCollectionCommissionReport(
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<TourCollectionCommissionReport> {
+    const base = await this.getTourCollectionBase(chartId, startDate, endDate);
+    const config = await this.getCommissionConfig(chartId);
+    const ratePercent = config.tourCollectionRate ?? 0;
+    const grossCommission =
+      Math.round(((base.totalBase * ratePercent) / 100) * 100) / 100;
+
+    const row = await this.db.get<{
+      id: number;
+      chartId: number;
+      startDate: string;
+      endDate: string;
+      journalId: number | null;
+      grossCommission: number;
+      tourCollectionRatePercent: number;
+      totalBase: number;
+      clearedBase: number;
+      pendingBase: number;
+      adjustmentsJson: string;
+      netCommission: number;
+      snapshotJson: string;
+      createdAt: string | null;
+      updatedAt: string | null;
+    }>(SQL.getTourCollectionSettlement, { chartId, startDate, endDate });
+
+    const adjustments = row
+      ? (() => {
+          try {
+            return JSON.parse(row.adjustmentsJson || '[]');
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
+    const settlement: TourCollectionCommissionSettlement | null = row
+      ? {
+          id: row.id,
+          chartId: row.chartId,
+          startDate: row.startDate,
+          endDate: row.endDate,
+          journalId: row.journalId,
+          grossCommission: row.grossCommission,
+          tourCollectionRatePercent: row.tourCollectionRatePercent,
+          totalBase: row.totalBase,
+          clearedBase: row.clearedBase,
+          pendingBase: row.pendingBase,
+          adjustmentsJson: row.adjustmentsJson,
+          adjustments,
+          netCommission: row.netCommission,
+          snapshotJson: row.snapshotJson,
+          createdAt: row.createdAt ?? undefined,
+          updatedAt: row.updatedAt ?? undefined,
+        }
+      : null;
+
+    return {
+      ...base,
+      ratePercent,
+      grossCommission: settlement?.grossCommission ?? grossCommission,
+      adjustments,
+      netCommission: settlement?.netCommission ?? grossCommission,
+      settlement,
+    };
   }
 
   async getTourCollectionBase(

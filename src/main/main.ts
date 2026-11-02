@@ -1503,6 +1503,26 @@ app
         ),
     );
 
+    ipcMain.handle(
+      'commission:getTourCollectionReport',
+      async (_, chartId: number, startDate: string, endDate: string) =>
+        commissionService.getTourCollectionCommissionReport(
+          chartId,
+          startDate,
+          endDate,
+        ),
+    );
+
+    ipcMain.handle(
+      'commission:getTourCollectionReport',
+      async (_, chartId: number, startDate: string, endDate: string) =>
+        commissionService.getTourCollectionCommissionReport(
+          chartId,
+          startDate,
+          endDate,
+        ),
+    );
+
     ipcMain.handle('dev:setCpuThrottle', async (_, rate: number) => {
       if (!mainWindow) return false;
       const targetRate = Math.max(1, Number(rate) || 1);

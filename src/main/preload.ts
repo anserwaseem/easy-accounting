@@ -64,6 +64,7 @@ import type {
   AgentCommissionReport,
   PostCommissionSettlementPayload,
   TourCollectionBase,
+  TourCollectionCommissionReport,
   TourCollectionCommissionSettlement,
   Cheque,
   ChequeStatus,
@@ -1195,6 +1196,18 @@ const electronHandler = {
       startDate,
       endDate,
     ) as Promise<TourCollectionBase>,
+  commissionGetTourCollectionReport: (
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'commission:getTourCollectionReport',
+      chartId,
+      startDate,
+      endDate,
+    ) as Promise<TourCollectionCommissionReport>,
+
   commissionPostTourCollectionSettlement: (params: {
     chartId: number;
     startDate: string;
