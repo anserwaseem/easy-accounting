@@ -98,6 +98,7 @@ export const BUSINESS_TABLES = [
   'cheque_allocations',
   'cheque_presentments',
   'cheque_custody_events',
+  'agent_tour_collection_settlements',
 ] as const;
 
 /**

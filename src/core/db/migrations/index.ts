@@ -28,6 +28,7 @@ import { migration054 } from './054_optimize_journal_entry_pairs';
 import { migration055 } from './055_performance_indexes';
 import { migration056 } from './056_additional_performance_indexes';
 import { migration057 } from './057_cheques';
+import { migration058 } from './058_tour_collection_commission';
 
 /**
  * Schema after origin/main's frozen `001.js`–`028.js`.
@@ -85,4 +86,5 @@ export const CORE_MIGRATIONS: CoreMigration[] = [
   migration055,
   migration056,
   migration057,
+  migration058,
 ];

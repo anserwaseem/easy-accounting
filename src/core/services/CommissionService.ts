@@ -8,6 +8,7 @@ import type {
   CommissionReportItemLine,
   PostCommissionSettlementPayload,
   TourCollectionBase,
+  TourCollectionCommissionSettlement,
 } from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import { logErrors } from '../errorLogger';
@@ -23,19 +24,20 @@ const SQL = {
     LIMIT 1
   `,
   getCommissionConfig: `
-    SELECT id, chartId, payableAccountId, expenseAccountId, ratesJson, overridesJson, createdAt, updatedAt
+    SELECT id, chartId, payableAccountId, expenseAccountId, ratesJson, overridesJson, tourCollectionRatePercent, createdAt, updatedAt
     FROM agent_commissions
     WHERE chartId = @chartId
     LIMIT 1
   `,
   upsertCommissionConfig: `
-    INSERT INTO agent_commissions (chartId, payableAccountId, expenseAccountId, ratesJson, overridesJson)
-    VALUES (@chartId, @payableAccountId, @expenseAccountId, @ratesJson, @overridesJson)
+    INSERT INTO agent_commissions (chartId, payableAccountId, expenseAccountId, ratesJson, overridesJson, tourCollectionRatePercent)
+    VALUES (@chartId, @payableAccountId, @expenseAccountId, @ratesJson, @overridesJson, @tourCollectionRatePercent)
     ON CONFLICT(chartId) DO UPDATE SET
       payableAccountId = excluded.payableAccountId,
       expenseAccountId = excluded.expenseAccountId,
       ratesJson = excluded.ratesJson,
-      overridesJson = excluded.overridesJson
+      overridesJson = excluded.overridesJson,
+      tourCollectionRatePercent = excluded.tourCollectionRatePercent
   `,
   getSaleLinesForAgent: `
     SELECT
@@ -89,6 +91,36 @@ const SQL = {
   deleteSettlementById: `
     DELETE FROM agent_commission_settlements WHERE id = @id
   `,
+  insertTourCollectionSettlement: `
+    INSERT INTO agent_tour_collection_settlements (
+      chartId, startDate, endDate, journalId, grossCommission,
+      tourCollectionRatePercent, totalBase, clearedBase, pendingBase,
+      adjustmentsJson, netCommission, snapshotJson
+    ) VALUES (
+      @chartId, @startDate, @endDate, @journalId, @grossCommission,
+      @tourCollectionRatePercent, @totalBase, @clearedBase, @pendingBase,
+      @adjustmentsJson, @netCommission, @snapshotJson
+    )
+  `,
+  getTourCollectionSettlement: `
+    SELECT id, chartId, startDate, endDate, journalId, grossCommission,
+      tourCollectionRatePercent, totalBase, clearedBase, pendingBase,
+      adjustmentsJson, netCommission, snapshotJson, createdAt, updatedAt
+    FROM agent_tour_collection_settlements
+    WHERE chartId = @chartId AND startDate = @startDate AND endDate = @endDate
+    LIMIT 1
+  `,
+  getTourCollectionSettlementById: `
+    SELECT id, chartId, startDate, endDate, journalId, grossCommission,
+      tourCollectionRatePercent, totalBase, clearedBase, pendingBase,
+      adjustmentsJson, netCommission, snapshotJson, createdAt, updatedAt
+    FROM agent_tour_collection_settlements
+    WHERE id = @id
+    LIMIT 1
+  `,
+  deleteTourCollectionSettlementById: `
+    DELETE FROM agent_tour_collection_settlements WHERE id = @id
+  `,
 };
 
 interface SaleLineRawRow {
@@ -128,6 +160,7 @@ export class CommissionService {
       expenseAccountId: number | null;
       ratesJson: string;
       overridesJson: string;
+      tourCollectionRatePercent: number | null;
       createdAt: string;
       updatedAt: string;
     }>(SQL.getCommissionConfig, { chartId });
@@ -204,6 +237,7 @@ export class CommissionService {
       expenseAccountId: config.expenseAccountId ?? null,
       ratesJson,
       overridesJson,
+      tourCollectionRatePercent: config.tourCollectionRate ?? 0,
     });
 
     return this.getCommissionConfig(config.chartId);
@@ -604,6 +638,133 @@ export class CommissionService {
     }
 
     await this.db.run(SQL.deleteSettlementById, { id: settlementId });
+    return true;
+  }
+
+  async postTourCollectionCommissionSettlement(params: {
+    chartId: number;
+    startDate: string;
+    endDate: string;
+    postingDate: string;
+    payableAccountId: number;
+    expenseAccountId: number;
+    adjustments?: CommissionAdjustment[];
+    ratePercent?: number;
+  }): Promise<TourCollectionCommissionSettlement> {
+    const ratePercent =
+      params.ratePercent ??
+      (await this.getCommissionConfig(params.chartId)).tourCollectionRate ??
+      0;
+    const base = await this.getTourCollectionBase(
+      params.chartId,
+      params.startDate,
+      params.endDate,
+    );
+
+    const adjustmentsSum = (params.adjustments ?? []).reduce(
+      (acc, adj) => acc + (Number(adj.amount) || 0),
+      0,
+    );
+    const grossCommission =
+      Math.round(((base.totalBase * ratePercent) / 100) * 100) / 100;
+    const netCommission =
+      Math.round((grossCommission + adjustmentsSum) * 100) / 100;
+
+    const narrationLines = [
+      `Tour collection commission settlement (${params.startDate} to ${params.endDate})`,
+      `Base: Rs. ${base.totalBase.toLocaleString()} (cleared ${
+        base.clearedBase
+      }, pending ${base.pendingBase})`,
+      `Rate: ${ratePercent}%`,
+      `Gross: Rs. ${grossCommission.toLocaleString()}`,
+    ];
+    if (params.adjustments && params.adjustments.length > 0) {
+      for (const adj of params.adjustments) {
+        const sign = adj.amount >= 0 ? '+' : '';
+        narrationLines.push(
+          `${adj.description}: ${sign}Rs. ${adj.amount.toLocaleString()}`,
+        );
+      }
+    }
+    narrationLines.push(`Net payable: Rs. ${netCommission.toLocaleString()}`);
+    const narration = narrationLines.join(' | ');
+
+    const journalEntries = [
+      {
+        id: -1,
+        journalId: 0,
+        accountId: params.expenseAccountId,
+        debitAmount: netCommission,
+        creditAmount: 0,
+      },
+      {
+        id: -1,
+        journalId: 0,
+        accountId: params.payableAccountId,
+        debitAmount: 0,
+        creditAmount: netCommission,
+      },
+    ];
+
+    await this.journalService.insertJournal({
+      id: -1,
+      date: params.postingDate,
+      narration,
+      isPosted: true,
+      journalEntries,
+    } as unknown as import('../../types').Journal);
+
+    const latest = await this.db.get<{ id: number }>(
+      `SELECT id FROM journal WHERE narration = @narration AND date = @date ORDER BY id DESC LIMIT 1`,
+      { narration, date: params.postingDate },
+    );
+    const journalId = latest?.id ?? null;
+
+    const snapshotJson = JSON.stringify(base);
+    const adjustmentsJson = JSON.stringify(params.adjustments ?? []);
+
+    const result = await this.db.run(SQL.insertTourCollectionSettlement, {
+      chartId: params.chartId,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      journalId,
+      grossCommission,
+      tourCollectionRatePercent: ratePercent,
+      totalBase: base.totalBase,
+      clearedBase: base.clearedBase,
+      pendingBase: base.pendingBase,
+      adjustmentsJson,
+      netCommission,
+      snapshotJson,
+    });
+    const id = Number(result.lastInsertRowid);
+    const saved = await this.db.get<TourCollectionCommissionSettlement>(
+      `SELECT * FROM agent_tour_collection_settlements WHERE id = @id`,
+      { id },
+    );
+    return {
+      ...(saved as TourCollectionCommissionSettlement),
+      adjustments: params.adjustments ?? [],
+    };
+  }
+
+  async unpostTourCollectionCommissionSettlement(
+    settlementId: number,
+  ): Promise<boolean> {
+    const settlement = await this.db.get<{
+      id: number;
+      journalId: number | null;
+    }>(SQL.getTourCollectionSettlementById, { id: settlementId });
+    if (!settlement) return false;
+    if (settlement.journalId) {
+      await this.journalService.removeLedgerEffectOfJournals([
+        settlement.journalId,
+      ]);
+      await this.journalService.deleteJournalsByIds([settlement.journalId]);
+    }
+    await this.db.run(SQL.deleteTourCollectionSettlementById, {
+      id: settlementId,
+    });
     return true;
   }
 }

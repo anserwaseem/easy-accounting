@@ -853,6 +853,7 @@ export interface AgentCommissionConfig {
   expenseAccountId?: number | null;
   rates: AgentCommissionTypeRate[];
   overrides: AgentCommissionSkuOverride[];
+  tourCollectionRate?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1061,4 +1062,26 @@ export interface TourCollectionBase {
   clearedBase: number;
   pendingBase: number;
   chequeCount: number;
+}
+
+// ==========================================
+// Tour collection commission settlement (migration 058)
+// ==========================================
+export interface TourCollectionCommissionSettlement {
+  id?: number;
+  chartId: number;
+  startDate: string;
+  endDate: string;
+  journalId?: number | null;
+  grossCommission: number;
+  tourCollectionRatePercent: number;
+  totalBase: number;
+  clearedBase: number;
+  pendingBase: number;
+  adjustmentsJson?: string;
+  adjustments?: CommissionAdjustment[];
+  netCommission: number;
+  snapshotJson?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
