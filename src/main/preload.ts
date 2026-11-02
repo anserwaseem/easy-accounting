@@ -63,6 +63,8 @@ import type {
   AgentCommissionConfig,
   AgentCommissionReport,
   PostCommissionSettlementPayload,
+  TourCollectionBase,
+  TourCollectionCommissionSettlement,
   Cheque,
   ChequeStatus,
   RecordChequeInput,
@@ -1179,6 +1181,37 @@ const electronHandler = {
   commissionUnpostSettlement: (settlementId: number) =>
     ipcRenderer.invoke(
       'commission:unpostSettlement',
+      settlementId,
+    ) as Promise<boolean>,
+
+  commissionGetTourCollectionBase: (
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ) =>
+    ipcRenderer.invoke(
+      'commission:getTourCollectionBase',
+      chartId,
+      startDate,
+      endDate,
+    ) as Promise<TourCollectionBase>,
+  commissionPostTourCollectionSettlement: (params: {
+    chartId: number;
+    startDate: string;
+    endDate: string;
+    postingDate: string;
+    payableAccountId: number;
+    expenseAccountId: number;
+    adjustments?: { id: string; description: string; amount: number }[];
+    ratePercent?: number;
+  }) =>
+    ipcRenderer.invoke(
+      'commission:postTourCollectionSettlement',
+      params,
+    ) as Promise<TourCollectionCommissionSettlement>,
+  commissionUnpostTourCollectionSettlement: (settlementId: number) =>
+    ipcRenderer.invoke(
+      'commission:unpostTourCollectionSettlement',
       settlementId,
     ) as Promise<boolean>,
 

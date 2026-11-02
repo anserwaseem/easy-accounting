@@ -1472,6 +1472,37 @@ app
       },
     );
 
+    ipcMain.handle(
+      'commission:getTourCollectionBase',
+      async (_, chartId: number, startDate: string, endDate: string) =>
+        commissionService.getTourCollectionBase(chartId, startDate, endDate),
+    );
+
+    ipcMain.handle(
+      'commission:postTourCollectionSettlement',
+      async (
+        _,
+        params: {
+          chartId: number;
+          startDate: string;
+          endDate: string;
+          postingDate: string;
+          payableAccountId: number;
+          expenseAccountId: number;
+          adjustments?: { id: string; description: string; amount: number }[];
+          ratePercent?: number;
+        },
+      ) => commissionService.postTourCollectionCommissionSettlement(params),
+    );
+
+    ipcMain.handle(
+      'commission:unpostTourCollectionSettlement',
+      async (_, settlementId: number) =>
+        commissionService.unpostTourCollectionCommissionSettlement(
+          settlementId,
+        ),
+    );
+
     ipcMain.handle('dev:setCpuThrottle', async (_, rate: number) => {
       if (!mainWindow) return false;
       const targetRate = Math.max(1, Number(rate) || 1);
