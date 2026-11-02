@@ -1045,3 +1045,20 @@ export interface TransferCustodyInput {
   heldForCommission?: boolean;
   notes?: string | null;
 }
+
+// ==========================================
+// Tour collection commission base (migration 057 cheques + journals)
+// ==========================================
+export interface TourCollectionBase {
+  chartId: number;
+  startDate: string;
+  endDate: string;
+  cashBankTotal: number;
+  chequesTotal: number;
+  clearedChequesTotal: number;
+  pendingChequesTotal: number;
+  totalBase: number;
+  clearedBase: number;
+  pendingBase: number;
+  chequeCount: number;
+}

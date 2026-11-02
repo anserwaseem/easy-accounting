@@ -7,11 +7,13 @@ import type {
   CommissionReportBucket,
   CommissionReportItemLine,
   PostCommissionSettlementPayload,
+  TourCollectionBase,
 } from '../../types';
 import type { DatabaseDriver } from '../db/driver';
 import { logErrors } from '../errorLogger';
 import type { JournalService } from './JournalService';
 import { SALE_RETURN_NUMBER_BASE } from '../../lib/saleReturnNumber';
+import { RECEIPT_ACCOUNTS_CTE } from '../utils/receiptAccounts';
 
 const SQL = {
   getAgentHead: `
@@ -205,6 +207,68 @@ export class CommissionService {
     });
 
     return this.getCommissionConfig(config.chartId);
+  }
+
+  async getTourCollectionBase(
+    chartId: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<TourCollectionBase> {
+    const cashBankTotal = await this.db.get<{ total: number | null }>(
+      `WITH ${RECEIPT_ACCOUNTS_CTE}
+       SELECT COALESCE(SUM(je.creditAmount), 0) AS total
+       FROM journal j
+       JOIN journal_entry je ON je.journalId = j.id
+       JOIN account a ON a.id = je.accountId AND a.chartId = @chartId
+       WHERE je.creditAmount > 0
+         AND j.invoiceId IS NULL
+         AND j.narration NOT LIKE 'Cheque clearance #%'
+         AND date(j.date) >= date(@startDate)
+         AND date(j.date) <= date(@endDate)
+         AND EXISTS (
+           SELECT 1 FROM journal_entry d
+           WHERE d.journalId = j.id
+             AND d.debitAmount > 0
+             AND d.accountId IN (SELECT id FROM receipt_accounts)
+         )`,
+      { chartId, startDate, endDate },
+    );
+
+    const chequeRow = await this.db.get<{
+      total: number | null;
+      cleared: number | null;
+      cnt: number | null;
+    }>(
+      `SELECT
+         COALESCE(SUM(amount), 0) AS total,
+         COALESCE(SUM(CASE WHEN status = 'cleared' THEN amount ELSE 0 END), 0) AS cleared,
+         COUNT(*) AS cnt
+       FROM cheques
+       WHERE chartId = @chartId
+         AND date(receivedDate) >= date(@startDate)
+         AND date(receivedDate) <= date(@endDate)`,
+      { chartId, startDate, endDate },
+    );
+
+    const cash = cashBankTotal?.total ?? 0;
+    const chequesTotal = chequeRow?.total ?? 0;
+    const clearedCheques = chequeRow?.cleared ?? 0;
+    const pendingCheques = chequesTotal - clearedCheques;
+    const chequeCount = chequeRow?.cnt ?? 0;
+
+    return {
+      chartId,
+      startDate,
+      endDate,
+      cashBankTotal: cash,
+      chequesTotal,
+      clearedChequesTotal: clearedCheques,
+      pendingChequesTotal: pendingCheques,
+      totalBase: cash + chequesTotal,
+      clearedBase: cash + clearedCheques,
+      pendingBase: pendingCheques,
+      chequeCount,
+    };
   }
 
   async getCommissionReport(
