@@ -11,9 +11,9 @@
     display: table-header-group !important;
   }
 
-  /* ensure footer appears on last page */
+  /* footer is a total row and must appear only once, on the last page */
   .bills-aging-print-table tfoot {
-    display: table-footer-group !important;
+    display: table-row-group !important;
   }
 
   /* allow rows to break across pages, but try to keep them together */
