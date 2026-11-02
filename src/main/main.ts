@@ -1514,16 +1514,6 @@ app
     );
 
     ipcMain.handle(
-      'commission:getTourCollectionReport',
-      async (_, chartId: number, startDate: string, endDate: string) =>
-        commissionService.getTourCollectionCommissionReport(
-          chartId,
-          startDate,
-          endDate,
-        ),
-    );
-
-    ipcMain.handle(
       'cheque:unresolved',
       async (_, filters?: { chartId?: number; tourId?: number }) =>
         chequeService.getUnresolvedCheques(filters),
