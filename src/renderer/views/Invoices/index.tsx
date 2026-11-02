@@ -209,15 +209,21 @@ const InvoicesPage: FC<InvoicesProps> = ({
   invoices: propInvoices,
   saleReturns = false,
 }: InvoicesProps) => {
+  const invoiceFilterDateKey = `invoiceFilterDate:${invoiceType}${
+    saleReturns ? ':return' : ''
+  }`;
+  const invoiceFilterSelectKey = `invoiceFilterSelectValue:${invoiceType}${
+    saleReturns ? ':return' : ''
+  }`;
   const [invoices, setInvoices] = useState<InvoicesView[]>();
   const [isLoading, setIsLoading] = useState(true);
   const [filteredInvoices, setFilteredInvoices] = useState<InvoicesView[]>();
   const [invoiceFilterDate, setInvoiceFilterDate] = useState<
     DateRange | undefined
-  >(window.electron.store.get('invoiceFilterDate') || undefined);
+  >(window.electron.store.get(invoiceFilterDateKey) || undefined);
   const [invoiceFilterSelectValue, setInvoiceFilterSelectValue] = useState<
     string | undefined
-  >(window.electron.store.get('invoiceFilterSelectValue') || undefined);
+  >(window.electron.store.get(invoiceFilterSelectKey) || undefined);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<number>();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
@@ -518,8 +524,8 @@ const InvoicesPage: FC<InvoicesProps> = ({
       isInvoiceFilterDateMountedRef.current = true;
       return;
     }
-    window.electron.store.set('invoiceFilterDate', invoiceFilterDate);
-  }, [invoiceFilterDate]);
+    window.electron.store.set(invoiceFilterDateKey, invoiceFilterDate);
+  }, [invoiceFilterDate, invoiceFilterDateKey]);
 
   // save invoice filter selected value to store (skip mount write)
   const isInvoiceFilterSelectMountedRef = useRef(false);
@@ -528,11 +534,8 @@ const InvoicesPage: FC<InvoicesProps> = ({
       isInvoiceFilterSelectMountedRef.current = true;
       return;
     }
-    window.electron.store.set(
-      'invoiceFilterSelectValue',
-      invoiceFilterSelectValue,
-    );
-  }, [invoiceFilterSelectValue]);
+    window.electron.store.set(invoiceFilterSelectKey, invoiceFilterSelectValue);
+  }, [invoiceFilterSelectValue, invoiceFilterSelectKey]);
 
   // TODO: fix scrollbar when isMini is true
   return (
