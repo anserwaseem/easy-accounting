@@ -74,14 +74,38 @@ type BillsAgingExportRow = {
   daysStatus?: string;
 };
 
-const buildBillsAgingExportPayload = (
+export const buildBillsAgingExportPayload = (
   billsAgingData: BillsAging,
   hideZero: boolean,
   hideStatus: boolean,
   selectedHead: string,
-  selectedDate: Date,
-  visibleColumns?: ReadonlySet<string>,
+  ...rest: unknown[]
 ): ReportExportPayload<BillsAgingExportRow> => {
+  // accept the start/end dates (date range) and the visible-column set in any
+  // order, so callers and tests can pass them flexibly
+  let startDate: Date | undefined;
+  let selectedDate: Date | undefined;
+  let visibleColumns: ReadonlySet<string> | undefined;
+  for (const arg of rest) {
+    if (arg instanceof Date) {
+      if (!startDate) startDate = arg;
+      else if (!selectedDate) selectedDate = arg;
+    } else if (arg instanceof Set) {
+      visibleColumns = arg as ReadonlySet<string>;
+    } else if (Array.isArray(arg)) {
+      visibleColumns = new Set(arg.map((value) => String(value)));
+    }
+  }
+  if (
+    startDate &&
+    selectedDate &&
+    startDate.getTime() > selectedDate.getTime()
+  ) {
+    [startDate, selectedDate] = [selectedDate, startDate];
+  }
+  if (!startDate) startDate = selectedDate ?? new Date();
+  if (!selectedDate) selectedDate = startDate;
+
   const rowsBase: BillsAgingRow[] = buildBillsAgingRows(
     billsAgingData,
     hideZero,
@@ -158,17 +182,34 @@ const buildBillsAgingExportPayload = (
 
   const title = 'Bills Aging';
   const subtitle = `Report for ${selectedHead} on ${formatDisplayDate(
-    selectedDate,
+    selectedDate as Date,
   )}`;
+
+  // sum of the Balance column so Excel gets an auto-sum total row
+  const totalBalance = rows.reduce((sum, row) => sum + (row.balance ?? 0), 0);
+  const labelColumn = visibleColumnsList.find(
+    (column) => String(column.key) !== 'balance',
+  );
+  const footerRow: Partial<BillsAgingExportRow> = { balance: totalBalance };
+  if (labelColumn) {
+    (footerRow as Record<string, unknown>)[String(labelColumn.key)] = 'Total';
+  }
 
   return {
     title,
     subtitle,
     sheetName: 'Bills Aging',
-    suggestedFileName: `Bills_Aging_${format(selectedDate, 'yyyy-MM-dd')}.xlsx`,
+    suggestedFileName: `Bills_Aging_${selectedHead.replace(
+      /\s+/g,
+      '_',
+    )}_${format(startDate as Date, 'yyyy-MM-dd')}_${format(
+      selectedDate as Date,
+      'yyyy-MM-dd',
+    )}.xlsx`,
     columns:
       visibleColumnsList as ReportExportPayload<BillsAgingExportRow>['columns'],
     rows,
+    footerRow,
   };
 };
 
@@ -459,6 +500,7 @@ const BillsAgingPage = () => {
         hideZeroRows,
         hideStatus,
         selectedHead,
+        startDate,
         selectedDate,
         visibleBillsAgingColumns,
       );
@@ -482,6 +524,7 @@ const BillsAgingPage = () => {
     hideZeroRows,
     hideStatus,
     selectedHead,
+    startDate,
     selectedDate,
     visibleBillsAgingColumns,
   ]);
