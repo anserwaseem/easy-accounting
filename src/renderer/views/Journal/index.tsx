@@ -11,7 +11,7 @@ const JournalPage: React.FC = () => {
     // the detail takes the full width on a phone. This view still had
     // the bare `flex flex-row` / `w-1/4` layout, which left the journal
     // list 97px wide on a 390px screen.
-    <div className="flex flex-col md:flex-row h-screen">
+    <div className="flex flex-col md:flex-row h-[100dvh]">
       <div className="hidden md:block md:w-1/4 overflow-y-scroll scrollbar">
         <JournalsPage isMini />
       </div>

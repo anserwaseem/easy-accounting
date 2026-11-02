@@ -38,7 +38,7 @@ export const ExportInvoices = () => {
 
   return (
     <div className="flex flex-col space-y-4">
-      <h2 className="text-2xl font-bold">Export Sale Invoices to Excel</h2>
+      <h2 className="text-2xl font-semibold">Export Sale Invoices to Excel</h2>
       <div className="flex space-x-4">
         <AppDateInput
           value={startDate ?? ''}

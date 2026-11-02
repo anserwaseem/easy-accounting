@@ -57,7 +57,7 @@ const InvoicePage: React.FC<InvoiceProps> = ({
   }, [id, previewId, propInvoices]);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen">
+    <div className="flex flex-col md:flex-row h-[100dvh]">
       {propInvoices ? null : (
         // Invoice-switcher mini rail — desktop only, same rationale as the
         // Ledger view's account rail (see src/renderer/views/Ledger/

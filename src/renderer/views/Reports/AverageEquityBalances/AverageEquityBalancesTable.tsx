@@ -105,7 +105,7 @@ export const AverageEquityBalancesTable: FC<Props> = ({
       </TableBody>
       {totalAverage != null ? (
         <TableFooter>
-          <TableRow className="font-bold print-row">
+          <TableRow className="font-semibold print-row">
             {(() => {
               const labelSpan =
                 (visible.has('code') ? 1 : 0) + (visible.has('name') ? 1 : 0);

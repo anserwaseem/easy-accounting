@@ -709,7 +709,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className={cn('title', isMini && 'hidden')}>Accounts</h1>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             {isMini ? null : (
               <Popover>
                 <PopoverTrigger asChild>
@@ -778,13 +778,13 @@ const AccountsPage: React.FC<AccountPageProps> = ({
               <>
                 <Button
                   type="button"
-                  variant={showUrdu ? 'secondary' : 'outline'}
+                  variant="ghost"
                   size="sm"
                   onClick={handleToggleUrdu}
                   className={cn(
-                    'gap-1.5 px-3 text-xs font-medium',
+                    'gap-1 text-xs',
                     showUrdu &&
-                      'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15',
+                      'rounded-md bg-primary/10 text-primary hover:bg-primary/15',
                   )}
                   title={
                     showUrdu
@@ -858,7 +858,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           </div>
         </div>
       </div>
-      <div className="py-8">
+      <div className="py-5">
         <DataTable
           columns={columns}
           data={displayedAccounts}

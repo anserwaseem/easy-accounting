@@ -42,21 +42,21 @@ export const CollectionSheetGuideDialog: React.FC<
 
         {/* 1. The Core Formula */}
         <div className="rounded-lg border bg-muted/40 p-3.5 space-y-2.5">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="text-xs font-semibold tracking-normal text-muted-foreground">
             {urdu ? 'بنیادی اصول (The Core Formula)' : 'The Core Formula'}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm font-medium">
             <span className="bg-background px-2.5 py-1.5 rounded border shadow-sm">
               {urdu ? 'کل خریداریاں' : 'Total Historical Orders'}
             </span>
-            <span className="text-muted-foreground font-bold">−</span>
+            <span className="text-muted-foreground font-semibold">−</span>
             <span className="bg-background px-2.5 py-1.5 rounded border shadow-sm text-emerald-600 dark:text-emerald-400 font-semibold">
               {urdu
                 ? 'کل وصولی (ماضی کے دورے)'
                 : 'Total Collected (Past Tours)'}
             </span>
-            <span className="text-muted-foreground font-bold">=</span>
-            <span className="bg-primary/10 text-primary px-2.5 py-1.5 rounded border border-primary/20 font-bold">
+            <span className="text-muted-foreground font-semibold">=</span>
+            <span className="bg-primary/10 text-primary px-2.5 py-1.5 rounded border border-primary/20 font-semibold">
               {urdu
                 ? 'واجب الادا رقم (آج کا بقایا)'
                 : 'Due Amount (Remaining Debt Today)'}

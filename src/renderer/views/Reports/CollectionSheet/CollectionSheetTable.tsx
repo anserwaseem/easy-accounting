@@ -490,7 +490,7 @@ export const CollectionSheetTable: React.FC<CollectionSheetTableProps> = ({
                 </tr>
               ))}
             </tbody>
-            <tfoot className="sticky bottom-0 z-20 border-t border-border bg-muted/95 shadow-[0_-1px_0_hsl(var(--border))] print:static print:z-auto">
+            <tfoot className="sticky bottom-0 z-20 border-t border-border bg-muted/95 shadow-[0_-1px_0_hsl(var(--border))] safe-bottom print:static print:z-auto">
               <tr className="font-semibold bg-muted/95">
                 {(['shop', 'city', 'code', 'billNumber', 'billDate'] as const)
                   .filter((id) => isVisible(id))

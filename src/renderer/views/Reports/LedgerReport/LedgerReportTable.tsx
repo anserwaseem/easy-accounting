@@ -112,7 +112,7 @@ export const LedgerReportTable: React.FC<LedgerReportTableProps> = ({
     <>
       {/* Print-only report header */}
       <div className="hidden print:block print:mb-4">
-        <h1 className="text-center font-bold text-lg">
+        <h1 className="text-center font-semibold text-lg">
           Ledger Report for {accountName} - {dateSubtitle}
         </h1>
       </div>
