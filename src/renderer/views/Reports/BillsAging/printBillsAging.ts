@@ -13,6 +13,9 @@ export const printBillsAgingIframe = (): void => {
   ).find((node) => node.querySelector('table.bills-aging-print-table'));
   if (!printRegion) return;
 
+  // Preserve the report heading (head + date) that is printed above the table.
+  const printHeader = document.querySelector<HTMLElement>('.print-header');
+
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
   Object.assign(iframe.style, {
@@ -61,9 +64,11 @@ export const printBillsAgingIframe = (): void => {
   title.textContent = 'Bills Aging';
   head.appendChild(title);
 
-  // copy only the table markup, without the hidden/print wrapper classes
+  // copy the heading and table markup, without the hidden/print wrapper classes
   const bodyWrap = document.createElement('div');
-  bodyWrap.innerHTML = printRegion.innerHTML;
+  bodyWrap.innerHTML = `${printHeader ? printHeader.innerHTML : ''}${
+    printRegion.innerHTML
+  }`;
   doc.body.appendChild(bodyWrap);
 
   let cleaned = false;
