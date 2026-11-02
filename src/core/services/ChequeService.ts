@@ -541,6 +541,25 @@ export class ChequeService {
       'Applied amount exceeds cheque amount',
     );
 
+    const settlement = await this.db.get<{ netCommission: number | null }>(
+      `SELECT netCommission FROM agent_tour_collection_settlements WHERE id = @id`,
+      { id: settlementId },
+    );
+    if (settlement) {
+      const paidRow = await this.db.get<{ paid: number | null }>(
+        `SELECT COALESCE(SUM(commissionAppliedAmount), 0) AS paid
+         FROM cheques
+         WHERE commissionSettlementId = @id AND id != @chequeId`,
+        { id: settlementId, chequeId },
+      );
+      const paid = paidRow?.paid ?? 0;
+      const remaining = (settlement.netCommission ?? 0) - paid;
+      await ensure(
+        amount <= remaining + 0.001,
+        'Applied amount exceeds outstanding commission payable',
+      );
+    }
+
     await this.db.run(SQL.updateStatus, {
       status: cheque.status,
       actualClearanceDate: cheque.actualClearanceDate,
