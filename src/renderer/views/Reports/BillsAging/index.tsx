@@ -62,6 +62,7 @@ import {
   BillsAgingPrintTable,
   buildBillsAgingRows,
 } from './BillsAgingPrintTable';
+import { printBillsAgingIframe } from './printBillsAging';
 import { BillsAging, BillsAgingRow } from './types';
 
 type BillsAgingExportRow = {
@@ -341,7 +342,7 @@ const BillsAgingPage = () => {
   const hasActiveFilters = activeFilterCount > 0;
 
   const handlePrint = () => {
-    window.print();
+    printBillsAgingIframe();
   };
 
   const visibleAccounts = useMemo(() => {
