@@ -706,6 +706,8 @@ async function main(): Promise<void> {
 
     // -- Account -------------------------------------------------------------
     getAccounts: () => accountService.getAccounts(),
+    getAccountsByHeadName: (headName) =>
+      accountService.getAccountsByHeadName(headName as string),
     getAccountsByIds: (ids) => accountService.getAccountsByIds(ids as number[]),
     getAccountByName: (name) => accountService.getAccountByName(name as string),
     getAccountByNameAndCode: (name, code) =>

@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { AccountType } from 'types';
 import { AccountService } from '../AccountService';
 import { ChartService } from '../ChartService';
 import type { SessionContext } from '../../ports';
@@ -119,6 +120,47 @@ describe('core AccountService', () => {
     const updated = (await accounts.getAccountsByIds([acc.id]))[0];
     expect(updated.city).toBe('Rawalpindi');
     expect(updated.cityUrdu).toBe('راولپنڈی');
+    db.close();
+  });
+
+  it('getAccountsByHeadName returns only accounts belonging to the specified chart head', async () => {
+    const db = new Database(':memory:');
+    await seedBasicSchema(db);
+    const { accounts, charts } = createCore(db);
+
+    await charts.insertCharts(USERNAME, [
+      { name: 'Lahore Head', type: AccountType.Asset, date: '2026-01-01' },
+      { name: 'Karachi Head', type: AccountType.Asset, date: '2026-01-01' },
+    ]);
+
+    await accounts.insertAccount(
+      anAccount({ name: 'Customer L1', headName: 'Lahore Head' }),
+    );
+    await accounts.insertAccount(
+      anAccount({ name: 'Customer L2', headName: 'Lahore Head' }),
+    );
+    await accounts.insertAccount(
+      anAccount({ name: 'Customer K1', headName: 'Karachi Head' }),
+    );
+
+    const lahoreAccounts = await accounts.getAccountsByHeadName('Lahore Head');
+    expect(lahoreAccounts).toHaveLength(2);
+    expect(lahoreAccounts.map((a) => a.name).sort()).toEqual([
+      'Customer L1',
+      'Customer L2',
+    ]);
+
+    const karachiAccounts = await accounts.getAccountsByHeadName(
+      'Karachi Head',
+    );
+    expect(karachiAccounts).toHaveLength(1);
+    expect(karachiAccounts[0].name).toBe('Customer K1');
+
+    const emptyAccounts = await accounts.getAccountsByHeadName(
+      'Nonexistent Head',
+    );
+    expect(emptyAccounts).toHaveLength(0);
+
     db.close();
   });
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
-import { isEmpty, sumBy } from 'lodash';
+import { isEmpty } from 'lodash';
 import type { Account, Chart } from '@/types';
 import { getFixedNumber } from '@/renderer/lib/utils';
 import type { AccountBalances, AccountBalanceItem } from './types';
@@ -39,13 +39,13 @@ export const useAccountBalances = () => {
 
       setIsLoading(true);
       try {
-        // fetch all accounts for the selected head
-        const rawAccounts = await window.electron.getAccounts();
-
-        // filter accounts by the selected head
-        const filteredAccounts = rawAccounts.filter(
-          (account: Account) => account.headName === headName,
-        );
+        // fetch accounts specifically for the selected head directly from database
+        const filteredAccounts =
+          typeof window.electron.getAccountsByHeadName === 'function'
+            ? await window.electron.getAccountsByHeadName(headName)
+            : (await window.electron.getAccounts()).filter(
+                (account: Account) => account.headName === headName,
+              );
 
         if (isEmpty(filteredAccounts)) {
           setAccountBalances({
@@ -70,6 +70,8 @@ export const useAccountBalances = () => {
 
         // transform accounts into balance items format
         const balanceItems: AccountBalanceItem[] = [];
+        let totalDebit = 0;
+        let totalCredit = 0;
 
         for (const account of filteredAccounts) {
           const row = balanceByAccountId[account.id];
@@ -78,6 +80,12 @@ export const useAccountBalances = () => {
           const { balance, balanceType } = row;
 
           if (getFixedNumber(balance) <= 0) continue; // skip accounts with zero balance
+
+          if (balanceType === 'Dr') {
+            totalDebit += balance;
+          } else if (balanceType === 'Cr') {
+            totalCredit += balance;
+          }
 
           balanceItems.push({
             id: account.id,
@@ -91,16 +99,6 @@ export const useAccountBalances = () => {
             goodsName: account.goodsName,
           });
         }
-
-        // Calculate totals - sum all debit and credit balances
-        const totalDebit = sumBy(
-          balanceItems.filter((item) => item.balanceType === 'Dr'),
-          'balance',
-        );
-        const totalCredit = sumBy(
-          balanceItems.filter((item) => item.balanceType === 'Cr'),
-          'balance',
-        );
 
         setAccountBalances({
           headName,

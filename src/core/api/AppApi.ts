@@ -226,6 +226,7 @@ export interface AppApi {
    * @example const accounts = getAccounts();
    */
   getAccounts: () => Promise<any>;
+  getAccountsByHeadName: (headName: string) => Promise<Account[]>;
   getAccountsByIds: (ids: number[]) => Promise<Account[]>;
   getAccountByName: (name: string) => Promise<any>;
   getAccountByNameAndCode: (name: string, code?: string) => Promise<any>;

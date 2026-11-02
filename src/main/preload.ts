@@ -569,6 +569,8 @@ const electronHandler = {
    * @example const accounts = getAccounts();
    */
   getAccounts: () => ipcRenderer.invoke('account:getAll'),
+  getAccountsByHeadName: (headName: string) =>
+    ipcRenderer.invoke('account:getByHeadName', headName) as Promise<Account[]>,
   getAccountsByIds: (ids: number[]) =>
     ipcRenderer.invoke('account:getByIds', ids) as Promise<Account[]>,
   getAccountByName: (name: string) =>
@@ -1164,6 +1166,9 @@ const electronHandler = {
   syncGetJoinInvite: () => ipcRenderer.invoke('sync:getJoinInvite'),
 
   renderJoinQr: (text: string) => ipcRenderer.invoke('sync:renderJoinQr', text),
+
+  setCpuThrottle: (rate: number) =>
+    ipcRenderer.invoke('dev:setCpuThrottle', rate) as Promise<boolean>,
 };
 
 ipcRenderer.on('sync:applied', () => {

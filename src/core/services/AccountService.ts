@@ -265,6 +265,13 @@ export class AccountService {
     return normalizeSqliteBooleanRows(results, ACCOUNT_BOOLEAN_FIELDS);
   }
 
+  async getAccountsByHeadName(headName: string): Promise<Account[]> {
+    const username = this.session.getUsername();
+    const sql = `${SQL.getAccounts} AND c.name = @headName`;
+    const results = await this.db.all<Account>(sql, { username, headName });
+    return normalizeSqliteBooleanRows(results, ACCOUNT_BOOLEAN_FIELDS);
+  }
+
   /** same row shape as getAccounts, but restricted to ids (invoice details related ledgers). */
   async getAccountsByIds(ids: number[]): Promise<Account[]> {
     const unique = [

@@ -393,8 +393,22 @@ export const useBillsAging = () => {
             }
           }
 
-          // calculate days status for each bill
+          // calculate days status and totals for each bill in a single pass with date math caching
+          const dateDiffCache = new Map<
+            string,
+            { months: number; remainingDays: number }
+          >();
+          let totalBillAmount = 0;
+          let totalReceived = 0;
+          let totalOutstanding = 0;
+
           bills.forEach((bill) => {
+            totalBillAmount += bill.billAmount;
+            totalOutstanding += bill.finalBalance;
+            for (let rIdx = 0; rIdx < bill.receipts.length; rIdx++) {
+              totalReceived += bill.receipts[rIdx].receivedAmount;
+            }
+
             const billDate = new Date(bill.billDate);
             const isFullyPaid = bill.finalBalance === 0;
 
@@ -413,26 +427,26 @@ export const useBillsAging = () => {
               ),
             );
 
-            const { months, remainingDays } = getMonthsAndDaysBetween(
-              billDate,
-              referenceDate,
-            );
+            const cacheKey = `${billDate.getTime()}:${referenceDate.getTime()}`;
+            let dateDiff = dateDiffCache.get(cacheKey);
+            if (!dateDiff) {
+              dateDiff = getMonthsAndDaysBetween(billDate, referenceDate);
+              dateDiffCache.set(cacheKey, dateDiff);
+            }
 
             bill.daysStatus = {
               isFullyPaid,
               days,
-              months,
-              remainingDays,
+              months: dateDiff.months,
+              remainingDays: dateDiff.remainingDays,
             };
           });
 
-          // calculate totals
-          const totalBillAmount = sumBy(bills, 'billAmount');
-          const totalReceived = sumBy(bills, (bill) =>
-            sumBy(bill.receipts, 'receivedAmount'),
-          );
-          const totalOutstanding = sumBy(bills, 'finalBalance');
-          const totalUnallocated = sumBy(unallocatedReceipts, 'receivedAmount');
+          // calculate total unallocated receipts
+          let totalUnallocated = 0;
+          for (let uIdx = 0; uIdx < unallocatedReceipts.length; uIdx++) {
+            totalUnallocated += unallocatedReceipts[uIdx].receivedAmount;
+          }
 
           accounts.push({
             accountId: account.id,

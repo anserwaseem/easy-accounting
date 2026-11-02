@@ -579,6 +579,9 @@ app
       },
     );
     ipcMain.handle('account:getAll', async () => accountService.getAccounts());
+    ipcMain.handle('account:getByHeadName', (_, headName: string) =>
+      accountService.getAccountsByHeadName(headName),
+    );
     ipcMain.handle('account:getByIds', (_, ids: number[]) =>
       accountService.getAccountsByIds(ids),
     );
@@ -1425,6 +1428,25 @@ app
         return commissionService.unpostCommissionSettlement(settlementId);
       },
     );
+
+    ipcMain.handle('dev:setCpuThrottle', async (_, rate: number) => {
+      if (!mainWindow) return false;
+      const targetRate = Math.max(1, Number(rate) || 1);
+      try {
+        if (!mainWindow.webContents.debugger.isAttached()) {
+          mainWindow.webContents.debugger.attach('1.3');
+        }
+        await mainWindow.webContents.debugger.sendCommand(
+          'Emulation.setCPUThrottlingRate',
+          { rate: targetRate },
+        );
+        log.info(`[Dev] CPU throttling rate set to ${targetRate}x`);
+        return true;
+      } catch (error) {
+        log.warn('Failed to set CPU throttling rate:', error);
+        return false;
+      }
+    });
 
     createWindow();
     app.on('activate', () => {
