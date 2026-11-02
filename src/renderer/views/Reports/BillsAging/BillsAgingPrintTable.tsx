@@ -123,7 +123,7 @@ export const BillsAgingPrintTable: FC<BillsAgingPrintTableProps> = React.memo(
     return (
       <div className="overflow-x-auto">
         <Table
-          className="border-collapse bills-aging-print-table"
+          className="border-collapse bills-aging-print-table print-tfoot-no-repeat"
           style={{ width: 'auto', maxWidth: '100%' }}
         >
           <TableHeader>
