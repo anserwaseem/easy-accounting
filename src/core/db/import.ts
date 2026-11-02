@@ -94,6 +94,10 @@ export const BUSINESS_TABLES = [
   'settings',
   'agent_commissions',
   'agent_commission_settlements',
+  'cheques',
+  'cheque_allocations',
+  'cheque_presentments',
+  'cheque_custody_events',
 ] as const;
 
 /**

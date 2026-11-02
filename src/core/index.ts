@@ -30,6 +30,7 @@ export { StatementService } from './services/StatementService';
 export { InvoiceService } from './services/InvoiceService';
 export { SettingsService } from './services/SettingsService';
 export { CommissionService } from './services/CommissionService';
+export { ChequeService } from './services/ChequeService';
 export {
   COMPANY_PROFILE_SETTING_KEYS,
   INVOICE_PRINT_SETTING_KEYS,

@@ -2,6 +2,7 @@ import log from 'electron-log';
 import {
   AccountService,
   AgentTourService,
+  ChequeService,
   ChartService,
   InventoryService,
   InvoiceService,
@@ -107,6 +108,7 @@ export function createCoreServices() {
     vendorStockService,
   });
   const commissionService = new CommissionService({ db, journalService });
+  const chequeService = new ChequeService({ db, session, journalService });
   const settingsService = getSettingsService();
 
   return {
@@ -121,6 +123,7 @@ export function createCoreServices() {
     statementService,
     invoiceService,
     commissionService,
+    chequeService,
     settingsService,
   };
 }

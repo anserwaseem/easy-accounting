@@ -936,3 +936,112 @@ export interface PostCommissionSettlementPayload {
   expenseAccountId: number;
   adjustments: CommissionAdjustment[];
 }
+
+// ==========================================
+// Cheque lifecycle (migration 057)
+// ==========================================
+
+export type ChequeStatus = 'pending' | 'presented' | 'cleared' | 'bounced';
+export type ChequeHolder = 'business' | 'agent' | 'bank';
+export type ChequePresentmentOutcome = 'pending' | 'cleared' | 'bounced';
+
+export interface ChequeAllocation {
+  id?: number;
+  chequeId: number;
+  accountId: number;
+  amount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ChequePresentment {
+  id?: number;
+  chequeId: number;
+  attemptNumber: number;
+  presentmentDate: string;
+  bankReference?: string | null;
+  outcome: ChequePresentmentOutcome;
+  actualClearanceDate?: string | null;
+  bankFee?: number;
+  notes?: string | null;
+  journalId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ChequeCustodyEvent {
+  id?: number;
+  chequeId: number;
+  fromHolder: ChequeHolder | null;
+  toHolder: ChequeHolder;
+  eventDate: string;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Cheque {
+  id?: number;
+  chartId: number;
+  tourId?: number | null;
+  chequeNumber: string;
+  bankName?: string | null;
+  branchName?: string | null;
+  amount: number;
+  receivedDate: string;
+  expectedClearanceDate?: string | null;
+  status: ChequeStatus;
+  holder: ChequeHolder;
+  heldForCommission?: boolean;
+  transferredToAgentAt?: string | null;
+  commissionSettlementId?: number | null;
+  commissionAppliedAmount?: number | null;
+  clearedJournalId?: number | null;
+  actualClearanceDate?: string | null;
+  notes?: string | null;
+  allocations?: ChequeAllocation[];
+  presentments?: ChequePresentment[];
+  custodyEvents?: ChequeCustodyEvent[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RecordChequeInput {
+  chartId: number;
+  tourId?: number | null;
+  chequeNumber: string;
+  bankName?: string | null;
+  branchName?: string | null;
+  amount: number;
+  receivedDate: string;
+  expectedClearanceDate?: string | null;
+  allocations: Array<{ accountId: number; amount: number }>;
+  notes?: string | null;
+}
+
+export interface AddPresentmentInput {
+  chequeId: number;
+  presentmentDate: string;
+  bankReference?: string | null;
+  outcome: ChequePresentmentOutcome;
+  actualClearanceDate?: string | null;
+  bankFee?: number;
+  notes?: string | null;
+}
+
+export interface ClearChequeInput {
+  chequeId: number;
+  bankAccountId: number;
+  actualClearanceDate: string;
+  presentmentId?: number | null;
+  commissionSettlementId?: number | null;
+  commissionAppliedAmount?: number | null;
+}
+
+export interface TransferCustodyInput {
+  chequeId: number;
+  toHolder: ChequeHolder;
+  eventDate: string;
+  heldForCommission?: boolean;
+  notes?: string | null;
+}

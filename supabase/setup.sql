@@ -169,7 +169,8 @@ begin
          'vendor_issues', 'vendor_issue_items', 'vendor_stock_movements',
          'profile_type_discounts', 'invoices', 'invoice_items', 'journal',
          'journal_entry', 'settings', 'agent_commissions',
-         'agent_commission_settlements'
+         'agent_commission_settlements', 'cheques', 'cheque_allocations',
+         'cheque_presentments', 'cheque_custody_events'
        )
        or row_uuid is null or length(trim(row_uuid)) = 0
        or op is null or op not in ('put', 'delete')

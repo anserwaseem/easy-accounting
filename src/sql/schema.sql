@@ -740,3 +740,10 @@ END;
 -- migration-added column so it does not exist in this baseline schema.
 CREATE INDEX IF NOT EXISTS idx_inventory_prices_inventoryId ON inventory_prices(inventoryId);
 CREATE INDEX IF NOT EXISTS idx_inventory_prices_priceListId ON inventory_prices(priceListId);
+
+-- cheque register (received cheques, allocations, presentments, custody) is created
+-- by "057_cheques migration" (src/core/db/migrations), not here:
+-- CREATE TABLE IF NOT EXISTS "cheques" ( ... );
+-- CREATE TABLE IF NOT EXISTS "cheque_allocations" ( ... );
+-- CREATE TABLE IF NOT EXISTS "cheque_presentments" ( ... );
+-- CREATE TABLE IF NOT EXISTS "cheque_custody_events" ( ... );

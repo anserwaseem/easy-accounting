@@ -74,6 +74,7 @@ export const CORE_MIGRATION_NAMES: readonly string[] = [
   '054_optimize_journal_entry_pairs',
   '055_performance_indexes',
   '056_additional_performance_indexes',
+  '057_cheques',
 ];
 
 export function knownMigrationNames(): Set<string> {
