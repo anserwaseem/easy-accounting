@@ -469,7 +469,6 @@ const JournalsPage: React.FC<HasMiniView> = ({
               presets={[{ label: 'All', value: 'all' }]}
               initialRange={journalFilterDate}
               initialSelectValue={journalFilterSelectValue}
-              triggerClassName="max-w-full min-w-0"
             />
           </FilterGroup>
         }
@@ -477,7 +476,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
           <Button
             variant="outline"
             onClick={() => navigate('/journals/new')}
-            className="shrink-0 min-h-[44px]"
+            className="shrink-0"
           >
             <Plus size={16} className="mr-2" />
             New Journal
