@@ -21,7 +21,10 @@ describe('Database Service', () => {
     // Reset the singleton instance before each test
     (DatabaseService as any).instance = undefined;
     (DatabaseService as any)._path = undefined;
-    (process as any).resourcesPath = '/mock/resources/path';
+    Object.defineProperty(process, 'resourcesPath', {
+      value: '/mock/resources/path',
+      writable: true,
+    });
   });
 
   it('should use the correct database path in development environment', () => {

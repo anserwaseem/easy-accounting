@@ -7,7 +7,7 @@ module.exports = {
       '<rootDir>/.erb/mocks/fileMock.js',
     '\\.(css|less|sass|scss)$': 'identity-obj-proxy',
   },
-  setupFiles: ['./.erb/scripts/check-build-exists.ts'],
+  setupFiles: ['./.erb/scripts/check-build-exists.ts', './jest.polyfill.js'],
   testEnvironment: 'jsdom',
   testEnvironmentOptions: {
     url: 'http://localhost/',
