@@ -76,7 +76,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.55.0",
-    "react-router-dom": "^6.30.6",
+    "react-router-dom": "^7.18.5",
     "recharts": "^3.8.1",
     "xlsx": "^0.18.5",
     "zod": "^4.6.7"
@@ -84,7 +84,7 @@
   "devDependencies": {
     "@electron/notarize": "^1.2.3",
     "@electron/rebuild": "^3.2.13",
-    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.10",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.6.3",
     "@radix-ui/react-checkbox": "^1.1.2",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
@@ -181,10 +181,11 @@
     "webpack": "^5.112.2",
     "webpack-bundle-analyzer": "^4.9.0",
     "webpack-cli": "^5.1.1",
-    "webpack-dev-server": "^4.15.0",
+    "webpack-dev-server": "^6.1.0",
     "webpack-merge": "^5.9.0"
   },
   "overrides": {
+    "serialize-javascript": "6.0.2",
     "@pmmmwh/react-refresh-webpack-plugin": {
       "ajv": "8.18.0"
     },
