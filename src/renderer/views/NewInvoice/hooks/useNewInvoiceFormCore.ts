@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useEffect, useRef } from 'react';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { Resolver, useForm, useFieldArray, useWatch } from 'react-hook-form';
 import type { InventoryItem } from 'types';
 import { InvoiceType } from 'types';
 import { z } from 'zod';
@@ -71,7 +71,9 @@ export function useNewInvoiceFormCore(params: UseNewInvoiceFormCoreParams) {
   );
 
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as unknown as Resolver<
+      z.infer<typeof formSchema>
+    >,
     defaultValues: defaultFormValues,
     mode: 'onSubmit',
   });

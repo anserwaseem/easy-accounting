@@ -22,7 +22,7 @@ import {
 } from 'renderer/lib/utils';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { Resolver, useFieldArray, useForm } from 'react-hook-form';
 import {
   Form,
   FormControl,
@@ -104,7 +104,9 @@ const NewJournalPage: React.FC = () => {
   const [journal, setJournal] = useState<Journal>(defaultFormValues);
 
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as unknown as Resolver<
+      z.infer<typeof formSchema>
+    >,
     defaultValues: defaultFormValues,
     values: journal,
   });
