@@ -30,7 +30,6 @@ export const ImportExportAccountUrdu: React.FC<
   const handleExport = useCallback(async () => {
     try {
       const rows = buildAccountUrduExportRows(accounts);
-      const { write, utils } = await import('xlsx');
       const aoa: (string | number)[][] = [
         [...ACCOUNT_URDU_EXPORT_HEADERS],
         ...rows.map((row) => [
@@ -46,9 +45,11 @@ export const ImportExportAccountUrdu: React.FC<
           row.goodsNameUrdu,
         ]),
       ];
-      const wb = utils.book_new();
-      utils.book_append_sheet(wb, utils.aoa_to_sheet(aoa), 'Account Urdu');
-      const buffer = write(wb, { type: 'array', bookType: 'xlsx' });
+      const ExcelJS = (await import('exceljs')) as any;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Account Urdu');
+      ws.addRows(aoa);
+      const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: EXCEL_MIME });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');

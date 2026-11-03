@@ -11,6 +11,68 @@ interface ConvertFileToJsonOptions {
  * @returns A Promise that resolves to an array of unknown values representing the JSON data.
  * @throws {Error} if no file is provided.
  */
+const parseCsvToAoa = (
+  text: string,
+  preferDisplayText?: boolean,
+): unknown[][] => {
+  const lines: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === '\n' && !inQuotes) {
+      lines.push(current);
+      current = '';
+    } else if (char === '\r' && text[i + 1] === '\n' && !inQuotes) {
+      // skip CR before LF
+    } else {
+      current += char;
+    }
+  }
+  if (current !== '' || lines.length > 0) lines.push(current);
+
+  const parseRow = (row: string): unknown[] => {
+    const cells: string[] = [];
+    let cell = '';
+    let quoted = false;
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i];
+      if (char === '"') {
+        if (quoted && row[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (char === ',' && !quoted) {
+        cells.push(cell);
+        cell = '';
+      } else {
+        cell += char;
+      }
+    }
+    cells.push(cell);
+
+    return cells.map((value) => {
+      const trimmed = value.trim();
+      if (preferDisplayText || trimmed === '') return value;
+      const numeric = Number(trimmed);
+      return Number.isNaN(numeric) ? value : numeric;
+    });
+  };
+
+  return lines
+    .map((line) => (line === '' ? null : parseRow(line)))
+    .filter((row): row is unknown[] => row !== null);
+};
+
 export const convertFileToJson = async (
   file: File | undefined,
   options?: ConvertFileToJsonOptions,
@@ -19,17 +81,37 @@ export const convertFileToJson = async (
 
   const data = await validFile.arrayBuffer();
   const isCsv = validFile.name.toLowerCase().endsWith('.csv');
-  const { read, utils } = await import('xlsx');
-  const wb = read(data, isCsv ? { raw: true } : undefined);
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const useRaw = options?.preferDisplayText !== true;
-  // convert to json
-  const json = utils.sheet_to_json(ws, {
-    header: 1,
-    blankrows: false,
-    defval: null,
-    raw: useRaw,
+  const preferDisplayText = options?.preferDisplayText === true;
+
+  if (isCsv) {
+    const decoder = new TextDecoder('utf-8');
+    const text = decoder.decode(data);
+    const json = parseCsvToAoa(text, preferDisplayText);
+    // eslint-disable-next-line no-console
+    console.table(json);
+    return json;
+  }
+
+  const ExcelJS = (await import('exceljs')) as any;
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(data);
+  const worksheet = workbook.worksheets[0] ?? workbook.worksheets[0];
+  const json: unknown[][] = [];
+
+  worksheet.eachRow({ includeEmptyRows: false }, (row: any) => {
+    const values: unknown[] = [];
+    row.eachCell(
+      { includeEmptyCells: true },
+      (cell: any, colNumber: number) => {
+        const value = preferDisplayText
+          ? cell.text ?? cell.value ?? null
+          : cell.value ?? null;
+        values[colNumber - 1] = value;
+      },
+    );
+    json.push(values);
   });
+
   // eslint-disable-next-line no-console
   console.table(json);
   return json;

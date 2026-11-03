@@ -1759,30 +1759,29 @@ export class InvoiceService {
     endDate?: string,
   ): Promise<Buffer> {
     const invoices = await this.getInvoicesInDateRange();
-    const { utils, write } = await import('xlsx');
-    const worksheet = utils.json_to_sheet(
-      invoices.map((invoice) => ({
-        'Invoice Number': invoice.invoiceNumber,
-        // Date: invoice.date,
-        Date: convertOrdinalDate(invoice.date),
-        'Total Quantity': invoice.totalQuantity,
-        [`Price After ${INVOICE_DISCOUNT_PERCENTAGE}% Discount`]: toNumber(
-          (
-            invoice.totalAmount! *
-            ((100 - INVOICE_DISCOUNT_PERCENTAGE) / 100)
-          ).toFixed(0),
-        ),
-      })),
-    );
+    const ExcelJS = (await import('exceljs')) as any;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Sale Invoices');
 
-    const workbook = utils.book_new();
-    utils.book_append_sheet(workbook, worksheet, 'Sale Invoices');
+    const mappedInvoices = invoices.map((invoice) => ({
+      'Invoice Number': invoice.invoiceNumber,
+      // Date: invoice.date,
+      Date: convertOrdinalDate(invoice.date),
+      'Total Quantity': invoice.totalQuantity,
+      [`Price After ${INVOICE_DISCOUNT_PERCENTAGE}% Discount`]: toNumber(
+        (
+          invoice.totalAmount! *
+          ((100 - INVOICE_DISCOUNT_PERCENTAGE) / 100)
+        ).toFixed(0),
+      ),
+    }));
 
-    const excelBuffer = write(workbook, {
-      type: 'buffer',
-      bookType: 'xlsx',
-    });
-    return excelBuffer;
+    const columns = Object.keys(mappedInvoices[0] ?? {});
+    worksheet.columns = columns.map((key) => ({ header: key, key }));
+    mappedInvoices.forEach((row) => worksheet.addRow(row));
+
+    const excelBuffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(excelBuffer);
   }
 
   async doesInvoiceExists(

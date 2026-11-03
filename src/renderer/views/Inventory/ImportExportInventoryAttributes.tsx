@@ -32,14 +32,11 @@ export const ImportExportInventoryAttributes: React.FC<
         window.electron.getAttributeDefinitions(),
       ])) as [InventoryItem[], AttributeDefinition[]];
       const aoa = buildInventoryAttributesAoa(items, definitions);
-      const { write, utils } = await import('xlsx');
-      const wb = utils.book_new();
-      utils.book_append_sheet(
-        wb,
-        utils.aoa_to_sheet(aoa),
-        'Inventory Attributes',
-      );
-      const buffer = write(wb, { type: 'array', bookType: 'xlsx' });
+      const ExcelJS = (await import('exceljs')) as any;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Inventory Attributes');
+      ws.addRows(aoa);
+      const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: EXCEL_MIME });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
