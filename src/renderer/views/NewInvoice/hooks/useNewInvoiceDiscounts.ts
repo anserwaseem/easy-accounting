@@ -265,7 +265,9 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
           lineHasNetPrice(
             typeof form.getValues(`invoiceItems.${rowIndex}.netPrice`) ===
               'number'
-              ? (form.getValues(`invoiceItems.${rowIndex}.netPrice`) as number)
+              ? (form.getValues(
+                  `invoiceItems.${rowIndex}.netPrice`,
+                ) as unknown as number)
               : null,
           )
         ) {
