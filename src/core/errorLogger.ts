@@ -1,4 +1,3 @@
-/* eslint-disable no-redeclare */
 import { getCoreLogger } from './ports';
 
 /**

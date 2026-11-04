@@ -75,7 +75,6 @@ export const defaultAccountFields = {
   goodsName: null,
   isActive: true,
   discountProfileId: null,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
 export interface Device {
@@ -199,7 +198,6 @@ export async function seedChart(device: Device): Promise<void> {
     { name: 'Current Liability', type: 'Liability' },
     { name: 'Revenue', type: 'Revenue' },
     { name: 'Expense', type: 'Expense' },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ] as any);
 }
 

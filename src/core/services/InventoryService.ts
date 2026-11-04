@@ -583,7 +583,6 @@ const STOCKTAKE_RESET_REASON = 'Stocktake correction (opening stock reset)';
 export class InventoryService {
   private db: DatabaseDriver;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private session: SessionContext;
 
   private store?: KeyValueStore;

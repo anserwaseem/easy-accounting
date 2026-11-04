@@ -280,7 +280,7 @@ export async function validateUploadedDatabase(
           `(expected if it predates that feature).`,
       );
       tables.push({ name: table, rows: 0 });
-      // eslint-disable-next-line no-continue
+
       continue;
     }
     // eslint-disable-next-line no-await-in-loop

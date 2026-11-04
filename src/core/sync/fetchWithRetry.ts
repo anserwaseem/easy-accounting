@@ -1,3 +1,4 @@
+/* global RequestInit */
 import { isNetworkFetchError } from './networkError';
 
 const DEFAULT_ATTEMPTS = 4;

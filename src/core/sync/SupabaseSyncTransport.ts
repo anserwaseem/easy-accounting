@@ -1,3 +1,4 @@
+/* global RequestInit */
 /* eslint-disable max-classes-per-file --
  * TransportError is small and only ever meaningful alongside the transport
  * that throws it, so it's colocated here rather than split into its own

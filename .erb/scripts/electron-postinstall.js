@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Electron postinstall: native-deps check + webpack DLL.
  *

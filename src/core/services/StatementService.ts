@@ -141,7 +141,7 @@ export class StatementService {
     );
 
     const chartIds: Record<string, number | bigint> = {};
-    // eslint-disable-next-line no-restricted-syntax
+
     for (const name of Object.keys(chartsRecord)) {
       const defaultName = ChartService.getChartName('', section, sectionType);
       const isCustomHead = !isEmpty(name) && name !== defaultName;
@@ -161,13 +161,11 @@ export class StatementService {
       chartIds[chartName] = chartId;
     }
 
-    // eslint-disable-next-line no-restricted-syntax
     for (const [name, charts] of Object.entries(chartsRecord)) {
       const defaultName = ChartService.getChartName('', section, sectionType);
       const chartName =
         !isEmpty(name) && name !== defaultName ? name : defaultName;
 
-      // eslint-disable-next-line no-restricted-syntax
       for (const chart of charts) {
         const { accountId } =
           // eslint-disable-next-line no-await-in-loop

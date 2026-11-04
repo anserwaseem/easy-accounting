@@ -27,6 +27,7 @@ module.exports = {
     'no-extra-boolean-cast': 'off',
     'no-restricted-syntax': ['off', 'ForOfStatement'],
     'global-require': 'off',
+    'no-undef': 'off',
     'import/no-dynamic-require': 'off',
     'no-console': 'off',
     'no-continue': 'off',

@@ -138,7 +138,6 @@ export async function seedOutboxFromLocalData(
       const columns = await allColumnInfo(driver, table);
       // migration 041 runs this before later migrations create their tables (e.g. agent_tours)
       if (columns.length === 0) {
-        // eslint-disable-next-line no-continue
         continue;
       }
       // eslint-disable-next-line no-await-in-loop

@@ -44,7 +44,7 @@ ${chalk.whiteBright.bgGreen.bold(
  `);
       process.exit(1);
     }
-  } catch (e) {
+  } catch {
     console.log('Native dependencies could not be checked');
   }
 }
