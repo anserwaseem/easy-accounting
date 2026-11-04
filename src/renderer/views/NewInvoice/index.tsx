@@ -304,7 +304,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
     invoiceType,
     lineInventoryIdsKey,
     setInventory,
-    isQuotationFlow,
+    isQuotationFlow || isSaleReturnDocument,
   );
 
   const inventoryById = useMemo(() => {
