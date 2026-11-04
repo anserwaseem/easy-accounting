@@ -138,6 +138,7 @@ module.exports = defineConfig([
     },
 
     settings: {
+      react: { version: 'detect' },
       'import/resolver': {
         node: {},
 
@@ -151,7 +152,25 @@ module.exports = defineConfig([
       },
     },
   },
-  globalIgnores(['**/.eslintrc.js']),
+  globalIgnores([
+    '**/.eslintrc.js',
+    '**/*.log',
+    'coverage',
+    '.eslintcache',
+    'node_modules',
+    '**/.DS_Store',
+    'release/app/dist',
+    'release/build',
+    '.erb/dll',
+    'apps/web',
+    'workers',
+    '.idea',
+    '**/*.css.d.ts',
+    '**/*.sass.d.ts',
+    '**/*.scss.d.ts',
+    'apps',
+    '.local',
+  ]),
   {
     files: ['src/core/**/*.ts'],
     ignores: ['src/core/**/__tests__/**'],

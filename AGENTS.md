@@ -62,15 +62,15 @@ sqlite3 release/app/database.db "SELECT * FROM migrations"
 `npm run package:*` rebuilds `better-sqlite3` from source, and that step fails on
 a default modern toolchain in two separate ways:
 
-- **Node must be the pinned version.** `.nvmrc` says `v18.20` because Electron 25
-  bundles Node 18.15. On Node 24 the native rebuild produces the wrong ABI even
-  when it compiles.
+- **Node must be the pinned version.** `.nvmrc` says `v24.22` because Electron 45
+  bundles Node 24.22. An older Node rebuilds `better-sqlite3` against the wrong
+  ABI and the app fails to open the database at runtime.
 - **Python 3.12 removed `distutils`, which node-gyp 9.4.1 imports.** On Python
   3.12+ the build dies with `ModuleNotFoundError: No module named 'distutils'`
   before it reaches any of our code.
 
 ```bash
-nvm use 18.20.3 && npm_config_python=/opt/homebrew/bin/python3.11 npm run package:mac
+nvm use 24.22 && npm_config_python=/opt/homebrew/bin/python3.11 npm run package:mac
 ```
 
 `prepackage` renames the working `release/app/database.db` aside and seeds a
@@ -181,4 +181,5 @@ The invoice line-item table uses `useFieldArray` with `react-virtuoso` (virtual 
 
 - [ ] Finish query coverage in the inventory table. **Sorting is complete**: attribute columns sort by declared type, price-list columns numerically, Display title as text, and Publish by attention needed (not ready, held back, ready, then non-candidates) — all with empties last in both directions, via `attributeQuery.ts`. **Attribute filtering is done** (`AttributeFilterMenu`, value or `(not set)`, combined with AND), which is what answers "which 16-line items have no binding set". Note the original task claimed search covered the name only; it already covered every attribute through `searchFields`. Still missing: search does not reach price-list prices (they live in `listPrices` keyed by id, not a flat path lodash `get` can read) or publish status, and neither of those can be filtered. Extend `attributeQuery.ts` rather than adding per-column special cases.
 
-- [ ] _(lowest priority)_ Un-pin `@aws-sdk/client-s3` after upgrading Electron/Node. It is pinned to exactly `3.965.0` — the last release supporting Node 18 (`3.968.0` moved to `engines: node >=20`), because Electron 25 bundles Node 18.15. Once Electron (and `.nvmrc`, currently `v18.20`) moves to Node 20+, bump to the current SDK. The pin is intentional: `^` would let npm drift into a Node-20-only release that installs with only a warning and fails at release time. Note the SDK is lazy-loaded inside `PublishService.publish()` (keeps ~18MB out of the startup graph and avoids `TextDecoder` errors in jsdom tests) — keep it that way.
+- [x] Un-pinned `@aws-sdk/client-s3` (`3.965.0` exact pin is gone; now uses
+  a caret range on the current SDK). SDK stays lazy-loaded inside `PublishService.publish()`.

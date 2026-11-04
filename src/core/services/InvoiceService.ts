@@ -1752,7 +1752,7 @@ export class InvoiceService {
     endDate?: string,
   ): Promise<Buffer> {
     const invoices = await this.getInvoicesInDateRange();
-    const ExcelJS = (await import('exceljs')) as any;
+    const ExcelJS = (await import('exceljs')) as typeof import('exceljs');
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Sale Invoices');
 

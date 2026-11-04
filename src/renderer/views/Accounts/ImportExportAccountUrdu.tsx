@@ -45,7 +45,7 @@ export const ImportExportAccountUrdu: React.FC<
           row.goodsNameUrdu,
         ]),
       ];
-      const ExcelJS = (await import('exceljs')) as any;
+      const ExcelJS = (await import('exceljs')) as typeof import('exceljs');
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('Account Urdu');
       ws.addRows(aoa);

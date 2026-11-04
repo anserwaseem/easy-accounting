@@ -1,6 +1,7 @@
 import { formatDisplayDate } from '@/lib/displayDate';
 
 type ExcelJsModule = typeof import('exceljs');
+type ExcelJsWorkbook = InstanceType<ExcelJsModule['Workbook']>;
 
 let exceljsPromise: Promise<ExcelJsModule> | null = null;
 
@@ -144,7 +145,7 @@ function buildWorksheet<T extends Record<string, unknown>>(
   }
 }
 
-const downloadWorkbook = async (wb: any, fileName: string) => {
+const downloadWorkbook = async (wb: ExcelJsWorkbook, fileName: string) => {
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: EXCEL_MIME });
   const url = URL.createObjectURL(blob);
@@ -158,7 +159,7 @@ const downloadWorkbook = async (wb: any, fileName: string) => {
 export async function exportReportToExcel<T extends Record<string, unknown>>(
   payload: ReportExportPayload<T>,
 ): Promise<void> {
-  const ExcelJS = (await loadExcelJs()) as any;
+  const ExcelJS = await loadExcelJs();
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(payload.sheetName.slice(0, 31));
   buildWorksheet(ws, payload);
@@ -184,7 +185,7 @@ export async function exportReportWorkbook(
   sheets: ExtraReportSheet[],
   suggestedFileName: string,
 ): Promise<void> {
-  const ExcelJS = (await loadExcelJs()) as any;
+  const ExcelJS = await loadExcelJs();
   const wb = new ExcelJS.Workbook();
   sheets.forEach((sheet) => {
     const ws = wb.addWorksheet(sheet.sheetName.slice(0, 31));

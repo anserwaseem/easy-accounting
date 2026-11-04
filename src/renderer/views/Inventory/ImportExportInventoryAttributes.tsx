@@ -32,7 +32,7 @@ export const ImportExportInventoryAttributes: React.FC<
         window.electron.getAttributeDefinitions(),
       ])) as [InventoryItem[], AttributeDefinition[]];
       const aoa = buildInventoryAttributesAoa(items, definitions);
-      const ExcelJS = (await import('exceljs')) as any;
+      const ExcelJS = (await import('exceljs')) as typeof import('exceljs');
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('Inventory Attributes');
       ws.addRows(aoa);

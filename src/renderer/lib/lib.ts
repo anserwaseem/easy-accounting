@@ -1,4 +1,5 @@
 import { raise } from './utils';
+import type { Row as ExcelJsRow, Cell as ExcelJsCell } from 'exceljs';
 
 interface ConvertFileToJsonOptions {
   /** .xlsx/.xls: sheet_to_json raw:false → displayed string (avoids raw date serials). Ignored for meaning on .csv when read({ raw:true }) already forces string cells. Balance sheet upload omits this (needs numeric cells). */
@@ -92,17 +93,17 @@ export const convertFileToJson = async (
     return json;
   }
 
-  const ExcelJS = (await import('exceljs')) as any;
+  const ExcelJS = (await import('exceljs')) as typeof import('exceljs');
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(data);
   const worksheet = workbook.worksheets[0] ?? workbook.worksheets[0];
   const json: unknown[][] = [];
 
-  worksheet.eachRow({ includeEmptyRows: false }, (row: any) => {
+  worksheet.eachRow({ includeEmpty: false }, (row: ExcelJsRow) => {
     const values: unknown[] = [];
     row.eachCell(
-      { includeEmptyCells: true },
-      (cell: any, colNumber: number) => {
+      { includeEmpty: true },
+      (cell: ExcelJsCell, colNumber: number) => {
         const value = preferDisplayText
           ? cell.text ?? cell.value ?? null
           : cell.value ?? null;
