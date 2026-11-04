@@ -18,7 +18,7 @@ const LedgerPage: React.FC = () => {
   const onRowClick = useCallback(
     (accountId?: number) => {
       if (accountId) {
-        navigate(`/ledger/${accountId}`);
+        navigate(`/accounts/${accountId}`);
       }
     },
     [navigate],
