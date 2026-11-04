@@ -33,6 +33,7 @@ import {
   PopoverTrigger,
 } from 'renderer/shad/ui/popover';
 import { DateCell } from '@/renderer/components/common/DateCell';
+import { appDataCache } from '@/renderer/lib/dataCache';
 import { EditAccount } from './editAccount';
 import { AddAccount } from './addAccount';
 import { AddCustomHead } from './addCustomHead';
@@ -233,7 +234,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   isMini = false,
   onRowClick,
 }: AccountPageProps) => {
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const initialCache = appDataCache.getAccountsData();
+  const [accounts, setAccounts] = useState<Account[]>(
+    () => initialCache?.accounts ?? [],
+  );
   const [typeSelected, setTypeSelected] =
     useState<AccountTypeFilter>(getStoredAccountType);
   const [headSelected, setHeadSelected] =
@@ -248,25 +252,22 @@ const AccountsPage: React.FC<AccountPageProps> = ({
   const [showInactive, setShowInactive] = useState<boolean>(
     window.electron.store.get('showInactiveAccounts') || false,
   );
-  const [charts, setCharts] = useState<Chart[]>([]);
+  const [charts, setCharts] = useState<Chart[]>(
+    () => initialCache?.charts ?? [],
+  );
   const [discountProfiles, setDiscountProfiles] = useState<DiscountProfile[]>(
-    [],
+    () => initialCache?.discountProfiles ?? [],
   );
   const [pricingAccountId, setPricingAccountId] = useState<number | null>(null);
   const [showCommissionSheet, setShowCommissionSheet] = useState(false);
   const [newDialog, setNewDialog] = useState<'account' | 'head' | null>(null);
   const navigate = useNavigate();
 
-  const refetchAccounts = useCallback(async () => {
-    const [fetchedAccounts, fetchedCharts, fetchedDiscountProfiles] =
-      await Promise.all([
-        window.electron.getAccounts(),
-        window.electron.getCharts(),
-        window.electron.getDiscountProfiles(),
-      ]);
-    setAccounts(fetchedAccounts);
-    setCharts(fetchedCharts);
-    setDiscountProfiles(fetchedDiscountProfiles);
+  const refetchAccounts = useCallback(async (forceRefresh = false) => {
+    const data = await appDataCache.fetchAccounts({ forceRefresh });
+    setAccounts(data.accounts);
+    setCharts(data.charts);
+    setDiscountProfiles(data.discountProfiles);
   }, []);
 
   const pricingAccount = useMemo(

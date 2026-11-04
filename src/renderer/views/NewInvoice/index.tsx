@@ -68,6 +68,7 @@ import {
 } from '@/renderer/lib/invoiceBehaviorStore';
 import { toastContentFromInvoiceSaveError } from '@/renderer/lib/ipcUserMessage';
 import { FileUploadTooltip } from '@/renderer/components/FileUploadTooltip';
+import { appDataCache } from '@/renderer/lib/dataCache';
 import { FILE_UPLOAD_HINT_INVOICE_ITEMS } from '@/renderer/lib/fileUploadTooltips';
 import { convertFileToJson } from '@/renderer/lib/lib';
 import {
@@ -1573,6 +1574,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
           editInvoiceId,
           invoice,
         );
+        appDataCache.invalidateInvoices(invoiceType);
+        appDataCache.invalidateJournals();
+        appDataCache.invalidateInventory();
         showPostSaveToast(updateResult.vendorStockMessages);
         return editInvoiceId;
       }
@@ -1604,6 +1608,9 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       const result = await window.electron.insertInvoice(invoiceType, invoice);
 
       if (result.nextInvoiceNumber > 0) {
+        appDataCache.invalidateInvoices(invoiceType);
+        appDataCache.invalidateJournals();
+        appDataCache.invalidateInventory();
         setNextInvoiceNumber(result.nextInvoiceNumber);
         form.reset(defaultFormValues);
         setIsDateExplicitlySet(false);
