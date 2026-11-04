@@ -118,12 +118,11 @@ export const migration043 = {
     for (const { name } of insertTriggers) {
       const table = parseInsertTimestampTriggerName(name);
       if (!table) continue;
-      // eslint-disable-next-line no-await-in-loop
+
       if (!(await tableHasIdColumn(driver, table))) continue;
 
-      // eslint-disable-next-line no-await-in-loop
       await driver.exec(`DROP TRIGGER "${name}"`);
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(insertTriggerSql(name, table));
     }
 
@@ -136,12 +135,11 @@ export const migration043 = {
     for (const { name } of updateTriggers) {
       const table = parseUpdateTimestampTriggerName(name);
       if (!table) continue;
-      // eslint-disable-next-line no-await-in-loop
+
       if (!(await tableHasIdColumn(driver, table))) continue;
 
-      // eslint-disable-next-line no-await-in-loop
       await driver.exec(`DROP TRIGGER "${name}"`);
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(updateTriggerSql(name, table));
     }
 

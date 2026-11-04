@@ -62,7 +62,7 @@ export class PrintService {
    * the PDF plugin content is not what gets printed.
    */
   // instance method for IPC parity with printPDF; no instance state needed
-  // eslint-disable-next-line class-methods-use-this
+
   async printWithDialog(): Promise<PrintResult> {
     try {
       const win = BrowserWindow.getFocusedWindow() ?? raise('No active window');

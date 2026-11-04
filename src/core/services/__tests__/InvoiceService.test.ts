@@ -46,7 +46,6 @@ const defaultAccountFields = {
   goodsName: null,
   isActive: true,
   discountProfileId: null,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
 async function seedBasicSchema(db: Database.Database) {

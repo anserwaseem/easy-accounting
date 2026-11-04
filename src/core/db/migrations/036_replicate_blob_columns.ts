@@ -72,23 +72,21 @@ export const migration036 = {
   name: '036_replicate_blob_columns',
   async up(driver: DatabaseDriver): Promise<void> {
     for (const table of SYNC_TABLES) {
-      // eslint-disable-next-line no-await-in-loop
       const columns = await allColumnInfo(driver, table);
       if (!columns.some((c) => c.isBlob)) continue; // no declared-blob column on this table — nothing to fix here
 
-      // eslint-disable-next-line no-await-in-loop
       await driver.exec(
         `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_insert"`,
       );
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(
         `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_update"`,
       );
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(
         `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_delete"`,
       );
-      // eslint-disable-next-line no-await-in-loop
+
       await createCaptureTriggers(driver, table);
     }
 

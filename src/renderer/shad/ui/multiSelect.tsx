@@ -102,7 +102,6 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
         <Button
           type="button"
           variant="outline"
-          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
           role="combobox"
           aria-expanded={open}
           className={cn(

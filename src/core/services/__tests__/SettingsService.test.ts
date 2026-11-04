@@ -127,7 +127,6 @@ describe('SettingsService', () => {
     expect(SECRET_SETTING_KEYS.length).toBeGreaterThan(0);
     const { service, db } = await makeService();
     for (const key of SECRET_SETTING_KEYS) {
-      // eslint-disable-next-line no-await-in-loop
       await expect(service.set(key, 'super-secret-value')).rejects.toThrow(
         /secret/i,
       );

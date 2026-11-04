@@ -80,7 +80,6 @@ export type Channels =
   | 'backup-operation-progress'
   | 'publish-progress';
 
-// eslint-disable-next-line no-console
 console.log('Preload process started');
 
 const electronHandler = {

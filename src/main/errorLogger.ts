@@ -1,4 +1,3 @@
-/* eslint-disable no-redeclare */
 import log from 'electron-log';
 
 /**
@@ -60,16 +59,14 @@ export function logErrors(
     const method = descriptor!.value; // the original method
 
     // wrapping original method
-    descriptor!.value =
-      // eslint-disable-next-line func-names
-      function (...args: any[]) {
-        try {
-          return method.apply(this, args); // try to execute the original method with the provided arguments
-        } catch (error) {
-          log.error(`Error in ${propertyName}: `, error);
-          throw error; // re-throw the error after logging it to ensure the error is not silently swallowed
-        }
-      };
+    descriptor!.value = function (...args: any[]) {
+      try {
+        return method.apply(this, args); // try to execute the original method with the provided arguments
+      } catch (error) {
+        log.error(`Error in ${propertyName}: `, error);
+        throw error; // re-throw the error after logging it to ensure the error is not silently swallowed
+      }
+    };
 
     return descriptor!; // return the modified descriptor which now includes the error logging functionality
   }

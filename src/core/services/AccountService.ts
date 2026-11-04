@@ -446,7 +446,6 @@ export class AccountService {
     await this.db.transaction(async () => {
       // sequential: each patch may re-read the row the previous one wrote
       for (const patch of patches) {
-        // eslint-disable-next-line no-await-in-loop
         const resolved = await this.resolveAccountForUrduPatch(patch, username);
         if (resolved === 'notFound') {
           notFound += 1;
@@ -474,7 +473,6 @@ export class AccountService {
             ? patch.goodsNameUrdu
             : resolved.goodsNameUrdu ?? null;
 
-        // eslint-disable-next-line no-await-in-loop
         const result = await this.db.run(SQL.updateAccountUrdu, {
           id: cast(resolved.id),
           nameUrdu: nextNameUrdu,

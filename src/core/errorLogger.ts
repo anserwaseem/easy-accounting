@@ -43,23 +43,21 @@ export function logErrors(
   } else {
     const method = descriptor!.value;
 
-    descriptor!.value =
-      // eslint-disable-next-line func-names
-      function (...args: any[]) {
-        try {
-          const result = method.apply(this, args);
-          if (result instanceof Promise) {
-            return result.catch((error: unknown) => {
-              getCoreLogger().error(`Error in ${propertyName}: `, error);
-              throw error;
-            });
-          }
-          return result;
-        } catch (error) {
-          getCoreLogger().error(`Error in ${propertyName}: `, error);
-          throw error;
+    descriptor!.value = function (...args: any[]) {
+      try {
+        const result = method.apply(this, args);
+        if (result instanceof Promise) {
+          return result.catch((error: unknown) => {
+            getCoreLogger().error(`Error in ${propertyName}: `, error);
+            throw error;
+          });
         }
-      };
+        return result;
+      } catch (error) {
+        getCoreLogger().error(`Error in ${propertyName}: `, error);
+        throw error;
+      }
+    };
 
     return descriptor!;
   }

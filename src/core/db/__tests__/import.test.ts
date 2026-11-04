@@ -883,7 +883,6 @@ describe('importDatabase', () => {
   it('every BUSINESS_TABLES entry exists in the target (frozen) schema', async () => {
     const { db: targetDb, driver: target } = await buildTargetDriver();
     for (const table of BUSINESS_TABLES) {
-      // eslint-disable-next-line no-await-in-loop
       const row = await target.get(
         `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`,
         [table],

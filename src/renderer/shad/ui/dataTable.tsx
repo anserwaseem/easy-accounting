@@ -847,13 +847,11 @@ const DataTable = <TData, TValue>({
           <TableBody>
             {infoData.map((row, rowIndex) => (
               <TableRow
-                // eslint-disable-next-line react/no-array-index-key
                 key={`virtual-info-row-${rowIndex}`}
                 className="bg-muted/50 font-medium"
               >
                 {row.map((cell, cellIndex) => (
                   <TableCell
-                    // eslint-disable-next-line react/no-array-index-key
                     key={`virtual-info-cell-${rowIndex}-${cellIndex}`}
                     className={cellPad}
                   >
@@ -1599,13 +1597,11 @@ const DataTable = <TData, TValue>({
                   {/* Info Rows */}
                   {infoData?.map((row, rowIndex) => (
                     <TableRow
-                      // eslint-disable-next-line react/no-array-index-key
                       key={`info-row-${rowIndex}`}
                       className="bg-muted/50 font-medium"
                     >
                       {row.map((cell, cellIndex) => (
                         <TableCell
-                          // eslint-disable-next-line react/no-array-index-key
                           key={`info-cell-${rowIndex}-${cellIndex}`}
                           className={cellPad}
                         >

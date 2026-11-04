@@ -87,7 +87,7 @@ export const convertFileToJson = async (
     const decoder = new TextDecoder('utf-8');
     const text = decoder.decode(data);
     const json = parseCsvToAoa(text, preferDisplayText);
-    // eslint-disable-next-line no-console
+
     console.table(json);
     return json;
   }
@@ -112,7 +112,6 @@ export const convertFileToJson = async (
     json.push(values);
   });
 
-  // eslint-disable-next-line no-console
   console.table(json);
   return json;
 };

@@ -351,14 +351,14 @@ const NewJournalPage: React.FC = () => {
       {
         header: 'Account',
         size: 420,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <AccountCell form={form} rowIndex={row.index} accounts={accounts} />
         ),
       },
       {
         header: 'Debit',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <DebitCell
             form={form}
@@ -373,7 +373,7 @@ const NewJournalPage: React.FC = () => {
       {
         header: 'Credit',
         size: 160,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <CreditCell
             form={form}
@@ -389,7 +389,7 @@ const NewJournalPage: React.FC = () => {
         id: 'remove',
         header: 'Action',
         size: 100,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <div className="flex items-center gap-1">
             {/* These were bare 16px icons with no padding — a ~16×16px
@@ -613,7 +613,6 @@ const NewJournalPage: React.FC = () => {
       }
       raise('Failed to save journal');
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error(error);
       toast({
         description: toString(error),
@@ -623,7 +622,6 @@ const NewJournalPage: React.FC = () => {
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    // eslint-disable-next-line no-console
     console.log('onSubmit journal:', values);
 
     const numberOfCredits = values.journalEntries.filter(

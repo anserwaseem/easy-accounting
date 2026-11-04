@@ -41,7 +41,7 @@ export const AdvancedControl: FC<AdvancedControlProps> = ({
   // the fragment is load-bearing: callers wrap a single control, and
   // returning it bare would type the return as ReactNode rather than
   // JSX.Element
-  // eslint-disable-next-line react/jsx-no-useless-fragment
+
   return <>{children}</>;
 };
 

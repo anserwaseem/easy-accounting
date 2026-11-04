@@ -129,7 +129,7 @@ export const EditAccount: React.FC<EditAccountProps> = ({
 
   const handleCreateCopy = () => {
     const formData = mapRowToFormData(row.original);
-    const { id, ...copyData } = formData; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const { id, ...copyData } = formData;
     setAccountToCopy(copyData);
     setIsOpen(false);
   };

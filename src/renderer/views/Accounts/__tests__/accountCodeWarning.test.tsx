@@ -28,11 +28,11 @@ describe('AccountForm - Account Code Guardrails & Warnings', () => {
 
   beforeAll(() => {
     (global as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-      observe() {} // eslint-disable-line class-methods-use-this
+      observe() {}
 
-      unobserve() {} // eslint-disable-line class-methods-use-this
+      unobserve() {}
 
-      disconnect() {} // eslint-disable-line class-methods-use-this
+      disconnect() {}
     };
   });
 

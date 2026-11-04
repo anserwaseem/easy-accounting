@@ -158,10 +158,8 @@ export async function backfillOpeningBalanceJournals(
     };
 
     for (const row of ledgerRows) {
-      // eslint-disable-next-line no-await-in-loop
       const equityAccountId = await getEquityAccountId(row.userId, row.date);
 
-      // eslint-disable-next-line no-await-in-loop
       const journalResult = await driver.run(
         `INSERT INTO journal (date, narration, isPosted, invoiceId) VALUES (?, ?, 1, NULL)`,
         [row.date, OPENING_BALANCE_PARTICULARS],
@@ -169,14 +167,14 @@ export async function backfillOpeningBalanceJournals(
       const journalId = Number(journalResult.lastInsertRowid);
 
       // the account's own side, exactly as stored on the ledger row
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.run(
         `INSERT INTO journal_entry (journalId, debitAmount, accountId, creditAmount)
          VALUES (?, ?, ?, ?)`,
         [journalId, row.debit, row.accountId, row.credit],
       );
       // the balancing side, against the system equity account
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.run(
         `INSERT INTO journal_entry (journalId, debitAmount, accountId, creditAmount)
          VALUES (?, ?, ?, ?)`,

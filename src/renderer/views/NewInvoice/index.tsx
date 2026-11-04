@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unstable-nested-components */
 import { get, isNil, pick, toNumber, toString } from 'lodash';
 import { MoreHorizontal, Plus, Printer, RefreshCw, Upload } from 'lucide-react';
 import {
@@ -1619,7 +1618,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
       }
       raise(`Failed to save ${invoiceType} invoice`);
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error(error);
       const raw = error instanceof Error ? error.message : toString(error);
       const { title, description } = toastContentFromInvoiceSaveError(raw, {
@@ -1820,7 +1818,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         await recalculateAutoDiscounts();
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error(error);
       toast({
         description: toString(error),
@@ -1901,7 +1898,6 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
               rowIndex < currentInvoiceItems.length;
               rowIndex += 1
             ) {
-              // eslint-disable-next-line no-await-in-loop
               await applyAutoDiscountForRow(
                 rowIndex,
                 toNumber(currentInvoiceItems[rowIndex].inventoryId),
@@ -2019,7 +2015,7 @@ const NewInvoicePage: React.FC<NewInvoiceProps> = ({
         if (isDiscountEditEnabled && manualDiscountRows[row.id]) {
           continue;
         }
-        // eslint-disable-next-line no-await-in-loop
+
         await applyAutoDiscountForRow(rowIndex, row.inventoryId, accountId);
       }
       scheduleDateFieldFocusAfterPartySelect(form);

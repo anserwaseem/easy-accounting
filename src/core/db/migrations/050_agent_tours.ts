@@ -70,12 +70,11 @@ export const migration050 = {
 
     for (const table of ['account', 'agent_tours']) {
       for (const op of ['insert', 'update', 'delete']) {
-        // eslint-disable-next-line no-await-in-loop
         await driver.exec(
           `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_${op}"`,
         );
       }
-      // eslint-disable-next-line no-await-in-loop
+
       await createCaptureTriggers(driver, table);
     }
   },

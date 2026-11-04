@@ -280,7 +280,7 @@ const VendorStockPage: React.FC = () => {
         // sits at the end of the card's name row instead of taking a
         // line of its own
         cardAside: true,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span
             className={cn(
@@ -302,7 +302,7 @@ const VendorStockPage: React.FC = () => {
         accessorKey: 'issueNumber',
         header: '#',
         size: 110,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 whitespace-nowrap tabular-nums font-medium">
             {row.original.issueNumber}
@@ -326,7 +326,7 @@ const VendorStockPage: React.FC = () => {
         accessorKey: 'date',
         header: 'Date',
         size: 110,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => <DateCell value={row.original.date} />,
       },
       ...(selectedVendorId
@@ -343,7 +343,7 @@ const VendorStockPage: React.FC = () => {
         header: 'Qty',
         size: 100,
         cardAside: true,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="tabular-nums">
             {row.original.totalQuantity.toLocaleString()}
@@ -360,7 +360,7 @@ const VendorStockPage: React.FC = () => {
         header: '',
         size: 100,
         enableSorting: false,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1">
             <EditActionButton

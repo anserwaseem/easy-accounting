@@ -160,9 +160,8 @@ export class AgentTourService {
     });
     return this.db.transaction(async () => {
       for (const tour of tours) {
-        // eslint-disable-next-line no-await-in-loop
         await this.assertWritable(tour, null);
-        // eslint-disable-next-line no-await-in-loop
+
         await this.db.run(SQL.insert, { ...tour });
       }
       return tours.length;

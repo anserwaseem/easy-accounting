@@ -362,7 +362,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 cardHeadline: true,
                 onClick: openAccount,
                 size: 200,
-                // eslint-disable-next-line react/no-unstable-nested-components
+
                 cell: ({ row }: CellContext<Account, unknown>) => (
                   <div
                     className={cn(
@@ -422,7 +422,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 cardMeta: true,
                 onClick: openAccount,
                 size: 120,
-                // eslint-disable-next-line react/no-unstable-nested-components
+
                 cell: ({ row }: CellContext<Account, unknown>) => (
                   <BilingualCell
                     primary={row.original.city}
@@ -437,7 +437,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 header: 'Address',
                 onClick: openAccount,
                 size: 200,
-                // eslint-disable-next-line react/no-unstable-nested-components
+
                 cell: ({ row }: CellContext<Account, unknown>) => (
                   <BilingualCell
                     primary={row.original.address}
@@ -476,7 +476,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 header: 'Goods Name',
                 onClick: openAccount,
                 size: 160,
-                // eslint-disable-next-line react/no-unstable-nested-components
+
                 cell: ({ row }: CellContext<Account, unknown>) => (
                   <BilingualCell
                     primary={row.original.goodsName}
@@ -495,7 +495,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                       // the column is a button, not a value: it keeps its
                       // place on the card even with no policy set
                       cardAlwaysShow: true,
-                      // eslint-disable-next-line react/no-unstable-nested-components
+
                       cell: ({ row }: CellContext<Account, unknown>) => {
                         if (row.original.type !== AccountType.Asset) {
                           return (
@@ -569,7 +569,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 id: 'createdAt',
                 accessorKey: 'createdAt',
                 header: 'Created At',
-                // eslint-disable-next-line react/no-unstable-nested-components
+
                 cell: ({ row }: CellContext<Account, unknown>) => (
                   <DateCell value={row.original.createdAt} />
                 ),
@@ -580,7 +580,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 id: 'updatedAt',
                 accessorKey: 'updatedAt',
                 header: 'Updated At',
-                // eslint-disable-next-line react/no-unstable-nested-components
+
                 cell: ({ row }: CellContext<Account, unknown>) => (
                   <DateCell value={row.original.updatedAt} />
                 ),
@@ -593,7 +593,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 // On a card the row has one control: the ⋮ at the end of
                 // the name, with every action behind it.
                 cardActions: true,
-                // eslint-disable-next-line react/no-unstable-nested-components
+
                 cardMenu: ({ row }) => (
                   <EditAccount
                     variant="menu"
@@ -604,7 +604,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                   />
                 ),
                 enableSorting: false,
-                // eslint-disable-next-line react/no-unstable-nested-components
+
                 cell: ({ row }: CellContext<Account, unknown>) => (
                   <EditAccount
                     row={row}

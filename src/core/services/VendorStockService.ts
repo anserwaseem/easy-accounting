@@ -330,12 +330,11 @@ export class VendorStockService {
         >();
 
         for (const row of rows) {
-          // eslint-disable-next-line no-await-in-loop
           const vendorAccountId = await this.resolveVendorAccountId(
             row.vendorCode,
             row.vendorName,
           );
-          // eslint-disable-next-line no-await-in-loop
+
           await this.assertTracksVendorStock(vendorAccountId);
           const list = byVendor.get(vendorAccountId) ?? [];
           list.push({ name: row.name, quantity: row.quantity });
@@ -343,7 +342,6 @@ export class VendorStockService {
         }
 
         for (const [vendorAccountId, items] of byVendor) {
-          // eslint-disable-next-line no-await-in-loop
           await this.setOpeningStockWithoutTransaction(
             vendorAccountId,
             items,
@@ -372,18 +370,17 @@ export class VendorStockService {
       if (!name) {
         raise('Item name is required');
       }
-      // eslint-disable-next-line no-await-in-loop
+
       const resolvedId = await this.resolveInventoryIdByName(name);
       const inventoryId =
         resolvedId ?? raise(`Inventory item not found: ${name}`);
-      // eslint-disable-next-line no-await-in-loop
+
       const headId = await this.resolveFamilyHeadId(inventoryId);
       qtyByHead.set(headId, (qtyByHead.get(headId) ?? 0) + item.quantity);
     }
 
     const touched = new Set<number>();
     for (const [inventoryId, quantity] of qtyByHead) {
-      // eslint-disable-next-line no-await-in-loop
       await this.setQuantityAbsolute({
         vendorAccountId,
         inventoryId,
@@ -402,7 +399,7 @@ export class VendorStockService {
       );
       for (const row of existing) {
         if (touched.has(row.inventoryId)) continue;
-        // eslint-disable-next-line no-await-in-loop
+
         await this.setQuantityAbsolute({
           vendorAccountId,
           inventoryId: row.inventoryId,
@@ -456,13 +453,12 @@ export class VendorStockService {
     }>(SQL.getVendorStockRowsForInventory, [cast(fromInventoryId)]);
 
     for (const row of orphanRows) {
-      // eslint-disable-next-line no-await-in-loop
       await this.db.run(SQL.upsertVendorStockDelta, {
         vendorAccountId: cast(row.vendorAccountId),
         inventoryId: cast(toHeadId),
         quantityDelta: row.quantity,
       });
-      // eslint-disable-next-line no-await-in-loop
+
       await this.db.run(SQL.deleteVendorStockRow, [
         cast(row.vendorAccountId),
         cast(fromInventoryId),
@@ -607,14 +603,12 @@ export class VendorStockService {
 
     for (const line of lines) {
       if (!line.accountId || !line.inventoryId || !line.quantity) continue;
-      // eslint-disable-next-line no-await-in-loop
+
       if (!(await this.tracksVendorStock(line.accountId))) continue;
 
-      // eslint-disable-next-line no-await-in-loop
       const headId = await this.resolveFamilyHeadId(line.inventoryId);
       const quantityDelta = sign * line.quantity;
 
-      // eslint-disable-next-line no-await-in-loop
       await this.applyDelta({
         vendorAccountId: line.accountId,
         inventoryId: headId,
@@ -641,7 +635,6 @@ export class VendorStockService {
 
     const messages: string[] = [];
     for (const { accountId, headId, delta } of deltaByKey.values()) {
-      // eslint-disable-next-line no-await-in-loop
       const qtyRow = await this.db.get<{ quantity?: number }>(
         SQL.getVendorStockQty,
         {
@@ -650,7 +643,7 @@ export class VendorStockService {
         },
       );
       const newQty = qtyRow?.quantity ?? 0;
-      // eslint-disable-next-line no-await-in-loop
+
       const nameRow = await this.db.get<{ name?: string }>(
         SQL.resolveInventoryNameById,
         [cast(headId)],
@@ -679,14 +672,13 @@ export class VendorStockService {
   ): Promise<void> {
     for (const line of lines) {
       if (!line.accountId || !line.inventoryId || !line.quantity) continue;
-      // eslint-disable-next-line no-await-in-loop
+
       if (!(await this.tracksVendorStock(line.accountId))) continue;
 
-      // eslint-disable-next-line no-await-in-loop
       const headId = await this.resolveFamilyHeadId(line.inventoryId);
       // purchase originally deducted stock (quantityDelta was negative);
       // to revert, add back line.quantity
-      // eslint-disable-next-line no-await-in-loop
+
       await this.db.run(SQL.upsertVendorStockDelta, {
         vendorAccountId: cast(line.accountId),
         inventoryId: cast(headId),
@@ -743,13 +735,12 @@ export class VendorStockService {
 
     const items: VendorStockActivityItem[] = [];
     for (const row of idRows) {
-      // eslint-disable-next-line no-await-in-loop
       const opening = await this.sumMovementsBefore(
         vendorAccountId,
         row.inventoryId,
         startDate,
       );
-      // eslint-disable-next-line no-await-in-loop
+
       const range = await this.sumMovementsInRange(
         vendorAccountId,
         row.inventoryId,
@@ -912,18 +903,16 @@ export class VendorStockService {
     // coerce variants → family head so WIP pool matches purchase consume
     const qtyByHead = new Map<number, number>();
     for (const item of items) {
-      // eslint-disable-next-line no-await-in-loop
       const headId = await this.resolveFamilyHeadId(item.inventoryId);
       qtyByHead.set(headId, (qtyByHead.get(headId) ?? 0) + item.quantity);
     }
     for (const [inventoryId, quantity] of qtyByHead) {
-      // eslint-disable-next-line no-await-in-loop
       await this.db.run(SQL.insertIssueItem, {
         issueId: cast(issueId),
         inventoryId: cast(inventoryId),
         quantity,
       });
-      // eslint-disable-next-line no-await-in-loop
+
       await this.applyDelta({
         vendorAccountId,
         inventoryId,
@@ -945,7 +934,6 @@ export class VendorStockService {
     existing: VendorIssueView,
   ): Promise<void> {
     for (const item of existing.items) {
-      // eslint-disable-next-line no-await-in-loop
       await this.db.run(SQL.upsertVendorStockDelta, {
         vendorAccountId: cast(existing.vendorAccountId),
         inventoryId: cast(item.inventoryId),

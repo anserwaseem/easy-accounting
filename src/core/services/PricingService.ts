@@ -331,7 +331,6 @@ export class PricingService {
         const discountPercent = Number(discount.discountPercent);
         if (!Number.isFinite(itemTypeId) || itemTypeId <= 0) continue;
 
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(SQL.upsertProfileTypeDiscount, {
           profileId: cast(profileId),
           itemTypeId: cast(itemTypeId),

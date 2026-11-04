@@ -7,7 +7,6 @@ import { logErrors } from '../errorLogger';
 
 @logErrors
 export class DatabaseService {
-  // eslint-disable-next-line no-use-before-define
   private static instance: DatabaseService | null;
 
   private db: Database.Database;

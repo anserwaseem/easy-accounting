@@ -53,7 +53,6 @@ describe('AppUpdater', () => {
       setProgressBar: jest.fn(),
     } as unknown as BrowserWindow;
 
-    // eslint-disable-next-line no-new
     new AppUpdater(mockWindow);
   });
 

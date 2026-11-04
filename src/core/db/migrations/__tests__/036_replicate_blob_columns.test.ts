@@ -52,9 +52,9 @@ async function bootstrapPre036(driver: BetterSqliteDriver): Promise<void> {
   );
   for (const migration of CORE_MIGRATIONS) {
     if (migration.name === '036_replicate_blob_columns') continue;
-    // eslint-disable-next-line no-await-in-loop
+
     await migration.up(driver);
-    // eslint-disable-next-line no-await-in-loop
+
     await driver.run(`INSERT INTO migrations (name) VALUES (@name)`, {
       name: migration.name,
     });

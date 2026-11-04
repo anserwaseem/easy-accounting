@@ -97,20 +97,20 @@ export const migration051 = {
         const match = REVERSAL_NARRATION.exec(candidate.narration);
         if (!match) continue;
         const originalId = Number(match[1]);
-        // eslint-disable-next-line no-await-in-loop
+
         const original = await driver.get<{ uuid: string; narration: string }>(
           `SELECT uuid, narration FROM journal WHERE id = @id`,
           { id: originalId },
         );
         if (!original?.uuid) continue;
-        // eslint-disable-next-line no-await-in-loop
+
         const reversalLines = await linesFor(driver, candidate.id);
-        // eslint-disable-next-line no-await-in-loop
+
         const originalLines = await linesFor(driver, originalId);
         if (!sameSwappedLines(reversalLines, originalLines)) continue;
         const suffix = match[2]?.trim();
         const narration = suffix || original.narration?.trim() || 'Reversal';
-        // eslint-disable-next-line no-await-in-loop
+
         await driver.run(
           `UPDATE journal
            SET reversesJournalUuid = @uuid, narration = @narration

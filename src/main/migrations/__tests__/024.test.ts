@@ -45,7 +45,6 @@ interface MigrationFile {
 }
 
 const loadMigration = (file: string): MigrationFile =>
-  // eslint-disable-next-line global-require, import/no-dynamic-require
   require(path.join(MIGRATIONS_DIR, file));
 
 const migration024 = loadMigration('024.js');

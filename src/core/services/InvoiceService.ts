@@ -1274,13 +1274,11 @@ export class InvoiceService {
       for (const [accountIdStr, groupItems] of Object.entries(itemsByAccount)) {
         const accountId = toNumber(accountIdStr);
         for (const item of groupItems) {
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(
             SQL.insertInvoiceItems,
             InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
           );
 
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(SQL.updateInventoryItem, [
             InvoiceService.inventoryQuantityDelta(
               invoiceType,
@@ -1401,7 +1399,6 @@ export class InvoiceService {
       for (const [accountIdStr, groupItems] of Object.entries(itemsByAccount)) {
         const accountId = toNumber(accountIdStr);
         for (const item of groupItems) {
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(
             SQL.insertInvoiceItems,
             InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
@@ -1414,7 +1411,6 @@ export class InvoiceService {
     if (invoice.accountMapping.singleAccountId) {
       const accountId = invoice.accountMapping.singleAccountId;
       for (const item of invoice.invoiceItems) {
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(
           SQL.insertInvoiceItems,
           InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
@@ -1562,7 +1558,6 @@ export class InvoiceService {
       quantity: number;
     }>(SQL.getInvoiceItemsForUpdate, { invoiceId: cast(invoiceId) });
     for (const item of items) {
-      // eslint-disable-next-line no-await-in-loop
       await this.db.run(SQL.updateInventoryItem, [
         -item.quantity,
         item.inventoryId,
@@ -1579,7 +1574,6 @@ export class InvoiceService {
       quantity: number;
     }>(SQL.getInvoiceItemsForUpdate, { invoiceId: cast(invoiceId) });
     for (const item of items) {
-      // eslint-disable-next-line no-await-in-loop
       await this.db.run(SQL.updateInventoryItem, [
         item.quantity,
         item.inventoryId,
@@ -1753,9 +1747,8 @@ export class InvoiceService {
   }
 
   async exportSaleInvoices(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     startDate?: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     endDate?: string,
   ): Promise<Buffer> {
     const invoices = await this.getInvoicesInDateRange();
@@ -1974,7 +1967,7 @@ export class InvoiceService {
 
     if (editingSaleReturn) {
       // prepared copy replaces the argument for the rest of this save
-      // eslint-disable-next-line no-param-reassign
+
       invoice = await InvoiceService.prepareSaleReturn({
         ...invoice,
         isSaleReturn: true,
@@ -2210,7 +2203,7 @@ export class InvoiceService {
         raise('Could not keep the sale return attached to its sale line.');
       }
       used.add(match);
-      // eslint-disable-next-line no-await-in-loop
+
       await this.db.run(
         `UPDATE invoice_items SET sourceInvoiceItemId = ? WHERE sourceInvoiceItemId = ?`,
         [fresh[match].id, old.id],
@@ -2302,7 +2295,7 @@ export class InvoiceService {
         isSaleReturn,
       );
       const delta = direction === 'post' ? posted : -posted;
-      // eslint-disable-next-line no-await-in-loop
+
       await this.db.run(SQL.updateInventoryItem, [delta, item.inventoryId]);
     }
   }
@@ -2312,7 +2305,6 @@ export class InvoiceService {
   ): Promise<void> {
     const problemLines: string[] = [];
     for (const id of uniq(inventoryIds)) {
-      // eslint-disable-next-line no-await-in-loop
       const row = await this.db.get<{ name: string | null; quantity: number }>(
         SQL.getInventoryNameQuantity,
         [id],
@@ -2492,7 +2484,6 @@ export class InvoiceService {
 
       const displayNumber = toDisplaySaleReturnNumber(header.invoiceNumber);
       for (const journal of journals) {
-        // eslint-disable-next-line no-await-in-loop
         const entries = await this.db.all<{
           accountId: number;
           debitAmount: number;
@@ -2501,7 +2492,7 @@ export class InvoiceService {
           `SELECT accountId, debitAmount, creditAmount FROM journal_entry WHERE journalId = ?`,
           [journal.id],
         );
-        // eslint-disable-next-line no-await-in-loop
+
         await this.journalService.insertJournal({
           id: -1,
           date: cancelDate,
@@ -2528,7 +2519,6 @@ export class InvoiceService {
         [invoiceId],
       );
       for (const line of lines) {
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(SQL.updateInventoryItem, [
           -line.quantity,
           line.inventoryId,
@@ -2646,7 +2636,6 @@ export class InvoiceService {
     const inventoryDelta = expectedType === InvoiceType.Sale ? 1 : -1;
 
     for (const item of items) {
-      // eslint-disable-next-line no-await-in-loop
       await this.db.run(SQL.updateInventoryItem, [
         inventoryDelta * item.quantity,
         item.inventoryId,
@@ -2699,13 +2688,11 @@ export class InvoiceService {
       for (const [accountIdStr, groupItems] of Object.entries(itemsByAccount)) {
         const accountId = toNumber(accountIdStr);
         for (const item of groupItems) {
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(
             SQL.insertInvoiceItems,
             InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
           );
 
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(SQL.updateInventoryItem, [
             InvoiceService.inventoryQuantityDelta(
               invoiceType,
@@ -2722,13 +2709,11 @@ export class InvoiceService {
     if (invoice.accountMapping.singleAccountId) {
       const accountId = invoice.accountMapping.singleAccountId;
       for (const item of invoice.invoiceItems) {
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(
           SQL.insertInvoiceItems,
           InvoiceService.bindInvoiceItem(invoiceId, item, accountId),
         );
 
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(SQL.updateInventoryItem, [
           InvoiceService.inventoryQuantityDelta(
             invoiceType,
@@ -2755,7 +2740,7 @@ export class InvoiceService {
     invoice: Invoice,
   ): Promise<void> {
     const posted = InvoiceService.postedAccountAmounts(invoiceType, invoice);
-    /* eslint-disable no-await-in-loop */
+
     for (const group of posted) {
       if (group.amount === 0) continue;
       const discountPercentage = journalDiscountLabel(group.lines);
@@ -2768,7 +2753,6 @@ export class InvoiceService {
         discountPercentage,
       );
     }
-    /* eslint-enable no-await-in-loop */
   }
 
   /** lines grouped by the account that will be debited (sale) or credited (purchase). */

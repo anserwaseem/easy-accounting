@@ -50,7 +50,6 @@ interface SyncRebuildResult {
 }
 
 declare global {
-  // eslint-disable-next-line no-unused-vars
   interface Window {
     /**
      * Optional web-only flags and RPCs. Desktop preload never sets these,

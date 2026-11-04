@@ -2,7 +2,7 @@ import { toNumber } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { InvoiceType, InvoiceView } from 'types';
-// eslint-disable-next-line import/no-cycle
+
 import InvoicesPage from '../Invoices';
 import QuotationsPage from '../Quotations';
 import { InvoiceDetails } from './invoiceDetails';

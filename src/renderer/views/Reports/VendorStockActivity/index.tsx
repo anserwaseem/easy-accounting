@@ -329,7 +329,7 @@ const VendorStockActivityPage: React.FC = () => {
         headerTooltip:
           'Shared quantity pool at this vendor. Send or buy a variant and it still hits this row.',
         onClick: (row) => openItem(row.original, 'all'),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <ItemNameCell item={row.original} onSelect={openItem} />
         ),
@@ -338,7 +338,7 @@ const VendorStockActivityPage: React.FC = () => {
         accessorKey: 'opening',
         header: ACTIVITY_COLUMN_HEADERS.opening,
         headerTooltip: 'Qty already at this vendor before the start date.',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => <QtyCell quantity={row.original.opening} />,
       },
       {
@@ -346,7 +346,7 @@ const VendorStockActivityPage: React.FC = () => {
         header: ACTIVITY_COLUMN_HEADERS.issued,
         headerTooltip:
           'Goods sent to this vendor in the range. Click for send documents.',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.issued}
@@ -364,7 +364,7 @@ const VendorStockActivityPage: React.FC = () => {
         header: ACTIVITY_COLUMN_HEADERS.purchased,
         headerTooltip:
           'Finished goods bought back on a purchase invoice. Reduces qty at vendor. Click for invoices.',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.purchased}
@@ -382,7 +382,7 @@ const VendorStockActivityPage: React.FC = () => {
         header: ACTIVITY_COLUMN_HEADERS.purchaseReturned,
         headerTooltip:
           'Purchase returns in the range. Adds qty back at vendor. Click for documents.',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.purchaseReturned}
@@ -400,7 +400,7 @@ const VendorStockActivityPage: React.FC = () => {
         header: ACTIVITY_COLUMN_HEADERS.adjusted,
         headerTooltip:
           'Opening imports dated inside the range, plus corrections. Click for lines.',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.adjusted}
@@ -418,7 +418,7 @@ const VendorStockActivityPage: React.FC = () => {
         header: ACTIVITY_COLUMN_HEADERS.closing,
         headerTooltip: ACTIVITY_EQUATION,
         onClick: (row) => openItem(row.original, 'all'),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <QtyCell
             quantity={row.original.closing}

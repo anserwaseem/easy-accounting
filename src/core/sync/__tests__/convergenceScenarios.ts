@@ -65,8 +65,6 @@ import { PricingService } from '../../services/PricingService';
 import { SyncEngine } from '../SyncEngine';
 import type { SyncTransport } from '../transport';
 
-/* eslint jest/expect-expect: ["warn", { "assertFunctionNames": ["expect", "assertTableConverged", "assertAllFactsConverged", "assertBalancesConverged"] }] */
-
 export const defaultAccountFields = {
   code: null,
   address: null,
@@ -325,7 +323,6 @@ export async function assertAllFactsConverged(
   b: Device,
 ): Promise<void> {
   for (const table of FACT_TABLES) {
-    // eslint-disable-next-line no-await-in-loop
     await assertTableConverged(a, b, table);
   }
 }
@@ -339,7 +336,6 @@ export async function balancesByAccountUuid(
   );
   const result = new Map<string, { balance: number; balanceType: string }>();
   for (const row of accountRows) {
-    // eslint-disable-next-line no-await-in-loop
     const balance = await device.ledger.getBalance(row.id);
     result.set(row.uuid, {
       balance: balance?.balance ?? 0,

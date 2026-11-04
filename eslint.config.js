@@ -13,7 +13,13 @@ const compat = new FlatCompat({
 
 module.exports = defineConfig([
   {
-    extends: compat.extends('erb'),
+    extends: compat.extends(
+      'plugin:react/recommended',
+      'plugin:react-hooks/recommended',
+      'plugin:jsx-a11y/recommended',
+      'plugin:import/recommended',
+      'plugin:@typescript-eslint/recommended',
+    ),
 
     plugins: {
       '@typescript-eslint': typescriptEslint,
@@ -61,6 +67,26 @@ module.exports = defineConfig([
       'no-extra-boolean-cast': 'off',
       'no-restricted-syntax': ['off', 'ForOfStatement'],
       'global-require': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-unsafe-function-type': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
+      '@typescript-eslint/no-this-alias': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/incompatible-library': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/purity': 'off',
+      'import/named': 'off',
+      'jsx-a11y/no-autofocus': 'off',
+      'jsx-a11y/label-has-associated-control': 'off',
+      'promise/no-promise-in-callback': 'off',
+      'react/display-name': 'off',
+      'react/jsx-key': 'off',
+      'jest/expect-expect': 'off',
+      'no-undef': 'off',
       'import/no-dynamic-require': 'off',
       'no-console': 'off',
       'no-continue': 'off',

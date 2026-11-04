@@ -603,7 +603,6 @@ export class SyncEngine {
         // mid-wipe even in a build that enforces them.
         const deletionOrder = [...SYNC_TABLES].reverse();
         for (const table of deletionOrder) {
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(`DELETE FROM "${table}"`);
         }
         await this.db.run(`DELETE FROM sync_outbox`);
@@ -736,7 +735,6 @@ export class SyncEngine {
     let rejected = 0;
 
     for (;;) {
-      // eslint-disable-next-line no-await-in-loop
       const rows = await this.db.all<OutboxRow>(
         `SELECT id, idempotencyKey, tableName, rowUuid, op, rowJson
          FROM sync_outbox ORDER BY id ASC LIMIT @limit`,
@@ -752,20 +750,17 @@ export class SyncEngine {
         rowJson: r.rowJson,
       }));
 
-      // eslint-disable-next-line no-await-in-loop
       const result = await this.transport.push(batch);
       const rejectedKeys = new Map(
         result.rejected.map((r) => [r.idempotencyKey, r.reason]),
       );
 
-      // eslint-disable-next-line no-await-in-loop
       const delta = await this.db.transaction(async () => {
         let pushedDelta = 0;
         let rejectedDelta = 0;
         for (const row of rows) {
           const reason = rejectedKeys.get(row.idempotencyKey);
           if (reason !== undefined) {
-            // eslint-disable-next-line no-await-in-loop
             await this.db.run(
               `INSERT INTO sync_rejected
                  (idempotencyKey, tableName, rowUuid, op, rowJson, reason, rejectedAt)
@@ -783,7 +778,7 @@ export class SyncEngine {
           } else {
             pushedDelta += 1;
           }
-          // eslint-disable-next-line no-await-in-loop
+
           await this.db.run(`DELETE FROM sync_outbox WHERE id = @id`, {
             id: row.id,
           });
@@ -1227,13 +1222,11 @@ export class SyncEngine {
     for (;;) {
       const page =
         prefetched ??
-        // eslint-disable-next-line no-await-in-loop
         (await this.transport.pull(cursor, this.pullPageSize, pullOpts));
       prefetched = null;
       pulled += page.length;
 
       if (page.length > 0) {
-        // eslint-disable-next-line no-await-in-loop
         const pageResult = await this.db.transaction(async () => {
           let count = 0;
           let skipped = 0;
@@ -1265,7 +1258,7 @@ export class SyncEngine {
                 // never rolls back the rest of this page — see this method's
                 // doc comment ("Per-row apply conflicts: contained, never a
                 // wedge").
-                // eslint-disable-next-line no-await-in-loop
+
                 const result = await this.db.transaction(() =>
                   this.applyRow(row),
                 );
@@ -1344,7 +1337,7 @@ export class SyncEngine {
                   continue;
                 }
                 conflicts += 1;
-                // eslint-disable-next-line no-await-in-loop
+
                 await this.recordApplyConflict(row, message);
                 if (!conflictedTables.has(row.tableName)) {
                   conflictedTables.add(row.tableName);
@@ -1380,7 +1373,7 @@ export class SyncEngine {
 
         // Yield execution to the JS event loop between pages so long multi-page
         // pulls do not lock up the worker/main thread or block postMessage events.
-        // eslint-disable-next-line no-await-in-loop
+
         await new Promise<void>((resolve) => {
           setTimeout(resolve, 0);
         });
@@ -1394,7 +1387,7 @@ export class SyncEngine {
         // other than an actually-received row's own `seq`.
         if (serverMaxSeq > cursor) {
           cursor = serverMaxSeq;
-          // eslint-disable-next-line no-await-in-loop
+
           await this.writeCursor(cursorKey, cursor);
         }
         break;
@@ -1579,7 +1572,6 @@ export class SyncEngine {
         const { username } = json;
         if (typeof username !== 'string') continue;
 
-        // eslint-disable-next-line no-await-in-loop
         const localMatch = await this.db.get<{
           password_hash: unknown;
         }>(`SELECT password_hash FROM users WHERE username = @username`, {
@@ -1605,7 +1597,6 @@ export class SyncEngine {
       const parentUuid = json.userId_uuid;
       if (typeof parentUuid !== 'string') continue; // no parent reference recorded — not this incident's shape
 
-      // eslint-disable-next-line no-await-in-loop
       const parentUser = await this.db.get<{ id: number }>(
         `SELECT id FROM users WHERE uuid = @uuid`,
         { uuid: parentUuid },
@@ -2001,7 +1992,7 @@ export class SyncEngine {
       }
 
       const fk = schema.foreignKeys.find((f) => f.from === column)!;
-      // eslint-disable-next-line no-await-in-loop
+
       const resolved = await this.db.get<{ id: number }>(
         `SELECT id FROM "${fk.table}" WHERE uuid = @uuid`,
         { uuid: refUuid },
@@ -2504,13 +2495,11 @@ export class SyncEngine {
 
     const remaining: PendingSelfReferentialFk[] = [];
     for (const pending of this.pendingSelfReferentialFks) {
-      // eslint-disable-next-line no-await-in-loop
       const parent = await this.db.get<{ id: number }>(
         `SELECT id FROM "${pending.table}" WHERE uuid = @uuid`,
         { uuid: pending.refUuid },
       );
       if (parent) {
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(
           `UPDATE "${pending.table}" SET "${pending.column}" = @parentId WHERE uuid = @rowUuid`,
           { parentId: parent.id, rowUuid: pending.rowUuid },

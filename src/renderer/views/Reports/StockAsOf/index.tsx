@@ -287,7 +287,7 @@ const StockAsOfReportPage: React.FC = () => {
         sortingFn: createListPositionSortingFn<StockAsOfTableRow>(
           (r) => r.itemId,
         ),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
             {row.original.listPosition != null
@@ -305,7 +305,7 @@ const StockAsOfReportPage: React.FC = () => {
         accessorKey: 'itemType',
         header: 'Type',
         size: 72,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
             {row.original.itemType || '—'}
@@ -317,7 +317,7 @@ const StockAsOfReportPage: React.FC = () => {
         header: 'Price',
         size: 72,
         headerTooltip: 'Current price (not historical).',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
             {String(row.original.unitPrice ?? 0)}

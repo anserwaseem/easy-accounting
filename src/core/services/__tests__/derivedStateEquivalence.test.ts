@@ -40,7 +40,6 @@
  * failing this file loudly — telling us to revisit — if either underlying
  * write path ever changes to no longer exhibit the gap).
  */
-/* eslint jest/expect-expect: ["warn", { "assertFunctionNames": ["expect", "assertLedgerEquivalence", "assertInventoryQuantityEquivalence"] }] */
 import Database from 'better-sqlite3';
 import type {
   Invoice,
@@ -103,7 +102,6 @@ const defaultAccountFields = {
   goodsName: null,
   isActive: true,
   discountProfileId: null,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
 /** Every chart type the schema's CHECK allows post-migration-001: all five. */
@@ -824,7 +822,6 @@ describe('derived-state equivalence: balance-sheet import (opening balances)', (
         total: 400,
       },
       equity: { current: {}, total: 0 },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
     expect(await statements.saveBalanceSheet(balanceSheet)).toBe(true);
@@ -1080,7 +1077,6 @@ describe('derived-state equivalence: service-cutover dispositions (D1-D3)', () =
         total: 0,
       },
       equity: { current: {}, total: 0 },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
     await statements.saveBalanceSheet(balanceSheet);
 

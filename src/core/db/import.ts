@@ -239,7 +239,6 @@ export async function validateUploadedDatabase(
   source: DatabaseDriver,
 ): Promise<ImportValidation> {
   for (const table of MINIMUM_REQUIRED_TABLES) {
-    // eslint-disable-next-line no-await-in-loop
     if (!(await tableExists(source, table))) {
       return {
         ok: false,
@@ -272,7 +271,6 @@ export async function validateUploadedDatabase(
   const warnings: string[] = [];
   const tables: ImportTableSummary[] = [];
   for (const table of BUSINESS_TABLES) {
-    // eslint-disable-next-line no-await-in-loop
     const present = await tableExists(source, table);
     if (!present) {
       warnings.push(
@@ -283,7 +281,7 @@ export async function validateUploadedDatabase(
 
       continue;
     }
-    // eslint-disable-next-line no-await-in-loop
+
     tables.push({ name: table, rows: await countRows(source, table) });
   }
 
@@ -304,7 +302,6 @@ async function wipeBusinessData(target: DatabaseDriver): Promise<void> {
   // Children before parents (see BUSINESS_TABLES' doc comment) — reversed
   // for delete.
   for (const table of [...BUSINESS_TABLES].reverse()) {
-    // eslint-disable-next-line no-await-in-loop
     await target.run(`DELETE FROM "${table}"`);
   }
   await target.run(
@@ -356,7 +353,6 @@ async function copyTable(
   const placeholders = columns.map((c) => `@${c}`).join(', ');
   const insertSql = `INSERT INTO "${table}" (${quoted}) VALUES (${placeholders})`;
   for (const row of rows) {
-    // eslint-disable-next-line no-await-in-loop
     await target.run(insertSql, row);
   }
   return rows.length;
@@ -996,9 +992,8 @@ export async function importDatabase(params: {
     try {
       await wipeBusinessData(target);
       for (const table of BUSINESS_TABLES) {
-        // eslint-disable-next-line no-await-in-loop
         const present = await tableExists(source, table);
-        // eslint-disable-next-line no-await-in-loop
+
         const rows = present ? await copyTable(source, target, table) : 0;
         tables.push({ name: table, rows });
       }

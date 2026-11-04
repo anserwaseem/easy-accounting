@@ -1,4 +1,3 @@
-/* eslint-disable no-lonely-if */
 import { compact, has, omit } from 'lodash';
 import {
   AccountType,
@@ -339,7 +338,6 @@ export class JournalService {
         const needsRebuild = new Set<number>();
 
         for (const accountId of affectedAccounts) {
-          // eslint-disable-next-line no-await-in-loop
           if (await this.ledgerService.hasNewerEntries(accountId, date)) {
             needsRebuild.add(accountId);
           }
@@ -363,7 +361,7 @@ export class JournalService {
         // insert all journal entries
         for (const entry of journalEntries) {
           const { debitAmount, accountId, creditAmount } = entry;
-          // eslint-disable-next-line no-await-in-loop
+
           await this.db.run(SQL.insertJournalEntry, {
             journalId,
             debitAmount,
@@ -377,7 +375,6 @@ export class JournalService {
         if (needsRebuild.size > 0) {
           // chronologically rebuild ledger only for accounts that need it
           for (const accountId of needsRebuild) {
-            // eslint-disable-next-line no-await-in-loop
             await this.rebuildLedger(accountId);
           }
         }
@@ -436,7 +433,6 @@ export class JournalService {
           raise(`Unknown account type: ${accountType}`);
       }
 
-      // eslint-disable-next-line no-await-in-loop
       await this.db.run(SQL.insertLedger, {
         date,
         accountId,
@@ -470,14 +466,14 @@ export class JournalService {
 
     for (const accountId of accountIds) {
       // Stored table, not ledger_view — same reasoning as rebuildLedger above.
-      // eslint-disable-next-line no-await-in-loop
+
       const entries = await this.ledgerService.getStoredLedger(accountId);
       const filtered = entries.filter((e) => {
         const m = e.particulars.match(/^Journal #(\d+)$/);
         if (!m) return true;
         return !idSet.has(parseInt(m[1], 10));
       });
-      // eslint-disable-next-line no-await-in-loop
+
       await this.rebuildLedgerFromEntries(accountId, filtered);
     }
   }
@@ -528,7 +524,7 @@ export class JournalService {
       // this seeds the running total this write is about to append to and
       // persist into that same stored table, so it must stay reading the
       // stored table (see LedgerService's class doc comment).
-      // eslint-disable-next-line no-await-in-loop
+
       const currentBalance = await this.ledgerService.getStoredBalance(
         accountId,
       );
@@ -558,7 +554,6 @@ export class JournalService {
             }
           }
 
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(SQL.insertLedger, {
             date,
             accountId,
@@ -592,7 +587,6 @@ export class JournalService {
             }
           }
 
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(SQL.insertLedger, {
             date,
             accountId,

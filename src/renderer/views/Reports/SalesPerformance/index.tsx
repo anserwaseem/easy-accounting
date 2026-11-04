@@ -721,13 +721,13 @@ const SalesPerformanceReportPage: React.FC = () => {
   };
 
   // Define columns for customers/policies table
-  // eslint-disable-next-line react/no-unstable-nested-components
+
   const customerColumns = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
     const baseCols: ColumnDef<Record<string, unknown>>[] = [
       {
         accessorKey: 'groupName',
         header: groupByPolicy ? 'Policy' : 'Customer',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="font-medium">
             {String(row.original.groupName ?? '')}
@@ -752,7 +752,7 @@ const SalesPerformanceReportPage: React.FC = () => {
       baseCols.splice(1, 0, {
         accessorKey: 'groupCode',
         header: 'Code',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => {
           const code = (row.original as any).groupCode;
           return code != null ? String(code) : '—';
@@ -778,13 +778,13 @@ const SalesPerformanceReportPage: React.FC = () => {
   }, [groupByPolicy, visibleColumns]);
 
   // Columns for top items
-  // eslint-disable-next-line react/no-unstable-nested-components
+
   const itemColumns = useMemo<ColumnDef<Record<string, unknown>>[]>(
     () => [
       {
         accessorKey: 'itemName',
         header: 'Item',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="font-medium">
             {String(row.original.itemName ?? '')}
@@ -811,7 +811,7 @@ const SalesPerformanceReportPage: React.FC = () => {
   );
 
   // filter item columns by picker visibility
-  // eslint-disable-next-line react/no-unstable-nested-components
+
   const filteredItemColumns = useMemo(
     () =>
       itemColumns.filter((column) => {
@@ -825,13 +825,13 @@ const SalesPerformanceReportPage: React.FC = () => {
   );
 
   // Columns for returns
-  // eslint-disable-next-line react/no-unstable-nested-components
+
   const returnsColumns = useMemo<ColumnDef<Record<string, unknown>>[]>(
     () => [
       {
         accessorKey: 'invoiceNumber',
         header: 'Invoice #',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="font-medium">
             #{row.original.invoiceNumber as number}
@@ -855,7 +855,7 @@ const SalesPerformanceReportPage: React.FC = () => {
       {
         accessorKey: 'amount',
         header: 'Return Amount',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="text-red-600">
             {getFormattedCurrency(row.original.amount as number)}
@@ -879,13 +879,13 @@ const SalesPerformanceReportPage: React.FC = () => {
   );
 
   // Columns for quotation backlog
-  // eslint-disable-next-line react/no-unstable-nested-components
+
   const quotationColumns = useMemo<ColumnDef<Record<string, unknown>>[]>(
     () => [
       {
         accessorKey: 'invoiceNumber',
         header: 'Quotation #',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="font-medium">
             #{row.original.invoiceNumber as number}
@@ -899,19 +899,19 @@ const SalesPerformanceReportPage: React.FC = () => {
       {
         accessorKey: 'date',
         header: 'Date',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => renderCellDate(row.original, 'date'),
       },
       {
         accessorKey: 'customerName',
         header: 'Customer',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => String(row.original.customerName ?? ''),
       },
       {
         accessorKey: 'amount',
         header: 'Amount',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => getFormattedCurrency(row.original.amount as number),
       },
     ],

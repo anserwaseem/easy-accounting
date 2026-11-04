@@ -120,7 +120,6 @@ const aBalanceSheet = (overrides: Partial<BalanceSheet> = {}): BalanceSheet =>
       total: 0,
     },
     ...overrides,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any;
 
 describe('core StatementService', () => {

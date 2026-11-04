@@ -149,7 +149,6 @@ export class StatementService {
       const chartName = isCustomHead ? name : defaultName;
       const chartType = capitalize(section);
 
-      // eslint-disable-next-line no-await-in-loop
       const chartId = await this.chartService.findOrCreateChart(
         chartName,
         chartType,
@@ -168,7 +167,6 @@ export class StatementService {
 
       for (const chart of charts) {
         const { accountId } =
-          // eslint-disable-next-line no-await-in-loop
           await this.accountService.insertAccountIfNotExists({
             name: chart.name,
             headName: chartName,
@@ -201,7 +199,6 @@ export class StatementService {
           balanceType = BalanceType.Dr;
         }
 
-        // eslint-disable-next-line no-await-in-loop
         await this.ledgerService.insertLedger({
           date,
           particulars: OPENING_BALANCE_PARTICULARS,
@@ -216,21 +213,20 @@ export class StatementService {
         // block on setupLedgers) — the account's own side as stored, plus
         // the balancing side against the system equity account. No ledger
         // row is written for the equity side; see that comment block.
-        // eslint-disable-next-line no-await-in-loop
+
         const journalResult = await this.db.run(SQL.insertJournal, {
           date,
           narration: OPENING_BALANCE_PARTICULARS,
         });
         const journalId = Number(journalResult.lastInsertRowid);
 
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(SQL.insertJournalEntry, {
           journalId,
           debitAmount: debit,
           accountId,
           creditAmount: credit,
         });
-        // eslint-disable-next-line no-await-in-loop
+
         await this.db.run(SQL.insertJournalEntry, {
           journalId,
           debitAmount: credit,

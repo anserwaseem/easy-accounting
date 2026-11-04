@@ -45,11 +45,11 @@ describe('EditAccount - Copy Discount Profile', () => {
   beforeAll(() => {
     // jsdom implements no ResizeObserver; radix popper/dialog measures with one
     (global as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-      observe() {} // eslint-disable-line class-methods-use-this
+      observe() {}
 
-      unobserve() {} // eslint-disable-line class-methods-use-this
+      unobserve() {}
 
-      disconnect() {} // eslint-disable-line class-methods-use-this
+      disconnect() {}
     };
   });
 

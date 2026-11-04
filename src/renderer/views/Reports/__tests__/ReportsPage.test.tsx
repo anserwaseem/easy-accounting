@@ -14,7 +14,7 @@ import { AdvancedCapabilitiesProvider } from '@/renderer/hooks/useAdvancedCapabi
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 
 // the component under test (after mocks)
-// eslint-disable-next-line import/first
+
 import ReportsPage from '../index';
 
 const getAdvancedCapabilities = jest.fn();

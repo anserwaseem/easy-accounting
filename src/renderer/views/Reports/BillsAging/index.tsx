@@ -1194,7 +1194,7 @@ const BillsAgingPage = () => {
         </h1>
       </div>
 
-      {/* eslint-disable-next-line no-nested-ternary */}
+      {}
       {isLoading ? (
         <LoadingState variant="skeleton" />
       ) : visibleAccounts.length === 0 ? (

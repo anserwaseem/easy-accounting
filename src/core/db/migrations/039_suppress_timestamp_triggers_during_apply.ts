@@ -246,7 +246,7 @@ export const migration039 = {
       if (!parsed) continue; // defensive — the LIKE filter above already guarantees a match
       // vendor_stock is composite-PK (no `id`); leave its original
       // timestamp triggers rather than rewriting `WHERE id = NEW.id`.
-      // eslint-disable-next-line no-await-in-loop
+
       if (!(await tableHasIdColumn(driver, parsed.table))) continue;
 
       const sql =
@@ -254,9 +254,8 @@ export const migration039 = {
           ? insertTriggerSql(name, parsed.table)
           : updateTriggerSql(name, parsed.table);
 
-      // eslint-disable-next-line no-await-in-loop
       await driver.exec(`DROP TRIGGER "${name}"`);
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(sql);
     }
   },

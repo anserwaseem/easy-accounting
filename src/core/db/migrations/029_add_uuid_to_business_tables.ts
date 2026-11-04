@@ -64,7 +64,6 @@ async function addUuidOnIdTable(
     `SELECT "id" FROM "${table}" WHERE "uuid" IS NULL`,
   );
   for (const row of pending) {
-    // eslint-disable-next-line no-await-in-loop
     await driver.run(
       `UPDATE "${table}" SET "uuid" = ${UUID_V4_SQL_EXPR} WHERE "id" = @id`,
       { id: row.id },
@@ -97,7 +96,6 @@ async function addUuidOnVendorStock(driver: DatabaseDriver): Promise<void> {
     `SELECT "vendorAccountId", "inventoryId" FROM "vendor_stock" WHERE "uuid" IS NULL`,
   );
   for (const row of pending) {
-    // eslint-disable-next-line no-await-in-loop
     await driver.run(
       `UPDATE "vendor_stock" SET "uuid" = ${UUID_V4_SQL_EXPR}
        WHERE "vendorAccountId" = @vendorAccountId AND "inventoryId" = @inventoryId`,
@@ -127,7 +125,6 @@ export const migration029 = {
   async up(driver: DatabaseDriver): Promise<void> {
     await driver.transaction(async () => {
       for (const table of ID_TABLES) {
-        // eslint-disable-next-line no-await-in-loop
         await addUuidOnIdTable(driver, table);
       }
       await addUuidOnVendorStock(driver);

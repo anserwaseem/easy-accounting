@@ -343,7 +343,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
         id: 'itemNumber',
         header: '#',
         size: 10,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">{row.index + 1}</span>
         ),
@@ -361,7 +361,7 @@ export const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             {
               accessorKey: 'price',
               header: 'Price',
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => {
                 const item = row.original;
                 const offer = netRateOffer(item);

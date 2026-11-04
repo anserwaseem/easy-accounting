@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop */
 import {
   useCompanyProfile,
   useInvoicePrintSettings,
@@ -507,7 +506,7 @@ const PrintableInvoiceScreen = () => {
           label = pdfBase;
 
           navigate(`/invoices/${rowId}/print`);
-          // eslint-disable-next-line no-promise-executor-return
+
           await new Promise((resolve) => setTimeout(resolve, settleMs));
           await waitForInvoicePrintFonts(effectiveLocale);
 

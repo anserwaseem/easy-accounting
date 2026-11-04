@@ -15,7 +15,7 @@ describe('knownMigrationNames', () => {
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => /^\d+\.js$/.test(f))
       .sort()
-      // eslint-disable-next-line global-require, import/no-dynamic-require
+
       .map((f) => require(path.join(MIGRATIONS_DIR, f)).name as string);
 
     expect([...DESKTOP_MIGRATION_NAMES].sort()).toEqual([...fromFiles].sort());
