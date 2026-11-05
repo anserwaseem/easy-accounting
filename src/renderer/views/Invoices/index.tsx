@@ -38,14 +38,14 @@ import { InvoiceType } from 'types';
 import { formatDisplayDateTime } from '@/lib/displayDate';
 import { DateCell } from '@/renderer/components/common/DateCell';
 import { FilterGroup, PageHeader } from '@/renderer/components/PageHeader';
-// eslint-disable-next-line import/no-cycle
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from 'renderer/shad/ui/dropdown-menu';
-// eslint-disable-next-line import/no-cycle
+
 import InvoicePage from '../Invoice';
 import { ExportInvoices } from './exportInvoices';
 
@@ -173,7 +173,7 @@ const createInvoiceActionsColumn = (
   cardActions: true,
   // On a card there is room for one control, so both actions sit
   // behind a single ⋮ at the end of the name.
-  // eslint-disable-next-line react/no-unstable-nested-components
+
   cardMenu: ({ row }) => (
     <InvoiceRowMenu
       row={row}
@@ -235,7 +235,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
             {
               accessorKey: 'invoiceNumber',
               header: saleReturns ? 'Sale returns' : `${invoiceType} Invoices`,
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => {
                 const invoice = row.original;
                 return (
@@ -305,7 +305,6 @@ const InvoicesPage: FC<InvoicesProps> = ({
             },
           ]
         : [
-            /* eslint-disable react/no-unstable-nested-components -- tanstack column cell factories */
             {
               accessorKey: 'invoiceNumber',
               header: <span className="whitespace-nowrap">Invoice #</span>,
@@ -354,7 +353,7 @@ const InvoicesPage: FC<InvoicesProps> = ({
               accessorKey: 'date',
               header: 'Date',
               cardMeta: true,
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (row) =>
                 propInvoices
@@ -434,7 +433,6 @@ const InvoicesPage: FC<InvoicesProps> = ({
               navigate,
               propInvoices != null,
             ),
-            /* eslint-enable react/no-unstable-nested-components */
           ]) as ColumnDef<InvoicesView>[]),
     ],
     [

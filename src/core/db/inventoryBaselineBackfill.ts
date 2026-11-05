@@ -199,7 +199,6 @@ export async function backfillInventoryBaseline(
     let totalDelta = 0;
 
     for (const row of gapRows) {
-      // eslint-disable-next-line no-await-in-loop
       await target.run(
         `INSERT INTO stock_adjustments (inventoryId, quantityDelta, reason, date) VALUES (?, ?, ?, ?)`,
         [

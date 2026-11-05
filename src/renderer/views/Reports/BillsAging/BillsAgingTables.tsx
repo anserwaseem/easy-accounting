@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types -- props fully typed via TypeScript interfaces */
 import React, { type FC, useMemo, useCallback, useState } from 'react';
 import { format } from 'date-fns';
 import { ChevronDown, ChevronRight } from 'lucide-react';

@@ -81,7 +81,6 @@ export const migration052 = {
     await addColumn(driver, 'invoice_items', 'sourceInvoiceItemId', 'INTEGER');
 
     for (const table of TABLES) {
-      // eslint-disable-next-line no-await-in-loop
       await rebuildCaptureTriggers(driver, table);
     }
 

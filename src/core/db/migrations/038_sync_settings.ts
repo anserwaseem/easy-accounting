@@ -118,7 +118,6 @@ export const migration038 = {
       `SELECT id FROM settings WHERE uuid IS NULL`,
     );
     for (const row of pending) {
-      // eslint-disable-next-line no-await-in-loop
       await driver.run(
         `UPDATE settings SET uuid = ${UUID_V4_SQL_EXPR} WHERE id = @id`,
         { id: row.id },
@@ -190,7 +189,6 @@ export const migration038 = {
       `SELECT key, value, updatedAt, uuid FROM settings WHERE key NOT IN (${excluded})`,
     );
     for (const setting of toSeed) {
-      // eslint-disable-next-line no-await-in-loop
       await driver.run(
         `INSERT INTO sync_outbox (idempotencyKey, tableName, rowUuid, op, rowJson, createdAt)
          VALUES (${UUID_V4_SQL_EXPR}, 'settings', @rowUuid, 'put', @rowJson, datetime('now'))`,

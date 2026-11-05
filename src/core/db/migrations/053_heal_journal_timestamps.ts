@@ -117,10 +117,8 @@ export const migration053 = {
       `);
 
       for (const table of SYNC_TABLES) {
-        // eslint-disable-next-line no-await-in-loop
         const cols = (await allColumnInfo(driver, table)).map((c) => c.name);
         if (cols.includes('createdAt') && cols.includes('updatedAt')) {
-          // eslint-disable-next-line no-await-in-loop
           await driver.exec(`
             UPDATE "${table}"
             SET
@@ -137,7 +135,6 @@ export const migration053 = {
     // Rebuild capture triggers for all sync tables so the insert trigger sets
     // createdAt and updatedAt before outbox JSON capture
     for (const table of SYNC_TABLES) {
-      // eslint-disable-next-line no-await-in-loop
       await rebuildCaptureTriggers(driver, table);
     }
 

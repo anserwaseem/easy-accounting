@@ -126,7 +126,6 @@ async function bootstrapPre038(driver: BetterSqliteDriver): Promise<void> {
     '036_replicate_blob_columns',
     '037_redate_import_baselines',
   ]) {
-    // eslint-disable-next-line no-await-in-loop
     await driver.run(`INSERT INTO migrations (name) VALUES (@name)`, {
       name,
     });

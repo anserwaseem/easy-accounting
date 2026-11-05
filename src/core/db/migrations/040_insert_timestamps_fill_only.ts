@@ -297,12 +297,11 @@ export const migration040 = {
     for (const { name } of triggers) {
       const table = parseInsertTimestampTriggerName(name);
       if (!table) continue; // defensive — the LIKE filter above already guarantees a match
-      // eslint-disable-next-line no-await-in-loop
+
       if (!(await tableHasIdColumn(driver, table))) continue;
 
-      // eslint-disable-next-line no-await-in-loop
       await driver.exec(`DROP TRIGGER "${name}"`);
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(insertTriggerSql(name, table));
     }
   },

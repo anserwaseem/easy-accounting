@@ -43,7 +43,6 @@ export interface LoadedMigration {
 }
 
 function loadMigrationFile(dir: string, fileName: string): LoadedMigration {
-  // eslint-disable-next-line global-require, import/no-dynamic-require
   const mod = require(path.join(dir, fileName));
   const migration = mod.default || mod;
   return { ...migration, fileName };

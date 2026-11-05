@@ -81,26 +81,24 @@ export const migration047 = {
     `);
 
     for (const table of COMMISSION_TABLES) {
-      // eslint-disable-next-line no-await-in-loop
       await driver.exec(
         `CREATE UNIQUE INDEX IF NOT EXISTS "idx_${table}_uuid" ON "${table}"("uuid");`,
       );
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(timestampTriggersSql(table));
 
-      // eslint-disable-next-line no-await-in-loop
       await driver.exec(
         `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_insert";`,
       );
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(
         `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_update";`,
       );
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.exec(
         `DROP TRIGGER IF EXISTS "trg_sync_capture_${table}_delete";`,
       );
-      // eslint-disable-next-line no-await-in-loop
+
       await createCaptureTriggers(driver, table);
     }
   },

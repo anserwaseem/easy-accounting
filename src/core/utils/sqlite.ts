@@ -1,4 +1,3 @@
-/* eslint-disable no-redeclare */
 /**
  * SQLite value helpers — pure functions shared by every platform.
  * Moved verbatim from src/main/utils/sqlite.ts (which re-exports these

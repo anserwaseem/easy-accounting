@@ -74,7 +74,6 @@ const anAccount = (overrides: Record<string, unknown> = {}) =>
     goodsName: null,
     discountProfileId: null,
     ...overrides,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any;
 
 describe('core AccountService', () => {

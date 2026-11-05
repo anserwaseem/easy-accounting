@@ -1,4 +1,3 @@
-/* eslint-disable no-redeclare */
 import { raise } from './general';
 /**
  * Represents a boolean value in SQLite, where 0 is false and 1 is true.

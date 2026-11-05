@@ -111,7 +111,7 @@ describe('BackupService', () => {
   it('should set the backup directory correctly', () => {
     expect(backupService).toHaveProperty('backupDir');
     // bucket name embeds the runtime platform, so the expectation must too
-    // eslint-disable-next-line dot-notation
+
     expect(backupService['backupDir']).toBe(
       `/mocked/path/to/backups/database-backup_${process.platform}_test-computer_test-user`,
     );

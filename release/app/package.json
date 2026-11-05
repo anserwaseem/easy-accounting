@@ -1,6 +1,6 @@
 {
   "name": "easy-accounting",
-  "version": "0.3.27",
+  "version": "0.3.28",
   "description": "Easy Accounting",
   "license": "MIT",
   "author": {
@@ -20,6 +20,9 @@
     "patch": "npm version patch --no-git-tag-version"
   },
   "dependencies": {
-    "better-sqlite3": "^8.4.0"
+    "better-sqlite3": "^13.0.3"
+  },
+  "overrides": {
+    "tar-fs": "2.1.5"
   }
 }

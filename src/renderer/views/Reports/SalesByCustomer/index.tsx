@@ -151,7 +151,7 @@ const SalesByCustomerPage: React.FC = () => {
         header: 'Item',
         size: 200,
         onClick: (row) => setSelectedItem(row.original),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <ItemNameCell item={row.original} onSelect={setSelectedItem} />
         ),
@@ -161,7 +161,7 @@ const SalesByCustomerPage: React.FC = () => {
         header: 'Qty',
         size: 100,
         onClick: (row) => setSelectedItem(row.original),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => <QtyCell quantity={row.original.quantity} />,
       },
       {
@@ -169,7 +169,7 @@ const SalesByCustomerPage: React.FC = () => {
         header: InvoicesHeader,
         size: 110,
         onClick: (row) => setSelectedItem(row.original),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <InvoiceCountCell item={row.original} onSelect={setSelectedItem} />
         ),

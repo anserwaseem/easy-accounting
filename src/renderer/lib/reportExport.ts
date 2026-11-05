@@ -1,18 +1,16 @@
 import { formatDisplayDate } from '@/lib/displayDate';
 
-type XlsxModule = typeof import('xlsx');
+type ExcelJsModule = typeof import('exceljs');
+type ExcelJsWorkbook = InstanceType<ExcelJsModule['Workbook']>;
 
-let xlsxPromise: Promise<XlsxModule> | null = null;
+let exceljsPromise: Promise<ExcelJsModule> | null = null;
 
-const loadXlsx = (): Promise<XlsxModule> => {
-  if (xlsxPromise === null) {
-    xlsxPromise = import('xlsx');
+const loadExcelJs = (): Promise<ExcelJsModule> => {
+  if (exceljsPromise === null) {
+    exceljsPromise = import('exceljs');
   }
-  return xlsxPromise;
+  return exceljsPromise;
 };
-
-type XlsxUtils = XlsxModule['utils'];
-type XlsxWrite = XlsxModule['write'];
 
 type ReportColumnFormat = 'string' | 'number' | 'currency' | 'date';
 
@@ -119,11 +117,12 @@ function buildSheetRows<T extends Record<string, unknown>>(
 const CURRENCY_NUMBER_FORMAT = '#,##0.00';
 
 function buildWorksheet<T extends Record<string, unknown>>(
+  ws: import('exceljs').Worksheet,
+
   payload: ReportExportPayload<T>,
-  utils: XlsxUtils,
 ) {
   const aoa = buildSheetRows(payload);
-  const ws = utils.aoa_to_sheet(aoa);
+  ws.addRows(aoa);
 
   // data starts after title (optional), subtitle (optional), and header row
   const dataStartRow = (payload.title ? 1 : 0) + (payload.subtitle ? 1 : 0) + 1;
@@ -131,30 +130,23 @@ function buildWorksheet<T extends Record<string, unknown>>(
   payload.columns.forEach((col, c) => {
     if (col.format === 'currency') {
       for (let r = dataStartRow; r < aoa.length; r++) {
-        const ref = utils.encode_cell({ r, c });
-        const cell = ws[ref];
-        if (cell && typeof cell.v === 'number') {
-          cell.z = CURRENCY_NUMBER_FORMAT; // v means value, z means format; set to currency format
+        const cell = ws.getRow(r + 1).getCell(c + 1);
+        if (typeof cell.value === 'number') {
+          cell.numFmt = CURRENCY_NUMBER_FORMAT;
         }
       }
     }
   });
 
-  if (payload.columns.some((c) => c.width != null)) {
-    ws['!cols'] = payload.columns.map((c) => ({
-      wch: c.width ?? 12,
+  if (payload.columns.some((col) => col.width != null)) {
+    ws.columns = payload.columns.map((col) => ({
+      width: col.width ?? 12,
     }));
   }
-
-  return ws;
 }
 
-const downloadWorkbook = (
-  wb: ReturnType<XlsxUtils['book_new']>,
-  fileName: string,
-  write: XlsxWrite,
-) => {
-  const buffer = write(wb, { type: 'array', bookType: 'xlsx' });
+const downloadWorkbook = async (wb: ExcelJsWorkbook, fileName: string) => {
+  const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: EXCEL_MIME });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -167,14 +159,11 @@ const downloadWorkbook = (
 export async function exportReportToExcel<T extends Record<string, unknown>>(
   payload: ReportExportPayload<T>,
 ): Promise<void> {
-  const { utils, write } = await loadXlsx();
-  const wb = utils.book_new();
-  utils.book_append_sheet(
-    wb,
-    buildWorksheet(payload, utils),
-    payload.sheetName.slice(0, 31),
-  );
-  downloadWorkbook(wb, payload.suggestedFileName, write);
+  const ExcelJS = await loadExcelJs();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(payload.sheetName.slice(0, 31));
+  buildWorksheet(ws, payload);
+  await downloadWorkbook(wb, payload.suggestedFileName);
 }
 
 /** extra sheets use string column keys so item + invoice-line grains can share one workbook */
@@ -196,17 +185,11 @@ export async function exportReportWorkbook(
   sheets: ExtraReportSheet[],
   suggestedFileName: string,
 ): Promise<void> {
-  const { utils, write } = await loadXlsx();
-  const wb = utils.book_new();
+  const ExcelJS = await loadExcelJs();
+  const wb = new ExcelJS.Workbook();
   sheets.forEach((sheet) => {
-    utils.book_append_sheet(
-      wb,
-      buildWorksheet(
-        sheet as ReportExportPayload<Record<string, unknown>>,
-        utils,
-      ),
-      sheet.sheetName.slice(0, 31),
-    );
+    const ws = wb.addWorksheet(sheet.sheetName.slice(0, 31));
+    buildWorksheet(ws, sheet as ReportExportPayload<Record<string, unknown>>);
   });
-  downloadWorkbook(wb, suggestedFileName, write);
+  await downloadWorkbook(wb, suggestedFileName);
 }

@@ -30,15 +30,13 @@ export async function bootstrapDatabase(driver: DatabaseDriver): Promise<void> {
   );
 
   for (const migration of CORE_MIGRATIONS) {
-    // eslint-disable-next-line no-await-in-loop
     const applied = await driver.get(
       `SELECT 1 FROM migrations WHERE name = @name`,
       { name: migration.name },
     );
     if (!applied) {
-      // eslint-disable-next-line no-await-in-loop
       await migration.up(driver);
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.run(`INSERT INTO migrations (name) VALUES (@name)`, {
         name: migration.name,
       });

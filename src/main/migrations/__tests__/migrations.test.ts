@@ -48,7 +48,6 @@ jest.mock('../../services', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first
 import { MigrationRunner } from '..';
 
 const SCHEMA_SQL = fs.readFileSync(
@@ -86,7 +85,7 @@ const migrationNames = (): string[] =>
     .readdirSync(MIGRATIONS_DIR)
     .filter((f) => /^\d+\.js$/.test(f))
     .sort()
-    // eslint-disable-next-line global-require, import/no-dynamic-require
+
     .map((f) => require(path.join(MIGRATIONS_DIR, f)).name as string);
 
 const freshDb = (): Database.Database => {
@@ -103,7 +102,7 @@ const migrate = async (db: Database.Database): Promise<void> => {
 };
 
 /** better-sqlite3 types .get() as unknown; every query here is a known shape. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 const row = (db: Database.Database, sql: string, ...params: unknown[]): any =>
   db.prepare(sql).get(...params);
 
@@ -177,7 +176,6 @@ const rollbackTo019 = (db: Database.Database): void => {
     .filter((f) => /^(00[1-9]|01[0-9])\.js$/.test(f))
     .sort()
     .forEach((file) => {
-      // eslint-disable-next-line global-require, import/no-dynamic-require
       const migration = require(path.join(MIGRATIONS_DIR, file));
       const result = migration.up(db);
       if (result !== true) {
@@ -216,7 +214,6 @@ describe('migrations', () => {
       .filter((f) => /^\d+\.js$/.test(f))
       .sort()
       .forEach((file) => {
-        // eslint-disable-next-line global-require, import/no-dynamic-require
         const migration = require(path.join(MIGRATIONS_DIR, file));
         expect(typeof migration.name).toBe('string');
         expect(migration.up(db)).toBe(true);

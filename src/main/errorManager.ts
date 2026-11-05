@@ -80,7 +80,6 @@ export class ErrorManager {
   private showExceptionDialog = (err: Error): void => {
     const file = this.writeErrorToFile(err);
 
-    // eslint-disable-next-line promise/no-promise-in-callback
     dialog
       .showMessageBox({
         type: 'error',

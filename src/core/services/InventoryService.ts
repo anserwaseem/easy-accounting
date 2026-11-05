@@ -583,7 +583,6 @@ const STOCKTAKE_RESET_REASON = 'Stocktake correction (opening stock reset)';
 export class InventoryService {
   private db: DatabaseDriver;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private session: SessionContext;
 
   private store?: KeyValueStore;
@@ -715,7 +714,6 @@ export class InventoryService {
 
     await this.db.transaction(async () => {
       for (const [index, id] of ids.entries()) {
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(SQL.setAttributeDefinitionOrder, [
           index + 1,
           cast(id),
@@ -804,7 +802,7 @@ export class InventoryService {
     await this.db.transaction(async () => {
       for (const item of inventory) {
         this.assertNameAllowed(item.name);
-        // eslint-disable-next-line no-await-in-loop
+
         const result = await this.db.run(SQL.insertItem, {
           name: item.name,
           description: item.description ?? null,
@@ -980,7 +978,6 @@ export class InventoryService {
 
     await this.db.transaction(async () => {
       for (const patch of patches) {
-        // eslint-disable-next-line no-await-in-loop
         const resolved = await this.resolveInventoryForAttributePatch(patch);
         if (resolved === 'notFound') {
           notFound += 1;
@@ -994,7 +991,6 @@ export class InventoryService {
         let wrote = false;
 
         if (patch.description !== undefined) {
-          // eslint-disable-next-line no-await-in-loop
           await this.db.run(SQL.updateInventoryDescription, {
             id: cast(resolved.id),
             description: patch.description?.trim() || null,
@@ -1004,7 +1000,7 @@ export class InventoryService {
 
         if (patch.descriptionUrdu !== undefined) {
           const nextDescriptionUrdu = patch.descriptionUrdu?.trim() || null;
-          // eslint-disable-next-line no-await-in-loop
+
           await this.db.run(SQL.updateInventoryUrdu, {
             id: cast(resolved.id),
             descriptionUrdu: nextDescriptionUrdu,
@@ -1025,7 +1021,7 @@ export class InventoryService {
           });
           // resolved id already proven to exist; treat the merge as an update
           // even when the resulting JSON is unchanged
-          // eslint-disable-next-line no-await-in-loop
+
           await this.updateInventoryAttributes(resolved.id, nextAttrs);
           wrote = true;
         }
@@ -1179,10 +1175,9 @@ export class InventoryService {
           if (!name) {
             raise('Item name is required');
           }
-          // eslint-disable-next-line no-await-in-loop
+
           let inventoryId = await this.resolveInventoryIdByName(name);
           if (inventoryId == null) {
-            // eslint-disable-next-line no-await-in-loop
             const result = await this.db.run(SQL.insertItem, {
               name,
               description: null,
@@ -1197,25 +1192,25 @@ export class InventoryService {
               raise(`Failed to create inventory item: ${name}`);
             }
           }
-          // eslint-disable-next-line no-await-in-loop
+
           const currentRow = await this.db.get<{ quantity: number }>(
             SQL.getInventoryQuantity,
             [cast(inventoryId)],
           );
           const oldQuantity = get(currentRow, 'quantity', 0);
-          // eslint-disable-next-line no-await-in-loop
+
           await this.db.run(SQL.setInventoryQuantity, [
             item.quantity,
             cast(inventoryId),
           ]);
-          // eslint-disable-next-line no-await-in-loop
+
           await this.db.run(SQL.upsertOpeningStock, {
             inventoryId: cast(inventoryId),
             quantity: item.quantity,
             asOfDate: asOfDate ?? null,
             old_quantity: oldQuantity,
           });
-          // eslint-disable-next-line no-await-in-loop
+
           await this.insertCompensatingResetAdjustment(inventoryId, asOfDate);
 
           touchedIds.add(inventoryId);
@@ -1229,16 +1224,16 @@ export class InventoryService {
             if (touchedIds.has(row.id)) continue;
 
             const oldQuantity = row.quantity;
-            // eslint-disable-next-line no-await-in-loop
+
             await this.db.run(SQL.setInventoryQuantity, [0, cast(row.id)]);
-            // eslint-disable-next-line no-await-in-loop
+
             await this.db.run(SQL.upsertOpeningStock, {
               inventoryId: cast(row.id),
               quantity: 0,
               asOfDate: asOfDate ?? null,
               old_quantity: oldQuantity,
             });
-            // eslint-disable-next-line no-await-in-loop
+
             await this.insertCompensatingResetAdjustment(row.id, asOfDate);
           }
         }
@@ -1392,7 +1387,7 @@ export class InventoryService {
         ) {
           raise(`Invalid list # for inventory id ${patch.id}`);
         }
-        // eslint-disable-next-line no-await-in-loop
+
         const result = await this.db.run(SQL.updatePriceAndListPositionById, {
           id: cast(patch.id),
           price: patch.price,
@@ -1414,13 +1409,11 @@ export class InventoryService {
             );
           }
           if (entry.price == null) {
-            // eslint-disable-next-line no-await-in-loop
             await this.db.run(SQL.deleteInventoryPrice, [
               cast(patch.id),
               cast(entry.priceListId),
             ]);
           } else {
-            // eslint-disable-next-line no-await-in-loop
             await this.db.run(SQL.upsertInventoryPrice, [
               cast(patch.id),
               cast(entry.priceListId),
@@ -1448,7 +1441,7 @@ export class InventoryService {
       if (!name) {
         continue;
       }
-      // eslint-disable-next-line no-await-in-loop
+
       const matches = await this.db.all<{ id: number }>(
         SQL.getInventoryIdsByTrimName,
         [name],
@@ -1458,7 +1451,6 @@ export class InventoryService {
       } else if (matches.length > 1) {
         ambiguousNames.push(name);
       } else {
-        // eslint-disable-next-line no-await-in-loop
         await this.db.run(SQL.updateInventoryListPositionById, [
           r.listPosition,
           cast(matches[0].id),

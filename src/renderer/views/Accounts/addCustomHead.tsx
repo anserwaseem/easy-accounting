@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Resolver, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -62,7 +62,9 @@ export const AddCustomHead: React.FC<AddCustomHeadProps> = ({
     onOpenChange?.(next);
   };
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as unknown as Resolver<
+      z.infer<typeof formSchema>
+    >,
     defaultValues: {
       name: '',
       nameUrdu: '',

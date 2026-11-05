@@ -39,7 +39,7 @@ export const getDefaultFormValues = (invoiceType: InvoiceType): Invoice => ({
 
 export const buildNewInvoiceFormSchema = (
   opts: NewInvoiceSchemaOptions,
-): z.ZodType<Invoice> => {
+): z.ZodType<Invoice, Invoice> => {
   const {
     invoiceType,
     inventory,
@@ -200,17 +200,11 @@ export const buildNewInvoiceFormSchema = (
             .optional(),
           multipleAccountIds: z
             .array(
-              z.coerce
-                .number({
-                  invalid_type_error: `Select a ${
-                    invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-                  } for this row`,
-                })
-                .refine((n) => Number.isFinite(n) && n > 0, {
-                  message: `Select a ${
-                    invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
-                  } for this row`,
-                }),
+              z.coerce.number().refine((n) => Number.isFinite(n) && n > 0, {
+                message: `Select a ${
+                  invoiceType === InvoiceType.Sale ? 'customer' : 'vendor'
+                } for this row`,
+              }),
             )
             .optional(),
         }),
@@ -356,6 +350,6 @@ export const buildNewInvoiceFormSchema = (
             path: ['shippingAccountId'],
           });
         }
-      }) as z.ZodType<Invoice>
+      }) as z.ZodType<Invoice, Invoice>
   );
 };

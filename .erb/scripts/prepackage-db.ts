@@ -6,6 +6,7 @@ const rootDir = path.join(__dirname, '../..');
 const releaseDir = path.join(rootDir, 'release/app');
 const schemaPath = path.join(rootDir, 'src/sql/schema.sql');
 const targetDbPath = path.join(releaseDir, 'database.db');
+const backupDbPath = path.join(releaseDir, 'database_backup.db');
 
 // Construct the absolute path to better-sqlite3
 const betterSqlite3Path = path.join(
@@ -21,6 +22,13 @@ if (!fs.existsSync(betterSqlite3Path)) {
   process.exit(1);
 }
 
+if (fs.existsSync(backupDbPath)) {
+  console.error(
+    `Database backup already exists at ${backupDbPath}. Restore it before packaging to avoid overwriting it.`,
+  );
+  process.exit(1);
+}
+
 execSync('npm rebuild better-sqlite3 --update-binary', {
   cwd: betterSqlite3Path,
   stdio: 'inherit',
@@ -28,7 +36,6 @@ execSync('npm rebuild better-sqlite3 --update-binary', {
 
 // Rename existing database.db if it exists
 if (fs.existsSync(targetDbPath)) {
-  const backupDbPath = path.join(releaseDir, 'database_backup.db');
   fs.renameSync(targetDbPath, backupDbPath);
 }
 

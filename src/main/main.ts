@@ -236,7 +236,6 @@ const createWindow = async () => {
     return { action: 'deny' };
   });
 
-  // eslint-disable-next-line no-new
   new AppUpdater(mainWindow);
   // Check for updates immediately when the app starts
   AppUpdater.checkForUpdates();

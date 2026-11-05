@@ -434,7 +434,6 @@ async function ensureUsersUuid(driver: DatabaseDriver): Promise<void> {
     `SELECT "id" FROM "users" WHERE "uuid" IS NULL`,
   );
   for (const row of pending) {
-    // eslint-disable-next-line no-await-in-loop
     await driver.run(
       `UPDATE "users" SET "uuid" = ${UUID_V4_SQL_EXPR} WHERE "id" = @id`,
       { id: row.id },
@@ -490,7 +489,6 @@ export const migration034 = {
     `);
 
     for (const table of SYNC_TABLES) {
-      // eslint-disable-next-line no-await-in-loop
       await createCaptureTriggers(driver, table);
     }
   },

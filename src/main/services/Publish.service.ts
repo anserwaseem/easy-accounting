@@ -548,7 +548,7 @@ export class PublishService {
       for (const target of targets) {
         PublishService.emitProgress('uploading', `Uploading ${target.key}…`);
         // sequential: the file set is tiny and ordering keeps logs readable
-        // eslint-disable-next-line no-await-in-loop
+
         await client.send(
           new PutObjectCommand({
             Bucket: target.bucket,

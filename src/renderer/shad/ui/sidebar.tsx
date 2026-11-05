@@ -69,11 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       {/* use index as key — callers already supply stable keys on each element */}
       {items?.map((item, index) => (
-        <div
-          // eslint-disable-next-line react/no-array-index-key
-          key={index}
-          className={cn('flex w-full mb-1 px-2', itemClassName)}
-        >
+        <div key={index} className={cn('flex w-full mb-1 px-2', itemClassName)}>
           {item}
         </div>
       ))}

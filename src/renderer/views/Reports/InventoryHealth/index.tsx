@@ -580,7 +580,7 @@ const InventoryHealthPage: React.FC = () => {
         sortingFn: createListPositionSortingFn<InventoryHealthRow>(
           (r) => r.itemId,
         ),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
             {row.original.listPosition != null
@@ -598,7 +598,7 @@ const InventoryHealthPage: React.FC = () => {
         accessorKey: 'itemType',
         header: 'Type',
         size: 40,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
             {row.original.itemType || '—'}
@@ -643,7 +643,7 @@ const InventoryHealthPage: React.FC = () => {
         accessorKey: 'lastSaleDate',
         header: 'Last Sale',
         size: 160,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => {
           const t = formatInventoryHealthLastInvoiceCell(
             row.original.lastSaleDate,
@@ -658,7 +658,7 @@ const InventoryHealthPage: React.FC = () => {
         accessorKey: 'lastPurchaseDate',
         header: 'Last Purchase',
         size: 160,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => {
           const t = formatInventoryHealthLastInvoiceCell(
             row.original.lastPurchaseDate,
@@ -695,7 +695,7 @@ const InventoryHealthPage: React.FC = () => {
         accessorKey: 'flags',
         header: 'Issues',
         size: 160,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => {
           const v = row.original.flags;
           if (!v)

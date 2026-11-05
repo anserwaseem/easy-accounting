@@ -62,11 +62,11 @@ describe('GlobalSearch', () => {
     // measures its list with a ResizeObserver
     window.HTMLElement.prototype.scrollIntoView = jest.fn();
     (global as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-      observe() {} // eslint-disable-line class-methods-use-this
+      observe() {}
 
-      unobserve() {} // eslint-disable-line class-methods-use-this
+      unobserve() {}
 
-      disconnect() {} // eslint-disable-line class-methods-use-this
+      disconnect() {}
     };
   });
 

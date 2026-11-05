@@ -58,7 +58,6 @@ export const SetOpeningStock: React.FC<SetOpeningStockProps> = ({
         const latest = max(dates);
         setLatestOpeningDate(latest ?? null);
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error('Failed to fetch opening stock info', error);
         setLatestOpeningDate(null);
       }

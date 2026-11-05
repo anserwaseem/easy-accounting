@@ -17,14 +17,12 @@ jest.mock('../../store', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import {
   getEnabledAdvancedCapabilities,
   requireAdvancedCapability,
   setEnabledAdvancedCapabilities,
 } from '../advancedCapabilities';
 
-// eslint-disable-next-line import/first
 import { store } from '../../store';
 
 const storeValues = (store as unknown as { __values: Map<string, unknown> })

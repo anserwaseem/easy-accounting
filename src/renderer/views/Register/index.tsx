@@ -39,7 +39,6 @@ const RegisterPage: React.FC = () => {
       variant: 'destructive',
     });
 
-    // eslint-disable-next-line no-console
     console.log(response);
   }
 

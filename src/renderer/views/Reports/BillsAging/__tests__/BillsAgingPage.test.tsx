@@ -64,7 +64,7 @@ jest.mock('renderer/lib/reportExport', () => ({
 }));
 
 // component under test (after mocks)
-// eslint-disable-next-line import/first
+
 import BillsAgingPage from '../index';
 
 const DUP_ACCOUNT_A = {
@@ -121,7 +121,7 @@ describe('BillsAgingPage customer-first filters', () => {
     const customerSelect = screen.getByTestId('customer-select');
     const headSelect = screen.getAllByTestId('head-select')[0];
     const position = customerSelect.compareDocumentPosition(headSelect);
-    // eslint-disable-next-line no-bitwise
+
     expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

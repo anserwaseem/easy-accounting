@@ -437,7 +437,6 @@ export class BackupService {
     let lastWasMissing = false;
     // sequential: shared bucket first, then the old per-machine one
     for (const bucket of this.cloudBuckets()) {
-      // eslint-disable-next-line no-await-in-loop
       const { error } = await supabase.storage
         .from(bucket)
         .upload(fileName, fileBuffer, {
@@ -477,7 +476,6 @@ export class BackupService {
 
     let lastMessage = 'not found';
     for (const bucket of ordered) {
-      // eslint-disable-next-line no-await-in-loop
       const { data, error } = await supabase.storage
         .from(bucket)
         .download(filename);

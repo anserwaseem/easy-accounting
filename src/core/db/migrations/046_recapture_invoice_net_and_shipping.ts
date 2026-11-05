@@ -57,7 +57,6 @@ export const migration046 = {
   name: '046_recapture_invoice_net_and_shipping',
   async up(driver: DatabaseDriver): Promise<void> {
     for (const table of TABLES) {
-      // eslint-disable-next-line no-await-in-loop
       await rebuildCaptureTriggers(driver, table);
     }
     await reemit(driver, 'invoice_items', 't."netPrice" IS NOT NULL');

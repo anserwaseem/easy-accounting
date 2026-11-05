@@ -51,7 +51,7 @@ jest.mock('recharts', () => ({
 }));
 
 // the component under test (after mocks)
-// eslint-disable-next-line import/first
+
 import SalesPerformanceReportPage from '../index';
 
 const TOP_ITEMS = [

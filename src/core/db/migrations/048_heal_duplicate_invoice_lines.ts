@@ -47,7 +47,6 @@ export const migration048 = {
     const affectedInventoryIds = new Set<number>();
 
     for (const dup of duplicateItems) {
-      // eslint-disable-next-line no-await-in-loop
       await driver.run(`DELETE FROM invoice_items WHERE id = ?`, [
         dup.deleteId,
       ]);
@@ -56,7 +55,6 @@ export const migration048 = {
 
     // Re-synchronize stored inventory.quantity against inventory_quantity_view
     for (const inventoryId of affectedInventoryIds) {
-      // eslint-disable-next-line no-await-in-loop
       await driver.run(
         `UPDATE inventory
          SET quantity = (SELECT quantity FROM inventory_quantity_view WHERE inventoryId = ?)
@@ -81,11 +79,10 @@ export const migration048 = {
     `);
 
     for (const dup of duplicateJournals) {
-      // eslint-disable-next-line no-await-in-loop
       await driver.run(`DELETE FROM journal_entry WHERE journalId = ?`, [
         dup.deleteId,
       ]);
-      // eslint-disable-next-line no-await-in-loop
+
       await driver.run(`DELETE FROM journal WHERE id = ?`, [dup.deleteId]);
     }
   },

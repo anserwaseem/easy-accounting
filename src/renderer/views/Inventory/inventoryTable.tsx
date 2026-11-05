@@ -203,7 +203,6 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   onBulkEditActiveChange,
   onFilteredIdsChange,
 }: InventoryTableProps) => {
-  // eslint-disable-next-line no-console
   const [inventory, setInventory] = useState<InventoryItem[]>();
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [priceLists, setPriceLists] = useState<PriceListSummary[]>([]);
@@ -765,7 +764,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         // buttons at the bottom of the card instead of taking a cell
         // in the grid
         cardActions: true,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => {
           const isOpen = expandedIds.has(row.original.id);
           return (
@@ -801,7 +800,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               size: 72,
               sortingFn: listPositionSortingFn,
               enableSorting: !editMode,
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => {
                 if (!editMode) {
                   return (
@@ -836,7 +835,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         size: 180,
         cardHeadline: true,
         enableSorting: !editMode,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }: { row: { original: InventoryItem } }) => (
           <InventoryNameCell item={row.original} />
         ),
@@ -852,7 +851,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               enableSorting: !editMode,
               accessorFn: (item: InventoryItem) =>
                 inventoryFamilyLabel(item, familyIndex),
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }: { row: { original: InventoryItem } }) => {
                 const label = inventoryFamilyLabel(row.original, familyIndex);
                 const childCount =
@@ -914,7 +913,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               header: 'Description',
               size: 240,
               enableSorting: !editMode,
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }: { row: { original: InventoryItem } }) => {
                 if (!editMode) {
                   const value = row.original.description?.trim();
@@ -949,7 +948,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               header: 'Description (Urdu)',
               size: 200,
               enableSorting: !editMode,
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }: { row: { original: InventoryItem } }) => {
                 if (!editMode) {
                   const value = row.original.descriptionUrdu?.trim();
@@ -993,7 +992,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               header: 'Type',
               size: 92,
               enableSorting: !editMode,
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => {
                 const typeId = row.original.itemTypeId ?? 0;
                 const hasOrphanType =
@@ -1039,7 +1038,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         header: 'Price',
         size: 100,
         enableSorting: !editMode,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => {
           if (!editMode) {
             return <span className="tabular-nums">{row.original.price}</span>;
@@ -1069,7 +1068,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             getRowListPrice(item, list.id),
           ),
           accessorFn: (item) => getRowListPrice(item, list.id) ?? undefined,
-          // eslint-disable-next-line react/no-unstable-nested-components
+
           cell: ({ row }) => {
             const stored = getRowListPrice(row.original, list.id);
             if (!editMode) {
@@ -1104,7 +1103,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         enableSorting: !editMode,
         sortingFn: createAttributeSortingFn(def),
         accessorFn: (item) => formatAttributeValue(item.attributes?.[def.key]),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => {
           const text = formatAttributeValue(row.original.attributes?.[def.key]);
           return text ? (
@@ -1119,7 +1118,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         header: 'Quantity',
         size: 100,
         enableSorting: !editMode,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => {
           const hasHistory = itemsWithHistory.includes(row.original.id);
 
@@ -1160,13 +1159,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               cardAlwaysShow: true,
               size: 220,
               enableSorting: false,
-              // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
+
               cell: ({
                 row,
                 column,
               }: {
                 row: { original: InventoryItem };
-                // eslint-disable-next-line react/no-unused-prop-types
+
                 column: { getSize: () => number };
               }) =>
                 row.original.title ? (
@@ -1193,7 +1192,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               enableSorting: false,
               headerTooltip:
                 'Filter by publish state using the Filters button.',
-              // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
+
               cell: ({ row }: { row: { original: InventoryItem } }) => (
                 <PublishStatusBadge itemId={row.original.id} />
               ),
@@ -1208,7 +1207,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         cardActions: true,
         // On a card there is room for one control, so the item's
         // actions sit behind a single ⋮ at the end of the name.
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cardMenu: ({ row }) => (
           <EditInventoryItem
             variant="menu"
@@ -1220,7 +1219,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             inventoryItems={inventory ?? []}
           />
         ),
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           // -ml-2 cancels the icon buttons' internal padding so the first
           // glyph lines up with the "Actions" header text rather than sitting

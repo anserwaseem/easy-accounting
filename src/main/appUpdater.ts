@@ -70,7 +70,6 @@ export class AppUpdater {
 
       // if user was actively downloading an update and it failed, notify them
       if (this.isDownloading) {
-        // eslint-disable-next-line promise/no-promise-in-callback
         dialog
           .showMessageBox(this.mainWindow, {
             type: 'error',
@@ -91,7 +90,6 @@ export class AppUpdater {
 
       // if check was explicitly triggered by the user via menu, notify them
       if (hadManualCheck) {
-        // eslint-disable-next-line promise/no-promise-in-callback
         dialog
           .showMessageBox(this.mainWindow, {
             type: 'error',

@@ -206,7 +206,7 @@ export const ImportVendorOpeningStock: React.FC<
                     <tbody>
                       {previewRows.slice(0, 50).map((row, index) => (
                         // preview rows have no stable id; index is fine for ephemeral list
-                        // eslint-disable-next-line react/no-array-index-key
+
                         <tr key={`${row.name}-${index}`} className="border-t">
                           <td className="px-2 py-1">
                             {row.vendorCode || row.vendorName}

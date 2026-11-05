@@ -131,7 +131,7 @@ const createQuotationActionsColumn = (
   cardActions: true,
   // On a card there is room for one control, so both actions sit
   // behind a single ⋮ at the end of the name.
-  // eslint-disable-next-line react/no-unstable-nested-components
+
   cardMenu: ({ row }) => (
     <QuotationRowMenu row={row} invoiceType={invoiceType} navigate={navigate} />
   ),
@@ -199,7 +199,6 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
     () =>
       isMini
         ? [
-            /* eslint-disable react/no-unstable-nested-components -- tanstack column cell factories */
             {
               accessorKey: 'invoiceNumber',
               header: `${listTitle}`,
@@ -258,10 +257,8 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               },
               onClick: (r) => navigateToRow(r.original.id),
             },
-            /* eslint-enable react/no-unstable-nested-components */
           ]
         : [
-            /* eslint-disable react/no-unstable-nested-components -- tanstack column cell factories */
             {
               accessorKey: 'invoiceNumber',
               header: () => (
@@ -298,7 +295,7 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               accessorKey: 'date',
               header: 'Date',
               cardMeta: true,
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => <DateCell value={row.original.date} />,
               onClick: (r) => navigateToRow(r.original.id),
               size: 110,
@@ -343,7 +340,6 @@ const QuotationsPage: FC<QuotationsPageProps> = ({
               size: 150,
             },
             createQuotationActionsColumn(invoiceType, navigate),
-            /* eslint-enable react/no-unstable-nested-components */
           ],
     [invoiceType, isMini, listTitle, navigate, navigateToRow, partyLabel],
   );

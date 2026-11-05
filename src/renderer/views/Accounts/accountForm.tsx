@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { AlertTriangle, Pencil } from 'lucide-react';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, useWatch, type Control } from 'react-hook-form';
+import { Resolver, useForm, useWatch, type Control } from 'react-hook-form';
 import { Input } from 'renderer/shad/ui/input';
 import { Button } from 'renderer/shad/ui/button';
 import {
@@ -146,7 +146,9 @@ export const AccountForm: React.FC<AccountFormProps> = ({
   submitLabel = 'Submit',
 }: AccountFormProps) => {
   const form = useForm<AccountFormData>({
-    resolver: zodResolver(accountFormSchema),
+    resolver: zodResolver(
+      accountFormSchema,
+    ) as unknown as Resolver<AccountFormData>,
     defaultValues: { ...defaultValues, ...initialValues },
   });
 

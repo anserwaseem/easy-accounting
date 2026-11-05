@@ -96,7 +96,6 @@ const InventoryBulkEditCellComponent = ({
       <Input
         type="text"
         inputMode={
-          // eslint-disable-next-line no-nested-ternary
           col === 'price' || col.startsWith('list:')
             ? 'decimal'
             : textCol

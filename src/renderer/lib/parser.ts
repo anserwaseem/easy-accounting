@@ -84,7 +84,7 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
   validateSectionsExistence(rawAccounts);
 
   const transformedAccounts = transformAccounts(rawAccounts);
-  // eslint-disable-next-line no-console
+
   console.table(transformedAccounts);
 
   parseAccounts(transformedAccounts);
@@ -114,7 +114,6 @@ export const parseBalanceSheet = (obj: unknown): BalanceSheet => {
       if (index === 2) {
         const dateMatch =
           last(titleString.split(' '))?.match(
-            // eslint-disable-next-line no-useless-escape
             /^(0[1-9]|1[0-2]|3[0-1]|[1-9])[-\/.](0[1-9]|1[0-2]|[1-9])[-\/.](\d{4})$/,
           ) ??
           raise(

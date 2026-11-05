@@ -118,7 +118,6 @@ describe('bootstrapDatabase', () => {
         phone2: null,
         goodsName: null,
         discountProfileId: null,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
     ).toBe(true);
 

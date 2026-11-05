@@ -22,7 +22,7 @@ import {
 } from 'renderer/lib/utils';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { Resolver, useFieldArray, useForm } from 'react-hook-form';
 import {
   Form,
   FormControl,
@@ -104,7 +104,9 @@ const NewJournalPage: React.FC = () => {
   const [journal, setJournal] = useState<Journal>(defaultFormValues);
 
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as unknown as Resolver<
+      z.infer<typeof formSchema>
+    >,
     defaultValues: defaultFormValues,
     values: journal,
   });
@@ -349,14 +351,14 @@ const NewJournalPage: React.FC = () => {
       {
         header: 'Account',
         size: 420,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <AccountCell form={form} rowIndex={row.index} accounts={accounts} />
         ),
       },
       {
         header: 'Debit',
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <DebitCell
             form={form}
@@ -371,7 +373,7 @@ const NewJournalPage: React.FC = () => {
       {
         header: 'Credit',
         size: 160,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <CreditCell
             form={form}
@@ -387,7 +389,7 @@ const NewJournalPage: React.FC = () => {
         id: 'remove',
         header: 'Action',
         size: 100,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => (
           <div className="flex items-center gap-1">
             {/* These were bare 16px icons with no padding — a ~16×16px
@@ -611,7 +613,6 @@ const NewJournalPage: React.FC = () => {
       }
       raise('Failed to save journal');
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error(error);
       toast({
         description: toString(error),
@@ -621,7 +622,6 @@ const NewJournalPage: React.FC = () => {
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    // eslint-disable-next-line no-console
     console.log('onSubmit journal:', values);
 
     const numberOfCredits = values.journalEntries.filter(

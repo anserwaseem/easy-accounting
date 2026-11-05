@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { DefaultValues, useForm, type Path } from 'react-hook-form';
+import { DefaultValues, Resolver, useForm, type Path } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type {
   InsertInventoryItem,
@@ -59,7 +59,7 @@ export const InventoryForm = <
   children,
 }: InventoryFormProps<T>) => {
   const form = useForm<T>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as unknown as Resolver<T>,
     defaultValues: defaultValues as DefaultValues<T>,
   });
 

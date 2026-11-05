@@ -84,7 +84,6 @@ describe('SyncEngine convergence', () => {
         journalEntries: [
           { accountId: cash, debitAmount: 250, creditAmount: 0 },
           { accountId: sale, debitAmount: 0, creditAmount: 250 },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),
     );
@@ -180,7 +179,6 @@ describe('SyncEngine convergence', () => {
       name: 'Cash In Hand',
       headName: 'Current Asset',
       ...defaultAccountFields,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
 
     // Delete: Spare has no journal entries, so it's deletable.
@@ -379,7 +377,6 @@ describe('SyncEngine convergence', () => {
         journalEntries: [
           { accountId: cash, debitAmount: 400, creditAmount: 0 },
           { accountId: sale, debitAmount: 0, creditAmount: 400 },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),
     );
@@ -647,7 +644,6 @@ describe('SyncEngine convergence', () => {
     // log's tail and get "pulled" straight back only to be echo-suppressed).
     const tailSize = 50;
     for (let i = 0; i < tailSize; i += 1) {
-      // eslint-disable-next-line no-await-in-loop
       await insertAccount(a, `Tail${i}`, 'Current Asset');
     }
 
@@ -725,17 +721,17 @@ describe('SyncEngine convergence', () => {
     for (let i = 0; i < 16; i += 1) {
       if (i % 2 === 0) {
         const name = `AcctA${i}`;
-        // eslint-disable-next-line no-await-in-loop
+
         await insertAccount(a, name, 'Current Asset');
-        // eslint-disable-next-line no-await-in-loop
+
         await a.engine.syncOnce();
         accountNames.push(name);
         aAccountCount += 1;
       } else {
         const name = `AcctB${i}`;
-        // eslint-disable-next-line no-await-in-loop
+
         await insertAccount(b, name, 'Current Asset');
-        // eslint-disable-next-line no-await-in-loop
+
         await bEngine.syncOnce();
         accountNames.push(name);
       }
@@ -748,12 +744,11 @@ describe('SyncEngine convergence', () => {
 
     await assertTableConverged(a, b, 'account');
     for (const name of accountNames) {
-      // eslint-disable-next-line no-await-in-loop
       const onA = await a.driver.get<{ c: number }>(
         `SELECT COUNT(*) AS c FROM account WHERE name = @name`,
         { name },
       );
-      // eslint-disable-next-line no-await-in-loop
+
       const onB = await b.driver.get<{ c: number }>(
         `SELECT COUNT(*) AS c FROM account WHERE name = @name`,
         { name },
@@ -945,7 +940,6 @@ describe('SyncEngine convergence', () => {
         journalEntries: [
           { accountId: cash, debitAmount: 500, creditAmount: 0 },
           { accountId: sale, debitAmount: 0, creditAmount: 500 },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),
     );
@@ -974,7 +968,6 @@ describe('SyncEngine convergence', () => {
       name: 'Cash In Hand',
       headName: 'Current Asset',
       ...defaultAccountFields,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
     await a.engine.syncOnce();
     await b.engine.syncOnce();
@@ -1138,7 +1131,6 @@ describe('SyncEngine convergence', () => {
         journalEntries: [
           { accountId: cash, debitAmount: 200, creditAmount: 0 },
           { accountId: saleAccountId, debitAmount: 0, creditAmount: 200 },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),
     );
@@ -1176,9 +1168,7 @@ describe('SyncEngine convergence', () => {
             price: 50,
             discountedPrice: 150,
           },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     );
 
@@ -1448,7 +1438,7 @@ describe('SyncEngine convergence', () => {
     const transportPeer = server.createDeviceTransport('peer');
     for (const gen of [1, 2] as const) {
       const placeholderUserUuid = `peer-placeholder-gen${gen}-user`;
-      // eslint-disable-next-line no-await-in-loop
+
       await transportPeer.push([
         {
           idempotencyKey: `peer-gen${gen}-user`,
@@ -1659,7 +1649,6 @@ describe('SyncEngine convergence', () => {
         journalEntries: [
           { accountId: cash, debitAmount: 300, creditAmount: 0 },
           { accountId: sale, debitAmount: 0, creditAmount: 300 },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),
     );
@@ -1796,7 +1785,6 @@ describe('SyncEngine convergence', () => {
         journalEntries: [
           { accountId: cash, debitAmount: 500, creditAmount: 0 },
           { accountId: sale, debitAmount: 0, creditAmount: 500 },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),
     );

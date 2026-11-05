@@ -76,7 +76,6 @@ async function insertAccount(
     phone2: null,
     goodsName: null,
     discountProfileId: null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
   const row = db.prepare(`SELECT id FROM account WHERE name = ?`).get(name) as {
     id: number;
@@ -98,7 +97,6 @@ const aLedgerEntry = (
     particulars: 'Opening balance',
     linkedAccountId: null,
     ...overrides,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any;
 
 /**
@@ -248,7 +246,7 @@ describe('core LedgerService — canonical reads (ledger_view, CORE 032)', () =>
 
     const rows = await ledger.getLedger(customerA);
     expect(rows.map((r) => r.date)).toEqual(['2025-01-01', '2025-01-02']);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     expect((rows[0] as any).linkedAccountName).toBe('Payable');
     expect(rows[0].balance).toBe(30);
     expect(rows[1].balance).toBe(80);

@@ -96,7 +96,7 @@ export const LedgerTableBase: React.FC<LedgerTableBaseProps> = ({
       {
         accessorKey: 'date',
         header: ledgerReportLabels(language).date,
-        // eslint-disable-next-line react/no-unstable-nested-components
+
         cell: ({ row }) => <DateCell value={row.original.date} />,
         size: 110,
         // the date and the narration used to be hidden on a narrow

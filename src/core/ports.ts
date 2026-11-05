@@ -25,14 +25,12 @@ export interface KeyValueStore {
   delete(key: string): void;
 }
 
-/* eslint-disable no-console */
 export const consoleLogger: CoreLogger = {
   info: (...args) => console.log(...args),
   warn: (...args) => console.warn(...args),
   error: (...args) => console.error(...args),
   debug: (...args) => console.debug(...args),
 };
-/* eslint-enable no-console */
 
 let coreLogger: CoreLogger = consoleLogger;
 

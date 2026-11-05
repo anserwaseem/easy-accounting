@@ -1,3 +1,4 @@
+/* global RequestInit */
 import { isNetworkFetchError } from './networkError';
 
 const DEFAULT_ATTEMPTS = 4;
@@ -41,13 +42,12 @@ export async function fetchWithRetry(
   let lastError: unknown;
   for (let i = 0; i < attempts; i += 1) {
     try {
-      // eslint-disable-next-line no-await-in-loop
       return await fetchWithTimeout(fetchImpl, input, init, timeoutMs);
     } catch (error) {
       lastError = error;
       const retry = i < attempts - 1 && isNetworkFetchError(error);
       if (!retry) throw error;
-      // eslint-disable-next-line no-await-in-loop
+
       await sleep(baseDelayMs * 2 ** i);
     }
   }

@@ -200,7 +200,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               accessorKey: 'date',
               header: 'Journals',
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => (
                 <div className="flex justify-between items-start w-full">
                   <div className="flex flex-col min-w-0">
@@ -231,7 +231,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
               header: 'Date',
               cardMeta: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => <DateCell value={row.original.date} />,
               // Was 40px, which is narrower than the "03 Feb, 2026" the
               // cell renders — the text overflowed into Narration.
@@ -242,7 +242,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
               header: 'Narration',
               cardHeadline: true,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => (
                 <JournalUuidHint uuid={row.original.uuid}>
                   <span>
@@ -277,7 +277,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               accessorKey: 'amount',
               header: 'Amount',
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ getValue }) => (
                 <span className="tabular">
                   {getFormattedCurrency(toNumber(getValue()))}
@@ -290,7 +290,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
             {
               accessorKey: 'createdAt',
               header: 'Created At',
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => <DateCell value={row.original.createdAt} />,
               onClick: (row) => navigate(`/journals/${row.original.id}`),
               size: 120,
@@ -303,7 +303,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
               cardActions: true,
               // On a card there is room for one control, so the three
               // actions sit behind a single ⋮ at the end of the name.
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cardMenu: ({ row }) => (
                 <JournalRowMenu
                   row={row}
@@ -312,7 +312,7 @@ const JournalsPage: React.FC<HasMiniView> = ({
                 />
               ),
               enableSorting: false,
-              // eslint-disable-next-line react/no-unstable-nested-components
+
               cell: ({ row }) => (
                 <div className="-ml-2 flex items-center gap-0.5 whitespace-nowrap">
                   <AdvancedControl

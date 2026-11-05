@@ -78,7 +78,7 @@ export class MigrationRunner {
     return this.db
       .prepare('SELECT name FROM migrations ORDER BY id')
       .all()
-      .map((row: any) => String(row.name));
+      .map((row: unknown) => String((row as { name: unknown }).name));
   }
 
   private async getMigrationFiles(): Promise<Migration[]> {

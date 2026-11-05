@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toNumber } from 'lodash';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Resolver, useForm } from 'react-hook-form';
 import { DEFAULT_INVOICE_NUMBER } from 'renderer/lib/constants';
 import { Button } from 'renderer/shad/ui/button';
 import {
@@ -47,7 +47,9 @@ export const AddInvoiceNumber: React.FC<AddInvoiceNumberProps> = ({
   };
 
   const createForm = useForm<z.infer<typeof addFormSchema>>({
-    resolver: zodResolver(addFormSchema),
+    resolver: zodResolver(addFormSchema) as unknown as Resolver<
+      z.infer<typeof addFormSchema>
+    >,
     defaultValues: defaultCreateValues,
   });
 

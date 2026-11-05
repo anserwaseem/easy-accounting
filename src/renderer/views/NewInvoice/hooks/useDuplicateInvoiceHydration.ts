@@ -98,7 +98,6 @@ export const useDuplicateInvoiceHydration = ({
         } — items repriced at current prices. Review and save.`,
       });
     })().catch((error) => {
-      // eslint-disable-next-line no-console
       console.error('Error duplicating invoice', error);
       toast({
         variant: 'destructive',

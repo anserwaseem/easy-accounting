@@ -229,7 +229,7 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
     for (let rowIndex = 0; rowIndex < items.length; rowIndex += 1) {
       const rowId = items[rowIndex].id;
       if (isDiscountEditEnabled && manualDiscountRows[rowId]) continue;
-      // eslint-disable-next-line no-await-in-loop
+
       await applyAutoDiscountForRow(rowIndex);
     }
   }, [
@@ -265,7 +265,9 @@ export function useNewInvoiceDiscounts(params: UseNewInvoiceDiscountsParams): {
           lineHasNetPrice(
             typeof form.getValues(`invoiceItems.${rowIndex}.netPrice`) ===
               'number'
-              ? (form.getValues(`invoiceItems.${rowIndex}.netPrice`) as number)
+              ? (form.getValues(
+                  `invoiceItems.${rowIndex}.netPrice`,
+                ) as unknown as number)
               : null,
           )
         ) {
