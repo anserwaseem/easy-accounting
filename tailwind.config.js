@@ -37,7 +37,7 @@ const readContentFiles = (root, includeFile) => {
 
 const contentGlobs = [
   fromRoot('src/renderer/**/*.tsx'),
-  fromRoot('src/renderer/**/print*.ts'),
+  fromRoot('src/renderer/lib/invoicePrint/urduFont.ts'),
   fromRoot('apps/web/src/**/*.tsx'),
   `!${fromRoot('**/__tests__/**')}`,
   `!${fromRoot('**/*.test.*')}`,
@@ -53,6 +53,11 @@ module.exports = {
   },
   darkMode: ['class'],
   // production reads the UI sources sequentially to stay within build-container fd limits.
+  safelist: [
+    "font-['Jameel_Noori_Nastaleeq',serif]",
+    "font-['Noto_Nastaliq_Urdu',serif]",
+    "font-['Jameel_Noori_Nastaleeq','Noto_Nastaliq_Urdu',serif]",
+  ],
   content:
     process.env.NODE_ENV === 'production'
       ? [
@@ -63,8 +68,8 @@ module.exports = {
                 (file) => file.endsWith('.tsx'),
               ),
               readContentFiles(
-                path.resolve(__dirname, 'src/renderer'),
-                (file) => /^print.*\.ts$/.test(file),
+                path.resolve(__dirname, 'src/renderer/lib/invoicePrint'),
+                (file) => file === 'urduFont.ts',
               ),
               readContentFiles(
                 path.resolve(__dirname, 'apps/web/src'),
