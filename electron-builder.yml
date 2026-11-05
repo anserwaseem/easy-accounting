@@ -4,6 +4,9 @@ artifactName: ${name}-${version}-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
   - '**/*.{node,dll}'
+# better-sqlite3 v13 ships N-API prebuilds for each supported target platform/architecture.
+# rebuilding from this host would fail for Windows targets and is unnecessary.
+npmRebuild: false
 files:
   - dist
   - node_modules
@@ -38,7 +41,6 @@ win:
     - target: nsis
       arch:
         - x64
-        - ia32
 nsis:
   artifactName: ${name}-setup-${version}-win.${ext}
 directories:
