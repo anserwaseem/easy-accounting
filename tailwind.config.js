@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 
 /**
  * Content globs are resolved as absolute paths (via `__dirname`) rather than
@@ -12,6 +13,37 @@ const path = require('path');
  */
 const fromRoot = (glob) => path.join(__dirname, glob);
 
+const readContentFiles = (root, includeFile) => {
+  const contents = [];
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (entry.name !== '__tests__') {
+          visit(path.join(directory, entry.name));
+        }
+      } else if (
+        includeFile(entry.name) &&
+        !/\.(test|spec)\.[^.]+$/.test(entry.name)
+      ) {
+        contents.push(
+          fs.readFileSync(path.join(directory, entry.name), 'utf8'),
+        );
+      }
+    }
+  };
+  visit(root);
+  return contents.join('\n');
+};
+
+const contentGlobs = [
+  fromRoot('src/renderer/**/*.tsx'),
+  fromRoot('src/renderer/**/print*.ts'),
+  fromRoot('apps/web/src/**/*.tsx'),
+  `!${fromRoot('**/__tests__/**')}`,
+  `!${fromRoot('**/*.test.*')}`,
+  `!${fromRoot('**/*.spec.*')}`,
+];
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   future: {
@@ -20,15 +52,29 @@ module.exports = {
     hoverOnlyWhenSupported: true,
   },
   darkMode: ['class'],
-  content: [
-    fromRoot('components/**/*.{ts,tsx}'),
-    fromRoot('components/*.{ts,tsx}'),
-    fromRoot('src/renderer/**/*.{ts,tsx}'),
-    fromRoot('src/renderer/**/**/*.{ts,tsx}'),
-    // apps/web's own entry/shim files (main.tsx, electronShim.ts, App.tsx)
-    // — the browser mount point for the renderer above.
-    fromRoot('apps/web/src/**/*.{ts,tsx}'),
-  ],
+  // production reads the UI sources sequentially to stay within build-container fd limits.
+  content:
+    process.env.NODE_ENV === 'production'
+      ? [
+          {
+            raw: [
+              readContentFiles(
+                path.resolve(__dirname, 'src/renderer'),
+                (file) => file.endsWith('.tsx'),
+              ),
+              readContentFiles(
+                path.resolve(__dirname, 'src/renderer'),
+                (file) => /^print.*\.ts$/.test(file),
+              ),
+              readContentFiles(
+                path.resolve(__dirname, 'apps/web/src'),
+                (file) => file.endsWith('.tsx'),
+              ),
+            ].join('\n'),
+            extension: 'tsx',
+          },
+        ]
+      : contentGlobs,
   theme: {
     container: {
       center: true,

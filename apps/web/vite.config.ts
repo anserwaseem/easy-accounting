@@ -113,6 +113,10 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
+    rollupOptions: {
+      // rollup defaults to 1000 concurrent file operations, above Cloudflare's build limit.
+      maxParallelFileOps: 8,
+    },
   },
   plugins: [
     react(),
