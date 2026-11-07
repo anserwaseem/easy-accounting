@@ -25,6 +25,7 @@ export const useInvoiceDateValidation = ({
   formSchema,
   isSaleReturn = false,
 }: UseInvoiceDateValidationParams) => {
+  void formSchema;
   const validateInvoiceDateAgainstParties = async (
     values: z.infer<typeof formSchema>,
   ): Promise<string | null> => {

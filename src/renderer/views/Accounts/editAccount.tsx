@@ -129,7 +129,8 @@ export const EditAccount: React.FC<EditAccountProps> = ({
 
   const handleCreateCopy = () => {
     const formData = mapRowToFormData(row.original);
-    const { id, ...copyData } = formData;
+    const { id: _id, ...copyData } = formData;
+    void _id;
     setAccountToCopy(copyData);
     setIsOpen(false);
   };

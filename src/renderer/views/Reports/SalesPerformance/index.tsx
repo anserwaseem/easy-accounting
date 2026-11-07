@@ -610,7 +610,7 @@ const SalesPerformanceReportPage: React.FC = () => {
         description: 'Exported to Excel.',
         variant: 'success',
       });
-    } catch (error) {
+    } catch {
       toast({
         title: 'Error',
         description: 'Failed to export.',
