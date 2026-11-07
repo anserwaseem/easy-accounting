@@ -64,7 +64,7 @@ export const AddInvoiceNumber: React.FC<AddInvoiceNumberProps> = ({
         }`,
         variant: 'success',
       });
-    } catch (error) {
+    } catch {
       toast({
         description: `Failed to set starting invoice number of ${invoiceType.toLowerCase()}`,
         variant: 'destructive',
