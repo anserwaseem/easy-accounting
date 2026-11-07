@@ -137,7 +137,17 @@ export const convertFileToJson = async (
 ): Promise<unknown[]> => {
   const validFile = file ?? raise('No file provided');
 
-  const data = await validFile.arrayBuffer();
+  let data: ArrayBuffer;
+  if (typeof validFile.arrayBuffer === 'function') {
+    data = await validFile.arrayBuffer();
+  } else {
+    data = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(validFile);
+    });
+  }
   const isCsv = validFile.name.toLowerCase().endsWith('.csv');
   const preferDisplayText = options?.preferDisplayText === true;
 

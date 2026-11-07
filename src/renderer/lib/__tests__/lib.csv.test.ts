@@ -1,4 +1,4 @@
-import { parseCsvToAoa } from '@/renderer/lib/lib';
+import { parseCsvToAoa , convertFileToJson } from '@/renderer/lib/lib';
 
 describe('parseCsvToAoa', () => {
   it('parses basic csv', () => {
@@ -51,5 +51,19 @@ describe('parseCsvToAoa', () => {
   it('preserves quoted whitespace', () => {
     const out = parseCsvToAoa('" spaced ",2\n');
     expect(out).toEqual([[' spaced ', 2]]);
+  });
+});
+
+
+describe('convertFileToJson (csv)', () => {
+  it('reads CSV through File path', async () => {
+    const file = new File(['a,b\n"00123",2\n'], 't.csv', {
+      type: 'text/csv',
+    });
+    const out = await convertFileToJson(file);
+    expect(out).toEqual([
+      ['a', 'b'],
+      ['00123', 2],
+    ]);
   });
 });
