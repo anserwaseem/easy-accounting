@@ -20,7 +20,7 @@
     "patch": "npm version patch --no-git-tag-version"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3"
+    "better-sqlite3": "^13.2.0"
   },
   "overrides": {
     "tar-fs": "2.1.5"
