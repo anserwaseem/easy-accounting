@@ -12,6 +12,11 @@ import { Button } from '@/renderer/shad/ui/button';
 import { Checkbox } from '@/renderer/shad/ui/checkbox';
 import { ChevronDown, X } from 'lucide-react';
 import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
+import {
+  clusterAccountsByFamily,
+  optionsLookLikeAccounts,
+} from '@/renderer/lib/accountFamilySort';
+import { useItemTypeNamesForFamilyCluster } from '@/renderer/hooks/useItemTypeNamesForFamilyCluster';
 import type { Account } from 'types';
 
 type BaseOption = {
@@ -54,6 +59,15 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
   const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
+  const itemTypeNames = useItemTypeNamesForFamilyCluster();
+
+  // cluster tiered account families so search matches stay contiguous
+  const orderedOptions = useMemo(() => {
+    if (!optionsLookLikeAccounts(options)) {
+      return options;
+    }
+    return clusterAccountsByFamily(options, itemTypeNames);
+  }, [options, itemTypeNames]);
 
   // Focus the search field when the popover opens. Radix focuses the
   // trigger after its own auto-focus runs, so this has to win the race:
@@ -129,17 +143,17 @@ const VirtualMultiSelect = <T extends BaseOption = Account>({
   );
 
   const filteredOptions = useMemo(() => {
-    if (!filteredSearchValue) return options;
+    if (!filteredSearchValue) return orderedOptions;
 
-    // match word by word, so multi-word queries hit regardless of order or extra spacing
+    // match word by word; filter preserves clustered order from orderedOptions
     const searchTerms = getSearchTerms(filteredSearchValue);
-    return options.filter((opt) =>
+    return orderedOptions.filter((opt) =>
       matchesSearchTerms(
         searchFields.map((field) => opt[field]),
         searchTerms,
       ),
     );
-  }, [filteredSearchValue, options, searchFields]);
+  }, [filteredSearchValue, orderedOptions, searchFields]);
 
   const defaultRenderSelectItem = useCallback(
     (item: T) => (

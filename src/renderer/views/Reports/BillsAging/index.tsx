@@ -47,7 +47,13 @@ import VirtualMultiSelect from 'renderer/components/VirtualMultiSelect';
 import {
   buildPartyTypingContext,
   getHeaderTypedSuffixFromCode,
+  isTypedPartyAccount,
 } from 'renderer/views/NewInvoice/lib/partyAccountTyping';
+import {
+  clusterAccountsByFamily,
+  sortAccountFamiliesByLabel,
+  sortAccountsKeepingFamiliesTogether,
+} from '@/renderer/lib/accountFamilySort';
 import { formatDisplayDate } from '@/lib/displayDate';
 import { ReportColumnsMenu } from '@/renderer/components/ReportColumnsMenu';
 import { useReportColumnVisibility } from '@/renderer/hooks/useReportColumnVisibility';
@@ -406,28 +412,46 @@ const BillsAgingPage = () => {
         .filter((acc) => acc.bills.length > 0);
     }
 
-    // sort visible accounts
-    return [...filtered].sort((a, b) => {
-      if (sortBy === 'due_desc') {
-        const dueA = a.totalOutstanding - (a.totalUnallocated || 0);
-        const dueB = b.totalOutstanding - (b.totalUnallocated || 0);
-        if (dueB !== dueA) return dueB - dueA;
-      } else if (sortBy === 'due_asc') {
-        const dueA = a.totalOutstanding - (a.totalUnallocated || 0);
-        const dueB = b.totalOutstanding - (b.totalUnallocated || 0);
-        if (dueA !== dueB) return dueA - dueB;
-      } else if (sortBy === 'overdue_desc') {
-        const getMaxDays = (acc: typeof a) => {
+    // sort visible accounts — keep tiered families contiguous under every mode
+    const itemTypeNames = itemTypes.map((t) => t.name);
+    const withNameCode = filtered.map((acc) => ({
+      ...acc,
+      name: acc.accountName,
+      code: acc.accountCode,
+    }));
+
+    if (sortBy === 'due_desc' || sortBy === 'due_asc') {
+      return sortAccountsKeepingFamiliesTogether(
+        withNameCode,
+        itemTypeNames,
+        (acc) => acc.totalOutstanding - (acc.totalUnallocated || 0),
+        {
+          familyMetric: sortBy === 'due_desc' ? 'max' : 'min',
+          direction: sortBy === 'due_desc' ? 'desc' : 'asc',
+        },
+      );
+    }
+
+    if (sortBy === 'overdue_desc') {
+      return sortAccountsKeepingFamiliesTogether(
+        withNameCode,
+        itemTypeNames,
+        (acc) => {
           const unpaid = acc.bills.filter(
             (bill) => !bill.daysStatus.isFullyPaid,
           );
           if (unpaid.length === 0) return 0;
           return Math.max(...unpaid.map((bill) => bill.daysStatus.days));
-        };
-        const daysDiff = getMaxDays(b) - getMaxDays(a);
-        if (daysDiff !== 0) return daysDiff;
-      } else if (sortBy === 'discount_desc') {
-        const getMaxDiscount = (acc: typeof a) => {
+        },
+        { familyMetric: 'max', direction: 'desc' },
+      );
+    }
+
+    if (sortBy === 'discount_desc') {
+      return sortAccountsKeepingFamiliesTogether(
+        withNameCode,
+        itemTypeNames,
+        (acc) => {
           if (acc.bills.length === 0) return 0;
           return Math.max(
             ...acc.bills.map(
@@ -435,26 +459,27 @@ const BillsAgingPage = () => {
                 profilePercentFromJournalLabel(bill.billPercentage) ?? 0,
             ),
           );
-        };
-        const discDiff = getMaxDiscount(b) - getMaxDiscount(a);
-        if (discDiff !== 0) return discDiff;
-      } else if (sortBy === 'name_asc') {
-        const nameA = a.accountName?.toString()?.trim() || '';
-        const nameB = b.accountName?.toString()?.trim() || '';
-        const nameDiff = nameA.localeCompare(nameB, undefined, {
-          sensitivity: 'base',
-        });
-        if (nameDiff !== 0) return nameDiff;
-      }
+        },
+        { familyMetric: 'max', direction: 'desc' },
+      );
+    }
 
-      // default or fallback: sort by account code
-      const codeA = a.accountCode?.toString()?.trim() || '';
-      const codeB = b.accountCode?.toString()?.trim() || '';
-      return codeA.localeCompare(codeB, undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
-    });
+    if (sortBy === 'name_asc') {
+      return sortAccountFamiliesByLabel(
+        withNameCode,
+        itemTypeNames,
+        (members) => {
+          const base = members.find(
+            (member) => !isTypedPartyAccount(member, typingContext),
+          );
+          return (base ?? members[0])?.accountName?.toString()?.trim() || '';
+        },
+        'asc',
+      );
+    }
+
+    // default / code: base then tiers by account code
+    return clusterAccountsByFamily(withNameCode, itemTypeNames);
   }, [
     billsAging.accounts,
     selectedCustomerIds,
@@ -465,6 +490,8 @@ const BillsAgingPage = () => {
     discountPreset,
     discountFilterFn,
     sortBy,
+    itemTypes,
+    typingContext,
   ]);
 
   const billsAgingColumnSpecs = useMemo(
