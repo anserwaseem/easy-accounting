@@ -16,6 +16,11 @@ import {
   PopoverTrigger,
 } from '@/renderer/shad/ui/popover';
 import { cn, getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
+import {
+  clusterAccountsByFamily,
+  optionsLookLikeAccounts,
+} from '@/renderer/lib/accountFamilySort';
+import { useItemTypeNamesForFamilyCluster } from '@/renderer/hooks/useItemTypeNamesForFamilyCluster';
 import type { Account } from 'types';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -148,6 +153,16 @@ const VirtualSelect = <T extends BaseOption = Account>({
   const prevIsOpenForKeyboardRef = useRef(false);
   const prevFilteredSearchForKeyboardRef = useRef(filteredSearchValue);
   const firstSelectableRowIndexRef = useRef(0);
+  const itemTypeNames = useItemTypeNamesForFamilyCluster();
+
+  // cluster tiered account families (base, -T, -TT) so search/list stay contiguous.
+  // skip when groupBy is set (inventory sections) or options have no codes.
+  const orderedOptions = useMemo(() => {
+    if (groupBy || !optionsLookLikeAccounts(options)) {
+      return options;
+    }
+    return clusterAccountsByFamily(options, itemTypeNames);
+  }, [options, itemTypeNames, groupBy]);
   /** radix may fire onCloseAutoFocus more than once; time window blocks all trigger refocus after a value pick */
   const suppressCloseFocusUntilRef = useRef(0);
 
@@ -216,16 +231,17 @@ const VirtualSelect = <T extends BaseOption = Account>({
   );
 
   const filteredOptions = useMemo(() => {
-    if (!filteredSearchValue) return options;
-    // match word by word, so multi-word queries hit regardless of order or extra spacing
+    if (!filteredSearchValue) return orderedOptions;
+    // match word by word, so multi-word queries hit regardless of order or extra spacing.
+    // filter preserves clustered order from orderedOptions.
     const searchTerms = getSearchTerms(filteredSearchValue);
-    return options.filter((opt) =>
+    return orderedOptions.filter((opt) =>
       matchesSearchTerms(
         searchFields.map((field) => opt[field]),
         searchTerms,
       ),
     );
-  }, [filteredSearchValue, options, searchFields]);
+  }, [filteredSearchValue, orderedOptions, searchFields]);
 
   const selectedOption = useMemo(
     () =>

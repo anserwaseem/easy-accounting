@@ -15,6 +15,8 @@ import {
 } from '@/renderer/shad/ui/command';
 import { Dialog, DialogContent, DialogTitle } from '@/renderer/shad/ui/dialog';
 import { getSearchTerms, matchesSearchTerms } from '@/renderer/lib/utils';
+import { clusterAccountsByFamily } from '@/renderer/lib/accountFamilySort';
+import { ensureItemTypeNamesLoaded } from '@/renderer/lib/itemTypeNamesCache';
 import { useCmdOrCtrlShortcut } from '@/renderer/hooks/useCmdOrCtrlShortcut';
 
 interface SearchAccount {
@@ -61,6 +63,7 @@ const loadGlobalSearchData = (): Promise<GlobalSearchData> => {
     window.electron.getInventory(),
     window.electron.getInvoices(InvoiceType.Sale),
     window.electron.getInvoices(InvoiceType.Purchase),
+    ensureItemTypeNamesLoaded(),
   ])
     .then(
       ([
@@ -68,31 +71,38 @@ const loadGlobalSearchData = (): Promise<GlobalSearchData> => {
         inventory,
         saleInvoices,
         purchaseInvoices,
-      ]): GlobalSearchData => ({
-        accounts: ((accounts as Account[]) ?? []).map((account) => ({
-          id: account.id,
-          name: account.name,
-          code: account.code,
-        })),
-        inventory: ((inventory as InventoryItem[]) ?? []).map((item) => ({
-          id: item.id,
-          name: item.name,
-        })),
-        invoices: [
-          ...((saleInvoices as InvoicesView[]) ?? []).map((row) => ({
-            id: row.id,
-            invoiceNumber: row.invoiceNumber,
-            accountName: row.accountName,
-            invoiceType: InvoiceType.Sale,
+        itemTypeNames,
+      ]): GlobalSearchData => {
+        const mappedAccounts = ((accounts as Account[]) ?? []).map(
+          (account) => ({
+            id: account.id,
+            name: account.name,
+            code: account.code,
+          }),
+        );
+        return {
+          // pre-cluster so filterCapped keeps family members adjacent under the cap
+          accounts: clusterAccountsByFamily(mappedAccounts, itemTypeNames),
+          inventory: ((inventory as InventoryItem[]) ?? []).map((item) => ({
+            id: item.id,
+            name: item.name,
           })),
-          ...((purchaseInvoices as InvoicesView[]) ?? []).map((row) => ({
-            id: row.id,
-            invoiceNumber: row.invoiceNumber,
-            accountName: row.accountName,
-            invoiceType: InvoiceType.Purchase,
-          })),
-        ],
-      }),
+          invoices: [
+            ...((saleInvoices as InvoicesView[]) ?? []).map((row) => ({
+              id: row.id,
+              invoiceNumber: row.invoiceNumber,
+              accountName: row.accountName,
+              invoiceType: InvoiceType.Sale,
+            })),
+            ...((purchaseInvoices as InvoicesView[]) ?? []).map((row) => ({
+              id: row.id,
+              invoiceNumber: row.invoiceNumber,
+              accountName: row.accountName,
+              invoiceType: InvoiceType.Purchase,
+            })),
+          ],
+        };
+      },
     )
     .catch((error) => {
       // don't cache a failure — the next open retries
@@ -201,12 +211,13 @@ const GlobalSearch: FC = () => {
 
   const results = useMemo(() => {
     const terms = getSearchTerms(query);
+    // accounts are pre-clustered in loadGlobalSearchData; filter all matches
+    // then slice so a contiguous family is not split by early-exit capping
+    const accountMatches = (data?.accounts ?? []).filter((account) =>
+      matchesSearchTerms([account.name, account.code], terms),
+    );
     return {
-      accounts: filterCapped(
-        data?.accounts ?? [],
-        (account) => [account.name, account.code],
-        terms,
-      ),
+      accounts: accountMatches.slice(0, MAX_RESULTS_PER_GROUP),
       inventory: filterCapped(
         data?.inventory ?? [],
         (item) => [item.name],
