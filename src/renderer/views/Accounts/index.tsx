@@ -25,6 +25,11 @@ import {
 } from 'types';
 import type { CellContext, Row } from '@tanstack/react-table';
 import { cn, defaultSortingFunctions } from 'renderer/lib/utils';
+import {
+  accountCodeSortingFn,
+  clusterAccountsByFamily,
+} from '@/renderer/lib/accountFamilySort';
+import { useItemTypeNamesForFamilyCluster } from '@/renderer/hooks/useItemTypeNamesForFamilyCluster';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
 import {
@@ -344,11 +349,9 @@ const AccountsPage: React.FC<AccountPageProps> = ({
         : (
             [
               {
-                // The list is sorted by id (see defaultSortField), but
-                // there was no column with that id — so the sort silently
-                // did nothing and TanStack logged an error on every
-                // render. This column carries the sort and is hidden from
-                // the table and the card.
+                // hidden id column kept for optional manual sort; default
+                // sort is by code (see defaultSortField) so tiered families
+                // stay contiguous.
                 id: 'id',
                 accessorKey: 'id',
                 header: () => null,
@@ -414,6 +417,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 cardMeta: true,
                 onClick: openAccount,
                 size: 100,
+                // TanStack default string sort is ASCII/case-sensitive, so
+                // MRD-Ahnaf and Mrd-Ahnaf-T land far apart. use base+numeric
+                // compare so tiered families stay contiguous.
+                sortingFn: accountCodeSortingFn,
               },
               {
                 id: 'city',
@@ -683,6 +690,8 @@ const AccountsPage: React.FC<AccountPageProps> = ({
     window.electron.store.set('showInactiveAccounts', showInactive);
   }, [showInactive]);
 
+  const itemTypeNames = useItemTypeNamesForFamilyCluster();
+
   const displayedAccounts = useMemo(() => {
     let filteredAccounts = accounts;
 
@@ -700,8 +709,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
       );
     }
 
-    return filteredAccounts;
-  }, [accounts, typeSelected, headSelected, showInactive]);
+    // default table sort is by code; pre-cluster so search results keep
+    // base + tier accounts contiguous even before TanStack re-sorts
+    return clusterAccountsByFamily(filteredAccounts, itemTypeNames);
+  }, [accounts, typeSelected, headSelected, showInactive, itemTypeNames]);
 
   return (
     <div>
@@ -863,7 +874,7 @@ const AccountsPage: React.FC<AccountPageProps> = ({
           columns={columns}
           data={displayedAccounts}
           state={{ columnVisibility: { id: false } }}
-          defaultSortField="id"
+          defaultSortField="code"
           sortingFns={defaultSortingFunctions}
           virtual
           virtualHeightMode={isMini ? 'content' : 'fill'}
