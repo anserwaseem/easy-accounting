@@ -1,4 +1,4 @@
-import { parseCsvToAoa , convertFileToJson } from '@/renderer/lib/lib';
+import { parseCsvToAoa, convertFileToJson } from '@/renderer/lib/lib';
 
 describe('parseCsvToAoa', () => {
   it('parses basic csv', () => {
@@ -53,7 +53,6 @@ describe('parseCsvToAoa', () => {
     expect(out).toEqual([[' spaced ', 2]]);
   });
 });
-
 
 describe('convertFileToJson (csv)', () => {
   it('reads CSV through File path', async () => {
