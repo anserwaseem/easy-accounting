@@ -25,7 +25,10 @@ import {
 } from 'types';
 import type { CellContext, Row } from '@tanstack/react-table';
 import { cn, defaultSortingFunctions } from 'renderer/lib/utils';
-import { clusterAccountsByFamily } from '@/renderer/lib/accountFamilySort';
+import {
+  accountCodeSortingFn,
+  clusterAccountsByFamily,
+} from '@/renderer/lib/accountFamilySort';
 import { useItemTypeNamesForFamilyCluster } from '@/renderer/hooks/useItemTypeNamesForFamilyCluster';
 import { AdvancedControl } from '@/renderer/components/AdvancedControl';
 import { ADVANCED_CAPABILITIES } from '@/core/advancedCapabilities';
@@ -414,6 +417,10 @@ const AccountsPage: React.FC<AccountPageProps> = ({
                 cardMeta: true,
                 onClick: openAccount,
                 size: 100,
+                // TanStack default string sort is ASCII/case-sensitive, so
+                // MRD-Ahnaf and Mrd-Ahnaf-T land far apart. use base+numeric
+                // compare so tiered families stay contiguous.
+                sortingFn: accountCodeSortingFn,
               },
               {
                 id: 'city',

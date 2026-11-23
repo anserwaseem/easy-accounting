@@ -14,6 +14,20 @@ export type AccountLikeForFamilySort = {
 export const compareAccountCode = (a: string, b: string): number =>
   a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 
+/**
+ * TanStack sortingFn for account `code` — case-insensitive + numeric (default ASCII sort does not).
+ */
+export const accountCodeSortingFn = <
+  T extends { code?: string | number | null },
+>(
+  rowA: { original: T },
+  rowB: { original: T },
+): number =>
+  compareAccountCode(
+    String(rowA.original.code ?? '').trim(),
+    String(rowB.original.code ?? '').trim(),
+  );
+
 /** base code for family grouping; typed tiers collapse to their parent code */
 export function getAccountFamilyBaseCode(
   account: AccountLikeForFamilySort,

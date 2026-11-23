@@ -23,6 +23,26 @@ describe('accountFamilySort', () => {
     expect(compareAccountCode('A-2', 'A-10')).toBeLessThan(0);
   });
 
+  it('compareAccountCode ignores case so mixed-case tiers stay contiguous', () => {
+    const codes = ['MRD-Al Madina', 'Mrd-Ahnaf-T', 'MRD-Ahnaf'];
+    expect([...codes].sort(compareAccountCode)).toEqual([
+      'MRD-Ahnaf',
+      'Mrd-Ahnaf-T',
+      'MRD-Al Madina',
+    ]);
+  });
+
+  it('clusterAccountsByFamily keeps mixed-case base + tier together', () => {
+    const mixed = [
+      { name: 'Al Madina', code: 'MRD-Al Madina' },
+      { name: 'Ahnaf-T', code: 'Mrd-Ahnaf-T' },
+      { name: 'Ahnaf', code: 'MRD-Ahnaf' },
+    ];
+    expect(
+      clusterAccountsByFamily(mixed, itemTypes).map((a) => a.code),
+    ).toEqual(['MRD-Ahnaf', 'Mrd-Ahnaf-T', 'MRD-Al Madina']);
+  });
+
   it('getAccountFamilyBaseCode collapses typed tiers to base', () => {
     const ctx = buildPartyTypingContext(accounts, itemTypes);
     expect(
