@@ -620,7 +620,7 @@ const BillsAgingPage = () => {
       printStyles={printStyles}
       bodyClassName={
         visibleAccounts.length > 10
-          ? 'overflow-hidden h-full flex flex-col py-2'
+          ? 'flex min-h-0 flex-1 flex-col overflow-hidden py-2'
           : 'py-2'
       }
       header={
@@ -1242,7 +1242,7 @@ const BillsAgingPage = () => {
           }`}
         >
           {/* Screen Display - Original Complex Layout */}
-          <div className="print:hidden h-full flex-1">
+          <div className="flex min-h-0 flex-1 flex-col print:hidden">
             <BillsAgingTables {...tableProps} />
           </div>
 

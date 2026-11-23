@@ -87,106 +87,110 @@ export const AccountBalancesTable: FC<AccountBalancesTableProps> = ({
   }
 
   return (
-    <Table className="border-collapse w-full print-table">
-      <TableHeader>
-        <TableRow className="print-row">
-          {visible.has('code') ? (
-            <SortableHeader
-              currentSortField={sortField}
-              sortField="code"
-              sortDirection={sortDirection}
-              onSort={() => handleSort('code')}
-              className="w-[150px]"
-            >
-              Account Code
-            </SortableHeader>
-          ) : null}
-          {visible.has('name') ? (
-            <SortableHeader
-              currentSortField={sortField}
-              sortField="name"
-              sortDirection={sortDirection}
-              onSort={() => handleSort('name')}
-              className="w-[250px]"
-            >
-              Account Name
-            </SortableHeader>
-          ) : null}
-          {visible.has('debit') ? (
-            <SortableHeader
-              currentSortField={sortField}
-              sortField="debit"
-              sortDirection={sortDirection}
-              onSort={() => handleSort('debit')}
-              className="text-right print-spacing-right"
-            >
-              Debit
-            </SortableHeader>
-          ) : null}
-          {visible.has('credit') ? (
-            <SortableHeader
-              currentSortField={sortField}
-              sortField="credit"
-              sortDirection={sortDirection}
-              onSort={() => handleSort('credit')}
-              className="text-right"
-            >
-              Credit
-            </SortableHeader>
-          ) : null}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {accounts.map((account) => (
-          <TableRow key={account.id} className="print-row">
+    <div className="relative min-h-0 flex-1 w-full overflow-auto print:overflow-visible">
+      <Table className="w-full border-collapse print-table">
+        <TableHeader>
+          <TableRow className="print-row">
             {visible.has('code') ? (
-              <TableCell className="font-medium">{account.code}</TableCell>
+              <SortableHeader
+                currentSortField={sortField}
+                sortField="code"
+                sortDirection={sortDirection}
+                onSort={() => handleSort('code')}
+                className="w-[150px]"
+              >
+                Account Code
+              </SortableHeader>
             ) : null}
-            {visible.has('name') ? <TableCell>{account.name}</TableCell> : null}
+            {visible.has('name') ? (
+              <SortableHeader
+                currentSortField={sortField}
+                sortField="name"
+                sortDirection={sortDirection}
+                onSort={() => handleSort('name')}
+                className="w-[250px]"
+              >
+                Account Name
+              </SortableHeader>
+            ) : null}
+            {visible.has('debit') ? (
+              <SortableHeader
+                currentSortField={sortField}
+                sortField="debit"
+                sortDirection={sortDirection}
+                onSort={() => handleSort('debit')}
+                className="text-right print-spacing-right"
+              >
+                Debit
+              </SortableHeader>
+            ) : null}
+            {visible.has('credit') ? (
+              <SortableHeader
+                currentSortField={sortField}
+                sortField="credit"
+                sortDirection={sortDirection}
+                onSort={() => handleSort('credit')}
+                className="text-right"
+              >
+                Credit
+              </SortableHeader>
+            ) : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {accounts.map((account) => (
+            <TableRow key={account.id} className="print-row">
+              {visible.has('code') ? (
+                <TableCell className="font-medium">{account.code}</TableCell>
+              ) : null}
+              {visible.has('name') ? (
+                <TableCell>{account.name}</TableCell>
+              ) : null}
+              {visible.has('debit') ? (
+                <TableCell className="text-right print-spacing-right">
+                  {account.balanceType === 'Dr'
+                    ? getFormattedCurrency(account.balance)
+                        .replace(currency, '')
+                        .trim()
+                    : '-'}
+                </TableCell>
+              ) : null}
+              {visible.has('credit') ? (
+                <TableCell className="text-right">
+                  {account.balanceType === 'Cr'
+                    ? getFormattedCurrency(account.balance)
+                        .replace(currency, '')
+                        .trim()
+                    : '-'}
+                </TableCell>
+              ) : null}
+            </TableRow>
+          ))}
+        </TableBody>
+        <TableFooter>
+          <TableRow className="font-semibold print-row">
+            {visible.has('code') || visible.has('name') ? (
+              <TableCell
+                colSpan={
+                  (visible.has('code') ? 1 : 0) + (visible.has('name') ? 1 : 0)
+                }
+              >
+                Total
+              </TableCell>
+            ) : null}
             {visible.has('debit') ? (
               <TableCell className="text-right print-spacing-right">
-                {account.balanceType === 'Dr'
-                  ? getFormattedCurrency(account.balance)
-                      .replace(currency, '')
-                      .trim()
-                  : '-'}
+                {getFormattedDebitCreditWithoutCurrency(totalDebit)}
               </TableCell>
             ) : null}
             {visible.has('credit') ? (
               <TableCell className="text-right">
-                {account.balanceType === 'Cr'
-                  ? getFormattedCurrency(account.balance)
-                      .replace(currency, '')
-                      .trim()
-                  : '-'}
+                {getFormattedDebitCreditWithoutCurrency(totalCredit)}
               </TableCell>
             ) : null}
           </TableRow>
-        ))}
-      </TableBody>
-      <TableFooter>
-        <TableRow className="font-semibold print-row">
-          {visible.has('code') || visible.has('name') ? (
-            <TableCell
-              colSpan={
-                (visible.has('code') ? 1 : 0) + (visible.has('name') ? 1 : 0)
-              }
-            >
-              Total
-            </TableCell>
-          ) : null}
-          {visible.has('debit') ? (
-            <TableCell className="text-right print-spacing-right">
-              {getFormattedDebitCreditWithoutCurrency(totalDebit)}
-            </TableCell>
-          ) : null}
-          {visible.has('credit') ? (
-            <TableCell className="text-right">
-              {getFormattedDebitCreditWithoutCurrency(totalCredit)}
-            </TableCell>
-          ) : null}
-        </TableRow>
-      </TableFooter>
-    </Table>
+        </TableFooter>
+      </Table>
+    </div>
   );
 };

@@ -251,14 +251,38 @@
 
 
 /* ── Mobile scroll containers (mobile-native) ───────────────────────────
-   Native-feeling overscroll, momentum, and both-axis panning for wide
-   tables and sheet content. */
+   Momentum scrolling only. Do NOT apply overscroll-behavior: contain or
+   touch-action: pan-x pan-y to every overflow utility — that traps the
+   wheel/trackpad on nested regions (esp. overflow-x-auto table wraps)
+   so vertical scroll dies while dragging the scrollbar still works. */
 .overflow-auto,
 .overflow-x-auto,
 .overflow-y-auto,
 .overflow-scroll,
 .scrollbar {
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+}
+
+/* Vertical-only: allow chaining when the node has no remaining range
+   so a near-empty inner overflow-y-auto does not eat the wheel. */
+.overflow-y-auto,
+.scrollbar {
+  overscroll-behavior: auto;
+  touch-action: pan-y;
+}
+
+/* Both-axis (tables that scroll X and Y in one pane). */
+.overflow-auto,
+.overflow-scroll {
+  overscroll-behavior: auto;
   touch-action: pan-x pan-y;
+}
+
+/* Horizontal-only: contain X rubber-banding, but let vertical wheel
+   chain out to Virtuoso / shell / report body. */
+.overflow-x-auto,
+.scroll-shadow {
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+  touch-action: pan-x pinch-zoom;
 }

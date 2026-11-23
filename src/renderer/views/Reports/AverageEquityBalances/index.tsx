@@ -165,6 +165,7 @@ const AverageEquityBalancesPage = () => {
   return (
     <ReportLayout
       printStyles={printStyles}
+      bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden print:overflow-visible"
       header={
         <ReportHeader
           title="Average Equity Balances"
@@ -228,7 +229,7 @@ const AverageEquityBalancesPage = () => {
         </h1>
       </div>
 
-      <Card className="shadow-md print-card">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden shadow-md print-card print:overflow-visible">
         <AverageEquityBalancesTable
           items={sortedItems}
           totalAverage={state.totalAverage}
