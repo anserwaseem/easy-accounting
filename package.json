@@ -39,7 +39,7 @@
     "postpackage": "ts-node .erb/scripts/postpackage-db.ts",
     "package:win": "npm run package -- --win",
     "package:mac": "npm run package -- --mac",
-    "release": "npm run package -- --mac --win -p always",
+    "release": "npm run package -- --mac --win -p never",
     "start": "cross-env PORT=3001 ts-node ./.erb/scripts/check-port-in-use.js && npm run start:renderer",
     "start:main": "cross-env NODE_ENV=development electronmon -r ts-node/register/transpile-only .",
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",

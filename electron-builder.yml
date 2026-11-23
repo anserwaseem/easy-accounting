@@ -60,7 +60,12 @@ extraResources: # copy the file or directory with matching names directly into t
   - from: './assets'
     to: 'backups'
     filter: ['!**/*'] # create an empty directory for backups to ensure it exists
+# Do not rely on electron-builder -p always for multi-arch mac+win: parallel
+# GitHub publishers race-create two releases (tagged + untagged draft) and
+# split assets (often only a .blockmap on the tagged one). The release skill
+# builds with -p never, then gh release create/upload once.
 publish:
   provider: github
   owner: anserwaseem
   repo: easy-accounting
+  releaseType: draft
