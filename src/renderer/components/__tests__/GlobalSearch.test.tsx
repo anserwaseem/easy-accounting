@@ -8,6 +8,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Account, InventoryItem, InvoicesView } from 'types';
 import { InvoiceType } from 'types';
+import { resetItemTypeNamesCache } from '@/renderer/lib/itemTypeNamesCache';
 import GlobalSearch, { resetGlobalSearchDataCache } from '../GlobalSearch';
 
 const mockNavigate = jest.fn();
@@ -42,6 +43,7 @@ const purchaseInvoices = [invoice(31, 77, 'RIVERSIDE PRINTERS')];
 const getAccounts = jest.fn();
 const getInventory = jest.fn();
 const getInvoices = jest.fn();
+const getItemTypes = jest.fn();
 
 const openPalette = () =>
   fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
@@ -73,6 +75,7 @@ describe('GlobalSearch', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetGlobalSearchDataCache();
+    resetItemTypeNamesCache();
     getAccounts.mockResolvedValue(accounts);
     getInventory.mockResolvedValue(inventory);
     getInvoices.mockImplementation((invoiceType: InvoiceType) =>
@@ -80,10 +83,12 @@ describe('GlobalSearch', () => {
         invoiceType === InvoiceType.Sale ? saleInvoices : purchaseInvoices,
       ),
     );
+    getItemTypes.mockResolvedValue([{ id: 1, name: 'T' }]);
     window.electron = {
       getAccounts,
       getInventory,
       getInvoices,
+      getItemTypes,
     } as unknown as Window['electron'];
   });
 

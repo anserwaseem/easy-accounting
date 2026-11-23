@@ -16,8 +16,13 @@ export const ensureItemTypeNamesLoaded = (): Promise<string[]> => {
     return loadPromise;
   }
 
-  loadPromise = window.electron
-    .getItemTypes()
+  const getItemTypes = window.electron?.getItemTypes;
+  if (typeof getItemTypes !== 'function') {
+    // tests / early boot may omit the IPC — cluster still works as code sort
+    return Promise.resolve(cachedNames);
+  }
+
+  loadPromise = getItemTypes()
     .then((types) => {
       cachedNames = (types ?? [])
         .map((type) => type.name)
