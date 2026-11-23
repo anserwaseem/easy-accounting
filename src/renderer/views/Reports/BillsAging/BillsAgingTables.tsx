@@ -615,7 +615,7 @@ export const BillsAgingTables: FC<BillsAgingTablesProps> = React.memo(
     }
 
     return (
-      <div className="h-full w-full min-h-[600px]">
+      <div className="h-full min-h-0 w-full flex-1">
         <Virtuoso
           style={{ height: '100%' }}
           data={accounts}

@@ -639,7 +639,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
           )}
           collapsed={effectiveCollapsed}
         />
-        <div className="flex flex-col flex-grow min-w-0 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-grow flex-col overflow-hidden">
           {/* Mobile top bar — hamburger opens the off-canvas nav. Hidden at
               md+, where the persistent sidebar (collapsed or not) is
               always visible instead. */}
@@ -717,7 +717,7 @@ const Sidebar: FC<PropsWithChildren> = ({ children }: PropsWithChildren) => {
               this attribute. */}
           <div
             data-app-scroll
-            className="flex-grow overflow-y-auto overflow-x-hidden p-3 md:p-4"
+            className="min-h-0 flex-grow overflow-x-hidden overflow-y-auto p-3 md:p-4"
           >
             <Suspense fallback={<RouteLoadingFallback />}>
               {children}

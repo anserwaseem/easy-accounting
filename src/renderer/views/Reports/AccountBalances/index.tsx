@@ -158,6 +158,7 @@ const AccountBalancesPage = () => {
   return (
     <ReportLayout
       printStyles={printStyles}
+      bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden print:overflow-visible"
       header={
         // The filters were a single non-wrapping row: a 250px head
         // select, a 200px date button and an icon button needed ~522px,
@@ -253,7 +254,7 @@ const AccountBalancesPage = () => {
         </h1>
       </div>
 
-      <Card className="shadow-md print-card">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden shadow-md print-card print:overflow-visible">
         <AccountBalancesTable
           accountBalances={accountBalances}
           isLoading={isLoading}

@@ -16,6 +16,12 @@ interface ReportLayoutProps {
   printStyles?: string;
 }
 
+/**
+ * Fixed header + one scrollable body. Default body owns vertical scroll.
+ * Virtualised reports must pass bodyClassName with overflow-hidden and
+ * size their own scroller (Virtuoso) with a min-h-0 height chain — do not
+ * nest a second overflow-y-auto inside the default body.
+ */
 export const ReportLayout: React.FC<ReportLayoutProps> = ({
   header,
   children,
@@ -29,7 +35,7 @@ export const ReportLayout: React.FC<ReportLayoutProps> = ({
       {printStyles && <style>{printStyles}</style>}
       <div
         className={cn(
-          'w-full mx-auto print-container h-full flex flex-col print:h-auto print:block',
+          'mx-auto flex h-full min-h-0 w-full flex-col print-container print:block print:h-auto',
           className,
         )}
       >
@@ -46,7 +52,7 @@ export const ReportLayout: React.FC<ReportLayoutProps> = ({
         {/* Scrollable Content */}
         <div
           className={cn(
-            'flex-grow overflow-y-auto print:overflow-visible print:h-auto print:block',
+            'min-h-0 flex-1 overflow-y-auto print:block print:h-auto print:overflow-visible',
             bodyClassName,
           )}
         >

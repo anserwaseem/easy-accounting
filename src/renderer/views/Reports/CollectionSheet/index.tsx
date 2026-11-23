@@ -423,7 +423,7 @@ const CollectionSheetPage: React.FC = () => {
   return (
     <ReportLayout
       printStyles={printStyles}
-      bodyClassName="overflow-hidden h-full flex flex-col print:p-0 print:overflow-visible"
+      bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden print:overflow-visible print:p-0"
       header={
         <ReportHeader
           title={
