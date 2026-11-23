@@ -142,9 +142,10 @@ export const ScrollToTopButton: React.FC<ScrollToTopButtonProps> = ({
       onClick={() => scrollTo(atBottom ? 'top' : 'bottom')}
       aria-label={atBottom ? 'Scroll to top' : 'Scroll to bottom'}
       title={atBottom ? 'Scroll to top' : 'Scroll to bottom'}
+      data-app-chrome="scroll-top"
       className={cn(
         // Floating, above the content, clear of the home indicator.
-        'fixed bottom-20 right-3 z-30 rounded-full shadow-md safe-bottom opacity-90 backdrop-blur',
+        'fixed bottom-20 right-3 z-30 rounded-full shadow-md safe-bottom opacity-90 backdrop-blur print:hidden',
         className,
       )}
     >

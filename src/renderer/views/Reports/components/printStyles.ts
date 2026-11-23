@@ -1,7 +1,10 @@
 /** compact print-specific styles for reports */
 export const printStyles = `
   @media print {
-    /* hide app chrome (sidebar, mobile top bar) during report print */
+    /* hide app chrome (sidebar, mobile top bar). Reasserted at end of
+       this block — div.flex { display:block !important } is more
+       specific than a bare [data-app-chrome] and was un-hiding the
+       topbar (back / title / hamburger / search) onto every PDF. */
     [data-app-chrome] {
       display: none !important;
     }
@@ -230,9 +233,9 @@ export const printStyles = `
       page-break-inside: auto !important;
     }
 
-    /* remove flex constraints in print mode */
+    /* remove flex constraints in print mode — never re-show chrome */
     .print-container.flex,
-    div.flex {
+    div.flex:not([data-app-chrome]) {
       display: block !important;
     }
 
@@ -282,6 +285,12 @@ export const printStyles = `
       min-height: auto !important;
       max-height: none !important;
       overflow: visible !important;
+    }
+
+    /* last: beat any earlier display:block !important on flex chrome */
+    div[data-app-chrome],
+    [data-app-chrome] {
+      display: none !important;
     }
   }
 `;

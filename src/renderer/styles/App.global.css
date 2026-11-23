@@ -250,6 +250,18 @@
 }
 
 
+/* ── Print: always hide shell chrome ────────────────────────────────────
+   Report printStyles also hide these, but invoice / window.print paths
+   that skip that stylesheet still need the mobile topbar (back, title,
+   hamburger, search) and sidebar gone. Global so every PDF is clean. */
+@media print {
+  [data-app-chrome],
+  div[data-app-chrome] {
+    display: none !important;
+  }
+}
+
+
 /* ── Mobile scroll containers (mobile-native) ───────────────────────────
    Momentum scrolling only. Do NOT apply overscroll-behavior: contain or
    touch-action: pan-x pan-y to every overflow utility — that traps the

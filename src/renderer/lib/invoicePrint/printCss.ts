@@ -6,6 +6,12 @@ export const INVOICE_PRINT_PAGE_CSS = `
 }
 
 @media print {
+  /* shell chrome (sidebar / mobile topbar) sits around invoice routes */
+  [data-app-chrome],
+  div[data-app-chrome] {
+    display: none !important;
+  }
+
   html,
   body,
   #root {
