@@ -63,6 +63,7 @@ import {
   buildBillsAgingRows,
 } from './BillsAgingPrintTable';
 import { printBillsAgingIframe } from './printBillsAging';
+import { withBillsSubset } from './accountTotals';
 import { BillsAging, BillsAgingRow } from './types';
 
 type BillsAgingExportRow = {
@@ -385,6 +386,10 @@ const BillsAgingPage = () => {
     const isDiscountFiltered = discountPreset !== 'all';
 
     if (isOverdueFiltered || isDiscountFiltered) {
+      // bill subset changes → recompute totalOutstanding (and bill/received
+      // sums). leaving the old account totals made the header / card show
+      // full-account debt while the table + Excel only summed the filtered
+      // bills (e.g. Custom Days 210: UI 3.25M vs export 2.94M).
       filtered = filtered
         .map((acc) => {
           const matchingBills = acc.bills.filter((bill) => {
@@ -398,10 +403,7 @@ const BillsAgingPage = () => {
             return true;
           });
 
-          return {
-            ...acc,
-            bills: matchingBills,
-          };
+          return withBillsSubset(acc, matchingBills);
         })
         .filter((acc) => acc.bills.length > 0);
     }
