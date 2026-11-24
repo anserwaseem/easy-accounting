@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { format, startOfMonth, startOfYear, subYears } from 'date-fns';
+import { format } from 'date-fns';
 import { orderBy } from 'lodash';
 import type { DateRange } from '@/renderer/shad/ui/datePicker';
 import { useMountEffect } from '@/renderer/hooks/useMountEffect';
@@ -8,6 +8,7 @@ import {
   makeSavedState,
   saveSavedFilters,
 } from '@/renderer/lib/reportFilters';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import type { Account, AgentTour, Chart, ItemType } from '@/types';
 import { REPORT_FILTER_KEYS } from '@/types';
 import { clipTourToRange, toursOverlap } from '@/core/utils/suggestAgentTours';
@@ -91,35 +92,6 @@ const loadTourColumns = async (
   return { tours, tourPaid, tourBalances, untoured };
 };
 
-/** rolling presets are recomputed from today. a saved range that does not match is a custom pick. */
-const presetAgreesWithRange = (
-  preset: string,
-  fromIso: string,
-  toIso: string,
-): boolean => {
-  const today = new Date();
-  let from: Date;
-  let to: Date;
-  if (preset === 'current-month') {
-    from = startOfMonth(today);
-    to = today;
-  } else if (preset === 'current-year') {
-    from = startOfYear(today);
-    to = today;
-  } else if (preset === 'all') {
-    from = subYears(today, 100);
-    to = today;
-  } else {
-    return true;
-  }
-  const savedFrom = format(new Date(fromIso), 'yyyy-MM-dd');
-  const savedTo = format(new Date(toIso), 'yyyy-MM-dd');
-  return (
-    savedFrom === format(from, 'yyyy-MM-dd') &&
-    savedTo === format(to, 'yyyy-MM-dd')
-  );
-};
-
 const loadParties = async (): Promise<{
   heads: Chart[];
   accounts: Account[];
@@ -146,36 +118,21 @@ export const useCollectionSheet = () => {
     () => loadSavedFilters(REPORT_FILTER_KEYS.collectionSheet),
     [],
   );
+  const hydratedDates = useMemo(
+    () =>
+      hydrateSavedDateFilter(saved, {
+        defaultPreset: 'current-month',
+      }),
+    [saved],
+  );
   const [charts, setCharts] = useState<Chart[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [itemTypeNames, setItemTypeNames] = useState<string[]>([]);
   const [selectedChartId, setSelectedChartId] = useState('');
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-    if (saved.dateRange?.from && saved.dateRange?.to) {
-      return {
-        from: new Date(saved.dateRange.from),
-        to: new Date(saved.dateRange.to),
-      };
-    }
-    return { from: startOfMonth(new Date()), to: new Date() };
-  });
-  const [presetValue, setPresetValue] = useState(() => {
-    const fromIso = saved.dateRange?.from;
-    const toIso = saved.dateRange?.to;
-    const savedPreset = saved.presetValue ?? '';
-    // "this month" used to stick after a custom pick, so the button and the
-    // sheet showed different ranges. trust the saved dates when they disagree.
-    if (
-      fromIso &&
-      toIso &&
-      (savedPreset === 'custom' ||
-        savedPreset === '' ||
-        !presetAgreesWithRange(savedPreset, fromIso, toIso))
-    ) {
-      return '';
-    }
-    return savedPreset || 'current-month';
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(
+    hydratedDates.dateRange,
+  );
+  const [presetValue, setPresetValue] = useState(hydratedDates.presetValue);
   const [language, setLanguage] = useState<CollectionSheetLanguage>('en');
   const [sortBy, setSortBy] = useState<CollectionSheetSortBy>('code');
   const [snapshot, setSnapshot] = useState<CollectionSheetSnapshot | null>(

@@ -15,6 +15,7 @@ import {
   makeSavedState,
   saveSavedFilters,
 } from '@/renderer/lib/reportFilters';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import {
   pickTrackedVendorId,
   readStoredVendorStockVendorId,
@@ -112,18 +113,13 @@ const VendorStockActivityPage: React.FC = () => {
     () => loadSavedFilters(REPORT_FILTER_KEYS.vendorStockActivity),
     [],
   );
-  const defaultDateRange = useMemo<DateRange>(() => {
-    if (saved.dateRange?.from && saved.dateRange?.to) {
-      return {
-        from: new Date(saved.dateRange.from),
-        to: new Date(saved.dateRange.to),
-      };
-    }
-    return {
-      from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-      to: new Date(),
-    };
-  }, [saved.dateRange]);
+  const hydratedDates = useMemo(
+    () =>
+      hydrateSavedDateFilter(saved, {
+        defaultPreset: 'current-month',
+      }),
+    [saved],
+  );
   const [vendors, setVendors] = useState<
     Array<{ id: number; name: string; code?: number | string | null }>
   >([]);
@@ -140,10 +136,10 @@ const VendorStockActivityPage: React.FC = () => {
     },
   );
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    defaultDateRange,
+    hydratedDates.dateRange,
   );
   const [presetValue, setPresetValue] = useState<string | undefined>(
-    saved.presetValue ?? 'current-month',
+    hydratedDates.presetValue,
   );
   const [response, setResponse] = useState<VendorStockActivityResponse | null>(
     null,
@@ -596,7 +592,7 @@ const VendorStockActivityPage: React.FC = () => {
                 <span className="text-sm text-muted-foreground">Range:</span>
                 <DateRangePickerWithPresets
                   $onSelect={handleDateChange}
-                  initialRange={defaultDateRange}
+                  initialRange={dateRange}
                   initialSelectValue={presetValue}
                 />
               </div>

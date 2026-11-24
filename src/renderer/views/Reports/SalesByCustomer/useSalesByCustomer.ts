@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { format, startOfYear } from 'date-fns';
+import { format } from 'date-fns';
 import type { DateRange } from '@/renderer/shad/ui/datePicker';
 import {
   loadSavedFilters,
   saveSavedFilters,
   makeSavedState,
 } from '@/renderer/lib/reportFilters';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import { toLowerTrim } from '@/renderer/lib/utils';
 import type { Account, SalesByCustomerResponse } from 'types';
 import { AccountType, InvoiceType, REPORT_FILTER_KEYS } from 'types';
@@ -32,21 +33,19 @@ export const useSalesByCustomer = () => {
     [],
   );
 
-  const defaultDateRange: DateRange = useMemo(() => {
-    if (saved.dateRange?.from && saved.dateRange?.to) {
-      return {
-        from: new Date(saved.dateRange.from),
-        to: new Date(saved.dateRange.to),
-      };
-    }
-    return { from: startOfYear(new Date()), to: new Date() };
-  }, [saved.dateRange]);
+  const hydratedDates = useMemo(
+    () =>
+      hydrateSavedDateFilter(saved, {
+        defaultPreset: 'current-year',
+      }),
+    [saved],
+  );
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    defaultDateRange,
+    hydratedDates.dateRange,
   );
   const [presetValue, setPresetValue] = useState<string>(
-    saved.presetValue ?? 'current-year',
+    hydratedDates.presetValue,
   );
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>(() =>
     (saved.accountIds ?? []).map(Number).filter((id) => id > 0),
