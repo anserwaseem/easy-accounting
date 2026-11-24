@@ -1,5 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
-import { BalanceType, type LedgerRangeResponse } from 'types';
+import { format } from 'date-fns';
+import {
+  BalanceType,
+  REPORT_FILTER_KEYS,
+  type LedgerRangeResponse,
+} from 'types';
 
 import { useLedgerReport } from '../useLedgerReport';
 
@@ -12,6 +17,7 @@ async function flushMicrotasks() {
 describe('useLedgerReport', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 10, 24, 12, 0, 0));
     (window as any).electron = {
       store: {
         get: jest.fn(() => ({})),
@@ -91,5 +97,90 @@ describe('useLedgerReport', () => {
       'Opening Balance',
     );
     expect(result.current.ledgerEntries[0]?.date).toBe('2026-02-20');
+  });
+
+  it('reopens All with stale stored to → fetches through today', async () => {
+    const staleTo = new Date(2026, 10, 10, 12, 0, 0);
+    (window.electron.store.get as jest.Mock).mockImplementation((key) => {
+      if (key === REPORT_FILTER_KEYS.ledger) {
+        return {
+          accountId: 1,
+          presetValue: 'all',
+          dateRange: {
+            from: new Date(1926, 10, 10).toISOString(),
+            to: staleTo.toISOString(),
+          },
+        };
+      }
+      return {};
+    });
+
+    const { result } = renderHook(() => useLedgerReport());
+    await flushMicrotasks();
+    await flushMicrotasks();
+
+    expect(result.current.presetValue).toBe('all');
+    expect(format(result.current.dateRange!.to!, 'yyyy-MM-dd')).toBe(
+      '2026-11-24',
+    );
+    expect(window.electron.reportGetLedgerRange).toHaveBeenCalledWith({
+      accountId: 1,
+      startDate: '1926-11-24',
+      endDate: '2026-11-24',
+    });
+  });
+
+  it('reopens Last 7 Days with stale store → rolling window ends today', async () => {
+    (window.electron.store.get as jest.Mock).mockImplementation((key) => {
+      if (key === REPORT_FILTER_KEYS.ledger) {
+        return {
+          accountId: 1,
+          presetValue: '-7',
+          dateRange: {
+            from: new Date(2026, 10, 3).toISOString(),
+            to: new Date(2026, 10, 10).toISOString(),
+          },
+        };
+      }
+      return {};
+    });
+
+    const { result } = renderHook(() => useLedgerReport());
+    await flushMicrotasks();
+    await flushMicrotasks();
+
+    expect(result.current.presetValue).toBe('-7');
+    expect(window.electron.reportGetLedgerRange).toHaveBeenCalledWith({
+      accountId: 1,
+      startDate: '2026-11-17',
+      endDate: '2026-11-24',
+    });
+  });
+
+  it('custom frozen range stays sticky on reopen', async () => {
+    (window.electron.store.get as jest.Mock).mockImplementation((key) => {
+      if (key === REPORT_FILTER_KEYS.ledger) {
+        return {
+          accountId: 1,
+          presetValue: '',
+          dateRange: {
+            from: new Date(2026, 2, 1).toISOString(),
+            to: new Date(2026, 2, 15).toISOString(),
+          },
+        };
+      }
+      return {};
+    });
+
+    const { result } = renderHook(() => useLedgerReport());
+    await flushMicrotasks();
+    await flushMicrotasks();
+
+    expect(result.current.presetValue).toBe('');
+    expect(window.electron.reportGetLedgerRange).toHaveBeenCalledWith({
+      accountId: 1,
+      startDate: '2026-03-01',
+      endDate: '2026-03-15',
+    });
   });
 });
