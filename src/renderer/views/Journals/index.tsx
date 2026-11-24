@@ -7,6 +7,7 @@ import {
   type DateRange,
   DateRangePickerWithPresets,
 } from 'renderer/shad/ui/datePicker';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import {
   defaultSortingFunctions,
   getFormattedCurrency,
@@ -144,12 +145,24 @@ const JournalsPage: React.FC<HasMiniView> = ({
 }: HasMiniView) => {
   const [journals, setJounrals] = useState<JournalView[]>([]);
   const [filteredJournals, setFilteredJournals] = useState<JournalView[]>([]);
+  const hydratedJournalDates = useMemo(
+    () =>
+      hydrateSavedDateFilter({
+        dateRange: window.electron.store.get('journalFilterDate') as
+          | DateRange
+          | undefined,
+        presetValue: window.electron.store.get('journalFilterSelectValue') as
+          | string
+          | undefined,
+      }),
+    [],
+  );
   const [journalFilterDate, setJournalFilterDate] = useState<
     DateRange | undefined
-  >(window.electron.store.get('journalFilterDate') || undefined);
+  >(hydratedJournalDates.dateRange);
   const [journalFilterSelectValue, setJournalFilterSelectValue] = useState<
     string | undefined
-  >(window.electron.store.get('journalFilterSelectValue') || undefined);
+  >(hydratedJournalDates.presetValue || undefined);
   const navigate = useNavigate();
 
   const handleReloadJournals = useCallback(async () => {

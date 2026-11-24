@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { format, startOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -74,6 +74,7 @@ import {
   makeSavedState,
   saveSavedFilters,
 } from '@/renderer/lib/reportFilters';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import { TableVirtuoso } from 'react-virtuoso';
 import { exportReportWorkbook } from '@/renderer/lib/reportExport';
 import { cn } from '@/renderer/lib/utils';
@@ -148,23 +149,13 @@ const AgentCommissionReportPage: React.FC = () => {
     [],
   );
 
-  const defaultDateRange: DateRange = useMemo(() => {
-    if (savedFilters.dateRange?.from && savedFilters.dateRange?.to) {
-      try {
-        const from = new Date(savedFilters.dateRange.from);
-        const to = new Date(savedFilters.dateRange.to);
-        if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())) {
-          return { from, to };
-        }
-      } catch {
-        // fallback
-      }
-    }
-    return {
-      from: startOfMonth(new Date()),
-      to: new Date(),
-    };
-  }, [savedFilters.dateRange]);
+  const hydratedDates = useMemo(
+    () =>
+      hydrateSavedDateFilter(savedFilters, {
+        defaultPreset: 'current-month',
+      }),
+    [savedFilters],
+  );
 
   const [charts, setCharts] = useState<Chart[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -175,10 +166,10 @@ const AgentCommissionReportPage: React.FC = () => {
   });
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    defaultDateRange,
+    hydratedDates.dateRange,
   );
   const [presetValue, setPresetValue] = useState<string>(
-    savedFilters.presetValue ?? 'current-month',
+    hydratedDates.presetValue,
   );
 
   const [report, setReport] = useState<AgentCommissionReport | null>(null);

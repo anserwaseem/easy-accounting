@@ -42,6 +42,7 @@ import {
   makeSavedState,
   LAST_30_DAYS_PRESET,
 } from '@/renderer/lib/reportFilters';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import {
   exportReportToExcel,
   type ReportExportPayload,
@@ -178,21 +179,19 @@ const SalesPerformanceReportPage: React.FC = () => {
     [],
   );
 
-  const defaultDateRange: DateRange = useMemo(() => {
-    if (saved.dateRange?.from && saved.dateRange?.to) {
-      return {
-        from: new Date(saved.dateRange.from),
-        to: new Date(saved.dateRange.to),
-      };
-    }
-    return { from: subDays(new Date(), 30), to: new Date() };
-  }, [saved.dateRange]);
+  const hydratedDates = useMemo(
+    () =>
+      hydrateSavedDateFilter(saved, {
+        defaultPreset: LAST_30_DAYS_PRESET,
+      }),
+    [saved],
+  );
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    defaultDateRange,
+    hydratedDates.dateRange,
   );
   const [presetValue, setPresetValue] = useState<string>(
-    saved.presetValue ?? LAST_30_DAYS_PRESET,
+    hydratedDates.presetValue,
   );
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>(
     saved.groupBy ?? 'day',
@@ -941,7 +940,7 @@ const SalesPerformanceReportPage: React.FC = () => {
               <DateRangePickerWithPresets
                 $onSelect={handleDateChange}
                 presets={[{ label: 'All', value: 'all' }]}
-                initialRange={defaultDateRange}
+                initialRange={dateRange}
                 initialSelectValue={presetValue}
               />
               <Select value={groupBy} onValueChange={handleGroupByChange}>

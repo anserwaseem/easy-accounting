@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { sumBy } from 'lodash';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import {
   Download,
   Info,
@@ -34,6 +34,7 @@ import {
   makeSavedState,
   LAST_30_DAYS_PRESET,
 } from '@/renderer/lib/reportFilters';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import {
   exportReportToExcel,
   type ReportExportPayload,
@@ -121,21 +122,19 @@ const InventoryHealthPage: React.FC = () => {
     [],
   );
 
-  const defaultDateRange: DateRange = useMemo(() => {
-    if (saved.dateRange?.from && saved.dateRange?.to) {
-      return {
-        from: new Date(saved.dateRange.from),
-        to: new Date(saved.dateRange.to),
-      };
-    }
-    return { from: subDays(new Date(), 30), to: new Date() };
-  }, [saved.dateRange]);
+  const hydratedDates = useMemo(
+    () =>
+      hydrateSavedDateFilter(saved, {
+        defaultPreset: LAST_30_DAYS_PRESET,
+      }),
+    [saved],
+  );
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    defaultDateRange,
+    hydratedDates.dateRange,
   );
   const [presetValue, setPresetValue] = useState<string>(
-    saved.presetValue ?? LAST_30_DAYS_PRESET,
+    hydratedDates.presetValue,
   );
   const [response, setResponse] = useState<ReportResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -751,7 +750,7 @@ const InventoryHealthPage: React.FC = () => {
                 <DateRangePickerWithPresets
                   $onSelect={handleDateChange}
                   presets={[{ label: 'All', value: 'all' }]}
-                  initialRange={defaultDateRange}
+                  initialRange={dateRange}
                   initialSelectValue={presetValue}
                   triggerClassName="max-w-full min-w-0"
                 />

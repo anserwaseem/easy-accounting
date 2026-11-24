@@ -31,6 +31,7 @@ import {
   DateRangePickerWithPresets,
   type DateRange,
 } from 'renderer/shad/ui/datePicker';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import { EditActionButton } from '@/renderer/components/EditActionButton';
 import { RowMenu } from '@/renderer/components/RowMenu';
 import type { HasMiniView, InvoicesView, InvoiceView } from 'types';
@@ -212,12 +213,24 @@ const InvoicesPage: FC<InvoicesProps> = ({
   const [invoices, setInvoices] = useState<InvoicesView[]>();
   const [isLoading, setIsLoading] = useState(true);
   const [filteredInvoices, setFilteredInvoices] = useState<InvoicesView[]>();
+  const hydratedInvoiceDates = useMemo(
+    () =>
+      hydrateSavedDateFilter({
+        dateRange: window.electron.store.get('invoiceFilterDate') as
+          | DateRange
+          | undefined,
+        presetValue: window.electron.store.get('invoiceFilterSelectValue') as
+          | string
+          | undefined,
+      }),
+    [],
+  );
   const [invoiceFilterDate, setInvoiceFilterDate] = useState<
     DateRange | undefined
-  >(window.electron.store.get('invoiceFilterDate') || undefined);
+  >(hydratedInvoiceDates.dateRange);
   const [invoiceFilterSelectValue, setInvoiceFilterSelectValue] = useState<
     string | undefined
-  >(window.electron.store.get('invoiceFilterSelectValue') || undefined);
+  >(hydratedInvoiceDates.presetValue || undefined);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<number>();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 

@@ -6,6 +6,7 @@ import {
   saveSavedFilters,
   makeSavedState,
 } from '@/renderer/lib/reportFilters';
+import { hydrateSavedDateFilter } from '@/renderer/lib/dateRangePresets';
 import { addDays, format } from 'date-fns';
 import { currency } from '@/renderer/lib/constants';
 import { getFormattedCurrency } from '@/renderer/lib/utils';
@@ -48,22 +49,19 @@ export const useLedgerReport = (
 
   const saved = useMemo(() => loadSavedFilters(REPORT_FILTER_KEYS.ledger), []);
 
-  const defaultDateRange: DateRange = useMemo(() => {
-    if (saved.dateRange?.from && saved.dateRange?.to) {
-      return {
-        from: new Date(saved.dateRange.from),
-        to: new Date(saved.dateRange.to),
-      };
-    }
-    const now = new Date();
-    return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
-  }, [saved.dateRange]);
+  const hydratedDates = useMemo(
+    () =>
+      hydrateSavedDateFilter(saved, {
+        defaultPreset: 'current-year',
+      }),
+    [saved],
+  );
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    defaultDateRange,
+    hydratedDates.dateRange,
   );
   const [presetValue, setPresetValue] = useState<string>(
-    saved.presetValue ?? 'current-year',
+    hydratedDates.presetValue,
   );
   const [selectedAccount, setSelectedAccount] = useState<number | null>(
     saved.accountId ?? null,
